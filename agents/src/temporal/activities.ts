@@ -280,7 +280,10 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
     timeoutMs: 15_000,
     inputSchema: {
       type: "object",
-      properties: { status: { type: "string", enum: ["APPROVED", "PENDING", "REJECTED", "DISABLED"] } },
+      properties: {
+        status: { type: "string", enum: ["APPROVED", "PENDING", "REJECTED", "DISABLED"] },
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+      },
       additionalProperties: false,
     },
     outputSchema: { type: "object", required: ["templates"], additionalProperties: false },
@@ -298,6 +301,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
       return coreClient.listTemplates(
         context,
         typeof args.status === "string" ? args.status as "APPROVED" | "PENDING" | "REJECTED" | "DISABLED" : undefined,
+        typeof args.limit === "number" ? args.limit : undefined,
       );
     },
   });

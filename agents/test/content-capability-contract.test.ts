@@ -25,6 +25,9 @@ describe("content capability contract", () => {
     expect(registry.validateArguments("kasitek.core.workspace_report", {})).toBe(true);
     expect(registry.validateArguments("kasitek.core.workspace_report", { limit: 10 })).toBe(false);
 
+    expect(registry.validateArguments("kasitek.core.templates_list", { limit: 200 })).toBe(true);
+    expect(registry.validateArguments("kasitek.core.templates_list", { limit: 201 })).toBe(false);
+
     const contactUpdate = registry.get("kasitek.core.contact_update");
     expect(contactUpdate?.manifest).toMatchObject({
       ownerService: "kasitek-core",

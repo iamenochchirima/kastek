@@ -395,6 +395,11 @@ List the current KasiTek workspace's WhatsApp templates and approval status.
         "REJECTED",
         "DISABLED"
       ]
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200
     }
   },
   "additionalProperties": false

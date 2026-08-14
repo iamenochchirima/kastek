@@ -316,13 +316,37 @@ pub async fn list_templates(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
     req: HttpRequest,
-    query: web::Query<WhatsappTemplateListQuery>,
+    query: web::Query<AgentTemplateListQuery>,
 ) -> Result<HttpResponse, AppError> {
     let (organization_id, _) =
         require_internal_agent(config.get_ref(), &req, "kasitek.core.templates_list").await?;
-    let templates =
-        whatsapp::list_templates(pool.get_ref(), &organization_id, query.into_inner()).await?;
-    Ok(HttpResponse::Ok().json(templates))
+    let query = query.into_inner();
+    let limit = bounded_agent_template_limit(query.limit)?;
+    let templates = whatsapp::list_templates(
+        pool.get_ref(),
+        &organization_id,
+        WhatsappTemplateListQuery {
+            status: query.status,
+        },
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(bound_collection_payload(templates, "templates", limit)?))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AgentTemplateListQuery {
+    pub status: Option<String>,
+    pub limit: Option<i64>,
+}
+
+fn bounded_agent_template_limit(value: Option<i64>) -> Result<usize, AppError> {
+    match value {
+        None => Ok(100),
+        Some(value) if (1..=200).contains(&value) => Ok(value as usize),
+        Some(_) => Err(AppError::BadRequest(
+            "limit must be between 1 and 200".to_string(),
+        )),
+    }
 }
 
 /// List the organisation's WhatsApp contacts through the same scoped query
@@ -746,7 +770,7 @@ pub async fn deliver_channel_message(
 
 #[cfg(test)]
 mod tests {
-    use super::{bounded_agent_contact_limit, AgentCollectionQuery};
+    use super::{bounded_agent_contact_limit, bounded_agent_template_limit, AgentCollectionQuery};
 
     #[test]
     fn agent_collection_limits_are_bounded_without_silent_clamping() {
@@ -777,5 +801,14 @@ mod tests {
         assert!(bounded_agent_contact_limit(Some(0)).is_err());
         assert!(bounded_agent_contact_limit(Some(201)).is_err());
         assert!(bounded_agent_contact_limit(Some(-1)).is_err());
+    }
+
+    #[test]
+    fn agent_template_limits_are_bounded_without_silent_clamping() {
+        assert_eq!(bounded_agent_template_limit(None).unwrap(), 100);
+        assert_eq!(bounded_agent_template_limit(Some(200)).unwrap(), 200);
+        assert!(bounded_agent_template_limit(Some(0)).is_err());
+        assert!(bounded_agent_template_limit(Some(201)).is_err());
+        assert!(bounded_agent_template_limit(Some(-1)).is_err());
     }
 }

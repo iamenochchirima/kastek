@@ -81,6 +81,8 @@ export interface CoreCampaignSummary {
 
 export interface CoreTemplates {
   templates: unknown[];
+  total?: number;
+  hasMore?: boolean;
 }
 
 export interface CoreContacts {
@@ -272,8 +274,12 @@ export class KasitekCoreReadClient {
   public async listTemplates(
     context: ToolInvocationContext,
     status?: "APPROVED" | "PENDING" | "REJECTED" | "DISABLED",
+    limit?: number,
   ): Promise<CoreTemplates> {
-    const suffix = status ? `?status=${encodeURIComponent(status)}` : "";
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (limit !== undefined) params.set("limit", String(limit));
+    const suffix = params.toString() ? `?${params.toString()}` : "";
     return this.getJson<CoreTemplates>(
       context,
       `/api/internal/agents/v1/templates${suffix}`,

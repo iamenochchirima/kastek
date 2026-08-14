@@ -169,6 +169,14 @@ describe("kasitek-core read boundary", () => {
     expect(fetchMock).toHaveBeenCalledWith("https://core.example.test/api/internal/agents/v1/templates?status=APPROVED", expect.any(Object));
   });
 
+  it("passes a bounded template projection limit", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ templates: [], total: 3, hasMore: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+    await expect(new KasitekCoreReadClient(config).listTemplates(context, "APPROVED", 25)).resolves.toMatchObject({ total: 3, hasMore: true });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://core.example.test/api/internal/agents/v1/templates?status=APPROVED&limit=25");
+  });
+
   it("reads filtered contacts through the organization-scoped capability", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ contacts: [{ id: "contact-1" }], totalContacts: 1 }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
