@@ -13,6 +13,34 @@ const context = {
 describe("content capability contract", () => {
   const registry = createDefaultTools();
 
+  it("exposes booking detail and channel delivery with explicit read/effect contracts", () => {
+    const booking = registry.get("kasitek.core.booking_get");
+    expect(booking?.manifest).toMatchObject({
+      ownerService: "kasitek-core",
+      requiredScope: "bookings.read",
+      resourceSelector: { type: "booking", argument: "bookingId" },
+      execution: "immediate",
+      approval: "none",
+    });
+    expect(registry.validateArguments("kasitek.core.booking_get", { bookingId: "booking-1" })).toBe(true);
+    expect(registry.validateArguments("kasitek.core.booking_get", {})).toBe(false);
+
+    const channel = registry.get("kasitek.core.channel_deliver");
+    expect(channel?.manifest).toMatchObject({
+      ownerService: "kasitek-core",
+      requiredScope: "channels.write",
+      resourceSelector: { type: "conversation", argument: "externalConversationId" },
+      execution: "durable",
+      idempotency: "required",
+      approval: "always",
+    });
+    expect(channel?.riskClass).toBe("external-effect");
+    expect(channel?.requiresApproval).toBe(true);
+    expect(registry.validateArguments("kasitek.core.channel_deliver", { channelType: "whatsapp", externalConversationId: "conversation-1", text: "Hello" })).toBe(true);
+    expect(registry.validateArguments("kasitek.core.channel_deliver", { channelType: "telegram", externalConversationId: "conversation-1", text: "Hello" })).toBe(false);
+    expect(registry.validateArguments("kasitek.core.channel_deliver", { channelType: "whatsapp", externalConversationId: "conversation-1", text: "" })).toBe(false);
+  });
+
   it("keeps every content capability owned, scoped, redacted, and classified", () => {
     const manifests = registry.manifests().filter((manifest) => manifest.name.startsWith("kasitek.core.content_"));
     expect(manifests.map((manifest) => manifest.name)).toEqual([

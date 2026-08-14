@@ -154,6 +154,35 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
     },
   });
   tools.register({
+    name: "kasitek.core.booking_get",
+    version: "1.0.0",
+    description: "Read one organization-scoped booking with safe customer and scheduling details.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 15_000,
+    inputSchema: {
+      type: "object",
+      properties: { bookingId: { type: "string", minLength: 1, maxLength: 160 } },
+      required: ["bookingId"],
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object", required: ["booking"], additionalProperties: true },
+    manifest: {
+      ownerService: "kasitek-core",
+      requiredScope: "bookings.read",
+      resourceSelector: { type: "booking", argument: "bookingId" },
+      execution: "immediate",
+      idempotency: "not_applicable",
+      approval: "none",
+      auditClassification: "restricted",
+      redaction: ["booking.contactPhone", "booking.notes"],
+    },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
+      return coreClient.getBooking(context, String(args.bookingId));
+    },
+  });
+  tools.register({
     name: "kasitek.core.campaigns_list",
     version: "1.0.0",
     description: "List the current KasiTek workspace's WhatsApp campaign status and delivery metrics.",
@@ -328,6 +357,56 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
     handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
       return coreClient.listInboxMessages(context, String(args.conversationId));
+    },
+  });
+  tools.register({
+    name: "kasitek.core.channel_deliver",
+    version: "1.0.0",
+    description: "Send an approved reply to an organization-scoped WhatsApp conversation.",
+    riskClass: "external-effect",
+    requiresApproval: true,
+    timeoutMs: 60_000,
+    inputSchema: {
+      type: "object",
+      properties: {
+        channelType: { type: "string", enum: ["whatsapp"] },
+        externalConversationId: { type: "string", minLength: 1, maxLength: 240 },
+        text: { type: "string", minLength: 1, maxLength: 20_000 },
+      },
+      required: ["channelType", "externalConversationId", "text"],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: "object",
+      properties: {
+        providerMessageId: { type: "string" },
+        status: { type: "string", enum: ["sent", "unknown"] },
+      },
+      required: ["status"],
+      additionalProperties: false,
+    },
+    manifest: {
+      ownerService: "kasitek-core",
+      requiredScope: "channels.write",
+      resourceSelector: { type: "conversation", argument: "externalConversationId" },
+      execution: "durable",
+      idempotency: "required",
+      approval: "always",
+      auditClassification: "full",
+      redaction: ["text", "externalConversationId", "providerMessageId"],
+    },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
+      return coreClient.deliverChannelMessage({
+        organizationId: context.organizationId,
+        installationId: context.installationId,
+        actorId: context.actorId ?? "kasitek-agent-platform",
+        runId: context.runId,
+        correlationId: context.correlationId,
+        channelType: String(args.channelType),
+        externalConversationId: String(args.externalConversationId),
+        text: String(args.text),
+      });
     },
   });
   tools.register({

@@ -90,6 +90,27 @@ describe("kasitek-core read boundary", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe("https://core.example.test/api/internal/agents/v1/bookings/booking%2F1");
   });
 
+  it("delivers an approved channel message through the idempotent core boundary", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ providerMessageId: "wamid-1", status: "sent" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+    await expect(new KasitekCoreReadClient(config).deliverChannelMessage({
+      organizationId: context.organizationId,
+      installationId: context.installationId,
+      actorId: context.actorId,
+      runId: context.runId,
+      correlationId: context.correlationId,
+      channelType: "whatsapp",
+      externalConversationId: "conversation-1",
+      text: "Hello from the approved agent",
+    })).resolves.toEqual({ providerMessageId: "wamid-1", status: "sent" });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://core.example.test/api/internal/agents/v1/channels/deliver");
+    expect(init.method).toBe("POST");
+    expect(init.headers).toMatchObject({ "idempotency-key": expect.any(String), "x-actor-id": "user-1" });
+    expect(JSON.parse(String(init.body))).toEqual({ channelType: "whatsapp", externalConversationId: "conversation-1", text: "Hello from the approved agent" });
+  });
+
   it("reads campaign inventory and a scoped campaign summary", async () => {
     const fetchMock = vi.fn().mockImplementation((input: string) => new Response(
       JSON.stringify(input.includes("/campaigns/") ? { campaign: { id: "campaign-1", status: "COMPLETED" } } : { campaigns: [{ id: "campaign-1" }] }),

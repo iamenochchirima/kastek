@@ -182,6 +182,47 @@ List the current KasiTek workspace's upcoming and historical bookings.
   "additionalProperties": false
 }
 ```
+## kasitek.core.booking_get (1.0.0)
+
+Read one organization-scoped booking with safe customer and scheduling details.
+
+- Owner: `kasitek-core`
+- Permission: `bookings.read` (Bookings Read permission)
+- Risk: `read`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 15000ms
+- Resource scope: `booking`
+- Audit: `restricted`; redacts: `booking.contactPhone`, `booking.notes`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "bookingId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    }
+  },
+  "required": [
+    "bookingId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "required": [
+    "booking"
+  ],
+  "additionalProperties": true
+}
+```
 ## kasitek.core.campaigns_list (1.0.0)
 
 List the current KasiTek workspace's WhatsApp campaign status and delivery metrics.
@@ -432,6 +473,72 @@ Read the organization-scoped message timeline for one inbox conversation.
     "messages"
   ],
   "additionalProperties": true
+}
+```
+## kasitek.core.channel_deliver (1.0.0)
+
+Send an approved reply to an organization-scoped WhatsApp conversation.
+
+- Owner: `kasitek-core`
+- Permission: `channels.write` (Channels Write permission)
+- Risk: `external-effect`; execution: `durable`; approval: `always`
+- Idempotency: `required`; timeout: 60000ms
+- Resource scope: `conversation`
+- Audit: `full`; redacts: `text`, `externalConversationId`, `providerMessageId`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "channelType": {
+      "type": "string",
+      "enum": [
+        "whatsapp"
+      ]
+    },
+    "externalConversationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    }
+  },
+  "required": [
+    "channelType",
+    "externalConversationId",
+    "text"
+  ],
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "providerMessageId": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "sent",
+        "unknown"
+      ]
+    }
+  },
+  "required": [
+    "status"
+  ],
+  "additionalProperties": false
 }
 ```
 ## kasitek.core.content_posts_list (1.0.0)
