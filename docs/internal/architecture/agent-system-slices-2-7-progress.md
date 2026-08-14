@@ -95,7 +95,7 @@ marked when the complete deliverable and its verification exist.
 ## Verification evidence
 
 On 2026-08-14, Agent Platform migrations through `035` applied to the local Agent PostgreSQL
-database. With an isolated local Temporal dev server, the complete suite passed 57 files / 241
+database. With an isolated local Temporal dev server, the complete suite passed 57 files / 243
 tests / 0 skips in the latest local run, and `pnpm --dir agents build` passed. Hosted-agent boundary
 integration now covers organization-scoped lifecycle, grants, schedules, and workflow validation.
 The hosted boundary regression now also locks the installation while accepting runs and rejects a
@@ -398,6 +398,10 @@ sequence values. The focused SSE suite passes three unit tests plus a real HTTP
 disconnect/reconnect regression in `agents/test/sse.integration.test.ts`; request abort, socket /
 response close, and stream error now stop the polling timer. Provider recovery remains a separate
 gate.
+
+Telegram and Discord adapters now normalize provider attachments into bounded canonical IDs, MIME
+types, filenames, and captions while excluding temporary provider URLs; four adapter contract tests
+cover text, document/photo, attachment, and connector-unavailable paths.
 
 ## Remaining work
 
