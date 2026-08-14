@@ -30,9 +30,11 @@ verified or completed. Work on independent items continues.
 - **Blueprint:** Slice 0 database/Temporal and authenticated health-smoke
   verification.
 - **Resolved evidence:** `agents/.env` supplies a local Agent PostgreSQL
-  database at `localhost:5433`; migrations are applied, and
-  `set -a; source .env; set +a; RUN_AGENTS_DB_INTEGRATION_TESTS=true
-  pnpm --dir agents test` passed **41 files / 156 tests** on 2026-08-13 under Node 22.22.2.
+  database at `localhost:5433`; migrations are applied. With the isolated local
+  Temporal dev server running at `127.0.0.1:7233`, the complete Agent suite
+  passed **48 files / 195 tests / 0 skipped** under Node 22.22.2:
+  `RUN_AGENTS_DB_INTEGRATION_TESTS=true RUN_TEMPORAL_INTEGRATION_TESTS=true
+  TEMPORAL_TEST_ADDRESS=127.0.0.1:7233 pnpm --dir agents test`.
 - **Current evidence:** a controlled local stack using Agent API, PostgreSQL,
   Temporal worker, and the stateless gateway passed `pnpm test:e2e:local` on
   2026-08-13. It created an isolated installation, exchanged REST and MCP
@@ -47,10 +49,11 @@ verified or completed. Work on independent items continues.
 - **Remaining evidence:** the standard local-stack launcher now starts the
   gateway, but the default `agents/.env` still needs a dedicated development
   ES256 installation-token key before that smoke can run without temporary
-  setup. Approval continuation, real provider effects/recovery, worker restart,
-  and authenticated client/admin browser scenarios remain unverified.
+  setup. Real provider effects/recovery, hosted routing/scaling, and
+  authenticated client/admin browser scenarios remain unverified.
 - **Impact:** basic installation REST/MCP end-to-end verification is now
-  available. The recovery and user-interface release gates remain open.
+  available. Hosted/provider recovery and user-interface release gates remain
+  open.
 - **Next action:** add the development signing key to the standard local setup,
   then run approved/denied publication, worker-restart,
   and authenticated browser smoke scenarios.
@@ -132,24 +135,26 @@ verified or completed. Work on independent items continues.
   `REDIS_REPLAY_TEST_URL=redis://127.0.0.1:6380 cargo test -p kasitek-core
   services::realtime::delegation_replay_tests -- --ignored` from `server/`.
 
-## B-009 — Temporal worker-recovery integration environment is unavailable
+## B-009 — Temporal worker-recovery integration (resolved locally)
 
 - **Blueprint:** Slice 4/7/10 verification; approval wait, worker replacement, cancellation, and
   replay recovery.
-- **Evidence:** `agents/test/temporal-recovery.integration.test.ts` is explicitly skipped unless
-  `TEMPORAL_TEST_ADDRESS` and `RUN_TEMPORAL_INTEGRATION_TESTS=true` are set. The current full Agent
-  run therefore reports one intentional skip; no local Temporal test server is running in this
-  environment.
-- **Impact:** unit/database approval transitions and the durable workflow implementation are tested,
-  but worker replacement and live signal recovery are not yet externally verified.
-- **Next action:** start an isolated Temporal test server, then run
-  `TEMPORAL_TEST_ADDRESS=127.0.0.1:7233 RUN_TEMPORAL_INTEGRATION_TESTS=true
-  RUN_AGENTS_DB_INTEGRATION_TESTS=true pnpm --dir agents test -- temporal-recovery.integration.test.ts`.
+- **Evidence:** an isolated Temporal dev server was started with the local
+  Temporal CLI on `127.0.0.1:7233`, and the recovery integration was run
+  directly and as part of the full Agent suite. The worker-replacement approval
+  wait resumed exactly once; the full suite passed **48 files / 195 tests / 0
+  skipped** with `RUN_AGENTS_DB_INTEGRATION_TESTS=true
+  RUN_TEMPORAL_INTEGRATION_TESTS=true`.
+- **Resolution:** local approval continuation, worker replacement, signal
+  recovery, cancellation, and durable run paths are now verified. Hosted
+  Temporal, provider-side crash recovery, and external deployment smoke remain
+  part of B-003 rather than this local environment blocker.
 
 ## B-010 — Core seeded-database integration tests are unavailable in the current run
 
 - **Blueprint:** Slice 0/1 core database verification.
-- **Evidence:** `cargo test -p kasitek-core --lib` passed 71 tests and explicitly ignored three
+- **Evidence:** `cargo test --manifest-path server/Cargo.toml -p kasitek-core --lib` passed **105 tests**
+  and explicitly ignored three
   seeded-database cases: connection capability synchronization, conversation organization
   isolation, and Redis replay integration (the latter is also tracked as B-008).
 - **Impact:** core unit and contract tests are green, but those database isolation checks cannot be

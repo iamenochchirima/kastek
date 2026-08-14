@@ -694,7 +694,7 @@ limits, full Streamable HTTP lifecycle, and hosted smoke remain open.
   unchecked checklist item. Current entries are limited to unavailable infrastructure or explicit
   product/security policy decisions.
 - [x] Recount checked and unchecked primary-blueprint items and record the count in the handoff.
-  The current count is 139 checked / 85 unchecked of 224 in
+  The current count is 152 checked / 72 unchecked of 224 in
   `docs/internal/architecture/agent-system-slices-2-7-progress.md`.
 - [ ] Add evidence to primary-blueprint items only when their full deliverable and verification gate
   pass.
@@ -728,8 +728,11 @@ runtime verification.
 - [ ] Apply the new migrations from every supported previous schema baseline.
 - [x] Run all Agent integration tests with zero unexpected skips.
 - [ ] Run relevant core database integration tests with zero unexpected ignores.
-- [ ] Run Temporal approval, retry, worker-restart, crash-after-provider-call, cancellation, and replay
-  recovery tests.
+- [ ] Run the complete Temporal approval, retry, worker-restart, crash-after-provider-call,
+  cancellation, and replay recovery matrix. Local approval continuation, worker replacement,
+  signal recovery, cancellation, and durable-run coverage now pass in the full Agent suite
+  (48 files / 195 tests / 0 skipped) against isolated Temporal; provider crash and Redis replay
+  recovery remain open.
 - [ ] Run MCP authentication, protocol, filtering, approval, cancellation, idempotency, isolation,
   and parity tests through the separate gateway.
 - [ ] Run REST/OpenAPI authentication, authorization, rate, metering, idempotency, and conformance
@@ -760,8 +763,9 @@ runtime verification.
   command changed it as an artifact. The Node 22 production builds changed only tracked Prisma
   whitespace; the generated directory was restored after verification.
 - [x] Record every skipped/ignored test with an explicit blocker; do not summarize a suite as fully
-  passing while required integration tests are skipped. Agent Temporal recovery is B-009, core
-  seeded-database/Redis ignores are B-008/B-010, and the evidence documents the exact commands.
+  passing while required integration tests are skipped. Agent Temporal recovery is locally resolved
+  (195 tests / 0 skips); core seeded-database/Redis ignores remain B-008/B-010, and the evidence
+  documents the exact commands.
 
 ## 15. Resume the primary blueprint after remediation
 

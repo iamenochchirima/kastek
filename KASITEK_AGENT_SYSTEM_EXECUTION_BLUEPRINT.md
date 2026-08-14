@@ -276,11 +276,12 @@ provider coupling does not complete the reorganization.
 
 The checked items below were reconciled against the current repository, migrations, focused tests,
 and the commits listed in `docs/internal/architecture/agent-system-slices-2-7-progress.md`.
-The Agent Platform database suite passed locally with 39 files / 113 tests, and the Agent build and
-core format/check/library tests passed. A checked implementation item does **not** assert that its
-slice completion gate or production-release verification has passed.
+The Agent Platform suite now passes 48 files / 195 tests / 0 skips against isolated PostgreSQL and
+local Temporal, and the Agent build and core format/check/library tests pass. A checked
+implementation item does **not** assert that its slice completion gate or production-release
+verification has passed.
 
-At this reconciliation point, 148 of 224 implementation/verification items are checked. The count
+At this reconciliation point, 152 of 224 implementation/verification items are checked. The count
 is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -309,10 +310,13 @@ and `BLOCKERS.md`; they must not be converted to checked items merely because a 
 [`docs/internal/architecture/agent-system-slice-0-baseline.md`](docs/internal/architecture/agent-system-slice-0-baseline.md).
 Pending environment and pre-existing frontend verification gaps are tracked in [`BLOCKERS.md`](BLOCKERS.md).
 
-**Reconciliation evidence:** Agent migrations `027`–`032` applied locally and
-`RUN_AGENTS_DB_INTEGRATION_TESTS=true pnpm test` passed 39 files / 113 tests; `pnpm build` passed.
-`cargo fmt --check`, `cargo check -p kasitek-core`, and `cargo test -p kasitek-core --lib` passed.
-Temporal recovery and authenticated browser smoke remain open in `BLOCKERS.md`.
+**Reconciliation evidence:** Agent migrations `027`–`035` applied locally and the complete Agent
+suite passed 48 files / 195 tests / 0 skipped with PostgreSQL and an isolated Temporal dev server
+(`RUN_AGENTS_DB_INTEGRATION_TESTS=true RUN_TEMPORAL_INTEGRATION_TESTS=true`). `pnpm build` passed;
+`cargo fmt --check`, `cargo check -p kasitek-core`, and `cargo test -p kasitek-core --lib` passed
+105 tests with three explicitly ignored seeded/infrastructure cases. Local Temporal recovery is
+verified; authenticated browser, provider, hosted, Redis, and seeded-core gates remain open in
+`BLOCKERS.md`.
 
 ### Verification
 
@@ -857,9 +861,9 @@ REST where permitted, and equivalent operations share business behavior without 
 - [ ] Run a complete template scenario from creation through test, publish, channel/connector use,
   approval, effect, activity, and rollback.
 - [x] Run Agent Platform/core/client suites, typechecks, lint/format, and production builds. Current
-  verification: Agent suite 156 passed with 24 environment-gated integration skips, Agent build and
-  client typecheck/lint/production build pass, and `kasitek-core` format/check/unit suite is green
-  (95 passed, 3 seeded/infrastructure skips).
+  verification: Agent suite 195 passed with zero skips against isolated PostgreSQL and local
+  Temporal, Agent build and client typecheck/lint/production build pass, and `kasitek-core`
+  format/check/unit suite is green (105 passed, 3 seeded/infrastructure ignores).
 
 **Complete when:** a user can create, test, publish, observe, pause, update, and roll back a hosted
 agent that safely combines KasiTek capabilities with approved external services.
@@ -1079,8 +1083,8 @@ pnpm build:admin
 ```
 
 `agents` uses `tsc` for its build/typecheck. The Next.js production builds perform application
-type validation. Database, Temporal, browser, and provider tests remain separate required gates
-because the basic commands above cannot prove those integrations.
+type validation. Browser, provider, hosted, Redis, and seeded-core tests remain separate required
+gates because the basic commands above cannot prove those integrations.
 
 - [x] Agent Platform unit tests pass.
 - [x] Agent Platform database/integration tests pass against an isolated test database.
@@ -1090,7 +1094,8 @@ because the basic commands above cannot prove those integrations.
 - [ ] Direct client lint, typecheck, component tests, and production build pass.
 - [ ] Admin client lint, typecheck, component tests, and production build pass.
 - [ ] Relevant migrations apply from a clean database and from the supported previous schema.
-- [ ] Relevant Temporal workflow/recovery tests pass.
+- [x] Relevant local Temporal workflow/recovery tests pass against an isolated dev server; hosted
+  Temporal and provider-side crash recovery remain separate release gates.
 - [ ] Relevant provider sandbox or live smoke tests pass without logging credentials.
 - [ ] Repository diff check, secret scan, and targeted security tests pass.
 
