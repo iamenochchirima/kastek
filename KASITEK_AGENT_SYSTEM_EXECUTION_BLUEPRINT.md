@@ -1154,7 +1154,13 @@ agent type from one consistent product area.
 
 - [ ] Add role, resource-scope, redaction, support-grant, expiry, dual-control, command idempotency,
   delegation, and immutable audit tests.
-- [ ] Add integration tests for core-to-agents operator reads/commands and projection rebuild/lag.
+- [x] Add integration tests for core-to-agents operator reads/commands and projection rebuild/lag.
+  Evidence: `server/kasitek-core/src/services/agent_platform.rs` now exercises every operator
+  read, command, projection, search, retention, and error path against a local HTTP boundary,
+  asserting platform scope, operator claims, correlation propagation, query encoding, command
+  bodies, and idempotency headers. `agents/test/operator-projections.integration.test.ts` verifies
+  monotonic rebuild revisions, notification acknowledgement, and a 90-second stale projection
+  appears in the lag projection. The full PostgreSQL + Temporal Agent matrix passes 249/249.
 - [ ] Add end-to-end admin tests for viewer, support, operator, security, admin, and owner roles.
 - [ ] Test organization isolation, secret absence, stale/degraded dependencies, retry/replay,
   cancellation, reconciliation, suspension, and every kill-switch level.
@@ -1269,7 +1275,7 @@ access-review evidence remain release gates, so the broad Slice 13 retention che
 explicit regression coverage for unknown resource types, bounded reasons, and the distinction between
 organization-wide grants and narrow run/conversation/customer grants. Migration and integration tests
 also prove that audit rows cannot be updated or deleted after insertion. `cargo test -p kasitek-core
---lib` passes 125 tests with three infrastructure-gated ignores; the full Agent PostgreSQL + Temporal
+--lib` passes 127 tests with three infrastructure-gated ignores; the full Agent PostgreSQL + Temporal
 matrix passes 58 files / 249 tests / 0 skips. These tests strengthen the local Slice 12 boundary but
 do not replace the still-open role/resource policy, core-to-Agent operator E2E, browser, provider, or
 hosted verification gates.

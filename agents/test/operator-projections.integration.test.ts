@@ -27,6 +27,17 @@ describe.skipIf(!runIntegration)("operator projections (integration)", () => {
     expect(second[0]?.revision).toBe(Number(first[0]?.revision) + 1);
     expect((await getOperatorProjection(pool, "summary")).revision).toBe(second[0]?.revision);
 
+    await pool.query("UPDATE agent_operator_projections SET updated_at = now() - interval '90 seconds' WHERE projection_key = 'summary'");
+    const lagged = await rebuildOperatorProjections(pool, ["projection_lag"]);
+    expect(lagged[0]?.payload).toEqual(expect.objectContaining({
+      projections: expect.arrayContaining([
+        expect.objectContaining({ projectionKey: "summary", ageSeconds: expect.any(Number) }),
+      ]),
+    }));
+    const summaryLag = ((lagged[0]?.payload as { projections: Array<{ projectionKey: string; ageSeconds: number }> }).projections)
+      .find((projection) => projection.projectionKey === "summary");
+    expect(summaryLag?.ageSeconds).toBeGreaterThanOrEqual(90);
+
     await pool.query("INSERT INTO agent_operator_notifications (event_key, severity, kind, title, body) VALUES ($1, 'warning', 'test', 'Projection test', 'Safe test notification')", [eventKey]);
     const listed = await listOperatorNotifications(pool);
     const notification = listed.find((entry) => entry.eventKey === eventKey);

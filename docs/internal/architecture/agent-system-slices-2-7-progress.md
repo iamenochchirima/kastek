@@ -120,7 +120,7 @@ Temporal worker-restart or hosted gateway proof.
 
 ## Current checkbox reconciliation
 
-The primary blueprint currently has **179 checked and 47 unchecked items out of 226**. This is a
+The primary blueprint currently has **180 checked and 46 unchecked items out of 226**. This is a
 progress count only; an unchecked item remains release work or an evidence-backed blocker.
 
 The external installation exchange now supports registered P-256 client keys. `a0521bb` adds
@@ -367,7 +367,7 @@ exports were retained because callers and parity tests still depend on them.
 
 The structural migration verification gate is now recorded as complete: every coherent backend
 slice in this run was followed by `cargo fmt --check`, `cargo check -p kasitek-core`, and
-`cargo test -p kasitek-core --lib`; the current result is 125 passed and 3 explicitly ignored
+`cargo test -p kasitek-core --lib`; the current result is 127 passed and 3 explicitly ignored
 infrastructure cases.
 
 The 2026-08-15 retention/operator regression pass adds hold-aware accounting to

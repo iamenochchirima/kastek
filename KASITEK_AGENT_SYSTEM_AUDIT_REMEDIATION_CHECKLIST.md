@@ -700,7 +700,7 @@ limits, full Streamable HTTP lifecycle, and hosted smoke remain open.
   unchecked checklist item. Current entries are limited to unavailable infrastructure or explicit
   product/security policy decisions.
 - [x] Recount checked and unchecked primary-blueprint items and record the count in the handoff.
-  The current count is 179 checked / 47 unchecked of 226 in
+  The current count is 180 checked / 46 unchecked of 226 in
   `KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md`.
 - [ ] Add evidence to primary-blueprint items only when their full deliverable and verification gate
   pass.
@@ -741,10 +741,17 @@ skippedByHold: 1`) rather than being reported as an unexplained zero. Core suppo
 also reject unknown resource types, unbounded reasons, organization grants carrying narrow resource
 IDs, and narrow grants without a resource ID. Migration `046_immutable_audit_records.sql` and the
 PostgreSQL retention integration also prove that audit rows reject UPDATE and DELETE attempts. The
-current Core library result is 125 passed / 3 infrastructure-gated ignores, and the complete Agent
+current Core library result is 127 passed / 3 infrastructure-gated ignores, and the complete Agent
 PostgreSQL + Temporal matrix is 58 files / 249 tests / 0 skips. These are bounded regression
 improvements; the role/resource policy, core-to-Agent operator E2E, browser, provider, hosted, and
 external protocol gates remain unchecked.
+
+The Core-to-Agent operator transport and projection-lag verification is now locally covered: the
+Core `AgentPlatformClient` contract test exercises all operator read/command/projection paths with
+scoped claims and correlation headers, while the PostgreSQL projection integration verifies monotonic
+rebuild revisions and stale-age reporting. This closes the corresponding primary blueprint
+verification item; role-policy, admin browser/E2E, hosted, provider, and external protocol gates
+remain open.
 
 The Core database path now also has a committed historical Prisma baseline and a repeatable seeded
 fixture. All 50 client migrations, six guarded Core SQL fixtures, and the two previously ignored

@@ -1881,6 +1881,117 @@ impl AgentPlatformClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+    use tokio::task::JoinHandle;
+
+    async fn mock_agent_server(
+        responses: Vec<(u16, &'static str)>,
+    ) -> (String, JoinHandle<Vec<String>>) {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let handle = tokio::spawn(async move {
+            let mut requests = Vec::with_capacity(responses.len());
+            for (status, body) in responses {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut bytes = Vec::new();
+                loop {
+                    let mut chunk = [0_u8; 4096];
+                    let read = stream.read(&mut chunk).await.unwrap();
+                    if read == 0 {
+                        break;
+                    }
+                    bytes.extend_from_slice(&chunk[..read]);
+                    let Some(header_end) =
+                        bytes.windows(4).position(|window| window == b"\r\n\r\n")
+                    else {
+                        continue;
+                    };
+                    let headers = String::from_utf8_lossy(&bytes[..header_end]);
+                    let content_length = headers
+                        .lines()
+                        .find_map(|line| {
+                            line.split_once(':').and_then(|(name, value)| {
+                                name.eq_ignore_ascii_case("content-length")
+                                    .then(|| value.trim().parse::<usize>().ok())
+                                    .flatten()
+                            })
+                        })
+                        .unwrap_or(0);
+                    if bytes.len() >= header_end + 4 + content_length {
+                        break;
+                    }
+                }
+                requests.push(String::from_utf8(bytes).unwrap());
+                let reason = match status {
+                    200 => "OK",
+                    403 => "Forbidden",
+                    _ => "Error",
+                };
+                let response = format!(
+                    "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                stream.write_all(response.as_bytes()).await.unwrap();
+                stream.shutdown().await.unwrap();
+            }
+            requests
+        });
+        (format!("http://{address}"), handle)
+    }
+
+    fn test_client(base_url: &str) -> AgentPlatformClient {
+        AgentPlatformClient {
+            client: Client::new(),
+            base_url: base_url.to_string(),
+            secret: "test-secret".to_string(),
+            audience: "kasitek-agents".to_string(),
+            timeout: Duration::from_secs(2),
+        }
+    }
+
+    fn request_header(request: &str, name: &str) -> Option<String> {
+        request.lines().find_map(|line| {
+            line.split_once(':').and_then(|(key, value)| {
+                key.eq_ignore_ascii_case(name)
+                    .then(|| value.trim().to_string())
+            })
+        })
+    }
+
+    fn request_body(request: &str) -> &str {
+        request
+            .split_once("\r\n\r\n")
+            .map(|(_, body)| body)
+            .unwrap_or("")
+    }
+
+    fn assert_operator_request(request: &str, expected_scope: &str) {
+        assert_eq!(
+            request_header(request, "x-organization-id").as_deref(),
+            Some("platform")
+        );
+        assert_eq!(
+            request_header(request, "x-kasitek-operator").as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            request_header(request, "x-actor-id").as_deref(),
+            Some("operator-1")
+        );
+        let correlation_id = request_header(request, "x-correlation-id").unwrap();
+        let authorization = request_header(request, "authorization").unwrap();
+        let token = authorization.strip_prefix("Bearer ").unwrap();
+        let payload = token.split('.').next().unwrap();
+        let claims: Value =
+            serde_json::from_slice(&URL_SAFE_NO_PAD.decode(payload).unwrap()).unwrap();
+        assert_eq!(claims["organizationId"], "platform");
+        assert_eq!(claims["actorId"], "operator-1");
+        assert_eq!(claims["audience"], "kasitek-agents");
+        assert_eq!(claims["operator"], true);
+        assert_eq!(claims["scopes"], json!([expected_scope]));
+        assert_eq!(claims["correlationId"], correlation_id);
+    }
 
     #[test]
     fn internal_claims_use_the_agents_wire_format() {
@@ -1904,5 +2015,146 @@ mod tests {
         );
         assert_eq!(value["scopes"][0], "chat:write");
         assert!(value.get("operator").is_none());
+    }
+
+    #[tokio::test]
+    async fn operator_reads_and_commands_use_the_scoped_core_to_agent_boundary() {
+        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 18]).await;
+        let client = test_client(&base_url);
+
+        client.operator_summary("operator-1").await.unwrap();
+        client.operator_runs("operator-1", Some(25)).await.unwrap();
+        client
+            .operator_exports("operator-1", Some(25))
+            .await
+            .unwrap();
+        client
+            .operator_kill_switches("operator-1", Some(25))
+            .await
+            .unwrap();
+        client
+            .operator_feature_flags("operator-1", Some(25))
+            .await
+            .unwrap();
+        client.operator_holds("operator-1", Some(25)).await.unwrap();
+        client
+            .operator_retention_policies("operator-1", Some(25))
+            .await
+            .unwrap();
+        client
+            .operator_legal_holds("operator-1", Some(25))
+            .await
+            .unwrap();
+        client
+            .operator_retention_preview("operator-1", "org/a?")
+            .await
+            .unwrap();
+        client.operator_health("operator-1").await.unwrap();
+        client
+            .operator_effects_reconciliation("operator-1", Some(10))
+            .await
+            .unwrap();
+        client
+            .operator_audit(
+                "operator-1",
+                Some("operator command"),
+                Some("run"),
+                Some(10),
+            )
+            .await
+            .unwrap();
+        client
+            .operator_search("operator-1", "foo bar", Some(5))
+            .await
+            .unwrap();
+        client
+            .operator_projection("operator-1", "health")
+            .await
+            .unwrap();
+        client
+            .operator_get_command("operator-1", "cmd/1")
+            .await
+            .unwrap();
+        client
+            .operator_create_command(
+                "operator-1",
+                "operator-command-1",
+                json!({ "commandType": "cancel_run", "targetId": "run-1" }),
+            )
+            .await
+            .unwrap();
+        client
+            .operator_approve_command("operator-1", "cmd/1")
+            .await
+            .unwrap();
+        client
+            .operator_rebuild_projections("operator-1", json!({ "keys": ["summary"] }))
+            .await
+            .unwrap();
+
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 18);
+        let expected_paths = [
+            "GET /v1/operator/summary HTTP/1.1",
+            "GET /v1/operator/runs?limit=25 HTTP/1.1",
+            "GET /v1/operator/exports?limit=25 HTTP/1.1",
+            "GET /v1/operator/kill-switches?limit=25 HTTP/1.1",
+            "GET /v1/operator/feature-flags?limit=25 HTTP/1.1",
+            "GET /v1/operator/holds?limit=25 HTTP/1.1",
+            "GET /v1/operator/retention/policies?limit=25 HTTP/1.1",
+            "GET /v1/operator/retention/legal-holds?limit=25 HTTP/1.1",
+            "GET /v1/operator/retention/preview/org%2Fa%3F HTTP/1.1",
+            "GET /v1/operator/health HTTP/1.1",
+            "GET /v1/operator/effects/reconciliation?limit=10 HTTP/1.1",
+            "GET /v1/operator/audit?action=operator%20command&resourceType=run&limit=10 HTTP/1.1",
+            "GET /v1/operator/search?q=foo%20bar&limit=5 HTTP/1.1",
+            "GET /v1/operator/projections/health HTTP/1.1",
+            "GET /v1/operator/commands/cmd%2F1 HTTP/1.1",
+            "POST /v1/operator/commands HTTP/1.1",
+            "POST /v1/operator/commands/cmd%2F1/approve HTTP/1.1",
+            "POST /v1/operator/projections/rebuild HTTP/1.1",
+        ];
+        for (request, expected_path) in requests.iter().zip(expected_paths) {
+            assert!(
+                request.starts_with(expected_path),
+                "unexpected request: {request}"
+            );
+        }
+        for request in requests.iter().take(15) {
+            assert_operator_request(request, "operator:read");
+        }
+        for request in requests.iter().skip(15) {
+            assert_operator_request(request, "operator:write");
+        }
+        assert_eq!(
+            request_header(&requests[15], "idempotency-key").as_deref(),
+            Some("operator-command-1")
+        );
+        assert_eq!(
+            request_body(&requests[15]),
+            r#"{"commandType":"cancel_run","targetId":"run-1"}"#
+        );
+        assert_eq!(request_body(&requests[16]), "{}");
+        assert_eq!(request_body(&requests[17]), r#"{"keys":["summary"]}"#);
+    }
+
+    #[tokio::test]
+    async fn operator_client_maps_upstream_errors_and_invalid_json() {
+        let (base_url, server) = mock_agent_server(vec![
+            (403, r#"{"error":"operator denied"}"#),
+            (200, "not-json"),
+        ])
+        .await;
+        let client = test_client(&base_url);
+
+        assert!(matches!(
+            client.operator_summary("operator-1").await,
+            Err(AppError::Forbidden(message)) if message == "operator denied"
+        ));
+        assert!(matches!(
+            client.operator_health("operator-1").await,
+            Err(AppError::BadGateway(message)) if message == "Agent Platform returned an invalid response"
+        ));
+        server.await.unwrap();
     }
 }
