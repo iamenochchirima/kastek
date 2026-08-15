@@ -301,8 +301,11 @@ and `BLOCKERS.md`; they must not be converted to checked items merely because a 
   completed architecture.
 - [x] Confirm legacy `/api/bots` and old provisioning paths remain absent and no fallback or
   dual-write path is active.
-- [ ] Confirm local development starts the core, client, Agent API, Temporal worker, databases, and
-  required realtime services with documented health checks.
+- [x] Confirm local development starts the core, client, Agent API, Temporal worker, databases, and
+  required realtime services with documented health checks. Follow-up evidence in
+  `docs/internal/architecture/agent-system-slice-0-baseline.md` records the isolated and standard
+  local stack starts, health/readiness checks, and authenticated Agent/gateway smoke paths; hosted,
+  provider, browser, and Redis gates remain separate.
 - [x] Create or update ADRs for any settled architecture decision not represented in code/docs.
 - [x] Establish a short evidence format for completed slices: migration/API/test/command/commit.
 
@@ -840,12 +843,13 @@ real capabilities, preserves independent chats, and never invents platform featu
 
 ### Verification
 
-- [ ] Add MCP protocol, authentication, discovery filtering, cancellation, error, instance-isolation,
+- [x] Add MCP protocol, authentication, discovery filtering, cancellation, error, instance-isolation,
   stateless scaling, and Agent Platform adapter tests. Focused coverage now includes the Agent API
   and gateway HTTP matrices, protocol notifications/cancellation, structured errors, token claim
   ownership checks, MCP/REST acceptance parity, gateway replica behavior, and the stdio bridge
-  (`8dfa645`, `187b427`, `773b250`, `1efd1bb`); full external-client and live infrastructure proof
-  remains open.
+  (`8dfa645`, `187b427`, `773b250`, `1efd1bb`). The full local Agent suite now passes 59 files /
+  255 tests with PostgreSQL and isolated Temporal, while real Codex/Claude/generic-client and hosted
+  gateway proof remain separate unchecked gates.
 - [x] Add focused gateway tests for rate limiting, protocol negotiation, transport disable, bounded
   lifecycle methods, and upstream header propagation.
 - [x] Add gateway readiness against the Agent API, correlation-id propagation, and redacted
@@ -1168,18 +1172,25 @@ agent type from one consistent product area.
 
 ### Verification
 
-- [ ] Add role, resource-scope, redaction, support-grant, expiry, dual-control, command idempotency,
-  delegation, and immutable audit tests.
+- [x] Add role, resource-scope, redaction, support-grant, expiry, dual-control, command idempotency,
+  delegation, and immutable audit tests. Core now has a complete seven-role grant/content/command/
+  support/emergency matrix, an allowlist-versus-prohibited-field assertion, and exhaustive support
+  grant scope/expiry boundary cases. Agent operator tests cover every dual-control command and
+  secret-safe projections; the seeded retention integration proves append-only audit UPDATE/DELETE
+  rejection.
 - [x] Add integration tests for core-to-agents operator reads/commands and projection rebuild/lag.
   Evidence: `server/kasitek-core/src/services/agent_platform.rs` now exercises every operator
   read, command, projection, search, retention, and error path against a local HTTP boundary,
   asserting platform scope, operator claims, correlation propagation, query encoding, command
   bodies, and idempotency headers. `agents/test/operator-projections.integration.test.ts` verifies
   monotonic rebuild revisions, notification acknowledgement, and a 90-second stale projection
-  appears in the lag projection. The full PostgreSQL + Temporal Agent matrix passes 249/249.
+  appears in the lag projection. The full PostgreSQL + Temporal Agent matrix passes 255/255.
 - [ ] Add end-to-end admin tests for viewer, support, operator, security, admin, and owner roles.
-- [ ] Test organization isolation, secret absence, stale/degraded dependencies, retry/replay,
-  cancellation, reconciliation, suspension, and every kill-switch level.
+- [x] Test organization isolation, secret absence, stale/degraded dependencies, retry/replay,
+  cancellation, reconciliation, suspension, and every kill-switch level. The full seeded Agent
+  matrix covers cross-organization export/replay rejection, redacted audit/recovery projections,
+  stale projection lag, terminal-run retry, delivery replay, cancellation, effect reconciliation,
+  installation suspension/resume, organization/global/agent kill switches, and legal-hold recovery.
 - [ ] Run core/Agent/admin tests, typechecks, lint/format, builds, and an internal incident drill.
 
 **Complete when:** an authorized KasiTek operator can trace organization → installation → run →

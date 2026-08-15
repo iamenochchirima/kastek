@@ -344,4 +344,88 @@ mod tests {
         })
         .is_err());
     }
+
+    #[test]
+    fn accepts_every_supported_scope_at_the_time_limit_edges() {
+        let resources = [
+            ("organization", None),
+            ("conversation", Some("conversation-1")),
+            ("customer", Some("customer-1")),
+            ("run", Some("run-1")),
+        ];
+        for (resource_type, resource_id) in resources {
+            let input = CreateSupportAccessRequest {
+                admin_id: "admin-1".to_string(),
+                organization_id: "org-1".to_string(),
+                resource_type: resource_type.to_string(),
+                resource_id: resource_id.map(str::to_string),
+                reason: "12345678".to_string(),
+                duration_minutes: 60,
+            };
+            assert!(validate_request(&input).is_ok(), "{resource_type}");
+        }
+        for duration_minutes in [1, 60] {
+            let input = CreateSupportAccessRequest {
+                admin_id: "admin-1".to_string(),
+                organization_id: "org-1".to_string(),
+                resource_type: "organization".to_string(),
+                resource_id: None,
+                reason: "valid reason".to_string(),
+                duration_minutes,
+            };
+            assert!(
+                validate_request(&input).is_ok(),
+                "duration {duration_minutes}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_every_cross_scope_and_expiry_boundary() {
+        let base = CreateSupportAccessRequest {
+            admin_id: "admin-1".to_string(),
+            organization_id: "org-1".to_string(),
+            resource_type: "conversation".to_string(),
+            resource_id: Some("conversation-1".to_string()),
+            reason: "valid reason".to_string(),
+            duration_minutes: 30,
+        };
+        for invalid in [
+            CreateSupportAccessRequest {
+                resource_type: "organization".to_string(),
+                ..base.clone()
+            },
+            CreateSupportAccessRequest {
+                resource_id: None,
+                ..base.clone()
+            },
+            CreateSupportAccessRequest {
+                resource_type: "customer".to_string(),
+                resource_id: Some("   ".to_string()),
+                ..base.clone()
+            },
+            CreateSupportAccessRequest {
+                duration_minutes: 0,
+                ..base.clone()
+            },
+            CreateSupportAccessRequest {
+                duration_minutes: 61,
+                ..base.clone()
+            },
+            CreateSupportAccessRequest {
+                reason: "1234567".to_string(),
+                ..base.clone()
+            },
+            CreateSupportAccessRequest {
+                admin_id: "".to_string(),
+                ..base.clone()
+            },
+            CreateSupportAccessRequest {
+                organization_id: "  ".to_string(),
+                ..base
+            },
+        ] {
+            assert!(validate_request(&invalid).is_err());
+        }
+    }
 }

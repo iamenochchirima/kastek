@@ -32,6 +32,49 @@ describe("operator command contract", () => {
     expect(requiredApprovals("resume_schedule")).toBe(2);
   });
 
+  it("keeps every mutating command explicit, bounded, and dual-controlled", () => {
+    const dualControlCommands = [
+      "retry_run",
+      "replay_delivery",
+      "delete_memory",
+      "assign_run",
+      "reconcile_effect",
+      "request_export",
+      "set_feature_flag",
+      "clear_feature_flag",
+      "create_hold",
+      "release_hold",
+      "set_retention_policy",
+      "apply_retention_policy",
+      "create_legal_hold",
+      "release_legal_hold",
+      "kill_switch_enable",
+      "kill_switch_disable",
+      "suspend_installation",
+      "resume_installation",
+      "revoke_credential",
+      "pause_schedule",
+      "resume_schedule",
+    ] as const;
+    expect(new Set(dualControlCommands).size).toBe(dualControlCommands.length);
+    for (const commandType of dualControlCommands) {
+      expect(requiredApprovals(commandType)).toBe(2);
+      expect(operatorCommandInputSchema.parse({ commandType, targetId: "target-1" })).toMatchObject({
+        commandType,
+        targetId: "target-1",
+        payload: {},
+      });
+    }
+    expect(requiredApprovals("cancel_run")).toBe(1);
+    expect(operatorCommandInputSchema.parse({ commandType: "cancel_run", targetId: "run-1" })).toMatchObject({
+      commandType: "cancel_run",
+      payload: {},
+    });
+    expect(() => operatorCommandInputSchema.parse({ commandType: "delete_all", targetId: "target-1" })).toThrow();
+    expect(() => operatorCommandInputSchema.parse({ commandType: "retry_run", targetId: "" })).toThrow();
+    expect(() => operatorCommandInputSchema.parse({ commandType: "retry_run", targetId: "target-1", payload: { unexpected: true }, extra: true })).toThrow();
+  });
+
   it("defaults payloads but rejects unknown command fields", () => {
     expect(operatorCommandInputSchema.parse({ commandType: "cancel_run", targetId: "run-1" })).toEqual({
       commandType: "cancel_run",
@@ -63,5 +106,8 @@ describe("operator command contract", () => {
     expect(projection).toMatchObject({ id: "command-1", status: "completed", result: { status: "succeeded", effectId: "effect-1" } });
     expect(JSON.stringify(projection)).not.toContain("accessToken");
     expect(JSON.stringify(projection)).not.toContain("customer content");
+    for (const forbidden of ["payload", "providerReceipt", "accessToken", "raw", "customer content"]) {
+      expect(JSON.stringify(projection)).not.toContain(forbidden);
+    }
   });
 });

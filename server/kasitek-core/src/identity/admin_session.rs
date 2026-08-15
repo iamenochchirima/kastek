@@ -105,6 +105,8 @@ pub fn can_view_support_access(role: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::services::admin_policy::can_use_emergency_access;
+
     use super::{
         can_execute_operator_command, can_manage_support_access, can_view_customer_content,
         can_view_support_access, grants_for_role,
@@ -133,5 +135,106 @@ mod tests {
         assert!(can_manage_support_access("admin"));
         assert!(!can_manage_support_access("support"));
         assert!(can_view_support_access("security"));
+    }
+
+    #[test]
+    fn covers_the_complete_operator_role_matrix_without_privilege_creep() {
+        let cases = [
+            ("viewer", &["admin:read"][..], false, false, false, false),
+            (
+                "support",
+                &["admin:read", "admin:support"][..],
+                true,
+                false,
+                false,
+                false,
+            ),
+            (
+                "security",
+                &["admin:read", "admin:security"][..],
+                false,
+                false,
+                false,
+                false,
+            ),
+            (
+                "operator",
+                &["admin:read", "admin:write", "admin:operate"][..],
+                true,
+                true,
+                false,
+                false,
+            ),
+            (
+                "admin",
+                &["admin:read", "admin:write", "admin:operate"][..],
+                true,
+                true,
+                true,
+                false,
+            ),
+            (
+                "superadmin",
+                &[
+                    "admin:read",
+                    "admin:write",
+                    "admin:operate",
+                    "admin:support",
+                    "admin:security",
+                    "admin:emergency",
+                ][..],
+                true,
+                true,
+                true,
+                true,
+            ),
+            (
+                "owner",
+                &[
+                    "admin:read",
+                    "admin:write",
+                    "admin:operate",
+                    "admin:support",
+                    "admin:security",
+                    "admin:emergency",
+                ][..],
+                true,
+                true,
+                true,
+                true,
+            ),
+        ];
+
+        for (role, expected_grants, customer_content, commands, support_management, emergency) in
+            cases
+        {
+            let grants = grants_for_role(role);
+            assert_eq!(
+                grants,
+                expected_grants
+                    .iter()
+                    .map(|grant| (*grant).to_string())
+                    .collect()
+            );
+            assert_eq!(can_view_customer_content(role), customer_content, "{role}");
+            assert_eq!(can_execute_operator_command(role), commands, "{role}");
+            assert_eq!(
+                can_manage_support_access(role),
+                support_management,
+                "{role}"
+            );
+            assert_eq!(can_use_emergency_access(role), emergency, "{role}");
+            assert!(can_view_support_access(role) || role == "viewer");
+        }
+
+        for role in [" VIEWER ", "SUPPORT", "Security", "OPERATOR", "ADMIN"] {
+            assert!(
+                !grants_for_role(role).is_empty(),
+                "role should normalize: {role}"
+            );
+        }
+        assert!(grants_for_role("unknown").is_empty());
+        assert!(!can_view_support_access("unknown"));
+        assert!(!can_use_emergency_access("unknown"));
     }
 }

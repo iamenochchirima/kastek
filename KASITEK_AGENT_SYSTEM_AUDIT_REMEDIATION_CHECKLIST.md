@@ -759,7 +759,7 @@ the unauthenticated boundary, then repeats the internal HMAC zero-scope boundary
 installation REST audience path separate. The same file covers installation ownership, disabled
 REST flags, API scope, cursor validation, approval-required MCP/REST acceptance parity, and exact
 Core `public_v1` route-to-OpenAPI parity (21 operations). The Agent suite passes 218 tests with 36
-expected integration skips, Agent build passes, and Core library tests pass 128 with 3
+expected integration skips, Agent build passes, and Core library tests pass 132 with 3
 infrastructure-gated ignores; unsupported principals, external clients, hosted gateways, and live
 Redis/provider/browser gates remain unchecked.
 
@@ -772,6 +772,18 @@ covering installations, capabilities/grants, operations, knowledge/memory, KasiA
 and run controls. The Core library suite passes 128 tests with 3 infrastructure-gated ignores;
 this closes local private delegated transport coverage but does not close product/public REST
 convergence, provider/effect receipts, live principals, hosted gateways, or Redis/browser gates.
+
+**Operator-console security and recovery evidence (2026-08-15):** Core now tests the complete
+viewer/support/security/operator/admin/superadmin/owner matrix, safe projection allowlists versus
+prohibited secret fields, and every supported support-grant scope and expiry boundary. Agent tests
+cover every dual-control operator command, bounded command schemas, and secret-safe projections.
+With `AGENTS_DATABASE_URL` pointed at the isolated local PostgreSQL fixture and an ephemeral local
+Temporal server, the full Agent matrix passed 59 files / 255 tests / 0 skips. The integration run
+exercised operator lifecycle suspension and credential/schedule recovery, feature flags and
+incident holds, organization/global/agent kill switches, retries, delivery replay, cancellation,
+effect reconciliation, projection lag/notifications, legal-hold retention, cross-organization
+rejection, and append-only audit UPDATE/DELETE protection. Hosted admin browser role coverage,
+provider effects, and Redis replay remain open.
 
 The Core database path now also has a committed historical Prisma baseline and a repeatable seeded
 fixture. All 50 client migrations, six guarded Core SQL fixtures, and the two previously ignored

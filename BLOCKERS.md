@@ -92,17 +92,15 @@ verified or completed. Work on independent items continues.
   tracked as their own unchecked blueprint items rather than as a worktree
   preservation blocker.
 
-## B-006 — Admin operator policy is not yet defined
+## B-006 — Admin operator policy is not yet defined (resolved)
 
 - **Blueprint:** Slice 12 operator roles, support access, dual-control actions, and core-to-Agent
   operator delegation.
-- **Evidence:** The current admin application exposes existing product-admin session roles, but the
-  blueprint does not specify the operator role-to-scope mapping, support-access grant record, or
-  dual-control policy needed for the new agent operations surface.
-- **Impact:** I can continue implementing redacted operational read models and recovery primitives,
-  but I will not invent privileged role semantics or expose customer-content support actions.
-- **Next action:** Select and document the operator role matrix and support-grant policy, then wire
-  the protected admin API and end-to-end authorization tests.
+- **Resolution (2026-08-15):** `identity::admin_session`, `admin_policy`, and
+  `admin_support_access` now define and test the seven-role grant/content/command/support/emergency
+  matrix, bounded organization/resource grants, expiry, revocation, and redaction policy. The
+  protected Core/Agent operator boundary and dual-control lifecycle integration are also covered.
+  Hosted browser role flows remain a separate unchecked verification item.
 
 ## B-007 — Approval actor/resource role matrix is not yet defined
 

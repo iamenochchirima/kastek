@@ -72,4 +72,50 @@ mod tests {
         assert!(can_use_emergency_access("SUPERADMIN"));
         assert!(!can_use_emergency_access("operator"));
     }
+
+    #[test]
+    fn operator_projection_allowlist_never_overlaps_prohibited_fields() {
+        let allowed = operator_projection_fields();
+        let prohibited = prohibited_operator_fields();
+        assert!(!allowed.is_empty());
+        assert!(!prohibited.is_empty());
+        assert!(allowed.is_disjoint(&prohibited));
+        for field in [
+            "password",
+            "token",
+            "access_token",
+            "refresh_token",
+            "client_secret",
+            "provider_receipt",
+            "prompt",
+            "raw_payload",
+            "customer_content",
+        ] {
+            assert!(
+                prohibited.contains(field),
+                "missing prohibited field: {field}"
+            );
+            assert!(
+                !allowed.contains(field),
+                "secret field leaked into projection: {field}"
+            );
+        }
+        for field in [
+            "id",
+            "organization_id",
+            "installation_id",
+            "run_id",
+            "correlation_id",
+            "status",
+            "capability",
+            "resource_type",
+            "created_at",
+            "updated_at",
+        ] {
+            assert!(
+                allowed.contains(field),
+                "missing safe projection field: {field}"
+            );
+        }
+    }
 }
