@@ -700,7 +700,7 @@ limits, full Streamable HTTP lifecycle, and hosted smoke remain open.
   unchecked checklist item. Current entries are limited to unavailable infrastructure or explicit
   product/security policy decisions.
 - [x] Recount checked and unchecked primary-blueprint items and record the count in the handoff.
-  The current count is 180 checked / 46 unchecked of 226 in
+  The current count is 186 checked / 40 unchecked of 226 in
   `KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md`.
 - [ ] Add evidence to primary-blueprint items only when their full deliverable and verification gate
   pass.
@@ -784,6 +784,16 @@ incident holds, organization/global/agent kill switches, retries, delivery repla
 effect reconciliation, projection lag/notifications, legal-hold retention, cross-organization
 rejection, and append-only audit UPDATE/DELETE protection. Hosted admin browser role coverage,
 provider effects, and Redis replay remain open.
+
+**Hosted-template and full-suite continuation evidence (2026-08-15):**
+`agents/test/template-lifecycle.integration.test.ts` now exercises the real `lead-intake` template
+from installation and test through Telegram connector grant/pairing, inbound activity, durable
+approval, exact effect receipt, outbound delivery, and version rollback. The isolated PostgreSQL +
+Temporal Agent matrix passes 60 files / 256 tests / 0 skips, Agent build passes, Core passes 132
+tests with three explicitly infrastructure-gated ignores, and client lint/typecheck/production
+build pass (client lint has nine warnings and zero errors). This closes the corresponding blueprint
+template and local full-suite verification rows; provider sandbox, Redis replay, seeded-core,
+browser, and external-principal gates remain unchecked.
 
 The Core database path now also has a committed historical Prisma baseline and a repeatable seeded
 fixture. All 50 client migrations, six guarded Core SQL fixtures, and the two previously ignored
