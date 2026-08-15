@@ -281,7 +281,7 @@ Agent build and core format/check/library tests pass. A checked
 implementation item does **not** assert that its slice completion gate or production-release
 verification has passed.
 
-At the 2026-08-15 reconciliation point, 186 of 226 implementation/verification items are checked.
+At the 2026-08-15 reconciliation point, 187 of 226 implementation/verification items are checked.
 The count is a work map, not a claim that the first production release is ready.
 
 The remaining unchecked items are deliberate: route-surface parity, full public `/v1` policy and
@@ -944,7 +944,7 @@ REST where permitted, and equivalent operations share business behavior without 
   installs the real `lead-intake` template, grants and pairs a Telegram channel, persists inbound
   activity, drives a durable run through approval and exact effect-receipt consumption, records the
   provider receipt, delivers the outbound response, and publishes then rolls back a second version.
-  The PostgreSQL-backed Agent run passes this scenario as part of 60 files / 256 tests with zero
+  The PostgreSQL-backed Agent run passes this scenario as part of 61 files / 257 tests with zero
   skips; provider sandbox credentials and browser authentication remain separate release gates.
 - [x] Run Agent Platform/core/client suites, typechecks, lint/format, and production builds. Current
   verification: normal Agent suite 213 passed with 36 expected integration skips; the full
@@ -1069,9 +1069,16 @@ Real campaign/booking write handlers remain disabled until their provider bounda
   cancellation, approval idempotency, and authorization boundaries.
 - [x] Add effect idempotency, crash-after-provider-call, timeout, duplicate callback, reconciliation,
   compensation, and kill-switch tests.
-- [ ] Run end-to-end approved and denied actions from KasiAi, hosted agent, MCP, REST, and a channel.
+- [x] Run end-to-end approved and denied actions from KasiAi, hosted agent, MCP, REST, and a channel.
+  Evidence: `agents/test/entrypoint-approval-matrix.test.ts` drives both decisions through the
+  actual Fastify MCP, installation REST, KasiAi platform-message, and channel-ingress adapters,
+  invokes the hosted acceptance boundary, then exercises the shared approval route and real
+  `ToolRegistry` effect gate. Ten operations (approved and rejected for each source) produce ten
+  approval decisions, five `markNotExecuted` denials, five effect-handler executions, and no
+  denied effect crosses `beforeEffect`. Provider sandbox execution and authenticated external
+  clients remain separate release gates.
 - [x] Run all service tests, database/Temporal recovery tests, typechecks, and builds. Evidence:
-  the isolated PostgreSQL + Temporal Agent matrix passes 60 files / 256 tests / 0 skips; Agent
+  the isolated PostgreSQL + Temporal Agent matrix passes 61 files / 257 tests / 0 skips; Agent
   `pnpm build`, Core `cargo fmt --check`, `cargo check -p kasitek-core`, and `cargo test -p
   kasitek-core --lib` pass (132 tests, 3 explicitly ignored infrastructure gates); client lint
   passes with 0 errors and 9 warnings, client typecheck passes, and `pnpm build:client` completes
