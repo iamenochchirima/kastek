@@ -44,7 +44,7 @@ item and add evidence only after this checklist's corresponding completion gate 
 - [x] Treat UI mode checks as presentation only; enforce every mode boundary in the Agent API.
 - [x] Tick an item only when implementation and its listed verification both pass.
 - [x] Add files, tests, commands, and commit hashes beside completed parent items. This work is
-  committed in `7bb40b0`; the evidence entries record the exact files and verification commands.
+  committed in `e2615a1`; the evidence entries record the exact files and verification commands.
 
 ## 2. Confirmed product model
 
@@ -637,7 +637,7 @@ Runtime evidence:
   and KasiAi routes require the protected canonical identity. No live seeded PostgreSQL, provider,
   browser, or real MCP/REST client evidence was available in this batch.
 Commit:
-  `7bb40b0` — task-owned changes committed; unrelated user worktree changes were preserved.
+  `e2615a1` — task-owned changes committed; unrelated user worktree changes were preserved.
 Remaining blockers:
   Complete atomic credential aggregate transaction; add effective-access/subscription reason-code
   projection; guard knowledge/memory and all hosted runtime invocation paths; migrate/revoke legacy
@@ -674,7 +674,7 @@ Runtime evidence:
   credentials on either mode; all 14 historical credentials are revoked. The database trigger is
   active and prevents future non-external inserts.
 Commit:
-  `7bb40b0` — task-owned changes committed; unrelated user worktree changes remain untouched.
+  `e2615a1` — task-owned changes committed; unrelated user worktree changes remain untouched.
 Remaining blockers:
   Entitlement/provider readiness source, injected-failure rollback matrix, authenticated browser
   checks, staging/hosted provider checks, real MCP/REST clients (Codex, Claude Code, n8n), and
