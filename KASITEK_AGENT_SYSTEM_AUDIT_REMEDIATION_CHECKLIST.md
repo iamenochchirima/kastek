@@ -753,6 +753,16 @@ rebuild revisions and stale-age reporting. This closes the corresponding primary
 verification item; role-policy, admin browser/E2E, hosted, provider, and external protocol gates
 remain open.
 
+**REST/MCP conformance matrix evidence (2026-08-15):** `agents/test/rest-mcp-conformance.test.ts`
+now derives all 114 mounted Agent `/v1` operations and exercises all 113 protected operations at
+the unauthenticated boundary, then repeats the internal HMAC zero-scope boundary while keeping the
+installation REST audience path separate. The same file covers installation ownership, disabled
+REST flags, API scope, cursor validation, approval-required MCP/REST acceptance parity, and exact
+Core `public_v1` route-to-OpenAPI parity (21 operations). The Agent suite passes 218 tests with 36
+expected integration skips, Agent build passes, and Core library tests pass 127 with 3
+infrastructure-gated ignores; unsupported principals, external clients, hosted gateways, and live
+Redis/provider/browser gates remain unchecked.
+
 The Core database path now also has a committed historical Prisma baseline and a repeatable seeded
 fixture. All 50 client migrations, six guarded Core SQL fixtures, and the two previously ignored
 organization-ownership tests pass against a newly migrated disposable local database. The full

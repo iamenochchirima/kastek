@@ -849,12 +849,21 @@ real capabilities, preserves independent chats, and never invents platform featu
   `90c2bf5`; Agent installation REST now also shares the protocol-neutral acceptance service with MCP,
   rejects malformed idempotency keys, verifies token-record ownership, and has a runnable generic
   Python smoke client (`8dfa645`, `74a43ec`, `773b250`, `730fc2b`). Issuer-specific, resource-policy,
-  n8n, and external-client verification remains open.
+  n8n, and external-client verification remains open. A source-derived local matrix in
+  `agents/test/rest-mcp-conformance.test.ts` now inventories all 114 mounted Agent `/v1` operations
+  and guards all 113 protected operations at the unauthenticated boundary, then asserts the
+  zero-scope HMAC boundary, covers installation REST ownership,
+  feature, scope, cursor, and audience failures, and checks the Core route table against all 21
+  OpenAPI operations. This closes local route-drift and transport-boundary coverage only; it does
+  not claim the unsupported issuer, resource-policy, hosted, or external-client gates.
 - [x] Add focused installation REST tests for audience authentication, API scope enforcement,
   installation isolation, durable invocation/idempotency, operation inspection, and cancellation.
 - [ ] Add behavior-parity tests proving equivalent MCP and REST operations converge on the same core
   domain command/query and compatible authorization, approval, idempotency, effect, receipt, and
-  audit outcomes without requiring identical protocol envelopes.
+  audit outcomes without requiring identical protocol envelopes. The local matrix now adds an
+  approval-required `kasitek.core.content_post_publish` parity case and asserts matching run,
+  approval, argument, installation, and idempotency outcomes across both adapters; hosted-domain,
+  effect-receipt, audit, and external-client parity remain open.
 - [ ] Verify real Codex, Claude Code, and one generic MCP client.
 - [ ] Verify n8n and one plain TypeScript or Python REST client.
 - [ ] Run typechecks, lint, builds, security checks, and externally hosted smoke tests.
