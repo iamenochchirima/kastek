@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildOperatorAlertNotificationSeeds } from "../src/http/operator-projections";
+import { buildOperatorAlertNotificationSeeds, indexExecutionModes } from "../src/http/operator-projections";
 
 describe("operator alert notifications", () => {
   it("covers each local incident category without copying sensitive payloads", () => {
@@ -53,5 +53,15 @@ describe("operator alert notifications", () => {
       dataAccessEventsLast24h: 0,
     });
     expect(recovered).toEqual([]);
+  });
+});
+
+describe("operator execution-mode metrics", () => {
+  it("keeps the mode dimensions stable and bounded", () => {
+    expect(indexExecutionModes([
+      { execution_mode: "external_connected", count: "2" },
+      { execution_mode: "system_hosted", count: "1" },
+      { execution_mode: "unexpected_future_mode", count: "99" },
+    ])).toEqual({ system_hosted: 1, kasitek_hosted: 0, external_connected: 2 });
   });
 });

@@ -319,9 +319,10 @@ memory, and run entry points before guards were added.
 
 - [x] Define an `EffectiveAgentAccess` projection shared by customer UI and operator evidence;
   `projectEffectiveAccess` is the shared server-side projection and preserves unknown dependencies.
-- [ ] Report each capability's registry lifecycle, workspace subscription entitlement, provider
+- [x] Report each capability's registry lifecycle, workspace subscription entitlement, provider
   readiness, installation grant, credential narrowing, resource/connector constraint, feature flag,
-  approval requirement, and final availability.
+  approval requirement, and final availability; the preflight catalog and shared discovery surfaces
+  return explicit unknown values until the owning entitlement/provider source is wired.
 - [x] Use stable reason codes such as `available`, `not_entitled`, `not_granted`, `credential_denied`,
   `provider_not_configured`, `provider_unhealthy`, `feature_disabled`, and `approval_required`.
 - [x] Do not collapse subscription denial, missing provider setup, and missing grant into one
@@ -368,8 +369,8 @@ memory, and run entry points before guards were added.
 - [x] Remove the existing installation selector completely.
 - [x] Step 1 — identify the external agent: name, runtime family, description, and environment.
 - [x] Step 2 — choose MCP, REST, or both and explain their intended use.
-- [ ] Step 3 — choose platform services/capabilities with live subscription and readiness states;
-  current implementation accepts bounded capability names and needs the effective-access projection.
+- [x] Step 3 — choose platform services/capabilities with live subscription and readiness states;
+  the preflight catalog uses the effective-access projection and blocks unavailable selections.
 - [x] Step 4 — apply optional resource and connector narrowing.
 - [x] Step 5 — choose credential read/write scopes, expiry, and optional public-key authentication.
 - [ ] Step 6 — review the exact effective authority and approval requirements; live reason-code
@@ -378,7 +379,8 @@ memory, and run entry points before guards were added.
 - [ ] Step 8 — show token exchange, MCP/REST configuration, client-specific setup snippets, and a
   connection test.
 - [x] Default credentials to read-only; write access requires an explicit user choice.
-- [ ] Never label a copy-once installation secret as a bearer token used directly at MCP.
+- [x] Never label a copy-once installation secret as a bearer token used directly at MCP; UI and
+  customer/MCP documentation describe the exchange to a short-lived audience-bound token.
 - [ ] Never show a secret in telemetry, URL parameters, persistent browser storage, or error reports.
 
 ### 9.5 External-agent details
@@ -439,7 +441,8 @@ memory, and run entry points before guards were added.
 - [ ] Record MCP/REST connection tests distinctly from business capability invocations.
 - [ ] Expose mode-specific health: hosted worker/model/channel health versus external token exchange,
   discovery, invocation, and last-used health.
-- [ ] Add organization and operator metrics by mode without high-cardinality secret-bearing labels.
+- [x] Add organization and operator metrics by mode without high-cardinality secret-bearing labels;
+  operator summary and projections expose only the bounded three-mode dimensions.
 - [ ] Add alerts for wrong-mode attempts, repeated invalid exchanges, mass revocation, migration
   exceptions, and external capability-denial spikes.
 - [ ] Confirm kill switches apply correctly at global, organization, installation, transport, and
@@ -679,4 +682,52 @@ Remaining blockers:
   Entitlement/provider readiness source, injected-failure rollback matrix, authenticated browser
   checks, staging/hosted provider checks, real MCP/REST clients (Codex, Claude Code, n8n), and
   canonical documentation/checklist reconciliation remain before release completion.
+```
+
+### Evidence — access catalog, protected policy, mode metrics, and audit identity batch (2026-08-15)
+
+```text
+Scope:
+  Wired an injectable product-owned capability access source into the shared effective-access
+  projection; added the external-agent preflight catalog; filtered MCP and REST discovery to
+  effectively available tools; exposed capability projections on external-agent details; blocked
+  customer mutation of the protected KasiAi service allowlist; added bounded execution-mode
+  metrics to operator summaries/health; and enriched attributable audit records with persisted
+  execution mode without exposing audit payloads.
+Files/migrations:
+  agents/src/domain/capability-access.ts
+  agents/src/http/app.ts
+  agents/src/http/operator-projections.ts
+  agents/src/db/repositories/audit-repository.ts
+  agents/migrations/051_audit_execution_mode.sql
+  agents/test/capability-access.test.ts
+  agents/test/http.test.ts
+  agents/test/operator-projections.test.ts
+  agents/test/migration.test.ts
+  agents/test/rest-mcp-conformance.test.ts
+  client/apps/client/src/components/dashboard/agents/agent-connection-wizard.tsx
+  client/apps/client/src/components/dashboard/agents/agent-detail-page-client.tsx
+  client/apps/client/src/lib/agent-platform.ts
+  agents/docs/mcp-integration.md
+  agents/docs/mcp-2026-migration.md
+  docs/api/agent-connection-guide.md
+Tests and results:
+  AGENTS_DATABASE_URL=postgresql://enoch:kasitek@localhost:5433/kasitek_agents RUN_AGENTS_DB_INTEGRATION_TESTS=true pnpm test — 68 files passed, 305 passed, 1 expected Temporal skip
+  cd agents && pnpm build — passed
+  cd agents && pnpm exec vitest run test/http.test.ts test/migration.test.ts test/rest-mcp-conformance.test.ts — 76 passed
+  cd client && pnpm --filter client lint — 0 errors, 11 existing warnings
+  cd client/apps/client && pnpm exec tsc --noEmit — passed
+  cd client && pnpm build:client — passed
+  cd server/kasitek-core && cargo fmt --check && cargo check && cargo test --lib — 133 passed, 3 ignored
+Runtime evidence:
+  Migration 051 applied to seeded PostgreSQL. A transaction-scoped audit insert resolved an
+  existing installation to `system_hosted` and added only the bounded `executionMode` metadata.
+  No provider entitlement/readiness service, browser runner, Redis replay endpoint, or independent
+  MCP/REST client was available for this batch.
+Commit:
+  Pending; unrelated user worktree changes remain untouched.
+Remaining blockers:
+  The injected access source still returns explicit unknown state until the owning product
+  entitlement/provider projection is wired. Staging/provider effects, browser automation, Redis,
+  real-client compatibility, approval role/resource policy, and rollout evidence remain open.
 ```

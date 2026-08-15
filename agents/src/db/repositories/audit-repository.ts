@@ -10,6 +10,7 @@ export interface AuditRecord {
   resource_type: string;
   resource_id: string;
   correlation_id: string | null;
+  execution_mode: "system_hosted" | "kasitek_hosted" | "external_connected" | null;
   metadata: Record<string, unknown>;
   created_at: string;
 }

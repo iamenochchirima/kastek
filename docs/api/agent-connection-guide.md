@@ -14,7 +14,8 @@ Use **Agents → Connect external agent** when an agent already runs in Codex, C
 another customer-controlled runtime and needs to call KasiTek capabilities.
 
 1. Identify the external runtime and choose MCP, REST, or both.
-2. Select only registered, available capabilities and optional resource or connector narrowing.
+2. Review the live service catalog and select only registered, currently available capabilities;
+   apply optional resource or connector narrowing.
 3. Create a read-only credential by default. Add write scope only when the runtime is approved for
    changes.
 4. Copy the one-time installation secret. It is never shown again.
@@ -42,7 +43,8 @@ external runtimes use the separate external-agent flow above.
 ## Access and health
 
 Installation mode, grants, transport scopes, resource/connector constraints, provider readiness, and
-approval requirements are rechecked by the Agent API. Discovery reports stable reason codes such as
+approval requirements are rechecked by the Agent API. The preflight catalog and post-creation
+discovery use the same projection. Discovery reports stable reason codes such as
 `not_granted`, `credential_denied`, `provider_not_configured`, `provider_unhealthy`, and
 `approval_required`. External health reports KasiTek-side installation and credential readiness; it
 does not pretend to prove that the customer’s remote runtime is reachable.

@@ -320,6 +320,15 @@ export function listExternalAgents(): Promise<{ agents: AgentDefinition[] }> {
   return request("/api/agents/external-agents");
 }
 
+export type ExternalAgentAccessCatalog = {
+  capabilities: AgentCapability[];
+  connectors: Array<Pick<AgentConnector, "id" | "version" | "displayName" | "ownerService" | "auth" | "capabilityNames" | "requiredScopes" | "supportsReconciliation">>;
+};
+
+export function getExternalAgentAccessCatalog(): Promise<ExternalAgentAccessCatalog> {
+  return request("/api/agents/external-agents/catalog");
+}
+
 export function getExternalAgentDetails(installationId: string): Promise<ExternalAgentDetails> {
   return request(`/api/agents/external-agents/${encodeURIComponent(installationId)}`);
 }
@@ -415,6 +424,16 @@ export type AgentCapability = {
   availability: "available" | "not_granted" | "not_configured" | "unhealthy" | string;
   available?: boolean;
   reasonCode?: "available" | "not_entitled" | "not_granted" | "credential_denied" | "provider_not_configured" | "provider_unhealthy" | "feature_disabled" | "approval_required" | string;
+  registryLifecycle?: "active" | "not_registered" | string;
+  subscription?: "entitled" | "not_entitled" | "unknown" | string;
+  providerReadiness?: "ready" | "not_configured" | "unhealthy" | "unknown" | string;
+  installationGrant?: "granted" | "not_granted" | string;
+  credentialNarrowing?: "allowed" | "denied" | "not_applicable" | string;
+  resourceConstraint?: "unconstrained" | "installation_scoped" | string;
+  connectorConstraint?: "unconstrained" | "installation_scoped" | string;
+  featureFlag?: "enabled" | "disabled" | "unknown" | string;
+  approvalRequired?: boolean;
+  effectiveAccess?: Record<string, unknown>;
   inputSchema: Record<string, unknown>;
   outputSchema: Record<string, unknown>;
   manifest?: Record<string, unknown>;

@@ -24,6 +24,12 @@ classification, redaction metadata, and JSON Schemas, is generated at
 [`docs/generated-capabilities.md`](generated-capabilities.md). Discovery responses are projections
 of the same registry, so a capability is not separately redefined for MCP or the Agent UI.
 
+The management UI can preflight the same projection with `GET /v1/external-agents/catalog` before
+creating an installation. It reports registry lifecycle, subscription entitlement, provider
+readiness, feature policy, approval requirement, and the final `reasonCode`. If the owning product
+source has not supplied entitlement or provider state, those fields are `unknown`; clients must not
+interpret an unknown dependency as a product guarantee.
+
 ### Key-bound exchange
 
 For agents that should not transmit the copy-once secret on every bootstrap, register a P-256
@@ -99,7 +105,7 @@ Authorization: Bearer <installation-token>
 
 `server/discover` returns supported protocol revisions, capabilities, server identity, private
 cache metadata, and instructions. `tools/list` is installation-filtered, deterministically ordered,
-and includes private cache metadata. Each returned tool carries a private
+and excludes capabilities that are not effectively available. Each returned tool carries a private
 `kasitek/effectiveAccess` decision with a stable reason code. Ordinary results include
 `resultType: "complete"` and server
 identity metadata. The gateway advertises the `io.modelcontextprotocol/tasks` extension. A client

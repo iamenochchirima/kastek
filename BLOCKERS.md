@@ -194,13 +194,16 @@ verified or completed. Work on independent items continues.
 
 - **Blueprint:** Three-mode remediation checklist sections 7–16; effective access, rollout, and
   real-client verification gates.
-- **Evidence:** Agent migrations `047`–`050`, the persisted execution-mode policy, dedicated
-  external aggregate, database credential trigger, shared effective-access projection, and
-  mode-specific HTTP/UI surfaces are implemented. Seeded PostgreSQL has 18 `kasitek_hosted` and
-  2 `system_hosted` installations with no active non-external credentials; the full seeded Agent
-  suite passed 67 files / 300 tests with one explicitly skipped Temporal test.
+- **Evidence:** Agent migrations `047`–`051`, the persisted execution-mode policy, dedicated
+  external aggregate, database credential trigger, injected capability access source, preflight
+  catalog, shared effective-access projection, protected KasiAi grant guard, mode metrics, audit
+  execution-mode enrichment, and mode-specific HTTP/UI surfaces are implemented. Seeded PostgreSQL
+  has 18 `kasitek_hosted` and 2 `system_hosted` installations with no active non-external
+  credentials; the full seeded Agent suite passed 68 files / 305 tests with one explicitly skipped
+  Temporal test.
 - **Impact:** The platform-side identity and authorization boundary is verified locally, but the
-  service does not yet receive a product-owned per-capability entitlement/provider-readiness source.
+  service does not yet receive a product-owned per-capability entitlement/provider-readiness source;
+  the injected source currently reports unknown values until that owner is wired.
   Authenticated browser automation, staging/provider effects, and independent Codex, Claude Code,
   n8n, and public REST/MCP client smokes are still required before release claims can be closed.
 - **Next action:** wire the owning entitlement/provider readiness projection, then run the approved

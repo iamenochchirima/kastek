@@ -27,7 +27,9 @@ HTTP clients must mirror the request with `MCP-Protocol-Version`, `Mcp-Method`, 
 for the stateless path.
 
 `server/discover` returns the supported revisions, filtered server capabilities, result metadata,
-and cache hints. `tools/list` is deterministic and installation-private. Ordinary results include
+and cache hints. `tools/list` is deterministic and installation-private; tools that are not
+effectively available are omitted and their reason codes remain visible in management discovery.
+Ordinary results include
 `resultType: "complete"`; clients that advertise `io.modelcontextprotocol/tasks` receive a durable
 task handle for non-immediate work and can poll/cancel it with `tasks/get` and `tasks/cancel`.
 Approval and human waits remain durable run state. MRTR input requests are not advertised yet.

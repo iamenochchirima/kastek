@@ -156,5 +156,9 @@ describe("foundation migration", () => {
     const credentialModeGuardSql = await readFile(new URL("../migrations/050_external_credential_mode_guard.sql", import.meta.url), "utf8");
     expect(credentialModeGuardSql).toContain("external_installation_credential_mode_guard");
     expect(credentialModeGuardSql).toContain("external_connected");
+    const auditExecutionModeSql = await readFile(new URL("../migrations/051_audit_execution_mode.sql", import.meta.url), "utf8");
+    expect(auditExecutionModeSql).toContain("audit_records.execution_mode");
+    expect(auditExecutionModeSql).toContain("audit_execution_mode_enrichment_trigger");
+    expect(auditExecutionModeSql).toContain("executionMode");
   });
 });

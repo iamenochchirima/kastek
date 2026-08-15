@@ -20,9 +20,22 @@ function isProjectionKey(value: string): value is OperatorProjectionKey {
   return (OPERATOR_PROJECTION_KEYS as readonly string[]).includes(value);
 }
 
+/** Keep mode metrics bounded to the three persisted execution identities. */
+export function indexExecutionModes(rows: readonly { execution_mode: string; count: string }[]): Record<string, number> {
+  const result: Record<string, number> = {
+    system_hosted: 0,
+    kasitek_hosted: 0,
+    external_connected: 0,
+  };
+  for (const row of rows) {
+    if (Object.hasOwn(result, row.execution_mode)) result[row.execution_mode] = Number(row.count);
+  }
+  return result;
+}
+
 async function buildPayload(pool: Pool, key: OperatorProjectionKey): Promise<Record<string, unknown>> {
   if (key === "summary" || key === "run_health") {
-    const [runs, installations, definitions, effects, events, conversations, channels, approvals] = await Promise.all([
+    const [runs, installations, definitions, effects, events, conversations, channels, approvals, executionModes] = await Promise.all([
       query<{ status: string; count: string }>(pool, "SELECT status, COUNT(*)::text AS count FROM agent_runs GROUP BY status ORDER BY status"),
       query<{ status: string; count: string }>(pool, "SELECT status, COUNT(*)::text AS count FROM agent_installations GROUP BY status ORDER BY status"),
       query<{ status: string; count: string }>(pool, "SELECT status, COUNT(*)::text AS count FROM agent_definitions GROUP BY status ORDER BY status"),
@@ -31,6 +44,7 @@ async function buildPayload(pool: Pool, key: OperatorProjectionKey): Promise<Rec
       query<{ count: string }>(pool, "SELECT COUNT(*)::text AS count FROM conversations WHERE status <> 'deleted'"),
       query<{ count: string }>(pool, "SELECT COUNT(*)::text AS count FROM channel_connections WHERE status <> 'revoked'"),
       query<{ status: string; count: string }>(pool, "SELECT status, COUNT(*)::text AS count FROM agent_approval_records GROUP BY status ORDER BY status"),
+      query<{ execution_mode: string; count: string }>(pool, "SELECT execution_mode, COUNT(*)::text AS count FROM agent_installations GROUP BY execution_mode ORDER BY execution_mode"),
     ]);
     const payload = {
       generatedAt: new Date().toISOString(),
@@ -41,13 +55,14 @@ async function buildPayload(pool: Pool, key: OperatorProjectionKey): Promise<Rec
       conversations: Number(conversations.rows[0]?.count ?? 0),
       channels: Number(channels.rows[0]?.count ?? 0),
       approvals: Object.fromEntries(approvals.rows.map((row) => [row.status, Number(row.count)])),
+      executionModes: indexExecutionModes(executionModes.rows),
     };
-    return key === "summary" ? payload : { generatedAt: payload.generatedAt, runs: payload.runs, eventTypes: Object.fromEntries(events.rows.map((row) => [row.event_type, Number(row.count)])) };
+    return key === "summary" ? payload : { generatedAt: payload.generatedAt, runs: payload.runs, eventTypes: Object.fromEntries(events.rows.map((row) => [row.event_type, Number(row.count)])), executionModes: payload.executionModes };
   }
 
   if (key === "health") {
     const databaseStartedAt = Date.now();
-    const [database, installations, credentials, providers, cost, queue, tools, effects, deliveries, approvals, audit] = await Promise.all([
+    const [database, installations, credentials, providers, cost, queue, tools, effects, deliveries, approvals, audit, executionModes] = await Promise.all([
       query(pool, "SELECT 1"),
       query<{ active: string }>(pool, "SELECT COUNT(*) FILTER (WHERE status = 'active')::text AS active FROM agent_installations"),
       query<{ active: string; expiring: string }>(pool, "SELECT COUNT(*) FILTER (WHERE status = 'active' AND (expires_at IS NULL OR expires_at > now()))::text AS active, COUNT(*) FILTER (WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at <= now() + interval '7 days')::text AS expiring FROM agent_installation_credentials"),
@@ -59,6 +74,7 @@ async function buildPayload(pool: Pool, key: OperatorProjectionKey): Promise<Rec
       query<{ failed: string; unknown: string }>(pool, "SELECT COUNT(*) FILTER (WHERE status = 'failed')::text AS failed, COUNT(*) FILTER (WHERE status = 'unknown')::text AS unknown FROM delivery_attempts WHERE created_at > now() - interval '24 hours'"),
       query<{ pending: string; expired: string }>(pool, "SELECT COUNT(*) FILTER (WHERE status = 'pending')::text AS pending, COUNT(*) FILTER (WHERE status = 'pending' AND expires_at <= now())::text AS expired FROM agent_approval_records"),
       query<{ access: string }>(pool, "SELECT COUNT(*)::text AS access FROM audit_records WHERE (action ILIKE '%support%' OR action ILIKE '%data_access%' OR resource_type = 'customer_content') AND created_at > now() - interval '24 hours'"),
+      query<{ execution_mode: string; count: string }>(pool, "SELECT execution_mode, COUNT(*)::text AS count FROM agent_installations WHERE status = 'active' GROUP BY execution_mode ORDER BY execution_mode"),
     ]);
     const status = (degraded: boolean, unavailable = false): "ready" | "degraded" | "unavailable" => unavailable ? "unavailable" : degraded ? "degraded" : "ready";
     const providerChecks = providers.rows.map((row) => {
@@ -82,6 +98,7 @@ async function buildPayload(pool: Pool, key: OperatorProjectionKey): Promise<Rec
       cost: { status: status(Number(cost.rows[0]?.missing ?? 0) > 0), calls24h: Number(cost.rows[0]?.calls ?? 0), missingEstimates24h: Number(cost.rows[0]?.missing ?? 0) },
       rateLimits: { status: "ready" as const, detail: "Gateway rate limits are enforced at the edge and are intentionally not persisted with customer data." },
       suspiciousAccess: { status: status(Number(audit.rows[0]?.access ?? 0) > 0), events24h: Number(audit.rows[0]?.access ?? 0) },
+      executionModes: { status: "ready" as const, active: indexExecutionModes(executionModes.rows) },
     };
     const degradedChecks = Object.values(checks).filter((check) => check.status === "degraded" || check.status === "unavailable").length;
     return { generatedAt: new Date().toISOString(), overallStatus: degradedChecks ? "degraded" : "ready", checks, degradedChecks };

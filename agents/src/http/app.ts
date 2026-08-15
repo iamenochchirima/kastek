@@ -11,7 +11,7 @@ import {
   startRunInputSchema,
 } from "../domain/types";
 import { requireExternalConnected, requireHostedInstallation, requireKasiAiInstallation } from "../domain/execution-mode";
-import { projectEffectiveAccess } from "../domain/effective-access";
+import { dependencyProjection, UnknownCapabilityAccessSource, type CapabilityAccessSource } from "../domain/capability-access";
 import { AgentRepository } from "../db/repositories/agent-repository";
 import { RunRepository } from "../db/repositories/run-repository";
 import { ConversationRepository } from "../db/repositories/conversation-repository";
@@ -96,6 +96,8 @@ export interface AppDependencies {
   installationCredentials?: InstallationCredentialRepository;
   installationGrants?: InstallationGrantRepository;
   toolRegistry?: ToolRegistry;
+  /** Product-owned entitlement/provider readiness projection for capabilities. */
+  capabilityAccess?: CapabilityAccessSource;
   connectorRegistry?: ConnectorRegistry;
   effectReceipts?: EffectReceiptRepository;
   approvals?: ApprovalRepository;
@@ -329,6 +331,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const installationCredentials = dependencies.installationCredentials ?? new InstallationCredentialRepository(dependencies.pool);
   const installationGrants = dependencies.installationGrants ?? new InstallationGrantRepository(dependencies.pool);
   const toolRegistry = dependencies.toolRegistry ?? createDefaultTools(new KasitekCoreReadClient(dependencies.config));
+  const capabilityAccess = dependencies.capabilityAccess ?? new UnknownCapabilityAccessSource();
   const connectorRegistry = dependencies.connectorRegistry ?? new ConnectorRegistry();
   if (connectorRegistry.list().length === 0) {
     connectorRegistry.register({
@@ -389,6 +392,48 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }),
   });
 
+  /**
+   * Build the one capability projection consumed by browser, REST, and MCP
+   * surfaces. The source is intentionally injected: the Agent Platform owns
+   * grants and credential narrowing, while product entitlement and provider
+   * readiness belong to their owning services.
+   */
+  const projectInstallationCapabilities = async (input: {
+    organizationId: string;
+    installationId: string;
+    credentialScopes?: readonly string[];
+    transport: "mcp" | "api";
+  }) => {
+    const installation = await agents.getInstallation(input.organizationId, input.installationId);
+    if (!installation) return null;
+    const [granted, grants, dependencyMap] = await Promise.all([
+      toolGrants.effectiveTools(input.organizationId, installation.agent_version_id, installation.id),
+      installationGrants.effective(input.organizationId, installation.id),
+      capabilityAccess.getForCapabilities({ organizationId: input.organizationId, capabilityNames: toolRegistry.surfaces().map((surface) => surface.name) }),
+    ]);
+    const capabilities = toolRegistry.surfaces().map((surface) => {
+      const dependency = dependencyMap.get(surface.name);
+      const effectiveAccess = dependencyProjection(dependency, {
+        granted: granted.has(surface.name),
+        credentialAllowed: input.credentialScopes
+          ? input.credentialScopes.includes(`${input.transport}:${surface.riskClass === "read" ? "read" : "write"}`)
+          : undefined,
+        requiresApproval: surface.requiresApproval,
+        resourceScoped: surface.manifest.resourceSelector !== undefined,
+        connectorScoped: grants.connectors.length > 0,
+      }, surface.manifest.availability);
+      return {
+        ...surface,
+        ...effectiveAccess,
+        effectiveAccess,
+        // Keep the legacy field for existing clients, but make it reflect the
+        // effective reason rather than only the registry default.
+        availability: effectiveAccess.available ? "available" : effectiveAccess.reasonCode,
+      };
+    });
+    return { installation, grants, capabilities };
+  };
+
   app.setErrorHandler((error, request, reply) => {
     const statusCode = error instanceof ZodError ? 400 : ((error as { statusCode?: number }).statusCode ?? 500);
     if (statusCode >= 500) app.log.error(error);
@@ -416,13 +461,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.get("/v1/operator/summary", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireOperatorScope(auth, dependencies.config, "operator:read");
-    const [runs, installations, definitions, effects, audits, modelCost] = await Promise.all([
+    const [runs, installations, definitions, effects, audits, modelCost, executionModes] = await Promise.all([
       dependencies.pool.query<{ status: string; count: string }>("SELECT status, COUNT(*)::text AS count FROM agent_runs GROUP BY status ORDER BY status"),
       dependencies.pool.query<{ status: string; count: string }>("SELECT status, COUNT(*)::text AS count FROM agent_installations GROUP BY status ORDER BY status"),
       dependencies.pool.query<{ status: string; count: string }>("SELECT status, COUNT(*)::text AS count FROM agent_definitions GROUP BY status ORDER BY status"),
       dependencies.pool.query<{ status: string; count: string; reconciliation_required: boolean }>("SELECT status, COUNT(*)::text AS count, reconciliation_required FROM agent_effect_receipts GROUP BY status, reconciliation_required ORDER BY status"),
       dependencies.pool.query<{ count: string }>("SELECT COUNT(*)::text AS count FROM audit_records"),
       dependencies.pool.query<{ total: string }>("SELECT COALESCE(SUM(estimated_cost_usd), 0)::text AS total FROM model_calls"),
+      dependencies.pool.query<{ execution_mode: string; count: string }>("SELECT execution_mode, COUNT(*)::text AS count FROM agent_installations GROUP BY execution_mode ORDER BY execution_mode"),
     ]);
     return {
       scope: "platform",
@@ -433,6 +479,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       effects: effects.rows.map((row) => ({ status: row.status, count: Number(row.count), reconciliationRequired: row.reconciliation_required })),
       auditRecords: Number(audits.rows[0]?.count ?? 0),
       estimatedModelCostUsd: modelCost.rows[0]?.total ?? "0",
+      executionModes: Object.fromEntries(executionModes.rows.map((row) => [row.execution_mode, Number(row.count)])),
     };
   });
 
@@ -585,7 +632,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const resourceType = request.query.resourceType?.trim() || null;
     const result = await dependencies.pool.query(
       `SELECT id, organization_id, actor_type, actor_id, action, resource_type,
-              resource_id, correlation_id, created_at
+              resource_id, correlation_id, execution_mode, created_at
        FROM audit_records
        WHERE ($1::text IS NULL OR action = $1)
          AND ($2::text IS NULL OR resource_type = $2)
@@ -901,19 +948,17 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (body.method === "tools/list") {
       const installation = await agents.getInstallation(auth.organizationId, auth.installationId);
       if (!installation || installation.status !== "active") return failure(-32004, "installation_not_found");
-      const granted = await toolGrants.effectiveTools(auth.organizationId, installation.agent_version_id, installation.id);
-      const tools = toolRegistry.surfaces(granted)
-        .map((surface) => ({
-          ...surface.mcp,
-          _meta: {
-            "kasitek/effectiveAccess": projectEffectiveAccess({
-              granted: true,
-              availability: surface.manifest.availability,
-              credentialAllowed: auth.scopes.includes(surface.riskClass === "read" ? "mcp:read" : "mcp:write"),
-              requiresApproval: surface.requiresApproval,
-              resourceScoped: surface.manifest.resourceSelector !== undefined,
-            }),
-          },
+      const projected = await projectInstallationCapabilities({
+        organizationId: auth.organizationId,
+        installationId: installation.id,
+        credentialScopes: auth.scopes,
+        transport: "mcp",
+      });
+      const tools = (projected?.capabilities ?? [])
+        .filter((capability) => capability.available)
+        .map((capability) => ({
+          ...capability.mcp,
+          _meta: { "kasitek/effectiveAccess": capability.effectiveAccess },
         }))
         .sort((left, right) => left.name.localeCompare(right.name));
       return respond(isStateless
@@ -1120,21 +1165,19 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireApiScope(auth, "api:read");
     const installation = await agents.getInstallation(auth.organizationId, auth.installationId);
     if (!installation || installation.status !== "active") return reply.code(404).send({ error: "installation_not_found" });
-    const granted = await toolGrants.effectiveTools(auth.organizationId, installation.agent_version_id, installation.id);
-    const grants = await installationGrants.effective(auth.organizationId, installation.id);
+    const projected = await projectInstallationCapabilities({
+      organizationId: auth.organizationId,
+      installationId: installation.id,
+      credentialScopes: auth.scopes,
+      transport: "api",
+    });
     return {
       installationId: installation.id,
-      resourceScopes: grants.resources,
-      connectors: grants.connectors,
-      tools: toolRegistry.surfaces(granted).map((surface) => ({
-        ...surface,
-        access: projectEffectiveAccess({
-          granted: true,
-          availability: surface.manifest.availability,
-          credentialAllowed: auth.scopes.includes(surface.riskClass === "read" ? "api:read" : "api:write"),
-          requiresApproval: surface.requiresApproval,
-          resourceScoped: surface.manifest.resourceSelector !== undefined,
-        }),
+      resourceScopes: projected?.grants.resources ?? [],
+      connectors: projected?.grants.connectors ?? [],
+      tools: (projected?.capabilities ?? []).filter((capability) => capability.available).map((capability) => ({
+        ...capability,
+        access: capability.effectiveAccess,
       })),
     };
   });
@@ -1233,6 +1276,34 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return { agents: await agents.listExternalAgents(auth.organizationId) };
   });
 
+  app.get("/v1/external-agents/catalog", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const surfaces = toolRegistry.surfaces();
+    const dependencyMap = await capabilityAccess.getForCapabilities({ organizationId: auth.organizationId, capabilityNames: surfaces.map((surface) => surface.name) });
+    const capabilities = surfaces.map((surface) => {
+      const effectiveAccess = dependencyProjection(dependencyMap.get(surface.name), {
+        granted: true,
+        requiresApproval: surface.requiresApproval,
+        resourceScoped: surface.manifest.resourceSelector !== undefined,
+      }, surface.manifest.availability);
+      return { ...surface, ...effectiveAccess, effectiveAccess, availability: effectiveAccess.available ? "available" : effectiveAccess.reasonCode };
+    });
+    return {
+      capabilities,
+      connectors: connectorRegistry.list().map((connector) => ({
+        id: connector.id,
+        version: connector.version,
+        displayName: connector.displayName,
+        ownerService: connector.ownerService,
+        auth: connector.auth,
+        capabilityNames: connector.capabilityNames,
+        requiredScopes: connector.requiredScopes,
+        supportsReconciliation: connector.supportsReconciliation,
+      })),
+    };
+  });
+
   app.get<{ Params: { installationId: string } }>("/v1/external-agents/:installationId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
@@ -1243,11 +1314,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     } catch {
       return reply.code(404).send({ error: "external_agent_not_found" });
     }
-    const [agent, versions, credentials, grants] = await Promise.all([
+    const [agent, versions, credentials, projected] = await Promise.all([
       agents.getAgent(auth.organizationId, installation.agent_definition_id),
       agents.listVersions(auth.organizationId, installation.agent_definition_id),
       installationCredentials.list(auth.organizationId, installation.id),
-      installationGrants.effective(auth.organizationId, installation.id),
+      projectInstallationCapabilities({ organizationId: auth.organizationId, installationId: installation.id, transport: "api" }),
     ]);
     const activeCredentials = credentials.filter((credential) => credential.status === "active");
     const lastUsedAt = credentials.map((credential) => credential.last_used_at).filter((value): value is string => Boolean(value)).sort().at(-1) ?? null;
@@ -1256,7 +1327,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       version: versions.find((version) => version.id === installation.agent_version_id) ?? null,
       installation,
       credentials,
-      grants,
+      grants: projected?.grants ?? { resources: [], connectors: [] },
+      capabilities: projected?.capabilities ?? [],
       health: {
         status: installation.status === "active" && activeCredentials.length > 0 ? "ready" : installation.status === "active" ? "needs_credential" : "paused",
         activeCredentialCount: activeCredentials.length,
@@ -1378,6 +1450,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     async (request, reply) => {
       const auth = requireAuth(request, dependencies.config);
       requireScope(auth, dependencies.config, "agents:write");
+      const targetAgent = typeof agents.getAgent === "function" ? await agents.getAgent(auth.organizationId, request.params.agentId) : null;
+      if (targetAgent?.owner_type === "system" && targetAgent.protected === true) {
+        return reply.code(403).send({ error: "protected_installation_policy", code: "PROTECTED_SERVICE_ALLOWLIST_RELEASE_MANAGED" });
+      }
       const input = z.object({ toolName: z.string().trim().min(1).max(160) }).parse(request.body);
       const grant = await toolGrants.grantVersionTool({
         organizationId: auth.organizationId,
@@ -1402,6 +1478,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/tools", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
+    const targetInstallation = typeof agents.getInstallation === "function" ? await agents.getInstallation(auth.organizationId, request.params.installationId) : null;
+    if (targetInstallation?.agent_owner_type === "system" && targetInstallation.agent_protected === true) {
+      return reply.code(403).send({ error: "protected_installation_policy", code: "PROTECTED_SERVICE_ALLOWLIST_RELEASE_MANAGED" });
+    }
     const input = z.object({ toolName: z.string().trim().min(1).max(160) }).parse(request.body);
     const grant = await toolGrants.grantInstallationTool({
       organizationId: auth.organizationId,
@@ -1460,22 +1540,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
-    const granted = await toolGrants.effectiveTools(auth.organizationId, installation.agent_version_id, installation.id);
-    const grants = await installationGrants.effective(auth.organizationId, installation.id);
     const credential = request.query.credentialId ? await installationCredentials.getActiveForToken({ credentialId: request.query.credentialId, organizationId: auth.organizationId, installationId: request.params.installationId }) : null;
-    const capabilities = toolRegistry.surfaces().map((surface) => ({
-      ...surface,
-      ...projectEffectiveAccess({
-        granted: granted.has(surface.name),
-        availability: surface.manifest.availability,
-        credentialAllowed: credential ? credential.api_scopes?.includes(surface.riskClass === "read" ? "api:read" : "api:write") : undefined,
-        requiresApproval: surface.requiresApproval,
-        resourceScoped: surface.manifest.resourceSelector !== undefined,
-        connectorScoped: grants.connectors.length > 0,
-      }),
-      availability: granted.has(surface.name) ? (surface.manifest.availability ?? "available") : "not_granted",
-    }));
-    return { installationId: installation.id, apiScopes: credential?.api_scopes ?? null, resourceScopes: grants.resources, connectors: grants.connectors, capabilities };
+    const projected = await projectInstallationCapabilities({
+      organizationId: auth.organizationId,
+      installationId: installation.id,
+      credentialScopes: credential?.api_scopes ?? undefined,
+      transport: "api",
+    });
+    return { installationId: installation.id, apiScopes: credential?.api_scopes ?? null, resourceScopes: projected?.grants.resources ?? [], connectors: projected?.grants.connectors ?? [], capabilities: projected?.capabilities ?? [] };
   });
 
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/credentials", async (request) => {

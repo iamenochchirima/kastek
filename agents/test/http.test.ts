@@ -7,6 +7,7 @@ import type { PlatformChatRepository } from "../src/db/repositories/platform-cha
 import { signInternalToken } from "../src/http/auth";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { issueInstallationToken } from "../src/auth/installation-token";
+import { StaticCapabilityAccessSource } from "../src/domain/capability-access";
 
 const installationTokenKeyPair = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
 const clientAssertionKeyPair = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
@@ -949,6 +950,25 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("exposes the same live access projection used before external creation", async () => {
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      capabilityAccess: new StaticCapabilityAccessSource({
+        "platform.current_time": { entitled: false, providerAvailability: "available", featureEnabled: true },
+      }),
+    });
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/external-agents/catalog",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+    });
+    expect(response.statusCode).toBe(200);
+    const capability = response.json().capabilities.find((entry: { name: string }) => entry.name === "platform.current_time");
+    expect(capability).toMatchObject({ available: false, reasonCode: "not_entitled", subscription: "not_entitled", providerReadiness: "ready" });
+    await app.close();
+  });
+
   it("does not issue a second secret when an external connection idempotency key is reused", async () => {
     const app = buildApp({
       config,
@@ -1034,6 +1054,39 @@ describe("Agent Platform HTTP foundation", () => {
     expect(kasiai.statusCode).toBe(403);
     expect(kasiai.json()).toMatchObject({ error: expect.stringContaining("protected KasiAi") });
     await kasiaiApp.close();
+  });
+
+  it("keeps the protected KasiAi service allowlist release-managed", async () => {
+    const grantVersionTool = vi.fn();
+    const grantInstallationTool = vi.fn();
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      agents: {
+        getAgent: async () => ({ id: "kasiai", owner_type: "system", protected: true }),
+        getInstallation: async () => ({ id: "system-install", agent_owner_type: "system", agent_protected: true, execution_mode: "system_hosted" as const }),
+      } as never,
+      toolGrants: { grantVersionTool, grantInstallationTool } as never,
+    });
+    const versionGrant = await app.inject({
+      method: "POST",
+      url: "/v1/agents/kasiai/versions/version-1/tools",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { toolName: "platform.current_time" },
+    });
+    const installationGrant = await app.inject({
+      method: "POST",
+      url: "/v1/installations/system-install/tools",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { toolName: "platform.current_time" },
+    });
+    expect(versionGrant.statusCode).toBe(403);
+    expect(installationGrant.statusCode).toBe(403);
+    expect(versionGrant.json()).toMatchObject({ code: "PROTECTED_SERVICE_ALLOWLIST_RELEASE_MANAGED" });
+    expect(installationGrant.json()).toMatchObject({ code: "PROTECTED_SERVICE_ALLOWLIST_RELEASE_MANAGED" });
+    expect(grantVersionTool).not.toHaveBeenCalled();
+    expect(grantInstallationTool).not.toHaveBeenCalled();
+    await app.close();
   });
 
   it("rejects external-connected installations from hosted conversations and direct runs", async () => {
