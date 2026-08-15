@@ -373,8 +373,10 @@ infrastructure cases.
 The 2026-08-15 retention/operator regression pass adds hold-aware accounting to
 `RetentionRepository.applyMemoryRetention` and verifies it against PostgreSQL. Core support-access
 validation now has explicit tests for resource-type, reason-length, and narrow-grant resource-ID
-boundaries. The full Agent PostgreSQL + Temporal matrix remains green at 58 files / 249 tests / 0
-skips; these local checks do not close the policy-dependent or external release gates.
+boundaries. Migration `046_immutable_audit_records.sql` makes `audit_records` append-only, and the
+retention integration rejects both UPDATE and DELETE attempts against a recorded audit row. The full
+Agent PostgreSQL + Temporal matrix remains green at 58 files / 249 tests / 0 skips; these local checks
+do not close the policy-dependent or external release gates.
 
 The public boundary follow-up is complete in `62e2ec2`: `/v1` is registered only by
 `api::public_v1`, while anonymous quote and waitlist handlers now live under explicit `website`

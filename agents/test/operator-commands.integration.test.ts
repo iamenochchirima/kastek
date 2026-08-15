@@ -166,7 +166,6 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     lifecycleCommandIds.push(String(release.command.id));
     expect(await approveOperatorCommand({ actorId: secondActorId, commandId: String(release.command.id), dependencies })).toMatchObject({ status: "completed", result: { status: "released", holdId } });
 
-    await pool.query("DELETE FROM audit_records WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_operator_holds WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_operator_feature_flags WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_operator_commands WHERE id = ANY($1::uuid[])", [lifecycleCommandIds]);
@@ -343,7 +342,6 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     runCommandIds.push(String(crossOrgExport.command.id));
     await expect(approveOperatorCommand({ actorId: secondActorId, commandId: String(crossOrgExport.command.id), dependencies })).rejects.toThrow("different organization");
 
-    await pool.query("DELETE FROM audit_records WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_operator_commands WHERE id = ANY($1::uuid[])", [runCommandIds]);
     await pool.query("DELETE FROM delivery_attempts WHERE message_id = $1", [message.id]);
     await pool.query("DELETE FROM messages WHERE id = $1", [message.id]);
@@ -361,8 +359,6 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
 
   afterAll(async () => {
     if (switchId) await pool.query("DELETE FROM agent_kill_switches WHERE id = $1", [switchId]);
-    if (commandId) await pool.query("DELETE FROM audit_records WHERE resource_type = 'operator_command' AND resource_id = $1", [commandId]);
-    await pool.query("DELETE FROM audit_records WHERE organization_id = $1", [organizationId]);
     if (commandId) await pool.query("DELETE FROM agent_operator_commands WHERE id = $1", [commandId]);
     await pool.end();
   });

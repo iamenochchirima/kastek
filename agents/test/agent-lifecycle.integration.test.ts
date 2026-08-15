@@ -44,7 +44,6 @@ describe.skipIf(!runIntegration)("agent lifecycle controls (integration)", () =>
 
   afterAll(async () => {
     if (agentId) {
-      await pool.query("DELETE FROM audit_records WHERE organization_id = $1", [organizationId]);
       await pool.query("DELETE FROM agent_principals WHERE organization_id = $1", [organizationId]);
       await pool.query("DELETE FROM agent_tool_grants WHERE organization_id = $1", [organizationId]);
       await pool.query("DELETE FROM agent_installations WHERE organization_id = $1", [organizationId]);

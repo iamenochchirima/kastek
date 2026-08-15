@@ -1257,20 +1257,22 @@ organization-scoped retention policy rows and installation/conversation/organiza
 expiry, and queued deletion jobs; `applyMemoryRetention` now reports the number of eligible records
 skipped by active, unexpired legal holds instead of silently returning zero. The PostgreSQL retention
 integration asserts both the hold-protected preview and the `{ expired: 0, skippedByHold: 1 }`
-execution result. The operator command boundary requires dual approval and records immutable audit
-metadata for policy changes, retention application, and hold create/release. Agent and Core operator
-routes plus the Operations page expose only policy/count/state projections and provide controls for
-policy updates, retention application, and legal-hold release. Backup/restore execution and periodic
-external access-review evidence remain release gates, so the broad Slice 13 retention checkbox stays
-open.
+execution result. Migration `046_immutable_audit_records.sql` now enforces append-only audit rows at
+the database trigger boundary; the same PostgreSQL integration rejects both UPDATE and DELETE
+attempts. The operator command boundary requires dual approval and records audit metadata for policy
+changes, retention application, and hold create/release. Agent and Core operator routes plus the
+Operations page expose only policy/count/state projections and provide controls for policy updates,
+retention application, and legal-hold release. Backup/restore execution and periodic external
+access-review evidence remain release gates, so the broad Slice 13 retention checkbox stays open.
 
 **Operator boundary regression evidence (2026-08-15):** Core support-access validation now has
 explicit regression coverage for unknown resource types, bounded reasons, and the distinction between
-organization-wide grants and narrow run/conversation/customer grants. `cargo test -p kasitek-core
+organization-wide grants and narrow run/conversation/customer grants. Migration and integration tests
+also prove that audit rows cannot be updated or deleted after insertion. `cargo test -p kasitek-core
 --lib` passes 125 tests with three infrastructure-gated ignores; the full Agent PostgreSQL + Temporal
 matrix passes 58 files / 249 tests / 0 skips. These tests strengthen the local Slice 12 boundary but
-do not replace the still-open role-matrix, immutable-audit, browser, provider, or hosted verification
-gates.
+do not replace the still-open role/resource policy, core-to-Agent operator E2E, browser, provider, or
+hosted verification gates.
 
 **Local capability expansion evidence (2026-08-14):** Commits `720a47c`, `81d0284`, `3b26830`,
 `1b2eee9`, `d422444`, and `0631818` extend the organization-scoped Agent/Core boundary with aggregate workspace

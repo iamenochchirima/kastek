@@ -739,10 +739,12 @@ hosted/provider, browser, MCP/REST conformance, or public-principal gates.
 that an active, unexpired legal hold is counted as a skipped retention candidate (`expired: 0,
 skippedByHold: 1`) rather than being reported as an unexplained zero. Core support-access unit tests
 also reject unknown resource types, unbounded reasons, organization grants carrying narrow resource
-IDs, and narrow grants without a resource ID. The current Core library result is 125 passed / 3
-infrastructure-gated ignores, and the complete Agent PostgreSQL + Temporal matrix is 58 files / 249
-tests / 0 skips. These are bounded regression improvements; the role/resource policy, immutable audit
-storage proof, browser, provider, hosted, and external protocol gates remain unchecked.
+IDs, and narrow grants without a resource ID. Migration `046_immutable_audit_records.sql` and the
+PostgreSQL retention integration also prove that audit rows reject UPDATE and DELETE attempts. The
+current Core library result is 125 passed / 3 infrastructure-gated ignores, and the complete Agent
+PostgreSQL + Temporal matrix is 58 files / 249 tests / 0 skips. These are bounded regression
+improvements; the role/resource policy, core-to-Agent operator E2E, browser, provider, hosted, and
+external protocol gates remain unchecked.
 
 The Core database path now also has a committed historical Prisma baseline and a repeatable seeded
 fixture. All 50 client migrations, six guarded Core SQL fixtures, and the two previously ignored

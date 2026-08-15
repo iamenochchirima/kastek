@@ -155,7 +155,6 @@ describe.skipIf(!runIntegration)("hosted agent lifecycle and isolation (integrat
     if (versionId) await pool.query("DELETE FROM agent_tool_grants WHERE organization_id = $1 AND agent_version_id = $2", [organizationA, versionId]);
     if (agentId) await pool.query("DELETE FROM agent_versions WHERE id = $1", [versionId]);
     if (agentId) await pool.query("DELETE FROM agent_definitions WHERE id = $1", [agentId]);
-    await pool.query("DELETE FROM audit_records WHERE organization_id IN ($1, $2)", [organizationA, organizationB]);
     await pool.end();
   });
 });

@@ -125,10 +125,6 @@ describe.skipIf(!runIntegration)("protected system agent installations (integrat
   afterAll(async () => {
     if (agentId) {
       await pool.query(
-        "DELETE FROM audit_records WHERE organization_id = ANY($1::text[])",
-        [[SYSTEM_ORGANIZATION_ID, organizationOne, organizationTwo, organizationWithoutInstallation]],
-      );
-      await pool.query(
         "DELETE FROM evaluation_runs WHERE scenario_id IN (SELECT id FROM evaluation_scenarios WHERE agent_definition_id = $1)",
         [agentId],
       );

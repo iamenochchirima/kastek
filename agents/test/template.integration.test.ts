@@ -31,7 +31,6 @@ describe.skipIf(!runIntegration)("agent template installation (integration)", ()
   beforeAll(async () => { await pool.query("SELECT 1"); });
 
   afterAll(async () => {
-    await pool.query("DELETE FROM audit_records WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM channel_bindings WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM channel_connections WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_tool_grants WHERE organization_id = $1", [organizationId]);

@@ -97,7 +97,6 @@ describe.skipIf(!runIntegration)("operator search (integration)", () => {
       expect(JSON.stringify(body)).not.toContain("raw_payload");
     } finally {
       await app.close();
-      await pool.query("DELETE FROM audit_records WHERE id = $1", [auditId]);
       await pool.query("DELETE FROM delivery_attempts WHERE id = $1", [deliveryId]);
       await pool.query("DELETE FROM messages WHERE id = $1", [messageId]);
       await pool.query("DELETE FROM agent_runs WHERE id = $1", [runId]);

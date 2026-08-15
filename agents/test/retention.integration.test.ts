@@ -64,11 +64,19 @@ describe.skipIf(!runIntegration)("retention and legal-hold controls (integration
     expect(applied).toMatchObject({ status: "completed", result: { status: "applied", expired: 1 } });
     expect((await pool.query<{ status: string }>("SELECT status FROM memory_records WHERE id = $1", [memoryId])).rows[0]?.status).toBe("expired");
     expect((await pool.query<{ status: string }>("SELECT status FROM memory_deletion_jobs WHERE target_id = $1 ORDER BY created_at DESC LIMIT 1", [memoryId])).rows[0]?.status).toBe("queued");
+
+    const audit = await pool.query<{ id: string }>(
+      "SELECT id::text FROM audit_records WHERE organization_id = $1 ORDER BY created_at DESC LIMIT 1",
+      [organizationId],
+    );
+    const auditId = audit.rows[0]?.id;
+    expect(auditId).toBeTruthy();
+    await expect(pool.query("UPDATE audit_records SET action = 'tampered' WHERE id = $1", [auditId])).rejects.toThrow("append-only");
+    await expect(pool.query("DELETE FROM audit_records WHERE id = $1", [auditId])).rejects.toThrow("append-only");
   });
 
   afterAll(async () => {
     await pool.query("DELETE FROM agent_operator_commands WHERE id = ANY($1::uuid[])", [commandIds]);
-    await pool.query("DELETE FROM audit_records WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM memory_deletion_jobs WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM memory_records WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_legal_holds WHERE organization_id = $1", [organizationId]);
