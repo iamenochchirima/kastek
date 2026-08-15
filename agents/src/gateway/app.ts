@@ -2,16 +2,32 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { createHash } from "node:crypto";
 import { randomUUID } from "node:crypto";
 import { FixedWindowRateLimiter } from "./rate-limit";
+import {
+  firstHeader,
+  inspectMcpRequest,
+  MCP_COMPATIBILITY_PROTOCOL_VERSION,
+  MCP_STATELESS_PROTOCOL_VERSION,
+  mcpEnvelopeSchema,
+  McpProtocolError,
+  validateStatelessRequest,
+} from "../mcp/protocol";
 
 const MAX_MCP_REQUEST_BYTES = 256 * 1024;
 const MAX_MCP_RESPONSE_BYTES = 1024 * 1024;
 const UPSTREAM_TIMEOUT_MS = 15_000;
-const SUPPORTED_PROTOCOL_VERSIONS = new Set(["2025-06-18"]);
+const SUPPORTED_PROTOCOL_VERSIONS: ReadonlySet<string> = new Set([MCP_STATELESS_PROTOCOL_VERSION, MCP_COMPATIBILITY_PROTOCOL_VERSION]);
 
 interface GatewayMetrics {
   requests: number;
   responses: number;
   errors: number;
+  statelessRequests: number;
+  compatibilityRequests: number;
+  protocolErrors: number;
+  completeResponses: number;
+  taskResponses: number;
+  errorResponses: number;
+  methodCounts: Record<"server_discover" | "tools_list" | "tools_call" | "tasks" | "other", number>;
   inFlight: number;
   totalLatencyMs: number;
 }
@@ -52,6 +68,8 @@ export function buildGateway(input: {
   rateLimitWindowMs?: number;
   rateLimitMaxKeys?: number;
   upstreamTimeoutMs?: number;
+  allowedOrigins?: string[];
+  statelessEnabled?: boolean;
 }): FastifyInstance {
   if (input.environment === "production" && !input.sharedSecret?.trim()) {
     throw new Error("AGENT_GATEWAY_SHARED_SECRET is required in production");
@@ -59,13 +77,37 @@ export function buildGateway(input: {
   const upstreamTimeoutMs = input.upstreamTimeoutMs ?? UPSTREAM_TIMEOUT_MS;
   const app = Fastify({ logger: false, bodyLimit: MAX_MCP_REQUEST_BYTES, requestTimeout: upstreamTimeoutMs });
   const enabled = input.enabled ?? true;
+  const statelessEnabled = input.statelessEnabled ?? true;
   const windowMs = input.rateLimitWindowMs ?? 60_000;
   const authenticatedLimiter = new FixedWindowRateLimiter(input.rateLimitPerWindow ?? 120, windowMs, input.rateLimitMaxKeys ?? 10_000);
   const preAuthLimiter = new FixedWindowRateLimiter(input.preAuthRateLimitPerWindow ?? 60, windowMs, input.rateLimitMaxKeys ?? 10_000);
-  const metrics: GatewayMetrics = { requests: 0, responses: 0, errors: 0, inFlight: 0, totalLatencyMs: 0 };
+  const allowedOrigins = new Set((input.allowedOrigins ?? []).map((origin) => origin.trim()).filter(Boolean));
+  const metrics: GatewayMetrics = {
+    requests: 0,
+    responses: 0,
+    errors: 0,
+    statelessRequests: 0,
+    compatibilityRequests: 0,
+    protocolErrors: 0,
+    completeResponses: 0,
+    taskResponses: 0,
+    errorResponses: 0,
+    methodCounts: { server_discover: 0, tools_list: 0, tools_call: 0, tasks: 0, other: 0 },
+    inFlight: 0,
+    totalLatencyMs: 0,
+  };
 
-  const jsonRpcError = (reply: { code: (status: number) => { send: (payload: unknown) => unknown } }, code: number, message: string) =>
-    reply.code(code === -32029 ? 429 : code === -32003 ? 401 : code === -32602 ? 400 : 503).send({ jsonrpc: "2.0", id: null, error: { code, message } });
+  const jsonRpcError = (
+    reply: { code: (status: number) => { send: (payload: unknown) => unknown } },
+    code: number,
+    message: string,
+    data?: unknown,
+    statusOverride?: number,
+  ) => reply.code(statusOverride ?? (code === -32029 ? 429 : code === -32003 ? 401 : code === -32602 || code === -32020 || code === -32022 ? 400 : 503)).send({
+    jsonrpc: "2.0",
+    id: null,
+    error: { code, message, ...(data === undefined ? {} : { data }) },
+  });
 
   app.setErrorHandler((error, request, reply) => {
     if (request.url === "/mcp" && request.method === "POST") {
@@ -78,11 +120,6 @@ export function buildGateway(input: {
     }
     return reply.code((error as { statusCode?: number }).statusCode ?? 500).send({ error: "gateway_error" });
   });
-
-  const protocolVersion = (request: { headers: Record<string, string | string[] | undefined> }): string | undefined => {
-    const value = request.headers["mcp-protocol-version"];
-    return Array.isArray(value) ? value[0] : value;
-  };
 
   app.get("/health", async () => ({ status: "ok", service: "agent-gateway" }));
   app.get("/health/ready", async (_request, reply) => {
@@ -101,6 +138,17 @@ export function buildGateway(input: {
       `kasitek_gateway_requests_total ${metrics.requests}`,
       `kasitek_gateway_responses_total ${metrics.responses}`,
       `kasitek_gateway_errors_total ${metrics.errors}`,
+      `kasitek_gateway_stateless_requests_total ${metrics.statelessRequests}`,
+      `kasitek_gateway_compatibility_requests_total ${metrics.compatibilityRequests}`,
+      `kasitek_gateway_protocol_errors_total ${metrics.protocolErrors}`,
+      `kasitek_gateway_complete_responses_total ${metrics.completeResponses}`,
+      `kasitek_gateway_task_responses_total ${metrics.taskResponses}`,
+      `kasitek_gateway_error_responses_total ${metrics.errorResponses}`,
+      `kasitek_gateway_method_server_discover_total ${metrics.methodCounts.server_discover}`,
+      `kasitek_gateway_method_tools_list_total ${metrics.methodCounts.tools_list}`,
+      `kasitek_gateway_method_tools_call_total ${metrics.methodCounts.tools_call}`,
+      `kasitek_gateway_method_tasks_total ${metrics.methodCounts.tasks}`,
+      `kasitek_gateway_method_other_total ${metrics.methodCounts.other}`,
       `kasitek_gateway_in_flight ${metrics.inFlight}`,
       `kasitek_gateway_average_latency_ms ${averageLatencyMs.toFixed(3)}`,
       "",
@@ -133,6 +181,10 @@ export function buildGateway(input: {
     // and rate limits, while keeping the response body free of credentials.
     reply.raw.once("finish", () => finish(reply.statusCode >= 400));
     if (!enabled) return jsonRpcError(reply, -32030, "mcp_gateway_disabled");
+    const origin = firstHeader(request.headers, "origin");
+    if (origin && (!allowedOrigins.size || !allowedOrigins.has(origin))) {
+      return reply.code(403).send({ error: "origin_not_allowed" });
+    }
     const authorization = typeof request.headers.authorization === "string" ? request.headers.authorization : "";
     const rateKey = authorization.startsWith("Bearer ")
       ? `credential:${createHash("sha256").update(authorization).digest("hex")}`
@@ -142,14 +194,68 @@ export function buildGateway(input: {
       reply.header("retry-after", String(decision.retryAfterSeconds));
       return jsonRpcError(reply, -32029, "rate_limited");
     }
-    const requestedProtocol = protocolVersion(request);
-    if (requestedProtocol && !SUPPORTED_PROTOCOL_VERSIONS.has(requestedProtocol)) {
-      reply.header("mcp-protocol-version", "2025-06-18");
+    const parsedBody = mcpEnvelopeSchema.safeParse(request.body);
+    if (!parsedBody.success) {
+      return jsonRpcError(reply, -32600, "invalid_mcp_request", undefined, 400);
+    }
+    const body = parsedBody.data;
+    if (body.method === "server/discover") metrics.methodCounts.server_discover += 1;
+    else if (body.method === "tools/list") metrics.methodCounts.tools_list += 1;
+    else if (body.method === "tools/call") metrics.methodCounts.tools_call += 1;
+    else if (body.method.startsWith("tasks/")) metrics.methodCounts.tasks += 1;
+    else metrics.methodCounts.other += 1;
+    const inspection = inspectMcpRequest(body, request.headers);
+    if (inspection.era === "stateless_2026") metrics.statelessRequests += 1;
+    else metrics.compatibilityRequests += 1;
+    const requestedProtocol = firstHeader(request.headers, "mcp-protocol-version");
+    if (!SUPPORTED_PROTOCOL_VERSIONS.has(requestedProtocol ?? MCP_COMPATIBILITY_PROTOCOL_VERSION)
+      && inspection.era === "pre_2026_compatibility") {
+      metrics.protocolErrors += 1;
+      reply.header("mcp-protocol-version", MCP_COMPATIBILITY_PROTOCOL_VERSION);
       return jsonRpcError(reply, -32602, "unsupported_mcp_protocol_version");
     }
-    const headers: Record<string, string> = { "content-type": "application/json", accept: "application/json" };
+    if (inspection.era === "stateless_2026") {
+      if (!statelessEnabled) {
+        metrics.protocolErrors += 1;
+        reply.header("mcp-protocol-version", MCP_COMPATIBILITY_PROTOCOL_VERSION);
+        return jsonRpcError(reply, -32022, "Unsupported protocol version", {
+          supported: [MCP_COMPATIBILITY_PROTOCOL_VERSION],
+          requested: inspection.bodyProtocolVersion ?? requestedProtocol ?? MCP_STATELESS_PROTOCOL_VERSION,
+        }, 400);
+      }
+      try {
+        validateStatelessRequest({ body, headers: request.headers, transport: "http" });
+      } catch (error) {
+        if (!(error instanceof McpProtocolError)) throw error;
+        metrics.protocolErrors += 1;
+        reply.header("mcp-protocol-version", MCP_STATELESS_PROTOCOL_VERSION);
+        return reply.code(error.statusCode).send({
+          jsonrpc: "2.0",
+          id: body.id ?? null,
+          error: {
+            code: error.rpcCode,
+            message: error.message,
+            ...(error.data === undefined ? {} : { data: error.data }),
+          },
+        });
+      }
+    }
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+      accept: firstHeader(request.headers, "accept") ?? "application/json, text/event-stream",
+    };
     if (typeof request.headers.authorization === "string") headers.authorization = request.headers.authorization;
     if (requestedProtocol) headers["mcp-protocol-version"] = requestedProtocol;
+    for (const [name, value] of Object.entries(request.headers)) {
+      if (!name.toLowerCase().startsWith("mcp-param-") || typeof value !== "string") continue;
+      headers[name.toLowerCase()] = value;
+    }
+    if (inspection.era === "stateless_2026") {
+      const method = firstHeader(request.headers, "mcp-method");
+      const name = firstHeader(request.headers, "mcp-name");
+      if (method) headers["mcp-method"] = method;
+      if (name) headers["mcp-name"] = name;
+    }
     if (input.sharedSecret) headers["x-agent-gateway-secret"] = input.sharedSecret;
 
     const controller = new AbortController();
@@ -173,6 +279,19 @@ export function buildGateway(input: {
       const payload = await readBoundedResponse(response, MAX_MCP_RESPONSE_BYTES);
       const upstreamProtocol = response.headers.get("mcp-protocol-version");
       if (upstreamProtocol) reply.header("mcp-protocol-version", upstreamProtocol);
+      if (response.status >= 400) {
+        metrics.errorResponses += 1;
+      } else {
+        try {
+          const decoded = JSON.parse(payload) as { result?: { resultType?: unknown }; error?: unknown };
+          if (decoded.error !== undefined) metrics.errorResponses += 1;
+          else if (decoded.result?.resultType === "task") metrics.taskResponses += 1;
+          else metrics.completeResponses += 1;
+        } catch {
+          // Non-JSON streams are bounded and passed through without metric
+          // classification; the gateway does not log or inspect their data.
+        }
+      }
       return reply.code(response.status).header("content-type", response.headers.get("content-type") ?? "application/json").send(payload);
     } catch (error) {
       const message = error instanceof Error && error.message === "upstream_response_too_large" ? error.message : "agent_platform_unavailable";

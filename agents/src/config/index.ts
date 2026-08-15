@@ -19,6 +19,11 @@ const envSchema = z.object({
   TEMPORAL_ADDRESS: z.string().default("localhost:7233"),
   TEMPORAL_NAMESPACE: z.string().default("default"),
   TEMPORAL_TASK_QUEUE: z.string().default("kasitek-agents-interactive"),
+  // The 2026 stateless path is enabled by default in development/test so it is
+  // exercised locally, but remains opt-in in production until staging/client
+  // evidence has been recorded. The pre-2026 compatibility path is always
+  // retained during the migration window.
+  MCP_STATELESS_ENABLED: z.enum(["true", "false"]).optional().transform((value) => value === undefined ? undefined : value === "true"),
   TEMPORAL_API_KEY: z.string().optional(),
   KASIAI_MODEL_PROVIDER: z.enum(["openrouter", "openai", "anthropic", "gemini"]).default("openrouter"),
   KASIAI_MODEL: z.string().trim().min(1).default("openai/gpt-4o-mini"),
@@ -48,7 +53,11 @@ const envSchema = z.object({
 export type AppConfig = z.infer<typeof envSchema>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const config = envSchema.parse(env);
+  const parsed = envSchema.parse(env);
+  const config = {
+    ...parsed,
+    MCP_STATELESS_ENABLED: parsed.MCP_STATELESS_ENABLED ?? parsed.NODE_ENV !== "production",
+  };
   if (config.NODE_ENV === "production" && !config.TEMPORAL_ENABLED) {
     throw new Error("TEMPORAL_ENABLED must be true in production");
   }

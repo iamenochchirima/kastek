@@ -29,4 +29,20 @@ describe("agent runtime configuration", () => {
     });
     expect(config.KASITEK_CORE_INTERNAL_TOKEN).toBeUndefined();
   });
+
+  it("keeps the 2026 stateless path off by default in production and explicit in rollout", () => {
+    const production = loadConfig({
+      ...required,
+      OPENROUTER_API_KEY: "key",
+      INSTALLATION_TOKEN_PRIVATE_KEY: "test-key",
+    });
+    expect(production.MCP_STATELESS_ENABLED).toBe(false);
+    const enabled = loadConfig({
+      ...required,
+      OPENROUTER_API_KEY: "key",
+      INSTALLATION_TOKEN_PRIVATE_KEY: "test-key",
+      MCP_STATELESS_ENABLED: "true",
+    });
+    expect(enabled.MCP_STATELESS_ENABLED).toBe(true);
+  });
 });

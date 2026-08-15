@@ -46,8 +46,27 @@ import { KasitekCoreReadClient } from "../core/client";
 import { ToolRegistry } from "../tools/registry";
 import { redactSensitiveValue } from "../tools/redaction";
 import { randomUUID } from "node:crypto";
+import {
+  clientSupportsExtension,
+  cacheableResult,
+  completeResult,
+  inspectMcpRequest,
+  MCP_COMPATIBILITY_PROTOCOL_VERSION,
+  MCP_SERVER_INFO,
+  MCP_STATELESS_PROTOCOL_VERSION,
+  MCP_TASKS_EXTENSION,
+  mcpEnvelopeSchema,
+  McpProtocolError,
+  unsupportedProtocolVersion,
+  validateStatelessRequest,
+} from "../mcp/protocol";
 
-const MCP_PROTOCOL_VERSION = "2025-06-18";
+const MCP_PROTOCOL_VERSION = MCP_COMPATIBILITY_PROTOCOL_VERSION;
+const MCP_DISCOVERY_CACHE_TTL_MS = 30_000;
+const MCP_TOOL_LIST_CACHE_TTL_MS = 30_000;
+const MCP_TASK_TTL_MS = 86_400_000;
+const MCP_TASK_POLL_INTERVAL_MS = 2_000;
+const MCP_MAX_RESPONSE_BYTES = 1024 * 1024;
 import { ConnectorRegistry } from "../connectors";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
 import { ApprovalRepository } from "../db/repositories/approval-repository";
@@ -242,6 +261,30 @@ function publicApprovalStatus(approval: { status: string; provider_tool_call_id:
   };
 }
 
+type McpTaskStatus = "working" | "input_required" | "completed" | "failed" | "cancelled";
+
+function mcpTaskStatus(runStatus: string): McpTaskStatus {
+  if (runStatus === "completed") return "completed";
+  if (runStatus === "failed" || runStatus === "expired") return "failed";
+  if (runStatus === "cancelled") return "cancelled";
+  // Approval and human/external waits remain durable work owned by the
+  // existing approval/runtime boundary. They are exposed as working until
+  // MRTR input requests are enabled for a client and operation.
+  return "working";
+}
+
+function publicMcpTask(run: { id: string; status: string; updated_at?: string | null; error?: unknown }): Record<string, unknown> {
+  const status = mcpTaskStatus(run.status);
+  return {
+    taskId: run.id,
+    status,
+    ttlMs: MCP_TASK_TTL_MS,
+    pollIntervalMs: MCP_TASK_POLL_INTERVAL_MS,
+    ...(run.updated_at ? { lastUpdatedAt: run.updated_at } : {}),
+    ...(status === "working" && run.status.startsWith("awaiting_") ? { statusMessage: `Operation is ${run.status.replaceAll("_", " ")}.` } : {}),
+  };
+}
+
 export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const app = Fastify({ logger: { level: dependencies.config.LOG_LEVEL } });
   const agents = dependencies.agents ?? new AgentRepository(dependencies.pool);
@@ -321,7 +364,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const statusCode = error instanceof ZodError ? 400 : ((error as { statusCode?: number }).statusCode ?? 500);
     if (statusCode >= 500) app.log.error(error);
     if (request.url === "/mcp" && request.method === "POST" && statusCode === 400) {
-      reply.header("mcp-protocol-version", MCP_PROTOCOL_VERSION);
+      const requestedProtocol = headerValue(request, "mcp-protocol-version");
+      reply.header("mcp-protocol-version", requestedProtocol === MCP_STATELESS_PROTOCOL_VERSION ? MCP_STATELESS_PROTOCOL_VERSION : MCP_PROTOCOL_VERSION);
       return reply.code(400).send({ jsonrpc: "2.0", id: null, error: { code: -32600, message: "invalid_mcp_request" } });
     }
     const message = error instanceof ZodError ? "Invalid request" : error instanceof Error ? error.message : "Request failed";
@@ -701,23 +745,74 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   });
 
   app.post("/mcp", async (request, reply) => {
-    const body = z.object({
-      jsonrpc: z.literal("2.0"),
-      id: z.union([z.string(), z.number(), z.null()]).optional(),
-      method: z.string().min(1).max(120),
-      params: z.record(z.string(), z.unknown()).optional(),
-    }).parse(request.body);
-    const respond = (result: unknown) => body.id === undefined ? reply.code(204).send() : reply.send({ jsonrpc: "2.0", id: body.id, result });
-    const failure = (code: number, message: string, data?: unknown) => body.id === undefined ? reply.code(204).send() : reply.send({ jsonrpc: "2.0", id: body.id, error: { code, message, ...(data === undefined ? {} : { data }) } });
-    const headerProtocol = request.headers["mcp-protocol-version"];
-    const requestedProtocol = typeof headerProtocol === "string"
-      ? headerProtocol
-      : typeof body.params?.protocolVersion === "string" ? body.params.protocolVersion : undefined;
-    if (requestedProtocol && requestedProtocol !== MCP_PROTOCOL_VERSION) {
+    const body = mcpEnvelopeSchema.parse(request.body);
+    const inspection = inspectMcpRequest(body, request.headers);
+    const isStateless = inspection.era === "stateless_2026";
+    const statelessEnabled = dependencies.config.MCP_STATELESS_ENABLED !== false;
+    const protocolVersion = isStateless && statelessEnabled ? MCP_STATELESS_PROTOCOL_VERSION : MCP_PROTOCOL_VERSION;
+    const respond = (result: Record<string, unknown>) => {
+      if (body.id === undefined) return reply.code(204).send();
+      const normalized = isStateless ? completeResult(result, { serverInfo: MCP_SERVER_INFO }) : result;
+      let encodedSize = 0;
+      try {
+        encodedSize = Buffer.byteLength(JSON.stringify({ jsonrpc: "2.0", id: body.id, result: normalized }), "utf8");
+      } catch {
+        encodedSize = MCP_MAX_RESPONSE_BYTES + 1;
+      }
+      if (encodedSize > MCP_MAX_RESPONSE_BYTES) {
+        return reply.code(413).send({ jsonrpc: "2.0", id: body.id, error: { code: -32011, message: "mcp_response_too_large" } });
+      }
+      return reply.send({ jsonrpc: "2.0", id: body.id, result: normalized });
+    };
+    const failure = (code: number, message: string, data?: unknown) => body.id === undefined
+      ? reply.code(204).send()
+      : reply.code(isStateless && code === -32601 ? 404 : 200).send({ jsonrpc: "2.0", id: body.id, error: { code, message, ...(data === undefined ? {} : { data }) } });
+    const protocolFailure = (error: unknown) => {
+      if (!(error instanceof McpProtocolError)) throw error;
+      reply.header("mcp-protocol-version", protocolVersion);
+      return reply.code(error.statusCode).send({
+        jsonrpc: "2.0",
+        id: body.id ?? null,
+        error: {
+          code: error.rpcCode,
+          message: error.message,
+          ...(error.data === undefined ? {} : { data: error.data }),
+        },
+      });
+    };
+    if (isStateless && !statelessEnabled) {
+      const error = unsupportedProtocolVersion(
+        inspection.bodyProtocolVersion ?? inspection.headerProtocolVersion,
+        [MCP_COMPATIBILITY_PROTOCOL_VERSION],
+      );
       reply.header("mcp-protocol-version", MCP_PROTOCOL_VERSION);
-      return failure(-32602, "unsupported_mcp_protocol_version");
+      return reply.code(error.statusCode).send({
+        jsonrpc: "2.0",
+        id: body.id ?? null,
+        error: {
+          code: error.rpcCode,
+          message: error.message,
+          ...(error.data === undefined ? {} : { data: error.data }),
+        },
+      });
     }
-    reply.header("mcp-protocol-version", MCP_PROTOCOL_VERSION);
+    if (isStateless) {
+      try {
+        validateStatelessRequest({ body, headers: request.headers, transport: "http" });
+      } catch (error) {
+        return protocolFailure(error);
+      }
+    } else {
+      const headerProtocol = request.headers["mcp-protocol-version"];
+      const requestedProtocol = typeof headerProtocol === "string"
+        ? headerProtocol
+        : typeof body.params?.protocolVersion === "string" ? body.params.protocolVersion : undefined;
+      if (requestedProtocol && requestedProtocol !== MCP_PROTOCOL_VERSION) {
+        reply.header("mcp-protocol-version", MCP_PROTOCOL_VERSION);
+        return failure(-32602, "unsupported_mcp_protocol_version");
+      }
+    }
+    reply.header("mcp-protocol-version", protocolVersion);
     if (dependencies.config.AGENT_GATEWAY_SHARED_SECRET && request.headers["x-agent-gateway-secret"] !== dependencies.config.AGENT_GATEWAY_SHARED_SECRET) {
       return failure(-32003, "gateway_authentication_required");
     }
@@ -741,8 +836,22 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     })) {
       return failure(-32030, "mcp_kill_switch_active", { code: "MCP_KILL_SWITCH_ACTIVE" });
     }
+    if (body.method === "server/discover") {
+      if (!isStateless) return failure(-32601, "method_not_found");
+      return respond({
+        supportedVersions: [MCP_STATELESS_PROTOCOL_VERSION, MCP_COMPATIBILITY_PROTOCOL_VERSION],
+        capabilities: {
+          tools: { listChanged: false },
+          extensions: { [MCP_TASKS_EXTENSION]: {} },
+        },
+        instructions: "Use the filtered tools/list catalog and durable operation status for KasiTek capabilities.",
+        ttlMs: MCP_DISCOVERY_CACHE_TTL_MS,
+        cacheScope: "private",
+      });
+    }
     if (body.method === "initialize") {
-      return respond({ protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: { listChanged: false } }, serverInfo: { name: "kasitek-agent-platform", version: "1.0.0" } });
+      if (isStateless) return failure(-32601, "method_not_found");
+      return respond({ protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: { listChanged: false } }, serverInfo: MCP_SERVER_INFO });
     }
     const params = body.params ?? {};
     const suppliedInstallationId = typeof params.installationId === "string" ? params.installationId : undefined;
@@ -751,7 +860,64 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const installation = await agents.getInstallation(auth.organizationId, auth.installationId);
       if (!installation || installation.status !== "active") return failure(-32004, "installation_not_found");
       const granted = await toolGrants.effectiveTools(auth.organizationId, installation.agent_version_id, installation.id);
-      return respond({ tools: toolRegistry.surfaces(granted).map((surface) => surface.mcp) });
+      const tools = toolRegistry.surfaces(granted)
+        .map((surface) => surface.mcp)
+        .sort((left, right) => left.name.localeCompare(right.name));
+      return respond(isStateless
+        ? cacheableResult({ tools }, { ttlMs: MCP_TOOL_LIST_CACHE_TTL_MS, cacheScope: "private" }, { serverInfo: MCP_SERVER_INFO })
+        : { tools });
+    }
+    if (body.method === "tasks/get") {
+      if (!isStateless) return failure(-32601, "method_not_found");
+      const taskId = typeof params.taskId === "string" ? params.taskId.trim() : "";
+      if (!taskId) return failure(-32602, "taskId is required");
+      const run = await runs.getRun(auth.organizationId, taskId);
+      if (!run || run.installation_id !== auth.installationId) return failure(-32004, "task_not_found");
+      const task = publicMcpTask(run);
+      const result: Record<string, unknown> = { task };
+      if (task.status === "completed") {
+        result.result = redactSensitiveValue(run.output ?? { runId: run.id, status: run.status });
+      } else if (task.status === "failed") {
+        result.error = {
+          code: -32001,
+          message: run.status === "expired" ? "operation_expired" : "operation_failed",
+          ...(run.error ? { data: redactSensitiveValue(run.error) } : {}),
+        };
+      }
+      return respond(result);
+    }
+    if (body.method === "tasks/cancel") {
+      if (!isStateless) return failure(-32601, "method_not_found");
+      try {
+        requireMcpScope(auth, "mcp:write");
+      } catch (error) {
+        return failure(-32003, error instanceof Error ? error.message : "mcp_authorization_failed");
+      }
+      const taskId = typeof params.taskId === "string" ? params.taskId.trim() : "";
+      if (!taskId) return failure(-32602, "taskId is required");
+      const run = await runs.getRun(auth.organizationId, taskId);
+      if (!run || run.installation_id !== auth.installationId) return failure(-32004, "task_not_found");
+      if (["completed", "failed", "cancelled", "expired"].includes(run.status)) return respond({});
+      if (!dependencies.signalCancellation) return failure(-32004, "durable_mcp_execution_unavailable");
+      const reason = typeof params.reason === "string" ? params.reason.trim().slice(0, 500) : "cancelled by MCP client";
+      await dependencies.signalCancellation(run.id, { reason: `installation:${auth.installationId}: ${reason}` });
+      return respond({});
+    }
+    if (body.method === "tasks/update") {
+      if (!isStateless) return failure(-32601, "method_not_found");
+      try {
+        requireMcpScope(auth, "mcp:write");
+      } catch (error) {
+        return failure(-32003, error instanceof Error ? error.message : "mcp_authorization_failed");
+      }
+      const taskId = typeof params.taskId === "string" ? params.taskId.trim() : "";
+      if (!taskId) return failure(-32602, "taskId is required");
+      const run = await runs.getRun(auth.organizationId, taskId);
+      if (!run || run.installation_id !== auth.installationId) return failure(-32004, "task_not_found");
+      // No current capability advertises an MRTR input request yet. Accept and
+      // ignore unknown responses as permitted by the Tasks extension, while
+      // keeping the task/run and authorization checks strict.
+      return respond({});
     }
     if (body.method === "tools/status") {
       const runId = typeof params.runId === "string" ? params.runId.trim() : "";
@@ -800,6 +966,16 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           idempotencyKey: idempotencyKey ?? `mcp:${auth.credentialId}:${randomUUID()}`,
         });
         const { accepted, manifest } = invocation;
+        const immediate = "immediate" in invocation && invocation.immediate === true;
+        const taskRequested = isStateless
+          && clientSupportsExtension(inspection.metadata, MCP_TASKS_EXTENSION)
+          && !immediate;
+        if (taskRequested) {
+          return respond({
+            resultType: "task",
+            task: publicMcpTask({ id: accepted.id, status: accepted.status }),
+          });
+        }
         return respond({
           content: [{ type: "text", text: `Accepted ${name} as operation ${accepted.id}.` }],
           isError: false,
@@ -807,7 +983,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
             runId: accepted.id,
             status: accepted.status,
             approvalRequired: manifest.requiresApproval,
-            ...( "immediate" in invocation && invocation.immediate === true ? { output: invocation.output } : {}),
+            ...(immediate ? { output: invocation.output } : {}),
             statusReference: { method: "tools/status", params: { runId: accepted.id } },
           },
         });
@@ -818,6 +994,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       }
     }
     if (body.method === "notifications/cancelled") {
+      if (isStateless) return failure(-32601, "notifications/cancelled is only supported by the pre-2026 compatibility path and stdio");
       try {
         requireMcpScope(auth, "mcp:write");
       } catch (error) {

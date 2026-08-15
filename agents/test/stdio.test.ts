@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { forwardStdioMessage, runStdioBridge } from "../src/gateway/stdio";
+import { forwardStdioMessage, probeStdioProtocol, runStdioBridge } from "../src/gateway/stdio";
 import { PassThrough } from "node:stream";
 
 describe("local MCP stdio bridge", () => {
@@ -13,6 +13,27 @@ describe("local MCP stdio bridge", () => {
     }));
   });
 
+  it("rejects an unsupported stateless revision before forwarding", async () => {
+    const fetchImpl = vi.fn();
+    await expect(forwardStdioMessage({
+      endpoint: "https://agents.example/mcp",
+      token: "secret-token",
+      message: {
+        jsonrpc: "2.0",
+        id: 7,
+        method: "server/discover",
+        params: {
+          _meta: {
+            "io.modelcontextprotocol/protocolVersion": "2025-11-25",
+            "io.modelcontextprotocol/clientCapabilities": {},
+          },
+        },
+      },
+      fetchImpl,
+    })).rejects.toMatchObject({ rpcCode: -32022 });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it("preserves notification silence and returns structured local errors", async () => {
     const input = new PassThrough();
     const output = new PassThrough();
@@ -21,7 +42,7 @@ describe("local MCP stdio bridge", () => {
     const fetchImpl = vi.fn()
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ jsonrpc: "2.0", id: 2, result: {} }), { status: 200 }));
-    const bridge = runStdioBridge({ endpoint: "https://agents.example/mcp", token: "secret-token", input, output, fetchImpl });
+    const bridge = runStdioBridge({ endpoint: "https://agents.example/mcp", token: "secret-token", input, output, fetchImpl, probeProtocol: false });
     input.end(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" })}\n`);
     await bridge;
     expect(Buffer.concat(chunks).toString()).toBe('{"jsonrpc":"2.0","id":2,"result":{}}\n');
@@ -33,11 +54,44 @@ describe("local MCP stdio bridge", () => {
     const chunks: Buffer[] = [];
     output.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
     const fetchImpl = vi.fn();
-    const bridge = runStdioBridge({ endpoint: "https://agents.example/mcp", token: "secret-token", input, output, fetchImpl });
+    const bridge = runStdioBridge({ endpoint: "https://agents.example/mcp", token: "secret-token", input, output, fetchImpl, probeProtocol: false });
     input.end(`not-json\n${"x".repeat(256 * 1024 + 1)}\n`);
     await bridge;
     const lines = Buffer.concat(chunks).toString().trim().split("\n").map((line) => JSON.parse(line) as { error: { code: number } });
     expect(lines.map((line) => line.error.code)).toEqual([-32600, -32011]);
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("probes discovery without inventing client identity and records both eras", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      jsonrpc: "2.0",
+      id: "stdio-probe",
+      result: { supportedVersions: ["2026-07-28", "2025-06-18"] },
+    }), { status: 200 }));
+    await expect(probeStdioProtocol({ endpoint: "https://agents.example/mcp", token: "secret-token", fetchImpl })).resolves.toEqual({
+      supportsStateless: true,
+      supportsCompatibility: true,
+    });
+    const request = fetchImpl.mock.calls[0]?.[1] as RequestInit;
+    const body = JSON.parse(String(request.body)) as { params: { _meta: Record<string, unknown> } };
+    expect(body.params._meta["io.modelcontextprotocol/clientCapabilities"]).toEqual({});
+    expect(body.params._meta["io.modelcontextprotocol/clientInfo"]).toBeUndefined();
+  });
+
+  it("does not send compatibility traffic to a modern-only endpoint", async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const chunks: Buffer[] = [];
+    output.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      jsonrpc: "2.0",
+      id: "stdio-probe",
+      result: { supportedVersions: ["2026-07-28"] },
+    }), { status: 200 }));
+    const bridge = runStdioBridge({ endpoint: "https://agents.example/mcp", token: "secret-token", input, output, fetchImpl });
+    input.end(`${JSON.stringify({ jsonrpc: "2.0", id: 3, method: "initialize" })}\n`);
+    await bridge;
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(Buffer.concat(chunks).toString().trim())).toMatchObject({ error: { message: "mcp_compatibility_protocol_unavailable" } });
   });
 });

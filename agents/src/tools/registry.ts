@@ -1,4 +1,5 @@
 import Ajv, { type ValidateFunction } from "ajv";
+import Ajv2020 from "ajv/dist/2020";
 import { createHash } from "node:crypto";
 import type {
   CapabilityManifest,
@@ -35,7 +36,8 @@ export class ToolRegistry {
   private readonly tools = new Map<string, RegisteredTool>();
   private readonly ajv: Ajv;
 
-  public constructor(ajv = new Ajv({ allErrors: true, strict: false })) {
+  /** MCP and internal capability schemas use the JSON Schema 2020-12 dialect. */
+  public constructor(ajv: Ajv = new Ajv2020({ allErrors: true, strict: false })) {
     this.ajv = ajv;
   }
 

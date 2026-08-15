@@ -29,24 +29,43 @@ The gateway is a third independently scalable process. It owns no database, Temp
 product state: `POST /mcp` forwards the authenticated JSON-RPC request to the private Agent API,
 and `/health` reports gateway liveness. `/health/ready` checks the Agent API readiness endpoint and
 `/metrics` exposes redacted in-process request counters and latency. Route `agents.kasitek.co.za/mcp` to `start:gateway`; keep
-the Agent API `/v1` surface on its private/API origin.
+the Agent API `/v1` surface on its private/API origin. Local development binds the gateway to
+loopback by default; production deployment may bind `0.0.0.0` behind the configured network and
+Origin boundary.
 
 The gateway applies bounded in-process fixed-window limits before forwarding requests. Set
 `MCP_GATEWAY_ENABLED=false` for an emergency transport disable, and tune the authenticated and
 pre-authentication windows with the `MCP_GATEWAY_*` variables. These controls are transport-local;
 installation grants, capability policy, approvals, usage, and audit remain owned by the Agent API.
-The gateway accepts MCP protocol revision `2025-06-18` and returns an explicit incompatibility
-error for other revisions. It currently uses JSON responses for POST Streamable HTTP and does not
-claim GET streaming or resumable session support.
+`MCP_STATELESS_ENABLED` controls the Agent API's 2026 stateless path and
+`MCP_GATEWAY_STATELESS_ENABLED` controls the gateway adapter. Both default on for local
+development/test and off for production unless explicitly enabled. Turning either switch off
+returns an unsupported-version response for 2026 requests while leaving the pre-2026 path intact,
+so rollback does not disable existing clients.
+The gateway supports the MCP `2026-07-28` stateless path and retains the pre-2026 `2025-06-18`
+initialize-based compatibility path during migration. The 2026 path uses per-request metadata,
+header/body validation, `server/discover`, deterministic/cacheable tool lists, and optional Tasks
+handles for clients that advertise the extension. It currently uses JSON responses for ordinary POST
+Streamable HTTP and does not claim standalone GET streaming or resumable session support. Set
+`MCP_GATEWAY_ALLOWED_ORIGINS` to a comma-separated allowlist when browser-originated MCP requests
+are expected; presented Origins not on the allowlist are rejected.
+Gateway metrics include redacted protocol-era, safe method-bucket, result-class, error, in-flight,
+and latency counters; they never include tokens, arguments, organization identifiers, or tool
+catalog contents.
 
 The machine-readable integration guide for external MCP clients is in
 [`docs/mcp-integration.md`](docs/mcp-integration.md).
+The rollout-focused migration note is in
+[`docs/mcp-2026-migration.md`](docs/mcp-2026-migration.md).
 
 Clients that only support local MCP stdio can run `pnpm run start:stdio` with
 `MCP_STDIO_TOKEN` set to an exchanged MCP installation token and, when needed,
 `MCP_STDIO_URL` pointed at the hosted `/mcp` endpoint. The bridge owns no state; it forwards one
-JSON-RPC message per input line, bounds messages/responses, preserves notifications, and never logs
-the bearer token.
+JSON-RPC message per input line, selects the 2026 HTTP revision for messages carrying 2026 metadata,
+retains the pre-2026 flow for older clients, bounds messages/responses, preserves notifications, and
+never logs the bearer token. Before forwarding an old-client message it probes `server/discover`
+once (configurable with `MCP_STDIO_PROBE=false`); a modern-only endpoint produces a bounded local
+unsupported-version error instead of sending an incompatible initialize request.
 
 The capability catalog used by MCP discovery, public tool discovery, permission UI, audit
 descriptions, and agent documentation is generated from the runtime manifest registry. Regenerate
