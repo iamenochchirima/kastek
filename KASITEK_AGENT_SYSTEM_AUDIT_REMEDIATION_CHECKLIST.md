@@ -759,9 +759,19 @@ the unauthenticated boundary, then repeats the internal HMAC zero-scope boundary
 installation REST audience path separate. The same file covers installation ownership, disabled
 REST flags, API scope, cursor validation, approval-required MCP/REST acceptance parity, and exact
 Core `public_v1` route-to-OpenAPI parity (21 operations). The Agent suite passes 218 tests with 36
-expected integration skips, Agent build passes, and Core library tests pass 127 with 3
+expected integration skips, Agent build passes, and Core library tests pass 128 with 3
 infrastructure-gated ignores; unsupported principals, external clients, hosted gateways, and live
 Redis/provider/browser gates remain unchecked.
+
+**Core delegated-adapter transport evidence (2026-08-15):** the Core
+`services::agent_platform::tests::every_non_operator_adapter_uses_the_scoped_agent_boundary`
+contract test now drives all 70 non-operator `AgentPlatformClient` adapters through a local HTTP
+boundary. It asserts exact method/path/query contracts, organization and actor headers, one
+delegated scope per request, correlation-ID binding, and content types on representative writes
+covering installations, capabilities/grants, operations, knowledge/memory, KasiAi/chat/channels,
+and run controls. The Core library suite passes 128 tests with 3 infrastructure-gated ignores;
+this closes local private delegated transport coverage but does not close product/public REST
+convergence, provider/effect receipts, live principals, hosted gateways, or Redis/browser gates.
 
 The Core database path now also has a committed historical Prisma baseline and a repeatable seeded
 fixture. All 50 client migrations, six guarded Core SQL fixtures, and the two previously ignored

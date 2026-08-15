@@ -1993,6 +1993,29 @@ mod tests {
         assert_eq!(claims["correlationId"], correlation_id);
     }
 
+    fn assert_scoped_request(request: &str, expected_scope: &str) {
+        assert_eq!(
+            request_header(request, "x-organization-id").as_deref(),
+            Some("org-1")
+        );
+        assert_eq!(
+            request_header(request, "x-actor-id").as_deref(),
+            Some("actor-1")
+        );
+        assert!(request_header(request, "x-kasitek-operator").is_none());
+        let correlation_id = request_header(request, "x-correlation-id").unwrap();
+        let authorization = request_header(request, "authorization").unwrap();
+        let token = authorization.strip_prefix("Bearer ").unwrap();
+        let payload = token.split('.').next().unwrap();
+        let claims: Value =
+            serde_json::from_slice(&URL_SAFE_NO_PAD.decode(payload).unwrap()).unwrap();
+        assert_eq!(claims["organizationId"], "org-1");
+        assert_eq!(claims["actorId"], "actor-1");
+        assert_eq!(claims["audience"], "kasitek-agents");
+        assert_eq!(claims["scopes"], json!([expected_scope]));
+        assert_eq!(claims["correlationId"], correlation_id);
+    }
+
     #[test]
     fn internal_claims_use_the_agents_wire_format() {
         let claims = InternalClaims {
@@ -2136,6 +2159,469 @@ mod tests {
         );
         assert_eq!(request_body(&requests[16]), "{}");
         assert_eq!(request_body(&requests[17]), r#"{"keys":["summary"]}"#);
+    }
+
+    #[tokio::test]
+    async fn every_non_operator_adapter_uses_the_scoped_agent_boundary() {
+        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 70]).await;
+        let client = test_client(&base_url);
+        let body = json!({"value": "test"});
+
+        client
+            .ensure_kasiai("org-1", "actor-1", body.clone())
+            .await
+            .unwrap();
+        client.list_agents("org-1", "actor-1").await.unwrap();
+        client
+            .create_agent("org-1", "actor-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .create_agent_version("org-1", "actor-1", "agent-1", body.clone())
+            .await
+            .unwrap();
+        client.operations_summary("org-1", "actor-1").await.unwrap();
+        client
+            .operations_runs("org-1", "actor-1", Some(25))
+            .await
+            .unwrap();
+        client.operations_health("org-1", "actor-1").await.unwrap();
+        client
+            .operations_effects_reconciliation("org-1", "actor-1", Some(10))
+            .await
+            .unwrap();
+        client
+            .reconcile_effect("org-1", "actor-1", "effect-1", body.clone())
+            .await
+            .unwrap();
+        client.list_kill_switches("org-1", "actor-1").await.unwrap();
+        client
+            .create_kill_switch("org-1", "actor-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .disable_kill_switch("org-1", "actor-1", "switch-1")
+            .await
+            .unwrap();
+        client
+            .list_audit(
+                "org-1",
+                "actor-1",
+                Some("run completed"),
+                Some("run"),
+                Some(25),
+            )
+            .await
+            .unwrap();
+        client.list_templates("org-1", "actor-1").await.unwrap();
+        client
+            .install_template("org-1", "actor-1", "content", body.clone())
+            .await
+            .unwrap();
+        client
+            .set_installation_status("org-1", "actor-1", "install-1", "paused")
+            .await
+            .unwrap();
+        client
+            .set_installation_settings("org-1", "actor-1", "install-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .list_installation_credentials("org-1", "actor-1", "install-1")
+            .await
+            .unwrap();
+        client
+            .create_installation_credential("org-1", "actor-1", "install-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .revoke_installation_credential("org-1", "actor-1", "install-1", "credential-1")
+            .await
+            .unwrap();
+        client
+            .rotate_installation_credential("org-1", "actor-1", "install-1", "credential-1")
+            .await
+            .unwrap();
+        client
+            .list_installation_capabilities("org-1", "actor-1", "install-1", Some("credential-1"))
+            .await
+            .unwrap();
+        client
+            .grant_installation_tool("org-1", "actor-1", "install-1", "platform.current_time")
+            .await
+            .unwrap();
+        client
+            .list_installation_grants("org-1", "actor-1", "install-1")
+            .await
+            .unwrap();
+        client
+            .grant_installation_resource("org-1", "actor-1", "install-1", body.clone())
+            .await
+            .unwrap();
+        client.list_connectors("org-1", "actor-1").await.unwrap();
+        client
+            .list_installation_connectors("org-1", "actor-1", "install-1")
+            .await
+            .unwrap();
+        client
+            .grant_installation_connector("org-1", "actor-1", "install-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .list_installation_runs("org-1", "actor-1", "install-1", Some(25))
+            .await
+            .unwrap();
+        client
+            .list_installation_schedules("org-1", "actor-1", "install-1")
+            .await
+            .unwrap();
+        client
+            .create_installation_schedule("org-1", "actor-1", "install-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .set_schedule_status("org-1", "actor-1", "schedule-1", "active")
+            .await
+            .unwrap();
+        client
+            .list_knowledge_sources(
+                "org-1",
+                "actor-1",
+                Some("agent-1"),
+                Some("install-1"),
+                Some(25),
+            )
+            .await
+            .unwrap();
+        client
+            .create_knowledge_source("org-1", "actor-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .ingest_knowledge_source_url("org-1", "actor-1", "source-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .delete_knowledge_source("org-1", "actor-1", "source-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .list_memory("org-1", "actor-1", "agent-1", Some("install-1"), Some(25))
+            .await
+            .unwrap();
+        client
+            .delete_memory("org-1", "actor-1", "memory-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .revalidate_memory("org-1", "actor-1", "memory-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .list_agent_versions("org-1", "actor-1", "agent-1")
+            .await
+            .unwrap();
+        client
+            .publish_agent_version("org-1", "actor-1", "agent-1", "version-1")
+            .await
+            .unwrap();
+        client
+            .create_installation("org-1", "actor-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .rollback_agent_version("org-1", "actor-1", "agent-1", "version-1")
+            .await
+            .unwrap();
+        client
+            .retire_agent_version("org-1", "actor-1", "agent-1", "version-1")
+            .await
+            .unwrap();
+        client
+            .archive_agent("org-1", "actor-1", "agent-1")
+            .await
+            .unwrap();
+        client
+            .resolve_platform_conversation("org-1", "actor-1", "install-1")
+            .await
+            .unwrap();
+        client
+            .create_platform_conversation("org-1", "actor-1", "install-1")
+            .await
+            .unwrap();
+        client
+            .list_conversations("org-1", "actor-1", "install-1")
+            .await
+            .unwrap();
+        client
+            .kasiai_home("org-1", "actor-1", "install-1")
+            .await
+            .unwrap();
+        client
+            .kasiai_preferences("org-1", "actor-1", "install-1")
+            .await
+            .unwrap();
+        client
+            .update_kasiai_preferences("org-1", "actor-1", "install-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .update_conversation("org-1", "actor-1", "conversation-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .set_channel_default_conversation("org-1", "actor-1", "conversation-1")
+            .await
+            .unwrap();
+        client
+            .set_conversation_status("org-1", "actor-1", "conversation-1", "archived")
+            .await
+            .unwrap();
+        client
+            .restore_conversation("org-1", "actor-1", "conversation-1")
+            .await
+            .unwrap();
+        client
+            .send_platform_message("org-1", "actor-1", "install-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .ingest_channel_message("org-1", "actor-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .update_channel_delivery_status("org-1", "actor-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .consume_channel_pairing(
+                "org-1",
+                "actor-1",
+                "pairing-token-1234567890",
+                "external-user-1",
+            )
+            .await
+            .unwrap();
+        client
+            .list_installation_channels("org-1", "actor-1", "install-1")
+            .await
+            .unwrap();
+        client
+            .ensure_channel_connection("org-1", "actor-1", "install-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .issue_channel_pairing("org-1", "actor-1", "install-1", "connection-1")
+            .await
+            .unwrap();
+        client
+            .revoke_channel_binding("org-1", "actor-1", "binding-1")
+            .await
+            .unwrap();
+        client
+            .get_conversation(
+                "org-1",
+                "actor-1",
+                "conversation-1",
+                Some(20),
+                Some("cursor-1"),
+            )
+            .await
+            .unwrap();
+        client.get_run("org-1", "actor-1", "run-1").await.unwrap();
+        client
+            .get_run_timeline("org-1", "actor-1", "run-1")
+            .await
+            .unwrap();
+        client
+            .cancel_run("org-1", "actor-1", "run-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .signal_external_event("org-1", "actor-1", "run-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .approve_run("org-1", "actor-1", "run-1", body)
+            .await
+            .unwrap();
+        client
+            .stream_run_events("org-1", "actor-1", "run-1", Some(3))
+            .await
+            .unwrap();
+
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 70);
+        let expected_paths = [
+            "POST /v1/system-agents/kasiai/installation HTTP/1.1",
+            "GET /v1/agents HTTP/1.1",
+            "POST /v1/agents HTTP/1.1",
+            "POST /v1/agents/agent-1/versions HTTP/1.1",
+            "GET /v1/operations/summary HTTP/1.1",
+            "GET /v1/operations/runs?limit=25 HTTP/1.1",
+            "GET /v1/operations/health HTTP/1.1",
+            "GET /v1/operations/effects/reconciliation?limit=10 HTTP/1.1",
+            "POST /v1/operations/effects/effect-1/reconcile HTTP/1.1",
+            "GET /v1/operations/kill-switches HTTP/1.1",
+            "POST /v1/operations/kill-switches HTTP/1.1",
+            "DELETE /v1/operations/kill-switches/switch-1 HTTP/1.1",
+            "GET /v1/audit?action=run%20completed&resourceType=run&limit=25 HTTP/1.1",
+            "GET /v1/templates HTTP/1.1",
+            "POST /v1/templates/content/install HTTP/1.1",
+            "POST /v1/installations/install-1/status/paused HTTP/1.1",
+            "PATCH /v1/installations/install-1/settings HTTP/1.1",
+            "GET /v1/installations/install-1/credentials HTTP/1.1",
+            "POST /v1/installations/install-1/credentials HTTP/1.1",
+            "DELETE /v1/installations/install-1/credentials/credential-1 HTTP/1.1",
+            "POST /v1/installations/install-1/credentials/credential-1/rotate HTTP/1.1",
+            "GET /v1/installations/install-1/capabilities?credentialId=credential-1 HTTP/1.1",
+            "POST /v1/installations/install-1/tools HTTP/1.1",
+            "GET /v1/installations/install-1/grants HTTP/1.1",
+            "POST /v1/installations/install-1/grants/resources HTTP/1.1",
+            "GET /v1/connectors HTTP/1.1",
+            "GET /v1/installations/install-1/connectors HTTP/1.1",
+            "POST /v1/installations/install-1/grants/connectors HTTP/1.1",
+            "GET /v1/installations/install-1/runs?limit=25 HTTP/1.1",
+            "GET /v1/installations/install-1/schedules HTTP/1.1",
+            "POST /v1/installations/install-1/schedules HTTP/1.1",
+            "POST /v1/schedules/schedule-1/status/active HTTP/1.1",
+            "GET /v1/knowledge/sources?agentId=agent-1&installationId=install-1&limit=25 HTTP/1.1",
+            "POST /v1/knowledge/sources HTTP/1.1",
+            "POST /v1/knowledge/sources/source-1/ingest-url HTTP/1.1",
+            "DELETE /v1/knowledge/sources/source-1 HTTP/1.1",
+            "GET /v1/memory?agentId=agent-1&installationId=install-1&limit=25 HTTP/1.1",
+            "DELETE /v1/memory/memory-1 HTTP/1.1",
+            "POST /v1/memory/memory-1/revalidate HTTP/1.1",
+            "GET /v1/agents/agent-1/versions HTTP/1.1",
+            "POST /v1/agents/agent-1/versions/version-1/publish HTTP/1.1",
+            "POST /v1/installations HTTP/1.1",
+            "POST /v1/agents/agent-1/versions/version-1/rollback HTTP/1.1",
+            "POST /v1/agents/agent-1/versions/version-1/retire HTTP/1.1",
+            "POST /v1/agents/agent-1/archive HTTP/1.1",
+            "POST /v1/installations/install-1/platform/conversation HTTP/1.1",
+            "POST /v1/installations/install-1/platform/conversation/new HTTP/1.1",
+            "GET /v1/installations/install-1/conversations HTTP/1.1",
+            "POST /v1/installations/install-1/kasiai/home HTTP/1.1",
+            "GET /v1/installations/install-1/kasiai/preferences HTTP/1.1",
+            "PATCH /v1/installations/install-1/kasiai/preferences HTTP/1.1",
+            "PATCH /v1/conversations/conversation-1 HTTP/1.1",
+            "POST /v1/conversations/conversation-1/channel-default HTTP/1.1",
+            "POST /v1/conversations/conversation-1/status/archived HTTP/1.1",
+            "POST /v1/conversations/conversation-1/restore HTTP/1.1",
+            "POST /v1/installations/install-1/platform/messages HTTP/1.1",
+            "POST /v1/channels/inbound HTTP/1.1",
+            "POST /v1/channels/delivery-status HTTP/1.1",
+            "POST /v1/channel-pairing/consume HTTP/1.1",
+            "GET /v1/installations/install-1/channels HTTP/1.1",
+            "POST /v1/installations/install-1/channels HTTP/1.1",
+            "POST /v1/installations/install-1/channels/connection-1/pairing HTTP/1.1",
+            "DELETE /v1/channel-bindings/binding-1 HTTP/1.1",
+            "GET /v1/conversations/conversation-1?limit=20&before=cursor-1 HTTP/1.1",
+            "GET /v1/runs/run-1 HTTP/1.1",
+            "GET /v1/runs/run-1/timeline HTTP/1.1",
+            "POST /v1/runs/run-1/cancel HTTP/1.1",
+            "POST /v1/runs/run-1/external-event HTTP/1.1",
+            "POST /v1/runs/run-1/approval HTTP/1.1",
+            "GET /v1/runs/run-1/events/stream?after=3 HTTP/1.1",
+        ];
+        assert_eq!(expected_paths.len(), requests.len());
+        for (request, expected_path) in requests.iter().zip(expected_paths) {
+            assert!(
+                request.starts_with(expected_path),
+                "unexpected request: {request}"
+            );
+        }
+        let expected_scopes = [
+            "kasiai:write",
+            "agents:read",
+            "agents:write",
+            "agents:write",
+            "agents:read",
+            "agents:read",
+            "agents:read",
+            "agents:read",
+            "agents:write",
+            "agents:read",
+            "agents:write",
+            "agents:write",
+            "agents:read",
+            "agents:read",
+            "agents:write",
+            "agents:write",
+            "agents:write",
+            "agents:read",
+            "agents:write",
+            "agents:write",
+            "agents:write",
+            "agents:read",
+            "agents:write",
+            "agents:read",
+            "agents:write",
+            "agents:read",
+            "agents:read",
+            "agents:write",
+            "agents:read",
+            "agents:read",
+            "agents:write",
+            "agents:write",
+            "agents:read",
+            "agents:write",
+            "agents:write",
+            "agents:write",
+            "agents:read",
+            "agents:write",
+            "agents:write",
+            "agents:read",
+            "agents:write",
+            "agents:write",
+            "agents:write",
+            "agents:write",
+            "agents:write",
+            "chat:read",
+            "chat:write",
+            "chat:read",
+            "kasiai:read",
+            "kasiai:read",
+            "kasiai:write",
+            "chat:write",
+            "chat:write",
+            "chat:write",
+            "chat:write",
+            "chat:write",
+            "channels:ingest",
+            "channels:ingest",
+            "channels:ingest",
+            "channels:read",
+            "channels:write",
+            "channels:write",
+            "channels:write",
+            "chat:read",
+            "runs:read",
+            "runs:read",
+            "runs:cancel",
+            "runs:write",
+            "runs:approve",
+            "runs:read",
+        ];
+        assert_eq!(expected_scopes.len(), requests.len());
+        for (request, expected_scope) in requests.iter().zip(expected_scopes) {
+            assert_scoped_request(request, expected_scope);
+        }
+        for request in requests.iter().filter(|request| {
+            request.starts_with("POST ")
+                || request.starts_with("PATCH ")
+                || request.starts_with("DELETE ")
+        }) {
+            if request.contains("/reconcile")
+                || request.contains("/channels")
+                || request.contains("/runs/")
+            {
+                assert!(
+                    request_header(request, "content-type").is_some(),
+                    "write request missing content type: {request}"
+                );
+            }
+        }
     }
 
     #[tokio::test]

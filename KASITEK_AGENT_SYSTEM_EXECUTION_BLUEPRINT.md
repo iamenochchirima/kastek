@@ -559,6 +559,13 @@ authenticated, scoped, audited, suspended, and revoked without a human browser s
 - [ ] Ensure core owns business mutations, transactional outbox/action records, provider
   idempotency, effect receipts, and signed lifecycle events back to Agent Platform.
 
+Local delegated-boundary evidence (2026-08-15): `server/kasitek-core/src/services/agent_platform.rs`
+now has one transport contract test covering all 70 non-operator adapters across installation
+lifecycle, capabilities and grants, operations, knowledge and memory, KasiAi/chat/channels, and
+run controls. It asserts the exact method/path/query shape, organization and actor headers,
+single-scope delegation claims, correlation binding, and write content types. Product mutation
+ownership, public REST convergence, and live provider/effect verification remain open.
+
 ### Verification
 
 - [x] Add manifest schema/version/compatibility and generated-surface parity tests.
