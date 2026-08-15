@@ -32,7 +32,7 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
   beforeAll(async () => {
     await pool.query("INSERT INTO agent_definitions (id, organization_id, name, slug, created_by) VALUES ($1, $2, 'Run test', $3, 'test')", [agentId, organizationId, `run-${agentId}`]);
     await pool.query("INSERT INTO agent_versions (id, agent_definition_id, version_number, instructions, checksum, created_by, status) VALUES ($1, $2, 1, 'test', 'test', 'test', 'published')", [versionId, agentId]);
-    await pool.query("INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, settings, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, $5::jsonb, 'test')", [installationId, agentId, versionId, organizationId, JSON.stringify({ maxModelCalls: 1 })]);
+    await pool.query("INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, settings, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, 'kasitek_hosted', $5::jsonb, 'test')", [installationId, agentId, versionId, organizationId, JSON.stringify({ maxModelCalls: 1 })]);
   });
 
   it("deduplicates an idempotent start and persists ordered steps", async () => {

@@ -906,3 +906,11 @@ Do not claim completion until all statements below are true.
 - [ ] Documentation and OpenAPI match deployed behavior.
 - [ ] The final report lists commits, verification commands/results, remaining blockers, and the
   final checked/unchecked blueprint count.
+
+## Three-mode remediation cross-reference (2026-08-15)
+
+The audit work for the KasiAi, KasiTek-hosted, and external-connected agent boundary is tracked in
+[`KASITEK_AGENT_THREE_MODE_IMPLEMENTATION_CHECKLIST.md`](KASITEK_AGENT_THREE_MODE_IMPLEMENTATION_CHECKLIST.md).
+It records the changed routes, migration evidence, mode matrix, and remaining live-environment
+gates. Existing audit checkboxes remain open where runtime or external-client proof is still
+required.

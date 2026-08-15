@@ -38,6 +38,47 @@ describe.skipIf(!runIntegration)("agent lifecycle controls (integration)", () =>
     await expect(agents.archiveAgent(systemOrganizationId, "system-bootstrap", systemAgent.id)).rejects.toThrow("protected");
   });
 
+  it("rolls back the complete external aggregate when credential validation fails", async () => {
+    const rollbackOrganizationId = `external-rollback-${randomUUID()}`;
+    await expect(agents.createExternalInstallation(rollbackOrganizationId, "test-user", {
+      name: "Rollback external agent",
+      runtime: "test",
+      protocols: ["mcp"],
+      capabilities: [],
+      resources: [],
+      connectors: [],
+      mcpScopes: ["mcp:read"],
+      apiScopes: ["api:read"],
+      credentialLabel: "rollback credential",
+      idempotencyKey: `rollback-${randomUUID()}`,
+      clientKeyId: "rollback-key",
+      clientPublicKey: "not-a-public-key",
+    })).rejects.toThrow();
+    const counts = await pool.query<{ definitions: string; installations: string; principals: string; credentials: string }>(
+      `SELECT
+         (SELECT count(*)::text FROM agent_definitions WHERE organization_id = $1) AS definitions,
+         (SELECT count(*)::text FROM agent_installations WHERE organization_id = $1) AS installations,
+         (SELECT count(*)::text FROM agent_principals WHERE organization_id = $1) AS principals,
+         (SELECT count(*)::text FROM agent_installation_credentials WHERE organization_id = $1) AS credentials`,
+      [rollbackOrganizationId],
+    );
+    expect(counts.rows[0]).toEqual({ definitions: "0", installations: "0", principals: "0", credentials: "0" });
+  });
+
+  it("rejects direct credential inserts for a hosted installation at the database boundary", async () => {
+    const organizationId = `credential-guard-${randomUUID()}`;
+    const definitionId = randomUUID();
+    const versionId = randomUUID();
+    const installationId = randomUUID();
+    await pool.query(`INSERT INTO agent_definitions (id, organization_id, name, slug, created_by) VALUES ($1, $2, $3, $4, $5)`, [definitionId, organizationId, "Credential guard", `credential-guard-${definitionId}`, "test-user"]);
+    await pool.query(`INSERT INTO agent_versions (id, agent_definition_id, version_number, status, instructions, checksum, created_by) VALUES ($1, $2, 1, 'published', 'test', $3, $4)`, [versionId, definitionId, `checksum-${versionId}`, "test-user"]);
+    await pool.query(`INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, 'kasitek_hosted', $5)`, [installationId, definitionId, versionId, organizationId, "test-user"]);
+    await expect(pool.query(`INSERT INTO agent_installation_credentials (installation_id, organization_id, label, secret_hash, created_by) VALUES ($1, $2, 'invalid', 'scrypt$test$safe', $3)`, [installationId, organizationId, "test-user"])).rejects.toThrow("external_connected");
+    await pool.query("DELETE FROM agent_installations WHERE id = $1", [installationId]);
+    await pool.query("DELETE FROM agent_versions WHERE id = $1", [versionId]);
+    await pool.query("DELETE FROM agent_definitions WHERE id = $1", [definitionId]);
+  });
+
   beforeAll(async () => {
     await pool.query("SELECT 1");
   });

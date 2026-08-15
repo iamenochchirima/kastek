@@ -88,6 +88,99 @@ pub async fn create_agent(
     Ok(HttpResponse::Created().json(response))
 }
 
+pub async fn create_external_agent(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "External agent body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .create_external_agent(&organization_id, &user.id, body.into_inner())
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn list_external_agents(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_external_agents(&organization_id, &user.id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn get_external_agent(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .get_external_agent(&organization_id, &user.id, installation_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn get_external_agent_health(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .get_external_agent_health(&organization_id, &user.id, installation_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn archive_external_agent(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .archive_external_agent(&organization_id, &user.id, installation_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn set_external_agent_status(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let (installation_id, status) = path.into_inner();
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !matches!(status.as_str(), "active" | "paused" | "disabled") {
+        return Err(AppError::BadRequest(
+            "Invalid external-agent status".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .set_external_agent_status(
+            &organization_id,
+            &user.id,
+            installation_id.trim(),
+            status.trim(),
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn create_agent_version(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

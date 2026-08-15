@@ -31,6 +31,21 @@ function statusClass(status: string) {
   return "border-border bg-secondary text-muted-foreground";
 }
 
+function modeLabel(agent: AgentDefinition): string {
+  const mode = agent.execution_mode ?? (agent.protected ? "system_hosted" : "kasitek_hosted");
+  if (mode === "system_hosted") return "KasiAi";
+  if (mode === "external_connected") return "External connected";
+  return "KasiTek hosted";
+}
+
+function modeClass(agent: AgentDefinition): string {
+  return agent.execution_mode === "external_connected"
+    ? "border-accent/20 bg-accent/10 text-accent"
+    : agent.protected
+      ? "border-primary/20 bg-primary/10 text-primary"
+      : "border-border bg-secondary text-muted-foreground";
+}
+
 export function AgentsPageClient({
   initialAgents,
   kasiaiInstallationId,
@@ -110,7 +125,7 @@ function OperationsSummary({ summary }: { summary: AgentOperationsSummary }) {
 }
 
 function AgentCard({ agent, onChanged }: { agent: AgentDefinition; onChanged: () => void }) {
-  const isKasiAi = agent.slug === "kasiai";
+  const isKasiAi = (agent.execution_mode ?? (agent.protected ? "system_hosted" : "kasitek_hosted")) === "system_hosted";
   const [updating, setUpdating] = useState(false);
   const installationStatus = agent.installation_status ?? "disabled";
   const toggleStatus = async () => {
@@ -137,7 +152,7 @@ function AgentCard({ agent, onChanged }: { agent: AgentDefinition; onChanged: ()
             </div>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            {agent.protected ? <Badge className="border-primary/20 bg-primary/10 text-primary">System agent</Badge> : null}
+            <Badge className={modeClass(agent)}>{modeLabel(agent)}</Badge>
             <Badge className={statusClass(agent.installation_status ?? agent.status)}>{agent.installation_status ?? agent.status}</Badge>
           </div>
         </div>

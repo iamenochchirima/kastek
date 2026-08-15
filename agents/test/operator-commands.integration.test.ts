@@ -93,14 +93,20 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     const definitionId = randomUUID();
     const versionId = randomUUID();
     const installationId = randomUUID();
+    const hostedDefinitionId = randomUUID();
+    const hostedVersionId = randomUUID();
+    const hostedInstallationId = randomUUID();
     const credentialId = randomUUID();
     const scheduleId = randomUUID();
     const lifecycleCommandIds: string[] = [];
     await pool.query(`INSERT INTO agent_definitions (id, organization_id, name, slug, created_by) VALUES ($1, $2, $3, $4, $5)`, [definitionId, organizationId, "Operator lifecycle test", `operator-${definitionId}`, actorId]);
     await pool.query(`INSERT INTO agent_versions (id, agent_definition_id, version_number, status, instructions, checksum, created_by) VALUES ($1, $2, 1, 'published', 'test', $3, $4)`, [versionId, definitionId, `checksum-${versionId}`, actorId]);
-    await pool.query(`INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, $5)`, [installationId, definitionId, versionId, organizationId, actorId]);
+    await pool.query(`INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, 'external_connected', $5)`, [installationId, definitionId, versionId, organizationId, actorId]);
+    await pool.query(`INSERT INTO agent_definitions (id, organization_id, name, slug, created_by) VALUES ($1, $2, $3, $4, $5)`, [hostedDefinitionId, organizationId, "Operator hosted lifecycle test", `operator-hosted-${hostedDefinitionId}`, actorId]);
+    await pool.query(`INSERT INTO agent_versions (id, agent_definition_id, version_number, status, instructions, checksum, created_by) VALUES ($1, $2, 1, 'published', 'test', $3, $4)`, [hostedVersionId, hostedDefinitionId, `checksum-${hostedVersionId}`, actorId]);
+    await pool.query(`INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, 'kasitek_hosted', $5)`, [hostedInstallationId, hostedDefinitionId, hostedVersionId, organizationId, actorId]);
     await pool.query(`INSERT INTO agent_installation_credentials (id, installation_id, organization_id, label, secret_hash, created_by) VALUES ($1, $2, $3, 'operator test credential', 'scrypt$test$safe', $4)`, [credentialId, installationId, organizationId, actorId]);
-    await pool.query(`INSERT INTO agent_schedules (id, organization_id, installation_id, expression, created_by) VALUES ($1, $2, $3, '@hourly', $4)`, [scheduleId, organizationId, installationId, actorId]);
+    await pool.query(`INSERT INTO agent_schedules (id, organization_id, installation_id, expression, created_by) VALUES ($1, $2, $3, '@hourly', $4)`, [scheduleId, organizationId, hostedInstallationId, actorId]);
 
     const runLifecycleCommand = async (commandType: "suspend_installation" | "resume_installation" | "revoke_credential" | "pause_schedule" | "resume_schedule", targetId: string) => {
       const created = await createOperatorCommand({ actorId, idempotencyKey: `${commandType}-${randomUUID()}`, command: { commandType, targetId, payload: {} }, dependencies });
@@ -135,7 +141,7 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     });
     lifecycleCommandIds.push(String(disabledFlag.command.id));
     expect(await approveOperatorCommand({ actorId: secondActorId, commandId: String(disabledFlag.command.id), dependencies })).toMatchObject({ status: "completed", result: { status: "cleared" } });
-    await expect(runs.createRun(organizationId, actorId, { installationId, triggerType: "manual", input: { source: "feature-flag-blocked" } })).rejects.toThrow("AGENT_EXECUTION_FLAG_DISABLED");
+    await expect(runs.createRun(organizationId, actorId, { installationId: hostedInstallationId, triggerType: "manual", input: { source: "feature-flag-blocked" } })).rejects.toThrow("AGENT_EXECUTION_FLAG_DISABLED");
 
     const enabledFlag = await createOperatorCommand({
       actorId,
@@ -156,7 +162,7 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     const createdHold = await approveOperatorCommand({ actorId: secondActorId, commandId: String(hold.command.id), dependencies });
     expect(createdHold).toMatchObject({ status: "completed", result: { status: "active" } });
     const holdId = String((createdHold.result as { holdId: string }).holdId);
-    await expect(runs.createRun(organizationId, actorId, { installationId, triggerType: "manual", input: { source: "execution-hold-blocked" } })).rejects.toThrow("AGENT_EXECUTION_HOLD_ACTIVE");
+    await expect(runs.createRun(organizationId, actorId, { installationId: hostedInstallationId, triggerType: "manual", input: { source: "execution-hold-blocked" } })).rejects.toThrow("AGENT_EXECUTION_HOLD_ACTIVE");
     const release = await createOperatorCommand({
       actorId,
       idempotencyKey: `release-execution-hold-${randomUUID()}`,
@@ -174,6 +180,9 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     await pool.query("DELETE FROM agent_installations WHERE id = $1", [installationId]);
     await pool.query("DELETE FROM agent_versions WHERE id = $1", [versionId]);
     await pool.query("DELETE FROM agent_definitions WHERE id = $1", [definitionId]);
+    await pool.query("DELETE FROM agent_installations WHERE id = $1", [hostedInstallationId]);
+    await pool.query("DELETE FROM agent_versions WHERE id = $1", [hostedVersionId]);
+    await pool.query("DELETE FROM agent_definitions WHERE id = $1", [hostedDefinitionId]);
   });
 
   it("retries terminal runs and safely replays failed delivery attempts", async () => {
@@ -184,7 +193,7 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     const startedRunIds: string[] = [];
     await pool.query(`INSERT INTO agent_definitions (id, organization_id, name, slug, created_by) VALUES ($1, $2, $3, $4, $5)`, [definitionId, organizationId, "Operator recovery test", `operator-recovery-${definitionId}`, actorId]);
     await pool.query(`INSERT INTO agent_versions (id, agent_definition_id, version_number, status, instructions, checksum, created_by) VALUES ($1, $2, 1, 'published', 'test', $3, $4)`, [versionId, definitionId, `checksum-${versionId}`, actorId]);
-    await pool.query(`INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, $5)`, [installationId, definitionId, versionId, organizationId, actorId]);
+    await pool.query(`INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, 'kasitek_hosted', $5)`, [installationId, definitionId, versionId, organizationId, actorId]);
 
     const cancellable = await runs.createRun(organizationId, actorId, { installationId, triggerType: "manual", input: { source: "operator-cancel" } });
     let cancellationSignalled = false;

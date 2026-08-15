@@ -103,6 +103,30 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("", web::get().to(agent_platform::list_agents))
             .route("", web::post().to(agent_platform::create_agent))
             .route(
+                "/external-agents",
+                web::post().to(agent_platform::create_external_agent),
+            )
+            .route(
+                "/external-agents",
+                web::get().to(agent_platform::list_external_agents),
+            )
+            .route(
+                "/external-agents/{installationId}",
+                web::get().to(agent_platform::get_external_agent),
+            )
+            .route(
+                "/external-agents/{installationId}/health",
+                web::get().to(agent_platform::get_external_agent_health),
+            )
+            .route(
+                "/external-agents/{installationId}",
+                web::delete().to(agent_platform::archive_external_agent),
+            )
+            .route(
+                "/external-agents/{installationId}/status/{status}",
+                web::post().to(agent_platform::set_external_agent_status),
+            )
+            .route(
                 "/operations/summary",
                 web::get().to(agent_platform::operations_summary),
             )

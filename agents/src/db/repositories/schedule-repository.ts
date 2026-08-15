@@ -24,7 +24,8 @@ export class ScheduleRepository {
       this.pool,
       `INSERT INTO agent_schedules (organization_id, installation_id, expression, timezone, input, next_run_at, created_by)
        SELECT $1, id, $3, $4, $5::jsonb, $6, $7 FROM agent_installations
-       WHERE id = $2 AND organization_id = $1 AND status = 'active' RETURNING *`,
+       WHERE id = $2 AND organization_id = $1 AND status = 'active'
+         AND execution_mode IN ('system_hosted', 'kasitek_hosted') RETURNING *`,
       [input.organizationId, input.installationId, input.expression, input.timezone ?? "UTC", JSON.stringify(input.scheduleInput ?? {}), input.nextRunAt ?? null, input.actorId],
     );
     if (!result.rows[0]) throw new Error("Active installation not found");
@@ -37,7 +38,12 @@ export class ScheduleRepository {
   }
 
   public async setStatus(organizationId: string, scheduleId: string, status: ScheduleRecord["status"], actorId: string): Promise<ScheduleRecord> {
-    const result = await query<ScheduleRecord>(this.pool, `UPDATE agent_schedules SET status = $3, updated_at = now() WHERE organization_id = $1 AND id = $2 RETURNING *`, [organizationId, scheduleId, status]);
+    const result = await query<ScheduleRecord>(this.pool, `UPDATE agent_schedules schedules SET status = $3, updated_at = now()
+      FROM agent_installations installations
+      WHERE schedules.organization_id = $1 AND schedules.id = $2
+        AND installations.id = schedules.installation_id
+        AND installations.execution_mode IN ('system_hosted', 'kasitek_hosted')
+      RETURNING schedules.*`, [organizationId, scheduleId, status]);
     if (!result.rows[0]) throw new Error("Schedule not found");
     await query(this.pool, `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata) VALUES ($1, 'human', $2, $3, 'agent_schedule', $4, '{}'::jsonb)`, [organizationId, actorId, `agent_schedule.${status}`, scheduleId]);
     return result.rows[0];

@@ -1442,3 +1442,11 @@ The agent system is complete for its first production release when:
   monitor and recover the system from the admin console.
 - [ ] All required automated suites, typechecks, lint/format checks, builds, migrations, recovery
   drills, real-client compatibility checks, and release gates pass.
+
+### Current three-mode implementation note (2026-08-15)
+
+The execution-mode separation, dedicated external-agent aggregate, server-side mode guards,
+external credential remediation, and mode-specific client surfaces are being implemented under
+[`KASITEK_AGENT_THREE_MODE_IMPLEMENTATION_CHECKLIST.md`](KASITEK_AGENT_THREE_MODE_IMPLEMENTATION_CHECKLIST.md).
+The release definition above remains open until the database, browser, provider, and real-client
+evidence is recorded; code-level tests alone do not close those gates.

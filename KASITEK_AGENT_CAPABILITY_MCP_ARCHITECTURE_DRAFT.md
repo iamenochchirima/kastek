@@ -866,3 +866,15 @@ an undecided earlier layer.
 Start with Layer 1: decide the first-release installation lifecycle, who can control installations,
 how plan limits apply, and the first set of official templates. Once agreed, update this document
 before moving to credentials.
+
+## Three-mode remediation status (2026-08-15)
+
+The implementation is now explicit about the three runtime identities: `system_hosted` is the
+protected KasiAi installation, `kasitek_hosted` is a KasiTek-run user agent, and
+`external_connected` is a customer-operated runtime that calls the platform through MCP or REST.
+The current implementation and its evidence are tracked in
+[`KASITEK_AGENT_THREE_MODE_IMPLEMENTATION_CHECKLIST.md`](KASITEK_AGENT_THREE_MODE_IMPLEMENTATION_CHECKLIST.md).
+
+The earlier checkboxes in this draft describe the intended architecture, not a declaration that all
+release gates are closed. Live seeded-PostgreSQL, browser, provider, public REST, and real-client
+verification remain explicit gates until recorded in the root checklist.

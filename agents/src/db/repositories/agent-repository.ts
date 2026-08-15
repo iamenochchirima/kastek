@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import type {
+  AgentExecutionMode,
   CreateAgentInput,
+  CreateExternalAgentInput,
   CreateInstallationInput,
   CreateVersionInput,
 } from "../../domain/types";
@@ -10,6 +12,7 @@ import { validateVersionWorkflow } from "../../workflows/graph";
 import { getAgentTemplate, templateVersionInput } from "../../system/templates";
 import { KASIAI_KNOWLEDGE_CHUNKS, KASIAI_KNOWLEDGE_SOURCE_NAME, KASIAI_KNOWLEDGE_VERSION } from "../../system/kasiai-knowledge";
 import { KASIAI_EVALUATION_SCENARIOS, KASIAI_EVALUATION_VERSION } from "../../system/kasiai-evaluations";
+import { createInstallationCredentialInTransaction, type CreatedInstallationCredential } from "./installation-credential-repository";
 
 type DbExecutor = Pool | PoolClient;
 
@@ -28,6 +31,7 @@ export interface AgentRecord {
   created_at: string;
   updated_at: string;
   installation_id?: string | null;
+  execution_mode?: AgentExecutionMode | null;
   installation_status?: string | null;
   installation_settings?: Record<string, unknown> | null;
   version_number?: number | null;
@@ -55,10 +59,17 @@ export interface InstallationRecord {
   scope_type: string;
   scope_id: string;
   status: string;
+  execution_mode: AgentExecutionMode;
   settings: Record<string, unknown>;
   created_by: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface InstallationIdentity {
+  agent_owner_type: string;
+  agent_protected: boolean;
+  agent_slug: string;
 }
 
 export interface SystemInstallationRecord extends InstallationRecord {
@@ -76,6 +87,14 @@ export interface TemplateInstallationRecord {
   templateKey: string;
   templateVersion: number;
   created: boolean;
+}
+
+export interface ExternalAgentConnectionRecord {
+  agent: AgentRecord;
+  version: AgentVersionRecord;
+  installation: InstallationRecord;
+  created: boolean;
+  credential?: CreatedInstallationCredential;
 }
 
 function slugify(name: string): string {
@@ -96,6 +115,20 @@ function checksumVersion(input: CreateVersionInput, versionNumber: number): stri
 export class AgentRepository {
   public constructor(private readonly pool: Pool) {}
 
+  private async assertHostedDefinition(client: PoolClient, organizationId: string, agentId: string): Promise<void> {
+    const result = await client.query<{ execution_mode: AgentExecutionMode }>(
+      `SELECT ai.execution_mode
+       FROM agent_installations ai
+       WHERE ai.organization_id = $1 AND ai.agent_definition_id = $2
+       ORDER BY ai.updated_at DESC
+       LIMIT 1`,
+      [organizationId, agentId],
+    );
+    if (result.rows[0]?.execution_mode === "external_connected") {
+      throw new Error("External-connected definitions cannot use hosted agent editing");
+    }
+  }
+
   public async createAgent(
     organizationId: string,
     actorId: string,
@@ -113,6 +146,147 @@ export class AgentRepository {
       [organizationId, input.name, slug, input.description ?? null, isProtected, actorId],
     );
     return result.rows[0]!;
+  }
+
+  /** Creates the dedicated external-connected aggregate in one database transaction. */
+  public async createExternalInstallation(
+    organizationId: string,
+    actorId: string,
+    input: CreateExternalAgentInput,
+  ): Promise<ExternalAgentConnectionRecord> {
+    const requestedSlug = input.slug ?? `${slugify(input.name) || "external-agent"}-external`.slice(0, 80);
+    const settings = {
+      externalConnectionKey: input.idempotencyKey,
+      runtime: input.runtime,
+      protocols: input.protocols,
+      capabilities: input.capabilities,
+      resources: input.resources,
+      connectors: input.connectors,
+    };
+    try {
+      return await withTransaction(this.pool, async (client) => {
+      const existing = await client.query<InstallationRecord>(
+        `SELECT * FROM agent_installations
+         WHERE organization_id = $1 AND execution_mode = 'external_connected'
+           AND settings ->> 'externalConnectionKey' = $2
+         FOR UPDATE`,
+        [organizationId, input.idempotencyKey],
+      );
+      if (existing.rows[0]) {
+        const installation = existing.rows[0]!;
+        const agentResult = await client.query<AgentRecord>("SELECT * FROM agent_definitions WHERE id = $1", [installation.agent_definition_id]);
+        const versionResult = await client.query<AgentVersionRecord>("SELECT * FROM agent_versions WHERE id = $1", [installation.agent_version_id]);
+        if (!agentResult.rows[0] || !versionResult.rows[0]) throw new Error("External installation aggregate is incomplete");
+        return { agent: agentResult.rows[0], version: versionResult.rows[0], installation, created: false };
+      }
+
+      const agentResult = await client.query<AgentRecord>(
+        `INSERT INTO agent_definitions
+          (organization_id, owner_type, name, slug, description, protected, created_by)
+         VALUES ($1, 'organization', $2, $3, $4, FALSE, $5)
+         RETURNING *`,
+        [organizationId, input.name, requestedSlug, input.description ?? null, actorId],
+      );
+      const agent = agentResult.rows[0]!;
+      const versionResult = await client.query<AgentVersionRecord>(
+        `INSERT INTO agent_versions
+          (agent_definition_id, version_number, status, instructions, configuration, policy,
+           checksum, created_by, published_at)
+         VALUES ($1, 1, 'published', $2, $3::jsonb, $4::jsonb, $5, $6, now())
+         RETURNING *`,
+        [
+          agent.id,
+          input.instructions,
+          JSON.stringify({ executionMode: "external_connected", runtime: input.runtime, protocols: input.protocols }),
+          JSON.stringify({ allowedTools: input.capabilities }),
+          checksumVersion({ instructions: input.instructions, configuration: { executionMode: "external_connected", runtime: input.runtime, protocols: input.protocols }, policy: { allowedTools: input.capabilities } }, 1),
+          actorId,
+        ],
+      );
+      const version = versionResult.rows[0]!;
+      for (const toolName of input.capabilities) {
+        await client.query(
+          `INSERT INTO agent_tool_grants
+            (organization_id, agent_version_id, tool_name, granted_by)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (agent_version_id, COALESCE(installation_id, '00000000-0000-0000-0000-000000000000'::uuid), tool_name)
+             WHERE revoked_at IS NULL DO NOTHING`,
+          [organizationId, version.id, toolName, actorId],
+        );
+      }
+      const installationResult = await client.query<InstallationRecord>(
+        `INSERT INTO agent_installations
+          (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id,
+           execution_mode, settings, created_by)
+         VALUES ($1, $2, $3, 'organization', $3, 'external_connected', $4::jsonb, $5)
+         RETURNING *`,
+        [agent.id, version.id, organizationId, JSON.stringify(settings), actorId],
+      );
+      const installation = installationResult.rows[0]!;
+      await client.query(
+        `INSERT INTO agent_principals (installation_id, organization_id) VALUES ($1, $2)`,
+        [installation.id, organizationId],
+      );
+      for (const resource of input.resources) {
+        await client.query(
+          `INSERT INTO agent_installation_resource_grants
+            (organization_id, installation_id, resource_type, resource_id, granted_by)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (installation_id, resource_type, resource_id) DO UPDATE SET revoked_at = NULL`,
+          [organizationId, installation.id, resource.resourceType, resource.resourceId, actorId],
+        );
+      }
+      for (const connectorId of input.connectors) {
+        await client.query(
+          `INSERT INTO agent_installation_connector_grants
+            (organization_id, installation_id, connector_id, granted_by)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (installation_id, connector_id) DO UPDATE SET revoked_at = NULL`,
+          [organizationId, installation.id, connectorId, actorId],
+        );
+      }
+      await client.query(
+        `INSERT INTO audit_records
+          (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'human', $2, 'external_agent_connection.created', 'agent_installation', $3, $4::jsonb)`,
+        [organizationId, actorId, installation.id, JSON.stringify({ agentId: agent.id, versionId: version.id, executionMode: installation.execution_mode, runtime: input.runtime, protocols: input.protocols })],
+      );
+      const credential = await createInstallationCredentialInTransaction(client, {
+        organizationId,
+        installationId: installation.id,
+        actorId,
+        label: input.credentialLabel,
+        expiresAt: input.expiresAt,
+        mcpScopes: input.mcpScopes,
+        apiScopes: input.apiScopes,
+        clientKeyId: input.clientKeyId,
+        clientPublicKey: input.clientPublicKey,
+      });
+        return { agent, version, installation, credential, created: true };
+      });
+    } catch (error) {
+      // Two retries can race before either transaction commits. The unique
+      // idempotency index is authoritative; return the committed aggregate
+      // instead of leaking a database uniqueness error to the client.
+      const code = (error as { code?: string }).code;
+      if (code !== "23505") throw error;
+      const existing = await query<InstallationRecord>(
+        this.pool,
+        `SELECT * FROM agent_installations
+         WHERE organization_id = $1 AND execution_mode = 'external_connected'
+           AND settings ->> 'externalConnectionKey' = $2
+         LIMIT 1`,
+        [organizationId, input.idempotencyKey],
+      );
+      const installation = existing.rows[0];
+      if (!installation) throw error;
+      const [agentResult, versionResult] = await Promise.all([
+        query<AgentRecord>(this.pool, "SELECT * FROM agent_definitions WHERE id = $1", [installation.agent_definition_id]),
+        query<AgentVersionRecord>(this.pool, "SELECT * FROM agent_versions WHERE id = $1", [installation.agent_version_id]),
+      ]);
+      if (!agentResult.rows[0] || !versionResult.rows[0]) throw new Error("External installation aggregate is incomplete");
+      return { agent: agentResult.rows[0], version: versionResult.rows[0], installation, created: false };
+    }
   }
 
   public async installTemplate(input: {
@@ -193,8 +367,8 @@ export class AgentRepository {
       }
       const installationResult = await client.query<InstallationRecord>(
         `INSERT INTO agent_installations
-          (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, settings, created_by)
-         VALUES ($1, $2, $3, 'organization', $3, $4::jsonb, $5)
+          (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, settings, created_by)
+         VALUES ($1, $2, $3, 'organization', $3, 'kasitek_hosted', $4::jsonb, $5)
          ON CONFLICT (organization_id, agent_definition_id, scope_type, scope_id)
          DO UPDATE SET updated_at = agent_installations.updated_at
          RETURNING *`,
@@ -466,7 +640,7 @@ export class AgentRepository {
   public async listAgents(organizationId: string): Promise<AgentRecord[]> {
     const result = await query<AgentRecord>(
       this.pool,
-      `SELECT ad.*, ai.id AS installation_id, ai.status AS installation_status,
+      `SELECT ad.*, ai.id AS installation_id, ai.execution_mode, ai.status AS installation_status,
               ai.settings AS installation_settings,
               av.version_number
        FROM agent_definitions ad
@@ -486,6 +660,68 @@ export class AgentRepository {
       [organizationId],
     );
     return result.rows;
+  }
+
+  public async listExternalAgents(organizationId: string): Promise<AgentRecord[]> {
+    const result = await query<AgentRecord>(
+      this.pool,
+      `SELECT ad.*, ai.id AS installation_id, ai.execution_mode, ai.status AS installation_status,
+              ai.settings AS installation_settings, av.version_number
+       FROM agent_definitions ad
+       JOIN LATERAL (
+         SELECT ai.* FROM agent_installations ai
+         WHERE ai.agent_definition_id = ad.id
+           AND ai.organization_id = $1
+           AND ai.execution_mode = 'external_connected'
+         ORDER BY ai.updated_at DESC LIMIT 1
+       ) ai ON TRUE
+       JOIN agent_versions av ON av.id = ai.agent_version_id
+       WHERE ad.organization_id = $1 AND ad.owner_type = 'organization' AND ad.protected = FALSE
+       ORDER BY ai.updated_at DESC, ad.created_at DESC`,
+      [organizationId],
+    );
+    return result.rows;
+  }
+
+  /** Archives an external connection and revokes every active credential in one transaction. */
+  public async archiveExternalInstallation(
+    organizationId: string,
+    installationId: string,
+    actorId: string,
+  ): Promise<InstallationRecord> {
+    return withTransaction(this.pool, async (client) => {
+      const target = await client.query<InstallationRecord>(
+        `SELECT * FROM agent_installations
+         WHERE id = $1 AND organization_id = $2 AND execution_mode = 'external_connected'
+         FOR UPDATE`,
+        [installationId, organizationId],
+      );
+      const installation = target.rows[0];
+      if (!installation) throw new Error("External installation not found");
+      const revoked = await client.query(
+        `UPDATE agent_installation_credentials
+         SET status = 'revoked', revoked_at = COALESCE(revoked_at, now()), revoked_by = $3
+         WHERE organization_id = $1 AND installation_id = $2 AND status = 'active'`,
+        [organizationId, installationId, actorId],
+      );
+      await client.query(
+        `UPDATE agent_installations SET status = 'disabled', updated_at = now()
+         WHERE id = $1 AND organization_id = $2`,
+        [installationId, organizationId],
+      );
+      await client.query(
+        `UPDATE agent_definitions SET status = 'archived', archived_at = COALESCE(archived_at, now()), updated_at = now()
+         WHERE id = $1 AND organization_id = $2 AND owner_type = 'organization' AND protected = FALSE`,
+        [installation.agent_definition_id, organizationId],
+      );
+      await client.query(
+        `INSERT INTO audit_records
+          (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'human', $2, 'external_agent_connection.archived', 'agent_installation', $3, $4::jsonb)`,
+        [organizationId, actorId, installationId, JSON.stringify({ agentId: installation.agent_definition_id, executionMode: installation.execution_mode, revokedCredentialCount: revoked.rowCount ?? 0 })],
+      );
+      return { ...installation, status: "disabled", updated_at: new Date().toISOString() };
+    });
   }
 
   public async listVersions(organizationId: string, agentId: string): Promise<AgentVersionRecord[]> {
@@ -515,6 +751,7 @@ export class AgentRepository {
   ): Promise<AgentVersionRecord> {
     validateVersionWorkflow(input.configuration);
     return withTransaction(this.pool, async (client) => {
+      await this.assertHostedDefinition(client, organizationId, agentId);
       const agent = await client.query<AgentRecord>(
         "SELECT * FROM agent_definitions WHERE organization_id = $1 AND id = $2 FOR UPDATE",
         [organizationId, agentId],
@@ -563,6 +800,7 @@ export class AgentRepository {
     versionId: string,
   ): Promise<AgentVersionRecord> {
     return withTransaction(this.pool, async (client) => {
+      await this.assertHostedDefinition(client, organizationId, agentId);
       const agent = await client.query<AgentRecord>(
         "SELECT * FROM agent_definitions WHERE organization_id = $1 AND id = $2 FOR UPDATE",
         [organizationId, agentId],
@@ -602,6 +840,7 @@ export class AgentRepository {
     versionId: string,
   ): Promise<AgentVersionRecord> {
     return withTransaction(this.pool, async (client) => {
+      await this.assertHostedDefinition(client, organizationId, agentId);
       const agent = await client.query<AgentRecord>(
         `SELECT * FROM agent_definitions WHERE organization_id = $1 AND id = $2 FOR UPDATE`,
         [organizationId, agentId],
@@ -640,6 +879,16 @@ export class AgentRepository {
     agentId: string,
     versionId: string,
   ): Promise<AgentVersionRecord> {
+    const modeGuard = await query<{ execution_mode: AgentExecutionMode }>(
+      this.pool,
+      `SELECT ai.execution_mode FROM agent_installations ai
+       WHERE ai.organization_id = $1 AND ai.agent_definition_id = $2
+       ORDER BY ai.updated_at DESC LIMIT 1`,
+      [organizationId, agentId],
+    );
+    if (modeGuard.rows[0]?.execution_mode === "external_connected") {
+      throw new Error("External-connected definitions cannot use hosted agent editing");
+    }
     const result = await query<AgentVersionRecord>(
       this.pool,
       `UPDATE agent_versions av
@@ -664,6 +913,7 @@ export class AgentRepository {
 
   public async archiveAgent(organizationId: string, actorId: string, agentId: string): Promise<AgentRecord> {
     return withTransaction(this.pool, async (client) => {
+      await this.assertHostedDefinition(client, organizationId, agentId);
       const result = await client.query<AgentRecord>(
         `UPDATE agent_definitions
          SET status = 'archived', archived_at = COALESCE(archived_at, now()), updated_at = now()
@@ -712,8 +962,8 @@ export class AgentRepository {
     input: CreateInstallationInput,
   ): Promise<InstallationRecord> {
     return withTransaction(this.pool, async (client) => {
-      const version = await client.query<AgentVersionRecord>(
-        `SELECT av.* FROM agent_versions av
+      const version = await client.query<AgentVersionRecord & { owner_type: string; protected: boolean }>(
+        `SELECT av.*, ad.owner_type, ad.protected FROM agent_versions av
          JOIN agent_definitions ad ON ad.id = av.agent_definition_id
          WHERE av.id = $2 AND av.status = 'published' AND ad.status = 'active' AND (
            ad.organization_id = $1 OR (ad.owner_type = 'system' AND ad.protected = TRUE)
@@ -721,17 +971,27 @@ export class AgentRepository {
         [organizationId, input.agentVersionId],
       );
       if (!version.rows[0]) throw new Error("Published agent version not found");
+      const target = version.rows[0]!;
+      const executionMode = input.executionMode ?? "kasitek_hosted";
+      if (executionMode === "external_connected") throw new Error("Use the external-agent creation flow for external installations");
+      if (executionMode === "system_hosted" && !(target.owner_type === "system" && target.protected)) {
+        throw new Error("Only protected system definitions may use system_hosted mode");
+      }
+      if (executionMode === "kasitek_hosted" && !(target.owner_type === "organization" && !target.protected)) {
+        throw new Error("Only organization-owned definitions may use kasitek_hosted mode");
+      }
       const created = await client.query<InstallationRecord>(
-        `INSERT INTO agent_installations
-          (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, settings, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+      `INSERT INTO agent_installations
+          (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, settings, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
          RETURNING *`,
         [
-          version.rows[0].agent_definition_id,
+          target.agent_definition_id,
           input.agentVersionId,
           organizationId,
           input.scopeType,
           input.scopeId,
+          executionMode,
           JSON.stringify(input.settings),
           actorId,
         ],
@@ -745,7 +1005,7 @@ export class AgentRepository {
         `INSERT INTO audit_records
           (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
          VALUES ($1, 'human', $2, 'agent_installation.created', 'agent_installation', $3, $4::jsonb)`,
-        [organizationId, actorId, installation.id, JSON.stringify({ versionId: input.agentVersionId })],
+        [organizationId, actorId, installation.id, JSON.stringify({ versionId: input.agentVersionId, executionMode: installation.execution_mode })],
       );
       return installation;
     });
@@ -774,8 +1034,8 @@ export class AgentRepository {
       if (!target) throw new Error("Published system agent version not found");
       const created = await client.query<InstallationRecord & { created_now: boolean }>(
         `INSERT INTO agent_installations
-          (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, settings, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+          (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, settings, created_by)
+         VALUES ($1, $2, $3, $4, $5, 'system_hosted', $6::jsonb, $7)
          ON CONFLICT (organization_id, agent_definition_id, scope_type, scope_id)
          DO UPDATE SET updated_at = agent_installations.updated_at
          RETURNING *, (xmax = 0) AS created_now`,
@@ -816,7 +1076,7 @@ export class AgentRepository {
             input.organizationId,
             input.actorId,
             installation.id,
-            JSON.stringify({ agentId: target.agent_definition_id, versionId: target.id, systemSlug: input.systemSlug }),
+            JSON.stringify({ agentId: target.agent_definition_id, versionId: target.id, systemSlug: input.systemSlug, executionMode: installation.execution_mode }),
           ],
         );
       }
@@ -970,11 +1230,14 @@ export class AgentRepository {
   public async getInstallation(
     organizationId: string,
     installationId: string,
-  ): Promise<(InstallationRecord & { agent_definition_id: string; agent_version_id: string }) | null> {
-    const result = await query<InstallationRecord>(
+  ): Promise<(InstallationRecord & InstallationIdentity) | null> {
+    const result = await query<InstallationRecord & InstallationIdentity>(
       this.pool,
-      `SELECT * FROM agent_installations
-       WHERE organization_id = $1 AND id = $2`,
+      `SELECT ai.*, ad.owner_type AS agent_owner_type,
+              ad.protected AS agent_protected, ad.slug AS agent_slug
+       FROM agent_installations ai
+       JOIN agent_definitions ad ON ad.id = ai.agent_definition_id
+       WHERE ai.organization_id = $1 AND ai.id = $2`,
       [organizationId, installationId],
     );
     return result.rows[0] ?? null;
@@ -1000,8 +1263,8 @@ export class AgentRepository {
       this.pool,
       `INSERT INTO audit_records
         (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
-       VALUES ($1, 'human', $2, $3, 'agent_installation', $4, '{}'::jsonb)`,
-      [organizationId, actorId, `agent_installation.${status}`, installationId],
+       VALUES ($1, 'human', $2, $3, 'agent_installation', $4, $5::jsonb)`,
+      [organizationId, actorId, `agent_installation.${status}`, installationId, JSON.stringify({ executionMode: installation.execution_mode })],
     );
     return installation;
   }
@@ -1028,7 +1291,7 @@ export class AgentRepository {
       `INSERT INTO audit_records
         (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
        VALUES ($1, 'human', $2, 'agent_installation.settings_updated', 'agent_installation', $3, $4::jsonb)`,
-      [organizationId, actorId, installationId, JSON.stringify({ keys: Object.keys(settings), protected: installation.protected })],
+      [organizationId, actorId, installationId, JSON.stringify({ keys: Object.keys(settings), protected: installation.protected, executionMode: installation.execution_mode })],
     );
     return installation;
   }

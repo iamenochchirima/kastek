@@ -133,6 +133,108 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn create_external_agent(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            "/v1/external-agents",
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn list_external_agents(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/external-agents",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn get_external_agent(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/external-agents/{installation_id}"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn get_external_agent_health(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/external-agents/{installation_id}/health"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn archive_external_agent(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::DELETE,
+            &format!("/v1/external-agents/{installation_id}"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn set_external_agent_status(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        status: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/external-agents/{installation_id}/status/{status}"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
     pub async fn create_agent_version(
         &self,
         organization_id: &str,

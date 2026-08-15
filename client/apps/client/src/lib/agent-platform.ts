@@ -265,6 +265,7 @@ export type AgentDefinition = {
   status: string;
   protected: boolean;
   owner_type: string;
+  execution_mode?: "system_hosted" | "kasitek_hosted" | "external_connected" | null;
   created_at: string;
   installation_id?: string | null;
   installation_status?: string | null;
@@ -278,6 +279,61 @@ export function listAgents(): Promise<{ agents: AgentDefinition[] }> {
 
 export function createAgent(input: { name: string; slug?: string; description?: string }): Promise<AgentDefinition> {
   return request("/api/agents", { method: "POST", body: JSON.stringify({ ...input, protected: false }) });
+}
+
+export type ExternalAgentConnection = {
+  agent: AgentDefinition;
+  version: AgentVersion;
+  installation: AgentInstallation & { execution_mode: "external_connected" };
+  credential: AgentInstallationCredential;
+  secret: string;
+  created: boolean;
+};
+
+export function createExternalAgentConnection(input: {
+  name: string;
+  slug?: string;
+  description?: string;
+  runtime: string;
+  protocols: Array<"mcp" | "rest">;
+  capabilities?: string[];
+  resources?: Array<{ resourceType: string; resourceId: string }>;
+  connectors?: string[];
+  instructions?: string;
+  mcpScopes: Array<"mcp:read" | "mcp:write">;
+  apiScopes: Array<"api:read" | "api:write">;
+  credentialLabel: string;
+  expiresAt?: string;
+  clientKeyId?: string;
+  clientPublicKey?: string;
+  idempotencyKey: string;
+}): Promise<ExternalAgentConnection> {
+  return request<ExternalAgentConnection>("/api/agents/external-agents", { method: "POST", body: JSON.stringify(input) });
+}
+
+export type ExternalAgentDetails = ExternalAgentConnection & {
+  grants: AgentInstallationGrants;
+  health: { status: string; activeCredentialCount: number; lastUsedAt: string | null };
+};
+
+export function listExternalAgents(): Promise<{ agents: AgentDefinition[] }> {
+  return request("/api/agents/external-agents");
+}
+
+export function getExternalAgentDetails(installationId: string): Promise<ExternalAgentDetails> {
+  return request(`/api/agents/external-agents/${encodeURIComponent(installationId)}`);
+}
+
+export function setExternalAgentStatus(installationId: string, status: "active" | "paused" | "disabled"): Promise<AgentInstallation> {
+  return request(`/api/agents/external-agents/${encodeURIComponent(installationId)}/status/${status}`, { method: "POST" });
+}
+
+export function getExternalAgentHealth(installationId: string): Promise<{ installationId: string; mode: "external_connected"; status: string; health: ExternalAgentDetails["health"] }> {
+  return request(`/api/agents/external-agents/${encodeURIComponent(installationId)}/health`);
+}
+
+export function archiveExternalAgent(installationId: string): Promise<{ archived: boolean; installation: AgentInstallation }> {
+  return request(`/api/agents/external-agents/${encodeURIComponent(installationId)}`, { method: "DELETE" });
 }
 
 export function createAgentVersion(agentId: string, input: { instructions: string; configuration?: Record<string, unknown>; policy?: Record<string, unknown> }): Promise<AgentVersion> {
@@ -357,6 +413,8 @@ export type AgentCapability = {
   riskClass: string;
   requiresApproval: boolean;
   availability: "available" | "not_granted" | "not_configured" | "unhealthy" | string;
+  available?: boolean;
+  reasonCode?: "available" | "not_entitled" | "not_granted" | "credential_denied" | "provider_not_configured" | "provider_unhealthy" | "feature_disabled" | "approval_required" | string;
   inputSchema: Record<string, unknown>;
   outputSchema: Record<string, unknown>;
   manifest?: Record<string, unknown>;

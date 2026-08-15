@@ -1,111 +1,85 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, Copy, KeyRound, ShieldCheck } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { useMemo, useState } from "react";
+import { ArrowLeft, CheckCircle2, Copy, KeyRound, Plug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  createAgentInstallationCredential,
-  listAgentInstallationCapabilities,
-  listAgentInstallationGrants,
-  listAgents,
-  grantAgentInstallationResource,
-  type AgentCapability,
-  type AgentDefinition,
-  type AgentInstallationGrants,
-} from "@/lib/agent-platform";
+import { createExternalAgentConnection, type ExternalAgentConnection } from "@/lib/agent-platform";
 
 function copy(text: string) {
   void navigator.clipboard?.writeText(text);
 }
 
+function splitLines(value: string): string[] {
+  return [...new Set(value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean))];
+}
+
 export function AgentConnectionWizard() {
-  const [agents, setAgents] = useState<AgentDefinition[]>([]);
-  const [agentId, setAgentId] = useState("");
-  const [capabilities, setCapabilities] = useState<AgentCapability[]>([]);
-  const [grants, setGrants] = useState<AgentInstallationGrants | null>(null);
-  const [label, setLabel] = useState("External agent");
+  const [name, setName] = useState("");
+  const [runtime, setRuntime] = useState("custom");
+  const [protocols, setProtocols] = useState<Array<"mcp" | "rest">>(["mcp"]);
+  const [capabilities, setCapabilities] = useState("");
+  const [resources, setResources] = useState("");
+  const [connectors, setConnectors] = useState("");
+  const [credentialLabel, setCredentialLabel] = useState("External agent");
   const [mcpWrite, setMcpWrite] = useState(false);
   const [apiWrite, setApiWrite] = useState(false);
-  const [resourceType, setResourceType] = useState("");
-  const [resourceId, setResourceId] = useState("");
-  const [secret, setSecret] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [connection, setConnection] = useState<ExternalAgentConnection | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const selected = agents.find((agent) => agent.id === agentId);
-  const installationId = selected?.installation_id ?? null;
-  const availableCount = capabilities.filter((capability) => capability.availability === "available").length;
-  const grantedCount = capabilities.filter((capability) => capability.availability === "not_granted").length;
-  const unavailableCount = capabilities.length - availableCount - grantedCount;
+  const installationId = connection?.installation.id ?? null;
   const mcpEndpoint = "https://agents.kasitek.co.za/mcp";
   const restEndpoint = "https://api.kasitek.co.za/v1";
-  const curlExample = useMemo(() => `curl -X POST ${restEndpoint}/installations/${installationId ?? "<installation-id>"}/capabilities \\\n+  -H 'Authorization: Bearer <copy-once-secret>' \\\n+  -H 'Content-Type: application/json'`, [installationId]);
+  const curlExample = useMemo(() => `# Exchange the copy-once secret for a short-lived REST token\ncurl -sS ${restEndpoint}/installation-tokens/exchange \\
+  -H 'Content-Type: application/json' \\
+  -d '{"secret":"<copy-once-secret>","audience":"kasitek-public-api"}'\n\n# Use the returned accessToken for discovery\ncurl -sS ${restEndpoint}/installations/${installationId ?? "<installation-id>"}/tools \\
+  -H 'Authorization: Bearer <access-token>'`, [installationId]);
 
-  useEffect(() => {
-    void listAgents().then((response) => {
-      const installed = response.agents.filter((agent) => agent.installation_id && agent.installation_status !== "disabled");
-      setAgents(installed);
-      setAgentId(installed[0]?.id ?? "");
-    }).catch((cause) => setError(cause instanceof Error ? cause.message : "Unable to load installed agents")).finally(() => setLoading(false));
-  }, []);
+  const toggleProtocol = (protocol: "mcp" | "rest") => {
+    setProtocols((current) => current.includes(protocol) ? current.filter((item) => item !== protocol) : [...current, protocol]);
+  };
 
-  useEffect(() => {
-    if (!installationId) {
-      setCapabilities([]);
-      setGrants(null);
-      return;
-    }
+  const createConnection = async () => {
+    if (!name.trim() || !credentialLabel.trim() || !protocols.length || busy) return;
     setBusy(true);
-    Promise.all([listAgentInstallationCapabilities(installationId), listAgentInstallationGrants(installationId)])
-      .then(([capabilityResponse, grantResponse]) => { setCapabilities(capabilityResponse.capabilities); setGrants(grantResponse); setError(null); })
-      .catch((cause) => setError(cause instanceof Error ? cause.message : "Unable to inspect installation access"))
-      .finally(() => setBusy(false));
-  }, [installationId]);
-
-  const createCredential = async () => {
-    if (!installationId || !label.trim() || busy) return;
-    setBusy(true);
-    setSecret(null);
     setError(null);
+    setConnection(null);
     try {
-      const created = await createAgentInstallationCredential(installationId, {
-        label: label.trim(),
+      const created = await createExternalAgentConnection({
+        name: name.trim(),
+        runtime,
+        protocols,
+        capabilities: splitLines(capabilities),
+        resources: splitLines(resources).map((resource) => {
+          const separator = resource.indexOf(":");
+          return separator > 0
+            ? { resourceType: resource.slice(0, separator).trim(), resourceId: resource.slice(separator + 1).trim() }
+            : { resourceType: "record", resourceId: resource };
+        }),
+        connectors: splitLines(connectors),
+        credentialLabel: credentialLabel.trim(),
         mcpScopes: ["mcp:read", ...(mcpWrite ? ["mcp:write" as const] : [])],
         apiScopes: ["api:read", ...(apiWrite ? ["api:write" as const] : [])],
+        idempotencyKey: crypto.randomUUID(),
       });
-      setSecret(created.secret);
+      setConnection(created);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to create credential");
+      setError(cause instanceof Error ? cause.message : "Unable to create external agent connection");
     } finally {
       setBusy(false);
     }
   };
 
-  const addResourceGrant = async () => {
-    if (!installationId || !resourceType.trim() || !resourceId.trim() || busy) return;
-    setBusy(true);
-    try {
-      await grantAgentInstallationResource(installationId, resourceType.trim(), resourceId.trim());
-      const updated = await listAgentInstallationGrants(installationId);
-      setGrants(updated);
-      setResourceType("");
-      setResourceId("");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to add resource scope");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return <div className="min-h-screen p-6 lg:p-8"><div className="mx-auto max-w-4xl space-y-6"><Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to agents</Link><header><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">External access</p><h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">Connect an external agent</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Create a scoped installation credential for MCP or REST clients. The secret is displayed once; rotate or revoke credentials from the agent details page.</p></header>
+  return <div className="min-h-screen p-6 lg:p-8"><div className="mx-auto max-w-4xl space-y-6"><Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to agents</Link><header><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">External access</p><h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">Connect an external agent</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Create a dedicated external-connected installation for a runtime you operate elsewhere. KasiAi and hosted user agents are not selected or modified in this flow.</p></header>
     {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-    {loading ? <Card><CardContent className="p-6 text-sm text-muted-foreground">Loading installed agents…</CardContent></Card> : !agents.length ? <Card><CardContent className="space-y-3 p-6"><p className="font-medium text-foreground">No active installation is available.</p><p className="text-sm text-muted-foreground">Create or install an agent before connecting an external client.</p><Button asChild><Link href="/agents/new">Create agent</Link></Button></CardContent></Card> : <>
-      <Card><CardContent className="space-y-4 p-6"><div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-lg font-semibold text-foreground">1. Choose installation and inspect access</h2><p className="mt-1 text-sm text-muted-foreground">Capability availability reflects current installation grants and provider readiness.</p></div></div><select value={agentId} onChange={(event) => setAgentId(event.target.value)} className="block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name} · {agent.installation_status}</option>)}</select>{busy && !capabilities.length ? <p className="text-sm text-muted-foreground">Inspecting capabilities…</p> : <><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Available</p><p className="mt-1 text-xl font-semibold text-accent">{availableCount}</p></div><div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Not granted</p><p className="mt-1 text-xl font-semibold text-status-attention">{grantedCount}</p></div><div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Unavailable</p><p className="mt-1 text-xl font-semibold text-muted-foreground">{unavailableCount}</p></div></div><div className="flex flex-wrap gap-1.5">{capabilities.map((capability) => <Badge key={`${capability.name}:${capability.version}`} title={[capability.permission?.label, capability.audit?.description].filter(Boolean).join(" — ")} className={capability.availability === "available" ? "border-accent/30 bg-accent/10 text-accent" : "border-border bg-secondary text-muted-foreground"}>{capability.name} · {capability.availability}</Badge>)}</div><p className="text-xs text-muted-foreground">Resource grants: {grants?.resources.length ?? 0} · Connector grants: {grants?.connectors.length ?? 0}. Add a resource scope below when the client must be limited to a known record.</p><div className="grid gap-2 sm:grid-cols-[0.8fr_1fr_auto]"><input value={resourceType} onChange={(event) => setResourceType(event.target.value)} placeholder="Resource type" className="rounded-lg border border-border bg-background px-3 py-2 text-sm" /><input value={resourceId} onChange={(event) => setResourceId(event.target.value)} placeholder="Resource id" className="rounded-lg border border-border bg-background px-3 py-2 text-sm" /><Button type="button" variant="outline" disabled={!resourceType.trim() || !resourceId.trim() || busy} onClick={() => void addResourceGrant()}>Add scope</Button></div></>}</CardContent></Card>
-      <Card><CardContent className="space-y-4 p-6"><div className="flex items-start gap-3"><KeyRound className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-lg font-semibold text-foreground">2. Create copy-once credentials</h2><p className="mt-1 text-sm text-muted-foreground">MCP and REST scopes are independent. Start read-only and add write access only when the client and approval policy are ready.</p></div></div><div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]"><input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Credential label" className="rounded-lg border border-border bg-background px-3 py-2 text-sm" /><label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs"><input type="checkbox" checked={mcpWrite} onChange={(event) => setMcpWrite(event.target.checked)} />MCP write</label><label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs"><input type="checkbox" checked={apiWrite} onChange={(event) => setApiWrite(event.target.checked)} />REST write</label></div><Button type="button" disabled={!installationId || !label.trim() || busy} onClick={() => void createCredential()}>{busy ? "Creating…" : "Create credential"}</Button>{secret ? <div className="rounded-xl border border-status-attention/40 bg-status-attention-soft p-4" role="alert"><p className="flex items-center gap-2 text-sm font-semibold text-status-attention"><CheckCircle2 className="h-4 w-4" />Copy this secret now</p><p className="mt-1 text-xs text-muted-foreground">It will not be shown again after you leave this page.</p><div className="mt-3 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-background px-3 py-2 text-xs text-foreground">{secret}</code><Button type="button" variant="outline" size="sm" onClick={() => copy(secret)}><Copy className="mr-1.5 h-3.5 w-3.5" />Copy</Button></div></div> : null}</CardContent></Card>
-      <Card><CardContent className="space-y-4 p-6"><div><h2 className="text-lg font-semibold text-foreground">3. Connect the client</h2><p className="mt-1 text-sm text-muted-foreground">Use the one-time secret as a bearer credential. The gateway and REST API re-check installation status, scopes, grants, and capability availability on every request.</p></div><div className="space-y-3"><div><p className="text-xs font-medium text-foreground">MCP endpoint</p><div className="mt-1 flex gap-2"><code className="min-w-0 flex-1 rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground">{mcpEndpoint}</code><Button type="button" variant="outline" size="sm" onClick={() => copy(mcpEndpoint)}><Copy className="h-3.5 w-3.5" /></Button></div></div><div><p className="text-xs font-medium text-foreground">REST discovery example</p><div className="mt-1 flex gap-2"><pre className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground">{curlExample}</pre><Button type="button" variant="outline" size="sm" onClick={() => copy(curlExample)}><Copy className="h-3.5 w-3.5" /></Button></div></div></div>{selected ? <Button asChild variant="outline"><Link href={`/agents/${encodeURIComponent(selected.id)}`}>Open installation controls</Link></Button> : null}</CardContent></Card>
+    {!connection ? <>
+      <Card><CardContent className="space-y-4 p-6"><div className="flex items-start gap-3"><Plug className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-lg font-semibold text-foreground">1. Describe the external runtime</h2><p className="mt-1 text-sm text-muted-foreground">This creates a new external-connected identity that can call KasiTek through the selected protocols.</p></div></div><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium text-foreground">Agent name<input value={name} onChange={(event) => setName(event.target.value)} maxLength={160} placeholder="My operations agent" className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label><label className="text-sm font-medium text-foreground">Runtime<select value={runtime} onChange={(event) => setRuntime(event.target.value)} className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="custom">Custom runtime</option><option value="codex">Codex</option><option value="claude">Claude</option><option value="n8n">n8n</option></select></label></div><div className="flex flex-wrap gap-3"><span className="self-center text-sm font-medium text-foreground">Protocols</span><label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs"><input type="checkbox" checked={protocols.includes("mcp")} onChange={() => toggleProtocol("mcp")} />MCP</label><label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs"><input type="checkbox" checked={protocols.includes("rest")} onChange={() => toggleProtocol("rest")} />REST</label></div></CardContent></Card>
+      <Card><CardContent className="space-y-4 p-6"><div><h2 className="text-lg font-semibold text-foreground">2. Define initial access</h2><p className="mt-1 text-sm text-muted-foreground">These grants belong to the new external installation. Add one registered capability or scope per line; unavailable services are rejected before a secret is issued.</p></div><label className="text-sm font-medium text-foreground">Capabilities<textarea value={capabilities} onChange={(event) => setCapabilities(event.target.value)} rows={3} placeholder="platform.current_time" className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs" /></label><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium text-foreground">Resource scopes<small className="mt-1 block font-normal text-muted-foreground">Use type:id, for example workspace:workspace-1</small><textarea value={resources} onChange={(event) => setResources(event.target.value)} rows={3} placeholder="workspace:workspace-1" className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs" /></label><label className="text-sm font-medium text-foreground">Connector subscriptions<textarea value={connectors} onChange={(event) => setConnectors(event.target.value)} rows={3} placeholder="telegram.messaging" className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs" /></label></div></CardContent></Card>
+      <Card><CardContent className="space-y-4 p-6"><div className="flex items-start gap-3"><KeyRound className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-lg font-semibold text-foreground">3. Create the transport credential</h2><p className="mt-1 text-sm text-muted-foreground">Read access is enabled by default. Write access should be enabled only when the external runtime is approved to perform changes.</p></div></div><div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]"><input value={credentialLabel} onChange={(event) => setCredentialLabel(event.target.value)} placeholder="Credential label" className="rounded-lg border border-border bg-background px-3 py-2 text-sm" /><label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs"><input type="checkbox" checked={mcpWrite} onChange={(event) => setMcpWrite(event.target.checked)} disabled={!protocols.includes("mcp")} />MCP write</label><label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs"><input type="checkbox" checked={apiWrite} onChange={(event) => setApiWrite(event.target.checked)} disabled={!protocols.includes("rest")} />REST write</label></div><Button type="button" disabled={!name.trim() || !credentialLabel.trim() || !protocols.length || busy} onClick={() => void createConnection()}>{busy ? "Creating…" : "Create external connection"}</Button></CardContent></Card>
+    </> : <>
+      <Card><CardContent className="space-y-4 p-6"><div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 h-5 w-5 text-accent" /><div><h2 className="text-lg font-semibold text-foreground">External connection created</h2><p className="mt-1 text-sm text-muted-foreground">This secret is shown once. Copy it before leaving this page; rotate or revoke it from the external installation details.</p></div></div><div className="rounded-xl border border-status-attention/40 bg-status-attention-soft p-4" role="alert"><p className="text-sm font-semibold text-status-attention">Copy this secret now</p><div className="mt-3 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-background px-3 py-2 text-xs text-foreground">{connection.secret}</code><Button type="button" variant="outline" size="sm" onClick={() => copy(connection.secret)}><Copy className="mr-1.5 h-3.5 w-3.5" />Copy</Button></div></div><div className="grid gap-3 text-sm sm:grid-cols-2"><div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">External installation</p><p className="mt-1 break-all font-mono text-xs text-foreground">{connection.installation.id}</p></div><div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Runtime</p><p className="mt-1 font-medium capitalize text-foreground">{runtime}</p></div></div></CardContent></Card>
+      <Card><CardContent className="space-y-4 p-6"><div><h2 className="text-lg font-semibold text-foreground">Connect the client</h2><p className="mt-1 text-sm text-muted-foreground">Exchange the copy-once secret once for a short-lived audience-bound token. The gateway re-checks installation status, transport scopes, service grants, and resource scopes on every request.</p></div>{protocols.includes("mcp") ? <div><p className="text-xs font-medium text-foreground">MCP endpoint</p><div className="mt-1 flex gap-2"><code className="min-w-0 flex-1 rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground">{mcpEndpoint}</code><Button type="button" variant="outline" size="sm" onClick={() => copy(mcpEndpoint)}><Copy className="h-3.5 w-3.5" /></Button></div></div> : null}{protocols.includes("rest") ? <div><p className="text-xs font-medium text-foreground">REST token exchange and discovery</p><div className="mt-1 flex gap-2"><pre className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground">{curlExample}</pre><Button type="button" variant="outline" size="sm" onClick={() => copy(curlExample)}><Copy className="h-3.5 w-3.5" /></Button></div></div> : null}<Button asChild variant="outline"><Link href={`/agents/${encodeURIComponent(connection.agent.id)}`}>Open external installation details</Link></Button></CardContent></Card>
     </>}</div></div>;
 }

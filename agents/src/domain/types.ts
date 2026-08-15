@@ -9,6 +9,9 @@ export type VersionStatus = z.infer<typeof versionStatusSchema>;
 export const installationStatusSchema = z.enum(["active", "paused", "disabled"]);
 export type InstallationStatus = z.infer<typeof installationStatusSchema>;
 
+export const agentExecutionModeSchema = z.enum(["system_hosted", "kasitek_hosted", "external_connected"]);
+export type AgentExecutionMode = z.infer<typeof agentExecutionModeSchema>;
+
 export const runStatusSchema = z.enum([
   "received",
   "queued",
@@ -76,8 +79,44 @@ export const createInstallationInputSchema = z.object({
   scopeType: z.enum(["organization", "user", "business"]).default("organization"),
   scopeId: z.string().min(1).max(160),
   settings: z.record(z.string(), z.unknown()).default({}),
+  executionMode: agentExecutionModeSchema.optional(),
 });
 export type CreateInstallationInput = z.infer<typeof createInstallationInputSchema>;
+
+const externalScopeSchema = z.object({
+  resourceType: z.string().trim().min(1).max(120),
+  resourceId: z.string().trim().min(1).max(240),
+});
+
+export const createExternalAgentInputSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+    .max(80)
+    .optional(),
+  description: z.string().trim().max(2000).optional(),
+  runtime: z.string().trim().min(1).max(80).default("custom"),
+  protocols: z.array(z.enum(["mcp", "rest"])).min(1).max(2),
+  capabilities: z.array(z.string().trim().min(1).max(160)).max(200).default([]),
+  resources: z.array(externalScopeSchema).max(200).default([]),
+  connectors: z.array(z.string().trim().min(1).max(240)).max(100).default([]),
+  instructions: z.string().trim().min(1).max(200_000).default("Operate as an external-connected KasiTek client."),
+  mcpScopes: z.array(z.enum(["mcp:read", "mcp:write"])).min(1).max(2).default(["mcp:read"]),
+  apiScopes: z.array(z.enum(["api:read", "api:write"])).min(1).max(2).default(["api:read"]),
+  credentialLabel: z.string().trim().min(1).max(160).default("External agent"),
+  expiresAt: z.string().datetime().optional(),
+  clientKeyId: z.string().trim().min(1).max(160).regex(/^[A-Za-z0-9._:-]+$/).optional(),
+  clientPublicKey: z.string().trim().min(1).max(16_000).optional(),
+  idempotencyKey: z.string().trim().min(8).max(240),
+}).superRefine((value, context) => {
+  if ((value.clientKeyId === undefined) !== (value.clientPublicKey === undefined)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: [value.clientKeyId === undefined ? "clientKeyId" : "clientPublicKey"], message: "Client key id and public key must be provided together" });
+  }
+});
+export type CreateExternalAgentInput = z.infer<typeof createExternalAgentInputSchema>;
 
 export const createInstallationCredentialInputSchema = z.object({
   label: z.string().trim().min(1).max(160),

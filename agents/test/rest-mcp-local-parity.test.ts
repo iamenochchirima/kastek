@@ -107,7 +107,7 @@ function createLocalParityApp() {
   };
   const immediateRead = new InstallationImmediateReadService({ runs: runs as never, toolInvocations: toolInvocations as never, tools: toolRegistry });
   const installationInvocations = new InstallationCapabilityInvocationService({
-    agents: { getInstallation: vi.fn(async () => ({ id: context.installationId, organization_id: context.organizationId, agent_definition_id: context.agentDefinitionId, agent_version_id: "version-local-parity", status: "active" })) } as never,
+    agents: { getInstallation: vi.fn(async () => ({ id: context.installationId, organization_id: context.organizationId, agent_definition_id: context.agentDefinitionId, agent_version_id: "version-local-parity", status: "active", execution_mode: "external_connected" as const, agent_owner_type: "organization", agent_protected: false, agent_slug: "local-parity" })) } as never,
     runs: runs as never,
     toolGrants: { effectiveTools: vi.fn(async () => new Set(parityCases.map((testCase) => testCase.name))) } as never,
     installationGrants: { effective: vi.fn(async () => ({ resources: [] })) } as never,
@@ -123,7 +123,7 @@ function createLocalParityApp() {
     installationInvocations,
     runs: runs as never,
     toolInvocations: toolInvocations as never,
-    agents: { getInstallation: vi.fn(async () => ({ id: context.installationId, organization_id: context.organizationId, agent_definition_id: context.agentDefinitionId, agent_version_id: "version-local-parity", status: "active" })) } as never,
+    agents: { getInstallation: vi.fn(async () => ({ id: context.installationId, organization_id: context.organizationId, agent_definition_id: context.agentDefinitionId, agent_version_id: "version-local-parity", status: "active", execution_mode: "external_connected" as const, agent_owner_type: "organization", agent_protected: false, agent_slug: "local-parity" })) } as never,
     installationCredentials: { getActiveForToken: vi.fn(async () => ({ id: context.credentialId, installation_id: context.installationId, organization_id: context.organizationId, status: "active", mcp_scopes: ["mcp:read", "mcp:write"], api_scopes: ["api:read", "api:write"] })) } as never,
     controls: { isFeatureEnabled: vi.fn(async () => true) } as never,
   });

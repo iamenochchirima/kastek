@@ -3,6 +3,11 @@
 The hosted MCP gateway is a stateless transport adapter. It does not own installation state,
 grants, approvals, or run records; those remain in the Agent API.
 
+MCP credentials belong only to an `external_connected` installation created through
+`POST /v1/external-agents`. KasiAi (`system_hosted`) and KasiTek-hosted user agents
+(`kasitek_hosted`) do not receive MCP credentials; their channels and hosted runtime controls stay
+on their own installation details.
+
 ## Authentication
 
 1. Create an installation credential from the authenticated Agents UI or the internal Agent API.
@@ -94,7 +99,9 @@ Authorization: Bearer <installation-token>
 
 `server/discover` returns supported protocol revisions, capabilities, server identity, private
 cache metadata, and instructions. `tools/list` is installation-filtered, deterministically ordered,
-and includes private cache metadata. Ordinary results include `resultType: "complete"` and server
+and includes private cache metadata. Each returned tool carries a private
+`kasitek/effectiveAccess` decision with a stable reason code. Ordinary results include
+`resultType: "complete"` and server
 identity metadata. The gateway advertises the `io.modelcontextprotocol/tasks` extension. A client
 that opts into Tasks receives a durable task handle for non-immediate calls and can use
 `tasks/get`, `tasks/cancel`, and `tasks/update`; clients that do not opt in retain the structured

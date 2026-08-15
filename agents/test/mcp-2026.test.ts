@@ -61,7 +61,7 @@ function dependencies(overrides: Record<string, unknown> = {}) {
     config,
     pool,
     agents: {
-      getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", agent_version_id: "version-1" }),
+      getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", agent_version_id: "version-1", execution_mode: "external_connected", agent_owner_type: "organization", agent_protected: false, agent_slug: "external-runtime" }),
     },
     installationCredentials: {
       getActiveForToken: async () => ({

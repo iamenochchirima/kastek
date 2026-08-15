@@ -60,9 +60,10 @@ export class RunRepository {
         agent_definition_id: string;
         agent_version_id: string;
         status: string;
+        execution_mode: "system_hosted" | "kasitek_hosted" | "external_connected";
         policy: Record<string, unknown>;
       }>(
-        `SELECT ai.agent_definition_id, ai.agent_version_id, ai.status, av.policy
+        `SELECT ai.agent_definition_id, ai.agent_version_id, ai.status, ai.execution_mode, av.policy
          FROM agent_installations ai
          JOIN agent_versions av ON av.id = ai.agent_version_id
          WHERE ai.id = $1 AND ai.organization_id = $2
@@ -71,6 +72,15 @@ export class RunRepository {
       );
       const target = installation.rows[0];
       if (!target || target.status !== "active") throw new Error("Active installation not found");
+      const capabilityInvocation = Boolean(
+        input.input
+        && typeof input.input === "object"
+        && input.input.mcpTool
+        && typeof input.input.mcpTool === "object",
+      );
+      if (target.execution_mode === "external_connected" && !capabilityInvocation) {
+        throw new Error("External-connected installations are invoked through MCP or REST capabilities");
+      }
       const maxConcurrentRuns = typeof target.policy.maxConcurrentRuns === "number"
         ? Math.trunc(target.policy.maxConcurrentRuns)
         : Number(target.policy.maxConcurrentRuns);

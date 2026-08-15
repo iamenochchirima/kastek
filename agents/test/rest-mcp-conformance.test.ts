@@ -132,8 +132,8 @@ describe("Agent REST and MCP conformance matrices", () => {
   it("guards every mounted /v1 route before parsing input or touching dependencies", async () => {
     const routes = await mountedAgentRoutes();
     const protectedRoutes = routes.filter(({ path }) => path.startsWith("/v1/") && path !== "/v1/installation-tokens/exchange");
-    expect(routes).toHaveLength(119);
-    expect(protectedRoutes).toHaveLength(113);
+    expect(routes).toHaveLength(126);
+    expect(protectedRoutes).toHaveLength(120);
 
     const app = buildApp({ config, pool: fakePool });
     try {
@@ -154,7 +154,7 @@ describe("Agent REST and MCP conformance matrices", () => {
       && route.path !== "/v1/installation-tokens/exchange"
       && !isPublicApiTransport(route),
     );
-    expect(directRoutes).toHaveLength(108);
+    expect(directRoutes).toHaveLength(115);
 
     const app = buildApp({ config: hmacConfig, pool: fakePool });
     try {
@@ -184,7 +184,7 @@ describe("Agent REST and MCP conformance matrices", () => {
 
   it("covers installation REST ownership, feature, scope, cursor, and approval edge cases", async () => {
     const agents = {
-      getInstallation: vi.fn(async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active" })),
+      getInstallation: vi.fn(async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active", execution_mode: "external_connected" as const, agent_owner_type: "organization", agent_protected: false, agent_slug: "external-runtime" })),
     } as unknown as AgentRepository;
     const runs = {
       getRun: vi.fn(async () => ({ id: "run-1", organization_id: "org-1", installation_id: "install-1", status: "running" })),
@@ -275,7 +275,7 @@ describe("Agent REST and MCP conformance matrices", () => {
       config: { ...installationConfig, TEMPORAL_ENABLED: true },
       pool: fakePool,
       installationInvocations: { accept } as never,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active", execution_mode: "external_connected" as const, agent_owner_type: "organization", agent_protected: false, agent_slug: "external-runtime" }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => installationCredential() } as never,
       toolGrants: { effectiveTools: async () => new Set(["kasitek.core.content_post_publish"]) } as never,
       controls: { isFeatureEnabled: vi.fn(async () => true) } as never,

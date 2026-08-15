@@ -6,6 +6,10 @@ KasiTek now has a dual-era `/mcp` endpoint. The 2026 stateless path uses MCP rev
 capability registry, invocation service, approval boundary, idempotency, audit, and durable run
 state.
 
+The authenticated installation is always the dedicated `external_connected` identity created for
+the customer-operated runtime. The stateless transport does not turn KasiAi or a KasiTek-hosted
+user agent into an external client and cannot be used with credentials attached to those modes.
+
 ## Client changes
 
 For the 2026 path, send `params._meta` on every request with:

@@ -1,5 +1,5 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { query, withTransaction } from "../pool";
 import { validateClientAssertionPublicKey } from "../../auth/installation-token";
 
@@ -24,6 +24,36 @@ export interface CreatedInstallationCredential {
   secret: string;
 }
 
+export interface InstallationCredentialInventoryRecord {
+  id: string;
+  organization_id: string;
+  installation_id: string;
+  installation_status: string;
+  execution_mode: "system_hosted" | "kasitek_hosted" | "external_connected";
+  agent_definition_id: string;
+  agent_owner_type: string;
+  agent_protected: boolean;
+  status: "active" | "revoked";
+  expires_at: string | null;
+  last_used_at: string | null;
+  created_at: string;
+  revoked_at: string | null;
+  revoked_by: string | null;
+  classification: "valid_external" | "invalid_system_hosted" | "invalid_kasitek_hosted";
+}
+
+export interface CreateInstallationCredentialInput {
+  organizationId: string;
+  installationId: string;
+  label: string;
+  actorId: string;
+  expiresAt?: string;
+  mcpScopes: Array<"mcp:read" | "mcp:write">;
+  apiScopes?: Array<"api:read" | "api:write">;
+  clientKeyId?: string;
+  clientPublicKey?: string;
+}
+
 const KEY_LENGTH = 32;
 
 function hashSecret(secret: string, salt = randomBytes(16)): string {
@@ -42,43 +72,18 @@ function verifySecret(secret: string, encoded: string): boolean {
 export class InstallationCredentialRepository {
   public constructor(private readonly pool: Pool) {}
 
-  public async create(input: {
-    organizationId: string;
-    installationId: string;
-    label: string;
-    actorId: string;
-    expiresAt?: string;
-    mcpScopes: Array<"mcp:read" | "mcp:write">;
-    apiScopes?: Array<"api:read" | "api:write">;
-    clientKeyId?: string;
-    clientPublicKey?: string;
-  }): Promise<CreatedInstallationCredential> {
-    const clientKeyId = input.clientKeyId?.trim() || null;
-    const clientPublicKey = input.clientPublicKey?.trim() || null;
-    if ((clientKeyId === null) !== (clientPublicKey === null)) throw new Error("Client key id and public key must be provided together");
-    if (clientPublicKey) validateClientAssertionPublicKey(clientPublicKey);
-    const secret = `ksi_${randomBytes(32).toString("base64url")}`;
-    const credential = await withTransaction(this.pool, async (client) => {
+  public async create(input: CreateInstallationCredentialInput): Promise<CreatedInstallationCredential> {
+    return withTransaction(this.pool, async (client) => {
       const installation = await client.query<{ id: string }>(
-        `SELECT id FROM agent_installations WHERE id = $1 AND organization_id = $2 AND status <> 'disabled' FOR UPDATE`,
+        `SELECT id FROM agent_installations
+         WHERE id = $1 AND organization_id = $2 AND status <> 'disabled'
+           AND execution_mode = 'external_connected'
+         FOR UPDATE`,
         [input.installationId, input.organizationId],
       );
-      if (!installation.rows[0]) throw new Error("Active installation not found");
-      const result = await client.query<InstallationCredentialRecord>(
-        `INSERT INTO agent_installation_credentials
-          (installation_id, organization_id, label, secret_hash, expires_at, mcp_scopes, api_scopes, client_key_id, client_public_key, created_by)
-         VALUES ($1, $2, $3, $4, $5::timestamptz, $6::jsonb, $7::jsonb, $8, $9, $10)
-         RETURNING id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes, api_scopes, client_key_id, client_public_key`,
-        [input.installationId, input.organizationId, input.label.trim(), hashSecret(secret), input.expiresAt ?? null, JSON.stringify(input.mcpScopes), JSON.stringify(input.apiScopes ?? ["api:read"]), clientKeyId, clientPublicKey, input.actorId],
-      );
-      await client.query(
-        `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
-         VALUES ($1, 'human', $2, 'agent_installation_credential.created', 'agent_installation_credential', $3, $4::jsonb)`,
-        [input.organizationId, input.actorId, result.rows[0]!.id, JSON.stringify({ installationId: input.installationId, label: input.label.trim() })],
-      );
-      return result.rows[0]!;
+      if (!installation.rows[0]) throw new Error("Active external-connected installation not found");
+      return createInstallationCredentialInTransaction(client, input);
     });
-    return { credential, secret };
   }
 
   public async list(organizationId: string, installationId: string): Promise<InstallationCredentialRecord[]> {
@@ -87,6 +92,40 @@ export class InstallationCredentialRepository {
       `SELECT id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes, api_scopes, client_key_id, client_public_key
        FROM agent_installation_credentials WHERE organization_id = $1 AND installation_id = $2 ORDER BY created_at DESC`,
       [organizationId, installationId],
+    );
+    return result.rows;
+  }
+
+  public async inventory(input: { organizationId?: string; limit?: number } = {}): Promise<InstallationCredentialInventoryRecord[]> {
+    const limit = Math.max(1, Math.min(input.limit ?? 500, 2_000));
+    const result = await query<InstallationCredentialInventoryRecord>(
+      this.pool,
+      `SELECT credential.id,
+              credential.organization_id,
+              credential.installation_id,
+              installation.status AS installation_status,
+              installation.execution_mode,
+              installation.agent_definition_id,
+              definition.owner_type AS agent_owner_type,
+              definition.protected AS agent_protected,
+              credential.status,
+              credential.expires_at,
+              credential.last_used_at,
+              credential.created_at,
+              credential.revoked_at,
+              credential.revoked_by,
+              CASE installation.execution_mode
+                WHEN 'external_connected' THEN 'valid_external'
+                WHEN 'system_hosted' THEN 'invalid_system_hosted'
+                ELSE 'invalid_kasitek_hosted'
+              END AS classification
+       FROM agent_installation_credentials credential
+       JOIN agent_installations installation ON installation.id = credential.installation_id
+       JOIN agent_definitions definition ON definition.id = installation.agent_definition_id
+       WHERE ($1::text IS NULL OR credential.organization_id = $1)
+       ORDER BY credential.created_at DESC
+       LIMIT $2`,
+      [input.organizationId ?? null, limit],
     );
     return result.rows;
   }
@@ -181,7 +220,7 @@ export class InstallationCredentialRepository {
       await client.query(
         `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
          VALUES ($1, 'human', $2, 'agent_installation_credential.revoked', 'agent_installation_credential', $3, $4::jsonb)`,
-        [input.organizationId, input.actorId, input.credentialId, JSON.stringify({ installationId: input.installationId })],
+        [input.organizationId, input.actorId, input.credentialId, JSON.stringify({ installationId: input.installationId, executionMode: "external_connected" })],
       );
     });
   }
@@ -213,12 +252,41 @@ export class InstallationCredentialRepository {
       await client.query(
         `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
          VALUES ($1, 'human', $2, 'agent_installation_credential.rotated', 'agent_installation_credential', $3, $4::jsonb)`,
-        [input.organizationId, input.actorId, created.rows[0]!.id, JSON.stringify({ installationId: input.installationId, replacedCredentialId: input.credentialId })],
+        [input.organizationId, input.actorId, created.rows[0]!.id, JSON.stringify({ installationId: input.installationId, executionMode: "external_connected", replacedCredentialId: input.credentialId })],
       );
       return created.rows[0]!;
     });
     return { credential, secret };
   }
+}
+
+/**
+ * Creates a one-time installation credential on an existing transaction.
+ * External-agent aggregate provisioning uses this boundary so the identity,
+ * grants, credential, and audit record commit or roll back together.
+ */
+export async function createInstallationCredentialInTransaction(
+  client: PoolClient,
+  input: CreateInstallationCredentialInput,
+): Promise<CreatedInstallationCredential> {
+  const clientKeyId = input.clientKeyId?.trim() || null;
+  const clientPublicKey = input.clientPublicKey?.trim() || null;
+  if ((clientKeyId === null) !== (clientPublicKey === null)) throw new Error("Client key id and public key must be provided together");
+  if (clientPublicKey) validateClientAssertionPublicKey(clientPublicKey);
+  const secret = `ksi_${randomBytes(32).toString("base64url")}`;
+  const result = await client.query<InstallationCredentialRecord>(
+    `INSERT INTO agent_installation_credentials
+      (installation_id, organization_id, label, secret_hash, expires_at, mcp_scopes, api_scopes, client_key_id, client_public_key, created_by)
+     VALUES ($1, $2, $3, $4, $5::timestamptz, $6::jsonb, $7::jsonb, $8, $9, $10)
+     RETURNING id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes, api_scopes, client_key_id, client_public_key`,
+    [input.installationId, input.organizationId, input.label.trim(), hashSecret(secret), input.expiresAt ?? null, JSON.stringify(input.mcpScopes), JSON.stringify(input.apiScopes ?? ["api:read"]), clientKeyId, clientPublicKey, input.actorId],
+  );
+  await client.query(
+    `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+     VALUES ($1, 'human', $2, 'agent_installation_credential.created', 'agent_installation_credential', $3, $4::jsonb)`,
+    [input.organizationId, input.actorId, result.rows[0]!.id, JSON.stringify({ installationId: input.installationId, executionMode: "external_connected", label: input.label.trim() })],
+  );
+  return { credential: result.rows[0]!, secret };
 }
 
 export const installationCredentialHashing = { hashSecret, verifySecret };

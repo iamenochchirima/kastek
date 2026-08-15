@@ -8,6 +8,7 @@ import { ToolRegistry, hashToolArguments } from "../src/tools/registry";
 
 const keyPair = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
 const installationId = "install-entrypoint-matrix";
+const hostedInstallationId = "install-hosted-entrypoint-matrix";
 const organizationId = "org-entrypoint-matrix";
 const credentialId = "credential-entrypoint-matrix";
 const actorId = "entrypoint-initiator";
@@ -88,13 +89,17 @@ function approvalManifest() {
   };
 }
 
-function installation() {
+function installation(id = installationId) {
   return {
-    id: installationId,
+    id,
     organization_id: organizationId,
     agent_definition_id: "agent-entrypoint-matrix",
     agent_version_id: "version-entrypoint-matrix",
     status: "active",
+    execution_mode: id === installationId ? "external_connected" : "kasitek_hosted",
+    agent_owner_type: "organization",
+    agent_protected: false,
+    agent_slug: "entrypoint-matrix",
   };
 }
 
@@ -243,7 +248,7 @@ describe("cross-entrypoint approval and effect matrix", () => {
     const app = buildApp({
       config,
       pool: fakePool,
-      agents: { getInstallation: async () => installation() } as never,
+      agents: { getInstallation: async (_organizationId: string, requestedInstallationId: string) => installation(requestedInstallationId) } as never,
       platformChat: platformChat as never,
       installationCredentials: { getActiveForToken: async () => credential() } as never,
       installationInvocations: { accept: accepts } as never,
@@ -290,25 +295,25 @@ describe("cross-entrypoint approval and effect matrix", () => {
       });
       const kasiaiApproved = await app.inject({
         method: "POST",
-        url: `/v1/installations/${installationId}/platform/messages`,
+        url: `/v1/installations/${hostedInstallationId}/platform/messages`,
         headers: authHeaders,
         payload: { message: "kasiai-approved", createNew: true, idempotencyKey: "matrix-kasiai-approved" },
       });
       const kasiaiRejected = await app.inject({
         method: "POST",
-        url: `/v1/installations/${installationId}/platform/messages`,
+        url: `/v1/installations/${hostedInstallationId}/platform/messages`,
         headers: authHeaders,
         payload: { message: "kasiai-rejected", createNew: true, idempotencyKey: "matrix-kasiai-rejected" },
       });
       const channelApproved = await app.inject({
         method: "POST",
-        url: `/v1/installations/${installationId}/channels/inbound`,
+        url: `/v1/installations/${hostedInstallationId}/channels/inbound`,
         headers: authHeaders,
         payload: { channelType: "telegram", provider: "telegram", providerEventId: "matrix-channel-approved", providerMessageId: "matrix-channel-approved", externalIdentity: "customer-approved", externalConversationId: "thread-approved", content: { text: "channel-approved" } },
       });
       const channelRejected = await app.inject({
         method: "POST",
-        url: `/v1/installations/${installationId}/channels/inbound`,
+        url: `/v1/installations/${hostedInstallationId}/channels/inbound`,
         headers: authHeaders,
         payload: { channelType: "telegram", provider: "telegram", providerEventId: "matrix-channel-rejected", providerMessageId: "matrix-channel-rejected", externalIdentity: "customer-rejected", externalConversationId: "thread-rejected", content: { text: "channel-rejected" } },
       });

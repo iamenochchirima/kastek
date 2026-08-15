@@ -78,12 +78,33 @@ function mcpCredential(scopes: Array<"mcp:read" | "mcp:write"> = ["mcp:read", "m
   };
 }
 
+const externalInstallationIdentity = {
+  execution_mode: "external_connected" as const,
+  agent_owner_type: "organization",
+  agent_protected: false,
+  agent_slug: "external-runtime",
+};
+
+const kasiaiInstallationIdentity = {
+  execution_mode: "system_hosted" as const,
+  agent_owner_type: "system",
+  agent_protected: true,
+  agent_slug: "kasiai",
+};
+
+const hostedInstallationIdentity = {
+  execution_mode: "kasitek_hosted" as const,
+  agent_owner_type: "organization",
+  agent_protected: false,
+  agent_slug: "hosted-agent",
+};
+
 describe("Agent Platform HTTP foundation", () => {
   it("serves the MCP initialize contract without requiring tenant credentials", async () => {
     const app = buildApp({
       config: mcpConfig,
       pool: fakePool,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
     });
     const response = await app.inject({
@@ -102,7 +123,7 @@ describe("Agent Platform HTTP foundation", () => {
       config: mcpConfig,
       pool: fakePool,
       controls: { isFeatureEnabled: vi.fn(async (_organizationId: string, flagKey: string) => flagKey !== "mcp_enabled") } as never,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
     });
     const response = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${mcpToken()}` }, payload: { jsonrpc: "2.0", id: 9, method: "initialize" } });
@@ -234,7 +255,7 @@ describe("Agent Platform HTTP foundation", () => {
     const app = buildApp({
       config: mcpConfig,
       pool: fakePool,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
     });
     const supported = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${mcpToken()}`, "mcp-protocol-version": "2025-06-18" }, payload: { jsonrpc: "2.0", id: 1, method: "initialize" } });
@@ -252,7 +273,7 @@ describe("Agent Platform HTTP foundation", () => {
     const app = buildApp({
       config: mcpConfig,
       pool: fakePool,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
     });
     const response = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${mcpToken()}` }, payload: { jsonrpc: "2.0", method: "notifications/initialized" } });
@@ -274,7 +295,7 @@ describe("Agent Platform HTTP foundation", () => {
     const app = buildApp({
       config: mcpConfig,
       pool: fakePool,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
     });
     const response = await app.inject({
@@ -292,7 +313,7 @@ describe("Agent Platform HTTP foundation", () => {
     const app = buildApp({
       config: mcpConfig,
       pool: fakePool,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
     });
@@ -310,7 +331,7 @@ describe("Agent Platform HTTP foundation", () => {
       config: mcpConfig,
       pool: fakePool,
       killSwitches: { isBlocked } as never,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
     });
@@ -330,7 +351,7 @@ describe("Agent Platform HTTP foundation", () => {
     const app = buildApp({
       config: { ...config, AUTH_MODE: "headers" as const },
       pool: fakePool,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
       installationCredentials: { getActiveForToken } as never,
     });
@@ -354,7 +375,7 @@ describe("Agent Platform HTTP foundation", () => {
     const app = buildApp({
       config: { ...mcpConfig, AUTH_MODE: "hmac", INTERNAL_AUTH_SECRET: "internal-secret" },
       pool: fakePool,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
     });
     const internal = signInternalToken({ organizationId: "org-1", actorId: "internal", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: ["mcp:read"] }, "internal-secret");
@@ -366,15 +387,25 @@ describe("Agent Platform HTTP foundation", () => {
   });
 
   it("applies the credential MCP policy at call time", async () => {
+    const accept = vi.fn().mockResolvedValue({
+      accepted: { id: "run-read-only", status: "completed" },
+      manifest: { requiresApproval: false },
+      immediate: true,
+      output: { now: "2026-08-15T00:00:00.000Z" },
+    });
     const app = buildApp({
       config: mcpConfig,
       pool: fakePool,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential(["mcp:read"]) } as never,
-      toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
+      toolGrants: { effectiveTools: async () => new Set(["platform.current_time", "kasitek.core.content_post_draft"]) } as never,
+      installationInvocations: { accept } as never,
     });
-    const response = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${mcpToken()}` }, payload: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "platform.current_time", arguments: {} } } });
-    expect(response.json()).toMatchObject({ error: { code: -32003, message: "MCP credential is missing scope: mcp:write" } });
+    const readResponse = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${mcpToken()}` }, payload: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "platform.current_time", arguments: {} } } });
+    expect(readResponse.json()).toMatchObject({ result: { structuredContent: { runId: "run-read-only" } } });
+    const writeResponse = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${mcpToken()}` }, payload: { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "kasitek.core.content_post_draft", arguments: { content: "draft", channels: ["linkedin"] } } } });
+    expect(writeResponse.json()).toMatchObject({ error: { code: -32003, message: "MCP credential is missing scope: mcp:write" } });
+    expect(accept).toHaveBeenCalledTimes(1);
     await app.close();
   });
 
@@ -386,7 +417,7 @@ describe("Agent Platform HTTP foundation", () => {
       pool: fakePool,
       runs,
       startWorkflow,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
       toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
     });
@@ -413,7 +444,7 @@ describe("Agent Platform HTTP foundation", () => {
       pool: fakePool,
       runs,
       signalCancellation,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
     });
     const response = await app.inject({
@@ -450,7 +481,7 @@ describe("Agent Platform HTTP foundation", () => {
       pool: fakePool,
       runs: { getRun: async () => ({ id: "run-mcp-approval", organization_id: "org-1", installation_id: "install-1", status: "awaiting_approval" }) } as unknown as RunRepository,
       approvals: { getForRun: async () => ({ status: "pending", provider_tool_call_id: "call-approval", capability: "kasitek.core.content_post_publish", expires_at: "2026-08-13T12:00:00.000Z" }) } as never,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
     });
     const response = await app.inject({
@@ -481,7 +512,7 @@ describe("Agent Platform HTTP foundation", () => {
       pool: fakePool,
       runs,
       startWorkflow,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
       toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
     });
@@ -508,7 +539,7 @@ describe("Agent Platform HTTP foundation", () => {
       pool: fakePool,
       installationInvocations: { accept } as never,
       killSwitches: { isBlocked: async () => false } as never,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
       toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
     });
@@ -568,7 +599,7 @@ describe("Agent Platform HTTP foundation", () => {
       pool: fakePool,
       installationInvocations: { accept } as never,
       killSwitches: { isBlocked: async () => false } as never,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
       toolGrants: { effectiveTools: async () => new Set(["kasitek.core.content_post_draft"]) } as never,
     });
@@ -621,7 +652,7 @@ describe("Agent Platform HTTP foundation", () => {
       pool: fakePool,
       installationInvocations: { accept } as never,
       killSwitches: { isBlocked: async () => false } as never,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
       toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
     });
@@ -643,7 +674,7 @@ describe("Agent Platform HTTP foundation", () => {
       config: mcpConfig,
       pool: fakePool,
       installationInvocations: { accept } as never,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_definition_id: "agent-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
     });
     const response = await app.inject({
@@ -662,7 +693,7 @@ describe("Agent Platform HTTP foundation", () => {
     const app = buildApp({
       config: mcpConfig,
       pool: fakePool,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => ({ ...mcpCredential(), api_scopes: ["api:read"] }) } as never,
       toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
     });
@@ -682,7 +713,7 @@ describe("Agent Platform HTTP foundation", () => {
     const app = buildApp({
       config: mcpConfig,
       pool: fakePool,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => ({ ...mcpCredential(), api_scopes: ["api:read"] }) } as never,
       toolGrants: { effectiveTools: async () => new Set(["platform.current_time"]) } as never,
     });
@@ -708,7 +739,7 @@ describe("Agent Platform HTTP foundation", () => {
     const app = buildApp({
       config: mcpConfig,
       pool: fakePool,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-2", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-2", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => ({ ...mcpCredential(), organization_id: "org-2" }) } as never,
     });
     const response = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${mcpToken()}` }, payload: { jsonrpc: "2.0", id: 34, method: "initialize" } });
@@ -722,7 +753,7 @@ describe("Agent Platform HTTP foundation", () => {
       config,
       pool: fakePool,
       runs,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
     });
     const response = await app.inject({ method: "GET", url: "/v1/installations/install-1/runs?limit=20", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
     expect(response.statusCode).toBe(200);
@@ -757,7 +788,7 @@ describe("Agent Platform HTTP foundation", () => {
       config: { ...mcpConfig, TEMPORAL_ENABLED: true },
       pool: fakePool,
       runs: { createRun: vi.fn().mockResolvedValue({ id: "run-read-1", status: "received", created: true }) } as unknown as RunRepository,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => ({ ...mcpCredential(), api_scopes: ["api:read"] }) } as never,
       toolGrants: { effectiveTools: async () => new Set(["platform.current_time", "kasitek.core.content_post_draft"]) } as never,
       startWorkflow,
@@ -803,7 +834,7 @@ describe("Agent Platform HTTP foundation", () => {
       runs,
       approvals: { getForRun: async () => ({ status: "approved", provider_tool_call_id: "call-api", capability: "test.effect", expires_at: "2026-08-13T12:00:00.000Z" }) } as never,
       signalCancellation,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { getActiveForToken: async () => mcpCredential() } as never,
     });
     const status = await app.inject({ method: "GET", url: "/v1/installations/install-1/operations/run-api-1", headers: { authorization: `Bearer ${publicApiToken()}` } });
@@ -866,6 +897,221 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("creates a dedicated external-connected aggregate and returns its secret once", async () => {
+    const createExternalInstallation = vi.fn(async (_organizationId: string, _actorId: string, input: Record<string, unknown>) => ({
+      agent: { id: "external-agent-1", owner_type: "organization", protected: false },
+      version: { id: "external-version-1", status: "published" },
+      installation: { id: "external-install-1", execution_mode: "external_connected", status: "active" },
+      created: true,
+      credential: { credential: { id: "external-credential-1", installation_id: "external-install-1", status: "active" }, secret: "ksi_once" },
+      input,
+    }));
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      agents: { createExternalInstallation, setInstallationStatus: vi.fn() } as never,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/external-agents",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: {
+        name: "Ops runtime",
+        protocols: ["mcp", "rest"],
+        capabilities: ["platform.current_time"],
+        resources: [{ resourceType: "workspace", resourceId: "workspace-1" }],
+        connectors: ["telegram.messaging"],
+        idempotencyKey: "external-connection-1",
+      },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({ installation: { id: "external-install-1", execution_mode: "external_connected" }, secret: "ksi_once" });
+    expect(createExternalInstallation).toHaveBeenCalledWith("org-1", "user-1", expect.objectContaining({ idempotencyKey: "external-connection-1" }));
+    await app.close();
+  });
+
+  it("rejects unregistered external capabilities before creating an identity", async () => {
+    const createExternalInstallation = vi.fn();
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      agents: { createExternalInstallation } as never,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/external-agents",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { name: "Invalid runtime", protocols: ["mcp"], capabilities: ["not.a.real.capability"], idempotencyKey: "external-unknown-capability" },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "unknown_capabilities", capabilities: ["not.a.real.capability"] });
+    expect(createExternalInstallation).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it("does not issue a second secret when an external connection idempotency key is reused", async () => {
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      agents: { createExternalInstallation: vi.fn(async () => ({ agent: {}, version: {}, installation: { id: "external-install-1" }, created: false })) } as never,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/external-agents",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { name: "Ops runtime", protocols: ["mcp"], idempotencyKey: "external-connection-1" },
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({ error: "external_agent_idempotency_key_reused", installationId: "external-install-1" });
+    await app.close();
+  });
+
+  it("enforces mode boundaries on credentials, channels, and KasiAi endpoints", async () => {
+    const listCredentials = vi.fn(async () => []);
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      agents: {
+        getInstallation: async (_organizationId: string, installationId: string) => ({
+          id: installationId,
+          organization_id: "org-1",
+          status: "active",
+          agent_version_id: "version-1",
+          ...hostedInstallationIdentity,
+        }),
+      } as never,
+      installationCredentials: { list: listCredentials } as never,
+    });
+    const credentials = await app.inject({
+      method: "GET",
+      url: "/v1/installations/install-1/credentials",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+    });
+    expect(credentials.statusCode).toBe(403);
+    expect(credentials.json()).toMatchObject({ error: expect.stringContaining("external-connected") });
+    expect(listCredentials).not.toHaveBeenCalled();
+
+    await app.close();
+
+    const externalApp = buildApp({
+      config,
+      pool: fakePool,
+      agents: {
+        getInstallation: async (_organizationId: string, installationId: string) => ({
+          id: installationId,
+          organization_id: "org-1",
+          status: "active",
+          agent_version_id: "version-1",
+          ...externalInstallationIdentity,
+        }),
+      } as never,
+    });
+    const channels = await externalApp.inject({
+      method: "GET",
+      url: "/v1/installations/install-1/channels",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+    });
+    expect(channels.statusCode).toBe(403);
+    await externalApp.close();
+
+    const kasiaiApp = buildApp({
+      config,
+      pool: fakePool,
+      agents: {
+        getInstallation: async (_organizationId: string, installationId: string) => ({
+          id: installationId,
+          organization_id: "org-1",
+          status: "active",
+          ...hostedInstallationIdentity,
+        }),
+      } as never,
+    });
+    const kasiai = await kasiaiApp.inject({
+      method: "GET",
+      url: "/v1/installations/install-1/kasiai/preferences",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+    });
+    expect(kasiai.statusCode).toBe(403);
+    expect(kasiai.json()).toMatchObject({ error: expect.stringContaining("protected KasiAi") });
+    await kasiaiApp.close();
+  });
+
+  it("rejects external-connected installations from hosted conversations and direct runs", async () => {
+    const external = {
+      id: "44444444-4444-4444-8444-444444444444",
+      organization_id: "org-1",
+      status: "active",
+      ...externalInstallationIdentity,
+    };
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      agents: { getInstallation: async () => external } as never,
+      conversations: {
+        getOwnedConversation: async () => ({ id: "conversation-1", installation_id: external.id, owner_actor_id: "user-1" }),
+      } as never,
+    });
+    const conversation = await app.inject({
+      method: "POST",
+      url: `/v1/installations/${external.id}/conversations`,
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: {},
+    });
+    expect(conversation.statusCode).toBe(403);
+    const run = await app.inject({
+      method: "POST",
+      url: "/v1/runs",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { installationId: external.id },
+    });
+    expect(run.statusCode).toBe(403);
+    await app.close();
+  });
+
+  it("returns external-agent detail health and blocks hosted knowledge/memory scopes", async () => {
+    const installationId = "11111111-1111-4111-8111-111111111111";
+    const external = {
+      id: installationId,
+      organization_id: "org-1",
+      agent_definition_id: "22222222-2222-4222-8222-222222222222",
+      agent_version_id: "33333333-3333-4333-8333-333333333333",
+      status: "active",
+      ...externalInstallationIdentity,
+    };
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      agents: {
+        listExternalAgents: async () => [{ id: "agent-external-1", execution_mode: "external_connected" }],
+        getInstallation: async () => external,
+        getAgent: async () => ({ id: external.agent_definition_id, name: "External runtime" }),
+        listVersions: async () => [{ id: external.agent_version_id, status: "published" }],
+        archiveExternalInstallation: async () => ({ ...external, status: "disabled" }),
+      } as never,
+      installationCredentials: {
+        list: async () => [{ id: "credential-1", status: "active", last_used_at: "2026-08-15T10:00:00.000Z" }],
+      } as never,
+      installationGrants: { effective: async () => ({ resources: [], connectors: [] }) } as never,
+    });
+    const listed = await app.inject({ method: "GET", url: "/v1/external-agents", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    expect(listed.statusCode).toBe(200);
+    expect(listed.json()).toMatchObject({ agents: [{ execution_mode: "external_connected" }] });
+    const details = await app.inject({ method: "GET", url: `/v1/external-agents/${installationId}`, headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    expect(details.statusCode).toBe(200);
+    expect(details.json()).toMatchObject({ health: { status: "ready", activeCredentialCount: 1 }, installation: { execution_mode: "external_connected" } });
+    const health = await app.inject({ method: "GET", url: `/v1/external-agents/${installationId}/health`, headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    expect(health.statusCode).toBe(200);
+    expect(health.json()).toMatchObject({ mode: "external_connected", health: { status: "ready" } });
+    const memory = await app.inject({ method: "GET", url: `/v1/memory?agentId=${external.agent_definition_id}&installationId=${installationId}`, headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    expect(memory.statusCode).toBe(403);
+    const knowledge = await app.inject({ method: "GET", url: `/v1/knowledge/sources?agentId=${external.agent_definition_id}&installationId=${installationId}`, headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    expect(knowledge.statusCode).toBe(403);
+    const archived = await app.inject({ method: "DELETE", url: `/v1/external-agents/${installationId}`, headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    expect(archived.statusCode).toBe(200);
+    expect(archived.json()).toMatchObject({ archived: true, installation: { status: "disabled" } });
+    await app.close();
+  });
+
   it("ensures the protected KasiAi installation for the authenticated organization", async () => {
     const agents = {
       ensureSystemInstallation: async (input: { organizationId: string; actorId: string }) => ({
@@ -895,7 +1141,7 @@ describe("Agent Platform HTTP foundation", () => {
 
   it("loads a non-mutating, owner-scoped KasiAi home payload", async () => {
     const agents = {
-      getInstallation: async (organizationId: string, installationId: string) => ({ id: installationId, organization_id: organizationId, status: "active" }),
+      getInstallation: async (organizationId: string, installationId: string) => ({ id: installationId, organization_id: organizationId, status: "active", ...kasiaiInstallationIdentity }),
     } as unknown as AgentRepository;
     const app = buildApp({
       config,
@@ -929,7 +1175,12 @@ describe("Agent Platform HTTP foundation", () => {
     const runs = {
       createRun: async () => ({ id: "run-1", status: "received" }),
     } as unknown as RunRepository;
-    const app = buildApp({ config, pool: fakePool, runs });
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      runs,
+      agents: { getInstallation: async () => ({ id: "11111111-1111-4111-8111-111111111111", organization_id: "org-1", status: "active", ...hostedInstallationIdentity }) } as never,
+    });
     const response = await app.inject({
       method: "POST",
       url: "/v1/runs",
@@ -962,6 +1213,7 @@ describe("Agent Platform HTTP foundation", () => {
       config: { ...config, TEMPORAL_ENABLED: true },
       pool: fakePool,
       platformChat,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", ...hostedInstallationIdentity }) } as unknown as AgentRepository,
       conversations: { listMessages: async () => [] } as never,
       startWorkflow: async (runId) => { started.push(runId); },
     });
@@ -987,6 +1239,7 @@ describe("Agent Platform HTTP foundation", () => {
   it("enforces scopes on HMAC platform routes", async () => {
     const agents = {
       getSystemInstallation: async () => ({ id: "installation-1" }),
+      getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", ...hostedInstallationIdentity }),
     } as unknown as AgentRepository;
     const platformChat = {
       resolveConversation: async () => ({ conversation: { id: "conversation-1" }, userParticipant: {}, agentParticipant: {} }),
@@ -1034,6 +1287,7 @@ describe("Agent Platform HTTP foundation", () => {
     const app = buildApp({
       config,
       pool: fakePool,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       installationCredentials: { rotate } as never,
     });
     const response = await app.inject({
@@ -1061,7 +1315,7 @@ describe("Agent Platform HTTP foundation", () => {
       config,
       pool: fakePool,
       runs,
-      agents: { getInstallation: async () => ({ id: "install-1", status: "active", agent_version_id: "version-1" }) } as never,
+      agents: { getInstallation: async () => ({ id: "install-1", status: "active", ...externalInstallationIdentity, agent_version_id: "version-1" }) } as never,
       approvals: {
         getForRun: async () => ({ installation_id: "install-1", provider_tool_call_id: "approval-call", arguments_hash: "a".repeat(64), capability: "kasitek.core.content_post_draft", capability_version: "1.0.0", status: "pending", resource_snapshot: { capability: "kasitek.core.content_post_draft", request: { postId: "post-1" } } }),
         decide: async () => ({ approval: { expires_at: new Date(Date.now() + 60_000).toISOString(), resource_snapshot: { capability: "kasitek.core.content_post_draft", request: { postId: "post-1" } } }, accepted: true }),
@@ -1100,7 +1354,7 @@ describe("Agent Platform HTTP foundation", () => {
       config: hmacConfig,
       pool: fakePool,
       runs: { getRun: async () => ({ id: "approval-run", organization_id: "org-1", installation_id: "install-1", status: "awaiting_approval" }) } as unknown as RunRepository,
-      agents: { getInstallation: async () => ({ id: "install-1", status: "active", agent_version_id: "version-1" }) } as never,
+      agents: { getInstallation: async () => ({ id: "install-1", status: "active", ...externalInstallationIdentity, agent_version_id: "version-1" }) } as never,
       approvals: { getForRun: async () => ({ installation_id: "install-1", provider_tool_call_id: "approval-call", arguments_hash: "a".repeat(64), capability: "kasitek.core.content_post_draft", capability_version: "1.0.0", status: "pending" }), decide: async () => ({ approval: { expires_at: new Date(Date.now() + 60_000).toISOString() }, accepted: true }) } as never,
       toolInvocations: { getProposal: async () => ({ organizationId: "org-1", runId: "approval-run", providerToolCallId: "approval-call", toolName: "kasitek.core.content_post_draft", toolVersion: "1.0.0", argumentsHash: "a".repeat(64), arguments: { content: "draft", channels: ["threads"] } }) } as never,
       toolGrants: { effectiveTools: async () => new Set(["kasitek.core.content_post_draft"]) } as never,
@@ -1135,7 +1389,7 @@ describe("Agent Platform HTTP foundation", () => {
       config: { ...config, AUTH_MODE: "hmac" as const, INTERNAL_AUTH_SECRET: "test-secret" },
       pool: fakePool,
       runs: { getRun: async () => ({ id: "approval-run", organization_id: "org-1", installation_id: "install-1", status: "awaiting_approval" }) } as unknown as RunRepository,
-      agents: { getInstallation: async () => ({ id: "install-1", status: "active", agent_version_id: "version-1" }) } as never,
+      agents: { getInstallation: async () => ({ id: "install-1", status: "active", ...externalInstallationIdentity, agent_version_id: "version-1" }) } as never,
       approvals: { getForRun: async () => ({ installation_id: "install-1", provider_tool_call_id: "call-1", arguments_hash: "a".repeat(64), capability: "test.effect", capability_version: "1.0.0", status: "pending" }), decide: vi.fn() } as never,
       toolInvocations: { getProposal: async () => ({ organizationId: "org-1", runId: "approval-run", providerToolCallId: "call-1", toolName: "test.effect", toolVersion: "1.0.0", argumentsHash: "a".repeat(64), arguments: {} }) } as never,
       toolGrants: { effectiveTools: async () => new Set<string>() } as never,
@@ -1156,7 +1410,7 @@ describe("Agent Platform HTTP foundation", () => {
       config: hmacConfig,
       pool: fakePool,
       runs: { getRun: async () => ({ id: "approval-run", organization_id: "org-1", installation_id: "install-1", status: "awaiting_approval", created_by: "user-1" }) } as unknown as RunRepository,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active" }) } as never,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as never,
       approvals: { getForRun: async () => ({ installation_id: "install-1", provider_tool_call_id: "approval-call", arguments_hash: "a".repeat(64), capability: "kasitek.core.content_post_draft", capability_version: "1.0.0", status: "pending" }), decide } as never,
       signalApproval,
     });
@@ -1181,7 +1435,7 @@ describe("Agent Platform HTTP foundation", () => {
       config: hmacConfig,
       pool: fakePool,
       runs: { getRun: async () => ({ id: "approval-run", organization_id: "org-1", installation_id: "install-1", status: "awaiting_approval" }) } as unknown as RunRepository,
-      agents: { getInstallation: async () => ({ id: "install-1", status: "active", agent_version_id: "version-1" }) } as never,
+      agents: { getInstallation: async () => ({ id: "install-1", status: "active", ...externalInstallationIdentity, agent_version_id: "version-1" }) } as never,
       approvals: { getForRun: async () => ({ installation_id: "install-1", provider_tool_call_id: "approval-call", arguments_hash: "a".repeat(64), capability: "kasitek.core.content_post_draft", capability_version: "1.0.0", status: "pending" }), decide } as never,
       toolInvocations: { getProposal: async () => ({ organizationId: "org-1", runId: "approval-run", providerToolCallId: "approval-call", toolName: "kasitek.core.content_post_draft", toolVersion: "1.0.0", argumentsHash: "a".repeat(64), arguments: { content: "draft", channels: ["threads"] } }) } as never,
       toolGrants: { effectiveTools: async () => new Set(["kasitek.core.content_post_draft"]) } as never,
@@ -1212,7 +1466,7 @@ describe("Agent Platform HTTP foundation", () => {
       config: { ...mcpConfig, APPROVAL_DECISION_RATE_LIMIT_PER_WINDOW: 1 },
       pool: fakePool,
       runs: { getRun: async () => ({ id: "approval-rate-run", organization_id: "org-1", installation_id: "install-1", status: "awaiting_approval" }) } as unknown as RunRepository,
-      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active" }) } as unknown as AgentRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as unknown as AgentRepository,
       approvals: { getForRun: async () => ({ installation_id: "install-1", provider_tool_call_id: "approval-call", arguments_hash: "a".repeat(64), capability: "kasitek.core.content_post_draft", capability_version: "1.0.0", status: "pending" }), decide } as never,
       toolInvocations: { getProposal: async () => ({ organizationId: "org-1", runId: "approval-rate-run", providerToolCallId: "approval-call", toolName: "kasitek.core.content_post_draft", toolVersion: "1.0.0", argumentsHash: "a".repeat(64), arguments: { content: "draft", channels: ["threads"] } }) } as never,
       toolGrants: { effectiveTools: async () => new Set(["kasitek.core.content_post_draft"]) } as never,
@@ -1411,6 +1665,7 @@ describe("Agent Platform HTTP foundation", () => {
     const app = buildApp({
       config,
       pool: fakePool,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", ...hostedInstallationIdentity }) } as never,
       schedules: {
         create: async () => ({ id: "schedule-1", status: "active" }),
         setStatus: async (_org: string, _id: string, status: string) => ({ id: "schedule-1", status }),
@@ -1462,11 +1717,13 @@ describe("Agent Platform HTTP foundation", () => {
       config,
       pool: fakePool,
       conversations: {
+        getOwnedConversation: async () => ({ id: "conversation-1", installation_id: "install-1", owner_actor_id: "user-1" }),
         setOwnedStatus: async (organizationId: string, id: string, ownerActorId: string, status: string) => {
           lifecycleCalls.push({ organizationId, id, ownerActorId, status });
           return { id, status };
         },
       } as never,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", ...hostedInstallationIdentity }) } as never,
       channels: { revokeOwnerBinding: async () => undefined } as never,
     });
     const archived = await app.inject({ method: "POST", url: "/v1/conversations/conversation-1/status/archived", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });

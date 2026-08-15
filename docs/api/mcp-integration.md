@@ -1,5 +1,8 @@
 # KasiTek MCP integration
 
+For the product-level choice between KasiAi, hosted user agents, and external runtimes, see the
+[agent connection guide](./agent-connection-guide.md).
+
 The hosted endpoint is `https://agents.kasitek.co.za/mcp`. It is a Streamable HTTP JSON-RPC
 transport backed by the stateless gateway. The gateway forwards no credentials into prompts and has
 no database or Temporal ownership.
@@ -27,3 +30,10 @@ For clients that support it, `/.well-known/oauth-protected-resource` and
 `/.well-known/agent-installation-jwks.json` publish protected-resource and signing-key metadata.
 The local stdio bridge should forward the same JSON-RPC messages to the hosted endpoint rather than
 implementing a second capability registry.
+
+## Installation identity
+
+MCP credentials belong only to a dedicated `external_connected` installation. Create that identity
+from the authenticated control plane with `POST /v1/external-agents`; the response contains the
+installation metadata and a copy-once secret. This flow never selects KasiAi or a KasiTek-hosted
+user agent. KasiAi channel setup and hosted-agent configuration are separate product flows.

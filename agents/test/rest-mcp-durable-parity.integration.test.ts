@@ -76,29 +76,22 @@ describe.skipIf(!runIntegration)("database-backed MCP and installation REST pari
   }
 
   beforeAll(async () => {
-    const agent = await agents.createAgent(organizationId, actorId, { name: "REST/MCP parity", slug: `rest-mcp-${randomUUID()}` });
-    const version = await agents.createVersion(organizationId, actorId, agent.id, {
+    const aggregate = await agents.createExternalInstallation(organizationId, actorId, {
+      name: "REST/MCP parity",
+      slug: `rest-mcp-${randomUUID()}`,
+      runtime: "test",
+      protocols: ["mcp", "rest"],
+      capabilities: parityCases.map((testCase) => testCase.name),
+      resources: [],
+      connectors: [],
       instructions: "Exercise the local protocol parity contract.",
-      configuration: { maxContextMessages: 20, maxContextTokens: 4_000, maxModelCalls: 2, maxTotalTokens: 2_000 },
-      policy: { allowedTools: parityCases.map((testCase) => testCase.name), maxIterations: 2, maxToolCalls: 20 },
-    });
-    await agents.publishVersion(organizationId, actorId, agent.id, version.id);
-    const installation = await agents.createInstallation(organizationId, actorId, {
-      agentVersionId: version.id,
-      scopeType: "organization",
-      scopeId: organizationId,
-      settings: {},
-    });
-    installationId = installation.id;
-    const credential = await credentials.create({
-      organizationId,
-      installationId,
-      label: "local parity",
-      actorId,
       mcpScopes: ["mcp:read", "mcp:write"],
       apiScopes: ["api:read", "api:write"],
+      credentialLabel: "local parity",
+      idempotencyKey: `rest-mcp-${randomUUID()}`,
     });
-    credentialId = credential.credential.id;
+    installationId = aggregate.installation.id;
+    credentialId = aggregate.credential!.credential.id;
     await pool.query("SELECT 1");
   });
 

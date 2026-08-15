@@ -95,6 +95,7 @@ export class ChannelRepository {
         (organization_id, installation_id, channel_type, channel_key, credential_reference, metadata, created_by)
        SELECT $1, id, $3, $4, $5, $6::jsonb, $7 FROM agent_installations
        WHERE id = $2 AND organization_id = $1 AND status = 'active'
+         AND execution_mode IN ('system_hosted', 'kasitek_hosted')
        ON CONFLICT (organization_id, channel_type, channel_key) DO UPDATE SET
          installation_id = EXCLUDED.installation_id,
          credential_reference = EXCLUDED.credential_reference,
@@ -117,8 +118,10 @@ export class ChannelRepository {
   }): Promise<ChannelBindingRecord> {
     return withTransaction(this.pool, async (client) => {
       const connection = await client.query<ChannelConnectionRecord>(
-        `SELECT * FROM channel_connections
-         WHERE id = $1 AND organization_id = $2 AND installation_id = $3 AND status = 'active'`,
+        `SELECT cc.* FROM channel_connections cc
+         JOIN agent_installations ai ON ai.id = cc.installation_id
+         WHERE cc.id = $1 AND cc.organization_id = $2 AND cc.installation_id = $3 AND cc.status = 'active'
+           AND ai.execution_mode IN ('system_hosted', 'kasitek_hosted')`,
         [input.connectionId, input.organizationId, input.installationId],
       );
       const target = connection.rows[0];
@@ -397,7 +400,9 @@ export class ChannelRepository {
          created_by, owner_actor_id)
        SELECT $1, cc.installation_id, cc.id, $4, NULL, $5, $6, $6
        FROM channel_connections cc
+       JOIN agent_installations ai ON ai.id = cc.installation_id
        WHERE cc.id = $3 AND cc.organization_id = $1 AND cc.installation_id = $2 AND cc.status = 'active'
+         AND ai.execution_mode IN ('system_hosted', 'kasitek_hosted')
        RETURNING id, organization_id, installation_id, connection_id, external_identity, expires_at,
          owner_actor_id`,
       [input.organizationId, input.installationId, input.connectionId, generated.tokenHash, generated.expiresAt, input.actorId],
@@ -424,7 +429,10 @@ export class ChannelRepository {
       const pairing = token.rows[0];
       if (!pairing) throw new Error("Pairing token is invalid, expired, or already consumed");
       const connection = await client.query<ChannelConnectionRecord>(
-        `SELECT * FROM channel_connections WHERE id = $1 AND organization_id = $2 AND installation_id = $3 AND status = 'active'`,
+        `SELECT cc.* FROM channel_connections cc
+         JOIN agent_installations ai ON ai.id = cc.installation_id
+         WHERE cc.id = $1 AND cc.organization_id = $2 AND cc.installation_id = $3 AND cc.status = 'active'
+           AND ai.execution_mode IN ('system_hosted', 'kasitek_hosted')`,
         [pairing.connection_id, input.organizationId, pairing.installation_id],
       );
       if (!connection.rows[0]) throw new Error("Channel connection not found");

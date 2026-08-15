@@ -29,10 +29,10 @@ describe.skipIf(!runIntegration)("memory and knowledge isolation (integration)",
   beforeAll(async () => {
     await pool.query("INSERT INTO agent_definitions (id, organization_id, name, slug, created_by) VALUES ($1, $2, 'Memory test', $3, 'test')", [agentId, organizationId, `memory-${agentId}`]);
     await pool.query("INSERT INTO agent_versions (id, agent_definition_id, version_number, instructions, checksum, created_by, status) VALUES ($1, $2, 1, 'test', 'test', 'test', 'published')", [versionId, agentId]);
-    await pool.query("INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, 'test')", [installationId, agentId, versionId, organizationId]);
+    await pool.query("INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, 'kasitek_hosted', 'test')", [installationId, agentId, versionId, organizationId]);
     await pool.query("INSERT INTO agent_definitions (id, organization_id, name, slug, created_by) VALUES ($1, $2, 'Other memory agent', $3, 'test')", [otherAgentId, organizationId, `memory-other-${otherAgentId}`]);
     await pool.query("INSERT INTO agent_versions (id, agent_definition_id, version_number, instructions, checksum, created_by, status) VALUES ($1, $2, 1, 'test', 'test', 'test', 'published')", [otherVersionId, otherAgentId]);
-    await pool.query("INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, 'test')", [otherInstallationId, otherAgentId, otherVersionId, organizationId]);
+    await pool.query("INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, 'kasitek_hosted', 'test')", [otherInstallationId, otherAgentId, otherVersionId, organizationId]);
   });
 
   it("retrieves only records in the caller's organization and scope", async () => {

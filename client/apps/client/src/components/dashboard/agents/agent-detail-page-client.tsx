@@ -11,6 +11,8 @@ import { AgentWorkflowEditor, type WorkflowGraphValue } from "./agent-workflow-e
 import { AgentRuntimeLimits, defaultAgentRuntimeLimits, parseAgentRuntimeLimits, type AgentRuntimeLimitsValue } from "./agent-runtime-limits";
 import {
   archiveAgent,
+  archiveExternalAgent,
+  getExternalAgentHealth,
   setAgentInstallationStatus,
   publishAgentVersion,
   createAgentVersion,
@@ -73,7 +75,7 @@ function capabilityGroup(capability: AgentCapability) {
   return scope.split(".")[0] || "platform";
 }
 
-function availabilityLabel(availability: AgentCapability["availability"]) {
+function availabilityLabel(availability: string) {
   switch (availability) {
     case "available":
       return "Granted";
@@ -88,7 +90,11 @@ function availabilityLabel(availability: AgentCapability["availability"]) {
   }
 }
 
-function availabilityClass(availability: AgentCapability["availability"]) {
+function capabilityReason(capability: AgentCapability): string {
+  return capability.reasonCode || capability.availability;
+}
+
+function availabilityClass(availability: string) {
   if (availability === "available") return "border-accent/30 bg-accent/10 text-accent";
   if (availability === "not_granted") return "border-status-attention/30 bg-status-attention-soft text-status-attention";
   return "border-destructive/30 bg-status-danger-soft text-destructive";
@@ -127,6 +133,10 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const [workflowValid, setWorkflowValid] = useState(true);
   const [workflowReady, setWorkflowReady] = useState(false);
   const protectedAgent = agent.protected;
+  const executionMode = agent.execution_mode ?? (protectedAgent ? "system_hosted" : "kasitek_hosted");
+  const externalAgent = executionMode === "external_connected";
+  const hostedAgent = executionMode === "system_hosted" || executionMode === "kasitek_hosted";
+  const kasitekHostedAgent = executionMode === "kasitek_hosted";
 
   const handleWorkflowChange = useCallback((next: WorkflowGraphValue | null) => {
     setWorkflow(next);
@@ -139,7 +149,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   }, []);
 
   const runWorkflowTest = useCallback(async (message: string) => {
-    if (!agent.installation_id) throw new Error("This agent has no installation to test.");
+    if (!agent.installation_id || !hostedAgent) throw new Error("This installation does not support hosted chat.");
     if (installationStatus !== "active") throw new Error("Resume the installation before testing it.");
     return sendPlatformMessage(agent.installation_id, {
       message,
@@ -147,7 +157,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
       createNew: true,
       context: { route: window.location.pathname, pageTitle: `${agent.name} workflow test` },
     });
-  }, [agent.installation_id, agent.name, installationStatus]);
+  }, [agent.installation_id, agent.name, hostedAgent, installationStatus]);
 
   const mutate = async (action: string, operation: () => Promise<unknown>) => {
     setBusy(action);
@@ -231,18 +241,20 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">{agent.description || "Installed Agent Platform agent"}</p>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">{agent.installation_id && installationStatus !== "disabled" ? <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void toggleInstallation()}>{busy === "installation-status" ? "Updating…" : installationStatus === "active" ? "Pause installation" : "Resume installation"}</Button> : null}{protectedAgent ? <Badge className="w-fit border-primary/20 bg-primary/10 text-primary">Protected system agent</Badge> : <Button type="button" variant="outline" disabled={busy === "archive"} onClick={() => void mutate("archive", () => archiveAgent(agent.id))}><Archive className="mr-2 h-4 w-4" />{busy === "archive" ? "Archiving…" : "Archive agent"}</Button>}</div>
+              <div className="flex flex-wrap items-center justify-end gap-2">{agent.installation_id && installationStatus !== "disabled" ? <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void toggleInstallation()}>{busy === "installation-status" ? "Updating…" : installationStatus === "active" ? "Pause installation" : "Resume installation"}</Button> : null}{protectedAgent ? <Badge className="w-fit border-primary/20 bg-primary/10 text-primary">Protected system agent</Badge> : <Button type="button" variant="outline" disabled={busy === "archive"} onClick={() => void mutate("archive", () => externalAgent && agent.installation_id ? archiveExternalAgent(agent.installation_id) : archiveAgent(agent.id))}><Archive className="mr-2 h-4 w-4" />{busy === "archive" ? "Archiving…" : "Archive agent"}</Button>}</div>
             </div>
-            <div className="grid gap-3 text-sm sm:grid-cols-3">
+            <div className="grid gap-3 text-sm sm:grid-cols-4">
               <div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Slug</p><p className="mt-1 font-medium text-foreground">{agent.slug}</p></div>
+              <div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Execution mode</p><p className="mt-1 font-medium capitalize text-foreground">{executionMode.replaceAll("_", " ")}</p></div>
               <div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Installation</p><p className="mt-1 font-medium capitalize text-foreground">{installationStatus.replaceAll("_", " ")}</p></div>
               <div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Current version</p><p className="mt-1 font-medium text-foreground">{agent.version_number ? `v${agent.version_number}` : "None published"}</p></div>
             </div>
             {protectedAgent ? <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-muted-foreground">KasiAi instructions, model policy, and version publishing are controlled by KasiTek releases. Workspace members can use and pause its installation, but cannot mutate the protected definition.</p> : null}
+            {externalAgent ? <p className="rounded-lg border border-accent/20 bg-accent/5 px-3 py-2 text-sm text-muted-foreground">This is an external-connected installation. It calls KasiTek through MCP or REST and does not run hosted chat, channels, schedules, knowledge, or model workflows here.</p> : null}
           </CardContent>
         </Card>
 
-        <Card>
+        {hostedAgent ? <Card>
           <CardContent className="space-y-4 p-6">
             <div><h2 className="text-lg font-semibold text-foreground">Workspace preferences</h2><p className="mt-1 text-sm text-muted-foreground">These settings affect this workspace installation only. Protected instructions and tool policy remain unchanged.</p></div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -252,27 +264,29 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
             </div>
             <label className="flex items-center gap-2 text-sm text-muted-foreground"><input type="checkbox" checked={notificationsEnabled} onChange={(event) => setNotificationsEnabled(event.target.checked)} />Send run and approval notifications for this installation</label><Button type="button" onClick={() => void saveSettings()} disabled={!agent.installation_id || savingSettings}>{savingSettings ? "Saving…" : "Save preferences"}</Button>
           </CardContent>
-        </Card>
+        </Card> : null}
 
-        {agent.installation_id ? <InstallationCredentials installationId={agent.installation_id} /> : null}
+        {externalAgent && agent.installation_id ? <ExternalAgentHealth installationId={agent.installation_id} /> : null}
 
-        {agent.installation_id ? <InstallationCapabilities installationId={agent.installation_id} /> : null}
+        {externalAgent && agent.installation_id ? <InstallationCredentials installationId={agent.installation_id} /> : null}
 
-        {agent.installation_id ? <InstallationAccessScope installationId={agent.installation_id} /> : null}
+        {hostedAgent && agent.installation_id ? <InstallationKnowledge agentId={agent.id} installationId={agent.installation_id} /> : null}
 
-        {agent.installation_id ? <InstallationKnowledge agentId={agent.id} installationId={agent.installation_id} /> : null}
-
-        {agent.installation_id ? <InstallationSchedules installationId={agent.installation_id} /> : null}
+        {hostedAgent && agent.installation_id ? <InstallationSchedules installationId={agent.installation_id} /> : null}
 
         {agent.installation_id ? <InstallationRuns installationId={agent.installation_id} /> : null}
 
-        {agent.installation_id ? <InstallationChannels installationId={agent.installation_id} /> : null}
+        {hostedAgent && agent.installation_id ? <InstallationChannels installationId={agent.installation_id} /> : null}
 
-        {agent.installation_id ? <AgentTestChat installationId={agent.installation_id} active={agent.installation_status === "active"} /> : null}
+        {agent.installation_id ? <InstallationCapabilities installationId={agent.installation_id} protectedAgent={protectedAgent} /> : null}
 
-        {!protectedAgent ? <AgentWorkflowEditor configuration={baseConfiguration} onChange={handleWorkflowChange} onValidityChange={handleWorkflowValidity} onTestRun={agent.installation_id && installationStatus === "active" ? runWorkflowTest : undefined} /> : null}
+        {agent.installation_id ? <InstallationAccessScope installationId={agent.installation_id} /> : null}
 
-        {!protectedAgent ? <Card><CardContent className="space-y-4 p-6"><div><h2 className="text-lg font-semibold text-foreground">Create a draft version</h2><p className="mt-1 text-sm text-muted-foreground">Drafts are immutable after creation. Publish the new version from the version history once you are ready.</p></div><div className="rounded-xl border border-border bg-secondary/20 p-4"><h3 className="text-sm font-semibold text-foreground">Model policy</h3><div className="mt-3 grid gap-3 sm:grid-cols-[0.65fr_1.35fr_0.7fr]"><label className="text-xs font-medium text-foreground">Provider<select value={modelProvider} onChange={(event) => setModelProvider(event.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option></select></label><label className="text-xs font-medium text-foreground">Model<input value={model} onChange={(event) => setModel(event.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label><label className="text-xs font-medium text-foreground">Max tokens<input value={runtimeLimits.maxTotalTokens} onChange={(event) => setRuntimeLimits((current) => ({ ...current, maxTotalTokens: event.target.value }))} inputMode="numeric" className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label></div></div><AgentRuntimeLimits value={runtimeLimits} onChange={setRuntimeLimits} /><textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={8} maxLength={200000} className="block w-full resize-y rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm leading-6" aria-label="Agent instructions" /><div className="flex items-center justify-between gap-3"><p className="text-xs text-muted-foreground">The draft will include the current workflow graph, model policy, and runtime limits.</p><Button type="button" disabled={creatingVersion || !instructions.trim() || !model.trim() || !workflowReady || !workflowValid || !workflow} onClick={() => void createVersion()}>{creatingVersion ? "Creating draft…" : "Create draft version"}</Button></div></CardContent></Card> : null}
+        {hostedAgent && agent.installation_id ? <AgentTestChat installationId={agent.installation_id} active={agent.installation_status === "active"} /> : null}
+
+        {kasitekHostedAgent ? <AgentWorkflowEditor configuration={baseConfiguration} onChange={handleWorkflowChange} onValidityChange={handleWorkflowValidity} onTestRun={agent.installation_id && installationStatus === "active" ? runWorkflowTest : undefined} /> : null}
+
+        {kasitekHostedAgent ? <Card><CardContent className="space-y-4 p-6"><div><h2 className="text-lg font-semibold text-foreground">Create a draft version</h2><p className="mt-1 text-sm text-muted-foreground">Drafts are immutable after creation. Publish the new version from the version history once you are ready.</p></div><div className="rounded-xl border border-border bg-secondary/20 p-4"><h3 className="text-sm font-semibold text-foreground">Model policy</h3><div className="mt-3 grid gap-3 sm:grid-cols-[0.65fr_1.35fr_0.7fr]"><label className="text-xs font-medium text-foreground">Provider<select value={modelProvider} onChange={(event) => setModelProvider(event.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option></select></label><label className="text-xs font-medium text-foreground">Model<input value={model} onChange={(event) => setModel(event.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label><label className="text-xs font-medium text-foreground">Max tokens<input value={runtimeLimits.maxTotalTokens} onChange={(event) => setRuntimeLimits((current) => ({ ...current, maxTotalTokens: event.target.value }))} inputMode="numeric" className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label></div></div><AgentRuntimeLimits value={runtimeLimits} onChange={setRuntimeLimits} /><textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={8} maxLength={200000} className="block w-full resize-y rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm leading-6" aria-label="Agent instructions" /><div className="flex items-center justify-between gap-3"><p className="text-xs text-muted-foreground">The draft will include the current workflow graph, model policy, and runtime limits.</p><Button type="button" disabled={creatingVersion || !instructions.trim() || !model.trim() || !workflowReady || !workflowValid || !workflow} onClick={() => void createVersion()}>{creatingVersion ? "Creating draft…" : "Create draft version"}</Button></div></CardContent></Card> : null}
 
         <section className="space-y-3" aria-labelledby="agent-versions-title">
           <div><h2 id="agent-versions-title" className="text-lg font-semibold text-foreground">Version history</h2><p className="text-sm text-muted-foreground">Published versions are immutable. Drafts can be published; retired versions can be rolled back.</p></div>
@@ -280,7 +294,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
           {!versions.length ? <Card><CardContent className="p-6 text-sm text-muted-foreground">No versions are available for this agent.</CardContent></Card> : versions.map((version) => (
             <Card key={version.id}><CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
               <div><div className="flex items-center gap-2"><h3 className="font-semibold text-foreground">Version {version.version_number}</h3><Badge className={versionStatusClass(version.status)}>{version.status}</Badge>{version.status === "published" ? <CheckCircle2 className="h-4 w-4 text-accent" aria-label="Published" /> : null}</div><p className="mt-1 text-xs text-muted-foreground">Created {new Date(version.created_at).toLocaleString()}{version.published_at ? ` · Published ${new Date(version.published_at).toLocaleString()}` : ""}</p></div>
-              {!protectedAgent ? <div className="flex flex-wrap gap-2">
+              {kasitekHostedAgent ? <div className="flex flex-wrap gap-2">
                 {version.status === "draft" ? <Button type="button" size="sm" disabled={busy !== null} onClick={() => void mutate(`publish:${version.id}`, () => publishAgentVersion(agent.id, version.id))}>Publish</Button> : null}
                 {version.status === "retired" ? <Button type="button" size="sm" variant="outline" disabled={busy !== null} onClick={() => void mutate(`rollback:${version.id}`, () => rollbackAgentVersion(agent.id, version.id))}><RotateCcw className="mr-1.5 h-3.5 w-3.5" />Rollback</Button> : null}
                 {version.status === "published" ? <Button type="button" size="sm" variant="outline" disabled={busy !== null} onClick={() => void mutate(`retire:${version.id}`, () => retireAgentVersion(agent.id, version.id))}>Retire</Button> : null}
@@ -411,7 +425,7 @@ function ExternalConnectionSetup({ secret }: { secret: string }) {
   return <div className="mt-4 rounded-lg border border-border bg-background/70 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-sm font-semibold text-foreground">Connect an external agent</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Exchange this secret once for a short-lived token. The secret is never sent to the MCP gateway or included in run history.</p></div><div className="flex rounded-lg border border-border bg-card p-0.5"><button type="button" className={`rounded-md px-2.5 py-1 text-xs ${mode === "mcp" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`} onClick={() => setMode("mcp")}>MCP</button><button type="button" className={`rounded-md px-2.5 py-1 text-xs ${mode === "rest" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`} onClick={() => setMode("rest")}>REST</button></div></div><p className="mt-3 text-xs text-muted-foreground">{mode === "mcp" ? "Use the returned access_token as Bearer authentication for https://agents.kasitek.co.za/mcp." : "Use the returned access_token as Bearer authentication for https://api.kasitek.co.za/v1."}</p><div className="mt-2 flex gap-2"><pre className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-secondary/60 p-3 text-[11px] leading-5 text-foreground">{snippet}</pre><Button type="button" variant="outline" size="sm" onClick={() => void copy()}>{copied ? "Copied" : "Copy"}</Button></div></div>;
 }
 
-function InstallationCapabilities({ installationId }: { installationId: string }) {
+function InstallationCapabilities({ installationId, protectedAgent }: { installationId: string; protectedAgent: boolean }) {
   const [capabilities, setCapabilities] = useState<AgentCapability[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -442,12 +456,12 @@ function InstallationCapabilities({ installationId }: { installationId: string }
   }, [capabilities]);
 
   const grant = async (capability: AgentCapability) => {
-    if (busy || capability.availability === "available") return;
+    if (busy || capability.available === true) return;
     setBusy(capability.name);
     setError(null);
     try {
       await grantAgentInstallationTool(installationId, capability.name);
-      setCapabilities((current) => current.map((entry) => entry.name === capability.name ? { ...entry, availability: "available" } : entry));
+      setCapabilities((current) => current.map((entry) => entry.name === capability.name ? { ...entry, availability: "available", available: true, reasonCode: "available" } : entry));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to grant capability");
     } finally {
@@ -455,31 +469,44 @@ function InstallationCapabilities({ installationId }: { installationId: string }
     }
   };
 
+  const grantedCount = capabilities.filter((capability) => capability.available === true || capability.availability === "available").length;
+  const pendingCount = capabilities.filter((capability) => capabilityReason(capability) === "not_granted").length;
+
   return <Card>
-    <CardContent className="space-y-4 p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Capabilities</h2>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">These are the platform tools this installation may expose to KasiAi or external agents. Grants are enforced again at invocation time.</p>
+    <CardContent className="p-0">
+      <details className="group">
+        <summary className="cursor-pointer list-none p-6 [&::-webkit-details-marker]:hidden">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Installation access</p>
+              <h2 className="mt-1 text-lg font-semibold text-foreground">Service capabilities</h2>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">View which services this installation can use and change grantable services. The gateway checks these grants again for every request.</p>
+            </div>
+            <span className="shrink-0 rounded-full border border-border bg-secondary px-2.5 py-1 text-xs text-muted-foreground">{loading ? "Loading…" : `${grantedCount}/${capabilities.length} granted${pendingCount ? ` · ${pendingCount} pending` : ""}`}</span>
+          </div>
+          <span className="mt-3 inline-block text-xs font-medium text-primary group-open:hidden">Open service access</span>
+          <span className="mt-3 hidden text-xs font-medium text-primary group-open:inline">Hide service access</span>
+        </summary>
+        <div className="space-y-4 border-t border-border p-6">
+          {protectedAgent ? <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs leading-5 text-muted-foreground">KasiAi uses a platform-managed approved service allowlist. This panel reports its live grant state; it does not grant every capability registered in the platform.</p> : null}
+          <div className="flex justify-end"><Button type="button" variant="outline" size="sm" onClick={() => void refresh()} disabled={loading || busy !== null}><RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />{loading ? "Refreshing…" : "Refresh"}</Button></div>
+          {error ? <div className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive sm:flex-row sm:items-center sm:justify-between" role="alert"><span>{error}</span><Button type="button" variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>Retry</Button></div> : null}
+          {loading ? <p className="text-sm text-muted-foreground">Loading service capabilities…</p> : capabilities.length ? <div className="space-y-5">
+            {groupedCapabilities.map(([group, entries]) => <section key={group} aria-labelledby={`capability-group-${group}`}>
+              <div className="mb-2 flex items-center justify-between gap-3"><h3 id={`capability-group-${group}`} className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{group}</h3><span className="text-xs text-muted-foreground">{entries.filter((entry) => entry.available === true || entry.availability === "available").length}/{entries.length} granted</span></div>
+              <div className="space-y-2">{entries.map((capability) => {
+                const reason = capabilityReason(capability);
+                const canGrant = reason === "not_granted";
+                const isAvailable = capability.available === true || capability.availability === "available";
+                return <div key={capability.name} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium text-foreground">{capability.name}</p><span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${availabilityClass(reason)}`}>{availabilityLabel(reason)}</span></div><p className="mt-1 text-xs leading-5 text-muted-foreground">{capability.description} · {capability.riskClass}{capability.requiresApproval ? " · approval required" : ""}{capability.permission?.scope ? ` · ${capability.permission.scope}` : ""}</p>{!canGrant && !isAvailable ? <p className="mt-1 text-xs text-status-attention">This capability is not grantable until its dependency is configured and healthy.</p> : null}</div>
+                  <Button type="button" size="sm" variant={isAvailable ? "outline" : "default"} disabled={!canGrant || busy !== null} onClick={() => void grant(capability)}>{isAvailable ? "Granted" : busy === capability.name ? "Granting…" : canGrant ? "Grant service" : availabilityLabel(reason)}</Button>
+                </div>;
+              })}</div>
+            </section>)}
+          </div> : <p className="text-sm text-muted-foreground">No service capabilities are registered for this installation.</p>}
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={() => void refresh()} disabled={loading || busy !== null}>
-          <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-          {loading ? "Refreshing…" : "Refresh"}
-        </Button>
-      </div>
-      {error ? <div className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive sm:flex-row sm:items-center sm:justify-between" role="alert"><span>{error}</span><Button type="button" variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>Retry</Button></div> : null}
-      {loading ? <p className="text-sm text-muted-foreground">Loading capabilities…</p> : capabilities.length ? <div className="space-y-5">
-        {groupedCapabilities.map(([group, entries]) => <section key={group} aria-labelledby={`capability-group-${group}`}>
-          <div className="mb-2 flex items-center justify-between gap-3"><h3 id={`capability-group-${group}`} className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{group}</h3><span className="text-xs text-muted-foreground">{entries.filter((entry) => entry.availability === "available").length}/{entries.length} granted</span></div>
-          <div className="space-y-2">{entries.map((capability) => {
-            const canGrant = capability.availability === "not_granted";
-            return <div key={capability.name} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium text-foreground">{capability.name}</p><span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${availabilityClass(capability.availability)}`}>{availabilityLabel(capability.availability)}</span></div><p className="mt-1 text-xs leading-5 text-muted-foreground">{capability.description} · {capability.riskClass}{capability.requiresApproval ? " · approval required" : ""}{capability.permission?.scope ? ` · ${capability.permission.scope}` : ""}</p>{!canGrant && capability.availability !== "available" ? <p className="mt-1 text-xs text-status-attention">This capability is not grantable until its dependency is configured and healthy.</p> : null}</div>
-              <Button type="button" size="sm" variant={capability.availability === "available" ? "outline" : "default"} disabled={!canGrant || busy !== null} onClick={() => void grant(capability)}>{capability.availability === "available" ? "Granted" : busy === capability.name ? "Granting…" : canGrant ? "Grant" : availabilityLabel(capability.availability)}</Button>
-            </div>;
-          })}</div>
-        </section>)}
-      </div> : <p className="text-sm text-muted-foreground">No capabilities are registered for this installation.</p>}
+      </details>
     </CardContent>
   </Card>;
 }
@@ -546,15 +573,58 @@ function InstallationAccessScope({ installationId }: { installationId: string })
   };
 
   return <Card>
-    <CardContent className="space-y-4 p-6">
-      <div><h2 className="text-lg font-semibold text-foreground">Access scope</h2><p className="mt-1 text-sm text-muted-foreground">Limit this installation to explicit product resources and approved connectors. These grants are checked again when a capability runs.</p></div>
-      {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-      {loading ? <p className="text-sm text-muted-foreground">Loading access scope…</p> : <>
-        <div className="rounded-xl border border-border bg-secondary/20 p-4"><p className="text-sm font-semibold text-foreground">Resource grants</p><div className="mt-3 grid gap-2 sm:grid-cols-[0.8fr_1.2fr_auto]"><input value={resourceType} onChange={(event) => setResourceType(event.target.value)} placeholder="Resource type (e.g. content_post)" className="rounded-lg border border-border bg-background px-3 py-2 text-sm" /><input value={resourceId} onChange={(event) => setResourceId(event.target.value)} placeholder="Resource ID" className="rounded-lg border border-border bg-background px-3 py-2 text-sm" /><Button type="button" size="sm" disabled={busy !== null || !resourceType.trim() || !resourceId.trim()} onClick={() => void addResource()}>{busy === "resource" ? "Granting…" : "Grant resource"}</Button></div>{resources.length ? <div className="mt-3 flex flex-wrap gap-2">{resources.map((resource) => <span key={`${resource.resourceType}:${resource.resourceId}`} className="rounded-full border border-border bg-background px-2.5 py-1 text-xs text-foreground">{resource.resourceType}: {resource.resourceId}</span>)}</div> : <p className="mt-3 text-xs text-muted-foreground">No resource-specific grants. Capability-level policy still applies.</p>}</div>
-        <div className="rounded-xl border border-border bg-secondary/20 p-4"><p className="text-sm font-semibold text-foreground">Connector grants</p>{connectors.length ? <div className="mt-3 flex flex-wrap gap-2">{connectors.map((connector) => <span key={connector.id} className="rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-xs text-accent">{connector.displayName || connector.id}</span>)}</div> : <p className="mt-3 text-xs text-muted-foreground">No connectors are granted to this installation.</p>}{availableConnectors.length ? <div className="mt-4 space-y-2">{availableConnectors.map((connector) => { const granted = connectors.some((entry) => entry.id === connector.id); return <div key={connector.id} className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{connector.displayName || connector.id}</p><p className="mt-1 text-xs text-muted-foreground">{connector.auth} · {connector.capabilityNames.length} capabilities · v{connector.version}</p></div><Button type="button" size="sm" variant={granted ? "outline" : "default"} disabled={granted || busy !== null} onClick={() => void grantConnector(connector)}>{granted ? "Granted" : busy === `connector:${connector.id}` ? "Granting…" : "Grant connector"}</Button></div>; })}</div> : null}</div>
-      </>}
+    <CardContent className="p-0">
+      <details className="group">
+        <summary className="cursor-pointer list-none p-6 [&::-webkit-details-marker]:hidden">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Installation access</p>
+              <h2 className="mt-1 text-lg font-semibold text-foreground">Data scope and connectors</h2>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Review the records and provider connections this installation may use. These grants are checked again whenever a capability runs.</p>
+            </div>
+            <span className="shrink-0 rounded-full border border-border bg-secondary px-2.5 py-1 text-xs text-muted-foreground">{loading ? "Loading…" : `${resources.length} resource${resources.length === 1 ? "" : "s"} · ${connectors.length} connector${connectors.length === 1 ? "" : "s"}`}</span>
+          </div>
+          <span className="mt-3 inline-block text-xs font-medium text-primary group-open:hidden">Open data scope</span>
+          <span className="mt-3 hidden text-xs font-medium text-primary group-open:inline">Hide data scope</span>
+        </summary>
+        <div className="space-y-4 border-t border-border p-6">
+          {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+          {loading ? <p className="text-sm text-muted-foreground">Loading data scope…</p> : <>
+            <div className="rounded-xl border border-border bg-secondary/20 p-4"><p className="text-sm font-semibold text-foreground">Resource grants</p><p className="mt-1 text-xs text-muted-foreground">Add a resource only when the client must be limited to a known record.</p><div className="mt-3 grid gap-2 sm:grid-cols-[0.8fr_1.2fr_auto]"><input value={resourceType} onChange={(event) => setResourceType(event.target.value)} placeholder="Resource type (e.g. content_post)" className="rounded-lg border border-border bg-background px-3 py-2 text-sm" /><input value={resourceId} onChange={(event) => setResourceId(event.target.value)} placeholder="Resource ID" className="rounded-lg border border-border bg-background px-3 py-2 text-sm" /><Button type="button" size="sm" disabled={busy !== null || !resourceType.trim() || !resourceId.trim()} onClick={() => void addResource()}>{busy === "resource" ? "Granting…" : "Grant resource"}</Button></div>{resources.length ? <div className="mt-3 flex flex-wrap gap-2">{resources.map((resource) => <span key={`${resource.resourceType}:${resource.resourceId}`} className="rounded-full border border-border bg-background px-2.5 py-1 text-xs text-foreground">{resource.resourceType}: {resource.resourceId}</span>)}</div> : <p className="mt-3 text-xs text-muted-foreground">No resource-specific grants. Capability-level policy still applies.</p>}</div>
+            <div className="rounded-xl border border-border bg-secondary/20 p-4"><p className="text-sm font-semibold text-foreground">Connector grants</p>{connectors.length ? <div className="mt-3 flex flex-wrap gap-2">{connectors.map((connector) => <span key={connector.id} className="rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-xs text-accent">{connector.displayName || connector.id}</span>)}</div> : <p className="mt-3 text-xs text-muted-foreground">No connectors are granted to this installation.</p>}{availableConnectors.length ? <div className="mt-4 space-y-2">{availableConnectors.map((connector) => { const granted = connectors.some((entry) => entry.id === connector.id); return <div key={connector.id} className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{connector.displayName || connector.id}</p><p className="mt-1 text-xs text-muted-foreground">{connector.auth} · {connector.capabilityNames.length} capabilities · v{connector.version}</p></div><Button type="button" size="sm" variant={granted ? "outline" : "default"} disabled={granted || busy !== null} onClick={() => void grantConnector(connector)}>{granted ? "Granted" : busy === `connector:${connector.id}` ? "Granting…" : "Grant connector"}</Button></div>; })}</div> : null}</div>
+          </>}
+        </div>
+      </details>
     </CardContent>
   </Card>;
+}
+
+function ExternalAgentHealth({ installationId }: { installationId: string }) {
+  const [health, setHealth] = useState<{ status: string; activeCredentialCount: number; lastUsedAt: string | null } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [checkedAt, setCheckedAt] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setChecking(true);
+    try {
+      const response = await getExternalAgentHealth(installationId);
+      setHealth(response.health);
+      setCheckedAt(new Date().toISOString());
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load external connection health");
+    } finally {
+      setChecking(false);
+    }
+  }, [installationId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void refresh(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [refresh]);
+
+  return <Card><CardContent className="space-y-4 p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-semibold text-foreground">External connection health</h2><p className="mt-1 text-sm text-muted-foreground">This runtime is operated outside KasiTek. Health reflects installation status and whether a usable transport credential exists; it does not claim that the remote runtime is reachable.</p></div><Button type="button" variant="outline" size="sm" disabled={checking} onClick={() => void refresh()}><RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${checking ? "animate-spin" : ""}`} />{checking ? "Checking…" : "Check now"}</Button></div>{error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : health ? <><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Platform readiness</p><p className="mt-1 font-medium capitalize text-foreground">{health.status.replaceAll("_", " ")}</p></div><div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Active credentials</p><p className="mt-1 font-medium text-foreground">{health.activeCredentialCount}</p></div><div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Last used</p><p className="mt-1 font-medium text-foreground">{health.lastUsedAt ? new Date(health.lastUsedAt).toLocaleString() : "Not used yet"}</p></div></div>{checkedAt ? <p className="text-xs text-muted-foreground">Checked {new Date(checkedAt).toLocaleTimeString()}</p> : null}</> : <p className="text-sm text-muted-foreground">Checking connection health…</p>}</CardContent></Card>;
 }
 
 function InstallationRuns({ installationId }: { installationId: string }) {

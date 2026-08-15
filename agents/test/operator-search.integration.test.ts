@@ -35,8 +35,8 @@ describe.skipIf(!runIntegration)("operator search (integration)", () => {
       [versionId, definitionId, marker],
     );
     await pool.query(
-      `INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, created_by)
-       VALUES ($1, $2, $3, $4, 'organization', $4, 'operator-search-test')`,
+      `INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, created_by)
+       VALUES ($1, $2, $3, $4, 'organization', $4, 'kasitek_hosted', 'operator-search-test')`,
       [installationId, definitionId, versionId, organizationId],
     );
     await pool.query(
