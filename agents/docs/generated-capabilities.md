@@ -266,6 +266,17 @@ List the current KasiTek workspace's upcoming and historical bookings.
 ```json
 {
   "type": "object",
+  "properties": {
+    "bookings": {
+      "type": "array"
+    },
+    "total": {
+      "type": "integer"
+    },
+    "hasMore": {
+      "type": "boolean"
+    }
+  },
   "required": [
     "bookings"
   ],
@@ -344,6 +355,17 @@ List the current KasiTek workspace's WhatsApp campaign status and delivery metri
 ```json
 {
   "type": "object",
+  "properties": {
+    "campaigns": {
+      "type": "array"
+    },
+    "total": {
+      "type": "integer"
+    },
+    "hasMore": {
+      "type": "boolean"
+    }
+  },
   "required": [
     "campaigns"
   ],
@@ -385,6 +407,11 @@ Read one organization-scoped WhatsApp campaign summary without recipient details
 ```json
 {
   "type": "object",
+  "properties": {
+    "campaign": {
+      "type": "object"
+    }
+  },
   "required": [
     "campaign"
   ],
@@ -431,6 +458,17 @@ List the current KasiTek workspace's WhatsApp templates and approval status.
 ```json
 {
   "type": "object",
+  "properties": {
+    "templates": {
+      "type": "array"
+    },
+    "total": {
+      "type": "integer"
+    },
+    "hasMore": {
+      "type": "boolean"
+    }
+  },
   "required": [
     "templates"
   ],
@@ -618,6 +656,17 @@ List the current KasiTek workspace's inbox conversations and unread counts.
 ```json
 {
   "type": "object",
+  "properties": {
+    "conversations": {
+      "type": "array"
+    },
+    "total": {
+      "type": "integer"
+    },
+    "hasMore": {
+      "type": "boolean"
+    }
+  },
   "required": [
     "conversations"
   ],
@@ -709,6 +758,17 @@ Star or unstar one organization-scoped inbox conversation.
 ```json
 {
   "type": "object",
+  "properties": {
+    "success": {
+      "type": "boolean"
+    },
+    "conversationId": {
+      "type": "string"
+    },
+    "starred": {
+      "type": "boolean"
+    }
+  },
   "required": [
     "success",
     "conversationId",
@@ -1247,6 +1307,14 @@ Delete an unpublished content draft or schedule.
 ```json
 {
   "type": "object",
+  "properties": {
+    "postId": {
+      "type": "string"
+    },
+    "deleted": {
+      "type": "boolean"
+    }
+  },
   "required": [
     "postId",
     "deleted"

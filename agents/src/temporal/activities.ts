@@ -179,7 +179,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
       properties: { limit: { type: "integer", minimum: 1, maximum: 200 } },
       additionalProperties: false,
     },
-    outputSchema: { type: "object", required: ["bookings"], additionalProperties: false },
+    outputSchema: { type: "object", properties: { bookings: { type: "array" }, total: { type: "integer" }, hasMore: { type: "boolean" } }, required: ["bookings"], additionalProperties: false },
     manifest: {
       ownerService: "kasitek-core",
       requiredScope: "bookings.read",
@@ -235,7 +235,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
       properties: { limit: { type: "integer", minimum: 1, maximum: 200 } },
       additionalProperties: false,
     },
-    outputSchema: { type: "object", required: ["campaigns"], additionalProperties: false },
+    outputSchema: { type: "object", properties: { campaigns: { type: "array" }, total: { type: "integer" }, hasMore: { type: "boolean" } }, required: ["campaigns"], additionalProperties: false },
     manifest: {
       ownerService: "kasitek-core",
       requiredScope: "campaigns.read",
@@ -263,7 +263,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
       required: ["campaignId"],
       additionalProperties: false,
     },
-    outputSchema: { type: "object", required: ["campaign"], additionalProperties: false },
+    outputSchema: { type: "object", properties: { campaign: { type: "object" } }, required: ["campaign"], additionalProperties: false },
     manifest: {
       ownerService: "kasitek-core",
       requiredScope: "campaigns.read",
@@ -294,7 +294,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
       },
       additionalProperties: false,
     },
-    outputSchema: { type: "object", required: ["templates"], additionalProperties: false },
+    outputSchema: { type: "object", properties: { templates: { type: "array" }, total: { type: "integer" }, hasMore: { type: "boolean" } }, required: ["templates"], additionalProperties: false },
     manifest: {
       ownerService: "kasitek-core",
       requiredScope: "templates.read",
@@ -419,7 +419,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
       properties: { limit: { type: "integer", minimum: 1, maximum: 200 } },
       additionalProperties: false,
     },
-    outputSchema: { type: "object", required: ["conversations"], additionalProperties: false },
+    outputSchema: { type: "object", properties: { conversations: { type: "array" }, total: { type: "integer" }, hasMore: { type: "boolean" } }, required: ["conversations"], additionalProperties: false },
     manifest: {
       ownerService: "kasitek-core",
       requiredScope: "inbox.read",
@@ -482,7 +482,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
       required: ["conversationId", "starred"],
       additionalProperties: false,
     },
-    outputSchema: { type: "object", required: ["success", "conversationId", "starred"], additionalProperties: false },
+    outputSchema: { type: "object", properties: { success: { type: "boolean" }, conversationId: { type: "string" }, starred: { type: "boolean" } }, required: ["success", "conversationId", "starred"], additionalProperties: false },
     manifest: {
       ownerService: "kasitek-core",
       requiredScope: "inbox.write",
@@ -763,7 +763,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
       required: ["postId"],
       additionalProperties: false,
     },
-    outputSchema: { type: "object", required: ["postId", "deleted"], additionalProperties: false },
+    outputSchema: { type: "object", properties: { postId: { type: "string" }, deleted: { type: "boolean" } }, required: ["postId", "deleted"], additionalProperties: false },
     manifest: { ownerService: "kasitek-core", requiredScope: "content.write", resourceSelector: { type: "content_post", argument: "postId" }, execution: "durable", idempotency: "required", approval: "always", auditClassification: "full", redaction: [] },
     handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core write boundary is not configured");

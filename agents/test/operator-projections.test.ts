@@ -27,4 +27,31 @@ describe("operator alert notifications", () => {
     expect(JSON.stringify(notifications)).not.toContain("token");
     expect(notifications.find((notification) => notification.kind === "provider_outage")).toMatchObject({ metadata: { provider: "openai", count: 2 } });
   });
+
+  it("clears the local incident queue when every dependency recovers", () => {
+    const incident = buildOperatorAlertNotificationSeeds({
+      reconciliationRequired: 2,
+      failedRunsLast24h: 3,
+      queuedRunsOver15m: 1,
+      failedDeliveriesLast24h: 4,
+      failedModelCallsLast24h: 2,
+      providerFailuresLast24h: { anthropic: 2 },
+      credentialRevocationsLast24h: 1,
+      dataAccessEventsLast24h: 1,
+    });
+    expect(incident).toHaveLength(8);
+    expect(new Set(incident.map((entry) => entry.severity))).toEqual(new Set(["warning", "critical"]));
+
+    const recovered = buildOperatorAlertNotificationSeeds({
+      reconciliationRequired: 0,
+      failedRunsLast24h: 0,
+      queuedRunsOver15m: 0,
+      failedDeliveriesLast24h: 0,
+      failedModelCallsLast24h: 0,
+      providerFailuresLast24h: {},
+      credentialRevocationsLast24h: 0,
+      dataAccessEventsLast24h: 0,
+    });
+    expect(recovered).toEqual([]);
+  });
 });
