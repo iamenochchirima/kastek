@@ -69,7 +69,13 @@ export function CreateGeneralAgentPageClient() {
         },
         policy: {
           allowedTools: generalCapabilities,
-          modelPolicy: { version: "hosted-agent-v1", primary: model, fallback: [], allowUserFundedFallbackToKasiTek: false, maxTokensPerRun: maxTotalTokens },
+          modelPolicy: {
+            version: "hosted-agent-v1",
+            primary: { provider: model.provider, model: model.name },
+            fallback: [],
+            allowUserFundedFallbackToKasiTek: false,
+            maxTokensPerRun: maxTotalTokens,
+          },
           runLimits: { maxIterations: 6, maxToolCalls: 6, maxModelCalls: 6, maxTotalTokens, maxContextMessages: 24, maxContextTokens: 8_000, maxWallTimeMs: 60_000 },
         },
       });

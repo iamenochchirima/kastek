@@ -4,7 +4,7 @@ import { GeminiAdapter } from "../src/model/gemini";
 import { OpenAICompatibleAdapter } from "../src/model/openai-compatible";
 import { ModelGateway } from "../src/model/gateway";
 import { ModelProviderError, type ModelAdapter } from "../src/model/types";
-import { resolveModelTarget } from "../src/model/policy";
+import { normalizeModelPolicy, resolveModelTarget } from "../src/model/policy";
 
 const credentials = { apiKey: "secret", fundingSource: "kasitek" as const };
 
@@ -12,6 +12,11 @@ describe("provider adapters", () => {
   it("resolves a versioned primary, fast, and bounded fallback model policy", () => {
     const target = resolveModelTarget({}, { modelPolicy: { version: "v1", primary: { provider: "openrouter", model: "primary" }, fast: { provider: "openai", model: "fast" }, fallback: [{ provider: "gemini", model: "fallback" }], maxTokensPerRun: 1000 } });
     expect(target).toMatchObject({ provider: "openrouter", model: "primary", policyVersion: "v1", maxTokensPerRun: 1000, fallback: [{ provider: "gemini", model: "fallback" }] });
+  });
+  it("runs published versions that used the legacy primary.name field", () => {
+    const policy = { modelPolicy: { version: "legacy-v1", primary: { provider: "openrouter", name: "openai/gpt-oss-20b:free" }, fallback: [] } };
+    expect(resolveModelTarget({}, policy)).toMatchObject({ provider: "openrouter", model: "openai/gpt-oss-20b:free", policyVersion: "legacy-v1" });
+    expect(normalizeModelPolicy(policy)).toEqual({ modelPolicy: { version: "legacy-v1", primary: { provider: "openrouter", name: "openai/gpt-oss-20b:free", model: "openai/gpt-oss-20b:free" }, fallback: [] } });
   });
   it("retries retryable provider failures and applies configured pricing", async () => {
     let attempts = 0;

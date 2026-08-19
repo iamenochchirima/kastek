@@ -14,6 +14,33 @@ export const modelPolicySchema = z.object({
 });
 export type ModelPolicy = z.infer<typeof modelPolicySchema>;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Normalize model policy documents at the boundary. Early general-purpose
+ * agent versions stored the primary model under `primary.name`; the runtime
+ * contract is `primary.model`. Existing published versions must keep running,
+ * while new writes use the canonical shape.
+ */
+export function normalizeModelPolicy(policy: Record<string, unknown>): Record<string, unknown> {
+  const candidate = policy.modelPolicy;
+  if (!isRecord(candidate) || !isRecord(candidate.primary)) return policy;
+  const primary = candidate.primary;
+  if (typeof primary.model === "string" || typeof primary.name !== "string") return policy;
+  return {
+    ...policy,
+    modelPolicy: {
+      ...candidate,
+      primary: {
+        ...primary,
+        model: primary.name,
+      },
+    },
+  };
+}
+
 export interface ResolvedModelTarget {
   provider: ModelProvider;
   model: string;
@@ -25,7 +52,7 @@ export interface ResolvedModelTarget {
 }
 
 export function resolveModelTarget(configuration: Record<string, unknown>, policy: Record<string, unknown>): ResolvedModelTarget {
-  const candidate = policy.modelPolicy;
+  const candidate = normalizeModelPolicy(policy).modelPolicy;
   if (candidate && typeof candidate === "object") {
     const parsed = modelPolicySchema.parse(candidate);
     return {

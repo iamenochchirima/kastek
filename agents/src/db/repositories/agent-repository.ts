@@ -10,6 +10,7 @@ import type {
 } from "../../domain/types";
 import { query, withTransaction } from "../pool";
 import { validateVersionWorkflow } from "../../workflows/graph";
+import { normalizeModelPolicy } from "../../model/policy";
 import { getAgentTemplate, templateVersionInput } from "../../system/templates";
 import { resolveHostedAgentAllowedTools } from "../../system/hosted-agent-defaults";
 import { KASIAI_KNOWLEDGE_CHUNKS, KASIAI_KNOWLEDGE_SOURCE_NAME, KASIAI_KNOWLEDGE_VERSION } from "../../system/kasiai-knowledge";
@@ -894,8 +895,9 @@ export class AgentRepository {
         [agentId],
       );
       const versionNumber = Number(versionResult.rows[0]!.version_number);
-      const allowedTools = resolveHostedAgentAllowedTools(agent.rows[0]!.creation_profile, input.policy.allowedTools);
-      const effectiveInput = { ...input, policy: { ...input.policy, allowedTools } };
+      const normalizedPolicy = normalizeModelPolicy(input.policy);
+      const allowedTools = resolveHostedAgentAllowedTools(agent.rows[0]!.creation_profile, normalizedPolicy.allowedTools);
+      const effectiveInput = { ...input, policy: { ...normalizedPolicy, allowedTools } };
       const checksum = checksumVersion(effectiveInput, versionNumber);
       const created = await client.query<AgentVersionRecord>(
         `INSERT INTO agent_versions
