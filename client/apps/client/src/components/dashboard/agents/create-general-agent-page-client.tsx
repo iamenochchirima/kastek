@@ -11,6 +11,23 @@ import { createAgent, createAgentInstallation, createAgentVersion, publishAgentV
 type Step = 1 | 2 | 3;
 
 const model = { provider: "openrouter", name: "openai/gpt-oss-20b:free" };
+const generalCapabilities = [
+  "platform.current_time",
+  "kasitek.core.workspace_status",
+  "kasitek.core.workspace_report",
+  "kasitek.core.customer_get",
+  "kasitek.core.booking_services_list",
+  "kasitek.core.bookings_list",
+  "kasitek.core.booking_get",
+  "kasitek.core.campaigns_list",
+  "kasitek.core.campaign_summary",
+  "kasitek.core.templates_list",
+  "kasitek.core.contacts_list",
+  "kasitek.core.inbox_conversations_list",
+  "kasitek.core.inbox_messages_list",
+  "kasitek.core.content_posts_list",
+  "kasitek.core.content_post_get",
+];
 
 export function CreateGeneralAgentPageClient() {
   const router = useRouter();
@@ -51,7 +68,7 @@ export function CreateGeneralAgentPageClient() {
           maxWallTimeMs: 60_000,
         },
         policy: {
-          allowedTools: [],
+          allowedTools: generalCapabilities,
           modelPolicy: { version: "hosted-agent-v1", primary: model, fallback: [], allowUserFundedFallbackToKasiTek: false, maxTokensPerRun: maxTotalTokens },
           runLimits: { maxIterations: 6, maxToolCalls: 6, maxModelCalls: 6, maxTotalTokens, maxContextMessages: 24, maxContextTokens: 8_000, maxWallTimeMs: 60_000 },
         },
@@ -105,7 +122,7 @@ export function CreateGeneralAgentPageClient() {
           </> : null}
           {step === 3 ? <>
             <div><h2 className="text-xl font-semibold text-foreground">Review your agent</h2><p className="mt-1 text-sm text-muted-foreground">This creates a standard general-purpose agent with safe runtime defaults.</p></div>
-            <dl className="divide-y divide-border rounded-xl border border-border bg-card text-sm"><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Name</dt><dd className="font-medium text-foreground">{name}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Purpose</dt><dd className="max-w-[65%] text-right text-foreground">{purpose}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Behavior</dt><dd className="font-medium capitalize text-foreground">{tone}, {responseDetail}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Workflow</dt><dd className="font-medium text-foreground">Standard assistant runtime</dd></div></dl>
+            <dl className="divide-y divide-border rounded-xl border border-border bg-card text-sm"><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Name</dt><dd className="font-medium text-foreground">{name}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Purpose</dt><dd className="max-w-[65%] text-right text-foreground">{purpose}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Behavior</dt><dd className="font-medium capitalize text-foreground">{tone}, {responseDetail}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Access</dt><dd className="max-w-[65%] text-right font-medium text-foreground">Read-only workspace context ({generalCapabilities.length} capabilities)</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Workflow</dt><dd className="font-medium text-foreground">Standard assistant runtime</dd></div></dl>
           </> : null}
           {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
           <div className="flex justify-between gap-2"><Button type="button" variant="outline" disabled={loading} onClick={() => setStep((current) => current === 1 ? 1 : (current - 1) as Step)}>{step === 1 ? "Cancel" : <><ChevronLeft className="mr-1 h-4 w-4" />Back</>}</Button>{step < 3 ? <Button type="button" disabled={!canContinue} onClick={() => setStep((current) => (current + 1) as Step)}>Continue <ChevronRight className="ml-1 h-4 w-4" /></Button> : <Button type="button" disabled={loading} onClick={() => void create()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Creating…</> : "Create agent"}</Button>}</div>

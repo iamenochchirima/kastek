@@ -138,7 +138,7 @@ not present the user with an orchestration console.
 
 ### Step 4 — Capabilities
 
-- [ ] Start with a safe read/draft capability pack appropriate for a general assistant.
+- [x] Start with a safe read/draft capability pack appropriate for a general assistant.
 - [ ] Group capabilities by user outcome: workspace information, contacts, inbox, content,
   bookings, campaigns, and channels.
 - [ ] Use human-readable labels and descriptions; keep raw tool names in an expandable detail view.
@@ -251,6 +251,8 @@ like a guided automation builder, not a raw JSON editor.
   capabilities, invalid workflow, and deployment blockers.
 - [ ] Ensure general-agent defaults are represented as normal versioned configuration rather than
   hidden special cases.
+- [x] Give the general-purpose profile a server-enforced read-only platform context pack while
+  keeping writes and provider effects opt-in.
 - [x] Ensure custom-template installation produces an inspectable ordinary definition/version.
 - [ ] Keep capability grants, resource scopes, connectors, and approvals installation-scoped.
 - [ ] Keep provider credentials out of prompts, workflow history, traces, MCP output, and agent
