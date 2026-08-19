@@ -6,7 +6,7 @@ import { ArrowLeft, Bot, CheckCircle2, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { createAgent, createAgentInstallation, createAgentVersion, publishAgentVersion, type AgentTemplate } from "@/lib/agent-platform";
+import { createAgent, createAgentInstallation, createAgentVersion, publishAgentVersion, type AgentDefinition, type AgentTemplate, type AgentVersion } from "@/lib/agent-platform";
 import { AgentWorkflowEditor, type WorkflowGraphValue } from "./agent-workflow-editor";
 import { AgentRuntimeLimits, defaultAgentRuntimeLimits, parseAgentRuntimeLimits, type AgentRuntimeLimitsValue } from "./agent-runtime-limits";
 
@@ -40,10 +40,11 @@ export function CreateAgentPageClient({ initialTemplate }: { initialTemplate?: A
   const [workflowValid, setWorkflowValid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [draft, setDraft] = useState<{ agent: AgentDefinition; version: AgentVersion } | null>(null);
   const [created, setCreated] = useState<{ id: string; name: string } | null>(null);
 
   const submit = async () => {
-    if (!name.trim() || !instructions.trim() || loading) return;
+    if (!name.trim() || !instructions.trim() || loading || draft) return;
     setLoading(true);
     setError(null);
     try {
@@ -77,11 +78,25 @@ export function CreateAgentPageClient({ initialTemplate }: { initialTemplate?: A
           runLimits: parsedLimits,
         },
       });
-      const published = await publishAgentVersion(agent.id, version.id);
-      await createAgentInstallation(published.id, { profile: "custom", tone: "balanced", responseDetail: "standard" });
-      setCreated({ id: agent.id, name: agent.name });
+      setDraft({ agent, version });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to create agent");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const publishDraft = async () => {
+    if (!draft || loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const published = await publishAgentVersion(draft.agent.id, draft.version.id);
+      await createAgentInstallation(published.id, { profile: "custom", tone: "balanced", responseDetail: "standard" });
+      setCreated({ id: draft.agent.id, name: draft.agent.name });
+      setDraft(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to publish and install the custom agent");
     } finally {
       setLoading(false);
     }
@@ -102,6 +117,22 @@ export function CreateAgentPageClient({ initialTemplate }: { initialTemplate?: A
               </div>
             </CardContent>
           </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (draft) {
+    return (
+      <div className="min-h-screen p-6 lg:p-8">
+        <div className="mx-auto max-w-2xl space-y-6">
+          <Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to agents</Link>
+          <Card><CardContent className="space-y-5 p-6">
+            <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Custom agent draft</p><h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">Review before publishing</h1><p className="mt-2 text-sm leading-6 text-muted-foreground">This draft is saved as an immutable version. Publishing will install it for this workspace; no provider effect runs during this step.</p></div>
+            <dl className="divide-y divide-border rounded-xl border border-border bg-card text-sm"><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Agent</dt><dd className="font-medium text-foreground">{draft.agent.name}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Version</dt><dd className="font-medium text-foreground">v{draft.version.version_number} · Draft</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Workflow</dt><dd className="font-medium text-foreground">Validated before draft creation</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Access</dt><dd className="max-w-[65%] text-right font-medium text-foreground">Capabilities and connections remain installation-scoped</dd></div></dl>
+            {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+            <div className="flex justify-end"><Button type="button" disabled={loading} onClick={() => void publishDraft()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Publishing…</> : "Publish and install"}</Button></div>
+          </CardContent></Card>
         </div>
       </div>
     );
@@ -142,7 +173,7 @@ export function CreateAgentPageClient({ initialTemplate }: { initialTemplate?: A
         <label className="block text-sm font-medium text-foreground">Instructions<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={8} maxLength={200000} className="mt-2 block w-full resize-y rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm leading-6" /></label>
         <AgentWorkflowEditor configuration={initialTemplate?.configuration ?? {}} onChange={setWorkflow} onValidityChange={setWorkflowValid} />
         {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-        <div className="flex justify-end"><Button type="button" disabled={loading || !name.trim() || !instructions.trim() || !model.trim() || !workflow || !workflowValid} onClick={() => void submit()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Creating agent…</> : "Create and publish"}</Button></div>
+        <div className="flex justify-end"><Button type="button" disabled={loading || !name.trim() || !instructions.trim() || !model.trim() || !workflow || !workflowValid} onClick={() => void submit()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Creating draft…</> : "Create draft"}</Button></div>
       </div>
     </div>
   );

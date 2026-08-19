@@ -183,7 +183,7 @@ like a guided automation builder, not a raw JSON editor.
 - [ ] Collect name, purpose, audience, and success outcome.
 - [ ] Generate a usable starting instruction set and workflow from the selected blueprint.
 - [ ] Allow advanced users to edit full instructions, model policy, runtime limits, and metadata.
-- [ ] Keep draft creation separate from publishing and activation.
+- [x] Keep draft creation separate from publishing and activation.
 
 ### Step 3 — Configure resources and credentials
 
@@ -233,7 +233,7 @@ like a guided automation builder, not a raw JSON editor.
 - [ ] Provide a review summary of instructions, workflow, capabilities, credentials, channels,
   schedules, limits, and approval behavior.
 - [ ] Block activation only on real missing requirements and explain each blocker inline.
-- [ ] Create a versioned draft first; publish only after review.
+- [x] Create a versioned draft first; publish only after review.
 - [ ] Install or update the workspace installation explicitly.
 - [ ] Support rollback, pause, resume, and retirement through existing lifecycle APIs.
 - [ ] Link the deployed version to activity, usage, approvals, and recovery history.
