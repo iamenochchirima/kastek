@@ -198,6 +198,15 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         },
       });
       if (response.toolCalls.length === 0) {
+        if (!response.message.content.trim()) {
+          const error = {
+            code: "EMPTY_ASSISTANT_RESPONSE",
+            message: "The model returned no assistant text, so the run could not produce a reply",
+            failureClass: "terminal" as const,
+          };
+          await emit(input, { type: "loop.failed", iteration, payload: error });
+          return { status: "failed", messages, response, usage, iterations: iteration, toolCalls, error };
+        }
         await emit(input, { type: "loop.completed", iteration, payload: { toolCalls, totalTokens: usage.totalTokens } });
         return { status: "completed", messages, response, usage, iterations: iteration, toolCalls };
       }

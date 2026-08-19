@@ -1,7 +1,5 @@
-import { PostsWorkspace } from "@/components/social/posts-workspace";
-
-export const metadata = { title: "Post history | KasiTek" };
+import { redirect } from "next/navigation";
 
 export default function ContentHistoryPage() {
-  return <PostsWorkspace view="history" />;
+  redirect("/content/posts");
 }

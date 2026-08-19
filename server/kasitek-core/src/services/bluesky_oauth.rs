@@ -16,6 +16,14 @@ use crate::{config::AppConfig, error::AppError};
 const SCOPE: &str = "atproto repo:app.bsky.feed.post";
 const STATE_TTL_MINUTES: i64 = 10;
 
+fn normalize_handle(value: &str) -> String {
+    let handle = value.trim().trim_start_matches('@');
+    if handle.is_empty() || handle.contains('.') {
+        return handle.to_string();
+    }
+    format!("{handle}.bsky.social")
+}
+
 #[derive(sqlx::FromRow)]
 struct AuthorizationRow {
     state: String,
@@ -82,7 +90,7 @@ pub struct RefreshedSession {
 }
 
 fn app_url(config: &AppConfig) -> String {
-    config.auth_url.trim_end_matches('/').to_string()
+    config.public_api_url.trim_end_matches('/').to_string()
 }
 pub fn client_id(config: &AppConfig) -> String {
     format!(
@@ -129,6 +137,7 @@ fn public_jwk(key: &SigningKey, include_kid: bool) -> Value {
 
 pub fn client_metadata(config: &AppConfig) -> Result<Value, AppError> {
     let id = client_id(config);
+    validate_public_https(&id, "client metadata")?;
     Ok(json!({
         "client_id":id,
         "client_name":"KasiTek",
@@ -143,6 +152,28 @@ pub fn client_metadata(config: &AppConfig) -> Result<Value, AppError> {
         "token_endpoint_auth_signing_alg":"ES256",
         "jwks":{"keys":[public_jwk(&client_signing_key()?, true)]}
     }))
+}
+
+/// Confirms that the client metadata URL configured in the API is publicly
+/// reachable before we send a user to Bluesky's authorization server. This
+/// avoids a consent flow that can never complete because a proxy, tunnel, or
+/// deployment route does not expose the OAuth metadata endpoint.
+pub async fn verify_public_client_metadata(config: &AppConfig) -> Result<(), AppError> {
+    let endpoint = client_id(config);
+    validate_public_network_url(&endpoint, "client metadata").await?;
+    let metadata: Value = json_response(
+        http_client()?.get(&endpoint).send().await.map_err(|e| {
+            AppError::BadRequest(format!("Could not reach Bluesky client metadata: {e}"))
+        })?,
+        "Bluesky client metadata is not publicly available",
+    )
+    .await?;
+    if metadata.get("client_id").and_then(Value::as_str) != Some(endpoint.as_str()) {
+        return Err(AppError::BadRequest(
+            "Bluesky client metadata does not match KASITEK_CORE_PUBLIC_URL".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn jwt(key: &SigningKey, header: Value, claims: Value) -> Result<String, AppError> {
@@ -274,6 +305,35 @@ async fn json_response<T: serde::de::DeserializeOwned>(
         .map_err(|_| AppError::BadRequest(format!("{context}: invalid JSON response")))
 }
 
+fn did_document_url(did: &str) -> Result<String, AppError> {
+    if did.starts_with("did:plc:") {
+        // plc.directory resolves the complete DID. Passing only the identifier
+        // returns a misleading "DID not registered" response.
+        Ok(format!("https://plc.directory/{did}"))
+    } else if let Some(id) = did.strip_prefix("did:web:") {
+        let parts: Vec<_> = id.split(':').collect();
+        let host = parts
+            .first()
+            .ok_or_else(|| AppError::BadRequest("Invalid did:web identity".to_string()))?;
+        let host = urlencoding::decode(host)
+            .map_err(|_| AppError::BadRequest("Invalid did:web hostname".to_string()))?;
+        if parts.len() == 1 {
+            Ok(format!("https://{host}/.well-known/did.json"))
+        } else {
+            let path = parts[1..]
+                .iter()
+                .map(|part| urlencoding::decode(part).map(|value| value.into_owned()))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|_| AppError::BadRequest("Invalid did:web path".to_string()))?;
+            Ok(format!("https://{host}/{}/did.json", path.join("/")))
+        }
+    } else {
+        Err(AppError::BadRequest(
+            "Unsupported Bluesky DID method".to_string(),
+        ))
+    }
+}
+
 async fn resolve_identity(handle: &str) -> Result<(String, String), AppError> {
     let client = http_client()?;
     let response = client
@@ -284,30 +344,7 @@ async fn resolve_identity(handle: &str) -> Result<(String, String), AppError> {
         .map_err(|e| AppError::BadRequest(format!("Failed to resolve Bluesky handle: {e}")))?;
     let resolved: DidResolution =
         json_response(response, "Failed to resolve Bluesky handle").await?;
-    let did_url = if let Some(id) = resolved.did.strip_prefix("did:plc:") {
-        format!("https://plc.directory/{id}")
-    } else if let Some(id) = resolved.did.strip_prefix("did:web:") {
-        let parts: Vec<_> = id.split(':').collect();
-        let host = parts
-            .first()
-            .ok_or_else(|| AppError::BadRequest("Invalid did:web identity".to_string()))?;
-        let host = urlencoding::decode(host)
-            .map_err(|_| AppError::BadRequest("Invalid did:web hostname".to_string()))?;
-        if parts.len() == 1 {
-            format!("https://{host}/.well-known/did.json")
-        } else {
-            let path = parts[1..]
-                .iter()
-                .map(|part| urlencoding::decode(part).map(|value| value.into_owned()))
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|_| AppError::BadRequest("Invalid did:web path".to_string()))?;
-            format!("https://{host}/{}/did.json", path.join("/"))
-        }
-    } else {
-        return Err(AppError::BadRequest(
-            "Unsupported Bluesky DID method".to_string(),
-        ));
-    };
+    let did_url = did_document_url(&resolved.did)?;
     validate_public_network_url(&did_url, "DID document").await?;
     let document: Value = json_response(
         client
@@ -461,13 +498,14 @@ pub async fn start(
     org_id: &str,
     handle: &str,
 ) -> Result<String, AppError> {
-    let handle = handle.trim().trim_start_matches('@');
+    verify_public_client_metadata(config).await?;
+    let handle = normalize_handle(handle);
     if handle.is_empty() {
         return Err(AppError::BadRequest(
             "Bluesky handle is required".to_string(),
         ));
     }
-    let (did, pds_url) = resolve_identity(handle).await?;
+    let (did, pds_url) = resolve_identity(&handle).await?;
     let metadata = authorization_metadata(&pds_url).await?;
     let state = generate_token(24);
     let verifier = generate_token(48);
@@ -481,7 +519,7 @@ pub async fn start(
         ("state".into(), state.clone()),
         ("code_challenge".into(), challenge),
         ("code_challenge_method".into(), "S256".into()),
-        ("login_hint".into(), handle.to_string()),
+        ("login_hint".into(), handle.clone()),
     ];
     let (response, nonce) = post_oauth_form(
         config,
@@ -499,7 +537,7 @@ pub async fn start(
     let par: ParResponse = json_response(response, "Bluesky authorization request failed").await?;
     sqlx::query(r#"DELETE FROM "SocialOAuthAuthorization" WHERE provider='BLUESKY' AND "expiresAt" < NOW()"#).execute(pool).await?;
     sqlx::query(r#"INSERT INTO "SocialOAuthAuthorization" (id,provider,state,"userId","orgId",handle,"expectedDid","pdsUrl","authorizationUrl","codeVerifier","dpopPrivateKey","dpopNonce","createdAt","expiresAt") VALUES ($1,'BLUESKY',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW(),$12)"#)
-        .bind(cuid2::create_id()).bind(&state).bind(user_id).bind(org_id).bind(handle).bind(&did).bind(&pds_url).bind(&metadata.issuer)
+        .bind(cuid2::create_id()).bind(&state).bind(user_id).bind(org_id).bind(&handle).bind(&did).bind(&pds_url).bind(&metadata.issuer)
         .bind(encrypt_social_secret(&verifier)?).bind(encrypt_social_secret(&URL_SAFE_NO_PAD.encode(dpop_key.to_bytes()))?).bind(nonce).bind(Utc::now()+Duration::minutes(STATE_TTL_MINUTES)).execute(pool).await?;
     let mut url = Url::parse(&metadata.authorization_endpoint)
         .map_err(|_| AppError::BadRequest("Invalid Bluesky authorization URL".to_string()))?;
@@ -701,9 +739,87 @@ pub async fn create_post(
     Ok((uri.to_string(), latest))
 }
 
+pub async fn delete_post(
+    pds_url: &str,
+    did: &str,
+    uri: &str,
+    access_token: &str,
+    dpop_private_key: &str,
+    nonce: Option<&str>,
+) -> Result<Option<String>, AppError> {
+    let expected_prefix = format!("at://{did}/app.bsky.feed.post/");
+    let rkey = uri
+        .strip_prefix(&expected_prefix)
+        .filter(|value| !value.is_empty() && !value.contains('/'))
+        .ok_or_else(|| AppError::BadRequest("Bluesky post URI is invalid".to_string()))?;
+    let pds_url = validate_public_network_url(pds_url, "PDS").await?;
+    let endpoint = format!(
+        "{}/xrpc/com.atproto.repo.deleteRecord",
+        pds_url.to_string().trim_end_matches('/')
+    );
+    let key = signing_key_from_encoded(dpop_private_key, "Bluesky DPoP key")?;
+    let body = json!({
+        "repo": did,
+        "collection": "app.bsky.feed.post",
+        "rkey": rkey,
+    });
+    let client = http_client()?;
+    let send = |nonce: Option<String>| {
+        let client = client.clone();
+        let endpoint = endpoint.clone();
+        let key = key.clone();
+        let access_token = access_token.to_string();
+        let body = body.clone();
+        async move {
+            client
+                .post(&endpoint)
+                .header("Authorization", format!("DPoP {access_token}"))
+                .header(
+                    "DPoP",
+                    dpop_proof(
+                        &key,
+                        "POST",
+                        &endpoint,
+                        nonce.as_deref(),
+                        Some(&access_token),
+                    )?,
+                )
+                .json(&body)
+                .send()
+                .await
+                .map_err(|e| AppError::BadRequest(e.to_string()))
+        }
+    };
+
+    let mut response = send(nonce.map(str::to_string)).await?;
+    let mut latest = response_nonce(response.headers()).or_else(|| nonce.map(str::to_string));
+    if !response.status().is_success()
+        && response_nonce(response.headers()).is_some()
+        && response_nonce(response.headers()).as_deref() != nonce
+    {
+        let retry_nonce = response_nonce(response.headers());
+        response = send(retry_nonce).await?;
+        latest = response_nonce(response.headers()).or(latest);
+    }
+    if !response.status().is_success() && response.status().as_u16() != 404 {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        let detail = body.chars().take(300).collect::<String>();
+        let detail = if detail.trim().is_empty() {
+            status.to_string()
+        } else {
+            detail.trim().to_string()
+        };
+        return Err(AppError::BadRequest(format!(
+            "Failed to delete Bluesky post: {detail}"
+        )));
+    }
+    Ok(latest)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{dpop_proof, validate_public_https};
+    use super::{did_document_url, dpop_proof, normalize_handle, validate_public_https};
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
     use p256::ecdsa::{signature::Verifier, Signature, SigningKey};
     use rand::thread_rng;
@@ -743,5 +859,28 @@ mod tests {
         assert!(validate_public_https("https://127.0.0.1/test", "test").is_err());
         assert!(validate_public_https("https://10.0.0.1/test", "test").is_err());
         assert!(validate_public_https("https://pds.example/test", "test").is_ok());
+    }
+
+    #[test]
+    fn normalizes_short_handles_to_the_default_bluesky_domain() {
+        assert_eq!(normalize_handle("business"), "business.bsky.social");
+        assert_eq!(normalize_handle("@business"), "business.bsky.social");
+        assert_eq!(
+            normalize_handle("business.bsky.social"),
+            "business.bsky.social"
+        );
+        assert_eq!(
+            normalize_handle("business.example.com"),
+            "business.example.com"
+        );
+    }
+
+    #[test]
+    fn plc_directory_lookup_uses_the_complete_did() {
+        let did = "did:plc:jif45llp4ysqv5onnb7b4ory";
+        assert_eq!(
+            did_document_url(did).unwrap(),
+            "https://plc.directory/did:plc:jif45llp4ysqv5onnb7b4ory"
+        );
     }
 }

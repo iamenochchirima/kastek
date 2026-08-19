@@ -20,7 +20,7 @@ export default async function AgentsPage({
   if (!session?.user?.id) redirect("/login");
   const { template } = await searchParams;
 
-  const installation = await fetchRustJson<{ id: string }>("/api/agents/kasiai/ensure", {
+  await fetchRustJson<{ id: string }>("/api/agents/kasiai/ensure", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({}),
@@ -33,7 +33,6 @@ export default async function AgentsPage({
   return (
     <AgentsPageClient
       initialAgents={agentResult.value.agents}
-      kasiaiInstallationId={installation?.id ?? null}
       initialTemplates={templates.templates}
       initialTemplateKey={template}
       agentsUnavailable={agentResult.unavailable}

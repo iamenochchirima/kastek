@@ -47,8 +47,6 @@ describe.skipIf(!runIntegration)("agent lifecycle controls (integration)", () =>
       capabilities: [],
       resources: [],
       connectors: [],
-      mcpScopes: ["mcp:read"],
-      apiScopes: ["api:read"],
       credentialLabel: "rollback credential",
       idempotencyKey: `rollback-${randomUUID()}`,
       clientKeyId: "rollback-key",

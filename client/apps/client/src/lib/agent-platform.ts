@@ -3,6 +3,7 @@ import { apiUrl } from "@/lib/server-api";
 export type AgentInstallation = {
   id: string;
   status: "active" | "paused" | "disabled";
+  execution_mode?: "system_hosted" | "kasitek_hosted" | "external_connected";
   agent_name?: string;
   agent_slug?: string;
   agent_protected?: boolean;
@@ -34,6 +35,7 @@ export type AgentConversation = {
   organization_id: string;
   channel_type: string;
   channel_key: string;
+  external_conversation_id?: string | null;
   status: string;
   title?: string | null;
   owner_actor_id?: string | null;
@@ -47,6 +49,16 @@ export type AgentConversation = {
   last_read_at?: string | null;
   model_provider?: "openrouter" | "openai" | "anthropic" | "gemini" | null;
   model?: string | null;
+  conversation_kind?: "personal" | "customer" | "test" | "external";
+  assigned_actor_id?: string | null;
+  last_message_at?: string | null;
+  last_message_direction?: "inbound" | "outbound" | "system" | null;
+  last_message_preview?: string | null;
+  message_count?: number;
+  participant_type?: "user" | "customer" | "staff" | "agent" | "system" | null;
+  participant_external_id?: string | null;
+  participant_display_name?: string | null;
+  unread_count?: number;
   updated_at: string;
 };
 
@@ -196,6 +208,7 @@ export type AgentChannelConnection = {
 export type AgentChannelBinding = {
   id: string;
   installation_id: string;
+  channel_connection_id?: string;
   channel_type: string;
   external_identity: string;
   status: string;
@@ -233,13 +246,13 @@ export class AgentRequestError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
+  if (!isFormData && !headers.has("content-type")) headers.set("content-type", "application/json");
   const response = await fetch(apiUrl(path), {
     ...init,
     credentials: "include",
-    headers: {
-      "content-type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
   if (!response.ok) {
     let detail = "";
@@ -287,6 +300,10 @@ export function listAgents(): Promise<{ agents: AgentDefinition[] }> {
 
 export function createAgent(input: { name: string; slug?: string; description?: string; creationProfile?: "general" | "custom" }): Promise<AgentDefinition> {
   return request("/api/agents", { method: "POST", body: JSON.stringify({ ...input, protected: false }) });
+}
+
+export function updateAgent(agentId: string, input: { name?: string; slug?: string; description?: string | null }): Promise<AgentDefinition> {
+  return request(`/api/agents/${encodeURIComponent(agentId)}`, { method: "PATCH", body: JSON.stringify(input) });
 }
 
 export type ExternalAgentConnection = {
@@ -544,6 +561,26 @@ export function listAgentInstallationRuns(installationId: string, limit = 50): P
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/runs?limit=${encodeURIComponent(String(limit))}`);
 }
 
+export type AgentInstallationOperation = AgentInstallationRun & {
+  transport?: "mcp" | "rest" | "unknown";
+  tool_name?: string | null;
+  tool_invocation_count?: number;
+  model_call_count?: number;
+  approval_status?: string | null;
+};
+
+export type AgentInstallationOperationSummary = {
+  total: number;
+  byStatus: Record<string, number>;
+  toolInvocations: number;
+  modelCalls: number;
+  estimatedCostUsd: string;
+};
+
+export function listAgentInstallationOperations(installationId: string, limit = 50): Promise<{ installationId: string; operations: AgentInstallationOperation[]; summary: AgentInstallationOperationSummary }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/operations?limit=${encodeURIComponent(String(limit))}`);
+}
+
 export type AgentSchedule = {
   id: string;
   installation_id: string;
@@ -606,12 +643,26 @@ export function listAgentKnowledgeSources(agentId: string, installationId?: stri
   return request(`/api/agents/knowledge/sources?${query.toString()}`);
 }
 
+export function getAgentKnowledgeSource(sourceId: string): Promise<{ source: AgentKnowledgeSource; text: string }> {
+  return request(`/api/agents/knowledge/sources/${encodeURIComponent(sourceId)}`);
+}
+
 export function createAgentKnowledgeSource(input: { agentId: string; installationId?: string; name: string; sourceType: "url" | "manual" | "platform" | "upload"; sourceUri?: string }): Promise<AgentKnowledgeSource> {
   return request("/api/agents/knowledge/sources", { method: "POST", body: JSON.stringify(input) });
 }
 
 export function ingestAgentKnowledgeSourceUrl(sourceId: string, url: string): Promise<{ sourceId: string; revision: number; chunks: unknown[] }> {
   return request(`/api/agents/knowledge/sources/${encodeURIComponent(sourceId)}/ingest-url`, { method: "POST", body: JSON.stringify({ url }) });
+}
+
+export function ingestAgentKnowledgeSourceText(sourceId: string, text: string): Promise<{ sourceId: string; revision: number; chunks: unknown[] }> {
+  return request(`/api/agents/knowledge/sources/${encodeURIComponent(sourceId)}/ingest-text`, { method: "POST", body: JSON.stringify({ text, contentType: "text/markdown" }) });
+}
+
+export function ingestAgentKnowledgeSourceFile(sourceId: string, file: File): Promise<{ sourceId: string; revision: number; filename: string; format: string; bytes: number; chunks: unknown[] }> {
+  const body = new FormData();
+  body.append("file", file, file.name);
+  return request(`/api/agents/knowledge/sources/${encodeURIComponent(sourceId)}/ingest-file`, { method: "POST", body });
 }
 
 export function deleteAgentKnowledgeSource(sourceId: string, agentId: string, installationId?: string): Promise<unknown> {
@@ -724,6 +775,13 @@ export function resolvePlatformConversation(installationId: string): Promise<Con
   });
 }
 
+export function createNewPlatformConversation(installationId: string): Promise<ConversationResponse> {
+  return request<ConversationResponse>(`/api/agents/installations/${encodeURIComponent(installationId)}/platform/conversation/new`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
 export function getKasiAiHome(installationId: string): Promise<KasiAiHome> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/kasiai/home`, {
     method: "POST",
@@ -779,8 +837,13 @@ export function createPlatformConversation(installationId: string): Promise<Conv
   });
 }
 
-export function listAgentConversations(installationId: string): Promise<{ conversations: AgentConversation[] }> {
-  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/conversations`);
+export function listAgentConversations(installationId: string, options: { kind?: "customer" | "test"; search?: string; status?: "active" | "archived" | "deleted" } = {}): Promise<{ mode?: string; conversations: AgentConversation[] }> {
+  const query = new URLSearchParams();
+  if (options.kind) query.set("kind", options.kind);
+  if (options.search) query.set("search", options.search);
+  if (options.status) query.set("status", options.status);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/conversations${suffix}`);
 }
 
 export function listKasiAiChannels(installationId: string): Promise<{ connections: AgentChannelConnection[]; bindings: AgentChannelBinding[] }> {
@@ -792,6 +855,10 @@ export function createAgentChannelConnection(installationId: string, input: { ch
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export function revokeAgentChannelConnection(installationId: string, connectionId: string): Promise<{ disconnected: boolean }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/channels/${encodeURIComponent(connectionId)}`, { method: "DELETE" });
 }
 
 export function issueAgentChannelPairing(installationId: string, connectionId: string): Promise<{ token: string; expires_at: string }> {

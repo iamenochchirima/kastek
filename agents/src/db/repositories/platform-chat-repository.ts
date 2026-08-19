@@ -24,6 +24,7 @@ interface ActiveInstallation {
   agent_definition_id: string;
   agent_version_id: string;
   agent_name: string;
+  execution_mode: "system_hosted" | "kasitek_hosted" | "external_connected";
 }
 
 function fallbackConversationTitle(message: string): string {
@@ -126,7 +127,7 @@ export class PlatformChatRepository {
         [resolved.conversation.id],
       );
       if (openRun.rows[0]) {
-        throw Object.assign(new Error("KasiAi is still finishing the previous message"), {
+        throw Object.assign(new Error("This agent is still finishing the previous message"), {
           statusCode: 409,
           code: "conversation_busy",
         });
@@ -209,8 +210,136 @@ export class PlatformChatRepository {
          VALUES ($1, $2, $3, 'run.received', $4::jsonb, $5, $6)`,
         [input.organizationId, run.id, input.installationId, JSON.stringify({ triggerType: "message" }), input.actorId, run.correlation_id],
       );
-      await client.query("UPDATE conversations SET updated_at = now() WHERE id = $1", [resolved.conversation.id]);
+      await client.query(
+        `UPDATE conversations
+         SET updated_at = now(), last_message_at = now(), last_message_direction = 'inbound',
+             last_message_preview = LEFT($2, 500), message_count = message_count + 1
+         WHERE id = $1`,
+        [resolved.conversation.id, input.message],
+      );
       return { ...resolved, message: createdMessage.rows[0]!, run, created: true };
+    });
+  }
+
+  /**
+   * Start a new attempt for a failed platform chat run without inserting a
+   * second inbound message. The original message remains the durable user
+   * request and keeps its relationship to the failed source run for audit and
+   * retry history; the new run reuses the source input and produces only a new
+   * assistant response.
+   */
+  public async retryMessage(input: {
+    organizationId: string;
+    runId: string;
+    actorId: string;
+    correlationId?: string;
+  }): Promise<AcceptedPlatformMessage> {
+    return withTransaction(this.pool, async (client) => {
+      const sourceResult = await client.query<RunRecord>(
+        "SELECT * FROM agent_runs WHERE id = $1 AND organization_id = $2 LIMIT 1",
+        [input.runId, input.organizationId],
+      );
+      const source = sourceResult.rows[0];
+      if (!source) throw Object.assign(new Error("Run not found"), { statusCode: 404 });
+      if (source.trigger_type !== "message" || !source.conversation_id) {
+        throw Object.assign(new Error("Only platform chat runs can be retried here"), { statusCode: 409 });
+      }
+      if (!["failed", "cancelled", "expired"].includes(source.status)) {
+        throw Object.assign(new Error("Only failed, cancelled, or expired runs can be retried"), { statusCode: 409 });
+      }
+
+      const resolved = await this.resolveOwnedConversationInTransaction(client, {
+        organizationId: input.organizationId,
+        installationId: source.installation_id,
+        actorId: input.actorId,
+        conversationId: source.conversation_id,
+      });
+      const lockedSourceResult = await client.query<RunRecord>(
+        "SELECT * FROM agent_runs WHERE id = $1 AND organization_id = $2 FOR UPDATE",
+        [input.runId, input.organizationId],
+      );
+      const lockedSource = lockedSourceResult.rows[0];
+      if (!lockedSource) throw Object.assign(new Error("Run not found"), { statusCode: 404 });
+      if (!["failed", "cancelled", "expired"].includes(lockedSource.status)) {
+        throw Object.assign(new Error("Only failed, cancelled, or expired runs can be retried"), { statusCode: 409 });
+      }
+
+      const sourceMessage = await client.query<MessageRecord>(
+        `SELECT * FROM messages
+         WHERE organization_id = $1 AND run_id = $2 AND direction = 'inbound'
+         ORDER BY sequence_number ASC LIMIT 1`,
+        [input.organizationId, lockedSource.id],
+      );
+      if (!sourceMessage.rows[0] || sourceMessage.rows[0].source_channel !== "platform") {
+        throw Object.assign(new Error("The run does not have a platform message to retry"), { statusCode: 409 });
+      }
+
+      const openRun = await client.query<{ id: string }>(
+        `SELECT id FROM agent_runs
+         WHERE conversation_id = $1
+           AND status IN ('received', 'queued', 'running', 'awaiting_approval', 'awaiting_human', 'awaiting_external_event')
+         ORDER BY created_at LIMIT 1`,
+        [resolved.conversation.id],
+      );
+      if (openRun.rows[0]) {
+        throw Object.assign(new Error("This agent is still finishing the previous message"), {
+          statusCode: 409,
+          code: "conversation_busy",
+        });
+      }
+
+      const installation = await this.getActiveInstallation(client, input.organizationId, source.installation_id);
+      const retryKey = `platform-retry:${lockedSource.id}:${randomUUID()}`;
+      const createdRun = await client.query<RunRecord>(
+        `INSERT INTO agent_runs
+          (organization_id, agent_definition_id, agent_version_id, installation_id,
+           conversation_id, trigger_type, status, input, correlation_id, causation_id, created_by, idempotency_key,
+           reply_channel_type, reply_binding_id, resolved_model_provider, resolved_model)
+         VALUES ($1, $2, $3, $4, $5, 'message', 'received', $6::jsonb,
+                 COALESCE($7::uuid, gen_random_uuid()), $8, $9, $10, 'platform', NULL, $11, $12)
+         RETURNING *`,
+        [
+          input.organizationId,
+          installation.agent_definition_id,
+          installation.agent_version_id,
+          source.installation_id,
+          resolved.conversation.id,
+          JSON.stringify(lockedSource.input ?? {}),
+          input.correlationId ?? null,
+          lockedSource.id,
+          input.actorId,
+          retryKey,
+          resolved.conversation.model_provider,
+          resolved.conversation.model,
+        ],
+      );
+      const run = createdRun.rows[0];
+      if (!run) throw new Error("Retry run could not be created");
+      await client.query(
+        `INSERT INTO run_attempts (run_id, organization_id, attempt_number, status, trigger)
+         VALUES ($1, $2, 1, 'started', 'workflow')`,
+        [run.id, input.organizationId],
+      );
+      await client.query(
+        `INSERT INTO run_workflow_state (run_id, organization_id, state, revision)
+         VALUES ($1, $2, '{}'::jsonb, 0)`,
+        [run.id, input.organizationId],
+      );
+      await client.query(
+        `INSERT INTO agent_events
+          (organization_id, run_id, installation_id, event_type, payload, actor_id, correlation_id)
+         VALUES ($1, $2, $3, 'run.received', $4::jsonb, $5, $6)`,
+        [
+          input.organizationId,
+          run.id,
+          source.installation_id,
+          JSON.stringify({ triggerType: "message", retryOfRunId: lockedSource.id }),
+          input.actorId,
+          run.correlation_id,
+        ],
+      );
+      await client.query("UPDATE conversations SET updated_at = now() WHERE id = $1", [resolved.conversation.id]);
+      return { ...resolved, message: sourceMessage.rows[0]!, run, created: true };
     });
   }
 
@@ -218,6 +347,7 @@ export class PlatformChatRepository {
     organizationId: string;
     installationId?: string;
     channelType: string;
+    channelKey?: string;
     provider: string;
     providerEventId: string;
     providerMessageId: string;
@@ -230,12 +360,13 @@ export class PlatformChatRepository {
     correlationId?: string;
   }): Promise<AcceptedExternalMessage> {
     return withTransaction(this.pool, async (client) => {
-      const binding = await client.query<{
+      type ChannelRoute = {
         id: string;
         owner_actor_id: string | null;
         channel_connection_id: string;
         installation_id: string;
-      }>(
+      };
+      const binding = await client.query<ChannelRoute>(
         `SELECT cb.id, cb.owner_actor_id, cb.channel_connection_id, cb.installation_id
          FROM channel_bindings cb
          JOIN channel_connections cc ON cc.id = cb.channel_connection_id
@@ -246,26 +377,91 @@ export class PlatformChatRepository {
          LIMIT 1`,
         [input.organizationId, input.installationId ?? null, input.channelType, input.externalIdentity],
       );
-      const route = binding.rows[0];
-      if (!route?.owner_actor_id) {
+      let route = binding.rows[0];
+
+      if (!route && input.channelKey) {
+        const publicConnection = await client.query<{
+          id: string;
+          installation_id: string;
+        }>(
+          `SELECT cc.id, cc.installation_id
+           FROM channel_connections cc
+           JOIN agent_installations ai ON ai.id = cc.installation_id
+           WHERE cc.organization_id = $1
+             AND ($2::uuid IS NULL OR cc.installation_id = $2)
+             AND cc.channel_type = $3 AND cc.channel_key = $4
+             AND cc.status = 'active' AND ai.status = 'active'
+             AND ai.execution_mode = 'kasitek_hosted'
+           LIMIT 1`,
+          [input.organizationId, input.installationId ?? null, input.channelType, input.channelKey],
+        );
+        const target = publicConnection.rows[0];
+        if (target) {
+          const createdBinding = await client.query<ChannelRoute>(
+            `INSERT INTO channel_bindings
+              (organization_id, installation_id, channel_connection_id, channel_type, external_identity, routing_key, owner_actor_id)
+             VALUES ($1, $2, $3, $4, $5, 'default', NULL)
+             ON CONFLICT (organization_id, channel_type, external_identity) DO NOTHING
+             RETURNING id, owner_actor_id, channel_connection_id, installation_id`,
+            [input.organizationId, target.installation_id, target.id, input.channelType, input.externalIdentity],
+          );
+          route = createdBinding.rows[0];
+          if (!route) {
+            const existingBinding = await client.query<ChannelRoute>(
+              `SELECT cb.id, cb.owner_actor_id, cb.channel_connection_id, cb.installation_id
+               FROM channel_bindings cb
+               JOIN channel_connections cc ON cc.id = cb.channel_connection_id
+               WHERE cb.organization_id = $1
+                 AND ($2::uuid IS NULL OR cb.installation_id = $2)
+                 AND cb.channel_type = $3 AND cb.external_identity = $4
+                 AND cb.status = 'active' AND cc.status = 'active'
+               LIMIT 1`,
+              [input.organizationId, input.installationId ?? null, input.channelType, input.externalIdentity],
+            );
+            route = existingBinding.rows[0];
+          }
+        }
+      }
+
+      if (!route) {
         throw Object.assign(new Error("External channel identity is not paired to a KasiTek user"), {
           statusCode: 403,
           code: "channel_identity_not_paired",
         });
       }
 
-      const resolved = await this.resolveConversationInTransaction(client, {
-        organizationId: input.organizationId,
-        installationId: route.installation_id,
-        actorId: route.owner_actor_id,
-      });
-      const sourceParticipant = await this.upsertParticipant(client, {
-        conversationId: resolved.conversation.id,
-        organizationId: input.organizationId,
-        participantType: "user",
-        externalId: `${input.channelType}:${input.externalIdentity}`,
-        displayName: input.displayName,
-      });
+      const installation = await this.getActiveInstallation(client, input.organizationId, route.installation_id);
+      if (installation.execution_mode !== "kasitek_hosted" && !route.owner_actor_id) {
+        throw Object.assign(new Error("External channel identity is not paired to a KasiTek user"), {
+          statusCode: 403,
+          code: "channel_identity_not_paired",
+        });
+      }
+      const runActorId = route.owner_actor_id ?? `installation:${route.installation_id}`;
+      const resolved = installation.execution_mode === "kasitek_hosted"
+        ? await this.resolveCustomerConversationInTransaction(client, {
+          organizationId: input.organizationId,
+          installationId: route.installation_id,
+          channelType: input.channelType,
+          channelKey: route.channel_connection_id,
+          externalIdentity: input.externalIdentity,
+          externalConversationId: input.externalConversationId,
+          displayName: input.displayName,
+        })
+        : await this.resolveConversationInTransaction(client, {
+          organizationId: input.organizationId,
+          installationId: route.installation_id,
+          actorId: route.owner_actor_id ?? runActorId,
+        });
+      const sourceParticipant = installation.execution_mode === "kasitek_hosted"
+        ? resolved.userParticipant
+        : await this.upsertParticipant(client, {
+          conversationId: resolved.conversation.id,
+          organizationId: input.organizationId,
+          participantType: "user",
+          externalId: `${input.channelType}:${input.externalIdentity}`,
+          displayName: input.displayName,
+        });
 
       const duplicate = await client.query<MessageRecord>(
         `SELECT * FROM messages
@@ -287,13 +483,12 @@ export class PlatformChatRepository {
         [resolved.conversation.id],
       );
       if (openRun.rows[0]) {
-        throw Object.assign(new Error("KasiAi is still finishing the previous message"), {
+        throw Object.assign(new Error("This agent is still finishing the previous message"), {
           statusCode: 409,
           code: "conversation_busy",
         });
       }
 
-      const installation = await this.getActiveInstallation(client, input.organizationId, route.installation_id);
       const idempotencyKey = `channel:${input.provider}:${input.providerEventId}`;
       const runResult = await client.query<RunRecord>(
         `INSERT INTO agent_runs
@@ -314,7 +509,7 @@ export class PlatformChatRepository {
           resolved.conversation.id,
           JSON.stringify({ message: input.content.text ?? input.content, context: { sourceChannel: input.channelType } }),
           input.correlationId ?? null,
-          route.owner_actor_id,
+          runActorId,
           idempotencyKey,
           input.channelType,
           route.id,
@@ -370,11 +565,25 @@ export class PlatformChatRepository {
           run.id,
           route.installation_id,
           JSON.stringify({ triggerType: "message", sourceChannel: input.channelType }),
-          route.owner_actor_id,
+          runActorId,
           run.correlation_id,
         ],
       );
-      await client.query("UPDATE conversations SET updated_at = now() WHERE id = $1", [resolved.conversation.id]);
+      await client.query(
+        `UPDATE conversations
+         SET updated_at = now(),
+             last_message_at = COALESCE($2::timestamptz, now()),
+             last_message_direction = 'inbound',
+             last_message_preview = LEFT(COALESCE($3, $4), 500),
+             message_count = message_count + 1
+         WHERE id = $1`,
+        [
+          resolved.conversation.id,
+          input.occurredAt ?? null,
+          typeof input.content.text === "string" ? input.content.text : null,
+          input.messageType,
+        ],
+      );
       return { ...resolved, sourceParticipant, message: messageResult.rows[0]!, run, created: true };
     });
   }
@@ -417,16 +626,67 @@ export class PlatformChatRepository {
           organizationId: input.organizationId,
           installationId: input.installationId,
           actorId: input.actorId,
+          channelKey: installation.execution_mode === "system_hosted" ? "kasiai" : "agent",
           externalConversationId: input.conversationKey
-            ? `kasiai:user:${input.actorId}:${input.conversationKey}`
-            : `kasiai:user:${input.actorId}:${randomUUID()}`,
+            ? `platform:user:${input.actorId}:${input.conversationKey}`
+            : `platform:user:${input.actorId}:${randomUUID()}`,
           title: installation.agent_name,
           isPrimary: true,
+          conversationKind: installation.execution_mode === "system_hosted" ? "personal" : "test",
         });
       }
     }
     if (conversation.status !== "active") throw new Error("Platform conversation is not active");
     return this.ensureParticipants(client, conversation, installation, input.organizationId, input.actorId);
+  }
+
+  private async resolveCustomerConversationInTransaction(
+    client: PoolClient,
+    input: {
+      organizationId: string;
+      installationId: string;
+      channelType: string;
+      channelKey: string;
+      externalIdentity: string;
+      externalConversationId: string;
+      displayName?: string;
+    },
+  ): Promise<PlatformConversation> {
+    const installation = await this.getActiveInstallation(client, input.organizationId, input.installationId);
+    const title = input.displayName?.trim() || `${input.channelType} conversation`;
+    const created = await client.query<ConversationRecord>(
+      `INSERT INTO conversations
+        (installation_id, organization_id, channel_type, channel_key, external_conversation_id,
+         title, conversation_kind, owner_actor_id, is_primary, title_source)
+       VALUES ($1, $2, $3, $4, $5, $6, 'customer', NULL, false, 'fallback')
+       ON CONFLICT (installation_id, channel_type, channel_key, external_conversation_id)
+       WHERE external_conversation_id IS NOT NULL
+       DO UPDATE SET updated_at = conversations.updated_at,
+                     title = CASE
+                       WHEN conversations.title_source = 'fallback' AND $6::text <> '' THEN $6
+                       ELSE conversations.title
+                     END
+       RETURNING *`,
+      [input.installationId, input.organizationId, input.channelType, input.channelKey, input.externalConversationId, title],
+    );
+    const conversation = created.rows[0];
+    if (!conversation) throw new Error("Customer conversation could not be resolved");
+    if (conversation.status !== "active") throw new Error("Customer conversation is not active");
+    const customerParticipant = await this.upsertParticipant(client, {
+      conversationId: conversation.id,
+      organizationId: input.organizationId,
+      participantType: "customer",
+      externalId: `${input.channelType}:${input.externalIdentity}`,
+      displayName: input.displayName,
+    });
+    const agentParticipant = await this.upsertParticipant(client, {
+      conversationId: conversation.id,
+      organizationId: input.organizationId,
+      participantType: "agent",
+      externalId: installation.agent_definition_id,
+      displayName: installation.agent_name,
+    });
+    return { conversation, userParticipant: customerParticipant, agentParticipant };
   }
 
   private async resolveOwnedConversationInTransaction(
@@ -469,11 +729,13 @@ export class PlatformChatRepository {
       organizationId: input.organizationId,
       installationId: input.installationId,
       actorId: input.actorId,
-      externalConversationId: `kasiai:user:${input.actorId}:${randomUUID()}`,
+      channelKey: installation.execution_mode === "system_hosted" ? "kasiai" : "agent",
+      externalConversationId: `platform:user:${input.actorId}:${randomUUID()}`,
       title: input.title ?? "New chat",
       modelProvider: input.modelProvider,
       model: input.model,
       isPrimary: !channelDefault.rows[0],
+      conversationKind: installation.execution_mode === "system_hosted" ? "personal" : "test",
     });
     return this.ensureParticipants(client, conversation, installation, input.organizationId, input.actorId);
   }
@@ -484,20 +746,22 @@ export class PlatformChatRepository {
       organizationId: string;
       installationId: string;
       actorId: string;
+      channelKey: string;
       externalConversationId: string;
       title: string;
       modelProvider?: string;
       model?: string;
       isPrimary: boolean;
+      conversationKind: "personal" | "customer" | "test" | "external";
     },
   ): Promise<ConversationRecord> {
     const created = await client.query<ConversationRecord>(
       `INSERT INTO conversations
         (installation_id, organization_id, channel_type, channel_key, external_conversation_id,
-         title, owner_actor_id, is_primary, model_provider, model, title_source, last_opened_at)
-       VALUES ($1, $2, 'unified', 'kasiai', $3, $4, $5, $8, $6, $7, 'fallback', now())
+        title, conversation_kind, owner_actor_id, is_primary, model_provider, model, title_source, last_opened_at)
+       VALUES ($1, $2, 'unified', $3, $4, $5, $6, $7, $10, $8, $9, 'fallback', now())
        RETURNING *`,
-      [input.installationId, input.organizationId, input.externalConversationId, input.title, input.actorId, input.modelProvider ?? null, input.model ?? null, input.isPrimary],
+      [input.installationId, input.organizationId, input.channelKey, input.externalConversationId, input.title, input.conversationKind, input.actorId, input.modelProvider ?? null, input.model ?? null, input.isPrimary],
     );
     return created.rows[0]!;
   }
@@ -531,7 +795,7 @@ export class PlatformChatRepository {
     installationId: string,
   ): Promise<ActiveInstallation> {
     const installation = await client.query<ActiveInstallation>(
-      `SELECT ai.agent_definition_id, ai.agent_version_id, ad.name AS agent_name
+      `SELECT ai.agent_definition_id, ai.agent_version_id, ai.execution_mode, ad.name AS agent_name
        FROM agent_installations ai
        JOIN agent_definitions ad ON ad.id = ai.agent_definition_id
        WHERE ai.id = $1 AND ai.organization_id = $2 AND ai.status = 'active'`,

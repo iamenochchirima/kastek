@@ -42,17 +42,23 @@ export default async function ConnectionsPage({
         </div>
 
         {params.connected === "meta" && params.instagram_count === "0" ? (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
-            Facebook connected successfully
-            {params.facebook_count ? ` (${params.facebook_count} Page${params.facebook_count === "1" ? "" : "s"})` : ""},
-            but Meta did not return a linked Instagram Professional account. Link the Instagram
-            Business or Creator account to the selected Facebook Page, then reconnect.
+          <div className="flex items-start justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+            <span>
+              Facebook connected successfully
+              {params.facebook_count ? ` (${params.facebook_count} Page${params.facebook_count === "1" ? "" : "s"})` : ""},
+              but Meta did not return a linked Instagram Professional account. Link the Instagram
+              Business or Creator account to the selected Facebook Page, then reconnect.
+            </span>
+            <a href="/connections" className="shrink-0 text-lg leading-none" aria-label="Dismiss message">×</a>
           </div>
         ) : params.connected === "meta" ? (
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
-            Meta connected successfully: {params.facebook_count ?? "0"} Facebook Page
-            {params.facebook_count === "1" ? "" : "s"} and {params.instagram_count ?? "0"} Instagram
-            account{params.instagram_count === "1" ? "" : "s"}.
+          <div className="flex items-start justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
+            <span>
+              Meta connected successfully: {params.facebook_count ?? "0"} Facebook Page
+              {params.facebook_count === "1" ? "" : "s"} and {params.instagram_count ?? "0"} Instagram
+              account{params.instagram_count === "1" ? "" : "s"}.
+            </span>
+            <a href="/connections" className="shrink-0 text-lg leading-none" aria-label="Dismiss message">×</a>
           </div>
         ) : null}
 
@@ -77,8 +83,9 @@ export default async function ConnectionsPage({
         ) : null}
 
         {params.error ? (
-          <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            Connection could not be completed: {params.error}
+          <div className="flex items-start justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <span>Connection could not be completed: {params.error}</span>
+            <a href="/connections" className="shrink-0 text-lg leading-none" aria-label="Dismiss message">×</a>
           </div>
         ) : null}
 

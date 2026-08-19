@@ -17,6 +17,12 @@ export interface ConversationRecord {
   last_read_at: string | null;
   model_provider: string | null;
   model: string | null;
+  conversation_kind: "personal" | "customer" | "test" | "external";
+  assigned_actor_id: string | null;
+  last_message_at: string | null;
+  last_message_direction: string | null;
+  last_message_preview: string | null;
+  message_count: number;
   status: string;
   owner_actor_id: string | null;
   is_primary: boolean;
@@ -24,6 +30,13 @@ export interface ConversationRecord {
   rotated_from_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ConversationProjection extends ConversationRecord {
+  participant_type: ParticipantRecord["participant_type"] | null;
+  participant_external_id: string | null;
+  participant_display_name: string | null;
+  unread_count: number;
 }
 
 export interface MessageRecord {
@@ -67,12 +80,13 @@ export class ConversationRepository {
     channelKey?: string;
     externalConversationId?: string;
     title?: string;
+    conversationKind?: ConversationRecord["conversation_kind"];
   }): Promise<ConversationRecord> {
     const result = await query<ConversationRecord>(
       this.pool,
       `INSERT INTO conversations
-        (installation_id, organization_id, channel_type, channel_key, external_conversation_id, title)
-       SELECT $2, $1, $3, $4, $5, $6
+        (installation_id, organization_id, channel_type, channel_key, external_conversation_id, title, conversation_kind)
+       SELECT $2, $1, $3, $4, $5, $6, $7
        WHERE EXISTS (
          SELECT 1 FROM agent_installations WHERE id = $2 AND organization_id = $1 AND status = 'active'
        )
@@ -87,6 +101,7 @@ export class ConversationRepository {
         input.channelKey ?? "platform",
         input.externalConversationId ?? null,
         input.title ?? null,
+        input.conversationKind ?? "customer",
       ],
     );
     if (!result.rows[0]) throw new Error("Active installation not found");
@@ -128,6 +143,75 @@ export class ConversationRepository {
        ORDER BY pinned DESC, updated_at DESC
        LIMIT $4`,
       [organizationId, installationId, ownerActorId, Math.max(1, Math.min(limit, 200)), search?.trim() || null],
+    );
+    return result.rows;
+  }
+
+  /**
+   * Lists the installation-owned conversation projection. Personal/test
+   * conversations may be restricted to an actor; customer conversations are
+   * installation-scoped and intentionally do not require an owner actor.
+   */
+  public async listInstallationConversationProjections(
+    organizationId: string,
+    installationId: string,
+    input: {
+      kind?: ConversationRecord["conversation_kind"];
+      ownerActorId?: string;
+      status?: "active" | "archived" | "deleted";
+      channelType?: string;
+      search?: string;
+      limit?: number;
+    } = {},
+  ): Promise<ConversationProjection[]> {
+    const limit = Math.max(1, Math.min(input.limit ?? 100, 200));
+    const result = await query<ConversationProjection>(
+      this.pool,
+      `SELECT c.*,
+              participant.participant_type,
+              participant.external_id AS participant_external_id,
+              participant.display_name AS participant_display_name,
+              COALESCE(unread.unread_count, 0)::integer AS unread_count
+       FROM conversations c
+       LEFT JOIN LATERAL (
+         SELECT p.participant_type, p.external_id, p.display_name
+         FROM participants p
+         WHERE p.conversation_id = c.id
+           AND p.organization_id = c.organization_id
+           AND p.participant_type IN ('customer', 'user')
+         ORDER BY CASE WHEN p.participant_type = 'customer' THEN 0 ELSE 1 END, p.created_at
+         LIMIT 1
+       ) participant ON true
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::integer AS unread_count
+         FROM messages m
+         WHERE m.conversation_id = c.id
+           AND m.organization_id = c.organization_id
+           AND m.direction = 'inbound'
+           AND m.occurred_at > COALESCE(c.last_read_at, 'epoch'::timestamptz)
+       ) unread ON true
+       WHERE c.organization_id = $1
+         AND c.installation_id = $2
+         AND ($3::text IS NULL OR c.conversation_kind = $3)
+         AND ($4::text IS NULL OR c.owner_actor_id = $4)
+         AND ($5::text IS NULL OR c.status = $5)
+         AND ($6::text IS NULL OR c.channel_type = $6)
+         AND ($7::text IS NULL OR c.title ILIKE '%' || $7 || '%'
+              OR participant.display_name ILIKE '%' || $7 || '%'
+              OR participant.external_id ILIKE '%' || $7 || '%'
+              OR c.last_message_preview ILIKE '%' || $7 || '%')
+       ORDER BY c.pinned DESC, COALESCE(c.last_message_at, c.updated_at) DESC, c.id DESC
+       LIMIT $8`,
+      [
+        organizationId,
+        installationId,
+        input.kind ?? null,
+        input.ownerActorId ?? null,
+        input.status ?? "active",
+        input.channelType ?? null,
+        input.search?.trim() || null,
+        limit,
+      ],
     );
     return result.rows;
   }
@@ -241,6 +325,22 @@ export class ConversationRepository {
     );
   }
 
+  /**
+   * Marks an installation-owned transcript as read by the current operator.
+   * Customer conversations are installation-scoped rather than owned by the
+   * actor who happens to open them, so they use this separate projection
+   * update instead of the personal-chat owner guard above.
+   */
+  public async markInstallationOpened(organizationId: string, conversationId: string): Promise<void> {
+    await query(
+      this.pool,
+      `UPDATE conversations SET last_opened_at = now(), last_read_at = now()
+       WHERE organization_id = $1 AND id = $2 AND status = 'active'
+         AND conversation_kind IN ('customer', 'test')`,
+      [organizationId, conversationId],
+    );
+  }
+
   public async setGeneratedTitle(input: {
     organizationId: string;
     conversationId: string;
@@ -343,7 +443,16 @@ export class ConversationRepository {
           input.deliveryStatus ?? (input.sourceChannel === "platform" || !input.sourceChannel ? "local" : null),
         ],
       );
-      await client.query("UPDATE conversations SET updated_at = now() WHERE id = $1", [input.conversationId]);
+      await client.query(
+        `UPDATE conversations
+         SET updated_at = now(),
+             last_message_at = COALESCE($2::timestamptz, now()),
+             last_message_direction = $3,
+             last_message_preview = LEFT(COALESCE($4, $5), 500),
+             message_count = message_count + 1
+         WHERE id = $1`,
+        [input.conversationId, input.occurredAt ?? null, input.direction, typeof input.content.text === "string" ? input.content.text : null, input.messageType ?? "text"],
+      );
       return created.rows[0]!;
     });
   }

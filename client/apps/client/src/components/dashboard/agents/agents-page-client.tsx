@@ -3,7 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Bot, Check, ChevronRight, Info, Plus, Sparkles } from "lucide-react";
+import { Bot, ChevronRight, Info, MessageSquare, Plus, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -19,7 +19,7 @@ type SelectableTemplate = {
 };
 
 function statusClass(status: string) {
-  if (status === "active") return "border-accent/30 bg-accent/10 text-accent";
+  if (status === "active") return "border-status-success/30 bg-status-success-soft text-status-success";
   if (status === "paused") return "border-status-attention/30 bg-status-attention-soft text-status-attention";
   return "border-border bg-secondary text-muted-foreground";
 }
@@ -33,7 +33,7 @@ function modeLabel(agent: AgentDefinition): string {
 
 function modeClass(agent: AgentDefinition): string {
   return agent.execution_mode === "external_connected"
-    ? "border-accent/20 bg-accent/10 text-accent"
+    ? "border-status-info/30 bg-status-info-soft text-status-info"
     : agent.protected
       ? "border-primary/20 bg-primary/10 text-primary"
       : "border-border bg-secondary text-muted-foreground";
@@ -69,7 +69,7 @@ export function AgentsPageClient({
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Automation</p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">Agents</h1>
           </div>
-          <div className="flex flex-wrap gap-2"><Button asChild type="button" variant="outline"><Link href="/developers/api-keys">Developer API keys</Link></Button><Button asChild type="button"><Link href="/agents/new/general">Create general-purpose agent</Link></Button><Button asChild type="button" variant="outline"><Link href="/agents/new">Build custom agent</Link></Button><Button type="button" variant="outline" className="gap-2" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" />Browse custom templates</Button></div>
+          <div className="flex flex-wrap gap-2"><Button asChild type="button"><Link href="/agents/new/general">Create general-purpose agent</Link></Button><Button asChild type="button" variant="outline"><Link href="/agents/new">Build custom agent</Link></Button><Button type="button" variant="outline" className="gap-2" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" />Browse custom templates</Button></div>
         </header>
 
         {initialOperations ? <OperationsSummary summary={initialOperations} /> : null}
@@ -150,8 +150,9 @@ function AgentCard({ agent, onChanged }: { agent: AgentDefinition; onChanged: ()
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild type="button" variant="outline" size="sm"><Link href={`/agents/${encodeURIComponent(agent.id)}`}>Open details</Link></Button>
+          {!isKasiAi && agent.execution_mode !== "external_connected" ? <Button asChild type="button" size="sm"><Link href={`/agents/${encodeURIComponent(agent.id)}?section=activity`}><MessageSquare className="mr-1.5 h-3.5 w-3.5" />Chat</Link></Button> : null}
           {isKasiAi ? (
-            <span className="inline-flex items-center gap-1.5 text-xs text-accent"><Check className="h-3.5 w-3.5" />Available from the sidebar</span>
+            <Button asChild type="button" size="sm"><Link href={`/agents/${encodeURIComponent(agent.id)}?section=activity`}><MessageSquare className="mr-1.5 h-3.5 w-3.5" />Chat</Link></Button>
           ) : (
             <Button type="button" variant="outline" size="sm" disabled={!agent.installation_id || updating} onClick={() => void toggleStatus()}>
               {updating ? "Updating…" : installationStatus === "active" ? "Pause agent" : "Resume agent"}
@@ -189,7 +190,7 @@ function TemplateDialog({ templates, onClose, initialTemplateKey }: { templates:
               onClick={() => { setSelected(template.value); setStep("configure"); }}
               className={`rounded-xl border p-4 text-left transition-colors ${selected === template.value ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-secondary/40"} ${!template.available ? "cursor-not-allowed opacity-60" : ""}`}
             >
-              <div className="flex items-center justify-between gap-2"><span className="font-medium text-foreground">{template.label}</span><Badge className={template.available ? "border-accent/20 bg-accent/10 text-accent" : "border-border bg-secondary text-muted-foreground"}>{template.available ? "Available" : "Coming soon"}</Badge></div>
+              <div className="flex items-center justify-between gap-2"><span className="font-medium text-foreground">{template.label}</span><Badge className={template.available ? "border-status-success/30 bg-status-success-soft text-status-success" : "border-border bg-secondary text-muted-foreground"}>{template.available ? "Available" : "Coming soon"}</Badge></div>
               <p className="mt-2 text-sm leading-5 text-muted-foreground">{template.description}</p>
             </button>
           ))}

@@ -3,7 +3,7 @@ use serde::Serialize;
 use serde_json::Value;
 use sha2::Digest;
 use sqlx::{FromRow, PgPool};
-use std::collections::HashMap;
+use std::{collections::HashMap, env};
 
 use crate::error::AppError;
 use crate::services::billing_provider::{
@@ -1628,6 +1628,7 @@ pub async fn reconcile_billing(
 }
 
 pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingSummary, AppError> {
+    let billing_enforced = billing_enforcement_enabled();
     let products = sqlx::query_as::<_, ProductRow>(
         r#"
         SELECT key, name, description
@@ -1670,7 +1671,7 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
             key: definition.key.to_string(),
             name: definition.name.to_string(),
             description: definition.description.to_string(),
-            enabled: entitlement_allows_capability(&entitlements, definition),
+            enabled: !billing_enforced || entitlement_allows_capability(&entitlements, definition),
         })
         .collect();
 
@@ -1737,10 +1738,14 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
                 name: definition.name.to_string(),
                 description: definition.description.to_string(),
                 used: usage_by_meter.remove(definition.key).unwrap_or_default(),
-                limit: entitlements
-                    .get(&current_key)
-                    .and_then(Value::as_i64)
-                    .or(legacy_limit),
+                limit: if billing_enforced {
+                    entitlements
+                        .get(&current_key)
+                        .and_then(Value::as_i64)
+                        .or(legacy_limit)
+                } else {
+                    None
+                },
             }
         })
         .collect();
@@ -1762,7 +1767,8 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
                         .and_then(|metric| value.as_i64().map(|limit| (metric.to_string(), limit)))
                 })
                 .collect();
-            let has_access = grant_allows_access
+            let has_access = !billing_enforced
+                || grant_allows_access
                 || subscription
                     .as_ref()
                     .is_some_and(|item| subscription_grants_access(&item.status));
@@ -1906,6 +1912,24 @@ fn entitlement_allows_capability(
         .unwrap_or(false)
 }
 
+/// Commercial feature and meter enforcement is intentionally disabled during the
+/// controlled Agent Platform testing phase. Usage is still recorded, while auth,
+/// organization isolation, runtime limits, approvals, and provider safety checks
+/// remain enforced elsewhere.
+fn billing_enforcement_enabled() -> bool {
+    env::var("KASITEK_BILLING_ENFORCEMENT")
+        .ok()
+        .as_deref()
+        .is_some_and(parse_enabled_flag)
+}
+
+fn parse_enabled_flag(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "on"
+    )
+}
+
 fn capability_definition(capability_key: &str) -> Option<&'static CapabilityDefinition> {
     CAPABILITY_DEFINITIONS
         .iter()
@@ -1970,6 +1994,9 @@ pub async fn require_capability(
 ) -> Result<(), AppError> {
     let definition = capability_definition(capability_key)
         .ok_or_else(|| AppError::Internal(format!("Unknown capability: {capability_key}")))?;
+    if !billing_enforcement_enabled() {
+        return Ok(());
+    }
     if capability_is_enabled(pool, org_id, definition).await? {
         return Ok(());
     }
@@ -2008,6 +2035,9 @@ pub async fn meter_limit(
     org_id: &str,
     meter_key: &str,
 ) -> Result<Option<i64>, AppError> {
+    if !billing_enforcement_enabled() {
+        return Ok(None);
+    }
     let current_key = format!("limit.{meter_key}");
     let legacy_key = legacy_meter(meter_key)
         .map(|(product, metric)| format!("limit.{product}.{metric}"))
@@ -2151,6 +2181,16 @@ mod tests {
             Value::Bool(false),
         );
         assert!(!entitlement_allows_capability(&entitlements, definition));
+    }
+
+    #[test]
+    fn billing_enforcement_only_turns_on_for_explicit_truthy_values() {
+        assert!(parse_enabled_flag("true"));
+        assert!(parse_enabled_flag(" ON "));
+        assert!(parse_enabled_flag("1"));
+        assert!(!parse_enabled_flag("false"));
+        assert!(!parse_enabled_flag("off"));
+        assert!(!parse_enabled_flag(""));
     }
 
     #[test]

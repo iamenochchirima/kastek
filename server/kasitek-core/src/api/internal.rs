@@ -102,6 +102,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         web::scope("/api/agents")
             .route("", web::get().to(agent_platform::list_agents))
             .route("", web::post().to(agent_platform::create_agent))
+            .route("/{agentId}", web::patch().to(agent_platform::update_agent))
             .route(
                 "/external-agents",
                 web::post().to(agent_platform::create_external_agent),
@@ -250,6 +251,18 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             )
             .route(
                 "/knowledge/sources/{sourceId}",
+                web::get().to(agent_platform::get_knowledge_source),
+            )
+            .route(
+                "/knowledge/sources/{sourceId}/ingest-text",
+                web::post().to(agent_platform::ingest_knowledge_source_text),
+            )
+            .route(
+                "/knowledge/sources/{sourceId}/ingest-file",
+                web::post().to(agent_platform::ingest_knowledge_source_file),
+            )
+            .route(
+                "/knowledge/sources/{sourceId}",
                 web::delete().to(agent_platform::delete_knowledge_source),
             )
             .route("/memory", web::get().to(agent_platform::list_memory))
@@ -342,6 +355,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::post().to(agent_platform::issue_channel_pairing),
             )
             .route(
+                "/installations/{installationId}/channels/{connectionId}",
+                web::delete().to(agent_platform::revoke_channel_connection),
+            )
+            .route(
                 "/kasiai/channels/whatsapp/pairing",
                 web::post().to(agent_platform::issue_kasiai_whatsapp_pairing),
             )
@@ -365,6 +382,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route(
                 "/runs/{runId}/cancel",
                 web::post().to(agent_platform::cancel_run),
+            )
+            .route(
+                "/runs/{runId}/retry",
+                web::post().to(agent_platform::retry_run),
             )
             .route(
                 "/runs/{runId}/external-event",

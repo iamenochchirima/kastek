@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::config::AppConfig;
 use crate::db::models::SocialChannel;
 use crate::error::AppError;
-use crate::services::{billing, bluesky_oauth, connections, content_media};
+use crate::services::{billing, bluesky_oauth, connections, content_media, social_posts};
 
 const X_TOKEN_URL: &str = "https://api.x.com/2/oauth2/token";
 const X_ME_URL: &str =
@@ -140,6 +140,24 @@ pub struct PublishExecutionResult {
     pub status: String,
     #[serde(rename = "externalPostId")]
     pub external_post_id: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SocialPostProviderDeletionResult {
+    pub platform: String,
+    #[serde(rename = "externalPostId")]
+    pub external_post_id: Option<String>,
+    pub status: String,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SocialPostDeletionResult {
+    pub success: bool,
+    #[serde(rename = "localDeleted")]
+    pub local_deleted: bool,
+    #[serde(rename = "providerResults")]
+    pub provider_results: Vec<SocialPostProviderDeletionResult>,
 }
 
 #[allow(dead_code)]
@@ -1788,10 +1806,276 @@ async fn resolve_connected_channel_for_platform(
 }
 
 pub(crate) use super::social_publishing::{
-    publish_post_to_facebook, publish_post_to_instagram, publish_post_to_linkedin,
-    publish_post_to_threads, publish_post_to_tiktok, publish_post_to_x, refresh_threads_token,
-    refresh_tiktok_token, save_rotated_tokens,
+    delete_post_from_provider, publish_post_to_facebook, publish_post_to_instagram,
+    publish_post_to_linkedin, publish_post_to_threads, publish_post_to_tiktok, publish_post_to_x,
+    refresh_threads_token, refresh_tiktok_token, save_rotated_tokens,
 };
+
+async fn resolve_channel_for_post_deletion(
+    pool: &PgPool,
+    org_id: &str,
+    platform: &str,
+    channel_connection_id: &str,
+) -> Result<SocialChannelPrivate, AppError> {
+    sqlx::query_as::<_, SocialChannelPrivate>(
+        r#"
+        SELECT id, "userId" AS user_id, platform::text AS platform, status::text AS status,
+               "displayName" AS display_name, handle, "externalAccountId" AS external_account_id,
+               "accessToken" AS access_token, "refreshToken" AS refresh_token,
+               metadata, "lastSyncedAt" AT TIME ZONE 'UTC' AS last_synced_at,
+               "createdAt" AT TIME ZONE 'UTC' AS created_at,
+               "updatedAt" AT TIME ZONE 'UTC' AS updated_at
+        FROM "SocialChannelConnection"
+        WHERE id = $1 AND "orgId" = $2 AND platform = $3::"SocialPlatform"
+          AND status = 'CONNECTED'::"SocialChannelStatus"
+        LIMIT 1
+        "#,
+    )
+    .bind(channel_connection_id)
+    .bind(org_id)
+    .bind(platform)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| {
+        AppError::BadRequest(format!(
+            "Reconnect the {} account before deleting its post",
+            platform.to_lowercase()
+        ))
+    })
+}
+
+async fn save_bluesky_deletion_nonce(
+    pool: &PgPool,
+    channel_id: &str,
+    authorization_nonce: Option<&str>,
+    resource_nonce: Option<&str>,
+) -> Result<(), AppError> {
+    let mut metadata = serde_json::Map::new();
+    if let Some(value) = authorization_nonce {
+        metadata.insert(
+            "dpopAuthorizationNonce".to_string(),
+            Value::String(value.to_string()),
+        );
+    }
+    if let Some(value) = resource_nonce {
+        metadata.insert(
+            "dpopResourceNonce".to_string(),
+            Value::String(value.to_string()),
+        );
+    }
+    if metadata.is_empty() {
+        return Ok(());
+    }
+    sqlx::query(
+        r#"UPDATE "SocialChannelConnection"
+           SET metadata = COALESCE(metadata, '{}'::jsonb) || $1, "updatedAt" = NOW()
+           WHERE id = $2"#,
+    )
+    .bind(Value::Object(metadata))
+    .bind(channel_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+async fn delete_bluesky_post(
+    pool: &PgPool,
+    config: &AppConfig,
+    channel: &SocialChannelPrivate,
+    external_post_id: &str,
+) -> Result<(), AppError> {
+    let metadata = channel.metadata.as_ref().ok_or_else(|| {
+        AppError::BadRequest("Reconnect Bluesky using OAuth before deleting posts".to_string())
+    })?;
+    let pds = metadata
+        .get("pds")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::BadRequest("Bluesky connection is missing its PDS".to_string()))?;
+    let did = channel
+        .external_account_id
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Bluesky connection is missing its DID".to_string()))?;
+    let dpop_private_key = decrypt_social_secret(
+        metadata
+            .get("dpopPrivateKey")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                AppError::BadRequest("Bluesky connection is missing its DPoP key".to_string())
+            })?,
+    )?;
+    let access_token =
+        decrypt_social_secret(channel.access_token.as_deref().ok_or_else(|| {
+            AppError::BadRequest("Reconnect Bluesky before deleting posts".to_string())
+        })?)?;
+    let resource_nonce = metadata.get("dpopResourceNonce").and_then(Value::as_str);
+
+    match bluesky_oauth::delete_post(
+        pds,
+        did,
+        external_post_id,
+        &access_token,
+        &dpop_private_key,
+        resource_nonce,
+    )
+    .await
+    {
+        Ok(resource_nonce) => {
+            save_bluesky_deletion_nonce(pool, &channel.id, None, resource_nonce.as_deref()).await
+        }
+        Err(first_error) => {
+            let Some(refresh_token) = channel.refresh_token.as_deref() else {
+                return Err(first_error);
+            };
+            let authorization_server = metadata
+                .get("authorizationServer")
+                .and_then(Value::as_str)
+                .ok_or_else(|| {
+                    AppError::BadRequest(
+                        "Bluesky connection is missing its authorization server".to_string(),
+                    )
+                })?;
+            let refresh_token = decrypt_social_secret(refresh_token)?;
+            let session = bluesky_oauth::refresh(
+                config,
+                &refresh_token,
+                authorization_server,
+                &dpop_private_key,
+                metadata
+                    .get("dpopAuthorizationNonce")
+                    .and_then(Value::as_str),
+            )
+            .await
+            .map_err(|refresh_error| {
+                AppError::BadRequest(format!(
+                    "Bluesky deletion failed: {}; token refresh failed: {}",
+                    first_error, refresh_error
+                ))
+            })?;
+            save_rotated_tokens(
+                pool,
+                &channel.id,
+                &session.access_token,
+                Some(&session.refresh_token),
+                session.expires_in,
+            )
+            .await?;
+            let resource_nonce = bluesky_oauth::delete_post(
+                pds,
+                did,
+                external_post_id,
+                &session.access_token,
+                &dpop_private_key,
+                resource_nonce,
+            )
+            .await?;
+            save_bluesky_deletion_nonce(
+                pool,
+                &channel.id,
+                session.authorization_nonce.as_deref(),
+                resource_nonce.as_deref(),
+            )
+            .await
+        }
+    }
+}
+
+pub async fn delete_social_post_from_platforms(
+    pool: &PgPool,
+    config: &AppConfig,
+    org_id: &str,
+    post_id: &str,
+) -> Result<SocialPostDeletionResult, AppError> {
+    let post = social_posts::get_social_post(pool, org_id, post_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
+    let mut provider_results = Vec::new();
+
+    for job in post
+        .publish_jobs
+        .iter()
+        .filter(|job| job.status == "PUBLISHED")
+    {
+        let external_post_id = job.external_post_id.clone();
+        let mut result = SocialPostProviderDeletionResult {
+            platform: job.platform.clone(),
+            external_post_id: external_post_id.clone(),
+            status: "FAILED".to_string(),
+            message: None,
+        };
+
+        let Some(external_post_id) = external_post_id else {
+            result.message =
+                Some("No provider post ID was saved for this published job".to_string());
+            provider_results.push(result);
+            continue;
+        };
+        let Some(channel_connection_id) = job.channel_connection_id.as_deref() else {
+            result.message = Some("The published job has no channel connection".to_string());
+            provider_results.push(result);
+            continue;
+        };
+
+        let deletion_result = async {
+            let channel = resolve_channel_for_post_deletion(
+                pool,
+                org_id,
+                &job.platform,
+                channel_connection_id,
+            )
+            .await?;
+            if job.platform == "BLUESKY" {
+                delete_bluesky_post(pool, config, &channel, &external_post_id).await
+            } else {
+                let access_token = channel.access_token.as_deref().ok_or_else(|| {
+                    AppError::BadRequest(format!(
+                        "Reconnect the {} account before deleting its post",
+                        job.platform.to_lowercase()
+                    ))
+                })?;
+                delete_post_from_provider(
+                    &job.platform,
+                    access_token,
+                    &channel.external_account_id,
+                    &channel.metadata,
+                    &external_post_id,
+                )
+                .await
+            }
+        }
+        .await;
+
+        match deletion_result {
+            Ok(()) => {
+                result.status = "DELETED".to_string();
+            }
+            Err(error) => {
+                result.message = Some(error.to_string());
+            }
+        }
+        provider_results.push(result);
+    }
+
+    let all_provider_deletes_succeeded = provider_results
+        .iter()
+        .all(|result| result.status == "DELETED");
+    if !all_provider_deletes_succeeded {
+        return Ok(SocialPostDeletionResult {
+            success: false,
+            local_deleted: false,
+            provider_results,
+        });
+    }
+
+    let local_deleted = social_posts::delete_social_post(pool, org_id, post_id).await?;
+    if !local_deleted {
+        return Err(AppError::NotFound("Post not found".to_string()));
+    }
+    Ok(SocialPostDeletionResult {
+        success: true,
+        local_deleted: true,
+        provider_results,
+    })
+}
 pub async fn get_tiktok_creator_info(
     pool: &PgPool,
     org_id: &str,

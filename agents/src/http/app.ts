@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
+import multipart from "@fastify/multipart";
 import { z, ZodError } from "zod";
 import type { Pool } from "pg";
 import type { AppConfig } from "../config";
@@ -8,6 +9,7 @@ import {
   createInstallationCredentialInputSchema,
   createInstallationInputSchema,
   createVersionInputSchema,
+  updateAgentInputSchema,
   startRunInputSchema,
 } from "../domain/types";
 import { requireExternalConnected, requireHostedInstallation, requireKasiAiInstallation } from "../domain/execution-mode";
@@ -26,6 +28,7 @@ import { InstallationGrantRepository } from "../db/repositories/installation-gra
 import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
 import { MemoryRepository } from "../db/repositories/memory-repository";
 import { chunkKnowledgeText, fetchBoundedKnowledgeDocument } from "../knowledge/ingestion";
+import { extractKnowledgeFile, MAX_KNOWLEDGE_FILE_BYTES } from "../knowledge/file-ingestion";
 import { EvaluationRepository } from "../db/repositories/evaluation-repository";
 import { evaluateDeterministicAssertions, evaluationAssertionSchema } from "../evaluations/deterministic";
 import { AuditRepository } from "../db/repositories/audit-repository";
@@ -345,6 +348,13 @@ function publicMcpTask(run: { id: string; status: string; updated_at?: string | 
 
 export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const app = Fastify({ logger: { level: dependencies.config.LOG_LEVEL } });
+  app.register(multipart, {
+    limits: {
+      files: 1,
+      fields: 0,
+      fileSize: MAX_KNOWLEDGE_FILE_BYTES,
+    },
+  });
   const agents = dependencies.agents ?? new AgentRepository(dependencies.pool);
   const runs = dependencies.runs ?? new RunRepository(dependencies.pool);
   const conversations = dependencies.conversations ?? new ConversationRepository(dependencies.pool);
@@ -1094,6 +1104,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           argumentsValue: args,
           toolCallId,
           idempotencyKey: idempotencyKey ?? `mcp:${auth.credentialId}:${randomUUID()}`,
+          transport: "mcp",
         });
         const { accepted, manifest } = invocation;
         const immediate = "immediate" in invocation && invocation.immediate === true;
@@ -1169,6 +1180,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         argumentsValue: input.arguments,
         toolCallId: input.toolCallId ?? `api:${randomUUID()}`,
         idempotencyKey: `api:${auth.credentialId}:${input.idempotencyKey}`,
+        transport: "rest",
       });
       const { accepted } = invocation;
       return reply.code(202).send({
@@ -1223,6 +1235,25 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return { installationId: installation.id, runs: await runs.listInstallationRuns(auth.organizationId, installation.id, limit) };
   });
 
+  app.get<{ Params: { installationId: string }; Querystring: { limit?: string } }>("/v1/installations/:installationId/operations", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    try {
+      requireExternalConnected(installation);
+    } catch {
+      return reply.code(404).send({ error: "external_agent_not_found" });
+    }
+    const limit = request.query.limit === undefined ? 50 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) return reply.code(400).send({ error: "invalid_limit" });
+    const [operations, summary] = await Promise.all([
+      runs.listInstallationOperations(auth.organizationId, installation.id, limit),
+      runs.installationOperationSummary(auth.organizationId, installation.id),
+    ]);
+    return { installationId: installation.id, operations, summary };
+  });
+
   app.get<{ Params: { installationId: string; runId: string } }>("/v1/installations/:installationId/operations/:runId", async (request, reply) => {
     const auth = await authenticatePublicApiRequest({ request, config: dependencies.config, installationCredentials, agents });
     await requireRestFeature(controls, auth);
@@ -1272,6 +1303,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const input = createAgentInputSchema.parse(request.body);
     const agent = await agents.createAgent(auth.organizationId, auth.actorId, input);
     return reply.code(201).send(agent);
+  });
+
+  app.patch<{ Params: { agentId: string } }>("/v1/agents/:agentId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const input = updateAgentInputSchema.parse(request.body);
+    return reply.send(await agents.updateAgent(auth.organizationId, auth.actorId, request.params.agentId, input));
   });
 
   app.post("/v1/external-agents", async (request, reply) => {
@@ -1883,6 +1921,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       requireScope(auth, dependencies.config, "channels:ingest");
       const input = z.object({
         channelType: z.string().trim().min(1).max(80),
+        channelKey: z.string().trim().min(1).max(160).optional(),
         provider: z.string().trim().min(1).max(80),
         providerEventId: z.string().trim().min(1).max(240),
         providerMessageId: z.string().trim().min(1).max(240),
@@ -1928,7 +1967,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     },
   );
 
-  app.get<{ Params: { installationId: string }; Querystring: { search?: string } }>(
+  app.get<{ Params: { installationId: string }; Querystring: { search?: string; kind?: string; status?: string; channelType?: string } }>(
     "/v1/installations/:installationId/conversations",
     async (request) => {
       const auth = requireAuth(request, dependencies.config);
@@ -1936,13 +1975,24 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
       if (!installation) throw Object.assign(new Error("Installation not found"), { statusCode: 404 });
       requireHostedInstallation(installation);
+      const kind = request.query.kind
+        ? z.enum(["customer", "test"]).parse(request.query.kind)
+        : "customer" as const;
+      const status = request.query.status
+        ? z.enum(["active", "archived", "deleted"]).parse(request.query.status)
+        : "active" as const;
       return {
-        conversations: await conversations.listOwnerConversations(
+        mode: installation.execution_mode,
+        conversations: await conversations.listInstallationConversationProjections(
           auth.organizationId,
           request.params.installationId,
-          auth.actorId,
-          200,
-          request.query.search,
+          {
+            kind,
+            status,
+            channelType: request.query.channelType,
+            search: request.query.search,
+            limit: 200,
+          },
         ),
       };
     },
@@ -2090,6 +2140,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       requireHostedInstallation(installation);
       const input = z.object({
         channelType: z.string().trim().min(1).max(80),
+        channelKey: z.string().trim().min(1).max(160).optional(),
         provider: z.string().trim().min(1).max(80),
         providerEventId: z.string().trim().min(1).max(240),
         providerMessageId: z.string().trim().min(1).max(240),
@@ -2203,6 +2254,20 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return reply.code(201).send(pairing);
   });
 
+  app.delete<{ Params: { installationId: string; connectionId: string } }>("/v1/installations/:installationId/channels/:connectionId", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "channels:write");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) throw Object.assign(new Error("Installation not found"), { statusCode: 404 });
+    requireHostedInstallation(installation);
+    await channels.revokeConnection({
+      organizationId: auth.organizationId,
+      installationId: request.params.installationId,
+      connectionId: request.params.connectionId,
+    });
+    return { disconnected: true };
+  });
+
   app.post("/v1/channel-pairing/consume", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "channels:ingest");
@@ -2292,12 +2357,26 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     async (request, reply) => {
       const auth = requireAuth(request, dependencies.config);
       requireScope(auth, dependencies.config, "chat:read");
-      const conversation = await conversations.getOwnedConversation(auth.organizationId, request.params.conversationId, auth.actorId);
+      const conversation = typeof conversations.getConversation === "function"
+        ? await conversations.getConversation(auth.organizationId, request.params.conversationId)
+        : await conversations.getOwnedConversation(auth.organizationId, request.params.conversationId, auth.actorId);
       if (!conversation) return reply.code(404).send({ error: "conversation_not_found" });
       const installation = await agents.getInstallation(auth.organizationId, conversation.installation_id);
       if (!installation) return reply.code(404).send({ error: "installation_not_found" });
       requireHostedInstallation(installation);
-      await conversations.markOpened(auth.organizationId, conversation.id, auth.actorId);
+      if (installation.execution_mode === "kasitek_hosted") {
+        if (conversation.conversation_kind && !["customer", "test"].includes(conversation.conversation_kind)) {
+          return reply.code(404).send({ error: "conversation_not_found" });
+        }
+        if (typeof conversations.markInstallationOpened === "function") {
+          await conversations.markInstallationOpened(auth.organizationId, conversation.id);
+        } else {
+          await conversations.markOpened(auth.organizationId, conversation.id, auth.actorId);
+        }
+      } else {
+        if (conversation.owner_actor_id !== auth.actorId) return reply.code(404).send({ error: "conversation_not_found" });
+        await conversations.markOpened(auth.organizationId, conversation.id, auth.actorId);
+      }
       const limit = request.query.limit === undefined ? undefined : Number(request.query.limit);
       if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 200)) return reply.code(400).send({ error: "invalid_message_limit" });
       const messages = conversations.listMessagesPage
@@ -2616,6 +2695,86 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       chunks: chunks.map((text, index) => ({ text, metadata: { contentType: document.contentType, bytes: document.bytes }, provenance: { url: document.url, fetchedAt: new Date().toISOString(), chunkIndex: index } })),
     });
     return reply.code(201).send({ sourceId: source.id, revision: source.revision + 1, chunks: stored });
+  });
+
+  app.get<{ Params: { sourceId: string } }>("/v1/knowledge/sources/:sourceId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const document = await knowledge.getSourceDocument({ organizationId: auth.organizationId }, request.params.sourceId);
+    if (!document) return reply.code(404).send({ error: "knowledge_source_not_found" });
+    await requireHostedResourceScope(agents, auth.organizationId, {
+      agentId: document.source.agent_definition_id ?? undefined,
+      installationId: document.source.installation_id ?? undefined,
+    });
+    return document;
+  });
+
+  app.post<{ Params: { sourceId: string } }>("/v1/knowledge/sources/:sourceId/ingest-text", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const input = z.object({
+      text: z.string().trim().min(1).max(200_000),
+      contentType: z.enum(["text/plain", "text/markdown"]).default("text/markdown"),
+    }).parse(request.body);
+    const source = await knowledge.getSource({ organizationId: auth.organizationId }, request.params.sourceId);
+    if (!source) return reply.code(404).send({ error: "knowledge_source_not_found" });
+    if (source.source_type !== "manual") return reply.code(422).send({ error: "knowledge_source_manual_required" });
+    if (!source.agent_definition_id) return reply.code(422).send({ error: "knowledge_source_agent_scope_required" });
+    await requireHostedResourceScope(agents, auth.organizationId, { installationId: source.installation_id ?? undefined, agentId: source.agent_definition_id });
+    const chunks = chunkKnowledgeText(input.text);
+    if (!chunks.length) return reply.code(422).send({ error: "knowledge_text_empty" });
+    const stored = await knowledge.addChunks({
+      sourceId: source.id,
+      scope: { organizationId: auth.organizationId, agentId: source.agent_definition_id, installationId: source.installation_id ?? undefined },
+      revision: source.revision + 1,
+      chunks: chunks.map((text, index) => ({
+        text,
+        metadata: { contentType: input.contentType, characters: text.length },
+        provenance: { sourceType: "manual", addedAt: new Date().toISOString(), chunkIndex: index },
+      })),
+    });
+    return reply.code(201).send({ sourceId: source.id, revision: source.revision + 1, chunks: stored });
+  });
+
+  app.post<{ Params: { sourceId: string } }>("/v1/knowledge/sources/:sourceId/ingest-file", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const source = await knowledge.getSource({ organizationId: auth.organizationId }, request.params.sourceId);
+    if (!source) return reply.code(404).send({ error: "knowledge_source_not_found" });
+    if (source.source_type !== "upload") return reply.code(422).send({ error: "knowledge_source_upload_required" });
+    if (!source.agent_definition_id) return reply.code(422).send({ error: "knowledge_source_agent_scope_required" });
+    await requireHostedResourceScope(agents, auth.organizationId, { installationId: source.installation_id ?? undefined, agentId: source.agent_definition_id });
+
+    const part = await request.file();
+    if (!part) return reply.code(400).send({ error: "knowledge_file_required" });
+    let bytes: Buffer;
+    try {
+      bytes = await part.toBuffer();
+    } catch (error) {
+      if ((error as { code?: string }).code === "FST_REQ_FILE_TOO_LARGE") {
+        return reply.code(413).send({ error: "knowledge_file_too_large" });
+      }
+      throw error;
+    }
+    let extracted;
+    try {
+      extracted = await extractKnowledgeFile({ filename: part.filename, contentType: part.mimetype, bytes });
+    } catch (error) {
+      return reply.code(422).send({ error: error instanceof Error ? error.message : "knowledge_file_unreadable" });
+    }
+    const chunks = chunkKnowledgeText(extracted.text);
+    if (!chunks.length) return reply.code(422).send({ error: "knowledge_file_empty" });
+    const stored = await knowledge.addChunks({
+      sourceId: source.id,
+      scope: { organizationId: auth.organizationId, agentId: source.agent_definition_id, installationId: source.installation_id ?? undefined },
+      revision: source.revision + 1,
+      chunks: chunks.map((text, index) => ({
+        text,
+        metadata: { ...extracted.metadata, contentType: extracted.contentType, format: extracted.format, bytes: extracted.bytes, characters: text.length },
+        provenance: { sourceType: "upload", filename: extracted.filename, addedAt: new Date().toISOString(), chunkIndex: index },
+      })),
+    });
+    return reply.code(201).send({ sourceId: source.id, revision: source.revision + 1, filename: extracted.filename, format: extracted.format, bytes: extracted.bytes, chunks: stored });
   });
 
   app.get<{ Querystring: { agentId?: string; installationId?: string; limit?: string } }>("/v1/memory", async (request) => {

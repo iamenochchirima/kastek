@@ -9,9 +9,10 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "dev:api": "tsx watch src/http/server.ts",
+    "dev:api": "pnpm run migrate && tsx watch src/http/server.ts",
     "dev:gateway": "tsx watch src/gateway/server.ts",
     "dev:stdio": "tsx src/gateway/stdio.ts",
+    "build:mcp": "tsc -p packages/mcp/tsconfig.json",
     "dev:worker": "tsx watch src/temporal/worker.ts",
     "start:api": "node dist/http/server.js",
     "start:gateway": "node dist/gateway/server.js",
@@ -26,14 +27,18 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "ajv": "^8.17.1",
+    "@fastify/multipart": "10.1.1",
     "@temporalio/activity": "^1.13.0",
     "@temporalio/client": "^1.13.0",
     "@temporalio/worker": "^1.13.0",
     "@temporalio/workflow": "^1.13.0",
+    "ajv": "^8.17.1",
     "fastify": "^5.4.0",
+    "mammoth": "1.12.1",
+    "pdf-parse": "2.4.5",
     "pg": "^8.16.0",
     "pino": "^9.7.0",
+    "xlsx": "0.18.5",
     "zod": "^4.0.0"
   },
   "devDependencies": {

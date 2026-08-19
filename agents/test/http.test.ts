@@ -927,6 +927,21 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("updates an organization agent identity through the scoped control-plane contract", async () => {
+    const updateAgent = vi.fn(async (_organizationId: string, _actorId: string, _agentId: string, input: Record<string, unknown>) => ({ id: "agent-1", name: input.name, slug: input.slug, description: input.description, protected: false }));
+    const app = buildApp({ config, pool: fakePool, agents: { updateAgent } as unknown as AgentRepository });
+    const response = await app.inject({
+      method: "PATCH",
+      url: "/v1/agents/agent-1",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { name: "Support Assistant", slug: "support-assistant", description: "Answers support questions" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ id: "agent-1", name: "Support Assistant", slug: "support-assistant" });
+    expect(updateAgent).toHaveBeenCalledWith("org-1", "user-1", "agent-1", { name: "Support Assistant", slug: "support-assistant", description: "Answers support questions" });
+    await app.close();
+  });
+
   it("defaults an organization installation scope to the authenticated organization", async () => {
     const createInstallation = vi.fn(async (_organizationId: string, _actorId: string, input: Record<string, unknown>) => ({ id: "installation-1", ...input }));
     const app = buildApp({ config, pool: fakePool, agents: { createInstallation } as unknown as AgentRepository });
@@ -1205,6 +1220,84 @@ describe("Agent Platform HTTP foundation", () => {
     const archived = await app.inject({ method: "DELETE", url: `/v1/external-agents/${installationId}`, headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
     expect(archived.statusCode).toBe(200);
     expect(archived.json()).toMatchObject({ archived: true, installation: { status: "disabled" } });
+    await app.close();
+  });
+
+  it("indexes manual encyclopedia information only for manual hosted sources", async () => {
+    const installationId = "11111111-1111-4111-8111-111111111111";
+    const agentId = "22222222-2222-4222-8222-222222222222";
+    const source = {
+      id: "33333333-3333-4333-8333-333333333333",
+      organization_id: "org-1",
+      agent_definition_id: agentId,
+      installation_id: installationId,
+      source_type: "manual",
+      revision: 1,
+    };
+    const addChunks = vi.fn(async (input: { revision: number; chunks: Array<{ text: string }> }) => input.chunks.map((chunk, index) => ({ id: `chunk-${index}`, ...chunk })));
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      agents: { getInstallation: async () => ({ id: installationId, organization_id: "org-1", agent_definition_id: agentId, status: "active", ...hostedInstallationIdentity }) } as unknown as AgentRepository,
+      knowledge: { getSource: async () => source, addChunks } as never,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: `/v1/knowledge/sources/${source.id}/ingest-text`,
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { text: "Shipping takes 3 to 5 business days.\n\nReturns are accepted within 30 days." },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({ sourceId: source.id, revision: 2 });
+    expect(addChunks).toHaveBeenCalledWith(expect.objectContaining({ revision: 2, chunks: [{ text: "Shipping takes 3 to 5 business days.\n\nReturns are accepted within 30 days.", metadata: { contentType: "text/markdown", characters: 74 }, provenance: expect.objectContaining({ sourceType: "manual", chunkIndex: 0 }) }] }));
+
+    const urlSourceApp = buildApp({
+      config,
+      pool: fakePool,
+      agents: { getInstallation: async () => ({ id: installationId, organization_id: "org-1", agent_definition_id: agentId, status: "active", ...hostedInstallationIdentity }) } as unknown as AgentRepository,
+      knowledge: { getSource: async () => ({ ...source, source_type: "url" }), addChunks } as never,
+    });
+    const rejected = await urlSourceApp.inject({
+      method: "POST",
+      url: `/v1/knowledge/sources/${source.id}/ingest-text`,
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { text: "Not valid for a URL source" },
+    });
+    expect(rejected.statusCode).toBe(422);
+    expect(rejected.json()).toMatchObject({ error: "knowledge_source_manual_required" });
+    await app.close();
+    await urlSourceApp.close();
+  });
+
+  it("indexes uploaded encyclopedia files through the multipart boundary", async () => {
+    const installationId = "11111111-1111-4111-8111-111111111111";
+    const agentId = "22222222-2222-4222-8222-222222222222";
+    const source = {
+      id: "33333333-3333-4333-8333-333333333333",
+      organization_id: "org-1",
+      agent_definition_id: agentId,
+      installation_id: installationId,
+      source_type: "upload",
+      revision: 1,
+    };
+    const addChunks = vi.fn(async (input: { revision: number; chunks: Array<{ text: string }> }) => input.chunks.map((chunk, index) => ({ id: `chunk-${index}`, ...chunk })));
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      agents: { getInstallation: async () => ({ id: installationId, organization_id: "org-1", agent_definition_id: agentId, status: "active", ...hostedInstallationIdentity }) } as unknown as AgentRepository,
+      knowledge: { getSource: async () => source, addChunks } as never,
+    });
+    const boundary = "knowledge-upload-test";
+    const payload = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="facts.md"\r\nContent-Type: text/markdown\r\n\r\n# Shipping\r\n\r\nOrders ship in 3 days.\r\n--${boundary}--\r\n`);
+    const response = await app.inject({
+      method: "POST",
+      url: `/v1/knowledge/sources/${source.id}/ingest-file`,
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1", "content-type": `multipart/form-data; boundary=${boundary}` },
+      payload,
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({ sourceId: source.id, revision: 2, filename: "facts.md", format: "markdown" });
+    expect(addChunks).toHaveBeenCalledWith(expect.objectContaining({ revision: 2, chunks: [expect.objectContaining({ text: "# Shipping\n\nOrders ship in 3 days." })] }));
     await app.close();
   });
 
@@ -1866,13 +1959,18 @@ describe("Agent Platform HTTP foundation", () => {
       config,
       pool: fakePool,
       memory: { listMemory: async () => [{ id: "memory-1" }], deleteMemory: async () => undefined, revalidateMemory: async () => ({ id: "memory-1" }) } as never,
-      knowledge: { listSources: async () => [{ id: "source-1" }] } as never,
+      knowledge: {
+        listSources: async () => [{ id: "source-1" }],
+        getSourceDocument: async () => ({ source: { id: "source-1" }, text: "Saved support information" }),
+      } as never,
     });
     const agentId = "11111111-1111-4111-8111-111111111111";
     const memories = await app.inject({ method: "GET", url: `/v1/memory?agentId=${agentId}`, headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
     const sources = await app.inject({ method: "GET", url: "/v1/knowledge/sources", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    const source = await app.inject({ method: "GET", url: "/v1/knowledge/sources/source-1", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
     expect(memories.json()).toMatchObject({ memories: [{ id: "memory-1" }] });
     expect(sources.json()).toMatchObject({ sources: [{ id: "source-1" }] });
+    expect(source.json()).toMatchObject({ source: { id: "source-1" }, text: "Saved support information" });
     await app.close();
   });
 

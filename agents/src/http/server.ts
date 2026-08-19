@@ -1,11 +1,17 @@
 import { loadConfig } from "../config";
 import { createPool } from "../db/pool";
+import { AgentRepository } from "../db/repositories/agent-repository";
 import { buildApp } from "./app";
+import { synchronizeKasiAi } from "../system/kasiai";
 import { connectTemporal, signalRunApproval, signalRunCancellation, signalRunExternalEvent, startDurableRun } from "../temporal/client";
 
 async function main(): Promise<void> {
   const config = loadConfig();
   const pool = createPool(config);
+  if (config.NODE_ENV !== "production") {
+    const synced = await synchronizeKasiAi(new AgentRepository(pool), config);
+    console.log(`[kasiai] synchronized version ${synced.version.version_number}; rolled out ${synced.rolledOut} installation(s)`);
+  }
   let temporalConnection: Awaited<ReturnType<typeof connectTemporal>> | undefined;
   if (config.TEMPORAL_ENABLED) temporalConnection = await connectTemporal(config);
   const app = buildApp({

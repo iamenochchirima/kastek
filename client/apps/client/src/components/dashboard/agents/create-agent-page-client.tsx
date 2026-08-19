@@ -108,7 +108,7 @@ export function CreateAgentPageClient({ initialTemplate }: { initialTemplate?: A
         <div className="mx-auto max-w-2xl">
           <Card>
             <CardContent className="p-8 text-center">
-              <CheckCircle2 className="mx-auto h-10 w-10 text-accent" />
+              <CheckCircle2 className="mx-auto h-10 w-10 text-status-success" />
               <h1 className="mt-4 text-2xl font-semibold text-foreground">{created.name} is ready</h1>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">Your custom agent is published and installed. Continue to its details page to configure capabilities, credentials, channels, and tests.</p>
               <div className="mt-6 flex justify-center gap-2">

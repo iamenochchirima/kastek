@@ -17,9 +17,6 @@ async function proxy(request: NextRequest, context: RouteContext) {
   const headers = new Headers(request.headers);
   headers.delete("host");
   headers.delete("connection");
-  // The backend is exposed through an ngrok development tunnel. This header
-  // bypasses ngrok's interstitial for this server-to-server proxy request.
-  headers.set("ngrok-skip-browser-warning", "1");
 
   const hasBody = !["GET", "HEAD"].includes(request.method);
   const body = hasBody ? await request.arrayBuffer() : undefined;

@@ -254,7 +254,7 @@ pub struct SocialPostMediaInput {
     pub metadata: Option<Value>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct SocialPostUpsertRequest {
     pub title: Option<String>,
     pub prompt: Option<String>,

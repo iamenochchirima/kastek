@@ -7,7 +7,7 @@ actions will go through authenticated internal contracts exposed by `kasitek-cor
 
 ## Processes
 
-- `pnpm run dev:api` starts the HTTP API.
+- `pnpm run dev:api` applies pending local migrations, then starts the HTTP API.
 - `pnpm run dev:gateway` starts the stateless external MCP gateway.
 - `pnpm run dev:stdio` starts the local line-delimited stdio bridge to that gateway.
 - `pnpm run dev:worker` starts the Temporal worker.
@@ -59,13 +59,18 @@ The rollout-focused migration note is in
 [`docs/mcp-2026-migration.md`](docs/mcp-2026-migration.md).
 
 Clients that only support local MCP stdio can run `pnpm run start:stdio` with
-`MCP_STDIO_TOKEN` set to an exchanged MCP installation token and, when needed,
+`MCP_STDIO_API_KEY` set to a Developer API key and, when needed,
 `MCP_STDIO_URL` pointed at the hosted `/mcp` endpoint. The bridge owns no state; it forwards one
 JSON-RPC message per input line, selects the 2026 HTTP revision for messages carrying 2026 metadata,
 retains the pre-2026 flow for older clients, bounds messages/responses, preserves notifications, and
 never logs the bearer token. Before forwarding an old-client message it probes `server/discover`
 once (configurable with `MCP_STDIO_PROBE=false`); a modern-only endpoint produces a bounded local
 unsupported-version error instead of sending an incompatible initialize request.
+
+The publishable package boundary is being prepared in [`packages/mcp`](packages/mcp). Build its
+standalone local adapter with `pnpm run build:mcp`. It is intentionally separate from the Agent API
+runtime and does not contain tools, authorization, product data, or a REST client; publication is
+blocked until the Developers authentication/setup flow is wired and tested.
 
 The capability catalog used by MCP discovery, public tool discovery, permission UI, audit
 descriptions, and agent documentation is generated from the runtime manifest registry. Regenerate
@@ -156,6 +161,12 @@ authentication modes are present:
 - `KASITEK_CORE_DELEGATION_PRIVATE_KEY` — an ES256 private key for per-invocation delegation.
 - `KASITEK_CORE_DELEGATION_KEY_ID` — optional active signing-key identifier during a core
   delegation-key rotation; it must match core's trusted key map.
+
+For the local stack, `scripts/run_local_stack.sh` injects `KASITEK_CORE_URL` and one matching
+development bearer token into both Core and the Agent API/worker. If the services are started
+manually, set `KASITEK_CORE_URL` and `KASITEK_CORE_INTERNAL_TOKEN` in `agents/.env`, and set the
+same value as `KASITEK_AGENTS_INTERNAL_TOKEN` in `kasitek-core/.env`. If either side is missing,
+the tool fails before making an HTTP request with `CORE_UNAVAILABLE`.
 
 The core capability boundary currently includes customer/workspace reads and the first content
 vertical. Content tools call `GET /api/internal/agents/v1/content/posts` and

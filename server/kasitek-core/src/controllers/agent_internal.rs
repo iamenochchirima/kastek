@@ -142,6 +142,7 @@ async fn resolve_internal_agent_context(
         client_id: None,
         installation_id: None,
         effective_grants: [required_capability.to_string()].into_iter().collect(),
+        api_scopes: None,
         correlation_id: None,
         causation_id: None,
         idempotency_key,

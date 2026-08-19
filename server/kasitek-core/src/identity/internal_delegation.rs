@@ -144,6 +144,7 @@ pub async fn resolve(config: &AppConfig, req: &HttpRequest) -> Result<RequestCon
         client_id: None,
         installation_id: Some(claims.custom.installation_id),
         effective_grants: [claims.custom.capability].into_iter().collect(),
+        api_scopes: None,
         correlation_id: Some(correlation_id),
         causation_id: Some(claims.custom.invocation_id),
         idempotency_key: claims.custom.idempotency_key,

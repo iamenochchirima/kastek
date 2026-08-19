@@ -143,6 +143,25 @@ describe("Tool Gateway and bounded runtime", () => {
     expect(result.messages.at(-1)).toMatchObject({ role: "assistant", content: "done" });
   });
 
+  it("fails cleanly when a provider returns an empty final assistant response", async () => {
+    const adapter: ModelAdapter = {
+      provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+      complete: async () => response([]),
+    };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "hello" }],
+      credentials,
+      gateway: new ModelGateway([adapter]),
+      tools: new ToolRegistry(),
+      grantedTools: new Set(),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+    });
+    expect(result.status).toBe("failed");
+    expect(result.error).toMatchObject({ code: "EMPTY_ASSISTANT_RESPONSE" });
+  });
+
   it("stops before invoking a tool when the run tool-call budget is exhausted", async () => {
     const registry = new ToolRegistry();
     let invoked = 0;

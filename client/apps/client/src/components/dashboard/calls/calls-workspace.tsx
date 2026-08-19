@@ -20,8 +20,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiUrl } from "@/lib/server-api";
+import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icons";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import type { IconType } from "react-icons";
+
+const WhatsAppBrandIcon = getPlatformBrandIcon("WHATSAPP") ?? MessageCircle;
 
 export type CallRecord = {
   id: string;
@@ -325,7 +329,8 @@ export function CallsWorkspace({
 
         <section className="grid overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-2">
           <CallSupport
-            icon={MessageCircle}
+            icon={WhatsAppBrandIcon}
+            iconClass={getPlatformBrandColor("WHATSAPP")}
             title="WhatsApp calls"
             detail="Receive and answer customer calls from Inbox."
             state="Available"
@@ -406,7 +411,7 @@ export function CallsWorkspace({
                     ) : null}
                     <Button asChild variant="outline" className="w-full">
                       <Link href="/inbox">
-                        <MessageCircle className="h-4 w-4" />
+                        <WhatsAppBrandIcon className={`h-4 w-4 ${getPlatformBrandColor("WHATSAPP")}`} />
                         Open WhatsApp calls in Inbox
                       </Link>
                     </Button>
@@ -598,12 +603,14 @@ function CallMetric({
 
 function CallSupport({
   icon: Icon,
+  iconClass,
   title,
   detail,
   state,
   stateClass,
 }: {
-  icon: LucideIcon;
+  icon: LucideIcon | IconType;
+  iconClass?: string;
   title: string;
   detail: string;
   state: string;
@@ -612,7 +619,7 @@ function CallSupport({
   return (
     <div className="flex items-start gap-3 p-4 first:border-b first:border-border sm:first:border-b-0 sm:first:border-r">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
-        <Icon className="h-4 w-4" />
+        <Icon className={cn("h-4 w-4", iconClass)} />
       </div>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
@@ -671,7 +678,7 @@ function CallDetails({ call }: { call: CallRecord }) {
           href={`/inbox?conversation=${encodeURIComponent(call.conversationId)}`}
           className="flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
-          <MessageCircle className="h-4 w-4" />
+          <WhatsAppBrandIcon className={`h-4 w-4 ${getPlatformBrandColor("WHATSAPP")}`} />
           Open conversation
           <ExternalLink className="h-3.5 w-3.5" />
         </Link>

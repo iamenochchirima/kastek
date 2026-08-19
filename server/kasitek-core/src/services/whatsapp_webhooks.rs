@@ -47,6 +47,13 @@ fn is_opt_out_message(text: Option<&str>) -> bool {
     .unwrap_or(false)
 }
 
+fn external_connection_routing_key(
+    external_connection_id: Option<String>,
+    whatsapp_connection_id: &str,
+) -> String {
+    external_connection_id.unwrap_or_else(|| format!("ext_{whatsapp_connection_id}"))
+}
+
 struct IncomingWhatsappMedia {
     kind: String,
     media_id: String,
@@ -393,6 +400,24 @@ async fn handle_incoming_messages(
         );
         return Ok(());
     };
+    // The dashboard assigns agent channels using the workspace-facing
+    // ExternalConnection id (ext_<WhatsappConnection id>). The webhook starts
+    // with the provider record, so resolve that same id before forwarding the
+    // event to Agent Platform. Keep the deterministic fallback for a webhook
+    // that arrives before the connection projection has been synchronized.
+    let channel_key = external_connection_routing_key(
+        sqlx::query_scalar::<_, String>(
+            r#"SELECT id
+               FROM "ExternalConnection"
+               WHERE "orgId" = $1 AND "sourceType" = 'WHATSAPP' AND "sourceId" = $2
+               LIMIT 1"#,
+        )
+        .bind(org_id)
+        .bind(&connection.id)
+        .fetch_optional(pool)
+        .await?,
+        &connection.id,
+    );
     let contacts = value
         .get("contacts")
         .and_then(|v| v.as_array())
@@ -403,17 +428,9 @@ async fn handle_incoming_messages(
         .and_then(|v| v.as_array())
         .cloned()
         .unwrap_or_default();
-    let contact_wa_ids = contacts
-        .iter()
-        .filter_map(|contact| contact.get("wa_id").and_then(|v| v.as_str()))
-        .collect::<std::collections::HashSet<_>>();
     for message in messages {
         let from = message.get("from").and_then(|v| v.as_str()).unwrap_or("");
         if from.trim().is_empty() {
-            continue;
-        }
-        if !contact_wa_ids.contains(from) {
-            // Ignore message payloads that are not mapped to an inbound customer contact.
             continue;
         }
         let normalized_phone = normalize_phone(from);
@@ -422,9 +439,10 @@ async fn handle_incoming_messages(
         }
         let text = get_inbound_text(&message);
         let media = get_incoming_media(&message);
-        if text.is_none() && media.is_none() {
-            continue;
-        }
+
+        // Pairing must be checked before the known-contact filter. A new external
+        // identity is expected to be absent from the provider contact list until
+        // the one-time pairing code has been consumed.
         if let Some(pairing_token) = text.as_deref().map(str::trim).filter(|value| {
             value.starts_with("kasiai_pair_") && !value.chars().any(char::is_whitespace)
         }) {
@@ -460,6 +478,9 @@ async fn handle_incoming_messages(
             }
             // Pairing tokens are credentials. Never persist them in the business
             // Inbox or forward them into model-visible conversation history.
+            continue;
+        }
+        if text.is_none() && media.is_none() {
             continue;
         }
         let profile_name = contacts
@@ -573,6 +594,7 @@ async fn handle_incoming_messages(
             if let Ok(agent_client) = AgentPlatformClient::from_config(config) {
                 let payload = json!({
                     "channelType": "whatsapp",
+                    "channelKey": channel_key.clone(),
                     "provider": "meta-whatsapp",
                     "providerEventId": provider_message_id,
                     "providerMessageId": provider_message_id,
@@ -582,16 +604,29 @@ async fn handle_incoming_messages(
                     "content": { "text": inbound_text },
                     "displayName": profile_name,
                 });
+                log::info!(
+                    "[whatsapp-agent] forwarding inbound message conversation_id={} channel_key={} provider_message_id={}",
+                    conversation_id,
+                    payload["channelKey"].as_str().unwrap_or("unknown"),
+                    provider_message_id,
+                );
                 if let Err(error) = agent_client
                     .ingest_channel_message(org_id, &connection.user_id, payload)
                     .await
                 {
-                    log::debug!(
-                        "WhatsApp message was not routed to KasiAi conversation_id={}: {}",
+                    log::warn!(
+                        "[whatsapp-agent] inbound message was not accepted conversation_id={} channel_key={}: {}",
                         conversation_id,
+                        channel_key,
                         error
                     );
                 }
+            } else {
+                log::warn!(
+                    "[whatsapp-agent] Agent Platform is not configured for inbound message conversation_id={} channel_key={}",
+                    conversation_id,
+                    channel_key,
+                );
             }
         }
         if let Err(error) = send_push_notification_to_user(
@@ -666,7 +701,23 @@ async fn handle_incoming_messages(
 
 #[cfg(test)]
 mod tests {
-    use super::is_opt_out_message;
+    use super::{external_connection_routing_key, is_opt_out_message};
+
+    #[test]
+    fn uses_workspace_external_connection_id_for_agent_routing() {
+        assert_eq!(
+            external_connection_routing_key(Some("ext_whatsapp-1".to_string()), "whatsapp-1"),
+            "ext_whatsapp-1"
+        );
+    }
+
+    #[test]
+    fn falls_back_to_the_deterministic_external_connection_id() {
+        assert_eq!(
+            external_connection_routing_key(None, "whatsapp-1"),
+            "ext_whatsapp-1"
+        );
+    }
 
     #[test]
     fn recognizes_case_insensitive_stop_keywords() {

@@ -122,6 +122,9 @@ describe.skipIf(!runIntegration)("memory and knowledge isolation (integration)",
     await knowledge.addChunks({ sourceId, scope: { organizationId, agentId, installationId }, revision: 1, chunks: [{ text: "Kasitek supports scoped knowledge retrieval", provenance: { source: "test" } }] });
     const found = await knowledge.search({ organizationId, agentId, installationId }, "scoped knowledge retrieval");
     expect(found[0]?.canonical_text).toContain("scoped knowledge");
+    await knowledge.addChunks({ sourceId, scope: { organizationId, agentId, installationId }, revision: 2, chunks: [{ text: "Kasitek now supports encyclopedia revisions", provenance: { source: "test-revision-2" } }] });
+    expect(await knowledge.search({ organizationId, agentId, installationId }, "scoped knowledge retrieval")).toHaveLength(0);
+    expect((await knowledge.search({ organizationId, agentId, installationId }, "encyclopedia revisions"))[0]?.canonical_text).toContain("encyclopedia revisions");
     await knowledge.deleteSource({ organizationId, agentId, installationId }, sourceId, "user-1");
     expect(await knowledge.search({ organizationId, agentId, installationId }, "scoped knowledge retrieval")).toHaveLength(0);
   });

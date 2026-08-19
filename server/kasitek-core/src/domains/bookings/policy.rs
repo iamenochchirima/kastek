@@ -130,6 +130,7 @@ mod tests {
             client_id: Some("credential-1".to_string()),
             installation_id: Some("installation-1".to_string()),
             effective_grants: Default::default(),
+            api_scopes: None,
             correlation_id: None,
             causation_id: None,
             idempotency_key: None,

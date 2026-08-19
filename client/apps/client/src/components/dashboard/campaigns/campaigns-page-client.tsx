@@ -46,7 +46,7 @@ function campaignProgress(campaign: Campaign) {
 function statusTone(status: string) {
   switch (status) {
     case "SENDING":
-      return "border-accent/30 bg-accent/10 text-accent";
+      return "border-status-info/30 bg-status-info-soft text-status-info";
     case "SCHEDULED":
       return "border-status-info/30 bg-status-info-soft text-status-info";
     case "PAUSED":

@@ -70,6 +70,18 @@ describe("InstallationCapabilityInvocationService", () => {
     expect(runs.createRun).not.toHaveBeenCalled();
   });
 
+  it("keeps protected KasiAi resource scope unconstrained by default", async () => {
+    const { service, runs } = createService({
+      installationGrants: {
+        effective: vi.fn(async () => ({ resources: [] })),
+        isResourceScopeUnconstrained: vi.fn(async () => true),
+      },
+    });
+    const result = await service.accept(input);
+    expect(result.accepted).toMatchObject({ id: "run-1", status: "received" });
+    expect(runs.createRun).toHaveBeenCalledOnce();
+  });
+
   it("stops a killed installation before durable acceptance", async () => {
     const { service, runs } = createService({ killSwitches: { isBlocked: vi.fn(async () => true) } });
     await expect(service.accept(input)).rejects.toMatchObject<Partial<InstallationCapabilityError>>({ code: "AGENT_KILL_SWITCH_ACTIVE" });

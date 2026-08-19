@@ -13,6 +13,7 @@ export interface ImmediateReadInput {
   argumentsValue: Record<string, unknown>;
   toolCallId: string;
   idempotencyKey: string;
+  transport?: "mcp" | "rest";
   grantedTools: ReadonlySet<string>;
 }
 
@@ -38,7 +39,7 @@ export class InstallationImmediateReadService {
       installationId: input.installationId,
       triggerType: "manual",
       idempotencyKey: input.idempotencyKey,
-      input: { mcpTool: { name: input.name, arguments: input.argumentsValue, toolCallId: input.toolCallId } },
+      input: { mcpTool: { name: input.name, arguments: input.argumentsValue, toolCallId: input.toolCallId, transport: input.transport ?? "mcp" } },
     });
     if (accepted.created === false || accepted.status === "completed") {
       return { accepted, output: accepted.output };

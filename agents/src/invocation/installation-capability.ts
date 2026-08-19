@@ -21,6 +21,7 @@ export interface InstallationCapabilityInvocation {
   argumentsValue: Record<string, unknown>;
   toolCallId: string;
   idempotencyKey: string;
+  transport?: "mcp" | "rest";
 }
 
 export interface ImmediateReadAcceptance {
@@ -111,7 +112,7 @@ export class InstallationCapabilityInvocationService {
       installationId: installation.id,
       triggerType: "manual",
       idempotencyKey: input.idempotencyKey,
-      input: { mcpTool: { name: input.name, arguments: input.argumentsValue, toolCallId: input.toolCallId } },
+      input: { mcpTool: { name: input.name, arguments: input.argumentsValue, toolCallId: input.toolCallId, transport: input.transport ?? "mcp" } },
     });
     if (accepted.created !== false && accepted.status === "received") {
       await this.dependencies.startWorkflow(accepted.id);

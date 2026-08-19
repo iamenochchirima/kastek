@@ -1,4 +1,5 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use bytes::Bytes;
 use hmac::{Hmac, Mac};
 use rand::RngCore;
 use reqwest::{Client, Method, Response, StatusCode};
@@ -125,6 +126,24 @@ impl AgentPlatformClient {
         self.request_json(
             Method::POST,
             "/v1/agents",
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn update_agent(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::PATCH,
+            &format!("/v1/agents/{agent_id}"),
             organization_id,
             actor_id,
             &["agents:write"],
@@ -1095,6 +1114,23 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn get_knowledge_source(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        source_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/knowledge/sources/{source_id}"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
     pub async fn ingest_knowledge_source_url(
         &self,
         organization_id: &str,
@@ -1109,6 +1145,44 @@ impl AgentPlatformClient {
             actor_id,
             &["agents:write"],
             Some(body),
+        )
+        .await
+    }
+
+    pub async fn ingest_knowledge_source_text(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        source_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/knowledge/sources/{source_id}/ingest-text"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn ingest_knowledge_source_file(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        source_id: &str,
+        content_type: String,
+        body: Bytes,
+    ) -> Result<Value, AppError> {
+        self.request_bytes(
+            Method::POST,
+            &format!("/v1/knowledge/sources/{source_id}/ingest-file"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            content_type,
+            body,
         )
         .await
     }
@@ -1582,6 +1656,24 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn revoke_channel_connection(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        connection_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::DELETE,
+            &format!("/v1/installations/{installation_id}/channels/{connection_id}"),
+            organization_id,
+            actor_id,
+            &["channels:write"],
+            None,
+        )
+        .await
+    }
+
     pub async fn issue_channel_pairing(
         &self,
         organization_id: &str,
@@ -1700,6 +1792,23 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn retry_run(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        run_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/runs/{run_id}/retry"),
+            organization_id,
+            actor_id,
+            &["chat:write"],
+            Some(json!({})),
+        )
+        .await
+    }
+
     pub async fn signal_external_event(
         &self,
         organization_id: &str,
@@ -1751,7 +1860,11 @@ impl AgentPlatformClient {
         let response = self
             .client
             .get(url)
-            .timeout(self.timeout)
+            // Run-event SSE is intentionally long-lived; the browser closes the
+            // stream after the run reaches a terminal state or on navigation.
+            // Keep the client-level connect timeout, but do not apply the
+            // normal finite JSON request timeout to the response body.
+            .header("accept", "text/event-stream")
             .header(
                 "Authorization",
                 format!(
@@ -1794,6 +1907,43 @@ impl AgentPlatformClient {
             request = request.json(&body);
         }
         let response = request
+            .send()
+            .await
+            .map_err(|error| self.map_request_error(error))?;
+        if !response.status().is_success() {
+            return Err(self.map_status(response).await);
+        }
+        if response.status() == StatusCode::NO_CONTENT {
+            return Ok(Value::Null);
+        }
+        response.json::<Value>().await.map_err(|error| {
+            log::error!("Agent Platform returned invalid JSON: {error}");
+            AppError::BadGateway("Agent Platform returned an invalid response".to_string())
+        })
+    }
+
+    async fn request_bytes(
+        &self,
+        method: Method,
+        path: &str,
+        organization_id: &str,
+        actor_id: &str,
+        scopes: &[&str],
+        content_type: String,
+        body: Bytes,
+    ) -> Result<Value, AppError> {
+        let correlation_id = new_correlation_id();
+        let token = self.token(organization_id, actor_id, scopes, &correlation_id)?;
+        let response = self
+            .client
+            .request(method, format!("{}{}", self.base_url, path))
+            .timeout(self.timeout)
+            .header("Authorization", format!("Bearer {token}"))
+            .header("x-organization-id", organization_id)
+            .header("x-actor-id", actor_id)
+            .header("x-correlation-id", &correlation_id)
+            .header("content-type", content_type)
+            .body(body)
             .send()
             .await
             .map_err(|error| self.map_request_error(error))?;
@@ -2265,7 +2415,7 @@ mod tests {
 
     #[tokio::test]
     async fn every_non_operator_adapter_uses_the_scoped_agent_boundary() {
-        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 70]).await;
+        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 75]).await;
         let client = test_client(&base_url);
         let body = json!({"value": "test"});
 
@@ -2276,6 +2426,10 @@ mod tests {
         client.list_agents("org-1", "actor-1").await.unwrap();
         client
             .create_agent("org-1", "actor-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .update_agent("org-1", "actor-1", "agent-1", body.clone())
             .await
             .unwrap();
         client
@@ -2400,7 +2554,25 @@ mod tests {
             .await
             .unwrap();
         client
+            .get_knowledge_source("org-1", "actor-1", "source-1")
+            .await
+            .unwrap();
+        client
             .ingest_knowledge_source_url("org-1", "actor-1", "source-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .ingest_knowledge_source_text("org-1", "actor-1", "source-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .ingest_knowledge_source_file(
+                "org-1",
+                "actor-1",
+                "source-1",
+                "multipart/form-data; boundary=test".to_string(),
+                Bytes::from_static(b"file"),
+            )
             .await
             .unwrap();
         client
@@ -2539,6 +2711,7 @@ mod tests {
             .cancel_run("org-1", "actor-1", "run-1", body.clone())
             .await
             .unwrap();
+        client.retry_run("org-1", "actor-1", "run-1").await.unwrap();
         client
             .signal_external_event("org-1", "actor-1", "run-1", body.clone())
             .await
@@ -2553,11 +2726,12 @@ mod tests {
             .unwrap();
 
         let requests = server.await.unwrap();
-        assert_eq!(requests.len(), 70);
+        assert_eq!(requests.len(), 75);
         let expected_paths = [
             "POST /v1/system-agents/kasiai/installation HTTP/1.1",
             "GET /v1/agents HTTP/1.1",
             "POST /v1/agents HTTP/1.1",
+            "PATCH /v1/agents/agent-1 HTTP/1.1",
             "POST /v1/agents/agent-1/versions HTTP/1.1",
             "GET /v1/operations/summary HTTP/1.1",
             "GET /v1/operations/runs?limit=25 HTTP/1.1",
@@ -2589,7 +2763,10 @@ mod tests {
             "POST /v1/schedules/schedule-1/status/active HTTP/1.1",
             "GET /v1/knowledge/sources?agentId=agent-1&installationId=install-1&limit=25 HTTP/1.1",
             "POST /v1/knowledge/sources HTTP/1.1",
+            "GET /v1/knowledge/sources/source-1 HTTP/1.1",
             "POST /v1/knowledge/sources/source-1/ingest-url HTTP/1.1",
+            "POST /v1/knowledge/sources/source-1/ingest-text HTTP/1.1",
+            "POST /v1/knowledge/sources/source-1/ingest-file HTTP/1.1",
             "DELETE /v1/knowledge/sources/source-1 HTTP/1.1",
             "GET /v1/memory?agentId=agent-1&installationId=install-1&limit=25 HTTP/1.1",
             "DELETE /v1/memory/memory-1 HTTP/1.1",
@@ -2622,6 +2799,7 @@ mod tests {
             "GET /v1/runs/run-1 HTTP/1.1",
             "GET /v1/runs/run-1/timeline HTTP/1.1",
             "POST /v1/runs/run-1/cancel HTTP/1.1",
+            "POST /v1/runs/run-1/retry HTTP/1.1",
             "POST /v1/runs/run-1/external-event HTTP/1.1",
             "POST /v1/runs/run-1/approval HTTP/1.1",
             "GET /v1/runs/run-1/events/stream?after=3 HTTP/1.1",
@@ -2634,81 +2812,94 @@ mod tests {
             );
         }
         let expected_scopes = [
-            "kasiai:write",
-            "agents:read",
-            "agents:write",
-            "agents:write",
-            "agents:read",
-            "agents:read",
-            "agents:read",
-            "agents:read",
-            "agents:write",
-            "agents:read",
-            "agents:write",
-            "agents:write",
-            "agents:read",
-            "agents:read",
-            "agents:write",
-            "agents:write",
-            "agents:write",
-            "agents:read",
-            "agents:write",
-            "agents:write",
-            "agents:write",
-            "agents:read",
-            "agents:write",
-            "agents:read",
-            "agents:write",
-            "agents:read",
-            "agents:read",
-            "agents:write",
-            "agents:read",
-            "agents:read",
-            "agents:write",
-            "agents:write",
-            "agents:read",
-            "agents:write",
-            "agents:write",
-            "agents:write",
-            "agents:read",
-            "agents:write",
-            "agents:write",
-            "agents:read",
-            "agents:write",
-            "agents:write",
-            "agents:write",
-            "agents:write",
-            "agents:write",
-            "chat:read",
-            "chat:write",
-            "chat:read",
-            "kasiai:read",
-            "kasiai:read",
-            "kasiai:write",
-            "chat:write",
-            "chat:write",
-            "chat:write",
-            "chat:write",
-            "chat:write",
-            "channels:ingest",
-            "channels:ingest",
-            "channels:ingest",
-            "channels:read",
-            "channels:write",
-            "channels:write",
-            "channels:write",
-            "chat:read",
-            "runs:read",
-            "runs:read",
-            "runs:cancel",
-            "runs:write",
-            "runs:approve",
-            "runs:read",
+            "kasiai:write",   // ensure_kasiai
+            "agents:read",    // list_agents
+            "agents:write",   // create_agent
+            "agents:write",   // update_agent
+            "agents:write",   // create_agent_version
+            "agents:read",    // operations_summary
+            "agents:read",    // operations_runs
+            "agents:read",    // operations_health
+            "agents:read",    // operations_effects_reconciliation
+            "agents:write",   // reconcile_effect
+            "agents:read",    // list_kill_switches
+            "agents:write",   // create_kill_switch
+            "agents:write",   // disable_kill_switch
+            "agents:read",    // list_audit
+            "agents:read",    // list_templates
+            "agents:write",   // install_template
+            "agents:write",   // set_installation_status
+            "agents:write",   // set_installation_settings
+            "agents:read",    // list_installation_credentials
+            "agents:write",   // create_installation_credential
+            "agents:write",   // revoke_installation_credential
+            "agents:write",   // rotate_installation_credential
+            "agents:read",    // list_installation_capabilities
+            "agents:write",   // grant_installation_tool
+            "agents:read",    // list_installation_grants
+            "agents:write",   // grant_installation_resource
+            "agents:read",    // list_connectors
+            "agents:read",    // list_installation_connectors
+            "agents:write",   // grant_installation_connector
+            "agents:read",    // list_installation_runs
+            "agents:read",    // list_installation_schedules
+            "agents:write",   // create_installation_schedule
+            "agents:write",   // set_schedule_status
+            "agents:read",    // list_knowledge_sources
+            "agents:write",   // create_knowledge_source
+            "agents:read",    // get_knowledge_source
+            "agents:write",   // ingest_knowledge_source_url
+            "agents:write",   // ingest_knowledge_source_text
+            "agents:write",   // ingest_knowledge_source_file
+            "agents:write",   // delete_knowledge_source
+            "agents:read",    // list_memory
+            "agents:write",   // delete_memory
+            "agents:write",   // revalidate_memory
+            "agents:read",    // list_agent_versions
+            "agents:write",   // publish_agent_version
+            "agents:write",   // create_installation
+            "agents:write",   // rollback_agent_version
+            "agents:write",   // retire_agent_version
+            "agents:write",   // archive_agent
+            "chat:read",      // resolve_platform_conversation
+            "chat:write",     // create_platform_conversation
+            "chat:read",      // list_conversations
+            "kasiai:read",    // kasiai_home
+            "kasiai:read",    // kasiai_preferences
+            "kasiai:write",   // update_kasiai_preferences
+            "chat:write",     // update_conversation
+            "chat:write",     // set_channel_default_conversation
+            "chat:write",     // set_conversation_status
+            "chat:write",     // restore_conversation
+            "chat:write",     // send_platform_message
+            "channels:ingest", // ingest_channel_message
+            "channels:ingest", // update_channel_delivery_status
+            "channels:ingest", // consume_channel_pairing
+            "channels:read",  // list_installation_channels
+            "channels:write", // ensure_channel_connection
+            "channels:write", // issue_channel_pairing
+            "channels:write", // revoke_channel_binding
+            "chat:read",      // get_conversation
+            "runs:read",      // get_run
+            "runs:read",      // get_run_timeline
+            "runs:cancel",    // cancel_run
+            "chat:write",     // retry_run
+            "runs:write",     // signal_external_event
+            "runs:approve",   // approve_run
+            "runs:read",      // stream_run_events
         ];
         assert_eq!(expected_scopes.len(), requests.len());
         for (request, expected_scope) in requests.iter().zip(expected_scopes) {
             assert_scoped_request(request, expected_scope);
         }
+        let stream_request = requests
+            .iter()
+            .find(|request| request.starts_with("GET /v1/runs/run-1/events/stream"))
+            .expect("stream request");
+        assert_eq!(
+            request_header(stream_request, "accept").as_deref(),
+            Some("text/event-stream")
+        );
         for request in requests.iter().filter(|request| {
             request.starts_with("POST ")
                 || request.starts_with("PATCH ")

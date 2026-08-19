@@ -20,6 +20,12 @@ KasiTek starts in invitation-only mode. Set `KASITEK_ACCESS_MODE=private` (or le
 
 When the release is ready for public registration, set `KASITEK_ACCESS_MODE=public` on the core backend and `NEXT_PUBLIC_KASITEK_ACCESS_MODE=public` on the client app, then redeploy both services. Existing invitations and normal login continue to work in either mode.
 
+During the controlled Agent Platform testing phase, commercial feature and usage-limit enforcement
+is disabled by default so authenticated workspace users can test the product. Usage is still
+recorded, while authentication, organization isolation, runtime limits, approvals, and provider
+safety checks remain active. Set `KASITEK_BILLING_ENFORCEMENT=true` when commercial billing gates
+are ready to be re-enabled.
+
 By default, the API server also starts the WhatsApp inbox, WhatsApp marketing, and social publishing workers in the same process.
 
 ## Agent Platform bridge
@@ -80,8 +86,8 @@ The deployment policy knobs `PUBLIC_API_DISABLED_ROUTES`,
 `PUBLIC_API_DEPRECATED_ROUTES`, `PUBLIC_API_SUNSET`, and
 `PUBLIC_API_DEPRECATION_LINK` control route flags and standard deprecation
 headers without changing the contract. `/v1/capabilities` exposes the current
-principal matrix: direct product users and agent installations are supported;
-workspace API keys, service accounts, and OAuth grants remain explicitly
+principal matrix: direct product users, workspace Developer API keys, and agent
+installations are supported; service accounts and OAuth grants remain explicitly
 unsupported until their issuers and resource policies are approved.
 
 Server runs on `http://localhost:8080` by default unless `PORT` is set.

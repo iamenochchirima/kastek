@@ -101,11 +101,51 @@ export class ChannelRepository {
          credential_reference = EXCLUDED.credential_reference,
          metadata = EXCLUDED.metadata,
          status = 'active', updated_at = now()
+       WHERE channel_connections.installation_id = EXCLUDED.installation_id
+          OR channel_connections.status = 'revoked'
        RETURNING *`,
       [input.organizationId, input.installationId, input.channelType, input.channelKey, input.credentialReference ?? null, JSON.stringify(input.metadata ?? {}), input.actorId],
     );
-    if (!result.rows[0]) throw new Error("Active installation not found");
+    if (!result.rows[0]) {
+      const existing = await query<{ installation_id: string }>(
+        this.pool,
+        `SELECT installation_id FROM channel_connections
+         WHERE organization_id = $1 AND channel_type = $2 AND channel_key = $3
+         LIMIT 1`,
+        [input.organizationId, input.channelType, input.channelKey],
+      );
+      if (existing.rows[0]) {
+        throw Object.assign(new Error("Channel is already assigned to another agent"), {
+          statusCode: 409,
+          code: "channel_already_assigned",
+        });
+      }
+      throw new Error("Active installation not found");
+    }
     return result.rows[0];
+  }
+
+  public async revokeConnection(input: {
+    organizationId: string;
+    installationId: string;
+    connectionId: string;
+  }): Promise<void> {
+    return withTransaction(this.pool, async (client) => {
+      const result = await client.query(
+        `UPDATE channel_connections
+         SET status = 'revoked', updated_at = now()
+         WHERE id = $1 AND organization_id = $2 AND installation_id = $3 AND status <> 'revoked'`,
+        [input.connectionId, input.organizationId, input.installationId],
+      );
+      if (!result.rowCount) {
+        throw Object.assign(new Error("Channel connection not found"), { statusCode: 404 });
+      }
+      await client.query(
+        `UPDATE channel_bindings SET status = 'revoked', updated_at = now()
+         WHERE organization_id = $1 AND channel_connection_id = $2 AND status <> 'revoked'`,
+        [input.organizationId, input.connectionId],
+      );
+    });
   }
 
   public async bind(input: {

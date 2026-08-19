@@ -16,9 +16,9 @@ use crate::db::models::{
     WhatsappSendMessageRequest, WhatsappStartConversationRequest, WhatsappTemplateRow,
 };
 use crate::error::AppError;
-use crate::services::message_domain;
 use crate::services::realtime;
 use crate::services::social::decrypt_social_secret;
+use crate::services::{connections, message_domain};
 
 use super::whatsapp::{
     display_text, find_or_create_conversation, get_connection_row_for_org, load_conversation_by_id,
@@ -122,17 +122,70 @@ pub async fn deliver_agent_message(
             }))
         }
         Err(error) => {
+            let error_message = error.to_string();
+            let authentication_failed = is_provider_authentication_failure(&error_message);
+            let error_code = if authentication_failed {
+                "AGENT_DELIVERY_AUTH_FAILED"
+            } else {
+                "AGENT_DELIVERY_FAILED"
+            };
             sqlx::query(
-                r#"UPDATE "Message" SET "providerStatus" = 'unknown', "whatsappStatus" = 'UNKNOWN', "errorCode" = 'AGENT_DELIVERY_UNKNOWN', "errorMessage" = $1 WHERE id = $2 AND "conversationId" = $3"#,
+                r#"UPDATE "Message" SET "providerStatus" = 'failed', "whatsappStatus" = 'FAILED', "errorCode" = $1, "errorMessage" = $2 WHERE id = $3 AND "conversationId" = $4"#,
             )
-            .bind(error.to_string())
+            .bind(error_code)
+            .bind(&error_message)
             .bind(&message_id)
             .bind(&conversation.id)
             .execute(pool)
             .await?;
+            if authentication_failed {
+                if let Err(health_error) = connections::record_source_health(
+                    pool,
+                    org_id,
+                    "WHATSAPP",
+                    &connection_id,
+                    false,
+                    None,
+                    Some(&error_message),
+                )
+                .await
+                {
+                    log::warn!(
+                        "failed to mark WhatsApp connection unhealthy after agent delivery authentication failure connection_id={}: {}",
+                        connection_id,
+                        health_error
+                    );
+                }
+            }
+            publish_message_updated(
+                pool,
+                "agent-platform",
+                &conversation.id,
+                &message_id,
+                "FAILED",
+                Some(error_code),
+                Some(&error_message),
+            )
+            .await;
+            publish_message_send_failed(
+                pool,
+                "agent-platform",
+                &conversation.id,
+                &error_message,
+                Some(text),
+            )
+            .await;
             Err(error)
         }
     }
+}
+
+fn is_provider_authentication_failure(error: &str) -> bool {
+    let normalized = error.to_ascii_lowercase();
+    normalized.contains("401 unauthorized")
+        || normalized.contains("403 forbidden")
+        || normalized.contains("authentication error")
+        || normalized.contains("invalid oauth access token")
 }
 
 fn validate_agent_delivery_idempotency_key(value: &str) -> Result<&str, AppError> {
@@ -147,7 +200,7 @@ fn validate_agent_delivery_idempotency_key(value: &str) -> Result<&str, AppError
 
 #[cfg(test)]
 mod tests {
-    use super::validate_agent_delivery_idempotency_key;
+    use super::{is_provider_authentication_failure, validate_agent_delivery_idempotency_key};
 
     #[test]
     fn agent_delivery_requires_a_bounded_idempotency_key() {
@@ -157,6 +210,19 @@ mod tests {
         );
         assert!(validate_agent_delivery_idempotency_key(" ").is_err());
         assert!(validate_agent_delivery_idempotency_key(&"x".repeat(241)).is_err());
+    }
+
+    #[test]
+    fn provider_authentication_failures_are_distinguished_from_delivery_failures() {
+        assert!(is_provider_authentication_failure(
+            "bad request: WhatsApp Cloud API text send failed (401 Unauthorized): Authentication Error"
+        ));
+        assert!(is_provider_authentication_failure(
+            "WhatsApp Cloud API text send failed (403 Forbidden): access denied"
+        ));
+        assert!(!is_provider_authentication_failure(
+            "WhatsApp Cloud API text send failed (400 Bad Request): Message undeliverable"
+        ));
     }
 }
 

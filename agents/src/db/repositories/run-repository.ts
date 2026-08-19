@@ -28,7 +28,11 @@ export interface RunRecord {
   resolved_model_provider?: string | null;
   resolved_model?: string | null;
   agent_name?: string | null;
+  agent_description?: string | null;
   agent_slug?: string | null;
+  agent_owner_type?: string | null;
+  agent_protected?: boolean;
+  execution_mode?: "system_hosted" | "kasitek_hosted" | "external_connected";
   created?: boolean;
 }
 
@@ -41,6 +45,14 @@ export interface RuntimeRunRecord extends RunRecord {
 }
 
 export type ConversationRunSummary = Pick<RunRecord, "id" | "conversation_id" | "status" | "created_at" | "updated_at">;
+
+export interface InstallationOperationRecord extends RunRecord {
+  transport: "mcp" | "rest" | "unknown";
+  tool_name: string | null;
+  tool_invocation_count: number;
+  model_call_count: number;
+  approval_status: string | null;
+}
 
 export class RunRepository {
   public constructor(private readonly pool: Pool) {}
@@ -297,7 +309,15 @@ export class RunRepository {
             [run.organization_id, run.conversation_id, outbound.rows[0].id, run.reply_channel_type],
           );
         }
-        await client.query("UPDATE conversations SET updated_at = now() WHERE id = $1", [run.conversation_id]);
+        if (outbound.rows[0]) {
+          await client.query(
+            `UPDATE conversations
+             SET updated_at = now(), last_message_at = now(), last_message_direction = 'outbound',
+                 last_message_preview = LEFT($2, 500), message_count = message_count + 1
+             WHERE id = $1`,
+            [run.conversation_id, responseMessage],
+          );
+        }
       }
       const updated = await client.query<RunRecord>(
         `UPDATE agent_runs SET status = 'completed', output = $2::jsonb, finished_at = now(), updated_at = now()
@@ -346,9 +366,12 @@ export class RunRepository {
   public async getRuntimeRun(organizationId: string, runId: string): Promise<RuntimeRunRecord | null> {
     const result = await query<RuntimeRunRecord>(
       this.pool,
-      `SELECT ar.*, av.instructions, av.configuration, av.policy, ai.settings AS installation_settings,
-              ai.status AS installation_status
+      `SELECT ar.*, ad.name AS agent_name, ad.description AS agent_description, ad.slug AS agent_slug,
+              ad.owner_type AS agent_owner_type, ad.protected AS agent_protected,
+              ai.execution_mode, av.instructions, av.configuration, av.policy,
+              ai.settings AS installation_settings, ai.status AS installation_status
        FROM agent_runs ar
+       JOIN agent_definitions ad ON ad.id = ar.agent_definition_id
        JOIN agent_versions av ON av.id = ar.agent_version_id
        JOIN agent_installations ai ON ai.id = ar.installation_id
        WHERE ar.organization_id = $1 AND ar.id = $2`,
@@ -360,9 +383,12 @@ export class RunRepository {
   public async getRuntimeRunById(runId: string): Promise<RuntimeRunRecord | null> {
     const result = await query<RuntimeRunRecord>(
       this.pool,
-      `SELECT ar.*, av.instructions, av.configuration, av.policy, ai.settings AS installation_settings,
-              ai.status AS installation_status
+      `SELECT ar.*, ad.name AS agent_name, ad.description AS agent_description, ad.slug AS agent_slug,
+              ad.owner_type AS agent_owner_type, ad.protected AS agent_protected,
+              ai.execution_mode, av.instructions, av.configuration, av.policy,
+              ai.settings AS installation_settings, ai.status AS installation_status
        FROM agent_runs ar
+       JOIN agent_definitions ad ON ad.id = ar.agent_definition_id
        JOIN agent_versions av ON av.id = ar.agent_version_id
        JOIN agent_installations ai ON ai.id = ar.installation_id
        WHERE ar.id = $1`,
@@ -440,6 +466,95 @@ export class RunRepository {
       [organizationId, installationId, boundedLimit],
     );
     return result.rows;
+  }
+
+  /**
+   * Lists external-client operations without treating them as conversations.
+   * Capability calls are durable runs with no conversation_id; the projection
+   * adds transport/tool/approval counters without exposing raw arguments.
+   */
+  public async listInstallationOperations(
+    organizationId: string,
+    installationId: string,
+    limit = 50,
+  ): Promise<InstallationOperationRecord[]> {
+    const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 200);
+    const result = await query<InstallationOperationRecord>(
+      this.pool,
+      `SELECT ar.*,
+              COALESCE(ar.input->'mcpTool'->>'transport', 'unknown') AS transport,
+              ar.input->'mcpTool'->>'name' AS tool_name,
+              COALESCE(ti.tool_invocation_count, 0)::integer AS tool_invocation_count,
+              COALESCE(mc.model_call_count, 0)::integer AS model_call_count,
+              approval.approval_status
+       FROM agent_runs ar
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::integer AS tool_invocation_count
+         FROM tool_invocations ti
+         WHERE ti.run_id = ar.id AND ti.organization_id = ar.organization_id
+       ) ti ON true
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::integer AS model_call_count
+         FROM model_calls mc
+         WHERE mc.run_id = ar.id AND mc.organization_id = ar.organization_id
+       ) mc ON true
+       LEFT JOIN LATERAL (
+         SELECT aar.status AS approval_status
+         FROM agent_approval_records aar
+         WHERE aar.run_id = ar.id AND aar.organization_id = ar.organization_id
+         ORDER BY aar.created_at DESC
+         LIMIT 1
+       ) approval ON true
+       WHERE ar.organization_id = $1 AND ar.installation_id = $2
+         AND ar.conversation_id IS NULL
+       ORDER BY ar.created_at DESC, ar.id DESC
+       LIMIT $3`,
+      [organizationId, installationId, boundedLimit],
+    );
+    return result.rows;
+  }
+
+  public async installationOperationSummary(organizationId: string, installationId: string): Promise<{
+    total: number;
+    byStatus: Record<string, number>;
+    toolInvocations: number;
+    modelCalls: number;
+    estimatedCostUsd: string;
+  }> {
+    const [statuses, counts, cost] = await Promise.all([
+      query<{ status: string; count: string }>(
+        this.pool,
+        `SELECT status, COUNT(*)::text AS count
+         FROM agent_runs
+         WHERE organization_id = $1 AND installation_id = $2 AND conversation_id IS NULL
+         GROUP BY status ORDER BY status`,
+        [organizationId, installationId],
+      ),
+      query<{ tool_invocations: string; model_calls: string }>(
+        this.pool,
+        `SELECT
+           (SELECT COUNT(*)::text FROM tool_invocations ti JOIN agent_runs ar ON ar.id = ti.run_id
+            WHERE ar.organization_id = $1 AND ar.installation_id = $2 AND ar.conversation_id IS NULL) AS tool_invocations,
+           (SELECT COUNT(*)::text FROM model_calls mc JOIN agent_runs ar ON ar.id = mc.run_id
+            WHERE ar.organization_id = $1 AND ar.installation_id = $2 AND ar.conversation_id IS NULL) AS model_calls`,
+        [organizationId, installationId],
+      ),
+      query<{ total: string }>(
+        this.pool,
+        `SELECT COALESCE(SUM(mc.estimated_cost_usd), 0)::text AS total
+         FROM model_calls mc JOIN agent_runs ar ON ar.id = mc.run_id
+         WHERE ar.organization_id = $1 AND ar.installation_id = $2 AND ar.conversation_id IS NULL`,
+        [organizationId, installationId],
+      ),
+    ]);
+    const byStatus = Object.fromEntries(statuses.rows.map((row) => [row.status, Number(row.count)]));
+    return {
+      total: Object.values(byStatus).reduce((sum, count) => sum + count, 0),
+      byStatus,
+      toolInvocations: Number(counts.rows[0]?.tool_invocations ?? 0),
+      modelCalls: Number(counts.rows[0]?.model_calls ?? 0),
+      estimatedCostUsd: cost.rows[0]?.total ?? "0",
+    };
   }
 
   public async listOrganizationRuns(organizationId: string, limit = 50): Promise<RunRecord[]> {

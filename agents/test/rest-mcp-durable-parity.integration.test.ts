@@ -85,8 +85,6 @@ describe.skipIf(!runIntegration)("database-backed MCP and installation REST pari
       resources: [],
       connectors: [],
       instructions: "Exercise the local protocol parity contract.",
-      mcpScopes: ["mcp:read", "mcp:write"],
-      apiScopes: ["api:read", "api:write"],
       credentialLabel: "local parity",
       idempotencyKey: `rest-mcp-${randomUUID()}`,
     });
@@ -144,6 +142,19 @@ describe.skipIf(!runIntegration)("database-backed MCP and installation REST pari
         { event_type: "run.running", count: String(parityCases.length * 2) },
         { event_type: "run.completed", count: String(parityCases.length * 2) },
       ]));
+      const operations = await runs.listInstallationOperations(organizationId, installationId, 100);
+      expect(operations).toHaveLength(parityCases.length * 2);
+      expect(new Set(operations.map((operation) => operation.transport))).toEqual(new Set(["mcp", "rest"]));
+      const summary = await runs.installationOperationSummary(organizationId, installationId);
+      expect(summary).toMatchObject({ total: parityCases.length * 2, toolInvocations: parityCases.length * 2 });
+      expect(summary.byStatus.completed).toBe(parityCases.length * 2);
+      const operationResponse = await app.inject({
+        method: "GET",
+        url: `/v1/installations/${installationId}/operations?limit=100`,
+        headers: { "x-organization-id": organizationId, "x-actor-id": actorId },
+      });
+      expect(operationResponse.statusCode).toBe(200);
+      expect(operationResponse.json()).toMatchObject({ installationId, summary: { total: parityCases.length * 2 } });
     } finally {
       await app.close();
     }

@@ -1,6 +1,8 @@
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 
+use std::collections::HashMap;
+
 use crate::{
     db::models::{SocialPost, SocialPostUpsertRequest},
     error::AppError,
@@ -17,6 +19,160 @@ const SUPPORTED_PLATFORMS: [&str; 7] = [
     "LINKEDIN",
     "X",
 ];
+
+fn normalize_platform(value: &str) -> String {
+    value.trim().to_ascii_uppercase()
+}
+
+async fn newest_connected_channel(
+    pool: &PgPool,
+    organization_id: &str,
+    platform: &str,
+) -> Result<Option<String>, AppError> {
+    sqlx::query_scalar::<_, String>(
+        r#"SELECT id
+           FROM "SocialChannelConnection"
+           WHERE "orgId" = $1
+             AND platform = CAST($2 AS "SocialPlatform")
+             AND status = 'CONNECTED'::"SocialChannelStatus"
+           ORDER BY "updatedAt" DESC, "createdAt" DESC
+           LIMIT 1"#,
+    )
+    .bind(organization_id)
+    .bind(platform)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::from)
+}
+
+async fn connected_channel_by_id(
+    pool: &PgPool,
+    organization_id: &str,
+    channel_id: &str,
+) -> Result<Option<String>, AppError> {
+    sqlx::query_scalar::<_, String>(
+        r#"SELECT id
+           FROM "SocialChannelConnection"
+           WHERE id = $1
+             AND "orgId" = $2
+             AND status = 'CONNECTED'::"SocialChannelStatus"
+           LIMIT 1"#,
+    )
+    .bind(channel_id)
+    .bind(organization_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::from)
+}
+
+/// Agent requests use platform names from natural language (for example,
+/// `bluesky`). Core persists the canonical enum spelling and can choose the
+/// newest connected account when an agent did not provide an account id.
+async fn prepare_agent_content_request(
+    pool: &PgPool,
+    organization_id: &str,
+    request: &SocialPostUpsertRequest,
+) -> Result<SocialPostUpsertRequest, AppError> {
+    let mut prepared = request.clone();
+    prepared.channels = request.channels.as_ref().map(|channels| {
+        channels
+            .iter()
+            .map(|platform| normalize_platform(platform))
+            .collect()
+    });
+    prepared.variants = request.variants.as_ref().map(|variants| {
+        variants
+            .iter()
+            .cloned()
+            .map(|mut variant| {
+                variant.platform = normalize_platform(&variant.platform);
+                variant
+            })
+            .collect()
+    });
+
+    let mut selections = request
+        .channel_selections
+        .clone()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(platform, channel_id)| {
+            let platform = normalize_platform(&platform);
+            let channel_id = channel_id.trim().to_string();
+            (!platform.is_empty() && !channel_id.is_empty()).then_some((platform, channel_id))
+        })
+        .collect::<HashMap<_, _>>();
+
+    if let Some(channels) = prepared.channels.as_ref() {
+        for platform in channels {
+            if !SUPPORTED_PLATFORMS.contains(&platform.as_str()) {
+                continue;
+            }
+
+            let selected = selections.get(platform).cloned();
+            let selected_is_valid = match selected.as_deref() {
+                Some(channel_id) => sqlx::query_scalar::<_, String>(
+                    r#"SELECT id
+                       FROM "SocialChannelConnection"
+                       WHERE id = $1
+                         AND "orgId" = $2
+                         AND platform = CAST($3 AS "SocialPlatform")
+                         AND status = 'CONNECTED'::"SocialChannelStatus"
+                       LIMIT 1"#,
+                )
+                .bind(channel_id)
+                .bind(organization_id)
+                .bind(platform)
+                .fetch_optional(pool)
+                .await?
+                .is_some(),
+                None => false,
+            };
+
+            if !selected_is_valid {
+                selections.remove(platform);
+                if let Some(channel_id) =
+                    newest_connected_channel(pool, organization_id, platform).await?
+                {
+                    selections.insert(platform.clone(), channel_id);
+                }
+            }
+        }
+    }
+
+    // `primaryChannelId` is an implementation detail of the product content
+    // model. A model may echo an old or invented id; do not turn that stale
+    // hint into a 404. Keep valid connected ids and otherwise use the channel
+    // selected above (or leave it unset so missing connections are explained
+    // by the normal channel validation).
+    let fallback_primary = prepared
+        .channels
+        .as_ref()
+        .and_then(|channels| {
+            channels
+                .iter()
+                .find_map(|platform| selections.get(platform).cloned())
+        })
+        .or_else(|| selections.values().next().cloned());
+    prepared.primary_channel_id = match request
+        .primary_channel_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some(channel_id) => connected_channel_by_id(pool, organization_id, channel_id)
+            .await?
+            .or(fallback_primary),
+        None => fallback_primary,
+    };
+
+    prepared.channel_selections = if selections.is_empty() {
+        None
+    } else {
+        Some(selections)
+    };
+    Ok(prepared)
+}
 
 /// Typed content capability boundary. Transport layers pass a normalized
 /// context here; organization ownership is never accepted from the payload.
@@ -51,6 +207,7 @@ pub async fn create_draft(
     context: &RequestContext,
     request: &SocialPostUpsertRequest,
 ) -> Result<SocialPost, AppError> {
+    let request = prepare_agent_content_request(pool, &context.organization_id, request).await?;
     let actor_id = context
         .user_id
         .as_deref()
@@ -70,7 +227,7 @@ pub async fn create_draft(
         pool,
         &actor_id,
         &context.organization_id,
-        request,
+        &request,
         context.idempotency_key.as_deref(),
     )
     .await
@@ -94,6 +251,7 @@ pub async fn update_draft(
             "Agent content updates must keep DRAFT status".to_string(),
         ));
     }
+    let request = prepare_agent_content_request(pool, &context.organization_id, request).await?;
     let actor_id = context
         .user_id
         .as_deref()
@@ -109,7 +267,7 @@ pub async fn update_draft(
                 .ok_or_else(|| AppError::NotFound("Organization owner not found".to_string()))?
         }
     };
-    social::update_social_post(pool, &actor_id, &context.organization_id, post_id, request).await
+    social::update_social_post(pool, &actor_id, &context.organization_id, post_id, &request).await
 }
 
 pub async fn publish(
@@ -381,7 +539,7 @@ mod tests {
         request_context::RequestContext,
     };
 
-    use super::{delete_post, publish, schedule, unschedule};
+    use super::{delete_post, normalize_platform, publish, schedule, unschedule};
 
     fn context(idempotency_key: Option<&str>) -> RequestContext {
         RequestContext {
@@ -396,10 +554,17 @@ mod tests {
             client_id: Some("credential-1".to_string()),
             installation_id: Some("installation-1".to_string()),
             effective_grants: Default::default(),
+            api_scopes: None,
             correlation_id: None,
             causation_id: None,
             idempotency_key: idempotency_key.map(str::to_string),
         }
+    }
+
+    #[test]
+    fn normalizes_platform_names_from_agent_requests() {
+        assert_eq!(normalize_platform(" bluesky "), "BLUESKY");
+        assert_eq!(normalize_platform("Bluesky"), "BLUESKY");
     }
 
     #[tokio::test]

@@ -118,7 +118,7 @@ export default function InboxAlertControls({
             onClick={toggleSoundAlerts}
             className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
               preferences.soundAlertsEnabled
-                ? "border-accent/30 bg-accent/10 text-accent"
+                ? "border-status-success/30 bg-status-success-soft text-status-success"
                 : "border-border bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
             }`}
           >

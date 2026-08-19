@@ -7,17 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { WorkspaceConnection } from "@/lib/connections";
 import { apiUrl } from "@/lib/server-api";
+import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icons";
 import {
-  AtSign,
   Bot,
-  Facebook,
-  Instagram,
-  Linkedin,
   MessageCircle,
-  Music2,
   Radio,
   RefreshCw,
-  Send,
   Unplug,
   X as CloseIcon,
 } from "lucide-react";
@@ -25,60 +20,72 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+const WhatsAppBrandIcon = getPlatformBrandIcon("WHATSAPP") ?? MessageCircle;
+const FacebookBrandIcon = getPlatformBrandIcon("FACEBOOK") ?? MessageCircle;
+const InstagramBrandIcon = getPlatformBrandIcon("INSTAGRAM") ?? MessageCircle;
+
 const providerDetails = {
   WHATSAPP: {
     label: "WhatsApp",
     availableLabel: "Available to connect",
-    icon: MessageCircle,
+    icon: WhatsAppBrandIcon,
+    iconClass: getPlatformBrandColor("WHATSAPP"),
     connectPath: "#whatsapp-setup",
     connectLabel: "Connect",
   },
   FACEBOOK: {
     label: "Facebook",
     availableLabel: "Pages via Meta",
-    icon: Facebook,
+    icon: FacebookBrandIcon,
+    iconClass: getPlatformBrandColor("FACEBOOK"),
     connectPath: "/api/social/oauth/meta/start?target=facebook",
     connectLabel: "Add Facebook Pages",
   },
   INSTAGRAM: {
     label: "Instagram",
     availableLabel: "Business and Creator accounts",
-    icon: Instagram,
+    icon: InstagramBrandIcon,
+    iconClass: getPlatformBrandColor("INSTAGRAM"),
     connectPath: "/api/social/oauth/instagram/start",
     connectLabel: "Connect Instagram",
   },
   THREADS: {
     label: "Threads",
-    availableLabel: "Separate Meta integration",
-    icon: AtSign,
+    availableLabel: "Publish to Threads",
+    icon: getPlatformBrandIcon("THREADS") ?? MessageCircle,
+    iconClass: getPlatformBrandColor("THREADS"),
     connectPath: "/api/social/oauth/threads/start",
     connectLabel: "Connect",
   },
   TIKTOK: {
     label: "TikTok",
     availableLabel: "Available to connect",
-    icon: Music2,
+    icon: getPlatformBrandIcon("TIKTOK") ?? MessageCircle,
+    iconClass: getPlatformBrandColor("TIKTOK"),
     connectPath: "/api/social/oauth/tiktok/start",
     connectLabel: "Connect",
   },
   BLUESKY: {
     label: "Bluesky",
     availableLabel: "Authorize with Bluesky",
-    icon: AtSign,
+    icon: getPlatformBrandIcon("BLUESKY") ?? MessageCircle,
+    iconClass: getPlatformBrandColor("BLUESKY"),
     connectPath: null,
     connectLabel: "Connect",
   },
   LINKEDIN: {
     label: "LinkedIn",
     availableLabel: "Available to connect",
-    icon: Linkedin,
+    icon: getPlatformBrandIcon("LINKEDIN") ?? MessageCircle,
+    iconClass: getPlatformBrandColor("LINKEDIN"),
     connectPath: "/api/social/oauth/linkedin/start",
     connectLabel: "Connect",
   },
   X: {
     label: "X",
     availableLabel: "Available to connect",
-    icon: Send,
+    icon: getPlatformBrandIcon("X") ?? MessageCircle,
+    iconClass: getPlatformBrandColor("X"),
     connectPath: "/api/social/oauth/x/start",
     connectLabel: "Connect",
   },
@@ -122,6 +129,11 @@ function formatDetail(value: unknown) {
   return String(value);
 }
 
+function normalizeBlueskyHandle(value: string) {
+  const handle = value.trim().replace(/^@/, "");
+  return handle && !handle.includes(".") ? `${handle}.bsky.social` : handle;
+}
+
 export function ConnectionsManager({ connections }: { connections: WorkspaceConnection[] }) {
   const router = useRouter();
   const [pending, setPending] = useState<string | null>(null);
@@ -130,6 +142,7 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
   const [connectionPicker, setConnectionPicker] = useState<"FACEBOOK" | "INSTAGRAM" | null>(null);
   const [blueskyOpen, setBlueskyOpen] = useState(false);
   const [blueskyHandle, setBlueskyHandle] = useState("");
+  const [threadsConnectPath, setThreadsConnectPath] = useState<string | null>(null);
   const groupedConnections = Object.entries(providerDetails)
     .map(([provider, detail]) => ({
       provider,
@@ -164,18 +177,56 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
     window.dispatchEvent(new Event("kasitek:start-whatsapp-embedded-signup"));
   }
 
-  function connectBluesky() {
+  function startOAuthConnection(path: string) {
+    const publicAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (publicAppUrl) {
+      const publicOrigin = new URL(publicAppUrl).origin;
+      if (window.location.origin !== publicOrigin) {
+        window.location.assign(`${publicOrigin}/connections`);
+        return;
+      }
+    }
+
+    window.location.assign(path);
+  }
+
+  async function connectBluesky() {
     setPending("bluesky:connect");
     setError("");
-    const params = new URLSearchParams({ handle: blueskyHandle.trim().replace(/^@/, "") });
-    window.location.assign(apiUrl(`/api/social/oauth/bluesky/start?${params.toString()}`));
+
+    try {
+      const response = await fetch(apiUrl("/api/social/oauth/bluesky/readiness"), {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const body = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(body.error || "Bluesky connection is not ready");
+
+      const handle = normalizeBlueskyHandle(blueskyHandle);
+      setBlueskyHandle(handle);
+      const params = new URLSearchParams({ handle });
+      window.location.assign(apiUrl(`/api/social/oauth/bluesky/start?${params.toString()}`));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Bluesky connection is not ready");
+      setPending(null);
+    }
   }
 
   return (
     <div className="space-y-8">
       {error ? (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {error}
+        <div className="flex items-start justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <span>{error}</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="-mr-2 -mt-2 shrink-0 text-current hover:bg-destructive/10"
+            onClick={() => setError("")}
+            aria-label="Dismiss message"
+          >
+            <CloseIcon />
+          </Button>
         </div>
       ) : null}
 
@@ -203,19 +254,21 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
               <Card key={provider} className="gap-0 py-0">
                 <CardContent className="flex items-center justify-between gap-4 p-4">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="rounded-md border bg-secondary p-2"><Icon className="h-5 w-5" /></div>
+                    <div className="rounded-md border bg-secondary p-2"><Icon className={`h-5 w-5 ${detail.iconClass}`} /></div>
                     <div className="min-w-0">
                       <p className="font-medium">{detail.label}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {connected > 0 ? (
+                      {connected > 0 || detail.availableLabel ? (
+                        <p className="text-xs text-muted-foreground">
+                          {connected > 0 ? (
                           <span className="inline-flex items-center gap-1.5">
                             <span className="inline-flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
                               {connected}
                             </span>
                             connected
                           </span>
-                        ) : canConnect ? detail.availableLabel ?? "Available to connect" : detail.availableLabel ?? "Coming soon"}
-                      </p>
+                          ) : detail.availableLabel}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 
@@ -236,8 +289,14 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                       {actionLabel}
                     </Button>
                   ) : canConnect ? (
-                    <Button asChild variant={connected > 0 ? "outline" : "default"} size="sm">
-                      <a href={detail.connectPath!}>{actionLabel}</a>
+                    <Button
+                      variant={connected > 0 ? "outline" : "default"}
+                      size="sm"
+                      onClick={() => provider === "THREADS"
+                        ? setThreadsConnectPath(detail.connectPath!)
+                        : startOAuthConnection(detail.connectPath!)}
+                    >
+                      {actionLabel}
                     </Button>
                   ) : (
                     <Button variant="outline" size="sm" disabled>Planned</Button>
@@ -265,7 +324,7 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
               return (
                 <section key={group.provider} className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <div className="rounded-md border bg-secondary p-1.5"><GroupIcon className="h-4 w-4" /></div>
+                    <div className="rounded-md border bg-secondary p-1.5"><GroupIcon className={`h-4 w-4 ${group.detail.iconClass}`} /></div>
                     <h3 className="font-medium">{group.detail.label}</h3>
                     <span className="inline-flex size-5 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-muted-foreground">
                       {group.connections.length}
@@ -286,7 +345,7 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                         >
                           <CardContent className="flex min-h-16 items-center justify-between gap-3 p-3">
                             <div className="flex min-w-0 items-center gap-3">
-                              <div className="rounded-md border bg-secondary p-1.5"><Icon className="h-4 w-4" /></div>
+                              <div className="rounded-md border bg-secondary p-1.5"><Icon className={`h-4 w-4 ${detail?.iconClass ?? "text-muted-foreground"}`} /></div>
                               <div className="min-w-0">
                                 <p className="truncate text-sm font-medium">{connection.displayName}</p>
                                 {connection.handle ? (
@@ -306,6 +365,38 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
           </div>
         )}
       </section>
+
+      {threadsConnectPath ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="threads-connect-title">
+          <button
+            type="button"
+            className="absolute inset-0 bg-overlay"
+            onClick={() => setThreadsConnectPath(null)}
+            aria-label="Close Threads connection dialog"
+          />
+          <div className="relative w-full max-w-md space-y-5 rounded-xl border border-border bg-card p-6 shadow-xl">
+            <div className="space-y-2">
+              <h2 id="threads-connect-title" className="text-lg font-semibold">Before connecting Threads</h2>
+              <p className="text-sm text-muted-foreground">
+                Make sure you are already signed in to Threads in this browser.
+              </p>
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="ghost" onClick={() => setThreadsConnectPath(null)}>Cancel</Button>
+              <Button variant="outline" asChild>
+                <a href="https://www.threads.com/" target="_blank" rel="noreferrer">Open Threads</a>
+              </Button>
+              <Button onClick={() => {
+                const path = threadsConnectPath;
+                setThreadsConnectPath(null);
+                startOAuthConnection(path);
+              }}>
+                I&apos;m signed in — Continue
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <Sheet
         open={connectionPicker !== null}
@@ -332,7 +423,7 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                 <div className="space-y-4">
                   <div className="rounded-lg border bg-secondary/40 p-4">
                     <div className="flex items-start gap-3">
-                      <div className="rounded-md border bg-background p-2"><Facebook className="h-5 w-5" /></div>
+                      <div className="rounded-md border bg-background p-2"><FacebookBrandIcon className={`h-5 w-5 ${getPlatformBrandColor("FACEBOOK")}`} /></div>
                       <div>
                         <h3 className="font-medium">Facebook Pages</h3>
                         <p className="mt-1 text-sm text-muted-foreground">
@@ -355,7 +446,7 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                     className="block rounded-lg border p-4 transition-colors hover:border-primary/60 hover:bg-secondary/40"
                   >
                     <div className="flex items-start gap-3">
-                      <div className="rounded-md border bg-secondary p-2"><Instagram className="h-5 w-5" /></div>
+                      <div className="rounded-md border bg-secondary p-2"><InstagramBrandIcon className={`h-5 w-5 ${getPlatformBrandColor("INSTAGRAM")}`} /></div>
                       <div>
                         <h3 className="font-medium">Instagram Business or Creator account</h3>
                         <p className="mt-1 text-sm text-muted-foreground">
@@ -370,7 +461,7 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                     className="block rounded-lg border p-4 transition-colors hover:border-primary/60 hover:bg-secondary/40"
                   >
                     <div className="flex items-start gap-3">
-                      <div className="rounded-md border bg-secondary p-2"><Facebook className="h-5 w-5" /></div>
+                      <div className="rounded-md border bg-secondary p-2"><FacebookBrandIcon className={`h-5 w-5 ${getPlatformBrandColor("FACEBOOK")}`} /></div>
                       <div>
                         <h3 className="font-medium">Instagram account linked to a Facebook Page</h3>
                         <p className="mt-1 text-sm text-muted-foreground">
@@ -392,7 +483,7 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
           <div className="space-y-6">
             <div><p className="text-sm font-medium text-muted-foreground">Connect an account</p><h2 className="mt-1 text-xl font-semibold">Bluesky</h2></div>
             <p className="text-sm text-muted-foreground">Enter the account handle, then authorize KasiTek on the account provider&apos;s consent screen. Your Bluesky password is never shared with KasiTek.</p>
-            <label className="block space-y-2"><span className="text-sm font-medium">Handle</span><Input value={blueskyHandle} onChange={(event) => setBlueskyHandle(event.target.value)} placeholder="business.bsky.social" autoComplete="username" /></label>
+            <label className="block space-y-2"><span className="text-sm font-medium">Handle</span><Input value={blueskyHandle} onChange={(event) => setBlueskyHandle(event.target.value)} placeholder="business or business.bsky.social" autoComplete="username" /><span className="block text-xs text-muted-foreground">We add <code>.bsky.social</code> when you enter only a handle.</span></label>
             <Button className="w-full" disabled={pending !== null || !blueskyHandle.trim()} onClick={connectBluesky}>{pending === "bluesky:connect" ? "Redirecting…" : "Continue to Bluesky"}</Button>
           </div>
         </SheetContent>
@@ -422,7 +513,7 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
               <div className="space-y-6">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="rounded-md border bg-secondary p-2"><Icon className="h-5 w-5" /></div>
+                    <div className="rounded-md border bg-secondary p-2"><Icon className={`h-5 w-5 ${providerDetail?.iconClass ?? "text-muted-foreground"}`} /></div>
                     <div><p className="font-semibold">{selectedConnection.displayName}</p><p className="text-sm text-muted-foreground">Connection details</p></div>
                   </div>
                   <Button variant="ghost" size="icon-sm" onClick={() => setSelectedConnection(null)} aria-label="Close details"><CloseIcon /></Button>
@@ -443,7 +534,18 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                 {selectedConnection.lastError ? <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{selectedConnection.lastError}</div> : null}
 
                 <div className="flex flex-wrap gap-2 border-t pt-4">
-                  {selectedConnection.status !== "CONNECTED" && reconnectPath ? (
+                  {selectedConnection.provider === "WHATSAPP" ? (
+                    <Button
+                      size="sm"
+                      disabled={pending !== null}
+                      onClick={() => {
+                        setSelectedConnection(null);
+                        beginWhatsappEmbeddedSignup();
+                      }}
+                    >
+                      <RefreshCw />Reconnect with Meta
+                    </Button>
+                  ) : selectedConnection.status !== "CONNECTED" && reconnectPath ? (
                     <Button asChild size="sm">
                       <Link href={reconnectPath}><RefreshCw />Reconnect</Link>
                     </Button>

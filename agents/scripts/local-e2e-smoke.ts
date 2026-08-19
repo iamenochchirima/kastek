@@ -102,7 +102,7 @@ async function main(): Promise<void> {
     const credentialResponse = await request(`${agentApiUrl}/v1/installations/${installationId}/credentials`, {
       method: "POST",
       headers: controlHeaders(),
-      body: JSON.stringify({ label: "local-e2e", mcpScopes: ["mcp:read", "mcp:write"], apiScopes: ["api:read", "api:write"] }),
+      body: JSON.stringify({ label: "local-e2e" }),
     });
     const secret = id(credentialResponse, "secret");
     const exchange = async (audience: "mcp" | "kasitek-public-api") => request(`${agentApiUrl}/v1/installation-tokens/exchange`, {

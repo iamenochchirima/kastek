@@ -19,6 +19,13 @@ fi
 
 AGENT_ENV_SETUP="if [[ -f '$ROOT_DIR/agents/.env' ]]; then set -a; source '$ROOT_DIR/agents/.env'; set +a; fi"
 
+# The local Agent Platform -> Core boundary uses the development bearer-token
+# compatibility path. Keep one value on both processes so read and draft tools
+# fail at startup configuration time rather than only when a user invokes one.
+# Production deployments must use per-invocation delegation keys instead.
+LOCAL_CORE_URL="${KASITEK_CORE_URL:-http://127.0.0.1:4000}"
+LOCAL_CORE_AGENT_TOKEN="${KASITEK_LOCAL_CORE_AGENT_TOKEN:-kasitek-local-agent-boundary-dev-2026}"
+
 # "$ROOT_DIR/scripts/sync_dotenv_vaults.sh" pull
 
 require_command() {
@@ -57,10 +64,11 @@ declare -a tabs=()
 declare -A services
 
 # Define all available services
-services["core"]="$ROOT_DIR/server/kasitek-core|cargo run"
-services["tenants"]="$ROOT_DIR/server/kasitek-tenants|cargo run"
-services["agents-api"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; $AGENT_TEMPORAL_ENV pnpm run dev:api"
-services["agents-worker"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; $AGENT_TEMPORAL_ENV pnpm run dev:worker"
+services["core"]="$ROOT_DIR/server/kasitek-core|LOG_COLOR=always KASITEK_AGENTS_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' cargo run"
+services["tenants"]="$ROOT_DIR/server/kasitek-tenants|LOG_COLOR=always cargo run"
+services["agents-api"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; KASITEK_CORE_URL='$LOCAL_CORE_URL' KASITEK_CORE_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' $AGENT_TEMPORAL_ENV pnpm run dev:api"
+services["agents-worker"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; KASITEK_CORE_URL='$LOCAL_CORE_URL' KASITEK_CORE_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' $AGENT_TEMPORAL_ENV pnpm run dev:worker"
+services["agent-gateway"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; pnpm run dev:gateway"
 services["client"]="$ROOT_DIR/client|pnpm run dev"
 services["admin"]="$ROOT_DIR/client|pnpm dev:admin"
 services["labs"]="$ROOT_DIR/client|pnpm --filter labs dev"
@@ -70,6 +78,79 @@ services["ngrok-client"]="$ROOT_DIR|ngrok http --url=curtis-pastureless-sickerly
 if [[ "$TEMPORAL_MODE" == "local" ]]; then
   services["temporal"]="$ROOT_DIR|temporal server start-dev --db-filename '$ROOT_DIR/.local/temporal.sqlite'"
 fi
+
+service_port() {
+  case "$1" in
+    core) echo 4000 ;;
+    tenants) echo 8090 ;;
+    agents-api) echo 4100 ;;
+    agent-gateway) echo 4200 ;;
+    client) echo 3000 ;;
+    admin) echo 3001 ;;
+    labs) echo 3007 ;;
+    temporal) echo 7233 ;;
+  esac
+}
+
+stop_process_tree() {
+  local process_id="$1"
+  local child_id
+
+  while IFS= read -r child_id; do
+    [[ -n "$child_id" ]] && stop_process_tree "$child_id"
+  done < <(pgrep -P "$process_id" 2>/dev/null || true)
+
+  kill -TERM "$process_id" 2>/dev/null || true
+}
+
+stop_service() {
+  local name="$1"
+  local launcher="/tmp/kasitek_${name}.sh"
+  local found=false
+  local process_id
+
+  # Services started by this script have a dedicated launcher. Stop its
+  # descendants first so a restart never terminates another local service.
+  while IFS= read -r process_id; do
+    [[ -z "$process_id" ]] && continue
+    stop_process_tree "$process_id"
+    found=true
+  done < <(pgrep -f "^bash ${launcher}$" 2>/dev/null || true)
+
+  local port
+  port="$(service_port "$name")"
+  if [[ -n "$port" ]]; then
+    require_command lsof
+    while IFS= read -r process_id; do
+      [[ -z "$process_id" ]] && continue
+      stop_process_tree "$process_id"
+      found=true
+    done < <(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)
+  fi
+
+  case "$name" in
+    ngrok)
+      while IFS= read -r process_id; do
+        [[ -z "$process_id" ]] && continue
+        stop_process_tree "$process_id"
+        found=true
+      done < <(pgrep -f 'ngrok http http://localhost:4000' 2>/dev/null || true)
+      ;;
+    ngrok-client)
+      while IFS= read -r process_id; do
+        [[ -z "$process_id" ]] && continue
+        stop_process_tree "$process_id"
+        found=true
+      done < <(pgrep -f 'ngrok http --url=curtis-pastureless-sickerly.ngrok-free.dev 3000' 2>/dev/null || true)
+      ;;
+  esac
+
+  if [[ "$found" == true ]]; then
+    echo "Stopped $name."
+  else
+    echo "No running $name service found; starting it."
+  fi
+}
 
 add_tab() {
   local name="$1"
@@ -98,6 +179,7 @@ add_service() {
 
 show_usage() {
   echo "Usage: $0 [service1 service2 ...]"
+  echo "       $0 restart <service1> [service2 ...]"
   echo ""
   echo "Available services:"
   for service in "${!services[@]}"; do
@@ -108,13 +190,15 @@ show_usage() {
   echo "  $0                    # Run all services"
   echo "  $0 core               # Run the Core API, including Calls"
   echo "  $0 core client        # Run the Core API and client"
+  echo "  $0 restart core       # Restart only the Core API"
+  echo "  $0 restart client     # Restart only the direct client app"
   echo ""
 }
 
 # Parse command line arguments
 if [[ $# -eq 0 ]]; then
   # No arguments - run all services
-  services_to_start=(core tenants agents-api agents-worker client admin labs ngrok ngrok-client)
+  services_to_start=(core tenants agents-api agents-worker agent-gateway client admin labs ngrok ngrok-client)
   if [[ "$TEMPORAL_MODE" == "local" ]]; then
     services_to_start+=(temporal)
   fi
@@ -124,6 +208,21 @@ if [[ $# -eq 0 ]]; then
 elif [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
   show_usage
   exit 0
+elif [[ "$1" == "restart" ]]; then
+  shift
+  if [[ $# -eq 0 ]]; then
+    echo "Error: Specify at least one service to restart." >&2
+    exit 1
+  fi
+  for service in "$@"; do
+    if [[ -z "${services[$service]:-}" ]]; then
+      echo "Error: Unknown service '$service'" >&2
+      echo "Available services: ${!services[*]}" >&2
+      exit 1
+    fi
+    stop_service "$service"
+    add_service "$service"
+  done
 else
   # Run specified services
   for service in "$@"; do

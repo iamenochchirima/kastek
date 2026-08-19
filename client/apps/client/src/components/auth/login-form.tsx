@@ -81,7 +81,7 @@ export default function LoginForm() {
   return (
     <div className="space-y-6">
       {verified && (
-        <div className="rounded-xl border border-accent/20 bg-accent/5 px-4 py-3 text-center text-sm text-accent">
+        <div className="rounded-xl border border-status-success/30 bg-status-success-soft px-4 py-3 text-center text-sm text-status-success">
           Email verified successfully. You can now sign in.
         </div>
       )}

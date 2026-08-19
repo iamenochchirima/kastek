@@ -1020,6 +1020,19 @@ new cross-scope regressions live in `agents/test/memory.integration.test.ts` and
 249 tests / 0 skipped. Browser/provider scenarios, opt-out, reconnect, and the complete channel
 matrix remain open.
 
+**Installation-local conversation capture follow-up (2026-08-19):** Migration
+`055_agent_conversation_projections.sql` adds explicit `personal`, `customer`, `test`, and
+`external` conversation kinds plus participant, unread, assignment, last-message, and count
+projections. Hosted channel ingestion now keys customer conversations by installation, channel
+connection, external identity, and external thread instead of the owner’s private primary chat;
+platform test messages remain separate. Installation conversation reads expose the customer
+projection without reading `kasitek-core /inbox`. MCP/REST capability calls remain operation-only
+for external-connected installations, with transport, tool/model counts, approvals, and estimated
+cost surfaced by the installation operations projection. Evidence: `agents/test/platform-chat.integration.test.ts`
+and `agents/test/rest-mcp-durable-parity.integration.test.ts`; focused PostgreSQL suites pass.
+Staff assignment/handoff, optional `/inbox` linking, and browser/provider scenarios remain later
+work and are tracked in `KASITEK_AGENT_CONVERSATION_CAPTURE_CHECKLIST.md`.
+
 **Complete when:** every supported channel reaches the same durable agent runtime while identity,
 conversation history, delivery, knowledge, and memory remain correctly scoped and recoverable.
 

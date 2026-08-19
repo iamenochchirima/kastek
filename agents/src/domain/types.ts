@@ -71,6 +71,21 @@ export const createAgentInputSchema = z.object({
 });
 export type CreateAgentInput = z.infer<typeof createAgentInputSchema>;
 
+export const updateAgentInputSchema = z.object({
+  name: z.string().trim().min(1).max(160).optional(),
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+    .max(80)
+    .optional(),
+  description: z.string().trim().max(2000).nullable().optional(),
+}).refine((value) => value.name !== undefined || value.slug !== undefined || value.description !== undefined, {
+  message: "At least one agent field must be provided",
+});
+export type UpdateAgentInput = z.infer<typeof updateAgentInputSchema>;
+
 export const createVersionInputSchema = z.object({
   instructions: z.string().min(1).max(200_000),
   configuration: z.record(z.string(), z.unknown()).default({}),
@@ -108,8 +123,6 @@ export const createExternalAgentInputSchema = z.object({
   resources: z.array(externalScopeSchema).max(200).default([]),
   connectors: z.array(z.string().trim().min(1).max(240)).max(100).default([]),
   instructions: z.string().trim().min(1).max(200_000).default("Operate as an external-connected KasiTek client."),
-  mcpScopes: z.array(z.enum(["mcp:read", "mcp:write"])).min(1).max(2).default(["mcp:read"]),
-  apiScopes: z.array(z.enum(["api:read", "api:write"])).min(1).max(2).default(["api:read"]),
   credentialLabel: z.string().trim().min(1).max(160).default("External agent"),
   expiresAt: z.string().datetime().optional(),
   clientKeyId: z.string().trim().min(1).max(160).regex(/^[A-Za-z0-9._:-]+$/).optional(),
@@ -125,8 +138,6 @@ export type CreateExternalAgentInput = z.infer<typeof createExternalAgentInputSc
 export const createInstallationCredentialInputSchema = z.object({
   label: z.string().trim().min(1).max(160),
   expiresAt: z.string().datetime().optional(),
-  mcpScopes: z.array(z.enum(["mcp:read", "mcp:write"])).min(1).max(2).default(["mcp:read"]),
-  apiScopes: z.array(z.enum(["api:read", "api:write"])).min(1).max(2).default(["api:read"]),
   clientKeyId: z.string().trim().min(1).max(160).regex(/^[A-Za-z0-9._:-]+$/).optional(),
   clientPublicKey: z.string().trim().min(1).max(16_000).optional(),
 }).superRefine((value, context) => {

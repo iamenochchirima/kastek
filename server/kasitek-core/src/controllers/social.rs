@@ -18,6 +18,12 @@ pub struct PublicMediaQuery {
     pub signature: String,
 }
 
+#[derive(Debug, Default, Deserialize)]
+struct SocialPostDeleteRequest {
+    #[serde(rename = "deleteFromPlatforms")]
+    delete_from_platforms: Option<bool>,
+}
+
 async fn require_social_access(
     pool: &PgPool,
     req: &HttpRequest,
@@ -326,17 +332,51 @@ pub async fn update_post(
 }
 
 pub async fn delete_post(
+    config: web::Data<AppConfig>,
     pool: web::Data<PgPool>,
     req: HttpRequest,
     path: web::Path<String>,
+    body: web::Bytes,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     let org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    let delete_from_platforms = if body.is_empty() {
+        false
+    } else {
+        serde_json::from_slice::<SocialPostDeleteRequest>(&body)
+            .map_err(|_| AppError::BadRequest("Invalid delete options".to_string()))?
+            .delete_from_platforms
+            .unwrap_or(false)
+    };
+
+    if delete_from_platforms {
+        let result = social::delete_social_post_from_platforms(
+            pool.get_ref(),
+            config.get_ref(),
+            &org_id,
+            &path,
+        )
+        .await?;
+        if !result.success {
+            return Ok(HttpResponse::Conflict().json(serde_json::json!({
+                "success": false,
+                "error": "The post was not removed from KasiTek because one or more platform deletions failed.",
+                "localDeleted": result.local_deleted,
+                "providerResults": result.provider_results,
+            })));
+        }
+        return Ok(HttpResponse::Ok().json(result));
+    }
+
     let deleted = social::delete_social_post(pool.get_ref(), &org_id, &path).await?;
     if !deleted {
         return Err(AppError::NotFound("Post not found".to_string()));
     }
-    Ok(HttpResponse::Ok().json(serde_json::json!({ "success": true })))
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "success": true,
+        "localDeleted": true,
+        "providerResults": []
+    })))
 }
 
 pub async fn publish_post(

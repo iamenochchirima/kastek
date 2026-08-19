@@ -196,7 +196,7 @@ export class KasitekCoreReadClient {
     const baseUrl = this.config.KASITEK_CORE_URL?.replace(/\/$/, "");
     const staticToken = this.config.KASITEK_CORE_INTERNAL_TOKEN?.trim();
     if (!baseUrl || (!staticToken && !this.config.KASITEK_CORE_DELEGATION_PRIVATE_KEY)) {
-      throw new CoreToolError("CORE_UNAVAILABLE", "kasitek-core read boundary is not configured");
+      throw new CoreToolError("CORE_UNAVAILABLE", "kasitek-core capability boundary is not configured");
     }
 
     const controller = new AbortController();
@@ -474,7 +474,7 @@ export class KasitekCoreReadClient {
   ): Promise<T> {
     const baseUrl = this.config.KASITEK_CORE_URL?.replace(/\/$/, "");
     const staticToken = this.config.KASITEK_CORE_INTERNAL_TOKEN?.trim();
-    if (!baseUrl || (!staticToken && !this.config.KASITEK_CORE_DELEGATION_PRIVATE_KEY)) throw new CoreToolError("CORE_UNAVAILABLE", "kasitek-core read boundary is not configured");
+    if (!baseUrl || (!staticToken && !this.config.KASITEK_CORE_DELEGATION_PRIVATE_KEY)) throw new CoreToolError("CORE_UNAVAILABLE", "kasitek-core capability boundary is not configured");
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.config.KASITEK_CORE_TIMEOUT_MS);
     try {
@@ -495,7 +495,17 @@ export class KasitekCoreReadClient {
       });
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) throw new CoreToolError("CORE_UNAUTHORIZED", "kasitek-core rejected the agent credential");
-        throw new CoreToolError("CORE_REQUEST_FAILED", `kasitek-core returned ${response.status}`);
+        const body = await response.text().catch(() => "");
+        let detail = body.trim();
+        try {
+          const parsed: unknown = JSON.parse(body);
+          if (parsed && typeof parsed === "object" && "error" in parsed && typeof parsed.error === "string") {
+            detail = parsed.error;
+          }
+        } catch {
+          // Keep a bounded plain-text response when Core did not return JSON.
+        }
+        throw new CoreToolError("CORE_REQUEST_FAILED", `kasitek-core returned ${response.status}${detail ? `: ${detail.slice(0, 240)}` : ""}`);
       }
       const payload: unknown = await response.json();
       if (!payload || typeof payload !== "object") throw new CoreToolError("CORE_INVALID_RESPONSE", `kasitek-core returned invalid ${label.toLowerCase()} data`);

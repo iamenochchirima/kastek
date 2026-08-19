@@ -5,6 +5,7 @@ export interface CapabilityPolicyInput {
   grantedCapabilities: ReadonlySet<string>;
   requestedResources?: Array<{ type: string; id: string }>;
   grantedResources?: Array<{ resourceType: string; resourceId: string }>;
+  resourceScopeUnconstrained?: boolean;
   available: boolean;
   requiresApproval: boolean;
   approved: boolean;
@@ -16,7 +17,7 @@ export function evaluateCapabilityPolicy(input: CapabilityPolicyInput): { allowe
   if (!input.grantedCapabilities.has(input.capability)) return { allowed: false, code: "CAPABILITY_NOT_GRANTED" };
   if (input.remainingCalls !== undefined && input.remainingCalls <= 0) return { allowed: false, code: "LIMIT_EXCEEDED" };
   const granted = input.grantedResources ?? [];
-  if (input.requestedResources?.some((resource) => !granted.some((entry) => entry.resourceType === resource.type && entry.resourceId === resource.id))) {
+  if (!input.resourceScopeUnconstrained && input.requestedResources?.some((resource) => !granted.some((entry) => entry.resourceType === resource.type && entry.resourceId === resource.id))) {
     return { allowed: false, code: "RESOURCE_NOT_GRANTED" };
   }
   if (input.requiresApproval && !input.approved) return { allowed: false, code: "APPROVAL_REQUIRED" };

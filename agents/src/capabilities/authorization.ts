@@ -27,11 +27,15 @@ export async function authorizeInstallationCapability(input: {
     ? [{ type: selector.type, id: selected.trim() }]
     : undefined;
   const grants = await input.installationGrants.effective(input.organizationId, input.installationId);
+  const resourceScopeUnconstrained = typeof input.installationGrants.isResourceScopeUnconstrained === "function"
+    ? await input.installationGrants.isResourceScopeUnconstrained(input.organizationId, input.installationId)
+    : false;
   const decision = evaluateCapabilityPolicy({
     capability: input.name,
     grantedCapabilities: input.grantedTools,
     requestedResources,
     grantedResources: grants.resources,
+    resourceScopeUnconstrained,
     available: manifest.manifest?.availability !== "not_configured" && manifest.manifest?.availability !== "unhealthy",
     requiresApproval: input.enforceApproval === false ? false : manifest.requiresApproval,
     approved: input.approved,

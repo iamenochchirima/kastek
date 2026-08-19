@@ -6,6 +6,7 @@ import {
   setHandler,
 } from "@temporalio/workflow";
 import type { RunStatus } from "../domain/types";
+import { sanitizeAssistantResponse } from "../runtime/context";
 import type {
   AgentRunActivities,
   ApprovalSignal,
@@ -184,11 +185,37 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         status = "failed";
         return;
       }
+      if (result.status === "limited") {
+        await activities.failRun({
+          runId: input.runId,
+          error: {
+            code: "AGENT_LOOP_LIMITED",
+            message: "The agent reached an execution limit before producing a final response",
+            iterations: result.iterations,
+            toolCalls: result.toolCalls,
+            usage: result.usage,
+          },
+        });
+        status = "failed";
+        return;
+      }
+      const responseMessage = sanitizeAssistantResponse(result.response?.message.content ?? "");
+      if (!responseMessage) {
+        await activities.failRun({
+          runId: input.runId,
+          error: {
+            code: "EMPTY_ASSISTANT_RESPONSE",
+            message: "The agent completed without producing assistant text",
+          },
+        });
+        status = "failed";
+        return;
+      }
       await activities.completeRun({
         runId: input.runId,
         output: {
           status: result.status,
-          message: result.response?.message.content ?? "",
+          message: responseMessage,
           usage: result.usage,
           iterations: result.iterations,
           toolCalls: result.toolCalls,

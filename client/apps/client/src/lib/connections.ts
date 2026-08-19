@@ -1,3 +1,5 @@
+import { apiUrl } from "@/lib/server-api";
+
 export type ConnectionCapability = {
   key: string;
   enabled: boolean;
@@ -33,3 +35,15 @@ export type WhatsappConnectionView = {
   verified: boolean;
   createdAt: string;
 };
+
+export async function listWorkspaceConnections(): Promise<{ connections: WorkspaceConnection[] }> {
+  const response = await fetch(apiUrl("/api/connections"), {
+    credentials: "include",
+    cache: "no-store",
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof body?.error === "string" ? body.error : "Unable to load workspace connections");
+  }
+  return body as { connections: WorkspaceConnection[] };
+}

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ContentWorkspaceNavigation } from "@/components/social/content-workspace-navigation";
 import {
   SOCIAL_PLATFORM_ORDER,
   type SocialChannelConnection,
@@ -132,6 +133,8 @@ export function AnalyticsDashboard() {
           </p>
         </div>
 
+        <ContentWorkspaceNavigation active="analytics" />
+
         <div className="flex gap-2 border-b border-border">
           {(["content", "campaigns"] as const).map((tab) => (
             <button key={tab} type="button" onClick={() => setView(tab)} className={`border-b-2 px-4 py-2 text-sm font-medium ${view === tab ? "border-primary text-foreground" : "border-transparent text-muted-foreground"}`}>
@@ -176,7 +179,7 @@ export function AnalyticsDashboard() {
                   <span className="font-semibold">{getPlatformLabel(channel.platform)}</span>
                   <span className="text-muted-foreground">{channel.contentCount} posts</span>
                   <span className="text-muted-foreground">{channel.connected} connected</span>
-                  <span className="text-accent">{channel.scheduledCount} scheduled</span>
+                  <span className="text-status-info">{channel.scheduledCount} scheduled</span>
                 </div>
               ))}
             </CardContent>

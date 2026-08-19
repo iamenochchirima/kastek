@@ -20,6 +20,12 @@ these documents in order:
 4. [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for cross-product ownership and direct/white-label
    boundaries.
 
+For the focused Developers product surface, also read
+[`KASITEK_DEVELOPERS_PLATFORM_CHECKLIST.md`](KASITEK_DEVELOPERS_PLATFORM_CHECKLIST.md) before
+implementing API keys, the Developers section, REST onboarding, MCP setup, Codex setup, or related
+developer documentation. This checklist narrows the scope of that product slice; it does not
+replace the Agent Platform documents above.
+
 Do not treat documents under `docs/archive/` as active plans. Supporting documents under
 `docs/internal/` do not override a root canonical plan unless explicitly promoted.
 

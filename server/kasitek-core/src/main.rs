@@ -1,6 +1,6 @@
 use ::config::{env_truthy, environment_allows_loopback_origins, is_loopback_origin};
 use actix_cors::Cors;
-use actix_web::{middleware::Logger, web, App, HttpServer};
+use actix_web::{web, App, HttpServer};
 use dotenv::{dotenv, from_path};
 use kasitek_core::{
     bootstrap::{app::configure_app, state::AppState},
@@ -120,7 +120,7 @@ async fn main() -> std::io::Result<()> {
                 config.clone(),
             )))
             .wrap(cors)
-            .wrap(Logger::default())
+            .wrap(observability::http_logger())
             .configure(configure_app)
     })
     .bind(("0.0.0.0", port))?

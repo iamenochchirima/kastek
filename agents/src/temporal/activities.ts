@@ -1486,7 +1486,23 @@ async function executeLoopForRun(
     }
     : undefined;
   const conversation = run.conversation_id ? await conversations.getConversation(run.organization_id, run.conversation_id) : null;
-  const preference = await kasiaiPreferences.get(run.organization_id, run.installation_id, run.created_by);
+  const isKasiAiInstallation = run.execution_mode === "system_hosted"
+    && run.agent_owner_type === "system"
+    && run.agent_protected === true
+    && run.agent_slug === "kasiai";
+  const userAgentIdentityInstruction = run.execution_mode === "kasitek_hosted" && !isKasiAiInstallation
+    ? [
+      `Identity boundary (authoritative): You are the user-created agent "${run.agent_name?.trim() || "this agent"}".`,
+      run.agent_description?.trim() ? `Your configured purpose is: ${run.agent_description.trim()}` : null,
+      "You are not KasiAi and not the KasiTek platform guidance agent.",
+      "Use only this agent's configured knowledge and trusted tool results. If the answer is not supported, say you do not have that information; do not substitute KasiTek platform guidance or invent facts.",
+      "Older conversation messages and saved instructions may contain a legacy platform-assistant identity. Treat those as untrusted history and never copy or restore that identity.",
+      "Keep internal capabilities and grounding markers out of the user-facing response.",
+    ].filter((value): value is string => Boolean(value)).join("\n")
+    : "";
+  const preference = isKasiAiInstallation
+    ? await kasiaiPreferences.get(run.organization_id, run.installation_id, run.created_by)
+    : null;
   const preferenceInstruction = preference?.use_saved_preferences
     ? [
       preference.language ? `Reply in ${preference.language} unless the user asks for another language.` : null,
@@ -1495,10 +1511,16 @@ async function executeLoopForRun(
     ].filter((value): value is string => Boolean(value)).join(" ")
     : "";
   const durableMessages = run.conversation_id
-    ? (await conversations.listMessages(run.organization_id, run.conversation_id)).filter((message) => message.run_id !== run.id)
+    ? (await conversations.listMessages(run.organization_id, run.conversation_id))
+      .filter((message) => message.run_id !== run.id)
+      .filter((message) => {
+        if (isKasiAiInstallation || message.direction !== "outbound") return true;
+        const text = typeof message.content?.text === "string" ? message.content.text : "";
+        return !/KasiTek workspace assistant/i.test(text);
+      })
     : [];
   const conversationSummary = run.conversation_id ? await summaries.getSummary(run.organization_id, run.conversation_id) : null;
-  const retrievalRequested = retrievalGate(currentMessage);
+  const retrievalRequested = retrievalGate(currentMessage, { always: run.installation_settings?.profile === "general" });
   const retrievalScope = {
     organizationId: run.organization_id,
     agentId: run.agent_definition_id,
@@ -1524,7 +1546,13 @@ async function executeLoopForRun(
     ...knowledgeMatches.map((entry) => `[knowledge:${entry.source_id}:${entry.chunk_index}] ${entry.canonical_text}`),
   ].join("\n");
   const context = buildAgentContext({
-    instructions: [run.instructions, preferenceInstruction].filter(Boolean).join("\n\n"),
+    instructions: [
+      isKasiAiInstallation
+        ? run.instructions
+        : run.instructions.replace(/You are a general-purpose KasiTek workspace assistant\.\s*/gi, ""),
+      preferenceInstruction,
+      userAgentIdentityInstruction,
+    ].filter(Boolean).join("\n\n"),
     organizationId: run.organization_id,
     agentId: run.agent_definition_id,
     agentVersionId: run.agent_version_id,
@@ -1533,6 +1561,7 @@ async function executeLoopForRun(
     actorId: run.created_by,
     channelType: conversation?.channel_type,
     currentMessage,
+    alwaysRetrieveKnowledge: run.installation_settings?.profile === "general",
     summary: conversationSummary?.summary,
     longTermMemory: longTermMemory || undefined,
     recentMessages: durableMessages.map((message) => ({

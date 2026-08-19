@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ContentWorkspaceNavigation } from "@/components/social/content-workspace-navigation";
 import { type SocialPost, formatDateTime, getPlatformLabel, getPostStatusMeta } from "@/components/social/social-shared";
 
 const week = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -116,6 +117,8 @@ export function CalendarView() {
             </Button>
           </div>
         </div>
+
+        <ContentWorkspaceNavigation active="calendar" />
 
         {error ? (
           <div className="rounded-md border border-destructive/30 bg-status-danger-soft px-4 py-3 text-sm text-destructive">

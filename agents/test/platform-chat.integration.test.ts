@@ -88,6 +88,45 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     expect(generatedTitle).toMatchObject({ title: "Create a campaign", title_source: "ai", title_locked: false });
   });
 
+  it("retries a failed platform message on a new run without duplicating the inbound message", async () => {
+    const first = await platformChat.acceptMessage({
+      organizationId,
+      installationId,
+      actorId: "retry-user",
+      idempotencyKey: "retry-platform-message-1",
+      message: "Retry this platform request",
+      createNew: true,
+    });
+    await runs.transitionRun(first.run.id, "received", "queued");
+    await runs.transitionRun(first.run.id, "queued", "running");
+    await runs.failRun(first.run.id, { code: "test_failure", message: "The first attempt failed" });
+
+    const retried = await platformChat.retryMessage({
+      organizationId,
+      runId: first.run.id,
+      actorId: "retry-user",
+    });
+    expect(retried.created).toBe(true);
+    expect(retried.message.id).toBe(first.message.id);
+    expect(retried.message.run_id).toBe(first.run.id);
+    expect(retried.run.id).not.toBe(first.run.id);
+    expect(retried.run.causation_id).toBe(first.run.id);
+    expect(retried.run.input).toEqual(first.run.input);
+
+    const beforeCompletion = await conversations.listMessages(organizationId, first.conversation.id);
+    expect(beforeCompletion).toHaveLength(1);
+    expect(beforeCompletion[0]).toMatchObject({ id: first.message.id, direction: "inbound", run_id: first.run.id });
+
+    await runs.transitionRun(retried.run.id, "received", "queued");
+    await runs.transitionRun(retried.run.id, "queued", "running");
+    await runs.completeRun(retried.run.id, { message: "The retry succeeded." });
+    const afterCompletion = await conversations.listMessages(organizationId, first.conversation.id);
+    expect(afterCompletion.map((message) => [message.direction, message.run_id, message.content.text])).toEqual([
+      ["inbound", first.run.id, "Retry this platform request"],
+      ["outbound", retried.run.id, "The retry succeeded."],
+    ]);
+  });
+
   it("creates another active chat without moving the channel-default pointer", async () => {
     const previous = await platformChat.resolveConversation({ organizationId, installationId, actorId: "user-1" });
     const current = await platformChat.createNewConversation({ organizationId, installationId, actorId: "user-1" });
@@ -175,7 +214,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     expect(updated).toMatchObject({ tone: "concise", use_saved_preferences: false });
   });
 
-  it("routes a paired external identity into the owner's current thread", async () => {
+  it("routes each paired external thread into its installation-owned customer conversation", async () => {
     const current = await platformChat.resolveConversation({ organizationId, installationId, actorId: "user-1" });
     const connection = await channels.createConnection({
       organizationId,
@@ -203,7 +242,13 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       messageType: "text",
       content: { text: "What is happening in my workspace?" },
     });
-    expect(accepted.conversation.id).toBe(current.conversation.id);
+    expect(accepted.conversation.id).not.toBe(current.conversation.id);
+    expect(accepted.conversation).toMatchObject({ conversation_kind: "customer", owner_actor_id: null, external_conversation_id: "wa-thread-1" });
+    expect(accepted.userParticipant).toMatchObject({ participant_type: "customer", external_id: "whatsapp:+27820000001" });
+    const customerProjection = await conversations.listInstallationConversationProjections(organizationId, installationId, { kind: "customer" });
+    expect(customerProjection).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: accepted.conversation.id, participant_type: "customer", unread_count: 1, message_count: 1, last_message_preview: "What is happening in my workspace?" }),
+    ]));
     expect(accepted.message).toMatchObject({ source_channel: "whatsapp", external_conversation_id: "wa-thread-1" });
     expect(accepted.run.created_by).toBe("user-1");
     const duplicate = await platformChat.acceptExternalMessage({
@@ -227,11 +272,11 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       idempotencyKey: "overlapping-sidebar-message",
       message: "This must not cross the WhatsApp reply",
       conversationId: current.conversation.id,
-    })).rejects.toMatchObject({ statusCode: 409, code: "conversation_busy" });
+    })).resolves.toMatchObject({ conversation: { id: current.conversation.id } });
     await runs.transitionRun(accepted.run.id, "received", "queued");
     await runs.transitionRun(accepted.run.id, "queued", "running");
     await runs.completeRun(accepted.run.id, { message: "Here is your workspace update." });
-    const messages = await conversations.listMessages(organizationId, current.conversation.id);
+    const messages = await conversations.listMessages(organizationId, accepted.conversation.id);
     const reply = messages.find((message) => message.run_id === accepted.run.id && message.direction === "outbound");
     expect(reply).toMatchObject({ source_channel: "whatsapp", delivery_status: "queued" });
     const attempts = await pool.query("SELECT * FROM delivery_attempts WHERE message_id = $1", [reply!.id]);
@@ -253,9 +298,53 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       externalConversationId: "wa-thread-1",
       text: "Here is your workspace update.",
     });
-    const deliveredReply = (await conversations.listMessages(organizationId, current.conversation.id))
+    const deliveredReply = (await conversations.listMessages(organizationId, accepted.conversation.id))
       .find((message) => message.id === reply!.id);
     expect(deliveredReply).toMatchObject({ delivery_status: "sent", provider_message_id: "wamid-reply-1" });
+    const secondThread = await platformChat.acceptExternalMessage({
+      organizationId,
+      installationId,
+      channelType: "whatsapp",
+      provider: "meta-whatsapp",
+      providerEventId: "event-external-2",
+      providerMessageId: "wamid-external-2",
+      externalIdentity: "+27820000001",
+      externalConversationId: "wa-thread-2",
+      messageType: "text",
+      content: { text: "A separate customer thread" },
+    });
+    expect(secondThread.conversation.id).not.toBe(accepted.conversation.id);
+    expect(secondThread.conversation.conversation_kind).toBe("customer");
+
+    await channels.createConnection({
+      organizationId,
+      installationId,
+      channelType: "whatsapp",
+      channelKey: "business-public",
+      actorId: "test-user",
+    });
+    const publicMessage = await platformChat.acceptExternalMessage({
+      organizationId,
+      channelType: "whatsapp",
+      channelKey: "business-public",
+      provider: "meta-whatsapp",
+      providerEventId: "event-public-1",
+      providerMessageId: "wamid-public-1",
+      externalIdentity: "+27820000002",
+      externalConversationId: "wa-public-thread-1",
+      messageType: "text",
+      content: { text: "I am a new customer" },
+    });
+    expect(publicMessage.conversation).toMatchObject({ conversation_kind: "customer", external_conversation_id: "wa-public-thread-1" });
+    expect(publicMessage.run.created_by).toBe(`installation:${installationId}`);
+    expect((await pool.query(
+      `SELECT owner_actor_id FROM channel_bindings
+       WHERE organization_id = $1 AND channel_connection_id = (
+         SELECT id FROM channel_connections WHERE organization_id = $1 AND channel_key = 'business-public'
+       ) AND external_identity = $2`,
+      [organizationId, "+27820000002"],
+    )).rows[0]).toMatchObject({ owner_actor_id: null });
+
     await channels.revokeOwnerBinding(organizationId, binding.id, "user-1");
     await expect(platformChat.acceptExternalMessage({
       organizationId,
@@ -268,7 +357,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       messageType: "text",
       content: { text: "This must not enter the conversation." },
     })).rejects.toMatchObject({ statusCode: 403, code: "channel_identity_not_paired" });
-    expect((await conversations.listMessages(organizationId, current.conversation.id))
+    expect((await conversations.listMessages(organizationId, accepted.conversation.id))
       .some((message) => message.provider_message_id === "wamid-after-disconnect")).toBe(false);
   });
 

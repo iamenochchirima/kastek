@@ -7,6 +7,7 @@ import type {
   CreateInstallationInput,
   CreateVersionInput,
   HostedAgentCreationProfile,
+  UpdateAgentInput,
 } from "../../domain/types";
 import { query, withTransaction } from "../pool";
 import { validateVersionWorkflow } from "../../workflows/graph";
@@ -149,9 +150,55 @@ export class AgentRepository {
         (organization_id, owner_type, name, slug, description, creation_profile, protected, created_by)
        VALUES ($1, 'organization', $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [organizationId, input.name, slug, input.description ?? null, input.creationProfile, isProtected, actorId],
+      [organizationId, input.name, slug, input.description ?? null, input.creationProfile ?? "custom", isProtected, actorId],
     );
     return result.rows[0]!;
+  }
+
+  public async updateAgent(
+    organizationId: string,
+    actorId: string,
+    agentId: string,
+    input: UpdateAgentInput,
+  ): Promise<AgentRecord> {
+    return withTransaction(this.pool, async (client) => {
+      const existing = await client.query<AgentRecord>(
+        `SELECT * FROM agent_definitions
+         WHERE id = $1 AND organization_id = $2 AND owner_type = 'organization' AND protected = FALSE
+         FOR UPDATE`,
+        [agentId, organizationId],
+      );
+      const agent = existing.rows[0];
+      if (!agent) throw Object.assign(new Error("Agent not found"), { statusCode: 404, code: "AGENT_NOT_FOUND" });
+
+      const name = input.name ?? agent.name;
+      const slug = input.slug ?? (input.name ? slugify(name) : agent.slug);
+      if (!slug) throw Object.assign(new Error("The agent name must contain letters or numbers"), { statusCode: 400, code: "AGENT_SLUG_INVALID" });
+      const description = input.description === undefined ? agent.description : input.description || null;
+      const conflict = await client.query<{ id: string }>(
+        `SELECT id FROM agent_definitions
+         WHERE organization_id = $1 AND slug = $2 AND id <> $3
+         LIMIT 1`,
+        [organizationId, slug, agentId],
+      );
+      if (conflict.rows[0]) throw Object.assign(new Error("That agent slug is already in use"), { statusCode: 409, code: "AGENT_SLUG_TAKEN" });
+
+      const updated = await client.query<AgentRecord>(
+        `UPDATE agent_definitions
+         SET name = $3, slug = $4, description = $5, updated_at = now()
+         WHERE id = $1 AND organization_id = $2
+         RETURNING *`,
+        [agentId, organizationId, name, slug, description],
+      );
+      const result = updated.rows[0]!;
+      await client.query(
+        `INSERT INTO audit_records
+          (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'human', $2, 'agent_definition.updated', 'agent_definition', $3, $4::jsonb)`,
+        [organizationId, actorId, agentId, JSON.stringify({ previous: { name: agent.name, slug: agent.slug, description: agent.description }, next: { name, slug, description } })],
+      );
+      return result;
+    });
   }
 
   /** Creates the dedicated external-connected aggregate in one database transaction. */
@@ -263,8 +310,6 @@ export class AgentRepository {
         actorId,
         label: input.credentialLabel,
         expiresAt: input.expiresAt,
-        mcpScopes: input.mcpScopes,
-        apiScopes: input.apiScopes,
         clientKeyId: input.clientKeyId,
         clientPublicKey: input.clientPublicKey,
       });
@@ -725,8 +770,8 @@ export class AgentRepository {
     return withTransaction(this.pool, async (client) => {
       const installations = await client.query<{ id: string; organization_id: string }>(
         `SELECT id, organization_id FROM agent_installations
-         WHERE agent_definition_id = $1 AND status <> 'disabled' FOR UPDATE`,
-        [agentId],
+         WHERE agent_definition_id = $1 AND status <> 'disabled' AND agent_version_id <> $2 FOR UPDATE`,
+        [agentId, versionId],
       );
       for (const installation of installations.rows) {
         await client.query(

@@ -34,6 +34,10 @@ For the current Agent Platform programme, the order is:
 4. This file for repository-wide ownership, especially separation between the direct and
    white-label platforms.
 
+For the focused direct-product Developers surface, use
+[`KASITEK_DEVELOPERS_PLATFORM_CHECKLIST.md`](KASITEK_DEVELOPERS_PLATFORM_CHECKLIST.md) as the
+scoped implementation checklist while preserving the Agent Platform boundaries above.
+
 Documents under `docs/archive/` are not active plans. Documents under `docs/internal/` may explain
 design or record progress, but they do not override a root canonical plan unless explicitly promoted.
 

@@ -303,6 +303,18 @@ describe("kasitek-core read boundary", () => {
     expect(JSON.parse(String(init.body))).toMatchObject({ content: "Draft", channels: ["threads"], status: "DRAFT" });
   });
 
+  it("preserves Core validation details for failed content requests", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "At least one publishing channel is required", code: "bad_request" }), { status: 400 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({
+      AGENTS_DATABASE_URL: "postgres://localhost/agents",
+      KASITEK_CORE_URL: "https://core.example.test",
+      KASITEK_CORE_INTERNAL_TOKEN: "internal-token",
+    });
+    await expect(new KasitekCoreReadClient(config).createContentDraft(context, { content: "Draft", channels: ["bluesky"] }))
+      .rejects.toMatchObject({ code: "CORE_REQUEST_FAILED", message: "kasitek-core returned 400: At least one publishing channel is required" });
+  });
+
   it("routes publishing through the approval-bound core capability", async () => {
     const fetchMock = vi.fn().mockImplementation(() => new Response(JSON.stringify({ post: { id: "post-1", content: "Hello", channels: ["threads"], status: "PUBLISHED" }, result: { status: "sent" } }), { status: 202 }));
     vi.stubGlobal("fetch", fetchMock);

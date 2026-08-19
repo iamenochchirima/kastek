@@ -570,7 +570,7 @@ async fn claim_delivery(pool: &PgPool) -> Result<Option<DeliveryJob>, AppError> 
     Ok(sqlx::query_as::<_, DeliveryJob>(
         r#"
         WITH candidate AS (
-            SELECT d."id"
+            SELECT d."id", d."subscriptionId"
             FROM "PublicApiWebhookDelivery" d
             JOIN "PublicApiWebhookSubscription" s ON s."id" = d."subscriptionId"
             WHERE (d."status" = 'PENDING'
@@ -583,7 +583,7 @@ async fn claim_delivery(pool: &PgPool) -> Result<Option<DeliveryJob>, AppError> 
         UPDATE "PublicApiWebhookDelivery" d
         SET "status" = 'DELIVERING', "attemptCount" = d."attemptCount" + 1, "updatedAt" = NOW()
         FROM candidate c
-        JOIN "PublicApiWebhookSubscription" s ON s."id" = d."subscriptionId"
+        JOIN "PublicApiWebhookSubscription" s ON s."id" = c."subscriptionId"
         WHERE d."id" = c."id"
         RETURNING d."id", d."subscriptionId", d."eventId", d."eventType", d."payload",
                   d."attemptCount", s."url", s."secretCiphertext"

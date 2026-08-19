@@ -7,8 +7,128 @@ use crate::error::AppError;
 use super::social::{
     decrypt_social_secret, encrypt_social_secret, fetch_json, required_env, ThreadsTokenResponse,
     TikTokTokenResponse, INSTAGRAM_GRAPH_BASE, LINKEDIN_UGC_POSTS_URL, META_GRAPH_BASE,
-    TIKTOK_CREATOR_INFO_URL, TIKTOK_PUBLISH_URL, TIKTOK_TOKEN_URL, X_POST_TWEET_URL,
+    THREADS_GRAPH_BASE, TIKTOK_CREATOR_INFO_URL, TIKTOK_PUBLISH_URL, TIKTOK_TOKEN_URL,
+    X_POST_TWEET_URL,
 };
+
+async fn send_provider_delete(
+    request: reqwest::RequestBuilder,
+    fallback: &str,
+) -> Result<(), AppError> {
+    let response = request.send().await?;
+    let status = response.status();
+    if status.is_success() || status.as_u16() == 404 {
+        return Ok(());
+    }
+
+    let body = response.text().await.unwrap_or_default();
+    let detail = body.chars().take(300).collect::<String>();
+    let detail = if detail.trim().is_empty() {
+        status.to_string()
+    } else {
+        detail.trim().to_string()
+    };
+    Err(AppError::BadRequest(format!("{fallback}: {detail}")))
+}
+
+pub(crate) async fn delete_post_from_provider(
+    platform: &str,
+    access_token_encrypted: &str,
+    _external_account_id: &Option<String>,
+    connection_metadata: &Option<Value>,
+    external_post_id: &str,
+) -> Result<(), AppError> {
+    if platform == "TIKTOK" {
+        return Err(AppError::BadRequest(
+            "TikTok does not currently expose a delete endpoint through the Content Posting API; delete the post in TikTok".to_string(),
+        ));
+    }
+    if platform == "WHATSAPP_STATUS" {
+        return Err(AppError::BadRequest(
+            "WhatsApp Status posts cannot currently be deleted through the connected API"
+                .to_string(),
+        ));
+    }
+
+    let access_token = decrypt_social_secret(access_token_encrypted)?;
+    let client = reqwest::Client::new();
+    match platform {
+        "X" => {
+            send_provider_delete(
+                client
+                    .delete(format!(
+                        "{X_POST_TWEET_URL}/{}",
+                        urlencoding::encode(external_post_id)
+                    ))
+                    .bearer_auth(access_token),
+                "Failed to delete the X post",
+            )
+            .await
+        }
+        "FACEBOOK" => {
+            send_provider_delete(
+                client
+                    .delete(format!(
+                        "{META_GRAPH_BASE}/{}",
+                        urlencoding::encode(external_post_id)
+                    ))
+                    .bearer_auth(access_token),
+                "Failed to delete the Facebook post",
+            )
+            .await
+        }
+        "INSTAGRAM" => {
+            let uses_instagram_login = connection_metadata
+                .as_ref()
+                .and_then(|value| value.get("authMethod"))
+                .and_then(Value::as_str)
+                == Some("instagram_login");
+            let graph_base = if uses_instagram_login {
+                INSTAGRAM_GRAPH_BASE
+            } else {
+                META_GRAPH_BASE
+            };
+            send_provider_delete(
+                client
+                    .delete(format!(
+                        "{graph_base}/{}",
+                        urlencoding::encode(external_post_id)
+                    ))
+                    .bearer_auth(access_token),
+                "Failed to delete the Instagram post",
+            )
+            .await
+        }
+        "THREADS" => {
+            send_provider_delete(
+                client
+                    .delete(format!(
+                        "{THREADS_GRAPH_BASE}/{}",
+                        urlencoding::encode(external_post_id)
+                    ))
+                    .bearer_auth(access_token),
+                "Failed to delete the Threads post",
+            )
+            .await
+        }
+        "LINKEDIN" => {
+            send_provider_delete(
+                client
+                    .delete(format!(
+                        "{LINKEDIN_UGC_POSTS_URL}/{}",
+                        urlencoding::encode(external_post_id)
+                    ))
+                    .bearer_auth(access_token)
+                    .header("X-Restli-Protocol-Version", "2.0.0"),
+                "Failed to delete the LinkedIn post",
+            )
+            .await
+        }
+        _ => Err(AppError::BadRequest(format!(
+            "Deleting posts from {platform} is not supported"
+        ))),
+    }
+}
 
 pub(crate) async fn publish_post_to_x(
     access_token_encrypted: &str,

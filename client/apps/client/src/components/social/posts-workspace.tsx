@@ -1,8 +1,8 @@
 "use client";
 
 import { apiUrl } from "@/lib/server-api";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Activity, ArrowLeft, ArrowRight, BarChart3, CalendarDays, CalendarClock, Check, CircleAlert, FileClock, FileImage, Pencil, Play, Plus, RotateCcw, Search, Smartphone, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Activity, AlertTriangle, ArrowLeft, ArrowRight, BarChart3, CalendarDays, CalendarClock, Check, CheckCircle2, CircleAlert, FileClock, FileImage, LayoutGrid, List, Pencil, Play, Plus, RotateCcw, Search, Smartphone, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContentWorkspaceNavigation } from "@/components/social/content-workspace-navigation";
+import { SocialPostsLibrary } from "@/components/social/social-posts-library";
 import {
   SOCIAL_PLATFORM_ORDER,
   type SocialChannelConnection,
@@ -25,6 +26,7 @@ import {
   formatDateTime,
   getPlatformCapabilities,
   getPlatformIcon,
+  getPlatformIconClass,
   getPlatformLabel,
   getPlatformTone,
   getPostStatusMeta,
@@ -81,6 +83,16 @@ type SocialPostActivityEvent = {
   occurredAt: string;
   source: "content" | "provider";
 };
+
+type PostDeleteProviderResult = {
+  platform: SocialPlatform;
+  status: "DELETED" | "FAILED";
+  message?: string | null;
+};
+
+type AiGenerationTarget =
+  | { kind: "shared" }
+  | { kind: "variant"; platform: SocialPlatform };
 
 const defaultChannels: SocialPlatform[] = ["FACEBOOK", "INSTAGRAM", "THREADS", "TIKTOK", "BLUESKY", "LINKEDIN", "X"];
 const COMPOSER_DRAFT_STORAGE_KEY = "kasitek:content-composer";
@@ -173,11 +185,15 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   const [activeFilter, setActiveFilter] = useState<"ALL" | SocialPostStatus>(view === "history" ? "PUBLISHED" : "ALL");
   const [search, setSearch] = useState("");
   const [platformFilter, setPlatformFilter] = useState<"ALL" | SocialPlatform>("ALL");
+  const [historyViewMode, setHistoryViewMode] = useState<"grid" | "table">("grid");
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [composer, setComposer] = useState<ComposerState>(emptyComposer);
   const [publishingKey, setPublishingKey] = useState<string | null>(null);
   const [jobActionId, setJobActionId] = useState<string | null>(null);
   const [generatingCaption, setGeneratingCaption] = useState(false);
+  const [generatingVariantPlatform, setGeneratingVariantPlatform] = useState<SocialPlatform | null>(null);
+  const [aiGenerationTarget, setAiGenerationTarget] = useState<AiGenerationTarget | null>(null);
+  const [aiPrompt, setAiPrompt] = useState("");
   const [generatingIdeas, setGeneratingIdeas] = useState(false);
   const [ideaTopic, setIdeaTopic] = useState("");
   const [ideaObjective, setIdeaObjective] = useState("");
@@ -189,6 +205,10 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   const [activityPost, setActivityPost] = useState<{ post: SocialPost; events: SocialPostActivityEvent[] } | null>(null);
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityError, setActivityError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<SocialPost | null>(null);
+  const [deleteScope, setDeleteScope] = useState<"local" | "platforms">("local");
+  const [deleteProviderResults, setDeleteProviderResults] = useState<PostDeleteProviderResult[]>([]);
+  const [deletingPost, setDeletingPost] = useState(false);
   const refreshedChannelIdentities = useRef(new Set<string>());
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -400,7 +420,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     setIsComposerOpen(true);
   }
 
-  function openEditComposer(post: SocialPost) {
+  const openEditComposer = useCallback((post: SocialPost) => {
     setComposer({
       id: post.id,
       title: post.title || "",
@@ -441,7 +461,16 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     setActiveVariantPlatform(post.channels[0] || "FACEBOOK");
     setComposerStep(1);
     setIsComposerOpen(true);
-  }
+  }, []);
+
+  useEffect(() => {
+    const editPostId = new URLSearchParams(window.location.search).get("edit");
+    if (view !== "posts" || !editPostId || loading) return;
+    const post = posts.find((candidate) => candidate.id === editPostId);
+    if (!post) return;
+    openEditComposer(post);
+    window.history.replaceState(null, "", "/content");
+  }, [loading, openEditComposer, posts, view]);
 
   function selectChannel(channel: SocialChannelConnection) {
     setComposer((current) => {
@@ -597,10 +626,16 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     }));
   }
 
-  async function generateWithAi() {
-    if (!composer.prompt.trim() && !composer.title.trim() && !composer.content.trim()) {
-      setError("Add a prompt, working title, or rough draft before generating.");
-      return;
+  function openAiGenerator(target: AiGenerationTarget) {
+    setAiPrompt(target.kind === "shared" ? composer.prompt : "");
+    setAiGenerationTarget(target);
+  }
+
+  async function generateWithAi(promptOverride = composer.prompt): Promise<boolean> {
+    const prompt = promptOverride.trim();
+    if (!prompt && !composer.content.trim()) {
+      setError("Add a prompt or rough draft before generating.");
+      return false;
     }
 
     setGeneratingCaption(true);
@@ -612,7 +647,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: composer.prompt,
+          prompt,
           title: composer.title,
           currentContent: composer.content,
           channels: composer.channels,
@@ -641,6 +676,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       setComposer((current) => ({
         ...current,
         title: payload.draft?.title || current.title,
+        prompt,
         content: payload.draft?.content || current.content,
         channels: nextChannels,
         variants: buildComposerVariants(
@@ -659,10 +695,68 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
           payload.draft?.content || current.content,
         ),
       }));
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate caption");
+      return false;
     } finally {
       setGeneratingCaption(false);
+    }
+  }
+
+  async function generateVariantWithAi(platform: SocialPlatform, promptOverride: string): Promise<boolean> {
+    const variant = composer.variants.find((item) => item.platform === platform);
+    const prompt = promptOverride.trim();
+    const currentContent = variant?.content.trim() || composer.content.trim();
+    if (!prompt && !currentContent) {
+      setError("Add a prompt or shared post text before generating this version.");
+      return false;
+    }
+
+    setGeneratingVariantPlatform(platform);
+    setError("");
+    try {
+      const response = await fetch(apiUrl("/api/social/ai/caption"), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          currentContent,
+          channels: [platform],
+        }),
+      });
+      const payload = (await response.json()) as {
+        draft?: {
+          content?: string;
+          variants?: Array<{ platform: SocialPlatform; content: string }>;
+        };
+        error?: string;
+      };
+      const generated = payload.draft?.variants?.find((item) => item.platform === platform)?.content
+        || payload.draft?.content;
+      if (!response.ok || !generated?.trim()) {
+        throw new Error(payload.error || `Failed to generate the ${getPlatformLabel(platform)} version`);
+      }
+      updateVariant(platform, { content: generated.trim(), aiGenerated: true });
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to generate the ${getPlatformLabel(platform)} version`);
+      return false;
+    } finally {
+      setGeneratingVariantPlatform(null);
+    }
+  }
+
+  async function runAiGeneration() {
+    if (!aiGenerationTarget) return;
+    const target = aiGenerationTarget;
+    const generated = target.kind === "shared"
+      ? await generateWithAi(aiPrompt)
+      : await generateVariantWithAi(target.platform, aiPrompt);
+    if (generated) {
+      setAiGenerationTarget(null);
+      setAiPrompt("");
     }
   }
 
@@ -723,8 +817,8 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       return;
     }
 
-    if (!composer.content.trim()) {
-      setError("Add a master post summary before saving.");
+    if (!composer.content.trim() && !composer.media.length) {
+      setError("Add post text or attach at least one image or video before saving.");
       return;
     }
     const hasTikTokMedia = Boolean(composer.tiktokMediaUrl.trim() || composer.media.some((item) => item.kind === "VIDEO" || item.kind === "IMAGE"));
@@ -741,7 +835,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     // succeeds, rather than being persisted as a draft while provider jobs run.
     const postStatus = publishNow ? "PROCESSING" : requestedStatus ?? composer.status;
 
-    if (activeVariants.some((variant) => !variant.content.trim())) {
+    if (!composer.media.length && activeVariants.some((variant) => !variant.content.trim())) {
       setError("Each selected platform needs its own variant content.");
       return;
     }
@@ -759,7 +853,6 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            title: composer.title || null,
             prompt: composer.prompt || null,
             content: composer.content,
             channels: composer.channels,
@@ -826,7 +919,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         }
 
         if (failedPlatforms.length) {
-          setError(`Could not publish to ${failedPlatforms.join(", ")}. The post is saved; retry those destinations from post history.`);
+          setError(`Could not publish to ${failedPlatforms.join(", ")}. The post is saved; retry those destinations from Posts.`);
         }
       }
 
@@ -844,7 +937,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         setIsComposerOpen(false);
       }
       const message = err instanceof Error ? err.message : "Failed to save post";
-      setError(savedPost ? `${message}. The post was saved; retry any failed destination from post history.` : message);
+      setError(savedPost ? `${message}. The post was saved; retry any failed destination from Posts.` : message);
     } finally {
       setSaving(false);
     }
@@ -861,8 +954,8 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         return;
       }
     }
-    if (composerStep === 2 && !composer.content.trim()) {
-      setError("Add the post copy before continuing.");
+    if (composerStep === 2 && !composer.content.trim() && !composer.media.length) {
+      setError("Add post text or attach at least one image or video before continuing.");
       return;
     }
     if (composerStep === 2) {
@@ -879,26 +972,38 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     setComposerStep((current) => Math.min(current + 1, 4) as ComposerStep);
   }
 
-  async function deletePost(id: string) {
-    const confirmed = window.confirm("Delete this post?");
-    if (!confirmed) return;
-
+  function openDeleteModal(post: SocialPost) {
+    setDeleteTarget(post);
+    setDeleteScope("local");
+    setDeleteProviderResults([]);
     setError("");
+  }
+
+  async function deletePost(id: string, deleteFromPlatforms: boolean) {
+    setDeletingPost(true);
+    setError("");
+    setDeleteProviderResults([]);
 
     try {
       const response = await fetch(apiUrl(`/api/social/posts/${id}`), {
         method: "DELETE",
         credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deleteFromPlatforms }),
       });
-      const payload = (await response.json()) as { error?: string };
+      const payload = (await response.json()) as { error?: string; providerResults?: PostDeleteProviderResult[] };
 
       if (!response.ok) {
+        setDeleteProviderResults(payload.providerResults || []);
         throw new Error(payload.error || "Failed to delete post");
       }
 
       setPosts((current) => current.filter((post) => post.id !== id));
+      setDeleteTarget(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete post");
+    } finally {
+      setDeletingPost(false);
     }
   }
 
@@ -987,9 +1092,9 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         <div className="space-y-4 border-b border-border pb-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight">{view === "history" ? "Post history" : "Posts"}</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">{view === "history" ? "Posts" : "Create"}</h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                {view === "history" ? "Published posts and items that need attention." : "Create, review, and schedule posts."}
+                {view === "history" ? "Manage published posts, failures, and retry work." : "Create, review, and schedule posts."}
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -1018,8 +1123,8 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         <Card>
           <CardHeader className="flex flex-col gap-4 border-b border-border lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <CardTitle>{view === "history" ? "Publishing history" : "Your posts"}</CardTitle>
-              <CardDescription>{view === "history" ? "Review outcomes, failures, and retry work." : "Drafts and scheduled posts ready for review."}</CardDescription>
+              <CardTitle>{view === "history" ? "Published posts" : "Drafts and scheduled posts"}</CardTitle>
+              <CardDescription>{view === "history" ? "Review outcomes, failures, and retry work." : "Posts ready for review and publishing."}</CardDescription>
             </div>
             <Tabs value={activeFilter} onValueChange={(value) => setActiveFilter(value as "ALL" | SocialPostStatus)}>
               <TabsList className="bg-secondary/50">
@@ -1049,6 +1154,32 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                 <option value="ALL">All channels</option>
                 {SOCIAL_PLATFORM_ORDER.map((platform) => <option key={platform} value={platform}>{getPlatformLabel(platform)}</option>)}
               </select>
+              {view === "history" ? (
+                <div className="inline-flex h-10 items-center rounded-md border border-border bg-card p-1" role="group" aria-label="Posts display options">
+                  <Button
+                    type="button"
+                    variant={historyViewMode === "grid" ? "secondary" : "ghost"}
+                    size="icon-sm"
+                    aria-label="Show posts as cards"
+                    aria-pressed={historyViewMode === "grid"}
+                    title="Card view"
+                    onClick={() => setHistoryViewMode("grid")}
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={historyViewMode === "table" ? "secondary" : "ghost"}
+                    size="icon-sm"
+                    aria-label="Show posts as table rows"
+                    aria-pressed={historyViewMode === "table"}
+                    title="Table view"
+                    onClick={() => setHistoryViewMode("table")}
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : null}
               <Button variant="outline" className="gap-2" onClick={() => void loadData({ showLoading: false })} disabled={refreshing} aria-label="Refresh posts">
                 <RotateCcw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
                 {refreshing ? "Refreshing..." : "Refresh"}
@@ -1082,6 +1213,8 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
               <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
                 No posts match the current filter yet.
               </div>
+            ) : view === "history" ? (
+              <SocialPostsLibrary posts={filteredPosts} viewMode={historyViewMode} />
             ) : (
               filteredPosts.map((post) => {
                 const status = getPostStatusMeta(post.status);
@@ -1111,7 +1244,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                             const Icon = getPlatformIcon(variant.platform);
                             return (
                               <Badge key={variant.id} className={getPlatformTone(variant.platform)}>
-                                <Icon className="mr-1 h-3.5 w-3.5" />
+                                <Icon className={`mr-1 h-3.5 w-3.5 ${getPlatformIconClass(variant.platform)}`} />
                                 {getPlatformLabel(variant.platform)}
                               </Badge>
                             );
@@ -1134,7 +1267,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                                 <div key={job.id} className="rounded-lg border border-border/60 bg-background/45 px-3 py-2.5">
                                   <div className="flex items-center justify-between gap-3">
                                     <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-                                      <PlatformIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                      <PlatformIcon className={`h-4 w-4 shrink-0 ${getPlatformIconClass(job.platform)}`} />
                                       <span className="truncate">{getPlatformLabel(job.platform)}</span>
                                     </div>
                                     <Badge className={`shrink-0 ${jobMeta.className}`}>
@@ -1227,7 +1360,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                           <Activity className="h-4 w-4" />
                           Activity
                         </Button>
-                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={() => void deletePost(post.id)}>
+                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={() => openDeleteModal(post)} disabled={deletingPost}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -1285,6 +1418,42 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         </div>
       ) : null}
 
+      {aiGenerationTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button type="button" className="absolute inset-0 bg-overlay" onClick={() => { if (!generatingCaption && !generatingVariantPlatform) setAiGenerationTarget(null); }} aria-label="Close AI generator" />
+          <div className="relative w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="ai-generator-title">
+            <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+              <div>
+                <p className="text-lg font-semibold text-foreground" id="ai-generator-title">
+                  {aiGenerationTarget.kind === "shared" ? "Generate post text" : `Generate ${getPlatformLabel(aiGenerationTarget.platform)} text`}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {aiGenerationTarget.kind === "shared" ? "Describe what you want, or ask AI to improve the current post." : "Describe the angle or change you want for this destination."}
+                </p>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setAiGenerationTarget(null)} disabled={Boolean(generatingCaption || generatingVariantPlatform)} aria-label="Close AI generator">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-4 p-5">
+              {error ? <p className="rounded-md border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-foreground">Prompt <span className="font-normal text-muted-foreground">(optional)</span></span>
+                <textarea autoFocus value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="For example: make it warmer, clearer, and more concise" className="min-h-[130px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" />
+              </label>
+              <p className="text-xs text-muted-foreground">The result will be added to the editor so you can change it before saving or publishing.</p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setAiGenerationTarget(null)} disabled={Boolean(generatingCaption || generatingVariantPlatform)}>Cancel</Button>
+                <Button className="gap-2" onClick={() => void runAiGeneration()} disabled={Boolean(generatingCaption || generatingVariantPlatform || (!aiPrompt.trim() && !composer.content.trim() && aiGenerationTarget.kind === "shared"))}>
+                  <Sparkles className="h-4 w-4" />
+                  {generatingCaption || generatingVariantPlatform ? "Generating..." : "Generate"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {activityPost ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <button type="button" className="absolute inset-0 bg-overlay" onClick={() => setActivityPost(null)} aria-label="Close post activity" />
@@ -1298,11 +1467,46 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
               {activityPost.post.publishJobs?.length ? <div className="space-y-2 rounded-lg border border-border bg-secondary/20 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Provider recovery</p>{activityPost.post.publishJobs.map((job) => { const meta = getPublishJobStatusMeta(job.status); const JobIcon = meta.icon; const actionable = job.status === "FAILED" || job.status === "QUEUED" || job.status === "PENDING"; return <div key={job.id} className="flex flex-col gap-2 rounded-lg border border-border bg-background/40 p-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Badge className={meta.className}>{JobIcon ? <JobIcon className="mr-1 h-3.5 w-3.5" /> : null}{getPlatformLabel(job.platform)}: {meta.label}</Badge>{job.scheduledFor ? <span className="text-xs text-muted-foreground">{formatDateTime(job.scheduledFor)}</span> : null}</div>{job.errorMessage ? <p className="mt-1 text-xs text-destructive">{job.errorMessage}</p> : null}</div>{actionable ? <div className="flex shrink-0 flex-wrap gap-2"><Button type="button" size="sm" variant="outline" disabled={jobActionId === job.id} onClick={() => void runPublishJobAction(job, job.status === "FAILED" ? "retry" : "run_now")}>{jobActionId === job.id ? "Working…" : job.status === "FAILED" ? <><RotateCcw className="mr-1.5 h-3.5 w-3.5" />Retry</> : "Run now"}</Button><Button type="button" size="sm" variant="ghost" disabled={jobActionId === job.id} onClick={() => void runPublishJobAction(job, "cancel")}>Cancel</Button></div> : null}</div>; })}</div> : null}
               {activityLoading ? <p className="text-sm text-muted-foreground">Loading durable activity…</p> : activityPost.events.length ? activityPost.events.map((event) => (
                 <div key={event.id} className="flex gap-3 rounded-lg border border-border p-3">
-                  <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${event.status === "FAILED" ? "bg-destructive" : event.status === "PUBLISHED" ? "bg-accent" : "bg-primary"}`} aria-hidden="true" />
+                  <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${event.status === "FAILED" ? "bg-destructive" : event.status === "PUBLISHED" ? "bg-status-success" : "bg-status-info"}`} aria-hidden="true" />
                   <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium capitalize text-foreground">{event.type.replaceAll(".", " ")}</p>{event.platform ? <Badge className="border-border bg-secondary text-muted-foreground">{getPlatformLabel(event.platform)}</Badge> : null}{event.status ? <span className="text-xs text-muted-foreground">{event.status}</span> : null}</div><p className="mt-1 text-xs text-muted-foreground">{formatDateTime(event.occurredAt)}</p>{event.message ? <p className="mt-1 text-xs text-destructive">{event.message}</p> : null}</div>
                 </div>
               )) : <p className="text-sm text-muted-foreground">No activity has been recorded for this post yet.</p>}
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4" role="presentation">
+          <div className="relative w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="workspace-delete-post-title">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 text-destructive">
+                  <AlertTriangle className="h-5 w-5" />
+                  <h2 id="workspace-delete-post-title" className="text-lg font-semibold text-foreground">Delete post?</h2>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">Choose where this post should be removed.</p>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(null)} disabled={deletingPost} aria-label="Close delete dialog"><X className="h-4 w-4" /></Button>
+            </div>
+            <div className="mt-5 space-y-3">
+              <label className={`flex cursor-pointer gap-3 rounded-xl border p-4 ${deleteScope === "local" ? "border-primary bg-primary/5" : "border-border"}`}>
+                <input type="radio" name="workspace-delete-scope" checked={deleteScope === "local"} onChange={() => setDeleteScope("local")} className="mt-1 accent-primary" />
+                <span><span className="block text-sm font-medium text-foreground">Remove from KasiTek only</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">Published copies on social platforms remain online.</span></span>
+              </label>
+              {(() => {
+                const publishedJobs = deleteTarget.publishJobs?.filter((job) => job.status === "PUBLISHED" && job.externalPostId) || [];
+                return (
+                  <label className={`flex gap-3 rounded-xl border p-4 ${publishedJobs.length ? "cursor-pointer" : "cursor-not-allowed opacity-60"} ${deleteScope === "platforms" ? "border-destructive bg-destructive/5" : "border-border"}`}>
+                    <input type="radio" name="workspace-delete-scope" checked={deleteScope === "platforms"} onChange={() => publishedJobs.length && setDeleteScope("platforms")} disabled={!publishedJobs.length} className="mt-1 accent-destructive" />
+                    <span><span className="block text-sm font-medium text-foreground">Remove from KasiTek and platforms</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{publishedJobs.length ? `Attempts deletion on ${publishedJobs.map((job) => getPlatformLabel(job.platform)).join(", ")}. Failed platform deletions keep this record available for retry.` : "There are no published platform copies recorded for this post."}</span></span>
+                  </label>
+                );
+              })()}
+            </div>
+            {deleteProviderResults.length ? <div className="mt-4 rounded-xl border border-destructive/30 bg-status-danger-soft p-3"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-destructive">Platform deletion results</p><div className="mt-2 space-y-2">{deleteProviderResults.map((result, index) => <div key={`${result.platform}-${index}`} className="flex items-start gap-2 text-xs">{result.status === "DELETED" ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-status-success" /> : <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />}<span className="text-foreground"><strong>{getPlatformLabel(result.platform)}</strong>{result.message ? ` · ${result.message}` : ` · ${result.status.toLowerCase()}`}</span></div>)}</div></div> : null}
+            {error ? <p className="mt-4 rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+            <div className="mt-6 flex justify-end gap-2"><Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deletingPost}>Cancel</Button><Button variant="destructive" onClick={() => void deletePost(deleteTarget.id, deleteScope === "platforms")} disabled={deletingPost}>{deletingPost ? "Deleting..." : deleteScope === "platforms" ? "Delete everywhere" : "Delete post"}</Button></div>
           </div>
         </div>
       ) : null}
@@ -1344,7 +1548,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                       return (
                         <div key={platform} className={`rounded-xl border px-4 py-3.5 ${selected ? "border-primary/40 bg-primary/5" : "border-border"}`}>
                           <div className="flex items-center gap-3">
-                            <div className={`rounded-md border p-2 ${getPlatformTone(platform)}`}><Icon className="h-4 w-4" /></div>
+                            <div className={`rounded-md border p-2 ${getPlatformTone(platform)}`}><Icon className={`h-4 w-4 ${getPlatformIconClass(platform)}`} /></div>
                             <div className="min-w-0 flex-1">
                               <p className="font-medium text-foreground">{getPlatformLabel(platform)}</p>
                               <p className="text-sm text-muted-foreground">{options.length ? `${options.length} connected` : "Not connected"}</p>
@@ -1387,18 +1591,16 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
 
               {composerStep === 2 ? (
                 <section className="space-y-5">
-                  <div><h2 className="text-xl font-semibold text-foreground">Write the post</h2><p className="mt-1 text-sm text-muted-foreground">Start with the shared copy. You can tailor it next.</p></div>
-                  <label className="block space-y-2"><span className="text-sm text-muted-foreground">Title</span><Input value={composer.title} onChange={(event) => setComposer((current) => ({ ...current, title: event.target.value }))} placeholder="Post title" /></label>
-                  <label className="block space-y-2"><span className="text-sm text-muted-foreground">Post copy</span><textarea value={composer.content} onChange={(event) => setComposer((current) => ({ ...current, content: event.target.value }))} placeholder="Write your post..." className="min-h-[180px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-6 text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary" /></label>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="text-xl font-semibold text-foreground">Write the post</h2><p className="mt-1 text-sm text-muted-foreground">Add text or media. You can tailor each destination next.</p></div><Button type="button" variant="outline" className="shrink-0 gap-2" onClick={() => openAiGenerator({ kind: "shared" })}><Sparkles className="h-4 w-4" />Generate with AI</Button></div>
+                  <label className="block space-y-2"><span className="text-sm text-muted-foreground">Post text (optional)</span><textarea value={composer.content} onChange={(event) => setComposer((current) => ({ ...current, content: event.target.value }))} placeholder="Write your post..." className="min-h-[180px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-6 text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary" /></label>
                   <div className="space-y-3 rounded-xl border border-border p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <div><p className="text-sm font-medium text-foreground">Media</p><p className="text-xs text-muted-foreground">Attach images or videos to this post.</p></div>
+                      <div><p className="text-sm font-medium text-foreground">Media (optional)</p><p className="text-xs text-muted-foreground">Attach images or videos to this post.</p></div>
                       <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => mediaInputRef.current?.click()} disabled={saving}><Upload className="h-3.5 w-3.5" />Add media</Button>
                       <input ref={mediaInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" multiple className="hidden" onChange={(event) => { const files = Array.from(event.target.files || []); void files.reduce((chain, file) => chain.then(() => uploadMedia(file)), Promise.resolve()); }} />
                     </div>
-                    {composer.media.length ? <div className="grid gap-3 sm:grid-cols-2">{composer.media.map((item) => <div key={item.assetId} className="group relative overflow-hidden rounded-lg border border-border bg-secondary/20">{item.kind === "VIDEO" ? <video className="h-32 w-full object-cover" src={mediaUrl(item.assetId)} muted playsInline preload="metadata" /> : <img className="h-32 w-full object-cover" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />}{item.kind === "VIDEO" ? <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[11px] text-white"><Play className="h-3 w-3" />{formatDuration(item.durationMs)}</span> : null}<div className="flex items-center gap-2 p-2"><span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{item.fileName || (item.kind === "VIDEO" ? "Video" : "Image")} · {formatMediaSize(item.byteSize)}</span><Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeMedia(item.assetId)} aria-label="Remove media"><X className="h-3.5 w-3.5" /></Button></div></div>)}</div> : <p className="text-xs text-muted-foreground">No media attached yet. You can still publish text-only versions.</p>}
+                    {composer.media.length ? <div className="grid gap-3 sm:grid-cols-2">{composer.media.map((item) => <div key={item.assetId} className="group relative overflow-hidden rounded-lg border border-border bg-secondary/20">{item.kind === "VIDEO" ? <video className="h-32 w-full object-cover" src={mediaUrl(item.assetId)} muted playsInline preload="metadata" /> : <img className="h-32 w-full object-cover" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />}{item.kind === "VIDEO" ? <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[11px] text-white"><Play className="h-3 w-3" />{formatDuration(item.durationMs)}</span> : null}<div className="flex items-center gap-2 p-2"><span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{item.fileName || (item.kind === "VIDEO" ? "Video" : "Image")} · {formatMediaSize(item.byteSize)}</span><Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeMedia(item.assetId)} aria-label="Remove media"><X className="h-3.5 w-3.5" /></Button></div></div>)}</div> : null}
                   </div>
-                  <div className="rounded-xl border border-border bg-secondary/20 p-4"><label className="block space-y-2"><span className="text-sm font-medium text-foreground">Generate a draft</span><textarea value={composer.prompt} onChange={(event) => setComposer((current) => ({ ...current, prompt: event.target.value }))} placeholder="Optional prompt" className="min-h-[86px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" /></label><Button variant="outline" className="mt-3 gap-2" disabled={generatingCaption} onClick={() => void generateWithAi()}><Sparkles className="h-4 w-4" />{generatingCaption ? "Generating..." : "Generate versions"}</Button></div>
                   {composer.channels.includes("INSTAGRAM") ? <label className="block space-y-2"><span className="text-sm text-muted-foreground">Instagram image URL</span><Input type="url" value={composer.instagramImageUrl} onChange={(event) => setComposer((current) => ({ ...current, instagramImageUrl: event.target.value }))} placeholder="https://example.com/image.jpg" /><span className="block text-xs text-muted-foreground">Required when publishing to Instagram.</span></label> : null}
                   {composer.channels.includes("TIKTOK") ? <div className="space-y-3 rounded-xl border border-border p-4"><p className="text-sm font-medium">TikTok publishing</p><label className="block space-y-2"><span className="text-sm text-muted-foreground">Optional verified media URL</span><Input type="url" value={composer.tiktokMediaUrl} onChange={(event) => setComposer((current) => ({ ...current, tiktokMediaUrl: event.target.value, tiktokConsent: false }))} placeholder="https://media.your-domain.com/post.mp4" /><span className="block text-xs text-muted-foreground">Use this only when the media is hosted on a TikTok-verified HTTPS domain. Uploaded media can be used instead.</span></label><div className="grid gap-3 sm:grid-cols-2"><label className="block space-y-2"><span className="text-sm text-muted-foreground">Media type for URL</span><select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value={composer.tiktokMediaType} onChange={(event) => setComposer((current) => ({ ...current, tiktokMediaType: event.target.value as ComposerState["tiktokMediaType"], tiktokConsent: false }))}><option value="VIDEO">Video</option><option value="PHOTO">Photo</option></select></label><label className="block space-y-2"><span className="text-sm text-muted-foreground">Privacy</span><select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" value={composer.tiktokPrivacyLevel} disabled={!tiktokPrivacyOptions.length} onChange={(event) => setComposer((current) => ({ ...current, tiktokPrivacyLevel: event.target.value as ComposerState["tiktokPrivacyLevel"], tiktokConsent: false }))}>{tiktokPrivacyOptions.map((option) => <option key={option} value={option}>{option === "SELF_ONLY" ? "Only me" : option === "PUBLIC_TO_EVERYONE" ? "Public" : option === "MUTUAL_FOLLOW_FRIENDS" ? "Friends" : "Followers"}</option>)}</select><span className="block text-xs text-muted-foreground">Options are loaded from the connected TikTok creator account.</span></label></div><label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={composer.tiktokConsent} onChange={(event) => setComposer((current) => ({ ...current, tiktokConsent: event.target.checked }))} /><span>I consent to send the selected media and caption to TikTok for direct publishing.</span></label></div> : null}
                 </section>
@@ -1406,10 +1608,10 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
 
               {composerStep === 3 ? (
                 <section className="space-y-5">
-                  <div><h2 className="text-xl font-semibold text-foreground">Tailor versions</h2><p className="mt-1 text-sm text-muted-foreground">Adjust the copy for each selected destination.</p></div>
+                  <div><h2 className="text-xl font-semibold text-foreground">Tailor versions</h2><p className="mt-1 text-sm text-muted-foreground">Adjust the text for each selected destination.</p></div>
                   <Tabs value={activeVariantPlatform} onValueChange={(value) => setActiveVariantPlatform(value as SocialPlatform)}>
                     <TabsList className="flex w-full flex-wrap bg-secondary/50">{activeComposerVariants.map((variant) => <TabsTrigger key={variant.platform} value={variant.platform}>{getPlatformLabel(variant.platform)}</TabsTrigger>)}</TabsList>
-                    {activeComposerVariants.map((variant) => <TabsContent key={variant.platform} value={variant.platform}><div className="space-y-3 rounded-xl border border-border p-4"><label className="block space-y-2"><span className="text-sm text-muted-foreground">{getPlatformLabel(variant.platform)} copy</span><textarea value={variant.content} onChange={(event) => updateVariant(variant.platform, { content: event.target.value })} placeholder={`Write the ${getPlatformLabel(variant.platform)} version...`} className="min-h-[260px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" /></label><label className="block space-y-2"><span className="text-sm text-muted-foreground">Status</span><select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground" value={variant.status} onChange={(event) => updateVariant(variant.platform, { status: event.target.value as SocialVariantStatus })}><option value="DRAFT">Draft</option><option value="APPROVED">Approved</option><option value="NEEDS_EDITS">Needs edits</option></select></label></div></TabsContent>)}
+                    {activeComposerVariants.map((variant) => <TabsContent key={variant.platform} value={variant.platform}><div className="space-y-3 rounded-xl border border-border p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><span className="text-sm text-muted-foreground">{getPlatformLabel(variant.platform)} text</span><Button type="button" variant="outline" size="sm" className="w-fit gap-2" onClick={() => openAiGenerator({ kind: "variant", platform: variant.platform })} disabled={Boolean(generatingCaption || generatingVariantPlatform)}><Sparkles className="h-3.5 w-3.5" />{generatingVariantPlatform === variant.platform ? "Generating..." : "Generate with AI"}</Button></div><textarea value={variant.content} onChange={(event) => updateVariant(variant.platform, { content: event.target.value })} placeholder={`Write the ${getPlatformLabel(variant.platform)} version...`} className="min-h-[260px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" /><label className="block space-y-2"><span className="text-sm text-muted-foreground">Status</span><select className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground" value={variant.status} onChange={(event) => updateVariant(variant.platform, { status: event.target.value as SocialVariantStatus })}><option value="DRAFT">Draft</option><option value="APPROVED">Approved</option><option value="NEEDS_EDITS">Needs edits</option></select></label></div></TabsContent>)}
                   </Tabs>
                   <div className="rounded-xl border border-border bg-secondary/20 p-4"><div className="flex items-center gap-2"><Smartphone className="h-4 w-4 text-muted-foreground" /><div><p className="text-sm font-medium text-foreground">Mobile composition preview</p><p className="text-xs text-muted-foreground">A layout preview using the exact copy and media. Provider UI may differ.</p></div></div><div className="mt-4 flex justify-center"><div className="w-[250px] overflow-hidden rounded-[2rem] border-[6px] border-foreground/80 bg-background shadow-xl"><div className="flex items-center justify-between border-b border-border px-4 py-2 text-[10px] text-muted-foreground"><span>9:41</span><span>{getPlatformLabel(activeVariantPlatform)}</span><span>•••</span></div><div className="p-3"><div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 text-[10px] font-semibold text-primary">KT</span><span className="text-[11px] font-medium">KasiTek</span></div><p className="mt-3 whitespace-pre-wrap break-words text-[11px] leading-4 text-foreground">{activeComposerVariants.find((variant) => variant.platform === activeVariantPlatform)?.content || composer.content}</p>{composer.media.length ? <div className="mt-3 space-y-2">{composer.media.slice(0, 4).map((item) => item.kind === "VIDEO" ? <div key={item.assetId} className="relative overflow-hidden rounded-lg bg-black"><video className="h-36 w-full object-cover" src={mediaUrl(item.assetId)} muted playsInline preload="metadata" /><span className="absolute inset-0 flex items-center justify-center"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white"><Play className="h-4 w-4 fill-current" /></span></span></div> : <img key={item.assetId} className="max-h-40 w-full rounded-lg object-cover" src={mediaUrl(item.assetId)} alt={item.altText || "Attached image"} />)}</div> : <div className="mt-3 flex h-24 items-center justify-center rounded-lg border border-dashed border-border text-[10px] text-muted-foreground"><FileImage className="mr-1.5 h-3.5 w-3.5" />No media</div>}<div className="mt-3 flex gap-4 text-[10px] text-muted-foreground"><span>♡ 24</span><span>◌ 8</span><span>↗ Share</span></div></div></div></div></div>
                 </section>

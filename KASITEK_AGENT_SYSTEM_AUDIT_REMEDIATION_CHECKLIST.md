@@ -918,3 +918,22 @@ The audit work for the KasiAi, KasiTek-hosted, and external-connected agent boun
 It records the changed routes, migration evidence, mode matrix, and remaining live-environment
 gates. Existing audit checkboxes remain open where runtime or external-client proof is still
 required.
+
+## Installation-local conversation capture follow-up (2026-08-19)
+
+- [x] Separate private KasiAi, hosted-agent test, hosted-agent customer, and external operation
+  records without coupling them to `kasitek-core /inbox`.
+- [x] Route hosted channel messages by installation, channel connection, external identity, and
+  external thread; preserve provider-message idempotency and durable reply delivery.
+- [x] Add customer conversation projections for participant identity, unread count, last-message
+  summary, assignment, and message count.
+- [x] Add installation conversation list/detail reads and mode-specific Agent UI sections.
+- [x] Keep MCP/REST external-connected calls as durable operation/usage records, with transport,
+  tool/model counts, approval state, status, and estimated cost.
+- [x] Verify with Agent build/unit/HTTP suites, PostgreSQL platform/channel/memory/run suites, and
+  MCP/REST parity; all focused suites pass locally.
+- [ ] Add staff assignment/read-state, handoff queues, optional `/inbox` linking, and browser /
+  provider end-to-end verification in a later scoped slice.
+
+Detailed execution evidence is maintained in
+[`KASITEK_AGENT_CONVERSATION_CAPTURE_CHECKLIST.md`](KASITEK_AGENT_CONVERSATION_CAPTURE_CHECKLIST.md).

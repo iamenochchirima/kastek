@@ -17,6 +17,7 @@ import {
   CalendarDays,
   CalendarCheck,
   ChartColumn,
+  Code2,
   ChevronDown,
   CreditCard,
   Download,
@@ -80,6 +81,7 @@ function tourTarget(href: string) {
     "/workspace": "overview",
     "/inbox": "inbox",
     "/connections": "connections",
+    "/developers": "developers",
     "/agents": "agents",
     "/content": "content",
     "/bookings": "bookings",
@@ -106,30 +108,31 @@ const navigationGroups: NavigationGroup[] = [
   {
     label: "Content",
     items: [
-      { name: "Posts", href: "/content", icon: Sparkles, featureKey: "feature.content.manage" },
-      { name: "Calendar", href: "/calendar", icon: CalendarDays, featureKey: "feature.content.manage" },
-      { name: "Analytics", href: "/analytics", icon: Grid2x2, featureKey: "feature.analytics.view" },
+      { name: "Posts", href: "/content", icon: Sparkles },
+      { name: "Calendar", href: "/calendar", icon: CalendarDays },
+      { name: "Analytics", href: "/analytics", icon: Grid2x2 },
     ],
   },
   {
     label: "Campaigns",
     items: [
-      { name: "Campaigns", href: "/campaigns", icon: Send, featureKey: "feature.campaigns.manage" },
-      { name: "Templates", href: "/templates", icon: FileText, featureKey: "feature.templates.manage" },
+      { name: "Campaigns", href: "/campaigns", icon: Send },
+      { name: "Templates", href: "/templates", icon: FileText },
     ],
   },
   {
     label: "Automation",
     items: [
-      { name: "Agents", href: "/agents", icon: Bot, featureKey: "feature.agents.manage" },
-      { name: "Templates", href: "/agents/templates", icon: LayoutTemplate, featureKey: "feature.agents.manage" },
-      { name: "Activity", href: "/agents/activity", icon: History, featureKey: "feature.agents.manage" },
-      { name: "Analytics", href: "/agents/analytics", icon: ChartColumn, featureKey: "feature.agents.manage" },
+      { name: "Agents", href: "/agents", icon: Bot },
+      { name: "Templates", href: "/agents/templates", icon: LayoutTemplate },
+      { name: "Activity", href: "/agents/activity", icon: History },
+      { name: "Analytics", href: "/agents/analytics", icon: ChartColumn },
     ],
   },
   {
     label: "Manage",
     items: [
+      { name: "Developers", href: "/developers", icon: Code2 },
       { name: "Connections", href: "/connections", icon: Cable },
       { name: "Team", href: "/workspace/team", icon: Users },
       { name: "Billing and usage", href: "/billing", icon: CreditCard },

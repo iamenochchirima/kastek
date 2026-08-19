@@ -48,13 +48,13 @@ export interface CreateInstallationCredentialInput {
   label: string;
   actorId: string;
   expiresAt?: string;
-  mcpScopes: Array<"mcp:read" | "mcp:write">;
-  apiScopes?: Array<"api:read" | "api:write">;
   clientKeyId?: string;
   clientPublicKey?: string;
 }
 
 const KEY_LENGTH = 32;
+const ALL_MCP_SCOPES = ["mcp:read", "mcp:write"] as const;
+const ALL_API_SCOPES = ["api:read", "api:write"] as const;
 
 function hashSecret(secret: string, salt = randomBytes(16)): string {
   const derived = scryptSync(secret, salt, KEY_LENGTH);
@@ -247,7 +247,7 @@ export class InstallationCredentialRepository {
           (installation_id, organization_id, label, secret_hash, expires_at, mcp_scopes, api_scopes, client_key_id, client_public_key, created_by)
          VALUES ($1, $2, $3, $4, $5::timestamptz, $6::jsonb, $7::jsonb, $8, $9, $10)
          RETURNING id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes, api_scopes, client_key_id, client_public_key`,
-        [input.installationId, input.organizationId, existing.label, hashSecret(secret), existing.expires_at, JSON.stringify(existing.mcp_scopes), JSON.stringify(existing.api_scopes ?? ["api:read"]), existing.client_key_id, existing.client_public_key, input.actorId],
+        [input.installationId, input.organizationId, existing.label, hashSecret(secret), existing.expires_at, JSON.stringify(ALL_MCP_SCOPES), JSON.stringify(ALL_API_SCOPES), existing.client_key_id, existing.client_public_key, input.actorId],
       );
       await client.query(
         `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
@@ -279,7 +279,7 @@ export async function createInstallationCredentialInTransaction(
       (installation_id, organization_id, label, secret_hash, expires_at, mcp_scopes, api_scopes, client_key_id, client_public_key, created_by)
      VALUES ($1, $2, $3, $4, $5::timestamptz, $6::jsonb, $7::jsonb, $8, $9, $10)
      RETURNING id, installation_id, organization_id, label, status, expires_at, last_used_at, created_at, revoked_at, mcp_scopes, api_scopes, client_key_id, client_public_key`,
-    [input.installationId, input.organizationId, input.label.trim(), hashSecret(secret), input.expiresAt ?? null, JSON.stringify(input.mcpScopes), JSON.stringify(input.apiScopes ?? ["api:read"]), clientKeyId, clientPublicKey, input.actorId],
+    [input.installationId, input.organizationId, input.label.trim(), hashSecret(secret), input.expiresAt ?? null, JSON.stringify(ALL_MCP_SCOPES), JSON.stringify(ALL_API_SCOPES), clientKeyId, clientPublicKey, input.actorId],
   );
   await client.query(
     `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)

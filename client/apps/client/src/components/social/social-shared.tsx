@@ -2,26 +2,21 @@
 
 import {
   AlertTriangle,
-  AtSign,
   CalendarRange,
   CheckCircle2,
-  Cloud,
   Clock3,
-  Facebook,
   FileAudio,
   FileImage,
   FileText,
   FileVideo,
-  Instagram,
   Layers3,
-  Linkedin,
   MessageCircleMore,
-  Music2,
   Send,
   Sparkles,
   X,
-  type LucideIcon,
 } from "lucide-react";
+import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icons";
+import type { IconType } from "react-icons";
 
 export type SocialPlatform =
   | "FACEBOOK"
@@ -273,15 +268,12 @@ export function getPlatformDescription(platform: SocialPlatform) {
   return "Short-form reminders and high-visibility status content.";
 }
 
-export function getPlatformIcon(platform: SocialPlatform): LucideIcon {
-  if (platform === "FACEBOOK") return Facebook;
-  if (platform === "INSTAGRAM") return Instagram;
-  if (platform === "THREADS") return AtSign;
-  if (platform === "TIKTOK") return Music2;
-  if (platform === "BLUESKY") return Cloud;
-  if (platform === "LINKEDIN") return Linkedin;
-  if (platform === "X") return X;
-  return MessageCircleMore;
+export function getPlatformIcon(platform: SocialPlatform): IconType {
+  return getPlatformBrandIcon(platform) ?? MessageCircleMore;
+}
+
+export function getPlatformIconClass(platform: SocialPlatform) {
+  return getPlatformBrandColor(platform);
 }
 
 export function getPlatformTone(platform: SocialPlatform) {

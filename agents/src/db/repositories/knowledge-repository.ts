@@ -31,6 +31,11 @@ export interface KnowledgeChunkRecord {
   created_at: string;
 }
 
+export interface KnowledgeSourceDocument {
+  source: KnowledgeSourceRecord;
+  text: string;
+}
+
 export class KnowledgeRepository {
   public constructor(private readonly pool: Pool) {}
 
@@ -75,6 +80,19 @@ export class KnowledgeRepository {
     return result.rows[0] ?? null;
   }
 
+  public async getSourceDocument(scope: { organizationId: string; agentId?: string; installationId?: string }, sourceId: string): Promise<KnowledgeSourceDocument | null> {
+    const source = await this.getSource(scope, sourceId);
+    if (!source) return null;
+    const chunks = await query<{ canonical_text: string }>(
+      this.pool,
+      `SELECT canonical_text FROM knowledge_chunks
+       WHERE source_id = $1 AND organization_id = $2 AND revision = $3
+       ORDER BY chunk_index ASC`,
+      [source.id, scope.organizationId, source.revision],
+    );
+    return { source, text: chunks.rows.map((chunk) => chunk.canonical_text).join("\n\n") };
+  }
+
   public async addChunks(input: {
     sourceId: string;
     scope: MemoryScope;
@@ -117,6 +135,7 @@ export class KnowledgeRepository {
        WHERE kc.organization_id = $1
          AND (kc.agent_definition_id IS NULL OR kc.agent_definition_id = $2)
          AND (kc.installation_id IS NULL OR kc.installation_id = $3)
+         AND kc.revision = ks.revision
          AND kc.search_vector @@ plainto_tsquery('simple', $4)
        ORDER BY ts_rank_cd(kc.search_vector, plainto_tsquery('simple', $4)) DESC, kc.created_at DESC
        LIMIT $5`,

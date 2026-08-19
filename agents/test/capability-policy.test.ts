@@ -6,6 +6,7 @@ describe("capability policy", () => {
   it("denies each independent policy gate", () => {
     expect(evaluateCapabilityPolicy({ ...base, grantedCapabilities: new Set() })).toEqual({ allowed: false, code: "CAPABILITY_NOT_GRANTED" });
     expect(evaluateCapabilityPolicy({ ...base, requestedResources: [{ type: "social_account", id: "a" }], grantedResources: [] })).toEqual({ allowed: false, code: "RESOURCE_NOT_GRANTED" });
+    expect(evaluateCapabilityPolicy({ ...base, requestedResources: [{ type: "content_post", id: "post-1" }], grantedResources: [], resourceScopeUnconstrained: true })).toEqual({ allowed: true });
     expect(evaluateCapabilityPolicy({ ...base, requiresApproval: true })).toEqual({ allowed: false, code: "APPROVAL_REQUIRED" });
     expect(evaluateCapabilityPolicy({ ...base, available: false })).toEqual({ allowed: false, code: "UNAVAILABLE" });
   });

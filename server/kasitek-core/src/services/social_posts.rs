@@ -14,6 +14,26 @@ use super::social::{
     parse_optional_datetime,
 };
 
+/// Generate the internal label used by the content list and activity history.
+/// Social providers receive the post text and media; this label is for workspace
+/// organization and is intentionally derived from the first line.
+fn generated_social_post_title(content: &str) -> String {
+    let first_line = content
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .unwrap_or("");
+    let normalized = first_line.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.is_empty() {
+        return "Untitled social post".to_string();
+    }
+
+    if normalized.chars().count() > 80 {
+        return format!("{}...", normalized.chars().take(77).collect::<String>());
+    }
+    normalized
+}
+
 fn normalize_variants(
     variants: &Option<Vec<SocialPostVariantInput>>,
     channels: &[String],
@@ -553,8 +573,7 @@ pub async fn create_social_post_idempotent(
         .content
         .as_ref()
         .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::BadRequest("Post content is required".to_string()))?;
+        .unwrap_or_default();
     let channels = request
         .channels
         .clone()
@@ -583,6 +602,11 @@ pub async fn create_social_post_idempotent(
     let channel_selections =
         validate_channel_selections(pool, org_id, &channels, &request.channel_selections).await?;
     let media = validate_media(pool, org_id, &request.media).await?;
+    if content.is_empty() && media.is_empty() {
+        return Err(AppError::BadRequest(
+            "Add post text or attach at least one image or video".to_string(),
+        ));
+    }
     let variants = normalize_variants(&request.variants, &channels, &content);
 
     let idempotency_key = idempotency_key
@@ -621,6 +645,13 @@ pub async fn create_social_post_idempotent(
     } else {
         request.metadata.clone()
     };
+    let title = request
+        .title
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| generated_social_post_title(&content));
     let post_id = cuid2::create_id();
 
     let mut tx = pool.begin().await?;
@@ -661,13 +692,7 @@ pub async fn create_social_post_idempotent(
     .bind(user_id)
     .bind(org_id)
     .bind(primary_channel_id)
-    .bind(
-        request
-            .title
-            .as_ref()
-            .map(|v| v.trim())
-            .filter(|v| !v.is_empty()),
-    )
+    .bind(&title)
     .bind(
         request
             .prompt
@@ -718,11 +743,6 @@ pub async fn update_social_post(
     let content = match request.content.as_ref() {
         Some(value) => {
             let trimmed = value.trim();
-            if trimmed.is_empty() {
-                return Err(AppError::BadRequest(
-                    "Post content cannot be empty".to_string(),
-                ));
-            }
             trimmed.to_string()
         }
         None => row.content.clone(),
@@ -774,6 +794,18 @@ pub async fn update_social_post(
             })
             .collect()
     };
+    if content.is_empty() && media.is_empty() {
+        return Err(AppError::BadRequest(
+            "Add post text or attach at least one image or video".to_string(),
+        ));
+    }
+    let title = request
+        .title
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| generated_social_post_title(&content));
     let variants = normalize_variants(&request.variants, &channels, &content);
 
     let mut tx = pool.begin().await?;
@@ -793,14 +825,7 @@ pub async fn update_social_post(
         "#,
     )
     .bind(primary_channel_id)
-    .bind(
-        request
-            .title
-            .as_ref()
-            .map(|v| v.trim())
-            .filter(|v| !v.is_empty())
-            .or(row.title.as_deref()),
-    )
+    .bind(&title)
     .bind(
         request
             .prompt

@@ -1,6 +1,6 @@
 use ::config::{environment_allows_loopback_origins, is_loopback_origin};
 use actix_cors::Cors;
-use actix_web::{http::header::HeaderValue, middleware::Logger, web, App, HttpServer};
+use actix_web::{http::header::HeaderValue, web, App, HttpServer};
 use dotenv::dotenv;
 use sqlx::postgres::PgPoolOptions;
 
@@ -102,7 +102,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(db_pool.clone()))
             .app_data(web::Data::new(config.clone()))
             .wrap(cors)
-            .wrap(Logger::default())
+            .wrap(observability::http_logger())
             .configure(routes::configure)
     })
     .bind(("0.0.0.0", port))?

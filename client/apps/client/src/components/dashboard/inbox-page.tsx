@@ -14,13 +14,11 @@ import {
   ChevronDown,
   Clock,
   Copy,
-  Facebook,
   FileAudio,
   FileImage,
   FileText,
   FileVideo,
   Filter,
-  Instagram,
   Mail,
   MessageCircle,
   MoreHorizontal,
@@ -37,6 +35,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icons";
 import { apiUrl } from "@/lib/server-api";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +58,18 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+
+function inboxPlatformKey(channel: string) {
+  return channel.toLowerCase() === "facebook" ? "MESSENGER" : channel.toUpperCase();
+}
+
+function inboxChannelIcon(channel: string) {
+  return getPlatformBrandIcon(inboxPlatformKey(channel)) ?? MessageCircle;
+}
+
+function inboxChannelIconClass(channel: string) {
+  return getPlatformBrandColor(inboxPlatformKey(channel));
+}
 import { useWhatsappRealtimeSubscription } from "@/components/dashboard/whatsapp-realtime-provider";
 
 function markConversationRead(conversationId: string) {
@@ -748,8 +759,8 @@ export default function InboxPageClient({
       {
         id: "whatsapp" as const,
         name: "WhatsApp",
-        icon: MessageCircle,
-        color: "text-status-success",
+        icon: inboxChannelIcon("whatsapp"),
+        color: inboxChannelIconClass("whatsapp"),
         bgColor: "bg-status-success-soft",
         count: liveConversations.filter((conversation) => conversation.channel === "whatsapp").length,
         unreadCount: whatsappUnreadCount,
@@ -781,8 +792,8 @@ export default function InboxPageClient({
       {
         id: "instagram" as const,
         name: "Instagram",
-        icon: Instagram,
-        color: "text-fuchsia-400",
+        icon: inboxChannelIcon("instagram"),
+        color: inboxChannelIconClass("instagram"),
         bgColor: "bg-fuchsia-500/10",
         count: liveConversations.filter((conversation) => conversation.channel === "instagram").length,
         unreadCount: liveConversations.filter(
@@ -796,8 +807,8 @@ export default function InboxPageClient({
       {
         id: "facebook" as const,
         name: "Messenger",
-        icon: Facebook,
-        color: "text-blue-400",
+        icon: inboxChannelIcon("facebook"),
+        color: inboxChannelIconClass("facebook"),
         bgColor: "bg-blue-500/10",
         count: liveConversations.filter((conversation) => conversation.channel === "facebook").length,
         unreadCount: liveConversations.filter(
@@ -1321,7 +1332,7 @@ export default function InboxPageClient({
             <div className="rounded-lg border border-border bg-card">
               <div className="flex items-center gap-3 px-4 py-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-md bg-status-success-soft text-status-success">
-                  <MessageCircle className="h-4 w-4" />
+                  {(() => { const Icon = inboxChannelIcon("whatsapp"); return <Icon className={inboxChannelIconClass("whatsapp")} />; })()}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">WhatsApp</p>
@@ -1370,15 +1381,15 @@ export default function InboxPageClient({
           <section>
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Meta messaging</p>
             <div className="divide-y divide-border rounded-lg border border-border bg-card">
-              {[
-                { key: "instagram" as const, label: "Instagram", icon: Instagram },
-                { key: "facebook" as const, label: "Facebook Messenger", icon: Facebook },
+                {[
+                { key: "instagram" as const, label: "Instagram", icon: inboxChannelIcon("instagram"), color: inboxChannelIconClass("instagram") },
+                { key: "facebook" as const, label: "Facebook Messenger", icon: inboxChannelIcon("facebook"), color: inboxChannelIconClass("facebook") },
               ].map((channel) => {
                 const Icon = channel.icon;
                 const state = channelCounts[channel.key];
                 return (
                   <div key={channel.key} className="flex items-center gap-3 px-4 py-3">
-                    <Icon className="h-4 w-4 text-muted-foreground" />
+                    <Icon className={`h-4 w-4 ${channel.color}`} />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-foreground">{channel.label}</p>
                       <p className="text-xs text-muted-foreground">
@@ -2524,13 +2535,7 @@ export default function InboxPageClient({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="mb-3 h-8 max-w-full gap-2 text-xs">
-                    {selectedChannel === "whatsapp" ? (
-                      <MessageCircle className="h-3.5 w-3.5 text-status-success" />
-                    ) : selectedChannel === "instagram" ? (
-                      <Instagram className="h-3.5 w-3.5 text-fuchsia-400" />
-                    ) : (
-                      <Facebook className="h-3.5 w-3.5 text-blue-400" />
-                    )}
+                    {(() => { const Icon = inboxChannelIcon(selectedChannel); return <Icon className={`h-3.5 w-3.5 ${inboxChannelIconClass(selectedChannel)}`} />; })()}
                     <span className="truncate">{selectedConnectionFilter?.label}</span>
                     <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                   </Button>
@@ -2599,7 +2604,7 @@ export default function InboxPageClient({
               {supportsConnectionFilter && !selectedChannelConnected ? (
                 <div className="flex flex-col items-center justify-center py-14 text-center">
                   <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
-                    <MessageCircle className="h-6 w-6 text-muted-foreground" />
+                    {(() => { const Icon = inboxChannelIcon(selectedChannel); return <Icon className={`h-6 w-6 ${inboxChannelIconClass(selectedChannel)}`} />; })()}
                   </div>
                   <p className="text-sm text-foreground">
                     Connect {selectedChannel === "facebook" ? "Facebook" : selectedChannel} to start using inbox
@@ -2608,7 +2613,7 @@ export default function InboxPageClient({
               ) : filteredConversations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
                   <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
-                    <MessageCircle className="h-6 w-6 text-muted-foreground" />
+                    {(() => { const Icon = inboxChannelIcon(selectedChannel); return <Icon className={`h-6 w-6 ${inboxChannelIconClass(selectedChannel)}`} />; })()}
                   </div>
                   <p className="text-sm text-foreground">{emptyConversationCopy.title}</p>
                   <p className="mt-1 max-w-[260px] text-xs leading-5 text-muted-foreground">
@@ -2775,7 +2780,7 @@ export default function InboxPageClient({
                           </p>
                           {activeCallsByConversationId[conversation.id] ? (
                             <div className="mb-1">
-                              <Badge className="border-0 bg-accent/15 text-[10px] text-accent">
+                              <Badge className="border-0 bg-status-info-soft text-[10px] text-status-info">
                                 {activeCallsByConversationId[conversation.id].status === "RINGING"
                                   ? "Incoming call"
                                   : activeCallsByConversationId[conversation.id].status === "ACTIVE"
@@ -2862,8 +2867,8 @@ export default function InboxPageClient({
                     <p className="truncate text-xs text-muted-foreground">
                       <span>{selectedConversation.handle}</span>
                       {selectedConversation.status === "online" ? (
-                        <span className="ml-1 hidden items-center gap-1 text-accent sm:inline-flex">
-                          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                        <span className="ml-1 hidden items-center gap-1 text-status-success sm:inline-flex">
+                          <span className="h-1.5 w-1.5 rounded-full bg-status-success" />
                           Online
                         </span>
                       ) : null}
@@ -2940,7 +2945,7 @@ export default function InboxPageClient({
 
           {latestIncomingCall && !selectedConversationCall ? (
             <div className="border-b border-border bg-card/90 px-3 py-3 sm:px-6">
-              <div className="mx-auto flex max-w-3xl flex-col gap-3 rounded-2xl border border-accent/20 bg-accent/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mx-auto flex max-w-3xl flex-col gap-3 rounded-2xl border border-status-info/20 bg-status-info-soft/40 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-foreground">Incoming WhatsApp call</p>
                   <p className="mt-1 truncate text-sm text-muted-foreground">
@@ -2979,11 +2984,11 @@ export default function InboxPageClient({
             {selectedConversation ? (
             <div className="mx-auto max-w-3xl space-y-4">
               {selectedConversationCall ? (
-                <div className="rounded-2xl border border-accent/20 bg-accent/5 p-4">
+                <div className="rounded-2xl border border-status-info/20 bg-status-info-soft/40 p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/15 text-accent">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-status-info-soft text-status-info">
                           <Phone className="h-4 w-4" />
                         </div>
                         <div>

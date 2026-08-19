@@ -1,4 +1,5 @@
 use actix_web::{web, HttpRequest, HttpResponse};
+use bytes::BytesMut;
 use futures_util::StreamExt;
 use serde::Deserialize;
 use serde_json::{Map, Value};
@@ -86,6 +87,30 @@ pub async fn create_agent(
         .create_agent(&organization_id, &user.id, body.into_inner())
         .await?;
     Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn update_agent(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    agent_id: web::Path<String>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Agent body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .update_agent(
+            &organization_id,
+            &user.id,
+            agent_id.trim(),
+            body.into_inner(),
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
 }
 
 pub async fn create_external_agent(
@@ -537,6 +562,19 @@ pub async fn create_knowledge_source(
     Ok(HttpResponse::Created().json(response))
 }
 
+pub async fn get_knowledge_source(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    source_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .get_knowledge_source(&organization_id, &user.id, source_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn ingest_knowledge_source_url(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
@@ -565,6 +603,80 @@ pub async fn ingest_knowledge_source_url(
             &user.id,
             source_id.trim(),
             body.into_inner(),
+        )
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn ingest_knowledge_source_text(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    source_id: web::Path<String>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Knowledge ingest body must be an object".to_string(),
+        ));
+    }
+    if body
+        .get("text")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .is_none()
+    {
+        return Err(AppError::BadRequest("text is required".to_string()));
+    }
+    let response = client(config.get_ref())?
+        .ingest_knowledge_source_text(
+            &organization_id,
+            &user.id,
+            source_id.trim(),
+            body.into_inner(),
+        )
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn ingest_knowledge_source_file(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    source_id: web::Path<String>,
+    mut payload: web::Payload,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let content_type = req
+        .headers()
+        .get(actix_web::http::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("application/octet-stream")
+        .to_string();
+    let mut body = BytesMut::new();
+    while let Some(chunk) = payload.next().await {
+        let chunk = chunk.map_err(|error| {
+            AppError::BadRequest(format!("Invalid knowledge file upload: {error}"))
+        })?;
+        // The downstream multipart parser enforces the exact file limit. This
+        // additional body guard prevents an oversized multipart envelope from
+        // being buffered indefinitely at the product boundary.
+        if body.len() + chunk.len() > 22 * 1024 * 1024 {
+            return Err(AppError::BadRequest(
+                "Knowledge file upload exceeds the 20 MB limit".to_string(),
+            ));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    let response = client(config.get_ref())?
+        .ingest_knowledge_source_file(
+            &organization_id,
+            &user.id,
+            source_id.trim(),
+            content_type,
+            body.freeze(),
         )
         .await?;
     Ok(HttpResponse::Created().json(response))
@@ -876,6 +988,25 @@ pub async fn issue_channel_pairing(
         )
         .await?;
     Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn revoke_channel_connection(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let (installation_id, connection_id) = path.into_inner();
+    let response = client(config.get_ref())?
+        .revoke_channel_connection(
+            &organization_id,
+            &user.id,
+            installation_id.trim(),
+            connection_id.trim(),
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
 }
 
 pub async fn disconnect_channel(
@@ -1586,6 +1717,19 @@ pub async fn cancel_run(
             &run_id,
             serde_json::json!({ "reason": reason }),
         )
+        .await?;
+    Ok(HttpResponse::Accepted().json(response))
+}
+
+pub async fn retry_run(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    run_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .retry_run(&organization_id, &user.id, &run_id)
         .await?;
     Ok(HttpResponse::Accepted().json(response))
 }
