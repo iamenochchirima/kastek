@@ -106,13 +106,13 @@ verified or completed. Work on independent items continues.
 
 - **Blueprint:** Slice 10 approval verification; remediation AR-002.
 - **Evidence:** approval records bind the organization, installation, capability, arguments, preview,
-  and effect key. The initial separation-of-duties policy is now explicit and enforced: the run
-  initiator cannot approve their own action (`22b2748`, `agents/test/http.test.ts`). The public
+  and effect key. The earlier four-eyes rule was superseded by the explicit role-based product
+  decision: an authorized run initiator may approve their own exact pending action. The public
   decision route still receives only a generic authenticated actor ID and does not yet have an
   approved workspace role/resource matrix or external-service principal model.
-- **Impact:** atomic decision state, retry idempotency, and self-approval protection are implemented,
-  but full approver/resource authorization cannot be claimed. Do not expand real external effects
-  beyond controlled testing until the role/resource policy and identity inputs exist.
+- **Impact:** atomic decision state and retry idempotency are implemented, but full role/resource
+  authorization cannot be claimed. Do not expand real external effects beyond controlled testing
+  until the role/resource policy and identity inputs exist.
 - **Next action:** approve the workspace approver/resource decision matrix and persist/propagate the
   initiating human or service principal needed for cross-resource authorization checks.
 

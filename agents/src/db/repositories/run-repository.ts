@@ -40,6 +40,8 @@ export interface RuntimeRunRecord extends RunRecord {
   installation_status: string;
 }
 
+export type ConversationRunSummary = Pick<RunRecord, "id" | "conversation_id" | "status" | "created_at" | "updated_at">;
+
 export class RunRepository {
   public constructor(private readonly pool: Pool) {}
 
@@ -376,6 +378,21 @@ export class RunRepository {
       [runId],
     );
     return result.rows[0] ?? null;
+  }
+
+  public async listActiveConversationRuns(organizationId: string, conversationId: string, limit = 10): Promise<ConversationRunSummary[]> {
+    const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 20);
+    const result = await query<ConversationRunSummary>(
+      this.pool,
+      `SELECT id, conversation_id, status, created_at, updated_at
+       FROM agent_runs
+       WHERE organization_id = $1 AND conversation_id = $2
+         AND status IN ('received', 'queued', 'running', 'awaiting_approval', 'awaiting_human', 'awaiting_external_event')
+       ORDER BY created_at DESC
+       LIMIT $3`,
+      [organizationId, conversationId, boundedLimit],
+    );
+    return result.rows;
   }
 
   public async failRun(runId: string, error: Record<string, unknown>): Promise<RunRecord> {

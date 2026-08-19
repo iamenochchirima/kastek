@@ -810,9 +810,9 @@ real capabilities, preserves independent chats, and never invents platform featu
 - [x] Expose the first typed public resource slice through the shared content adapter: organization-
   scoped post list/detail and idempotent draft creation; keep publish/schedule effects outside the
   initial public route set until their approval/effect contract is externally verified.
-- [x] Use installation token exchange and protected-resource metadata for MCP. When an installation
-  uses REST, issue/validate a REST-audience token through the public API principal framework rather
-  than routing the request through MCP.
+- [x] Use the workspace Developer API key and protected-resource metadata for the primary MCP flow.
+  Core validates the key directly; the Agent Platform resolves it to an internal installation before
+  discovery or invocation. Retain installation-token exchange only for advanced compatibility paths.
 - [x] Add an installation-scoped REST transport for external agents: filtered capability discovery,
   tool invocation, idempotent durable operation references, operation timelines, and workflow
   cancellation. Keep its grants and API scopes separate from MCP scopes while reusing the same
@@ -1061,11 +1061,11 @@ Real campaign/booking write handlers remain disabled until their provider bounda
 
 ### Verification
 
-- [x] Add approval hash/version/resource/expiry/single-use, self-approval, changed-permission,
+- [x] Add approval hash/version/resource/expiry/single-use, initiator-approval, changed-permission,
   cancellation, and concurrent-decision tests. Evidence: `agents/test/run.integration.test.ts`
   exercises exact approval hashes, capability versions, resource/preview/policy revisions,
   expiry, atomic consume-once behavior, changed approval fields, ambiguous effect recovery, and
-  concurrent decisions; `agents/test/http.test.ts` covers self-approval, revoked grants,
+  concurrent decisions; `agents/test/http.test.ts` covers initiator approval, revoked grants,
   cancellation, approval idempotency, and authorization boundaries.
 - [x] Add effect idempotency, crash-after-provider-call, timeout, duplicate callback, reconciliation,
   compensation, and kill-switch tests.

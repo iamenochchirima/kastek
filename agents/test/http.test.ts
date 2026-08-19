@@ -119,6 +119,33 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("accepts the workspace Developer API key directly for MCP", async () => {
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      developerApiKeyResolver: {
+        resolve: async (secret: string) => secret === "kst_test-api-key"
+          ? { apiKeyId: "api-key-1", organizationId: "org-1", scopes: ["api:read", "api:write"] }
+          : null,
+      },
+      agents: {
+        getOrCreateDeveloperApiKeyInstallation: async () => ({
+          agent: { id: "developer-agent-1" },
+          installation: { id: "developer-installation-1", organization_id: "org-1", status: "active", agent_definition_id: "developer-agent-1" },
+        }),
+      } as unknown as AgentRepository,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/mcp",
+      headers: { authorization: "Bearer kst_test-api-key" },
+      payload: { jsonrpc: "2.0", id: 2, method: "initialize" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ jsonrpc: "2.0", id: 2, result: { capabilities: { tools: { listChanged: false } } } });
+    await app.close();
+  });
+
   it("returns a structured MCP error when the scoped MCP feature flag is disabled", async () => {
     const app = buildApp({
       config: mcpConfig,
@@ -147,7 +174,7 @@ describe("Agent Platform HTTP foundation", () => {
     expect(response.json()).toMatchObject({
       resource: "/mcp",
       bearer_methods_supported: ["header"],
-      installation_token_exchange_endpoint: "/v1/installation-tokens/exchange",
+      authentication: "KasiTek Developer API key",
     });
     await app.close();
   });
@@ -1267,7 +1294,15 @@ describe("Agent Platform HTTP foundation", () => {
       pool: fakePool,
       platformChat,
       agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", ...hostedInstallationIdentity }) } as unknown as AgentRepository,
-      conversations: { listMessages: async () => [] } as never,
+      conversations: {
+        listMessages: async () => [],
+        getOwnedConversation: async () => ({ id: "conversation-1", installation_id: "install-1", owner_actor_id: "user-1" }),
+        markOpened: async () => undefined,
+        listParticipants: async () => [],
+      } as never,
+      runs: {
+        listActiveConversationRuns: async () => [{ id: "active-run", conversation_id: "conversation-1", status: "awaiting_approval" }],
+      } as never,
       startWorkflow: async (runId) => { started.push(runId); },
     });
     const resolved = await app.inject({
@@ -1286,13 +1321,55 @@ describe("Agent Platform HTTP foundation", () => {
     expect(accepted.statusCode).toBe(202);
     expect(accepted.json()).toMatchObject({ runId: "run-1", created: true, durable: true });
     expect(started).toEqual(["run-1"]);
+    const loaded = await app.inject({
+      method: "GET",
+      url: "/v1/conversations/conversation-1",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+    });
+    expect(loaded.statusCode).toBe(200);
+    expect(loaded.json()).toMatchObject({ activeRuns: [{ id: "active-run", status: "awaiting_approval" }] });
+    await app.close();
+  });
+
+  it("retries a failed platform chat run without inserting another inbound message", async () => {
+    const started: string[] = [];
+    const retryMessage = vi.fn(async () => ({
+      conversation: { id: "conversation-1" },
+      userParticipant: { id: "user-participant-1" },
+      agentParticipant: { id: "agent-participant-1" },
+      message: { id: "message-1", run_id: "failed-run", content: { text: "Hello" } },
+      run: { id: "retry-run", installation_id: "install-1", status: "received" },
+      created: true,
+    }));
+    const platformChat = { retryMessage } as unknown as PlatformChatRepository;
+    const app = buildApp({
+      config: { ...config, TEMPORAL_ENABLED: true },
+      pool: fakePool,
+      runs: {
+        getRun: async () => ({ id: "failed-run", installation_id: "install-1", status: "failed" }),
+        appendEvent: vi.fn(),
+      } as unknown as RunRepository,
+      platformChat,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", ...hostedInstallationIdentity }) } as unknown as AgentRepository,
+      startWorkflow: async (runId) => { started.push(runId); },
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/runs/failed-run/retry",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: {},
+    });
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toMatchObject({ runId: "retry-run", status: "received", durable: true, message: { id: "message-1", run_id: "failed-run" } });
+    expect(started).toEqual(["retry-run"]);
+    expect(platformChat.retryMessage).toHaveBeenCalledWith({ organizationId: "org-1", runId: "failed-run", actorId: "user-1", correlationId: undefined });
     await app.close();
   });
 
   it("enforces scopes on HMAC platform routes", async () => {
     const agents = {
       getSystemInstallation: async () => ({ id: "installation-1" }),
-      getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", ...hostedInstallationIdentity }),
+      getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", ...kasiaiInstallationIdentity }),
     } as unknown as AgentRepository;
     const platformChat = {
       resolveConversation: async () => ({ conversation: { id: "conversation-1" }, userParticipant: {}, agentParticipant: {} }),
@@ -1300,11 +1377,24 @@ describe("Agent Platform HTTP foundation", () => {
     const hmacConfig = { ...config, AUTH_MODE: "hmac" as const, INTERNAL_AUTH_SECRET: "test-secret" };
     const readToken = signInternalToken({ organizationId: "org-1", actorId: "user-1", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: ["chat:read"] }, "test-secret");
     const noScopeToken = signInternalToken({ organizationId: "org-1", actorId: "user-1", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: [] }, "test-secret");
-    const app = buildApp({ config: hmacConfig, pool: fakePool, agents, platformChat, conversations: { listMessages: async () => [] } as never });
+    const homeToken = signInternalToken({ organizationId: "org-1", actorId: "user-1", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: ["kasiai:read"] }, "test-secret");
+    const app = buildApp({
+      config: hmacConfig,
+      pool: fakePool,
+      agents,
+      platformChat,
+      conversations: {
+        listMessages: async () => [],
+        listOwnerConversations: async () => [],
+      } as never,
+      kasiaiPreferences: { get: async () => ({ tone: "balanced" }) } as never,
+    });
     const allowed = await app.inject({ method: "POST", url: "/v1/installations/install-1/platform/conversation", headers: { authorization: `Bearer ${readToken}` } });
     const denied = await app.inject({ method: "POST", url: "/v1/installations/install-1/platform/conversation", headers: { authorization: `Bearer ${noScopeToken}` } });
+    const homeAllowed = await app.inject({ method: "POST", url: "/v1/installations/install-1/kasiai/home", headers: { authorization: `Bearer ${homeToken}` }, payload: {} });
     expect(allowed.statusCode).toBe(200);
     expect(denied.statusCode).toBe(403);
+    expect(homeAllowed.statusCode).toBe(200);
     await app.close();
   });
 
@@ -1454,8 +1544,11 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
-  it("rejects self-approval before changing durable approval state or signalling Temporal", async () => {
-    const decide = vi.fn();
+  it("allows an authorized initiator to approve their own exact pending effect", async () => {
+    const decide = vi.fn().mockResolvedValue({
+      approval: { expires_at: new Date(Date.now() + 60_000).toISOString(), resource_snapshot: { capability: "kasitek.core.content_post_draft" } },
+      accepted: true,
+    });
     const signalApproval = vi.fn();
     const hmacConfig = { ...config, AUTH_MODE: "hmac" as const, INTERNAL_AUTH_SECRET: "test-secret" };
     const token = signInternalToken({ organizationId: "org-1", actorId: "user-1", audience: "test", expiresAt: Math.floor(Date.now() / 1000) + 60, scopes: ["runs:approve"] }, "test-secret");
@@ -1465,13 +1558,16 @@ describe("Agent Platform HTTP foundation", () => {
       runs: { getRun: async () => ({ id: "approval-run", organization_id: "org-1", installation_id: "install-1", status: "awaiting_approval", created_by: "user-1" }) } as unknown as RunRepository,
       agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", agent_version_id: "version-1", status: "active", ...externalInstallationIdentity }) } as never,
       approvals: { getForRun: async () => ({ installation_id: "install-1", provider_tool_call_id: "approval-call", arguments_hash: "a".repeat(64), capability: "kasitek.core.content_post_draft", capability_version: "1.0.0", status: "pending" }), decide } as never,
+      toolInvocations: { getProposal: async () => ({ organizationId: "org-1", runId: "approval-run", providerToolCallId: "approval-call", toolName: "kasitek.core.content_post_draft", toolVersion: "1.0.0", argumentsHash: "a".repeat(64), arguments: { content: "draft", channels: ["bluesky"] } }) } as never,
+      toolGrants: { effectiveTools: async () => new Set(["kasitek.core.content_post_draft"]) } as never,
+      installationGrants: { effective: async () => ({ resources: [], connectors: [] }) } as never,
       signalApproval,
     });
     const response = await app.inject({ method: "POST", url: "/v1/runs/approval-run/approval", headers: { authorization: `Bearer ${token}` }, payload: { decision: "approved", providerToolCallId: "approval-call", argumentsHash: "a".repeat(64) } });
-    expect(response.statusCode).toBe(403);
-    expect(response.json()).toEqual({ error: "approval_self_approval_forbidden", code: "SEPARATION_OF_DUTIES_REQUIRED" });
-    expect(decide).not.toHaveBeenCalled();
-    expect(signalApproval).not.toHaveBeenCalled();
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toMatchObject({ runId: "approval-run", status: "approval_signalled" });
+    expect(decide).toHaveBeenCalledWith(expect.objectContaining({ organizationId: "org-1", runId: "approval-run", approvedBy: "user-1" }));
+    expect(signalApproval).toHaveBeenCalledWith("approval-run", expect.objectContaining({ decision: "approved", approvedBy: "user-1" }));
     await app.close();
   });
 

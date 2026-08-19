@@ -173,7 +173,7 @@ export function listAgentOperationRuns(limit = 50): Promise<{ runs: AgentOperati
   return request(`/api/agents/operations/runs?limit=${encodeURIComponent(String(limit))}`);
 }
 
-export function getAgentRun(runId: string): Promise<{ run: AgentRun; approval?: AgentApproval | null; events: AgentOperationEvent[] }> {
+export function getAgentRun(runId: string): Promise<{ run: AgentRun; canApprove?: boolean; approval?: AgentApproval | null; events: AgentOperationEvent[] }> {
   return request(`/api/agents/runs/${encodeURIComponent(runId)}`);
 }
 
@@ -212,6 +212,13 @@ type ConversationResponse = {
   messages: AgentMessage[];
   hasMore?: boolean;
   nextBefore?: string | null;
+  activeRuns?: Array<{
+    id: string;
+    conversation_id?: string | null;
+    status: string;
+    created_at?: string;
+    updated_at?: string;
+  }>;
 };
 
 export class AgentRequestError extends Error {
@@ -300,8 +307,6 @@ export function createExternalAgentConnection(input: {
   resources?: Array<{ resourceType: string; resourceId: string }>;
   connectors?: string[];
   instructions?: string;
-  mcpScopes: Array<"mcp:read" | "mcp:write">;
-  apiScopes: Array<"api:read" | "api:write">;
   credentialLabel: string;
   expiresAt?: string;
   clientKeyId?: string;
@@ -396,8 +401,6 @@ export function listAgentInstallationCredentials(installationId: string): Promis
 export function createAgentInstallationCredential(installationId: string, input: {
   label: string;
   expiresAt?: string;
-  mcpScopes: Array<"mcp:read" | "mcp:write">;
-  apiScopes: Array<"api:read" | "api:write">;
   clientKeyId?: string;
   clientPublicKey?: string;
 }): Promise<{ credential: AgentInstallationCredential; secret: string }> {
@@ -808,6 +811,13 @@ export function cancelAgentRun(runId: string, reason = "Stopped by user"): Promi
   return request(`/api/agents/runs/${encodeURIComponent(runId)}/cancel`, {
     method: "POST",
     body: JSON.stringify({ reason }),
+  });
+}
+
+export function retryAgentRun(runId: string): Promise<{ conversation: AgentConversation; message: AgentMessage; runId: string; status: string; created?: boolean; durable?: boolean }> {
+  return request(`/api/agents/runs/${encodeURIComponent(runId)}/retry`, {
+    method: "POST",
+    body: JSON.stringify({}),
   });
 }
 

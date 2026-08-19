@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Archive, ArrowLeft, Bot, ChevronDown, ChevronRight, Copy, LoaderCircle, MessageCircle,
-  MoreHorizontal, PanelLeft, Pin, Plus, Search, Send, Settings2, SlidersHorizontal,
+  Archive, ArrowLeft, Bot, Check, ChevronDown, ChevronRight, Copy, LoaderCircle, MessageCircle,
+  MoreHorizontal, PanelLeft, Pencil, Pin, Plus, RotateCcw, Search, Send, Settings2, SlidersHorizontal,
   Activity, Sparkles, Square, Trash2, Unlink, X,
 } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
@@ -13,14 +13,15 @@ import remarkGfm from "remark-gfm";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   cancelAgentRun, disconnectKasiAiChannel, ensureKasiAi, getKasiAiHome,
-  getAgentRun, getPlatformConversation, issueKasiAiWhatsappPairing, listKasiAiChannels,
-  listWhatsappConnectionOptions, restoreKasiAiConversation, sendPlatformMessage,
+  decideAgentRunApproval, getAgentRun, getPlatformConversation, issueKasiAiWhatsappPairing, listKasiAiChannels,
+  listWhatsappConnectionOptions, restoreKasiAiConversation, retryAgentRun, sendPlatformMessage,
   setKasiAiChannelDefault, setKasiAiConversationStatus, streamAgentRun,
   updateKasiAiConversation, updateKasiAiPreferences, AgentRequestError,
-  type AgentChannelBinding, type AgentConversation, type AgentInstallation,
+  type AgentApproval, type AgentChannelBinding, type AgentConversation, type AgentInstallation,
   type AgentMessage, type KasiAiHome, type KasiAiModel, type KasiAiPreferences,
   type WhatsappConnectionOption,
 } from "@/lib/agent-platform";
+import { AgentApprovalPreview } from "@/components/dashboard/agents/agent-approval-preview";
 import { cn } from "@/lib/utils";
 
 type View = "chat" | "library" | "settings";
@@ -119,6 +120,31 @@ function setConversationUrl(conversationId?: string) {
 }
 
 const terminalRunStatuses = new Set(["completed", "failed", "cancelled", "expired"]);
+const activeRunStatuses = new Set(["received", "queued", "running", "awaiting_approval", "awaiting_human", "awaiting_external_event"]);
+
+function runProgressLabel(status: string) {
+  if (status === "awaiting_approval") return "Waiting for approval…";
+  if (status === "awaiting_human") return "Waiting for a workspace member…";
+  if (status === "awaiting_external_event") return "Waiting for an external event…";
+  if (status === "queued" || status === "received") return "Run accepted; waiting to start…";
+  if (status === "completed") return "Run completed";
+  if (status === "failed") return "Run failed";
+  if (status === "cancelled") return "Run cancelled";
+  if (status === "expired") return "Run expired";
+  return "KasiAi is working…";
+}
+
+function runEventLabel(event: { event_type?: string; payload?: Record<string, unknown> }) {
+  const eventType = event.event_type ?? "";
+  const name = typeof event.payload?.name === "string" ? event.payload.name : "";
+  return eventType.includes("tool") ? (name ? `Tool: ${name}` : "Tool activity")
+    : eventType.includes("model") ? "Model response"
+      : eventType.includes("context") ? "Context prepared"
+        : eventType.includes("approval") ? "Approval required"
+          : eventType.includes("failed") ? "Run failed"
+            : eventType.includes("completed") ? "Run completed"
+              : eventType.replace(/^agent\./, "");
+}
 
 function pauseForRunPoll(signal: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
@@ -160,6 +186,9 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
   const [lastRunId, setLastRunId] = useState<string | null>(null);
   const [runProgress, setRunProgress] = useState("Preparing request…");
   const [runEvents, setRunEvents] = useState<Array<{ event: string; label: string }>>([]);
+  const [runStatuses, setRunStatuses] = useState<Record<string, string>>({});
+  const [pendingApproval, setPendingApproval] = useState<{ runId: string; approval: AgentApproval; canApprove: boolean } | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [groundingSummary, setGroundingSummary] = useState<GroundingSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -176,9 +205,12 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
   const streamAbort = useRef<AbortController | null>(null);
   const sendLocked = useRef(false);
   const messagesEnd = useRef<HTMLDivElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const viewport = useRef<HTMLDivElement | null>(null);
   const resizeStart = useRef<{ x: number; width: number } | null>(null);
   const conversationSelection = useRef(0);
+  const runStatusesRef = useRef<Record<string, string>>({});
+  const activeRunIdRef = useRef<string | null>(null);
 
   const models = home?.models ?? EMPTY_MODELS;
   const activeConversations = home?.conversations ?? [];
@@ -190,6 +222,60 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
     return models[0] ? { provider: models[0].provider, model: models[0].model } : null;
   }, [conversation, models, preferences]);
   const activeModel = models.find((entry) => entry.provider === effectiveModel?.provider && entry.model === effectiveModel?.model) ?? models[0];
+
+  useEffect(() => {
+    activeRunIdRef.current = activeRunId;
+  }, [activeRunId]);
+
+  const recordRunStatus = useCallback((runId: string, status: string) => {
+    runStatusesRef.current = { ...runStatusesRef.current, [runId]: status };
+    setRunStatuses((current) => current[runId] === status ? current : { ...current, [runId]: status });
+  }, []);
+
+  const refreshRunStatuses = useCallback(async (items: AgentMessage[], additionalRunIds: string[] = []) => {
+    const runIds = Array.from(new Set([
+      ...items.map((message) => message.run_id).filter((runId): runId is string => Boolean(runId)),
+      ...additionalRunIds.filter((runId): runId is string => Boolean(runId)),
+    ]));
+    const pending = runIds.filter((runId) => !["completed", "failed", "cancelled", "expired"].includes(runStatusesRef.current[runId] ?? ""));
+    if (!pending.length) return [];
+    const results = await Promise.all(pending.map(async (runId) => {
+      try {
+        const result = await getAgentRun(runId);
+        return { runId, status: result.run.status, approval: result.approval, canApprove: result.canApprove !== false, events: result.events };
+      }
+      catch { return null; }
+    }));
+    results.forEach((result) => {
+      if (!result) return;
+      recordRunStatus(result.runId, result.status);
+      const active = activeRunStatuses.has(result.status);
+      if (activeRunIdRef.current === result.runId || (active && activeRunIdRef.current === null)) {
+        if (activeRunIdRef.current === null) {
+          activeRunIdRef.current = result.runId;
+          setActiveRunId(result.runId);
+        }
+        setLastRunId(result.runId);
+        setRunProgress(runProgressLabel(result.status));
+        if (active) {
+          setSending(true);
+        } else {
+          setSending(false);
+          setActiveRunId(null);
+          activeRunIdRef.current = null;
+        }
+        if (result.events.length) {
+          setRunEvents(result.events.slice(-5).map((event) => ({ event: event.event_type ?? "", label: runEventLabel(event) })));
+        }
+      }
+      if (result.status === "awaiting_approval" && result.approval?.status === "pending") {
+        setPendingApproval({ runId: result.runId, approval: result.approval, canApprove: result.canApprove });
+      } else if (result.status !== "awaiting_approval") {
+        setPendingApproval((current) => current?.runId === result.runId ? null : current);
+      }
+    });
+    return results.filter((result): result is NonNullable<typeof result> => result !== null);
+  }, [recordRunStatus]);
 
   const refreshHome = useCallback(async (installationId: string) => {
     const response = await getKasiAiHome(installationId);
@@ -205,12 +291,24 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
   const loadConversation = useCallback(async (id: string) => {
     const selection = ++conversationSelection.current;
     streamAbort.current?.abort(); streamAbort.current = null;
-    setSending(false); setActiveRunId(null); setError(null);
+    activeRunIdRef.current = null;
+    setSending(false); setActiveRunId(null); setPendingApproval(null); setError(null);
     const result = await getPlatformConversation(id);
     if (selection !== conversationSelection.current) return;
     setConversation(result.conversation); setMessages(sorted(result.messages)); setHasMore(Boolean(result.hasMore)); setNextBefore(result.nextBefore ?? null);
+    runStatusesRef.current = {}; setRunStatuses({});
+    const refreshedRuns = await refreshRunStatuses(result.messages, result.activeRuns?.map((run) => run.id) ?? []);
+    if (selection !== conversationSelection.current) return;
+    const active = refreshedRuns.find((run) => activeRunStatuses.has(run.status));
+    if (active) {
+      activeRunIdRef.current = active.runId;
+      setActiveRunId(active.runId); setLastRunId(active.runId); setSending(true); setRunProgress(runProgressLabel(active.status));
+      setRunEvents(active.events.slice(-5).map((event) => ({ event: event.event_type ?? "", label: runEventLabel(event) })));
+    } else {
+      setActiveRunId(null); setLastRunId(null); setSending(false); setRunEvents([]); setRunProgress("Preparing request…");
+    }
     setChannelFilter("all"); setView("chat"); window.localStorage.setItem(LAST_CHAT_KEY, id); setConversationUrl(id);
-  }, []);
+  }, [refreshRunStatuses]);
 
   useEffect(() => {
     if (open || !conversationFromUrl()) return;
@@ -232,7 +330,8 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
         if (linkedConversation) await loadConversation(linkedConversation);
         else {
           conversationSelection.current += 1;
-          setConversation(null); setMessages([]); setHasMore(false); setNextBefore(null); setChannelFilter("all");
+          activeRunIdRef.current = null;
+          setConversation(null); setMessages([]); setHasMore(false); setNextBefore(null); setPendingApproval(null); runStatusesRef.current = {}; setRunStatuses({}); setChannelFilter("all");
           window.localStorage.removeItem(LAST_CHAT_KEY);
         }
         setDraft(window.localStorage.getItem(DRAFT_KEY) ?? ""); setInitialised(true);
@@ -245,8 +344,9 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
   useEffect(() => {
     if (open) return;
     conversationSelection.current += 1;
+    activeRunIdRef.current = null;
     setInitialised(false); streamAbort.current?.abort();
-    setConversation(null); setMessages([]); setHasMore(false); setNextBefore(null); setChannelFilter("all");
+    setConversation(null); setMessages([]); setHasMore(false); setNextBefore(null); setPendingApproval(null); setChannelFilter("all");
     setLastRunId(null); setGroundingSummary(null); setRunProgress("Preparing request…");
   }, [open]);
   useEffect(() => {
@@ -273,9 +373,10 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
       if (cancelled || selection !== conversationSelection.current) return;
       setConversation((current) => current?.id === conversationId ? result.conversation : current);
       setMessages((current) => mergeMessages(current, result.messages));
+      void refreshRunStatuses(result.messages, result.activeRuns?.map((run) => run.id) ?? []);
     }).catch(() => undefined), 4_000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [open, polledConversationId]);
+  }, [open, polledConversationId, refreshRunStatuses]);
   useEffect(() => {
     const saved = Number(window.localStorage.getItem(PANEL_WIDTH_KEY));
     if (Number.isFinite(saved)) { const bounds = panelBounds(leftOffset); setWidth(Math.min(bounds.max, Math.max(bounds.min, saved))); }
@@ -283,28 +384,35 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
 
   const newChat = () => {
     conversationSelection.current += 1; streamAbort.current?.abort(); streamAbort.current = null;
-    setConversation(null); setMessages([]); setHasMore(false); setNextBefore(null); setDraft(""); setChannelFilter("all"); setView("chat");
-    sendLocked.current = false; setSending(false); setActiveRunId(null); setLastRunId(null); setGroundingSummary(null); setRunProgress("Preparing request…"); setRunEvents([]); setError(null); window.localStorage.removeItem(LAST_CHAT_KEY); setConversationUrl();
+    activeRunIdRef.current = null;
+    setConversation(null); setMessages([]); setHasMore(false); setNextBefore(null); setDraft(""); setEditingMessageId(null); setPendingApproval(null); setChannelFilter("all"); setView("chat");
+    sendLocked.current = false; setSending(false); setActiveRunId(null); setLastRunId(null); setGroundingSummary(null); setRunProgress("Preparing request…"); setRunEvents([]); runStatusesRef.current = {}; setRunStatuses({}); setError(null); window.localStorage.removeItem(LAST_CHAT_KEY); setConversationUrl();
   };
   const close = () => { newChat(); setInitialised(false); onOpenChange(false); };
-  const send = async (suggestion?: string) => {
+  const send = async (suggestion?: string, retryRunId?: string) => {
     const text = (suggestion ?? draft).trim();
     if (!text || !installation || sending || sendLocked.current) return;
     sendLocked.current = true;
     const selection = conversationSelection.current;
     const targetConversation = conversation;
-    setDraft(""); setError(null); setSending(true);
-    const optimistic: AgentMessage = { id: `optimistic-${crypto.randomUUID()}`, conversation_id: targetConversation?.id ?? "new", direction: "inbound", message_type: "text", content: { text }, sequence_number: Number.MAX_SAFE_INTEGER, created_at: new Date().toISOString() };
-    setMessages((items) => [...items, optimistic]);
+    setDraft(""); setEditingMessageId(null); setPendingApproval(null); setError(null); setSending(true);
+    const optimistic: AgentMessage | null = retryRunId ? null : { id: `optimistic-${crypto.randomUUID()}`, conversation_id: targetConversation?.id ?? "new", direction: "inbound", message_type: "text", content: { text }, sequence_number: Number.MAX_SAFE_INTEGER, created_at: new Date().toISOString() };
+    if (optimistic) setMessages((items) => [...items, optimistic]);
+    let acceptedRunId: string | null = null;
     try {
-      const accepted = await sendPlatformMessage(installation.id, {
-        message: text, idempotencyKey: crypto.randomUUID(), conversationId: targetConversation?.id,
-        createNew: !targetConversation, modelProvider: !targetConversation ? effectiveModel?.provider : undefined, model: !targetConversation ? effectiveModel?.model : undefined,
-        context: { route: window.location.pathname, pageTitle: document.title },
-      });
+      const accepted = retryRunId
+        ? await retryAgentRun(retryRunId)
+        : await sendPlatformMessage(installation.id, {
+          message: text, idempotencyKey: crypto.randomUUID(), conversationId: targetConversation?.id,
+          createNew: !targetConversation, modelProvider: !targetConversation ? effectiveModel?.provider : undefined, model: !targetConversation ? effectiveModel?.model : undefined,
+          context: { route: window.location.pathname, pageTitle: document.title },
+        });
       if (selection !== conversationSelection.current) return;
-      setMessages((current) => mergeMessages(current.filter((message) => message.id !== optimistic.id), [accepted.message]));
+      setMessages((current) => mergeMessages(optimistic ? current.filter((message) => message.id !== optimistic.id) : current, [accepted.message]));
       setConversation(accepted.conversation); window.localStorage.setItem(LAST_CHAT_KEY, accepted.conversation.id); setConversationUrl(accepted.conversation.id);
+      acceptedRunId = accepted.runId;
+      recordRunStatus(accepted.runId, accepted.status || "received");
+      activeRunIdRef.current = accepted.runId;
       setActiveRunId(accepted.runId); setLastRunId(accepted.runId); setRunProgress("Run accepted; building context…"); setRunEvents([{ event: "run.received", label: "Run accepted" }]);
       const controller = new AbortController(); streamAbort.current = controller; let cursor = 0; let terminal = false;
       for (let attempt = 0; attempt < 3 && !terminal; attempt += 1) {
@@ -325,6 +433,15 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
             else if (event.event.includes("approval")) setRunProgress("Waiting for approval…");
             else if (event.event.includes("failed")) setRunProgress("Run failed");
             else if (event.event.includes("completed")) setRunProgress("Run completed");
+            if (event.event.includes("approval")) {
+              void getAgentRun(accepted.runId).then((result) => {
+                if (selection !== conversationSelection.current) return;
+                recordRunStatus(accepted.runId, result.run.status);
+                if (result.run.status === "awaiting_approval" && result.approval?.status === "pending") {
+                  setPendingApproval({ runId: accepted.runId, approval: result.approval, canApprove: result.canApprove !== false });
+                }
+              }).catch(() => undefined);
+            }
           }, controller.signal, cursor);
           cursor = streamed.lastSequence; terminal = streamed.terminal;
         } catch (streamError) {
@@ -336,10 +453,16 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
       try { terminalRun = terminal ? (await getAgentRun(accepted.runId)).run : await waitForRunTerminal(accepted.runId, controller.signal); }
       catch (cause) { if (cause instanceof DOMException && cause.name === "AbortError") throw cause; }
       if (terminalRun && terminalRun.status !== "completed") {
+        activeRunIdRef.current = null;
+        setPendingApproval(null);
+        recordRunStatus(accepted.runId, terminalRun.status);
         setRunProgress(`Run ${terminalRun.status.replaceAll("_", " ")}`);
         throw new Error(terminalRun.error?.message || "KasiAi could not complete this request");
       }
       if (terminalRun?.status === "completed") {
+        activeRunIdRef.current = null;
+        setPendingApproval(null);
+        recordRunStatus(accepted.runId, terminalRun.status);
         setRunProgress("Run completed");
         setGroundingSummary(groundingSummaryFromRun(terminalRun.output?.provenance));
       }
@@ -352,14 +475,25 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
       }
     } catch (cause) {
       if (selection === conversationSelection.current) {
-        setMessages((current) => current.filter((message) => message.id !== optimistic.id));
-        if (!(cause instanceof DOMException && cause.name === "AbortError")) setError(formatError(cause, "KasiAi could not complete this request"));
+        setMessages((current) => optimistic ? current.filter((message) => message.id !== optimistic.id) : current);
+        if (!(cause instanceof DOMException && cause.name === "AbortError")) {
+          if (acceptedRunId) { recordRunStatus(acceptedRunId, "failed"); setPendingApproval(null); }
+          if (!retryRunId) setDraft(text);
+          setError(formatError(cause, "KasiAi could not complete this request"));
+        }
       }
     } finally {
-      if (selection === conversationSelection.current) { sendLocked.current = false; streamAbort.current = null; setActiveRunId(null); setSending(false); }
+      if (selection === conversationSelection.current) { sendLocked.current = false; streamAbort.current = null; activeRunIdRef.current = null; setActiveRunId(null); setSending(false); }
     }
   };
-  const stop = async () => { if (!activeRunId) return; setRunProgress("Cancellation requested…"); await cancelAgentRun(activeRunId).catch(() => undefined); streamAbort.current?.abort(); setSending(false); setActiveRunId(null); };
+  const editMessage = (message: AgentMessage) => {
+    setEditingMessageId(message.id); setDraft(messageText(message));
+    window.requestAnimationFrame(() => { composerRef.current?.focus(); composerRef.current?.select(); });
+  };
+  const copyMessage = async (message: AgentMessage) => { await navigator.clipboard.writeText(messageText(message)).catch(() => undefined); };
+  const retryMessage = (message: AgentMessage) => { if (!sending && message.run_id) void send(messageText(message), message.run_id); };
+  const cancelEdit = () => { setEditingMessageId(null); setDraft(""); composerRef.current?.focus(); };
+  const stop = async () => { if (!activeRunId) return; setRunProgress("Cancellation requested…"); await cancelAgentRun(activeRunId).catch(() => undefined); streamAbort.current?.abort(); activeRunIdRef.current = null; setSending(false); setActiveRunId(null); };
   const changeModel = async (value: string) => {
     if (!conversation) return;
     const [provider, ...parts] = value.split(":"); const model = parts.join(":");
@@ -394,15 +528,47 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
     {view === "settings" ? <KasiAiSettings section={settingsSection} onSection={setSettingsSection} onBack={() => setView("chat")} preferences={preferences} models={models} modelCatalog={home?.modelCatalog} selectedModel={preferences?.default_model_provider && preferences.default_model ? { provider: preferences.default_model_provider, model: preferences.default_model } : (models[0] ? { provider: models[0].provider, model: models[0].model } : null)} channels={channels} whatsappConnections={whatsappConnections} selectedWhatsapp={selectedWhatsapp} onWhatsapp={setSelectedWhatsapp} pairing={pairing} onPair={() => void connectWhatsapp()} onCopy={() => pairing && navigator.clipboard.writeText(pairing.token)} onDisconnect={(binding) => void disconnect(binding)} onPreference={(input) => void updatePreference(input)} /> : null}
       {view === "chat" ? <>
       {loading ? <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground"><LoaderCircle className="h-4 w-4 animate-spin" />Preparing KasiAi…</div> : <>
-        {conversation ? <div ref={viewport} className="flex-1 overflow-y-auto px-4 py-5">{hasMore ? <div className="mb-3 text-center"><Button variant="outline" size="sm" onClick={() => void loadOlder()}>Load earlier messages</Button></div> : null}{availableChannels.length ? <div className="mb-4 flex gap-1 overflow-x-auto">{["all", ...availableChannels].map((channel) => <Button key={channel} variant={channelFilter === channel ? "secondary" : "ghost"} size="sm" className="h-7 px-2 text-[11px]" onClick={() => setChannelFilter(channel)}>{channel === "all" ? "All messages" : channelLabel(channel)}</Button>)}</div> : null}<div className="mx-auto max-w-3xl space-y-4">{visibleMessages.map((message) => { const source = messageChannel(message); const delivery = message.direction === "outbound" && message.delivery_status && message.delivery_status !== "local" ? ` · ${message.delivery_status}` : ""; return <div key={message.id} className={cn("flex", message.direction === "outbound" ? "justify-start" : "justify-end")}><div className="max-w-[88%]">{source !== "platform" ? <div className={cn("mb-1 text-[10px] text-muted-foreground", message.direction === "outbound" ? "text-left" : "text-right")}>{channelLabel(source)}{delivery}</div> : null}<div className={cn("rounded-2xl px-3.5 py-2.5 text-sm leading-6", message.direction === "outbound" ? "rounded-bl-sm border border-border bg-card" : "rounded-br-sm bg-primary text-primary-foreground")}>{message.direction === "outbound" ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents} skipHtml>{messageText(message)}</ReactMarkdown> : messageText(message)}</div></div></div>; })}</div>{lastRunId ? <div className="mx-auto mt-5 max-w-3xl rounded-lg border border-border bg-card px-3 py-2 text-xs"><div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2 text-muted-foreground"><Activity className="h-3.5 w-3.5 shrink-0 text-primary" /><span className="truncate">{runProgress}</span></div><Link href={`/agents/activity/${encodeURIComponent(lastRunId)}`} className="shrink-0 font-medium text-primary hover:underline">View activity</Link></div>{runEvents.length ? <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Run activity">{runEvents.map((entry, index) => <span key={`${entry.event}-${index}`} className={cn("rounded-full px-2 py-0.5 text-[10px]", entry.event.includes("failed") ? "bg-destructive/10 text-destructive" : entry.event.includes("approval") ? "bg-status-attention-soft text-status-attention" : "bg-secondary text-muted-foreground")}>{entry.label}</span>)}</div> : null}</div> : null}{sending ? <div className="mx-auto mt-3 flex max-w-3xl items-center gap-2 text-xs text-muted-foreground"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />KasiAi is working…</div> : null}<div ref={messagesEnd} /></div> : <NewChatHome suggestions={suggestions} onSuggestion={(suggestion) => void send(suggestion)} />}
+        {conversation ? <div ref={viewport} className="flex-1 overflow-y-auto px-4 py-5">{hasMore ? <div className="mb-3 text-center"><Button variant="outline" size="sm" onClick={() => void loadOlder()}>Load earlier messages</Button></div> : null}{availableChannels.length ? <div className="mb-4 flex gap-1 overflow-x-auto">{["all", ...availableChannels].map((channel) => <Button key={channel} variant={channelFilter === channel ? "secondary" : "ghost"} size="sm" className="h-7 px-2 text-[11px]" onClick={() => setChannelFilter(channel)}>{channel === "all" ? "All messages" : channelLabel(channel)}</Button>)}</div> : null}<div className="mx-auto max-w-3xl space-y-4">{visibleMessages.map((message) => { const source = messageChannel(message); const delivery = message.direction === "outbound" && message.delivery_status && message.delivery_status !== "local" ? ` · ${message.delivery_status}` : ""; const runStatus = message.run_id ? runStatuses[message.run_id] : undefined; const retryable = source === "platform" && message.direction === "inbound" && ["failed", "cancelled", "expired"].includes(runStatus ?? ""); return <div key={message.id} className={cn("group flex", message.direction === "outbound" ? "justify-start" : "justify-end")}><div className="max-w-[88%]">{source !== "platform" ? <div className={cn("mb-1 text-[10px] text-muted-foreground", message.direction === "outbound" ? "text-left" : "text-right")}>{channelLabel(source)}{delivery}</div> : null}<div className={cn("rounded-2xl px-3.5 py-2.5 text-sm leading-6", message.direction === "outbound" ? "rounded-bl-sm border border-border bg-card" : "rounded-br-sm bg-primary text-primary-foreground", retryable && "ring-1 ring-destructive/60")}>{message.direction === "outbound" ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents} skipHtml>{messageText(message)}</ReactMarkdown> : messageText(message)}</div>{source === "platform" && message.direction === "inbound" && !isArchivedChat ? <><div className="pointer-events-none mt-1 flex items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"><Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => void copyMessage(message)} aria-label="Copy message" title="Copy message"><Copy className="h-3.5 w-3.5" /></Button><Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => editMessage(message)} aria-label="Edit and resend message" title="Edit and resend message"><Pencil className="h-3.5 w-3.5" /></Button>{retryable ? <Button type="button" variant="outline" size="sm" className="h-7 gap-1 px-2 text-[11px] text-destructive" onClick={() => retryMessage(message)} disabled={sending} aria-label="Retry message"><RotateCcw className="h-3.5 w-3.5" />Retry</Button> : null}</div>{retryable ? <p className="mt-0.5 text-right text-[10px] text-destructive">Run {runStatus}</p> : null}</> : null}</div></div>; })}</div>{pendingApproval && pendingApproval.runId === lastRunId ? <KasiAiApprovalPrompt runId={pendingApproval.runId} approval={pendingApproval.approval} canApprove={pendingApproval.canApprove} onDecision={(decision) => { setPendingApproval(null); setRunProgress(decision === "approved" ? "Approval accepted; resuming…" : "Approval denied"); }} /> : null}{lastRunId ? <div className="mx-auto mt-5 max-w-3xl rounded-lg border border-border bg-card px-3 py-2 text-xs"><div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2 text-muted-foreground"><Activity className="h-3.5 w-3.5 shrink-0 text-primary" /><span className="truncate">{runProgress}</span></div><Link href={`/agents/activity/${encodeURIComponent(lastRunId)}`} className="shrink-0 font-medium text-primary hover:underline">View activity</Link></div>{runEvents.length ? <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Run activity">{runEvents.map((entry, index) => <span key={`${entry.event}-${index}`} className={cn("rounded-full px-2 py-0.5 text-[10px]", entry.event.includes("failed") ? "bg-destructive/10 text-destructive" : entry.event.includes("approval") ? "bg-status-attention-soft text-status-attention" : "bg-secondary text-muted-foreground")}>{entry.label}</span>)}</div> : null}</div> : null}{sending ? <div className="mx-auto mt-3 flex max-w-3xl items-center gap-2 text-xs text-muted-foreground"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />KasiAi is working…</div> : null}<div ref={messagesEnd} /></div> : <NewChatHome suggestions={suggestions} onSuggestion={(suggestion) => void send(suggestion)} />}
         {groundingSummary ? <div className="mx-4 mb-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[10px] text-muted-foreground" aria-label="Grounding summary"><span className="font-medium text-foreground">Grounded response</span>{groundingSummary.organizationScoped ? " · workspace scoped" : " · scope unavailable"}{groundingSummary.toolEvidence ? ` · ${groundingSummary.toolEvidence.used?.length ?? 0} tools used` : ""}{groundingSummary.reviewedKnowledge?.requested ? ` · ${groundingSummary.reviewedKnowledge.matchedChunks ?? 0} reviewed sources` : " · no reviewed sources requested"}{groundingSummary.unavailableActions?.length ? ` · ${groundingSummary.unavailableActions.length} unavailable action${groundingSummary.unavailableActions.length === 1 ? "" : "s"}` : ""}{groundingSummary.uncertainty === "not_asserted" ? " · no unsupported certainty" : ""}</div> : null}
         {error ? <div className="mx-4 mb-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert">{error}</div> : null}
-        <footer className="border-t border-border p-3">{isArchivedChat ? <div className="rounded-xl border border-border bg-muted/40 px-3 py-3 text-xs text-muted-foreground">This chat is archived. Restore it from the conversation library to continue it.</div> : <div className="rounded-xl border border-border bg-card p-2 focus-within:border-primary/50"><div className="mb-1 flex items-center justify-between gap-2"><ComposerModelPicker model={activeModel} models={models} disabled={!conversation || sending} onSelect={(value) => void changeModel(value)} />{conversation && !conversation.is_primary ? <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => void setKasiAiChannelDefault(conversation.id).then(async (updated) => { setConversation(updated); await refreshHome(installation!.id); })}>Use for channels</Button> : null}</div><textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={conversation ? "Ask KasiAi…" : "Start a new chat…"} rows={2} disabled={sending || !installation} className="min-h-12 w-full resize-none bg-transparent px-1 py-1 text-sm outline-none" aria-label="Message KasiAi" /><div className="flex items-center justify-between pt-1"><span className="text-[10px] text-muted-foreground">Enter to send · Shift+Enter for a new line</span>{sending ? <Button variant="outline" size="sm" onClick={() => void stop()}><Square className="h-3.5 w-3.5" />Stop</Button> : <Button size="sm" disabled={!draft.trim() || !installation} onClick={() => void send()}><Send className="h-3.5 w-3.5" />Send</Button>}</div></div>}</footer>
+        <footer className="border-t border-border p-3">{isArchivedChat ? <div className="rounded-xl border border-border bg-muted/40 px-3 py-3 text-xs text-muted-foreground">This chat is archived. Restore it from the conversation library to continue it.</div> : <div className="rounded-xl border border-border bg-card p-2 focus-within:border-primary/50">{editingMessageId ? <div className="mb-2 flex items-center justify-between gap-2 rounded-md bg-primary/5 px-2 py-1.5 text-[11px] text-muted-foreground"><span className="font-medium text-foreground">Editing message</span><Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={cancelEdit}>Cancel</Button></div> : null}<div className="mb-1 flex items-center justify-between gap-2"><ComposerModelPicker model={activeModel} models={models} disabled={!conversation || sending} onSelect={(value) => void changeModel(value)} />{conversation && !conversation.is_primary ? <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => void setKasiAiChannelDefault(conversation.id).then(async (updated) => { setConversation(updated); await refreshHome(installation!.id); })}>Use for channels</Button> : null}</div><textarea ref={composerRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder={conversation ? "Ask KasiAi…" : "Start a new chat…"} rows={2} disabled={sending || !installation} className="min-h-12 w-full resize-none bg-transparent px-1 py-1 text-sm outline-none" aria-label="Message KasiAi" /><div className="flex items-center justify-between pt-1"><span className="text-[10px] text-muted-foreground">Enter to send · Shift+Enter for a new line</span>{sending ? <Button variant="outline" size="sm" onClick={() => void stop()}><Square className="h-3.5 w-3.5" />Stop</Button> : <Button size="sm" disabled={!draft.trim() || !installation} onClick={() => void send()}>{editingMessageId ? "Send edited" : "Send"}<Send className="h-3.5 w-3.5" /></Button>}</div></div>}</footer>
       </>}
     </> : null}
     </div>
     </div>
   </aside>;
+}
+
+function KasiAiApprovalPrompt({ runId, approval, canApprove, onDecision }: { runId: string; approval: AgentApproval; canApprove: boolean; onDecision: (decision: "approved" | "rejected") => void }) {
+  const [busy, setBusy] = useState<"approved" | "rejected" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const decide = async (decision: "approved" | "rejected") => {
+    if (busy) return;
+    setBusy(decision); setError(null);
+    try {
+      await decideAgentRunApproval(runId, approval, decision);
+      onDecision(decision);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to record approval decision");
+    } finally {
+      setBusy(null);
+    }
+  };
+  return <div className="mx-auto mt-4 max-w-3xl rounded-lg border border-status-attention/40 bg-status-attention-soft/40 px-3 py-3 text-xs" role="status" aria-live="polite">
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <p className="font-semibold text-foreground">Approval required</p>
+        <p className="mt-1 text-muted-foreground">Review the proposed <code className="rounded bg-background/70 px-1 py-0.5 font-mono text-[11px]">{approval.capability}</code> action here.</p>
+      </div>
+      <span className="shrink-0 rounded-full border border-status-attention/40 px-2 py-0.5 text-[10px] font-medium text-status-attention">Pending</span>
+    </div>
+    <details className="mt-3 rounded-md border border-border/70 bg-background/30 px-3 py-2">
+      <summary className="cursor-pointer font-medium text-foreground">View exact action</summary>
+      <div className="mt-3"><AgentApprovalPreview snapshot={approval.resourceSnapshot} /></div>
+    </details>
+    <div className="mt-3 flex flex-wrap items-center gap-2">{canApprove ? <Button type="button" size="sm" disabled={busy !== null} onClick={() => void decide("approved")}><Check className="mr-1.5 h-3.5 w-3.5" />{busy === "approved" ? "Approving…" : "Approve"}</Button> : null}<Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void decide("rejected")}><X className="mr-1.5 h-3.5 w-3.5" />{busy === "rejected" ? "Denying…" : "Deny"}</Button><Link href={`/agents/activity/${encodeURIComponent(runId)}`} className="ml-auto text-muted-foreground hover:text-foreground">View details</Link></div>
+    {error ? <p className="mt-2 text-destructive" role="alert">{error}</p> : null}
+  </div>;
 }
 
 function NewChatHome({ suggestions, onSuggestion }: { suggestions: string[]; onSuggestion: (suggestion: string) => void }) {

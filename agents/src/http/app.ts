@@ -46,6 +46,7 @@ import { installationTokenJwks, issueInstallationToken, readClientAssertionSubje
 import { createPublicKey } from "node:crypto";
 import { createDefaultTools } from "../temporal/activities";
 import { KasitekCoreReadClient } from "../core/client";
+import { KasitekCoreDeveloperApiKeyResolver, type DeveloperApiKeyResolver } from "../core/developer-api-key";
 import { ToolRegistry } from "../tools/registry";
 import { redactSensitiveValue } from "../tools/redaction";
 import { randomUUID } from "node:crypto";
@@ -94,6 +95,7 @@ export interface AppDependencies {
   channels?: ChannelRepository;
   credentials?: CredentialVaultRepository;
   installationCredentials?: InstallationCredentialRepository;
+  developerApiKeyResolver?: DeveloperApiKeyResolver;
   installationGrants?: InstallationGrantRepository;
   toolRegistry?: ToolRegistry;
   /** Product-owned entitlement/provider readiness projection for capabilities. */
@@ -229,7 +231,30 @@ async function authenticateMcpRequest(input: {
   config: AppConfig;
   installationCredentials: InstallationCredentialRepository;
   agents: AgentRepository;
+  toolRegistry: ToolRegistry;
+  developerApiKeyResolver: DeveloperApiKeyResolver;
 }): Promise<McpAuthContext> {
+  const authorization = headerValue(input.request, "authorization");
+  const bearer = authorization?.startsWith("Bearer ") ? authorization.slice("Bearer ".length).trim() : "";
+  if (bearer.startsWith("kst_")) {
+    const identity = await input.developerApiKeyResolver.resolve(bearer);
+    if (!identity) throw Object.assign(new Error("Invalid Developer API key"), { statusCode: 401 });
+    const aggregate = await input.agents.getOrCreateDeveloperApiKeyInstallation({
+      organizationId: identity.organizationId,
+      apiKeyId: identity.apiKeyId,
+      toolNames: [...new Set(input.toolRegistry.list().map((tool) => tool.name))],
+    });
+    return {
+      organizationId: identity.organizationId,
+      actorId: `developer-api-key:${identity.apiKeyId}`,
+      correlationId: identity.apiKeyId,
+      scopes: identity.scopes.map((scope) => scope === "api:read" ? "mcp:read" : "mcp:write"),
+      installationId: aggregate.installation.id,
+      credentialId: identity.apiKeyId,
+      agentId: aggregate.agent.id,
+      executionMode: "external_connected",
+    };
+  }
   return authenticateInstallationRequest(input, "mcp");
 }
 
@@ -329,6 +354,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const channels = dependencies.channels ?? new ChannelRepository(dependencies.pool);
   const credentials = dependencies.credentials ?? new CredentialVaultRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
   const installationCredentials = dependencies.installationCredentials ?? new InstallationCredentialRepository(dependencies.pool);
+  const developerApiKeyResolver = dependencies.developerApiKeyResolver ?? new KasitekCoreDeveloperApiKeyResolver(dependencies.config);
   const installationGrants = dependencies.installationGrants ?? new InstallationGrantRepository(dependencies.pool);
   const toolRegistry = dependencies.toolRegistry ?? createDefaultTools(new KasitekCoreReadClient(dependencies.config));
   const capabilityAccess = dependencies.capabilityAccess ?? new UnknownCapabilityAccessSource();
@@ -406,9 +432,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   }) => {
     const installation = await agents.getInstallation(input.organizationId, input.installationId);
     if (!installation) return null;
-    const [granted, grants, dependencyMap] = await Promise.all([
+    const [granted, grants, resourceScopeUnconstrained, dependencyMap] = await Promise.all([
       toolGrants.effectiveTools(input.organizationId, installation.agent_version_id, installation.id),
       installationGrants.effective(input.organizationId, installation.id),
+      typeof installationGrants.isResourceScopeUnconstrained === "function"
+        ? installationGrants.isResourceScopeUnconstrained(input.organizationId, installation.id)
+        : Promise.resolve(false),
       capabilityAccess.getForCapabilities({ organizationId: input.organizationId, capabilityNames: toolRegistry.surfaces().map((surface) => surface.name) }),
     ]);
     const capabilities = toolRegistry.surfaces().map((surface) => {
@@ -419,7 +448,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           ? input.credentialScopes.includes(`${input.transport}:${surface.riskClass === "read" ? "read" : "write"}`)
           : undefined,
         requiresApproval: surface.requiresApproval,
-        resourceScoped: surface.manifest.resourceSelector !== undefined,
+        resourceScoped: surface.manifest.resourceSelector !== undefined && !resourceScopeUnconstrained,
         connectorScoped: grants.connectors.length > 0,
       }, surface.manifest.availability);
       return {
@@ -788,9 +817,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.get("/.well-known/oauth-protected-resource", async () => ({
     resource: "/mcp",
     authorization_servers: [],
-    scopes_supported: ["mcp:read", "mcp:write"],
     bearer_methods_supported: ["header"],
-    installation_token_exchange_endpoint: "/v1/installation-tokens/exchange",
+    authentication: "KasiTek Developer API key",
   }));
 
   app.post("/v1/installation-tokens/exchange", async (request, reply) => {
@@ -907,7 +935,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }
     let auth: McpAuthContext;
     try {
-      auth = await authenticateMcpRequest({ request, config: dependencies.config, installationCredentials, agents });
+      auth = await authenticateMcpRequest({ request, config: dependencies.config, installationCredentials, agents, toolRegistry, developerApiKeyResolver });
       requireMcpScope(auth, "mcp:read");
     } catch (error) {
       return failure(-32003, error instanceof Error ? error.message : "mcp_authentication_failed");
@@ -1675,7 +1703,6 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     "/v1/installations/:installationId/kasiai/home",
     async (request, reply) => {
       const auth = requireAuth(request, dependencies.config);
-      requireScope(auth, dependencies.config, "chat:write");
       requireScope(auth, dependencies.config, "kasiai:read");
       const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
       if (!installation || installation.status !== "active") return reply.code(404).send({ error: "kasiai_installation_not_found" });
@@ -2209,7 +2236,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         ? await conversations.listMessagesPage(auth.organizationId, conversation.id, { limit, beforeSequence: request.query.before })
         : { messages: await conversations.listMessages(auth.organizationId, conversation.id), hasMore: false, nextBefore: null };
       const participants = await conversations.listParticipants(auth.organizationId, conversation.id);
-      return { conversation, ...messages, participants };
+      const activeRuns = typeof runs.listActiveConversationRuns === "function"
+        ? await runs.listActiveConversationRuns(auth.organizationId, conversation.id)
+        : [];
+      return { conversation, ...messages, participants, activeRuns };
     },
   );
 
@@ -2670,9 +2700,6 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (run.status !== "awaiting_approval") return reply.code(409).send({ error: "run_not_awaiting_approval" });
     if (!dependencies.signalApproval) return reply.code(503).send({ error: "temporal_not_configured" });
     const input = z.object({ decision: z.enum(["approved", "rejected"]), providerToolCallId: z.string().trim().min(1).max(240), argumentsHash: z.string().length(64) }).parse(request.body);
-    if (input.decision === "approved" && run.created_by === auth.actorId) {
-      return reply.code(403).send({ error: "approval_self_approval_forbidden", code: "SEPARATION_OF_DUTIES_REQUIRED" });
-    }
     const approvalRecord = await approvals.getForRun(auth.organizationId, request.params.runId);
     if (!approvalRecord || approvalRecord.provider_tool_call_id !== input.providerToolCallId || approvalRecord.arguments_hash !== input.argumentsHash || approvalRecord.installation_id !== run.installation_id) {
       return reply.code(404).send({ error: "approval_not_found" });
@@ -2747,6 +2774,48 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const input = z.object({ reason: z.string().trim().max(500).optional() }).parse(request.body ?? {});
     await dependencies.signalCancellation(request.params.runId, { reason: `${auth.actorId}: ${input.reason ?? "cancelled"}` });
     return reply.code(202).send({ runId: request.params.runId, status: "cancellation_signalled" });
+  });
+
+  app.post<{ Params: { runId: string } }>("/v1/runs/:runId/retry", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "chat:write");
+    const source = await runs.getRun(auth.organizationId, request.params.runId);
+    if (!source) return reply.code(404).send({ error: "run_not_found" });
+    const installation = await agents.getInstallation(auth.organizationId, source.installation_id);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requireHostedInstallation(installation);
+    const retried = await platformChat.retryMessage({
+      organizationId: auth.organizationId,
+      runId: source.id,
+      actorId: auth.actorId,
+      correlationId: auth.correlationId,
+    });
+    const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
+    if (workflowEnabled && dependencies.startWorkflow && retried.run.status === "received") {
+      try {
+        await dependencies.startWorkflow(retried.run.id);
+      } catch (error) {
+        await runs.appendEvent({
+          organizationId: auth.organizationId,
+          runId: retried.run.id,
+          installationId: retried.run.installation_id,
+          eventType: "run.dispatch_failed",
+          payload: {
+            message: error instanceof Error ? error.message : "Unable to dispatch workflow",
+            retryable: true,
+          },
+        });
+        throw error;
+      }
+    }
+    return reply.code(202).send({
+      conversation: retried.conversation,
+      message: retried.message,
+      runId: retried.run.id,
+      status: retried.run.status,
+      created: retried.created,
+      durable: workflowEnabled,
+    });
   });
 
   app.post<{ Params: { runId: string } }>("/v1/runs/:runId/external-event", async (request, reply) => {

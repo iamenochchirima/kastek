@@ -132,17 +132,21 @@ in [`KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md`](KASITEK_AGENT_SYSTEM_EXECUTIO
 
 ### Proposed first release
 
-An administrator creates an installation and generates a named installation secret shown once.
-The runtime exchanges that secret for a short-lived, audience-bound access token. The installation
-can be suspended, revoked, rotated, and audited without relying on a human session.
+For the direct Developers product, an administrator creates a named workspace Developer API key
+shown once. REST clients and MCP clients use that same key directly. The Agent Platform resolves the
+key to an internal external-connected installation so it can retain installation-level grants,
+approvals, activity, and audit records without asking the user to manage a second MCP token.
+
+The existing installation-secret exchange remains an advanced compatibility path for independently
+managed runtimes and future delegated integrations; it is not the primary Developers setup.
 
 ### Confirmed decisions
 
 - [x] External agents use installation identities and credentials rather than human sessions.
 - [x] Start with copy-once installation secrets. Store only a secure hash; lost secrets are replaced,
   never recovered or displayed again.
-- [x] Exchange installation secrets for short-lived access tokens lasting one hour; clients should
-  refresh approximately five minutes before expiry.
+- [x] Validate the workspace Developer API key on every REST and MCP request so expiry and
+  revocation take effect immediately.
 - [x] Support multiple user-named credentials per installation without attempting to infer or trust
   where a runtime is hosted.
 - [x] Check installation and credential status on every authenticated request so suspension or
@@ -151,9 +155,9 @@ can be suspended, revoked, rotated, and audited without relying on a human sessi
   rotate or revoke each credential independently.
 - [x] Credentials initially inherit their installation's effective permissions. Later, a credential
   may be narrowed but can never exceed the installation's grants.
-- [x] Allow one agent installation identity to use MCP and, when granted, public REST. Use distinct
-  token audiences and validate MCP credentials in Agent Platform while the core public API validates
-  REST principals and current authority.
+- [x] Allow one workspace Developer API key to use MCP and public REST. Core remains authoritative
+  for the key's workspace, expiry, revocation, and API scopes; Agent Platform maps the validated key
+  to its internal external-connected installation.
 - [x] Audience-bind external tokens to their target. Never accept an MCP token at `kasitek-core`;
   private core agent endpoints receive separately delegated authority. REST-audience tokens terminate
   only at the core `public_api` module and are rejected by private internal routes.
@@ -330,9 +334,9 @@ approval rule · effect/undo semantics · audit classification · availability p
   for irreversible provider effects. Return item-level batch outcomes and perform compensation as a
   new audited action.
 - [x] Users may approve only actions they themselves are authorized to perform; workspace-wide or
-  privileged actions require an administrator. Agents cannot self-approve, and approver authority
-  is rechecked at execution. During controlled testing, workspace owners/admins may approve all
-  enabled test actions.
+  privileged actions require an administrator. Approval is an exact confirmation of the proposed
+  effect, not a mandatory second-person ceremony: an authorized initiator may approve their own
+  run. Approver authority is rechecked at execution.
 - [x] Audit proposal, preview, arguments hash, decision, approver, execution, provider result,
   receipt, retry/reconciliation, and compensation. Suspension or a kill switch cancels pending
   approvals and blocks execution.
@@ -445,7 +449,8 @@ keeping their protocol ownership separate and their underlying business behavior
 - [x] MCP transports are adapters over the same capability contracts, installation identity,
   Capability Gateway, approval model, and agent audit trail. The MCP gateway owns no business data,
   agent definitions, approvals, runs, or direct core/database access.
-- [x] Let MCP clients authenticate as installation principals through the Layer 2 token exchange.
+- [x] Let MCP clients authenticate with the workspace Developer API key; the Agent Platform resolves
+  the key to an internal installation principal before capability discovery or invocation.
   Public REST authenticates through its core-owned principal framework, which may include agent
   installation tokens with a REST-specific audience. Accept bearer tokens only in the
   `Authorization` header.
@@ -750,11 +755,13 @@ malicious instructions.
 
 ### Confirmed decisions
 
-- [x] Threat-model stolen installation secrets/tokens, request/webhook replay, scope escalation,
+- [x] Threat-model stolen Developer API keys and legacy installation secrets/tokens, request/webhook replay, scope escalation,
   confused-deputy internal access, cross-workspace/user/customer access, prompt injection, connector
   secret leakage, runaway cost/loops/spam, attachments, channel/webhook compromise, and public
   MCP/REST abuse.
-- [x] Store installation secrets only as strong hashes; use short-lived signed audience-bound tokens,
+- [x] Store Developer API keys and installation secrets only as strong hashes; use direct API-key
+  revocation for the primary flow and short-lived signed audience-bound tokens for legacy/delegated
+  integrations,
   rotation/revocation, no query-string tokens, secret-free prompts/events/logs, managed signing-key
   rotation, and separate signed internal delegations.
 - [x] Use token IDs/expiry, mutation idempotency, replay rejection for high-risk operations where

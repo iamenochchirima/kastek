@@ -6,7 +6,7 @@ import { Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { decideAgentRunApproval, type AgentApproval } from "@/lib/agent-platform";
 
-export function AgentApprovalActions({ runId, approval, canApprove = true }: { runId: string; approval: AgentApproval; canApprove?: boolean }) {
+export function AgentApprovalActions({ runId, approval }: { runId: string; approval: AgentApproval }) {
   const router = useRouter();
   const [busy, setBusy] = useState<"approved" | "rejected" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -25,5 +25,5 @@ export function AgentApprovalActions({ runId, approval, canApprove = true }: { r
     }
   };
 
-  return <div className="flex flex-wrap items-center gap-2"><Button type="button" disabled={busy !== null || !canApprove} onClick={() => void decide("approved")}><Check className="mr-1.5 h-4 w-4" />{busy === "approved" ? "Approving…" : "Approve"}</Button><Button type="button" variant="outline" disabled={busy !== null} onClick={() => void decide("rejected")}><X className="mr-1.5 h-4 w-4" />{busy === "rejected" ? "Denying…" : "Deny"}</Button>{!canApprove ? <p className="basis-full text-xs text-status-attention" role="status">You started this run, so separation of duties prevents self-approval.</p> : null}{error ? <p className="basis-full text-sm text-destructive" role="alert">{error}</p> : null}</div>;
+  return <div className="flex flex-wrap items-center gap-2"><Button type="button" disabled={busy !== null} onClick={() => void decide("approved")}><Check className="mr-1.5 h-4 w-4" />{busy === "approved" ? "Approving…" : "Approve"}</Button><Button type="button" variant="outline" disabled={busy !== null} onClick={() => void decide("rejected")}><X className="mr-1.5 h-4 w-4" />{busy === "rejected" ? "Denying…" : "Deny"}</Button>{error ? <p className="basis-full text-sm text-destructive" role="alert">{error}</p> : null}</div>;
 }
