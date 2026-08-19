@@ -45,6 +45,8 @@ import { availableKasiAiModels, getKasiAiModelCatalog, isAllowedKasiAiModel } fr
 import { installationTokenJwks, issueInstallationToken, readClientAssertionSubject, verifyClientAssertion, verifyInstallationToken } from "../auth/installation-token";
 import { createPublicKey } from "node:crypto";
 import { createDefaultTools } from "../temporal/activities";
+import { validateVersionWorkflow } from "../workflows/graph";
+import { buildAgentReadiness } from "../domain/agent-readiness";
 import { KasitekCoreReadClient } from "../core/client";
 import { KasitekCoreDeveloperApiKeyResolver, type DeveloperApiKeyResolver } from "../core/developer-api-key";
 import { ToolRegistry } from "../tools/registry";
@@ -1558,6 +1560,71 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const input = { ...parsed, scopeId: parsed.scopeId ?? auth.organizationId };
     const installation = await agents.createInstallation(auth.organizationId, auth.actorId, input);
     return reply.code(201).send(installation);
+  });
+
+  app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/readiness", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    const [agent, version, projected] = await Promise.all([
+      agents.getAgent(auth.organizationId, installation.agent_definition_id),
+      agents.getVersion(auth.organizationId, installation.agent_version_id),
+      projectInstallationCapabilities({ organizationId: auth.organizationId, installationId: installation.id, transport: "api" }),
+    ]);
+    if (!agent || !version || !projected) return reply.code(404).send({ error: "installation_readiness_unavailable" });
+
+    const configuration = version.configuration ?? {};
+    const policy = version.policy ?? {};
+    const blueprint = configuration.blueprint && typeof configuration.blueprint === "object" && !Array.isArray(configuration.blueprint)
+      ? configuration.blueprint as Record<string, unknown>
+      : {};
+    const asStringArray = (value: unknown): string[] => Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0) : [];
+    const requiredCapabilities = asStringArray(blueprint.requiredCapabilities).length
+      ? asStringArray(blueprint.requiredCapabilities)
+      : asStringArray(policy.allowedTools);
+    const requiredConnections = asStringArray(blueprint.requiredConnections);
+    const knowledgeSources = requiredConnections.includes("website")
+      ? await knowledge.listSources({ organizationId: auth.organizationId, agentId: installation.agent_definition_id, installationId: installation.id })
+      : [];
+    const configuredConnections = [
+      ...projected.grants.connectors,
+      ...(knowledgeSources.length ? ["website"] : []),
+    ];
+    let workflowError: string | undefined;
+    try {
+      validateVersionWorkflow(configuration);
+    } catch (cause) {
+      workflowError = cause instanceof Error ? cause.message : "Workflow configuration is invalid.";
+    }
+    const modelPolicy = policy.modelPolicy && typeof policy.modelPolicy === "object" && !Array.isArray(policy.modelPolicy)
+      ? policy.modelPolicy as Record<string, unknown>
+      : {};
+    const providerValue = modelPolicy.provider ?? (modelPolicy.primary && typeof modelPolicy.primary === "object" && !Array.isArray(modelPolicy.primary) ? (modelPolicy.primary as Record<string, unknown>).provider : configuration.provider);
+    const provider = typeof providerValue === "string" ? providerValue : undefined;
+    const credentialReference = configuration.credentialReference ?? modelPolicy.credentialReference;
+    const credentialKey = provider && ({ openrouter: "OPENROUTER_API_KEY", openai: "OPENAI_API_KEY", anthropic: "ANTHROPIC_API_KEY", gemini: "GEMINI_API_KEY" } as Record<string, string>)[provider];
+    const credentialConfigured = (typeof credentialReference === "string" && credentialReference.trim().length > 0) || Boolean(credentialKey && process.env[credentialKey]?.trim());
+    const readiness = buildAgentReadiness({
+      executionMode: installation.execution_mode,
+      installationStatus: installation.status,
+      requiredCapabilities,
+      capabilityAvailability: projected.capabilities.map((capability) => ({ name: capability.name, available: capability.available === true || capability.availability === "available", reasonCode: capability.reasonCode ?? capability.availability })),
+      requiredConnections,
+      configuredConnections,
+      provider,
+      credentialConfigured,
+      workflowError,
+    });
+    return {
+      installationId: installation.id,
+      agentId: agent.id,
+      versionId: version.id,
+      profile: agent.creation_profile,
+      executionMode: installation.execution_mode,
+      ...readiness,
+      capabilities: projected.capabilities,
+    };
   });
 
   app.get<{ Params: { installationId: string }; Querystring: { credentialId?: string } }>("/v1/installations/:installationId/capabilities", async (request, reply) => {

@@ -247,7 +247,7 @@ like a guided automation builder, not a raw JSON editor.
 - [x] Preserve ordinary version/installation semantics; do not introduce a second runtime.
 - [ ] Add draft-save/resume semantics for multi-step creation, including safe server persistence or
   a bounded client recovery mechanism.
-- [ ] Add APIs for wizard readiness: missing knowledge, missing credentials, unavailable
+- [x] Add APIs for wizard readiness: missing knowledge, missing credentials, unavailable
   capabilities, invalid workflow, and deployment blockers.
 - [ ] Ensure general-agent defaults are represented as normal versioned configuration rather than
   hidden special cases.
@@ -273,7 +273,7 @@ like a guided automation builder, not a raw JSON editor.
   approval badges.
 - [x] Add a template preview showing purpose, included behavior, required connections, capabilities,
   and estimated setup work.
-- [ ] Add knowledge-source progress, credential readiness, workflow validation, and deployment
+- [x] Add knowledge-source progress, credential readiness, workflow validation, and deployment
   readiness states.
 - [ ] Add test-chat previews for both profiles.
 - [ ] Make errors actionable and local to the step that caused them.
@@ -306,6 +306,8 @@ like a guided automation builder, not a raw JSON editor.
 - [ ] Custom blank creation exposes required configuration progressively.
 - [x] Each custom template preloads the expected behavior, graph, capability hints, and connection
   requirements.
+- [x] Installation readiness combines deployment, workflow, capability, connection, and model
+  credential checks into one actionable status contract.
 - [ ] Users can save, refresh, resume, go backward, and recover from a failed step.
 - [ ] Capability labels and approval indicators match the server manifest.
 - [ ] Unavailable capabilities cannot be selected or activated.

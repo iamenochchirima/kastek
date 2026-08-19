@@ -30,6 +30,8 @@ import {
   type AgentInstallationCredential,
   grantAgentInstallationTool,
   listAgentInstallationCapabilities,
+  getAgentInstallationReadiness,
+  type AgentReadiness,
   type AgentCapability,
   listAgentInstallationGrants,
   grantAgentInstallationResource,
@@ -249,7 +251,6 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
               <div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Installation</p><p className="mt-1 font-medium capitalize text-foreground">{installationStatus.replaceAll("_", " ")}</p></div>
               <div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Current version</p><p className="mt-1 font-medium text-foreground">{agent.version_number ? `v${agent.version_number}` : "None published"}</p></div>
             </div>
-            {protectedAgent ? <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-muted-foreground">KasiAi instructions, model policy, and version publishing are controlled by KasiTek releases. Workspace members can use and pause its installation, but cannot mutate the protected definition.</p> : null}
             {externalAgent ? <p className="rounded-lg border border-accent/20 bg-accent/5 px-3 py-2 text-sm text-muted-foreground">This is an external-connected installation. It calls KasiTek through MCP or REST and does not run hosted chat, channels, schedules, knowledge, or model workflows here.</p> : null}
           </CardContent>
         </Card>
@@ -277,6 +278,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         {agent.installation_id ? <InstallationRuns installationId={agent.installation_id} /> : null}
 
         {hostedAgent && agent.installation_id ? <InstallationChannels installationId={agent.installation_id} /> : null}
+
+        {agent.installation_id ? <InstallationReadiness installationId={agent.installation_id} /> : null}
 
         {agent.installation_id ? <InstallationCapabilities installationId={agent.installation_id} protectedAgent={protectedAgent} /> : null}
 
@@ -312,8 +315,6 @@ function InstallationCredentials({ installationId }: { installationId: string })
   const [label, setLabel] = useState("");
   const [clientKeyId, setClientKeyId] = useState("");
   const [clientPublicKey, setClientPublicKey] = useState("");
-  const [mcpWrite, setMcpWrite] = useState(false);
-  const [apiWrite, setApiWrite] = useState(false);
   const [secret, setSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -343,8 +344,6 @@ function InstallationCredentials({ installationId }: { installationId: string })
     try {
       const created = await createAgentInstallationCredential(installationId, {
         label: label.trim(),
-        mcpScopes: ["mcp:read", ...(mcpWrite ? ["mcp:write" as const] : [])],
-        apiScopes: ["api:read", ...(apiWrite ? ["api:write" as const] : [])],
         ...(clientKeyId.trim() ? { clientKeyId: clientKeyId.trim() } : {}),
         ...(clientPublicKey.trim() ? { clientPublicKey: clientPublicKey.trim() } : {}),
       });
@@ -388,17 +387,15 @@ function InstallationCredentials({ installationId }: { installationId: string })
   return <Card>
     <CardContent className="space-y-4 p-6">
       <div className="flex items-start gap-3"><KeyRound className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="text-lg font-semibold text-foreground">External agent credentials</h2><p className="mt-1 text-sm text-muted-foreground">Create named credentials for Codex, Claude, n8n, or your own agent. Secrets are shown once and can be revoked independently.</p></div></div>
-      <div className="grid gap-3 rounded-xl border border-border bg-secondary/20 p-4 sm:grid-cols-[1fr_1fr_2fr_auto_auto_auto] sm:items-end">
+      <div className="grid gap-3 rounded-xl border border-border bg-secondary/20 p-4 sm:grid-cols-[1fr_1fr_2fr_auto] sm:items-end">
         <label className="text-sm font-medium text-foreground">Credential name<input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Local Codex" className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label>
         <label className="text-sm font-medium text-foreground">Client key id<span className="ml-1 text-xs font-normal text-muted-foreground">(optional)</span><input value={clientKeyId} onChange={(event) => setClientKeyId(event.target.value)} placeholder="codex-prod-1" className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label>
         <label className="text-sm font-medium text-foreground">Client public key<span className="ml-1 text-xs font-normal text-muted-foreground">(SPKI PEM, optional)</span><textarea value={clientPublicKey} onChange={(event) => setClientPublicKey(event.target.value)} placeholder="-----BEGIN PUBLIC KEY-----" rows={3} className="mt-2 block w-full resize-y rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs" /></label>
-        <label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={apiWrite} onChange={(event) => setApiWrite(event.target.checked)} />API write</label>
-        <label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={mcpWrite} onChange={(event) => setMcpWrite(event.target.checked)} />MCP write</label>
         <Button type="button" onClick={() => void create()} disabled={creating || !label.trim()}>{creating ? "Creating…" : "Create credential"}</Button>
       </div>
       {secret ? <div className="rounded-xl border border-status-attention/40 bg-status-attention-soft p-4" role="alert"><p className="text-sm font-semibold text-status-attention">Copy this secret now. It will not be shown again.</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-background px-3 py-2 text-xs text-foreground">{secret}</code><Button type="button" variant="outline" size="sm" onClick={() => void navigator.clipboard?.writeText(secret)}><Copy className="mr-1.5 h-3.5 w-3.5" />Copy</Button></div><ExternalConnectionSetup secret={secret} /></div> : null}
       {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-      {loading ? <p className="text-sm text-muted-foreground">Loading credentials…</p> : credentials.length ? <div className="space-y-2">{credentials.map((credential) => <div key={credential.id} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{credential.label}</p><p className="mt-1 text-xs text-muted-foreground">{credential.status} · API {credential.api_scopes?.join(", ") ?? "api:read"} · MCP {credential.mcp_scopes.join(", ")}{credential.client_key_id ? ` · key ${credential.client_key_id}` : ""}</p></div>{credential.status === "active" ? <div className="flex gap-2"><Button type="button" variant="outline" size="sm" disabled={rotating !== null} onClick={() => void rotate(credential)}>{rotating === credential.id ? "Rotating…" : "Rotate"}</Button><Button type="button" variant="outline" size="sm" disabled={rotating !== null} onClick={() => void revoke(credential)}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Revoke</Button></div> : null}</div>)}</div> : <p className="text-sm text-muted-foreground">No external credentials yet.</p>}
+      {loading ? <p className="text-sm text-muted-foreground">Loading credentials…</p> : credentials.length ? <div className="space-y-2">{credentials.map((credential) => <div key={credential.id} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{credential.label}</p><p className="mt-1 text-xs text-muted-foreground">{credential.status}{credential.client_key_id ? ` · key ${credential.client_key_id}` : ""}</p></div>{credential.status === "active" ? <div className="flex gap-2"><Button type="button" variant="outline" size="sm" disabled={rotating !== null} onClick={() => void rotate(credential)}>{rotating === credential.id ? "Rotating…" : "Rotate"}</Button><Button type="button" variant="outline" size="sm" disabled={rotating !== null} onClick={() => void revoke(credential)}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Revoke</Button></div> : null}</div>)}</div> : <p className="text-sm text-muted-foreground">No external credentials yet.</p>}
     </CardContent>
   </Card>;
 }
@@ -423,6 +420,50 @@ function ExternalConnectionSetup({ secret }: { secret: string }) {
     window.setTimeout(() => setCopied(false), 1800);
   };
   return <div className="mt-4 rounded-lg border border-border bg-background/70 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-sm font-semibold text-foreground">Connect an external agent</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Exchange this secret once for a short-lived token. The secret is never sent to the MCP gateway or included in run history.</p></div><div className="flex rounded-lg border border-border bg-card p-0.5"><button type="button" className={`rounded-md px-2.5 py-1 text-xs ${mode === "mcp" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`} onClick={() => setMode("mcp")}>MCP</button><button type="button" className={`rounded-md px-2.5 py-1 text-xs ${mode === "rest" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`} onClick={() => setMode("rest")}>REST</button></div></div><p className="mt-3 text-xs text-muted-foreground">{mode === "mcp" ? "Use the returned access_token as Bearer authentication for https://agents.kasitek.co.za/mcp." : "Use the returned access_token as Bearer authentication for https://api.kasitek.co.za/v1."}</p><div className="mt-2 flex gap-2"><pre className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-secondary/60 p-3 text-[11px] leading-5 text-foreground">{snippet}</pre><Button type="button" variant="outline" size="sm" onClick={() => void copy()}>{copied ? "Copied" : "Copy"}</Button></div></div>;
+}
+
+function InstallationReadiness({ installationId }: { installationId: string }) {
+  const [readiness, setReadiness] = useState<AgentReadiness | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      setReadiness(await getAgentInstallationReadiness(installationId));
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load activation readiness");
+    } finally {
+      setLoading(false);
+    }
+  }, [installationId]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const checkClass = (status: string) => status === "ready" || status === "not_required"
+    ? "border-accent/30 bg-accent/10 text-accent"
+    : "border-status-attention/30 bg-status-attention-soft text-status-attention";
+
+  return <Card>
+    <CardContent className="space-y-4 p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Deployment</p><h2 className="mt-1 text-lg font-semibold text-foreground">Activation readiness</h2><p className="mt-1 max-w-2xl text-sm text-muted-foreground">One summary of the checks that determine whether this installation can be tested and used.</p></div>
+        <div className="flex items-center gap-2"><Badge className={readiness?.ready ? "border-accent/30 bg-accent/10 text-accent" : "border-status-attention/30 bg-status-attention-soft text-status-attention"}>{loading ? "Checking…" : readiness?.ready ? "Ready" : "Needs setup"}</Badge><Button type="button" variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}><RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />Refresh</Button></div>
+      </div>
+      {error ? <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive" role="alert"><span>{error}</span><Button type="button" variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>Retry</Button></div> : null}
+      {readiness ? <>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="rounded-lg border border-border bg-secondary/30 p-3"><p className="text-xs text-muted-foreground">Installation</p><Badge className={`mt-2 ${checkClass(readiness.checks.deployment.status)}`}>{readiness.checks.deployment.installationStatus}</Badge></div>
+          <div className="rounded-lg border border-border bg-secondary/30 p-3"><p className="text-xs text-muted-foreground">Workflow</p><Badge className={`mt-2 ${checkClass(readiness.checks.workflow.status)}`}>{readiness.checks.workflow.status}</Badge></div>
+          <div className="rounded-lg border border-border bg-secondary/30 p-3"><p className="text-xs text-muted-foreground">Capabilities</p><Badge className={`mt-2 ${checkClass(readiness.checks.capabilities.missing.length ? "blocked" : "ready")}`}>{readiness.checks.capabilities.available.length}/{readiness.checks.capabilities.required.length} ready</Badge></div>
+          <div className="rounded-lg border border-border bg-secondary/30 p-3"><p className="text-xs text-muted-foreground">Connections</p><Badge className={`mt-2 ${checkClass(readiness.checks.connections.missing.length ? "blocked" : "ready")}`}>{readiness.checks.connections.configured.length}/{readiness.checks.connections.required.length} ready</Badge></div>
+          <div className="rounded-lg border border-border bg-secondary/30 p-3"><p className="text-xs text-muted-foreground">Model credential</p><Badge className={`mt-2 ${checkClass(readiness.checks.credentials.status)}`}>{readiness.checks.credentials.status.replaceAll("_", " ")}</Badge></div>
+        </div>
+        {readiness.blockers.length ? <div className="rounded-lg border border-status-attention/30 bg-status-attention-soft p-4"><p className="text-sm font-semibold text-status-attention">What needs attention</p><ul className="mt-2 space-y-2 text-sm text-foreground">{readiness.blockers.map((blocker, index) => <li key={`${blocker.code}:${blocker.capability ?? blocker.connection ?? index}`}><span className="font-medium">{blocker.title}:</span> {blocker.detail}</li>)}</ul></div> : <p className="rounded-lg border border-accent/20 bg-accent/5 px-3 py-2 text-sm text-muted-foreground">All activation checks are ready. Capability grants and provider effects are still enforced when a run executes.</p>}
+      </> : null}
+    </CardContent>
+  </Card>;
 }
 
 function InstallationCapabilities({ installationId, protectedAgent }: { installationId: string; protectedAgent: boolean }) {

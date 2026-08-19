@@ -54,9 +54,17 @@ export function CreateAgentPageClient({ initialTemplate }: { initialTemplate?: A
         creationProfile: "custom",
       });
       const parsedLimits = parseAgentRuntimeLimits(runtimeLimits);
+      const blueprint = initialTemplate ? {
+        key: initialTemplate.key,
+        version: initialTemplate.version,
+        category: initialTemplate.category,
+        requiredConnections: initialTemplate.requiredConnections,
+        requiredCapabilities: initialTemplate.requiredCapabilities,
+        setupSteps: initialTemplate.setupSteps,
+      } : undefined;
       const version = await createAgentVersion(agent.id, {
         instructions: instructions.trim(),
-        configuration: { ...(initialTemplate?.configuration ?? {}), provider, model: model.trim(), ...parsedLimits, workflow },
+        configuration: { ...(initialTemplate?.configuration ?? {}), ...(blueprint ? { blueprint } : {}), provider, model: model.trim(), ...parsedLimits, workflow },
         policy: {
           ...(initialTemplate?.policy ?? {}),
           modelPolicy: {

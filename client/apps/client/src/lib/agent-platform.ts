@@ -453,6 +453,25 @@ export type AgentCapability = {
   documentation?: { title: string; summary: string };
 };
 
+export type AgentReadiness = {
+  installationId: string;
+  agentId: string;
+  versionId: string;
+  profile?: "general" | "custom" | "system" | null;
+  executionMode: "system_hosted" | "kasitek_hosted" | "external_connected";
+  status: "ready" | "blocked" | string;
+  ready: boolean;
+  checks: {
+    deployment: { status: "ready" | "blocked"; installationStatus: string };
+    workflow: { status: "ready" | "blocked"; error?: string };
+    capabilities: { required: string[]; available: string[]; missing: string[] };
+    connections: { required: string[]; configured: string[]; missing: string[] };
+    credentials: { status: "ready" | "blocked" | "not_required"; provider?: string; detail: string };
+  };
+  blockers: Array<{ code: string; title: string; detail: string; capability?: string; connection?: string }>;
+  capabilities: AgentCapability[];
+};
+
 export type AgentInstallationGrants = {
   resources: Array<{ resourceType: string; resourceId: string }>;
   connectors: string[];
@@ -472,6 +491,10 @@ export type AgentConnector = {
 
 export function listAgentInstallationCapabilities(installationId: string): Promise<{ installationId: string; capabilities: AgentCapability[] }> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/capabilities`);
+}
+
+export function getAgentInstallationReadiness(installationId: string): Promise<AgentReadiness> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/readiness`);
 }
 
 export function grantAgentInstallationTool(installationId: string, toolName: string): Promise<unknown> {
