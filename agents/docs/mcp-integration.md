@@ -3,21 +3,23 @@
 The hosted MCP gateway is a stateless transport adapter. It does not own installation state,
 grants, approvals, or run records; those remain in the Agent API.
 
-MCP credentials belong only to an `external_connected` installation created through
-`POST /v1/external-agents`. KasiAi (`system_hosted`) and KasiTek-hosted user agents
-(`kasitek_hosted`) do not receive MCP credentials; their channels and hosted runtime controls stay
-on their own installation details.
+MCP clients use the same workspace Developer API key as REST clients. The Agent API creates an
+internal external-connected installation the first time a key is used over MCP so the existing
+capability, approval, audit, and run boundaries remain in place. KasiAi (`system_hosted`) and
+KasiTek-hosted user agents (`kasitek_hosted`) do not receive Developer API keys; their channels and
+hosted runtime controls stay on their own installation details.
 
 ## Authentication
 
-1. Create an installation credential from the authenticated Agents UI or the internal Agent API.
-2. Exchange the copy-once secret at `POST /v1/installation-tokens/exchange` with
-   `{ "secret": "…", "audience": "mcp" }`.
-3. Send the returned short-lived `accessToken` as `Authorization: Bearer …` to the gateway.
+1. Create a named Developer API key in Developers → API Keys.
+2. Configure the key as `Authorization: Bearer <developer-api-key>` for the remote MCP client, or
+   set `KASITEK_API_KEY` when using the local `@kasitek/mcp` adapter.
+3. Send MCP JSON-RPC requests to the hosted `/mcp` endpoint.
 
-The gateway rejects invalid, expired, revoked, suspended, wrong-audience, and cross-installation
-tokens. MCP and REST credential scopes are independent; `mcp:read` is required for discovery and
-`mcp:write` is required for tool calls.
+Core validates the key on each MCP request, so invalid, expired, and revoked keys stop working
+without a token exchange. The key's API scopes are applied to MCP reads and writes. Effective tool
+access is still limited by the internal installation's capability grants, workspace resources,
+availability, feature policy, and approval requirements.
 
 The versioned capability catalog, including permission scopes, resource selectors, audit
 classification, redaction metadata, and JSON Schemas, is generated at
@@ -30,35 +32,11 @@ readiness, feature policy, approval requirement, and the final `reasonCode`. If 
 source has not supplied entitlement or provider state, those fields are `unknown`; clients must not
 interpret an unknown dependency as a product guarantee.
 
-### Key-bound exchange
-
-For agents that should not transmit the copy-once secret on every bootstrap, register a P-256
-SPKI public key with the credential (`clientKeyId` and `clientPublicKey`). The key id is unique
-among active credentials for an installation. The agent keeps the matching private key and signs a
-compact ES256 JWT for each exchange:
-
-```json
-{
-  "iss": "codex-prod-1",
-  "sub": "<credential-id>",
-  "aud": "kasitek-agents-token",
-  "iat": 1730000000,
-  "exp": 1730000120,
-  "jti": "<new-random-id>"
-}
-```
-
-Use `POST /v1/installation-tokens/exchange` with
-`{ "clientAssertion": "<header>.<payload>.<signature>", "audience": "mcp" }` (or
-`kasitek-public-api`). Assertions use the registered `kid`, expire within five minutes, and each
-`jti` is consumed once in the Agent database. The legacy secret exchange remains available for
-initial enrollment and key recovery; never send the private key to KasiTek.
-
 ## Streamable HTTP lifecycle
 
 The gateway is dual-era during migration. The 2026 stateless path uses protocol revision
 `2026-07-28`; the pre-2026 compatibility path currently supports `2025-06-18` and its
-`initialize` handshake. Both use the same `/mcp` POST endpoint, installation token, filtered
+`initialize` handshake. Both use the same `/mcp` POST endpoint, Developer API key, filtered
 capability registry, shared invocation service, approvals, idempotency, and durable run state.
 The 2026 path is rollout-controlled: `MCP_STATELESS_ENABLED` gates the Agent API and
 `MCP_GATEWAY_STATELESS_ENABLED` gates the gateway. They default on in development/test and off in
@@ -82,7 +60,7 @@ MCP-Protocol-Version: 2026-07-28
 Mcp-Method: tools/call
 Mcp-Name: platform.current_time
 Accept: application/json, text/event-stream
-Authorization: Bearer <installation-token>
+Authorization: Bearer <developer-api-key>
 ```
 
 ```json
@@ -154,14 +132,17 @@ original operation rather than starting a second effect. Approval-required and d
 continue through Temporal; immediate read manifests may use the explicit local fallback while
 still recording run, tool, audit, and usage evidence.
 
-Clients that only support local stdio can use `pnpm run start:stdio` with `MCP_STDIO_TOKEN` set to an
-exchanged MCP installation token. The bridge forwards one JSON-RPC message per input line to the
+Clients that only support local stdio can use `pnpm run start:stdio` with `MCP_STDIO_API_KEY` set to a
+Developer API key. The bridge forwards one JSON-RPC message per input line to the
 hosted endpoint, preserves notification silence, and bounds both request and response size. It is a
 transport proxy only; authentication, discovery, policy, and durable state remain at the gateway and
 Agent API. It selects the 2026 HTTP revision when a stdio message carries 2026 `_meta`. Before
 forwarding an older message, it probes `server/discover` once (disable with `MCP_STDIO_PROBE=false`)
 and retains the pre-2026 header/initialize flow when compatibility is available; a modern-only
 endpoint returns a local unsupported-version error rather than sending an incompatible handshake.
+
+The Developers section exposes the client-neutral connection guide, the hosted endpoint, and the
+single Developer API key used by both REST and MCP.
 
 ## Safety and inspection
 

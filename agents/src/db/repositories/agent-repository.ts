@@ -289,6 +289,124 @@ export class AgentRepository {
     }
   }
 
+  /**
+   * Creates the internal installation used by a workspace Developer API key
+   * when it first connects over MCP. The key remains the user-facing
+   * credential; this installation only lets the existing capability/runtime
+   * pipeline retain its workspace, grant, approval, and audit boundaries.
+   */
+  public async getOrCreateDeveloperApiKeyInstallation(input: {
+    organizationId: string;
+    apiKeyId: string;
+    toolNames: readonly string[];
+  }): Promise<ExternalAgentConnectionRecord> {
+    const developerApiKeyId = input.apiKeyId.trim();
+    const actorId = `developer-api-key:${developerApiKeyId}`;
+    const settings = {
+      developerApiKeyId,
+      runtime: "developer_api_key",
+      protocols: ["mcp"],
+      capabilities: [...input.toolNames],
+    };
+    const slug = `developer-api-${developerApiKeyId}`.slice(0, 80);
+
+    try {
+      return await withTransaction(this.pool, async (client) => {
+        const existing = await client.query<InstallationRecord>(
+          `SELECT * FROM agent_installations
+           WHERE organization_id = $1 AND execution_mode = 'external_connected'
+             AND settings ->> 'developerApiKeyId' = $2
+           FOR UPDATE`,
+          [input.organizationId, developerApiKeyId],
+        );
+        if (existing.rows[0]) {
+          const installation = existing.rows[0]!;
+          const [agentResult, versionResult] = await Promise.all([
+            client.query<AgentRecord>("SELECT * FROM agent_definitions WHERE id = $1", [installation.agent_definition_id]),
+            client.query<AgentVersionRecord>("SELECT * FROM agent_versions WHERE id = $1", [installation.agent_version_id]),
+          ]);
+          if (!agentResult.rows[0] || !versionResult.rows[0]) throw new Error("Developer API installation aggregate is incomplete");
+          return { agent: agentResult.rows[0], version: versionResult.rows[0], installation, created: false };
+        }
+
+        const agentResult = await client.query<AgentRecord>(
+          `INSERT INTO agent_definitions
+            (organization_id, owner_type, name, slug, description, protected, created_by)
+           VALUES ($1, 'organization', $2, $3, $4, FALSE, $5)
+           RETURNING *`,
+          [input.organizationId, "KasiTek Developer API", slug, "Workspace MCP access for Developer API keys", actorId],
+        );
+        const agent = agentResult.rows[0]!;
+        const policy = { allowedTools: [...input.toolNames] };
+        const configuration = { executionMode: "external_connected", runtime: "developer_api_key", protocols: ["mcp"] };
+        const versionResult = await client.query<AgentVersionRecord>(
+          `INSERT INTO agent_versions
+            (agent_definition_id, version_number, status, instructions, configuration, policy,
+             checksum, created_by, published_at)
+           VALUES ($1, 1, 'published', $2, $3::jsonb, $4::jsonb, $5, $6, now())
+           RETURNING *`,
+          [
+            agent.id,
+            "Developer API access is workspace-scoped and uses the shared KasiTek capability policy.",
+            JSON.stringify(configuration),
+            JSON.stringify(policy),
+            checksumVersion({ instructions: "Developer API access is workspace-scoped and uses the shared KasiTek capability policy.", configuration, policy }, 1),
+            actorId,
+          ],
+        );
+        const version = versionResult.rows[0]!;
+        for (const toolName of input.toolNames) {
+          await client.query(
+            `INSERT INTO agent_tool_grants
+              (organization_id, agent_version_id, tool_name, granted_by)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (agent_version_id, COALESCE(installation_id, '00000000-0000-0000-0000-000000000000'::uuid), tool_name)
+               WHERE revoked_at IS NULL DO NOTHING`,
+            [input.organizationId, version.id, toolName, actorId],
+          );
+        }
+        const installationResult = await client.query<InstallationRecord>(
+          `INSERT INTO agent_installations
+            (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id,
+             execution_mode, settings, created_by)
+           VALUES ($1, $2, $3, 'organization', $3, 'external_connected', $4::jsonb, $5)
+           RETURNING *`,
+          [agent.id, version.id, input.organizationId, JSON.stringify(settings), actorId],
+        );
+        const installation = installationResult.rows[0]!;
+        await client.query(
+          `INSERT INTO agent_principals (installation_id, organization_id) VALUES ($1, $2)`,
+          [installation.id, input.organizationId],
+        );
+        await client.query(
+          `INSERT INTO audit_records
+            (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+           VALUES ($1, 'api_key', $2, 'developer_api_key_installation.created', 'agent_installation', $3, $4::jsonb)`,
+          [input.organizationId, actorId, installation.id, JSON.stringify({ apiKeyId: developerApiKeyId, executionMode: "external_connected", runtime: "developer_api_key" })],
+        );
+        return { agent, version, installation, created: true };
+      });
+    } catch (error) {
+      if ((error as { code?: string }).code !== "23505") throw error;
+      const existing = await query<InstallationRecord>(
+        this.pool,
+        `SELECT * FROM agent_installations
+         WHERE organization_id = $1 AND execution_mode = 'external_connected'
+           AND settings ->> 'developerApiKeyId' = $2
+         LIMIT 1`,
+        [input.organizationId, developerApiKeyId],
+      );
+      const installation = existing.rows[0];
+      if (!installation) throw error;
+      const [agentResult, versionResult] = await Promise.all([
+        query<AgentRecord>(this.pool, "SELECT * FROM agent_definitions WHERE id = $1", [installation.agent_definition_id]),
+        query<AgentVersionRecord>(this.pool, "SELECT * FROM agent_versions WHERE id = $1", [installation.agent_version_id]),
+      ]);
+      if (!agentResult.rows[0] || !versionResult.rows[0]) throw new Error("Developer API installation aggregate is incomplete");
+      return { agent: agentResult.rows[0], version: versionResult.rows[0], installation, created: false };
+    }
+  }
+
   public async installTemplate(input: {
     organizationId: string;
     actorId: string;
@@ -650,11 +768,19 @@ export class AgentRepository {
          ORDER BY ai.updated_at DESC LIMIT 1
        ) ai ON TRUE
        LEFT JOIN agent_versions av ON av.id = ai.agent_version_id
-       WHERE ad.organization_id = $1 OR (
-         ad.owner_type = 'system' AND ad.protected = TRUE AND EXISTS (
-           SELECT 1 FROM agent_installations ai
-           WHERE ai.agent_definition_id = ad.id AND ai.organization_id = $1
+       WHERE (
+         ad.organization_id = $1 OR (
+           ad.owner_type = 'system' AND ad.protected = TRUE AND EXISTS (
+             SELECT 1 FROM agent_installations ai
+             WHERE ai.agent_definition_id = ad.id AND ai.organization_id = $1
+           )
          )
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM agent_installations hidden_ai
+         WHERE hidden_ai.agent_definition_id = ad.id
+           AND hidden_ai.organization_id = $1
+           AND hidden_ai.settings ->> 'developerApiKeyId' IS NOT NULL
        )
        ORDER BY ad.protected DESC, ad.created_at DESC`,
       [organizationId],
@@ -677,6 +803,7 @@ export class AgentRepository {
        ) ai ON TRUE
        JOIN agent_versions av ON av.id = ai.agent_version_id
        WHERE ad.organization_id = $1 AND ad.owner_type = 'organization' AND ad.protected = FALSE
+         AND ai.settings ->> 'developerApiKeyId' IS NULL
        ORDER BY ai.updated_at DESC, ad.created_at DESC`,
       [organizationId],
     );

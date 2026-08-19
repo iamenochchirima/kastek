@@ -9,12 +9,20 @@ from the private `/api/*` product routes and from the Agent Platform transport a
 `GET /capabilities` currently accepts either:
 
 - an authenticated KasiTek user session bearer token; or
+- a workspace Developer API key created in the Developers section; or
 - an Agent Platform ES256 installation token issued for the `kasitek-public-api` audience.
 
 Core validates the installation token signature, issuer, audience, expiry, subject, organization,
 and credential claims using `AGENTS_INSTALLATION_TOKEN_PUBLIC_KEY`. Installation credential
 revocation/introspection and full scope/grant/entitlement evaluation remain required before broad
 machine access is enabled.
+
+Developer API keys are workspace-owned opaque bearer credentials. The raw value is shown once when
+created or rotated; Core stores only its SHA-256 digest. Use the same key with the public REST API
+and MCP as `Authorization: Bearer <developer-api-key>`. The initial key carries `api:read` and
+`api:write` scopes, and those scopes are checked before public actions. Revocation and expiry are
+checked on every request. MCP keeps an internal installation boundary for capability and activity
+records, but users do not manage a second MCP token.
 
 `GET /health` is intentionally unauthenticated and contains no workspace or capability data.
 

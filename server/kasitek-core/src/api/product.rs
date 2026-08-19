@@ -6,7 +6,7 @@ use actix_web::web;
 use crate::controllers::{
     admin, admin_billing, admin_conversations, admin_invoices, admin_leads, admin_notifications,
     admin_outreach, admin_quotations, admin_web_services, agent_internal, agent_platform, ai, auth,
-    billing, bookings, calls, connections, customers, health, inbox, notifications, onboarding,
+    billing, bookings, calls, connections, customers, developers, health, inbox, notifications, onboarding,
     orgs, product_tour, profile, realtime, social, whatsapp, whatsapp_calls, workspace,
 };
 
@@ -14,6 +14,19 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.route("/", web::get().to(health::root));
     cfg.route("/health", web::get().to(health::health_check));
     cfg.route("/api/workspace/summary", web::get().to(workspace::summary));
+    cfg.service(
+        web::scope("/api/developers")
+            .route("", web::get().to(developers::bootstrap))
+            .route("/api-keys", web::post().to(developers::create_api_key))
+            .route(
+                "/api-keys/{id}",
+                web::delete().to(developers::revoke_api_key),
+            )
+            .route(
+                "/api-keys/{id}/rotate",
+                web::post().to(developers::rotate_api_key),
+            ),
+    );
     cfg.service(
         web::scope("/api/calls")
             .route("", web::get().to(calls::list_calls))

@@ -6,25 +6,21 @@ KasiTek has three agent modes. Choose the setup flow that matches who runs the r
 | --- | --- | --- | --- |
 | KasiAi (`system_hosted`) | KasiTek | KasiAi details | KasiTek platform conversations and managed channels |
 | Hosted user agent (`kasitek_hosted`) | KasiTek on the customer’s behalf | Create hosted agent and its details | Platform chat, supported channels, schedules, and hosted runtime |
-| External agent (`external_connected`) | The customer’s runtime | Connect external agent | Dedicated MCP or REST installation credential |
+| External agent (`external_connected`) | The customer’s runtime | Developers | Workspace Developer API key for MCP or REST |
 
 ## Connect an external agent
 
-Use **Agents → Connect external agent** when an agent already runs in Codex, Claude Code, n8n, or
-another customer-controlled runtime and needs to call KasiTek capabilities.
+Use **Developers** when an agent already runs in Codex, Claude Code, n8n, or another
+customer-controlled runtime and needs to call KasiTek capabilities.
 
-1. Identify the external runtime and choose MCP, REST, or both.
-2. Review the live service catalog and select only registered, currently available capabilities;
-   apply optional resource or connector narrowing.
-3. Create a read-only credential by default. Add write scope only when the runtime is approved for
-   changes.
-4. Copy the one-time installation secret. It is never shown again.
-5. Exchange the secret for a short-lived audience-bound MCP or REST token. Do not use the installation
-   secret as a long-lived bearer token.
-6. Use discovery to confirm the exact grants and effective-access reason codes, then invoke through
-   the dedicated installation. Pause, rotate, or revoke from the external installation details.
+1. Create a named Developer API key in Developers → API Keys.
+2. Configure that key in the client as a Bearer credential. The same key works for MCP and REST.
+3. Use discovery to confirm the effective capabilities and access reason codes, then begin with a
+   safe read. Higher-risk actions may still require approval.
+4. Rotate or revoke the key from Developers when it is no longer trusted.
 
-This flow creates a new `external_connected` identity. It never selects, modifies, or creates a
+The first MCP request resolves an internal `external_connected` identity for the key. Users do not
+configure that identity or a second credential. The flow never selects, modifies, or creates a
 KasiAi or hosted user-agent installation.
 
 ## Configure KasiAi channels

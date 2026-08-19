@@ -11,6 +11,7 @@ pub mod calls;
 pub mod connections;
 pub mod content_media;
 pub mod customers;
+pub mod developer_api_keys;
 pub mod inbox;
 pub mod message_domain;
 pub mod notifications;

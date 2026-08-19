@@ -17,6 +17,7 @@ pub mod bookings;
 pub mod calls;
 pub mod connections;
 pub mod customers;
+pub mod developers;
 pub mod health;
 pub mod inbox;
 pub mod notifications;

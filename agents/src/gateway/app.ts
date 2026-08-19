@@ -157,9 +157,8 @@ export function buildGateway(input: {
   app.get("/.well-known/oauth-protected-resource", async () => ({
     resource: "/mcp",
     authorization_servers: [],
-    scopes_supported: ["mcp:read", "mcp:write"],
     bearer_methods_supported: ["header"],
-    installation_token_exchange_endpoint: "/v1/installation-tokens/exchange",
+    authentication: "KasiTek Developer API key",
   }));
   app.get("/mcp", async (_request, reply) => reply.code(405).header("allow", "POST").send({ error: "streaming_not_supported" }));
   app.delete("/mcp", async (_request, reply) => reply.code(405).header("allow", "POST").send({ error: "sessions_not_supported" }));

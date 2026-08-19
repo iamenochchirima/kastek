@@ -334,9 +334,9 @@ describe("Core public v1 OpenAPI conformance", () => {
       .map(([method]) => `${method.toUpperCase()} ${path}`)).sort();
 
     expect(document.openapi).toBe("3.1.0");
-    expect(document.security).toEqual([{ bearerInstallation: [] }, { productSession: [] }]);
+    expect(document.security).toEqual([{ bearerInstallation: [] }, { productSession: [] }, { developerApiKey: [] }]);
     expect(documented).toEqual(mounted);
-    expect(mounted).toHaveLength(21);
+    expect(mounted).toHaveLength(22);
 
     for (const [path, item] of Object.entries(document.paths)) {
       for (const [method, operation] of Object.entries(item)) {

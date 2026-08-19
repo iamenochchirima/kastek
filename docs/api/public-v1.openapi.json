@@ -6,7 +6,7 @@
     "description": "Versioned public core contracts. Business handlers reuse the shared action catalog and normalized request context."
   },
   "servers": [{ "url": "https://api.kasitek.co.za/v1" }],
-  "security": [{ "kasitekSession": [] }, { "bearerInstallation": [] }],
+  "security": [{ "kasitekSession": [] }, { "bearerInstallation": [] }, { "developerApiKey": [] }],
   "paths": {
     "/health": {
       "get": {
@@ -158,6 +158,12 @@
         "scheme": "bearer",
         "bearerFormat": "JWT",
         "description": "Short-lived Agent Platform installation token with audience kasitek-public-api."
+      },
+      "developerApiKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "KasiTek workspace API key",
+        "description": "Opaque workspace Developer API key. The raw key is shown once in Developers and is accepted as Authorization: Bearer kst_...."
       }
     },
     "schemas": {
@@ -166,7 +172,7 @@
         "required": ["version", "principal", "actions", "pagination"],
         "properties": {
           "version": { "const": "v1" },
-          "principal": { "type": "object", "required": ["kind", "id", "organizationId"], "properties": { "kind": { "enum": ["direct_user", "agent_installation"] }, "id": { "type": "string" }, "organizationId": { "type": "string" } } },
+          "principal": { "type": "object", "required": ["kind", "id", "organizationId"], "properties": { "kind": { "enum": ["direct_user", "workspace_api_key", "agent_installation"] }, "id": { "type": "string" }, "organizationId": { "type": "string" } } },
           "actions": { "type": "array", "items": { "$ref": "#/components/schemas/Capability" } },
           "pagination": { "$ref": "#/components/schemas/CapabilityPagination" }
         }

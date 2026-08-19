@@ -18,7 +18,7 @@ use crate::domains::bookings::transport::BookingListResponse;
 use crate::error::AppError;
 use crate::identity::{product_session, request_context::RequestContext};
 use crate::services::agent_platform::AgentPlatformClient;
-use crate::services::{inbox, public_api, public_webhooks, whatsapp};
+use crate::services::{developer_api_keys, inbox, public_api, public_webhooks, whatsapp};
 
 pub async fn health(state: web::Data<AppState>) -> HttpResponse {
     HttpResponse::Ok().json(json!({
@@ -27,6 +27,26 @@ pub async fn health(state: web::Data<AppState>) -> HttpResponse {
         "apiVersion": "v1",
         "actionCatalogSize": state.action_registry.definitions().count(),
     }))
+}
+
+/// Resolve the authenticated public API principal for trusted transport
+/// adapters such as the standalone MCP service. This intentionally returns
+/// only workspace and scope metadata; it never returns key material or
+/// product data.
+pub async fn whoami(
+    req: HttpRequest,
+    state: web::Data<AppState>,
+) -> Result<HttpResponse, AppError> {
+    let context = public_context(&req, &state).await?;
+    if context.principal.kind != crate::identity::principal::PrincipalKind::WorkspaceApiKey {
+        return Err(AppError::Unauthorized);
+    }
+    Ok(response_with_context(&context).json(json!({
+        "principal": "workspace_api_key",
+        "apiKeyId": context.principal.id,
+        "organizationId": context.organization_id,
+        "scopes": context.api_scopes.clone().unwrap_or_default(),
+    })))
 }
 
 pub async fn openapi() -> HttpResponse {
@@ -64,6 +84,14 @@ async fn require_webhook_scope(
             "webhooks.list"
         },
     );
+    if let Some(scopes) = context.api_scopes.as_ref() {
+        if !scopes.contains(required_api_scope) {
+            return Err(AppError::Forbidden(format!(
+                "Developer API key is missing scope: {required_api_scope}"
+            )));
+        }
+        return Ok(());
+    }
     let policy = context.principal.public_api_policy()?;
     if !policy.requires_installation_capabilities {
         return Ok(());
@@ -315,7 +343,9 @@ async fn public_context(req: &HttpRequest, state: &AppState) -> Result<RequestCo
     // Product user sessions are opaque bearer values. A JWT-shaped bearer value
     // is an attempted Agent installation credential and must never fall through
     // to cookie/session authentication when signature or claim validation fails.
-    let mut context = if installation_bearer_token(req).is_some() {
+    let mut context = if developer_api_key_bearer_token(req).is_some() {
+        developer_api_key_context(req, state).await?
+    } else if installation_bearer_token(req).is_some() {
         installation_context(req, state)?
     } else {
         product_session::resolve(req, &state.pool).await?
@@ -351,6 +381,44 @@ fn installation_bearer_token(req: &HttpRequest) -> Option<&str> {
     (token.split('.').count() == 3).then_some(token)
 }
 
+fn developer_api_key_bearer_token(req: &HttpRequest) -> Option<&str> {
+    let token = req
+        .headers()
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?;
+    token.starts_with("kst_").then_some(token)
+}
+
+async fn developer_api_key_context(
+    req: &HttpRequest,
+    state: &AppState,
+) -> Result<RequestContext, AppError> {
+    let secret = developer_api_key_bearer_token(req).ok_or(AppError::Unauthorized)?;
+    let auth = developer_api_keys::authenticate(&state.pool, secret)
+        .await?
+        .ok_or(AppError::Unauthorized)?;
+    Ok(RequestContext {
+        principal: crate::identity::principal::Principal {
+            kind: crate::identity::principal::PrincipalKind::WorkspaceApiKey,
+            id: auth.id.clone(),
+            subject_user_id: Some(auth.created_by_id.clone()),
+            client_id: Some(auth.id),
+        },
+        organization_id: auth.organization_id,
+        user_id: Some(auth.created_by_id),
+        client_id: None,
+        installation_id: None,
+        effective_grants: Default::default(),
+        api_scopes: Some(auth.scopes.into_iter().collect()),
+        correlation_id: optional_header(req, "x-correlation-id"),
+        causation_id: optional_header(req, "x-causation-id"),
+        idempotency_key: optional_header(req, "idempotency-key"),
+    })
+}
+
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 struct InstallationTokenClaims {
     #[serde(rename = "organizationId")]
@@ -383,6 +451,7 @@ fn installation_context(req: &HttpRequest, state: &AppState) -> Result<RequestCo
         client_id: None,
         installation_id: Some(installation_id),
         effective_grants: Default::default(),
+        api_scopes: None,
         correlation_id: optional_header(req, "x-correlation-id"),
         causation_id: optional_header(req, "x-causation-id"),
         idempotency_key: optional_header(req, "idempotency-key"),
@@ -520,6 +589,18 @@ async fn require_public_action(
         .public_api_policy()
         .is_ok_and(|policy| !policy.requires_installation_capabilities)
     {
+        if let Some(scopes) = context.api_scopes.as_ref() {
+            let required_api_scope = if matches!(definition.risk, actions::RiskClass::Read) {
+                "api:read"
+            } else {
+                "api:write"
+            };
+            if !scopes.contains(required_api_scope) {
+                return Err(AppError::Forbidden(format!(
+                    "Developer API key is missing scope: {required_api_scope}"
+                )));
+            }
+        }
         return Ok(());
     }
     let capabilities = AgentPlatformClient::from_config(&state.config)?
@@ -727,6 +808,9 @@ pub async fn capabilities(
     let entitlements = active_entitlements(&state, &context.organization_id).await?;
     let mut allowed_grants: Option<HashSet<String>> = None;
     let mut allowed_api_scopes: Option<HashSet<String>> = None;
+    if let Some(scopes) = context.api_scopes.as_ref() {
+        allowed_api_scopes = Some(scopes.iter().cloned().collect());
+    }
     if context
         .principal
         .public_api_policy()
@@ -1108,8 +1192,9 @@ mod tests {
     use std::collections::HashSet;
 
     use super::{
-        installation_action_allowed, installation_bearer_token, is_public_action_for_actor,
-        page_window, paginate_collection, public_action_allowed, redacted,
+        developer_api_key_bearer_token, installation_action_allowed, installation_bearer_token,
+        is_public_action_for_actor, page_window, paginate_collection, public_action_allowed,
+        redacted,
         verify_installation_token, PublicPageQuery,
     };
     use actions::{catalog::initial_registry, ActionLifecycle, ActorKind, ProductRuntime};
@@ -1146,6 +1231,22 @@ mod tests {
                 .supported_runtimes
                 .contains(&ProductRuntime::Direct));
         }
+    }
+
+    #[test]
+    fn developer_api_key_bearer_detection_requires_the_kst_prefix() {
+        let request = TestRequest::default()
+            .insert_header(("authorization", "Bearer kst_test-secret"))
+            .to_http_request();
+        assert_eq!(
+            developer_api_key_bearer_token(&request),
+            Some("kst_test-secret")
+        );
+
+        let jwt_request = TestRequest::default()
+            .insert_header(("authorization", "Bearer header.payload.signature"))
+            .to_http_request();
+        assert!(developer_api_key_bearer_token(&jwt_request).is_none());
     }
 
     #[test]
@@ -1367,6 +1468,7 @@ mod tests {
         let operations = [
             ("/openapi.json", "get", &["200"][..]),
             ("/health", "get", &["200"][..]),
+            ("/whoami", "get", &["200", "401", "503"][..]),
             ("/capabilities", "get", &["200", "400", "401", "403"][..]),
             ("/metrics", "get", &["200", "401"][..]),
             ("/content/posts", "get", &["200", "400", "401", "403"][..]),
@@ -1461,6 +1563,9 @@ mod tests {
         assert!(document
             .pointer("/components/securitySchemes/bearerInstallation")
             .is_some());
+        assert!(document
+            .pointer("/components/securitySchemes/developerApiKey")
+            .is_some());
     }
 
     #[test]
@@ -1544,6 +1649,7 @@ mod tests {
             client_id: None,
             installation_id: None,
             effective_grants: Default::default(),
+            api_scopes: None,
             correlation_id: None,
             causation_id: None,
             idempotency_key: None,

@@ -364,6 +364,7 @@ mod tests {
             client_id: None,
             installation_id: Some("install-1".to_string()),
             effective_grants: Default::default(),
+            api_scopes: None,
             correlation_id: Some("corr-1".to_string()),
             causation_id: None,
             idempotency_key: None,

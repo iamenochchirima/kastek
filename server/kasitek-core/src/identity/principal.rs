@@ -23,13 +23,13 @@ pub struct PublicApiPrincipalPolicy {
     pub requires_installation_capabilities: bool,
 }
 
-pub const SUPPORTED_PUBLIC_API_PRINCIPALS: [&str; 2] = ["direct_user", "agent_installation"];
-pub const UNSUPPORTED_PUBLIC_API_PRINCIPALS: [&str; 4] = [
+pub const SUPPORTED_PUBLIC_API_PRINCIPALS: [&str; 3] = [
+    "direct_user",
     "workspace_api_key",
-    "service_account",
-    "oauth_user",
-    "oauth_application",
+    "agent_installation",
 ];
+pub const UNSUPPORTED_PUBLIC_API_PRINCIPALS: [&str; 3] =
+    ["service_account", "oauth_user", "oauth_application"];
 
 impl PrincipalKind {
     pub fn wire_name(&self) -> &'static str {
@@ -65,6 +65,13 @@ impl Principal {
                 supports_direct_reads: true,
                 supports_direct_writes: true,
                 requires_installation_capabilities: true,
+            }),
+            PrincipalKind::WorkspaceApiKey => Ok(PublicApiPrincipalPolicy {
+                wire_name: "workspace_api_key",
+                actor_kind: ActorKind::ApiClient,
+                supports_direct_reads: true,
+                supports_direct_writes: true,
+                requires_installation_capabilities: false,
             }),
             _ => Err(AppError::UnsupportedPrincipal(format!(
                 "Public API principal type {} is not supported",
@@ -194,7 +201,6 @@ mod tests {
         assert!(installation.requires_installation_capabilities);
 
         for kind in [
-            PrincipalKind::WorkspaceApiKey,
             PrincipalKind::ServiceAccount,
             PrincipalKind::OAuthUser,
             PrincipalKind::OAuthApplication,

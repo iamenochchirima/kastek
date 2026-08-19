@@ -162,10 +162,10 @@ export async function runStdioBridge(input: {
 if (process.argv[1]?.endsWith("stdio.js") || process.argv[1]?.endsWith("stdio.ts")) {
   if (typeof process.loadEnvFile === "function") process.loadEnvFile(".env");
   const endpoint = process.env.MCP_STDIO_URL?.trim() || "http://127.0.0.1:4200/mcp";
-  const token = process.env.MCP_STDIO_TOKEN?.trim();
+  const token = process.env.MCP_STDIO_API_KEY?.trim() || process.env.MCP_STDIO_TOKEN?.trim();
   const probeProtocol = process.env.MCP_STDIO_PROBE?.trim().toLowerCase() !== "false";
   if (!token) {
-    process.stderr.write("MCP_STDIO_TOKEN is required\n");
+    process.stderr.write("MCP_STDIO_API_KEY is required\n");
     process.exitCode = 1;
   } else {
     runStdioBridge({ endpoint, token, probeProtocol }).catch((error) => {

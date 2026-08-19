@@ -12,6 +12,10 @@ pub struct RequestContext {
     pub client_id: Option<String>,
     pub installation_id: Option<String>,
     pub effective_grants: BTreeSet<String>,
+    /// Explicit API scopes for a machine credential. `None` means the caller
+    /// is a product session or an internal principal whose policy is resolved
+    /// elsewhere; it must not be treated as an empty scope set.
+    pub api_scopes: Option<BTreeSet<String>>,
     pub correlation_id: Option<String>,
     pub causation_id: Option<String>,
     pub idempotency_key: Option<String>,

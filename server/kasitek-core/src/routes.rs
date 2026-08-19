@@ -26,6 +26,7 @@ mod tests {
         let routes = [
             (Method::GET, "/health"),
             (Method::GET, "/v1/health"),
+            (Method::GET, "/v1/whoami"),
             (Method::GET, "/v1/openapi.json"),
             (Method::PATCH, "/v1/content/posts/post-1"),
             (Method::GET, "/v1/contacts"),

@@ -1,17 +1,19 @@
-# Agent installation REST API
+# Agent installation REST API (advanced compatibility)
 
 For the product-level choice between KasiAi, hosted user agents, and external runtimes, see the
 [agent connection guide](./agent-connection-guide.md).
 
-The public agent REST surface is an installation-scoped transport for external agents. It uses the
+The normal Developers flow uses one workspace Developer API key for Core REST and MCP. This
+document describes the lower-level installation-scoped Agent Platform REST surface for advanced
+or legacy runtimes. It uses the
 same tool registry, installation grants, durable run records, Temporal workflow, approval policy, and
 event timeline as the MCP transport.
 
 ## Authentication
 
 1. Create a dedicated external-connected installation with `POST /v1/external-agents`. Supply the
-   runtime, protocols, initial capabilities, optional resource/connector constraints, and desired
-   credential scopes. The response contains a copy-once secret.
+   runtime, protocols, initial capabilities, and optional resource/connector constraints. The
+   response contains a copy-once secret with read/write transport access.
 2. Review or narrow the installation's grants from its control-plane details.
 3. Exchange the one-time credential secret at `POST /v1/installation-tokens/exchange` with
    `{ "audience": "kasitek-public-api" }`.
@@ -20,9 +22,9 @@ event timeline as the MCP transport.
 The external creation flow does not accept or discover a KasiAi or hosted-agent installation ID.
 Credentials on those modes are rejected by the Agent API.
 
-Credentials are independently revocable and carry `api:read` and/or `api:write` scopes. Read tools
-require `api:read`; drafts, writes, and external effects require `api:write`. Both are constrained by
-the installation's tool grants and the tool's approval policy.
+Credentials are independently revocable and carry both `api:read` and `api:write` transport scopes.
+Read tools, drafts, writes, and external effects are still constrained by the installation's tool
+grants, resource scopes, availability, and approval policy.
 
 Management sessions can list and inspect external identities with `GET /v1/external-agents` and
 `GET /v1/external-agents/{installationId}`. The detail response includes grants, credential status,

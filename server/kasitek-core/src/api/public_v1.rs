@@ -9,6 +9,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         web::scope("/v1")
             .wrap(middleware::from_fn(crate::services::public_api::middleware))
             .route("/health", web::get().to(public_v1::health))
+            .route("/whoami", web::get().to(public_v1::whoami))
             .route("/openapi.json", web::get().to(public_v1::openapi))
             .route("/metrics", web::get().to(public_v1::metrics))
             .route("/capabilities", web::get().to(public_v1::capabilities))

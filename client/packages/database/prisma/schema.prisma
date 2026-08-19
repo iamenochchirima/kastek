@@ -40,6 +40,7 @@ model Organization {
   entitlementGrants              OrganizationEntitlementGrant[]
   usageEvents                    UsageEvent[]
   publicApiRequests              PublicApiRequest[]
+  developerApiKeys               DeveloperApiKey[] @relation("DeveloperApiKeysOrganization")
   publicApiWebhookSubscriptions  PublicApiWebhookSubscription[]
   billingCheckouts               BillingCheckout[]
   billingInvoices                BillingInvoice[]
@@ -359,6 +360,27 @@ model PublicApiRequest {
   @@index([action, createdAt])
 }
 
+model DeveloperApiKey {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation("DeveloperApiKeysOrganization", fields: [orgId], references: [id], onDelete: Cascade)
+  name        String
+  prefix      String
+  keyHash     String       @unique
+  scopes      String[]     @default(["api:read", "api:write"])
+  status      String       @default("ACTIVE")
+  createdById String
+  createdBy   User         @relation("DeveloperApiKeysCreated", fields: [createdById], references: [id], onDelete: Restrict)
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([orgId, status])
+  @@index([orgId, createdAt])
+}
+
 model PublicApiWebhookSubscription {
   id               String   @id @default(cuid())
   orgId            String
@@ -511,6 +533,7 @@ model User {
   ownedOrganizations Organization[]           @relation("OwnedOrganizations")
   orgMemberships     OrganizationMember[]
   sentInvitations    OrganizationInvitation[] @relation("SentInvitations")
+  createdDeveloperApiKeys DeveloperApiKey[]   @relation("DeveloperApiKeysCreated")
 
   businessProfile                BusinessProfile?
   conversations                  OnboardingConversation[]
