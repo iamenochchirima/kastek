@@ -12,6 +12,9 @@ export type InstallationStatus = z.infer<typeof installationStatusSchema>;
 export const agentExecutionModeSchema = z.enum(["system_hosted", "kasitek_hosted", "external_connected"]);
 export type AgentExecutionMode = z.infer<typeof agentExecutionModeSchema>;
 
+export const hostedAgentCreationProfileSchema = z.enum(["general", "custom"]);
+export type HostedAgentCreationProfile = z.infer<typeof hostedAgentCreationProfileSchema>;
+
 export const runStatusSchema = z.enum([
   "received",
   "queued",
@@ -63,6 +66,7 @@ export const createAgentInputSchema = z.object({
     .max(80)
     .optional(),
   description: z.string().trim().max(2000).optional(),
+  creationProfile: hostedAgentCreationProfileSchema.default("custom"),
   protected: z.boolean().default(false),
 });
 export type CreateAgentInput = z.infer<typeof createAgentInputSchema>;
@@ -77,7 +81,7 @@ export type CreateVersionInput = z.infer<typeof createVersionInputSchema>;
 export const createInstallationInputSchema = z.object({
   agentVersionId: z.string().uuid(),
   scopeType: z.enum(["organization", "user", "business"]).default("organization"),
-  scopeId: z.string().min(1).max(160),
+  scopeId: z.string().min(1).max(160).optional(),
   settings: z.record(z.string(), z.unknown()).default({}),
   executionMode: agentExecutionModeSchema.optional(),
 });

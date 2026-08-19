@@ -8,6 +8,11 @@ describe("agent templates", () => {
     for (const template of templates) {
       expect(template.key).toMatch(/^[a-z0-9-]+$/);
       expect(template.version).toBeGreaterThan(0);
+      expect(template.profile).toBe("custom");
+      expect(template.instructions.length).toBeGreaterThan(20);
+      expect(template.requiredCapabilities.length).toBeGreaterThan(0);
+      expect(template.setupSteps.length).toBeGreaterThan(0);
+      expect(template.configuration.workflow).toMatchObject({ version: 1, entryNodeId: "prepare" });
       expect(template.policy.allowedTools).toEqual(["platform.current_time"]);
       expect(template.channelCompatibility).toContain("platform");
     }

@@ -6,6 +6,7 @@ import type {
   CreateExternalAgentInput,
   CreateInstallationInput,
   CreateVersionInput,
+  HostedAgentCreationProfile,
 } from "../../domain/types";
 import { query, withTransaction } from "../pool";
 import { validateVersionWorkflow } from "../../workflows/graph";
@@ -25,6 +26,7 @@ export interface AgentRecord {
   name: string;
   slug: string;
   description: string | null;
+  creation_profile: HostedAgentCreationProfile | "system";
   status: string;
   protected: boolean;
   created_by: string;
@@ -97,6 +99,8 @@ export interface ExternalAgentConnectionRecord {
   credential?: CreatedInstallationCredential;
 }
 
+type CreateSystemAgentInput = Omit<CreateAgentInput, "creationProfile"> & { creationProfile?: HostedAgentCreationProfile };
+
 function slugify(name: string): string {
   return name
     .trim()
@@ -140,10 +144,10 @@ export class AgentRepository {
     const result = await query<AgentRecord>(
       this.pool,
       `INSERT INTO agent_definitions
-        (organization_id, owner_type, name, slug, description, protected, created_by)
-       VALUES ($1, 'organization', $2, $3, $4, $5, $6)
+        (organization_id, owner_type, name, slug, description, creation_profile, protected, created_by)
+       VALUES ($1, 'organization', $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [organizationId, input.name, slug, input.description ?? null, isProtected, actorId],
+      [organizationId, input.name, slug, input.description ?? null, input.creationProfile, isProtected, actorId],
     );
     return result.rows[0]!;
   }
@@ -526,15 +530,15 @@ export class AgentRepository {
 
   public async createSystemAgent(
     actorId: string,
-    input: CreateAgentInput & { organizationId?: string },
+    input: CreateSystemAgentInput & { organizationId?: string },
   ): Promise<AgentRecord> {
     const organizationId = input.organizationId ?? SYSTEM_ORGANIZATION_ID;
     const slug = input.slug ?? slugify(input.name);
     const result = await query<AgentRecord>(
       this.pool,
       `INSERT INTO agent_definitions
-        (organization_id, owner_type, name, slug, description, protected, created_by)
-       VALUES ($1, 'system', $2, $3, $4, TRUE, $5)
+        (organization_id, owner_type, name, slug, description, creation_profile, protected, created_by)
+       VALUES ($1, 'system', $2, $3, $4, 'system', TRUE, $5)
        RETURNING *`,
       [organizationId, input.name, slug, input.description ?? null, actorId],
     );
@@ -543,15 +547,15 @@ export class AgentRepository {
 
   public async ensureSystemAgent(
     actorId: string,
-    input: CreateAgentInput & { organizationId?: string },
+    input: CreateSystemAgentInput & { organizationId?: string },
   ): Promise<AgentRecord> {
     const organizationId = input.organizationId ?? SYSTEM_ORGANIZATION_ID;
     const slug = input.slug ?? slugify(input.name);
     return withTransaction(this.pool, async (client) => {
       await client.query(
         `INSERT INTO agent_definitions
-          (organization_id, owner_type, name, slug, description, protected, created_by)
-         VALUES ($1, 'system', $2, $3, $4, TRUE, $5)
+          (organization_id, owner_type, name, slug, description, creation_profile, protected, created_by)
+         VALUES ($1, 'system', $2, $3, $4, 'system', TRUE, $5)
          ON CONFLICT (organization_id, slug) DO NOTHING`,
         [organizationId, input.name, slug, input.description ?? null, actorId],
       );
@@ -1117,7 +1121,7 @@ export class AgentRepository {
           input.agentVersionId,
           organizationId,
           input.scopeType,
-          input.scopeId,
+          input.scopeId ?? organizationId,
           executionMode,
           JSON.stringify(input.settings),
           actorId,

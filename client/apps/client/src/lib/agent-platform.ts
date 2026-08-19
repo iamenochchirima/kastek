@@ -269,6 +269,7 @@ export type AgentDefinition = {
   name: string;
   slug: string;
   description?: string | null;
+  creation_profile?: "general" | "custom" | "system" | null;
   status: string;
   protected: boolean;
   owner_type: string;
@@ -284,7 +285,7 @@ export function listAgents(): Promise<{ agents: AgentDefinition[] }> {
   return request<{ agents: AgentDefinition[] }>("/api/agents");
 }
 
-export function createAgent(input: { name: string; slug?: string; description?: string }): Promise<AgentDefinition> {
+export function createAgent(input: { name: string; slug?: string; description?: string; creationProfile?: "general" | "custom" }): Promise<AgentDefinition> {
   return request("/api/agents", { method: "POST", body: JSON.stringify({ ...input, protected: false }) });
 }
 
@@ -361,9 +362,16 @@ export function createAgentInstallation(agentVersionId: string, settings: Record
 export type AgentTemplate = {
   key: string;
   version: number;
+  profile: "custom";
+  category: string;
   name: string;
   description: string;
+  instructions?: string;
+  policy?: Record<string, unknown>;
+  configuration?: Record<string, unknown>;
   requiredConnections: string[];
+  requiredCapabilities: string[];
+  setupSteps: string[];
   configurableFields: Array<{ key: string; type: string; description: string }>;
   channelCompatibility?: string[];
 };

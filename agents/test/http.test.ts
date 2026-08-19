@@ -910,18 +910,34 @@ describe("Agent Platform HTTP foundation", () => {
   });
 
   it("creates an agent through the scoped control-plane contract", async () => {
+    const createAgent = vi.fn(async () => ({ id: "agent-1", name: "Test" }));
     const agents = {
-      createAgent: async () => ({ id: "agent-1", name: "Test" }),
+      createAgent,
     } as unknown as AgentRepository;
     const app = buildApp({ config, pool: fakePool, agents });
     const response = await app.inject({
       method: "POST",
       url: "/v1/agents",
       headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
-      payload: { name: "Test agent" },
+      payload: { name: "Test agent", creationProfile: "general" },
     });
     expect(response.statusCode).toBe(201);
     expect(response.json()).toMatchObject({ id: "agent-1" });
+    expect(createAgent).toHaveBeenCalledWith("org-1", "user-1", expect.objectContaining({ name: "Test agent", creationProfile: "general" }));
+    await app.close();
+  });
+
+  it("defaults an organization installation scope to the authenticated organization", async () => {
+    const createInstallation = vi.fn(async (_organizationId: string, _actorId: string, input: Record<string, unknown>) => ({ id: "installation-1", ...input }));
+    const app = buildApp({ config, pool: fakePool, agents: { createInstallation } as unknown as AgentRepository });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/installations",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { agentVersionId: "11111111-1111-4111-8111-111111111111" },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(createInstallation).toHaveBeenCalledWith("org-1", "user-1", expect.objectContaining({ scopeType: "organization", scopeId: "org-1" }));
     await app.close();
   });
 

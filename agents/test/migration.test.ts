@@ -161,4 +161,12 @@ describe("foundation migration", () => {
     expect(auditExecutionModeSql).toContain("audit_execution_mode_enrichment_trigger");
     expect(auditExecutionModeSql).toContain("executionMode");
   });
+
+  it("defines hosted-agent creation profiles", async () => {
+    const profileSql = await readFile(new URL("../migrations/054_agent_creation_profiles.sql", import.meta.url), "utf8");
+    expect(profileSql).toContain("creation_profile");
+    expect(profileSql).toContain("'general'");
+    expect(profileSql).toContain("'custom'");
+    expect(profileSql).toContain("'system'");
+  });
 });

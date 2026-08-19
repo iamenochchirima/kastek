@@ -1554,7 +1554,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post("/v1/installations", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
-    const input = createInstallationInputSchema.parse(request.body);
+    const parsed = createInstallationInputSchema.parse(request.body);
+    const input = { ...parsed, scopeId: parsed.scopeId ?? auth.organizationId };
     const installation = await agents.createInstallation(auth.organizationId, auth.actorId, input);
     return reply.code(201).send(installation);
   });
