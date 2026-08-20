@@ -1,7 +1,23 @@
 import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono, Geist_Pixel } from "next/font/google";
 import PwaRegister from "@/components/pwa-register";
 import ThemeScript from "@/components/theme-script";
 import "./globals.css";
+
+const geist = Geist({
+  variable: "--font-geist",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+const geistPixel = Geist_Pixel({
+  variable: "--font-geist-pixel",
+  subsets: ["latin"],
+});
 
 export const metadata: Metadata = {
   applicationName: "KasiTek app",
@@ -44,7 +60,7 @@ export default async function RootLayout({
       <head>
         <ThemeScript />
       </head>
-      <body className="font-sans antialiased">
+      <body className={`${geist.variable} ${geistMono.variable} ${geistPixel.variable} font-sans antialiased`}>
         {children}
         <PwaRegister />
       </body>

@@ -4,41 +4,9 @@ This file defines the default working structure for implementation tasks in this
 
 ## Project Direction
 
-Consult [`PROJECT_PLAN.md`](PROJECT_PLAN.md) before making meaningful structural decisions. It is the
-repository-level ownership and boundary document, not a substitute for a current scoped execution
-plan.
-
-Use the narrowest active plan that owns the work. For the Agent Platform programme, read and follow
-these documents in order:
-
-1. [`KASITEK_AGENT_SYSTEM_AUDIT_REMEDIATION_CHECKLIST.md`](KASITEK_AGENT_SYSTEM_AUDIT_REMEDIATION_CHECKLIST.md)
-   for audited release-blocking corrections.
-2. [`KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md`](KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md)
-   for ordered implementation and verification.
-3. [`KASITEK_AGENT_CAPABILITY_MCP_ARCHITECTURE_DRAFT.md`](KASITEK_AGENT_CAPABILITY_MCP_ARCHITECTURE_DRAFT.md)
-   for approved architectural rationale.
-4. [`PROJECT_PLAN.md`](PROJECT_PLAN.md) for cross-product ownership and direct/white-label
-   boundaries.
-
-For the focused Developers product surface, also read
-[`KASITEK_DEVELOPERS_PLATFORM_CHECKLIST.md`](KASITEK_DEVELOPERS_PLATFORM_CHECKLIST.md) before
-implementing API keys, the Developers section, REST onboarding, MCP setup, Codex setup, or related
-developer documentation. This checklist narrows the scope of that product slice; it does not
-replace the Agent Platform documents above.
-
-Do not treat documents under `docs/archive/` as active plans. Supporting documents under
-`docs/internal/` do not override a root canonical plan unless explicitly promoted.
-
-In particular, do not lose the current white-label model:
-
-- `kasitek-tenants` is a separate white-label backend
-- `tenant-portal` is a separate white-label frontend
-- the tenant platform has its own database
-- the white-label system has three live layers from the start:
-
-  1. KasiTek platform
-  2. tenant admin/staff
-  3. tenant client/customer accounts
+Use [`PROJECT_PLAN.md`](PROJECT_PLAN.md) as the repository's single reusable planning template when
+a durable plan is useful. It contains no active product decisions; derive scope, ownership, and
+constraints from the current task and codebase.
 
 ## Default Rule
 

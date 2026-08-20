@@ -15,9 +15,7 @@ retirement of the pre-2026 compatibility path.
 **Purpose:** Provide an end-to-end migration path from the current `2025-06-18` initialize-based
 contract to the `2026-07-28` per-request stateless contract without breaking existing agents.
 
-This is an execution aid. It does not replace or silently check items in the canonical
-[Agent System Execution Blueprint](../../../KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md) or
-[Agent System Audit Remediation Checklist](../../../KASITEK_AGENT_SYSTEM_AUDIT_REMEDIATION_CHECKLIST.md).
+This is an execution aid retained for historical reference.
 
 ## References
 

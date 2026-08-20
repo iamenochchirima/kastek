@@ -39,7 +39,6 @@ require_command cargo
 require_command pnpm
 require_command gnome-terminal
 require_command curl
-require_command ngrok
 
 # Write a temp launcher script for each service to avoid gnome-terminal's
 # argument parsing bug where '--' stops processing subsequent '--tab' flags.
@@ -72,8 +71,6 @@ services["agent-gateway"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; pnpm run dev:gatew
 services["client"]="$ROOT_DIR/client|pnpm run dev"
 services["admin"]="$ROOT_DIR/client|pnpm dev:admin"
 services["labs"]="$ROOT_DIR/client|pnpm --filter labs dev"
-services["ngrok"]="$ROOT_DIR|ngrok http http://localhost:4000"
-services["ngrok-client"]="$ROOT_DIR|ngrok http --url=curtis-pastureless-sickerly.ngrok-free.dev 3000"
 
 if [[ "$TEMPORAL_MODE" == "local" ]]; then
   services["temporal"]="$ROOT_DIR|temporal server start-dev --db-filename '$ROOT_DIR/.local/temporal.sqlite'"
@@ -128,23 +125,6 @@ stop_service() {
     done < <(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)
   fi
 
-  case "$name" in
-    ngrok)
-      while IFS= read -r process_id; do
-        [[ -z "$process_id" ]] && continue
-        stop_process_tree "$process_id"
-        found=true
-      done < <(pgrep -f 'ngrok http http://localhost:4000' 2>/dev/null || true)
-      ;;
-    ngrok-client)
-      while IFS= read -r process_id; do
-        [[ -z "$process_id" ]] && continue
-        stop_process_tree "$process_id"
-        found=true
-      done < <(pgrep -f 'ngrok http --url=curtis-pastureless-sickerly.ngrok-free.dev 3000' 2>/dev/null || true)
-      ;;
-  esac
-
   if [[ "$found" == true ]]; then
     echo "Stopped $name."
   else
@@ -198,7 +178,7 @@ show_usage() {
 # Parse command line arguments
 if [[ $# -eq 0 ]]; then
   # No arguments - run all services
-  services_to_start=(core tenants agents-api agents-worker agent-gateway client admin labs ngrok ngrok-client)
+  services_to_start=(core tenants agents-api agents-worker agent-gateway client admin labs)
   if [[ "$TEMPORAL_MODE" == "local" ]]; then
     services_to_start+=(temporal)
   fi

@@ -7,11 +7,10 @@ sidebar_position: 6
 # Agent-system Slice 0 baseline
 
 **Recorded:** 2026-08-13
-**Blueprint:** [Agent system execution blueprint](../../../KASITEK_AGENT_SYSTEM_EXECUTION_BLUEPRINT.md)
 
 This is an evidence inventory, not a claim that the target architecture is
-complete. It maps the August 2026 implementation to the canonical blueprint so
-subsequent slices can replace partial paths without preserving them by accident.
+complete. It maps the August 2026 implementation so later work can replace
+partial paths without preserving them by accident.
 
 ## Current implementation map
 

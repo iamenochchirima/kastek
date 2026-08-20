@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;550;600;650;700&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -130,10 +129,10 @@
 }
 
 @theme inline {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
-  --font-serif: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-display: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-serif: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-geist-pixel), ui-sans-serif, system-ui, sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -210,7 +209,7 @@
   body {
     @apply bg-background text-foreground;
     -webkit-font-smoothing: antialiased;
-    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
     transition:
       background-color 180ms ease,
       color 180ms ease,
