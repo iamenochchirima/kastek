@@ -16,6 +16,7 @@ describe.skipIf(!runIntegration)("retention and legal-hold controls (integration
   const actorId = `retention-operator-${randomUUID()}`;
   const secondActorId = `retention-operator-${randomUUID()}`;
   const commandDependencies = { pool, retention, killSwitches, runs: undefined as never, effectReceipts: undefined as never };
+  const agentId = randomUUID();
   let memoryId = "";
   let holdId = "";
   const commandIds: string[] = [];
@@ -23,10 +24,15 @@ describe.skipIf(!runIntegration)("retention and legal-hold controls (integration
   it("keeps held data out of retention, then expires and queues it after release", async () => {
     const policy = await retention.setPolicy({ organizationId, memoryDays: 30, conversationDays: 30, eventDays: 30, auditDays: 365, attachmentDays: 7, actorId });
     expect(policy).toMatchObject({ organization_id: organizationId, memory_days: 30, revision: 1 });
+    await pool.query(
+      `INSERT INTO agent_definitions (id, organization_id, name, slug, created_by)
+       VALUES ($1, $2, 'Retention test agent', $3, $4)`,
+      [agentId, organizationId, `retention-${agentId}`, actorId],
+    );
     const memory = await pool.query<{ id: string }>(
-      `INSERT INTO memory_records (organization_id, namespace, memory_type, canonical_text, source_type, created_by, status)
-       VALUES ($1, 'organization_shared', 'semantic', 'old retention record', 'explicit', $2, 'active') RETURNING id`,
-      [organizationId, actorId],
+      `INSERT INTO memory_records (organization_id, agent_definition_id, namespace, memory_type, canonical_text, source_type, created_by, status)
+       VALUES ($1, $2, 'organization_shared', 'semantic', 'old retention record', 'explicit', $3, 'active') RETURNING id`,
+      [organizationId, agentId, actorId],
     );
     memoryId = memory.rows[0]!.id;
     await pool.query("UPDATE memory_records SET created_at = now() - interval '60 days' WHERE id = $1", [memoryId]);
@@ -79,6 +85,7 @@ describe.skipIf(!runIntegration)("retention and legal-hold controls (integration
     await pool.query("DELETE FROM agent_operator_commands WHERE id = ANY($1::uuid[])", [commandIds]);
     await pool.query("DELETE FROM memory_deletion_jobs WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM memory_records WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_definitions WHERE id = $1", [agentId]);
     await pool.query("DELETE FROM agent_legal_holds WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_retention_policies WHERE organization_id = $1", [organizationId]);
     await pool.end();

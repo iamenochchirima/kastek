@@ -384,10 +384,10 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     );
     await pool.query(
       `INSERT INTO memory_records
-        (organization_id, installation_id, conversation_id, owner_user_id, namespace, memory_type,
+        (organization_id, agent_definition_id, installation_id, conversation_id, owner_user_id, namespace, memory_type,
          canonical_text, source_type, created_by)
-       VALUES ($1, $2, $3, $4, 'conversation', 'working', 'temporary context', 'inferred', $4)`,
-      [organizationId, installationId, current.conversation.id, "lifecycle-owner"],
+       VALUES ($1, $2, $3, $4, $5, 'conversation', 'working', 'temporary context', 'inferred', $5)`,
+      [organizationId, agentId, installationId, current.conversation.id, "lifecycle-owner"],
     );
     await expect(conversations.setOwnedStatus(
       organizationId,

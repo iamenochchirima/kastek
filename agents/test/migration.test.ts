@@ -186,4 +186,13 @@ describe("foundation migration", () => {
     expect(modeSql).toContain("channel_connections_sidebar_guard");
     expect(modeSql).toContain("The protected KasiAi installation owns the platform sidebar");
   });
+
+  it("enforces installation-local conversation and run ownership", async () => {
+    const conversationSql = await readFile(new URL("../migrations/059_conversation_ownership_invariants.sql", import.meta.url), "utf8");
+    expect(conversationSql).toContain("conversations_ownership_trigger");
+    expect(conversationSql).toContain("messages_conversation_scope_trigger");
+    expect(conversationSql).toContain("agent_runs_conversation_scope_trigger");
+    expect(conversationSql).toContain("run_steps_ownership_trigger");
+    expect(conversationSql).toContain("agent_events_ownership_trigger");
+  });
 });

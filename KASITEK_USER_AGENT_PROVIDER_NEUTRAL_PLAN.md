@@ -104,10 +104,12 @@ but it must not be presented as available until its earlier dependencies are com
   definition for knowledge and durable memory. A migration adds write-time ownership checks for
   context records, knowledge chunks, installations, and runs. Execution mode and platform-sidebar
   guards now reject mixed definitions and non-KasiAi sidebar ownership. Legacy-row remediation and
-  conversation-level ownership checks remain pending.
+  explicit shared-source attachment semantics remain pending.
 
 - [x] Make runtime knowledge and memory retrieval agent-local by default. (`agents/src/db/repositories/knowledge-repository.ts`, `agents/src/db/repositories/memory-repository.ts`)
-- [ ] Make agent-local conversations, instructions, and grants the default.
+- [x] Make agent-local conversations the default and reject organization or installation mismatch
+  writes for conversations, messages, participants, runs, run steps, and events. (`059`)
+- [ ] Make agent-local instructions and grants the default.
 - [ ] Replace nullable organization-wide knowledge and memory visibility with explicit shared-source
   attachments or an explicit organization-shared selection.
 - [x] Require new memory and knowledge writes to carry an owning agent definition and reject
@@ -273,8 +275,8 @@ out of scope for the batches above.
   KasiAi identity check succeeds.
 - [ ] When no tools are authorized, expose an empty tool list to the model and produce a normal
   model response rather than a KasiTek fallback response.
-- [ ] Ensure agent instructions, tool results, memories, and conversation records cannot cross into
-  another user agent.
+- [x] Ensure conversation records and their durable run/message children cannot cross into another
+  agent installation. (`agents/migrations/059_conversation_ownership_invariants.sql`)
 - [ ] Keep provenance and usage records accurate even for tool-less runs.
 - [ ] Use explicit attachment records for organization-shared knowledge and memory rather than
   interpreting a nullable agent identifier as permission for every agent.
