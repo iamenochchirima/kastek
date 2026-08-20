@@ -549,20 +549,6 @@ export class AgentRepository {
          VALUES ($1, $2) ON CONFLICT (installation_id) DO NOTHING`,
         [installation.id, input.organizationId],
       );
-      // Every template installation is immediately addressable through the
-      // authenticated platform channel. External channels still require an
-      // explicit connection and identity pairing.
-      await client.query(
-        `INSERT INTO channel_connections
-          (organization_id, installation_id, channel_type, channel_key, metadata, created_by)
-         VALUES ($1, $2, 'platform', 'sidebar', $3::jsonb, $4)
-         ON CONFLICT (organization_id, channel_type, channel_key) DO UPDATE
-         SET installation_id = EXCLUDED.installation_id,
-             metadata = EXCLUDED.metadata,
-             status = 'active',
-             updated_at = now()`,
-        [input.organizationId, installation.id, JSON.stringify({ managed: true, channel: "authenticated-platform" }), input.actorId],
-      );
       if (created) {
         await client.query(
           `INSERT INTO audit_records
@@ -1234,17 +1220,19 @@ export class AgentRepository {
          ON CONFLICT (installation_id) DO NOTHING`,
         [installation.id, input.organizationId],
       );
-      await client.query(
-        `INSERT INTO channel_connections
-          (organization_id, installation_id, channel_type, channel_key, metadata, created_by)
-         VALUES ($1, $2, 'platform', 'sidebar', $3::jsonb, $4)
-         ON CONFLICT (organization_id, channel_type, channel_key) DO UPDATE
-         SET installation_id = EXCLUDED.installation_id,
-             metadata = EXCLUDED.metadata,
-             status = 'active',
-             updated_at = now()`,
-        [input.organizationId, installation.id, JSON.stringify({ managed: true, channel: "authenticated-platform" }), input.actorId],
-      );
+      if (input.systemSlug === "kasiai") {
+        await client.query(
+          `INSERT INTO channel_connections
+            (organization_id, installation_id, channel_type, channel_key, metadata, created_by)
+           VALUES ($1, $2, 'platform', 'sidebar', $3::jsonb, $4)
+           ON CONFLICT (organization_id, channel_type, channel_key) DO UPDATE
+           SET installation_id = EXCLUDED.installation_id,
+               metadata = EXCLUDED.metadata,
+               status = 'active',
+               updated_at = now()`,
+          [input.organizationId, installation.id, JSON.stringify({ managed: true, channel: "authenticated-platform" }), input.actorId],
+        );
+      }
       if (installation.created_now) {
         await client.query(
           `INSERT INTO audit_records

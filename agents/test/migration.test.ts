@@ -178,4 +178,12 @@ describe("foundation migration", () => {
     expect(scopeSql).toContain("agent_installations_ownership_trigger");
     expect(scopeSql).toContain("agent_runs_ownership_trigger");
   });
+
+  it("reserves execution modes and the platform sidebar for KasiAi", async () => {
+    const modeSql = await readFile(new URL("../migrations/058_execution_mode_and_sidebar_guards.sql", import.meta.url), "utf8");
+    expect(modeSql).toContain("agent_installations_execution_mode_guard");
+    expect(modeSql).toContain("An agent definition cannot mix execution modes");
+    expect(modeSql).toContain("channel_connections_sidebar_guard");
+    expect(modeSql).toContain("The protected KasiAi installation owns the platform sidebar");
+  });
 });
