@@ -36,7 +36,8 @@ separate.
 
 - [x] Start with platform-managed conversation history and memory behavior.
 - [x] Allow pasted information and supported file uploads for this agent.
-- [ ] Show knowledge ingestion progress, errors, ownership, and source status.
+- [x] Show knowledge ingestion progress and errors during publish.
+- [ ] Show persisted per-source ownership, status, and ingestion history.
 - [x] Allow this step to be skipped and completed later.
 - [ ] Never mix KasiAi knowledge or memory into a hosted user agent.
 
@@ -127,7 +128,7 @@ separate.
 
 - [x] Batch 1: progressive shell, staged basics, baseline workflow, and draft review.
 - [x] Batch 2: optional pasted/file knowledge sources with installation-scoped ingestion.
-- [ ] Batch 2 follow-up: show per-source ingestion progress, status, and retry controls.
+- [x] Batch 2 follow-up: show publish/indexing stages and retry controls for failed ingestion.
 - [ ] Batch 3: tools, credentials, capability readiness, and explicit KasiTek integrations.
 - [ ] Batch 4: test conversation, activity, approval, retry, and failure UX.
 - [ ] Batch 5: publish, installation rollout, deployment readiness, rollback, and lifecycle.

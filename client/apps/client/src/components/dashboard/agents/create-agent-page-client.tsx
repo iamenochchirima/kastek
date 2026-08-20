@@ -42,6 +42,7 @@ import {
 } from "./agent-runtime-limits";
 
 type Step = 1 | 2 | 3 | 4 | 5;
+type KnowledgeRetry = { sourceId: string; kind: "text" | "file"; label: string };
 
 const starterInstructions =
   "You are a helpful user-created assistant. Use only the instructions, knowledge, and integrations configured for this agent. Be clear about what you know, what you did, and what still requires the user to act.";
@@ -155,9 +156,11 @@ export function CreateAgentPageClient({ initialTemplate }: { initialTemplate?: A
   const [workflowValid, setWorkflowValid] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [publishStage, setPublishStage] = useState<"idle" | "publishing" | "indexing-text" | "indexing-file">("idle");
+  const [retryingKnowledge, setRetryingKnowledge] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ agent: AgentDefinition; version: AgentVersion } | null>(null);
-  const [created, setCreated] = useState<{ id: string; name: string; knowledgeWarning?: string } | null>(null);
+  const [created, setCreated] = useState<{ id: string; name: string; knowledgeWarning?: string; knowledgeRetries: KnowledgeRetry[] } | null>(null);
 
   const canContinue =
     step === 1
@@ -243,34 +246,72 @@ export function CreateAgentPageClient({ initialTemplate }: { initialTemplate?: A
     if (!draft || loading) return;
     setLoading(true);
     setError(null);
+    setPublishStage("publishing");
     try {
       const published = await publishAgentVersion(draft.agent.id, draft.version.id);
       const installation = await createAgentInstallation(published.id, { profile: "custom", tone: "balanced", responseDetail: "standard" });
       const knowledgeErrors: string[] = [];
+      const knowledgeRetries: KnowledgeRetry[] = [];
       if (knowledgeText.trim()) {
+        setPublishStage("indexing-text");
+        let sourceId: string | null = null;
         try {
           const source = await createAgentKnowledgeSource({ agentId: draft.agent.id, installationId: installation.id, name: "Information encyclopedia", sourceType: "manual" });
+          sourceId = source.id;
           await ingestAgentKnowledgeSourceText(source.id, knowledgeText.trim());
         } catch (cause) {
-          knowledgeErrors.push(cause instanceof Error ? cause.message : "Pasted information could not be indexed");
+          knowledgeErrors.push(`Pasted information: ${cause instanceof Error ? cause.message : "could not be indexed"}`);
+          if (sourceId) knowledgeRetries.push({ sourceId, kind: "text", label: "Pasted information" });
         }
       }
       if (knowledgeFile) {
+        setPublishStage("indexing-file");
+        let sourceId: string | null = null;
         try {
           const source = await createAgentKnowledgeSource({ agentId: draft.agent.id, installationId: installation.id, name: "Information upload", sourceType: "upload" });
+          sourceId = source.id;
           await ingestAgentKnowledgeSourceFile(source.id, knowledgeFile);
         } catch (cause) {
-          knowledgeErrors.push(cause instanceof Error ? cause.message : "The selected file could not be indexed");
+          knowledgeErrors.push(`File upload: ${cause instanceof Error ? cause.message : "could not be indexed"}`);
+          if (sourceId) knowledgeRetries.push({ sourceId, kind: "file", label: knowledgeFile.name });
         }
       }
-      setCreated({ id: draft.agent.id, name: draft.agent.name, knowledgeWarning: knowledgeErrors.length ? knowledgeErrors.join(" ") : undefined });
+      setCreated({ id: draft.agent.id, name: draft.agent.name, knowledgeWarning: knowledgeErrors.length ? knowledgeErrors.join(" ") : undefined, knowledgeRetries });
       setDraft(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to publish and install the custom agent");
     } finally {
+      setPublishStage("idle");
       setLoading(false);
     }
   };
+
+  const retryKnowledge = async () => {
+    if (!created || !created.knowledgeRetries.length || retryingKnowledge) return;
+    setRetryingKnowledge(true);
+    const remaining: KnowledgeRetry[] = [];
+    const errors: string[] = [];
+    for (const retry of created.knowledgeRetries) {
+      try {
+        if (retry.kind === "text") await ingestAgentKnowledgeSourceText(retry.sourceId, knowledgeText.trim());
+        else if (knowledgeFile) await ingestAgentKnowledgeSourceFile(retry.sourceId, knowledgeFile);
+        else throw new Error("The original file is no longer available in this form");
+      } catch (cause) {
+        remaining.push(retry);
+        errors.push(`${retry.label}: ${cause instanceof Error ? cause.message : "could not be indexed"}`);
+      }
+    }
+    setCreated({ ...created, knowledgeRetries: remaining, knowledgeWarning: errors.length ? errors.join(" ") : undefined });
+    setRetryingKnowledge(false);
+  };
+
+  const publishStageLabel = publishStage === "publishing"
+    ? "Publishing the reviewed version…"
+    : publishStage === "indexing-text"
+      ? "Indexing pasted information…"
+      : publishStage === "indexing-file"
+        ? "Indexing the uploaded file…"
+        : null;
 
   if (created) {
     return (
@@ -281,7 +322,7 @@ export function CreateAgentPageClient({ initialTemplate }: { initialTemplate?: A
           <p className="mt-6 text-xs font-semibold uppercase tracking-[0.16em] text-status-success">Agent created</p>
           <h1 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">{created.name} is ready</h1>
           <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted-foreground">Your custom agent is installed with an isolated text gateway. Add connections and channels from its details page.</p>
-          {created.knowledgeWarning ? <p className="mx-auto mt-4 max-w-xl rounded-xl border border-status-attention/30 bg-status-attention-soft px-4 py-3 text-left text-sm text-status-attention">The agent was created, but some knowledge was not indexed: {created.knowledgeWarning} You can retry it from the details page.</p> : knowledgeText.trim() || knowledgeFile ? <p className="mx-auto mt-4 text-sm text-status-success">Knowledge added and ready for the agent.</p> : null}
+          {created.knowledgeWarning ? <div className="mx-auto mt-4 max-w-xl rounded-xl border border-status-attention/30 bg-status-attention-soft p-4 text-left text-sm text-status-attention"><p>The agent was created, but some knowledge was not indexed: {created.knowledgeWarning}</p>{created.knowledgeRetries.length ? <Button type="button" variant="outline" size="sm" className="mt-3" disabled={retryingKnowledge} onClick={() => void retryKnowledge()}>{retryingKnowledge ? "Retrying…" : "Retry indexing"}</Button> : null}</div> : knowledgeText.trim() || knowledgeFile ? <p className="mx-auto mt-4 text-sm text-status-success">Knowledge added and ready for the agent.</p> : null}
           <div className="mt-8 flex flex-wrap justify-center gap-2"><Button type="button" variant="outline" onClick={() => router.push("/agents")}>All agents</Button><Button asChild><Link href={`/agents/${encodeURIComponent(created.id)}`}>Open agent</Link></Button></div>
         </CardContent></Card>
       </div></div>
@@ -303,7 +344,8 @@ export function CreateAgentPageClient({ initialTemplate }: { initialTemplate?: A
             <div className="flex justify-between gap-4 px-4 py-3"><dt className="text-muted-foreground">Tools</dt><dd className="font-medium text-foreground">None selected</dd></div>
           </dl>
           {error ? <p className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p> : null}
-          <div className="flex justify-end"><Button type="button" disabled={loading} onClick={() => void publishDraft()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Publishing…</> : "Publish and install"}</Button></div>
+          {publishStageLabel ? <p className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary" role="status"><LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" />{publishStageLabel}</p> : null}
+          <div className="flex justify-end"><Button type="button" disabled={loading} onClick={() => void publishDraft()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />{publishStageLabel ?? "Publishing…"}</> : "Publish and install"}</Button></div>
         </CardContent></Card>
       </div></div>
     );
