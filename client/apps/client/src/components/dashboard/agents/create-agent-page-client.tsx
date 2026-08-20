@@ -1,18 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { ArrowLeft, Bot, CheckCircle2, LoaderCircle } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { ArrowLeft, Bot, CheckCircle2, ChevronLeft, ChevronRight, LoaderCircle, PlugZap, SlidersHorizontal, Workflow } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { createAgent, createAgentInstallation, createAgentVersion, publishAgentVersion, type AgentDefinition, type AgentTemplate, type AgentVersion } from "@/lib/agent-platform";
 import { AgentWorkflowEditor, type WorkflowGraphValue } from "./agent-workflow-editor";
 import { AgentRuntimeLimits, defaultAgentRuntimeLimits, parseAgentRuntimeLimits, type AgentRuntimeLimitsValue } from "./agent-runtime-limits";
 
-const starterInstructions = "You are a helpful user-created assistant. Use only the instructions, knowledge, and integrations configured for this agent. Be clear about what you know, what you did, and what still requires the user to act.";
+type Step = 1 | 2 | 3 | 4;
 
+const starterInstructions = "You are a helpful user-created assistant. Use only the instructions, knowledge, and integrations configured for this agent. Be clear about what you know, what you did, and what still requires the user to act.";
 const runtimeLimitKeys: Array<keyof AgentRuntimeLimitsValue> = ["maxIterations", "maxToolCalls", "maxModelCalls", "maxTotalTokens", "maxContextMessages", "maxContextTokens", "maxWallTimeMs"];
+const steps: Array<[Step, string]> = [[1, "Basics"], [2, "Resources"], [3, "Workflow"], [4, "Review"]];
 
 function initialTemplateRuntimeLimits(template?: AgentTemplate): AgentRuntimeLimitsValue {
   const configuration = template?.configuration ?? {};
@@ -27,33 +30,66 @@ function templateConfigurationString(template: AgentTemplate | undefined, key: s
   return typeof value === "string" && value.trim() ? value : fallback;
 }
 
+function Progress({ step }: { step: Step }) {
+  return <nav aria-label="Creation progress" className="mx-auto max-w-3xl"><ol className="flex items-start">
+    {steps.map(([number, label], index) => <li key={number} className="flex min-w-0 flex-1 items-start">
+      <div className="flex min-w-16 flex-col items-center gap-2"><span aria-current={step === number ? "step" : undefined} className={`grid h-9 w-9 place-items-center rounded-full border text-sm font-semibold transition-colors ${step === number ? "border-primary bg-primary text-primary-foreground" : step > number ? "border-status-success bg-status-success text-white" : "border-border bg-secondary text-muted-foreground"}`}>{step > number ? <CheckCircle2 className="h-4 w-4" /> : number}</span><span className={`text-[11px] font-semibold uppercase tracking-[0.12em] ${step === number ? "text-primary" : step > number ? "text-status-success" : "text-muted-foreground"}`}>{label}</span></div>
+      {index < steps.length - 1 ? <span className={`mt-[18px] h-px flex-1 ${step > number ? "bg-status-success/60" : "bg-border"}`} aria-hidden="true" /> : null}
+    </li>)}
+  </ol></nav>;
+}
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return <label className="block text-sm font-medium text-foreground">{label}{hint ? <span className="ml-1 font-normal text-muted-foreground">{hint}</span> : null}{children}</label>;
+}
+
 export function CreateAgentPageClient({ initialTemplate }: { initialTemplate?: AgentTemplate }) {
   const router = useRouter();
+  const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState(initialTemplate?.name ?? "");
-  const [slug, setSlug] = useState("");
-  const [description, setDescription] = useState(initialTemplate?.description ?? "");
+  const [purpose, setPurpose] = useState(initialTemplate?.description ?? "");
+  const [audience, setAudience] = useState("");
+  const [outcome, setOutcome] = useState("");
   const [instructions, setInstructions] = useState(initialTemplate?.instructions ?? starterInstructions);
   const [provider, setProvider] = useState(() => templateConfigurationString(initialTemplate, "provider", "openrouter"));
   const [model, setModel] = useState(() => templateConfigurationString(initialTemplate, "model", "openai/gpt-oss-20b:free"));
   const [runtimeLimits, setRuntimeLimits] = useState<AgentRuntimeLimitsValue>(() => initialTemplateRuntimeLimits(initialTemplate));
   const [workflow, setWorkflow] = useState<WorkflowGraphValue | null>(null);
   const [workflowValid, setWorkflowValid] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ agent: AgentDefinition; version: AgentVersion } | null>(null);
   const [created, setCreated] = useState<{ id: string; name: string } | null>(null);
 
+  const canContinue = step === 1
+    ? name.trim().length > 0 && purpose.trim().length > 0
+    : step === 3
+      ? Boolean(workflow && workflowValid)
+      : true;
+
+  const goNext = () => {
+    if (!canContinue || step === 4) return;
+    setError(null);
+    setStep((current) => (current + 1) as Step);
+  };
+
+  const goBack = () => {
+    if (loading) return;
+    setError(null);
+    if (step === 1) {
+      router.push("/agents");
+      return;
+    }
+    setStep((current) => (current - 1) as Step);
+  };
+
   const submit = async () => {
-    if (!name.trim() || !instructions.trim() || loading || draft) return;
+    if (!name.trim() || !purpose.trim() || !workflow || !workflowValid || loading || draft) return;
     setLoading(true);
     setError(null);
     try {
-      const agent = await createAgent({
-        name: name.trim(),
-        slug: slug.trim() || undefined,
-        description: description.trim() || undefined,
-        creationProfile: "custom",
-      });
+      const agent = await createAgent({ name: name.trim(), description: purpose.trim(), creationProfile: "custom" });
       const parsedLimits = parseAgentRuntimeLimits(runtimeLimits);
       const blueprint = initialTemplate ? {
         key: initialTemplate.key,
@@ -63,8 +99,16 @@ export function CreateAgentPageClient({ initialTemplate }: { initialTemplate?: A
         requiredCapabilities: initialTemplate.requiredCapabilities,
         setupSteps: initialTemplate.setupSteps,
       } : undefined;
+      const generatedInstructions = [
+        `You are a helpful user-created assistant named "${name.trim()}".`,
+        `Your purpose is: ${purpose.trim()}`,
+        audience.trim() ? `Your primary audience is: ${audience.trim()}` : "",
+        outcome.trim() ? `A successful interaction should: ${outcome.trim()}` : "",
+        "Use only the instructions, knowledge, and integrations configured for this agent. Do not claim to be KasiAi or a KasiTek workspace assistant.",
+        "Be clear about what you know, what you did, and what still requires the user to act.",
+      ].filter(Boolean).join("\n\n");
       const version = await createAgentVersion(agent.id, {
-        instructions: instructions.trim(),
+        instructions: instructions.trim() === starterInstructions ? generatedInstructions : instructions.trim(),
         configuration: { ...(initialTemplate?.configuration ?? {}), ...(blueprint ? { blueprint } : {}), provider, model: model.trim(), ...parsedLimits, workflow },
         policy: {
           ...(initialTemplate?.policy ?? {}),
@@ -80,7 +124,7 @@ export function CreateAgentPageClient({ initialTemplate }: { initialTemplate?: A
       });
       setDraft({ agent, version });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to create agent");
+      setError(cause instanceof Error ? cause.message : "Unable to create agent draft");
     } finally {
       setLoading(false);
     }
@@ -102,79 +146,20 @@ export function CreateAgentPageClient({ initialTemplate }: { initialTemplate?: A
     }
   };
 
-  if (created) {
-    return (
-      <div className="min-h-screen p-6 lg:p-8">
-        <div className="mx-auto max-w-2xl">
-          <Card>
-            <CardContent className="p-8 text-center">
-              <CheckCircle2 className="mx-auto h-10 w-10 text-status-success" />
-              <h1 className="mt-4 text-2xl font-semibold text-foreground">{created.name} is ready</h1>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">Your custom agent is published and installed. Continue to its details page to configure capabilities, credentials, channels, and tests.</p>
-              <div className="mt-6 flex justify-center gap-2">
-                <Button type="button" variant="outline" onClick={() => router.push("/agents")}>All agents</Button>
-                <Button asChild type="button"><Link href={`/agents/${encodeURIComponent(created.id)}`}>Open agent</Link></Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
+  if (created) return <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-8"><div className="mx-auto max-w-3xl"><Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to agents</Link><Card className="mt-8 rounded-3xl border-border/80 shadow-xl shadow-black/10"><CardContent className="p-8 text-center sm:p-12"><div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-status-success-soft text-status-success"><CheckCircle2 className="h-7 w-7" /></div><p className="mt-6 text-xs font-semibold uppercase tracking-[0.16em] text-status-success">Agent created</p><h1 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">{created.name} is ready</h1><p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted-foreground">Your custom agent is installed with an isolated text gateway. Add connections and channels from its details page.</p><div className="mt-8 flex flex-wrap justify-center gap-2"><Button type="button" variant="outline" onClick={() => router.push("/agents")}>All agents</Button><Button asChild><Link href={`/agents/${encodeURIComponent(created.id)}`}>Open agent</Link></Button></div></CardContent></Card></div></div>;
 
-  if (draft) {
-    return (
-      <div className="min-h-screen p-6 lg:p-8">
-        <div className="mx-auto max-w-2xl space-y-6">
-          <Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to agents</Link>
-          <Card><CardContent className="space-y-5 p-6">
-            <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Custom agent draft</p><h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">Review before publishing</h1><p className="mt-2 text-sm leading-6 text-muted-foreground">This draft is saved as an immutable version. Publishing will install it for this workspace; no provider effect runs during this step.</p></div>
-            <dl className="divide-y divide-border rounded-xl border border-border bg-card text-sm"><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Agent</dt><dd className="font-medium text-foreground">{draft.agent.name}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Version</dt><dd className="font-medium text-foreground">v{draft.version.version_number} · Draft</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Workflow</dt><dd className="font-medium text-foreground">Validated before draft creation</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Access</dt><dd className="max-w-[65%] text-right font-medium text-foreground">Capabilities and connections remain installation-scoped</dd></div></dl>
-            {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-            <div className="flex justify-end"><Button type="button" disabled={loading} onClick={() => void publishDraft()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Publishing…</> : "Publish and install"}</Button></div>
-          </CardContent></Card>
-        </div>
-      </div>
-    );
-  }
+  if (draft) return <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-8"><div className="mx-auto max-w-3xl"><Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to agents</Link><div className="mt-8"><Progress step={4} /></div><Card className="mt-10 rounded-3xl border-border/80 shadow-xl shadow-black/10"><CardContent className="space-y-6 p-6 sm:p-10"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Draft ready</p><h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">Review before publishing</h1><p className="mt-2 text-sm leading-6 text-muted-foreground">Publishing creates the workspace installation. You can add integrations and channels after the agent is installed.</p></div><dl className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-secondary/20 text-sm"><div className="flex justify-between gap-4 px-4 py-3"><dt className="text-muted-foreground">Agent</dt><dd className="font-medium text-foreground">{draft.agent.name}</dd></div><div className="flex justify-between gap-4 px-4 py-3"><dt className="text-muted-foreground">Version</dt><dd className="font-medium text-foreground">v{draft.version.version_number} · Draft</dd></div><div className="flex justify-between gap-4 px-4 py-3"><dt className="text-muted-foreground">Workflow</dt><dd className="font-medium text-foreground">Baseline graph validated</dd></div><div className="flex justify-between gap-4 px-4 py-3"><dt className="text-muted-foreground">Tools</dt><dd className="font-medium text-foreground">None selected</dd></div></dl>{error ? <p className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p> : null}<div className="flex justify-end"><Button type="button" disabled={loading} onClick={() => void publishDraft()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Publishing…</> : "Publish and install"}</Button></div></CardContent></Card></div></div>;
 
-  return (
-    <div className="min-h-screen p-6 lg:p-8">
-      <div className="mx-auto max-w-3xl space-y-6">
-        <Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to agents</Link>
-        <header>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Custom agent</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">Build a custom agent</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Configure the agent definition, runtime policy, and workflow graph. For a simpler assistant, use the general-purpose setup.</p>
-          {initialTemplate ? <div className="mt-4 rounded-xl border border-primary/25 bg-primary/5 p-4"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Starting from custom blueprint</p><p className="mt-1 font-medium text-foreground">{initialTemplate.name}</p><p className="mt-1 text-sm leading-5 text-muted-foreground">The blueprint preloads its instructions, policy, configuration, and workflow-safe defaults. Review the setup requirements before publishing.</p><div className="mt-3 grid gap-3 text-xs sm:grid-cols-2"><div><p className="font-semibold text-foreground">Required capabilities</p><p className="mt-1 text-muted-foreground">{initialTemplate.requiredCapabilities.length ? initialTemplate.requiredCapabilities.join(", ") : "None"}</p></div><div><p className="font-semibold text-foreground">Required connections</p><p className="mt-1 text-muted-foreground">{initialTemplate.requiredConnections.length ? initialTemplate.requiredConnections.join(", ") : "None"}</p></div></div><div className="mt-3"><p className="font-semibold text-foreground">Setup steps</p><ul className="mt-1 list-disc space-y-1 pl-4 text-muted-foreground">{initialTemplate.setupSteps.map((step) => <li key={step}>{step}</li>)}</ul></div></div> : null}
-        </header>
+  const stepTitle = step === 1 ? "Define your agent" : step === 2 ? "Choose what it can use" : step === 3 ? "Shape the workflow" : "Review your agent";
+  const stepDescription = step === 1 ? "Start with the job this agent should do. The builder will create a safe baseline for you." : step === 2 ? "Custom agents start with no external tools. Add connections after the baseline works." : step === 3 ? "Every custom agent starts with a text input, model step, and response. Add nodes only when the process needs them." : "Check the setup before creating the first draft.";
 
-        <Card>
-          <CardContent className="space-y-5 p-6">
-            <div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary"><Bot className="h-5 w-5" /></span><div><h2 className="font-semibold text-foreground">Agent identity</h2><p className="mt-1 text-sm text-muted-foreground">Names and descriptions are visible to workspace members.</p></div></div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="text-sm font-medium text-foreground">Name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Support operations agent" className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label>
-              <label className="text-sm font-medium text-foreground">Slug <span className="font-normal text-muted-foreground">(optional)</span><input value={slug} onChange={(event) => setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))} placeholder="support-operations" className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label>
-            </div>
-            <label className="block text-sm font-medium text-foreground">Description <span className="font-normal text-muted-foreground">(optional)</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} maxLength={2000} placeholder="What this agent helps with" className="mt-2 block w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label>
-            <div className="rounded-xl border border-border bg-secondary/20 p-4">
-              <h2 className="text-sm font-semibold text-foreground">Model policy</h2>
-              <p className="mt-1 text-xs text-muted-foreground">The runtime uses this primary target and enforces the token ceiling on every run.</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-[0.65fr_1.35fr_0.7fr]">
-                <label className="text-xs font-medium text-foreground">Provider<select value={provider} onChange={(event) => setProvider(event.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option></select></label>
-                <label className="text-xs font-medium text-foreground">Model<input value={model} onChange={(event) => setModel(event.target.value)} placeholder="provider/model" className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label>
-                <label className="text-xs font-medium text-foreground">Token budget<input value={runtimeLimits.maxTotalTokens} onChange={(event) => setRuntimeLimits((current) => ({ ...current, maxTotalTokens: event.target.value }))} inputMode="numeric" className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+  return <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-8"><div className="mx-auto max-w-5xl"><div className="flex items-center justify-between gap-4"><Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back</Link><p className="text-xs font-medium text-muted-foreground">Build a custom agent</p></div><div className="mt-8"><Progress step={step} /></div><Card className="mt-10 rounded-3xl border-border/80 shadow-xl shadow-black/10"><CardContent className="p-6 sm:p-10 lg:p-14"><div className="mx-auto max-w-3xl"><div className="text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">{step === 2 ? <PlugZap className="h-7 w-7" /> : step === 3 ? <Workflow className="h-7 w-7" /> : step === 4 ? <SlidersHorizontal className="h-7 w-7" /> : <Bot className="h-7 w-7" />}</div><h1 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">{stepTitle}</h1><p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{stepDescription}</p></div>{initialTemplate ? <div className="mt-8 rounded-2xl border border-primary/25 bg-primary/5 p-5"><div className="flex flex-wrap items-center gap-2"><Badge className="border-primary/20 bg-primary/10 text-primary">Custom blueprint</Badge><span className="font-medium text-foreground">{initialTemplate.name}</span></div><p className="mt-2 text-sm leading-6 text-muted-foreground">{initialTemplate.description}</p><div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground"><span className="rounded-full border border-border bg-background/60 px-2.5 py-1">{initialTemplate.requiredConnections.length ? `${initialTemplate.requiredConnections.length} connection${initialTemplate.requiredConnections.length === 1 ? "" : "s"} required` : "No connection required"}</span><span className="rounded-full border border-border bg-background/60 px-2.5 py-1">{initialTemplate.setupSteps.length} setup step{initialTemplate.setupSteps.length === 1 ? "" : "s"}</span></div></div> : null}
 
-        <AgentRuntimeLimits value={runtimeLimits} onChange={setRuntimeLimits} />
-        <label className="block text-sm font-medium text-foreground">Instructions<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={8} maxLength={200000} className="mt-2 block w-full resize-y rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm leading-6" /></label>
-        <AgentWorkflowEditor configuration={initialTemplate?.configuration ?? {}} onChange={setWorkflow} onValidityChange={setWorkflowValid} />
-        {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-        <div className="flex justify-end"><Button type="button" disabled={loading || !name.trim() || !instructions.trim() || !model.trim() || !workflow || !workflowValid} onClick={() => void submit()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Creating draft…</> : "Create draft"}</Button></div>
-      </div>
-    </div>
-  );
+<div className="mt-9 space-y-6">
+  {step === 1 ? <div className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><Field label="Agent name"><input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Support operations agent" className="mt-2 block h-12 w-full rounded-xl border border-border bg-background px-4 text-base outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20" /></Field><Field label="Who will use it?" hint="(optional)"><input value={audience} onChange={(event) => setAudience(event.target.value)} placeholder="Customers, sales team, or staff" className="mt-2 block h-12 w-full rounded-xl border border-border bg-background px-4 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20" /></Field></div><Field label="What should it help with?"><textarea value={purpose} onChange={(event) => setPurpose(event.target.value)} rows={4} maxLength={2000} placeholder="Handle support questions and guide customers to the right next step." className="mt-2 block w-full resize-y rounded-xl border border-border bg-background px-4 py-3 text-sm leading-6 outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20" /></Field><Field label="What does success look like?" hint="(optional)"><textarea value={outcome} onChange={(event) => setOutcome(event.target.value)} rows={3} maxLength={2000} placeholder="Give accurate answers, collect the right details, and hand off when needed." className="mt-2 block w-full resize-y rounded-xl border border-border bg-background px-4 py-3 text-sm leading-6 outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20" /></Field></div> : null}
+  {step === 2 ? <div className="space-y-4"><Card className="rounded-2xl border-border bg-secondary/20"><CardContent className="space-y-4 p-5"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-status-success-soft text-status-success"><CheckCircle2 className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">Text gateway ready</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">The agent will start with an isolated text conversation. No credentials or external services are needed to create it.</p></div><Badge className="ml-auto border-status-success/30 bg-status-success-soft text-status-success">Ready</Badge></div></CardContent></Card><Card className="rounded-2xl border-border"><CardContent className="space-y-4 p-5"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary text-muted-foreground"><PlugZap className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">External tools</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">No integrations are selected. After the agent is working, connect Email, Calendar, CRM, MCP, REST, or other services from its details page.</p></div><Badge className="ml-auto border-border bg-secondary text-muted-foreground">Not selected</Badge></div>{initialTemplate?.requiredConnections.length ? <div className="rounded-xl border border-status-attention/30 bg-status-attention-soft px-4 py-3 text-sm text-status-attention"><p className="font-medium">This blueprint may need later setup</p><p className="mt-1">{initialTemplate.requiredConnections.join(", ")}</p></div> : null}</CardContent></Card><p className="text-xs leading-5 text-muted-foreground">Connections and capabilities are installation-scoped. Keeping them optional here lets you test the baseline before granting access.</p></div> : null}
+  {step === 3 ? <div className="space-y-4"><div className="rounded-2xl border border-border bg-secondary/20 p-5"><div className="flex items-start gap-3"><Workflow className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><div><h2 className="font-semibold text-foreground">Baseline workflow</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">The starter graph is already configured. You can keep it as-is or add declarative steps for this process.</p></div></div></div><AgentWorkflowEditor configuration={initialTemplate?.configuration ?? {}} onChange={setWorkflow} onValidityChange={setWorkflowValid} /></div> : null}
+  {step === 4 ? <div className="space-y-4"><dl className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-secondary/20 text-sm"><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Agent</dt><dd className="font-medium text-foreground sm:text-right">{name}</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Purpose</dt><dd className="text-foreground sm:max-w-[70%] sm:text-right">{purpose}</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Audience</dt><dd className="font-medium text-foreground sm:text-right">{audience || "Not specified"}</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Tools</dt><dd className="font-medium text-foreground sm:text-right">None selected</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Workflow</dt><dd className="font-medium text-foreground sm:text-right">{workflow?.nodes.length ?? 0} nodes · {workflow?.edges.length ?? 0} edges</dd></div></dl><details open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)} className="rounded-2xl border border-border bg-secondary/10 p-5"><summary className="cursor-pointer list-none text-sm font-semibold text-foreground">Advanced settings <span className="ml-1 font-normal text-muted-foreground">model, instructions, and runtime limits</span></summary><div className="mt-5 space-y-5"><div className="grid gap-3 sm:grid-cols-[0.65fr_1.35fr]"><Field label="Provider"><select value={provider} onChange={(event) => setProvider(event.target.value)} className="mt-2 block h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option></select></Field><Field label="Model"><input value={model} onChange={(event) => setModel(event.target.value)} placeholder="provider/model" className="mt-2 block h-10 w-full rounded-lg border border-border bg-background px-3 text-sm" /></Field></div><Field label="Instructions"><textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={7} maxLength={200000} className="mt-2 block w-full resize-y rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm leading-6" /></Field><AgentRuntimeLimits value={runtimeLimits} onChange={setRuntimeLimits} /></div></details></div> : null}
+</div>
+{error ? <p className="mt-6 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p> : null}<div className="mt-10 flex items-center justify-between gap-3 border-t border-border pt-6"><Button type="button" variant="outline" disabled={loading} onClick={goBack}>{step === 1 ? "Cancel" : <><ChevronLeft className="mr-1 h-4 w-4" />Back</>}</Button>{step < 4 ? <Button type="button" disabled={!canContinue || loading} onClick={goNext}>Continue <ChevronRight className="ml-1 h-4 w-4" /></Button> : <Button type="button" disabled={loading || !workflow || !workflowValid} onClick={() => void submit()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Creating draft…</> : "Create draft"}</Button>}</div></div></CardContent></Card></div></div>;
 }
