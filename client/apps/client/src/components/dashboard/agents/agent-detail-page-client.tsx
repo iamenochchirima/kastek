@@ -30,6 +30,7 @@ import {
   listAgentConversations,
   resolvePlatformConversation,
   createNewPlatformConversation,
+  clearPlatformConversations,
   sendPlatformMessage,
   streamAgentRun,
   createAgentInstallationCredential,
@@ -73,12 +74,15 @@ import {
   revokeAgentChannelConnection,
   issueAgentChannelPairing,
   disconnectKasiAiChannel,
+  createAgentWebsiteDeployment,
+  listAgentWebsiteDeployments,
   type AgentChannelConnection,
   type AgentChannelBinding,
   type AgentDefinition,
   type AgentVersion,
   type AgentMessage,
   type AgentConversation,
+  type AgentWebsiteDeployment,
 } from "@/lib/agent-platform";
 
 function versionStatusClass(status: string) {
@@ -416,7 +420,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 
         {activeSection === "conversations" && kasitekHostedAgent && agent.installation_id ? <AgentConversationHistory installationId={agent.installation_id} /> : null}
 
-        {activeSection === "integrations" && hostedAgent && agent.installation_id ? <InstallationIntegrations installationId={agent.installation_id} personal={protectedAgent} /> : null}
+        {activeSection === "integrations" && hostedAgent && agent.installation_id ? <InstallationIntegrations installationId={agent.installation_id} personal={protectedAgent} agentName={agent.name} /> : null}
 
         {activeSection === "deployment" && hostedAgent && agent.installation_id ? <InstallationChannels installationId={agent.installation_id} personal={protectedAgent} /> : null}
 
@@ -1213,7 +1217,7 @@ function integrationIconColor(provider: string) {
   }
 }
 
-function InstallationIntegrations({ installationId, personal }: { installationId: string; personal: boolean }) {
+function InstallationIntegrations({ installationId, personal, agentName }: { installationId: string; personal: boolean; agentName: string }) {
   const [workspaceConnections, setWorkspaceConnections] = useState<WorkspaceConnection[]>([]);
   const [agentConnections, setAgentConnections] = useState<AgentChannelConnection[]>([]);
   const [bindings, setBindings] = useState<AgentChannelBinding[]>([]);
@@ -1327,14 +1331,14 @@ function InstallationIntegrations({ installationId, personal }: { installationId
     { label: "Telegram", description: "Bot messaging", icon: SiTelegram, iconClass: "text-[#229ED9]", status: "Coming soon" },
     { label: "Discord", description: "Servers and direct messages", icon: SiDiscord, iconClass: "text-[#5865F2]", status: "Coming soon" },
     { label: "Slack", description: "Workspace messaging", icon: SiSlack, iconClass: "text-[#36C5F0]", status: "Coming soon" },
-    { label: "Website chat", description: "Embed on your website", icon: Globe2, iconClass: "text-[#60A5FA]", status: "Planned" },
-    { label: "WordPress", description: "Use the website embed", icon: SiWordpress, iconClass: "text-[#21759B]", status: "Planned" },
-    { label: "Custom Button", description: "Launch website chat", icon: Bot, iconClass: "text-[#F59E0B]", status: "Planned" },
+    { label: "WordPress", description: "Use the Website Chat embed", icon: SiWordpress, iconClass: "text-[#21759B]", status: "Uses Website Chat" },
+    { label: "Custom Button", description: "Launch Website Chat from your button", icon: Bot, iconClass: "text-[#F59E0B]", status: "Uses Website Chat" },
     { label: "Bot API", description: "Programmatic access", icon: Bot, iconClass: "text-[#8B5CF6]", status: "Developer setup" },
     { label: "MCP", description: "Connect an AI client", icon: SiModelcontextprotocol, iconClass: "text-[#A855F7]", status: "Developer setup" },
   ];
 
   return <div className="space-y-4">
+    {!personal ? <WebsiteChatDeployments installationId={installationId} agentName={agentName} /> : null}
     <Card>
       <CardContent className="space-y-4 p-6">
         <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Deployment</p><h2 className="mt-1 text-lg font-semibold text-foreground">Integrations</h2><p className="mt-1 text-sm text-muted-foreground">{personal ? "Connect this personal agent to private workspace channels." : "Assign workspace channels to this agent. Everyone who messages an assigned business number will reach this agent."}</p></div>
@@ -1358,6 +1362,64 @@ function InstallationIntegrations({ installationId, personal }: { installationId
       <CardContent className="space-y-4 p-6"><div><h3 className="text-sm font-semibold text-foreground">Available integrations</h3><p className="mt-1 text-sm text-muted-foreground">More ways to deploy this agent.</p></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{upcomingIntegrations.map((integration) => { const Icon = integration.icon; return <div key={integration.label} className="rounded-xl border border-border p-4"><div className="flex items-start justify-between gap-3"><div className="rounded-lg border border-border bg-secondary p-2"><Icon className={`h-5 w-5 ${integration.iconClass}`} /></div><Badge className="border-border bg-secondary text-muted-foreground">{integration.status}</Badge></div><p className="mt-3 font-medium text-foreground">{integration.label}</p><p className="mt-1 text-sm text-muted-foreground">{integration.description}</p>{integration.status === "Developer setup" ? <Link href="/developers" className="mt-3 inline-flex text-xs font-medium text-foreground underline-offset-4 hover:underline">Open Developers</Link> : null}</div>; })}</div></CardContent>
     </Card>
   </div>;
+}
+
+function WebsiteChatDeployments({ installationId, agentName }: { installationId: string; agentName: string }) {
+  const [deployments, setDeployments] = useState<AgentWebsiteDeployment[]>([]);
+  const [origin, setOrigin] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await listAgentWebsiteDeployments(installationId);
+      setDeployments(result.deployments);
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load Website Chat deployments");
+    } finally {
+      setLoading(false);
+    }
+  }, [installationId]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const createDeployment = async () => {
+    if (!origin.trim() || creating) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const result = await createAgentWebsiteDeployment(installationId, {
+        allowedOrigins: [origin.trim()],
+        displayName: agentName,
+        welcomeText: `Hi, I’m ${agentName}. How can I help?`,
+      });
+      setDeployments((current) => [result.deployment, ...current]);
+      setOrigin("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to create Website Chat deployment");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return <Card>
+    <CardContent className="space-y-4 p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Website Chat</p><h2 className="mt-1 text-lg font-semibold text-foreground">Put this agent on your website</h2><p className="mt-1 text-sm text-muted-foreground">Each deployment is restricted to the website origins you approve. WordPress and Custom Button will use this same deployment.</p></div>
+        <Badge className="border-border bg-secondary text-muted-foreground">Foundation ready</Badge>
+      </div>
+      {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+      <div className="flex flex-col gap-2 sm:flex-row"><input value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder="https://www.example.com" className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring" aria-label="Website origin" /><Button type="button" disabled={!origin.trim() || creating} onClick={() => void createDeployment()}>{creating ? "Creating…" : "Create Website Chat"}</Button></div>
+      <p className="text-xs text-muted-foreground">Enter only the origin, for example <code>https://www.example.com</code>. Add a separate <code>http://localhost:3000</code> origin only when you need local testing.</p>
+      {loading ? <p className="text-sm text-muted-foreground">Loading deployments…</p> : deployments.length ? <div className="space-y-2">{deployments.map((deployment) => {
+        const embed = `<script async src="https://widget.kasitek.co.za/v1/loader.js" data-kasitek-deployment="${deployment.publicId}"></script>`;
+        return <div key={deployment.id} className="rounded-xl border border-border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-medium text-foreground">{deployment.displayName || agentName}</p><p className="mt-1 font-mono text-xs text-muted-foreground">{deployment.publicId}</p><p className="mt-2 text-xs text-muted-foreground">{deployment.allowedOrigins.join(", ") || "No origin configured"}</p></div><div className="flex items-center gap-2"><Badge className="border-border bg-secondary text-muted-foreground">{deployment.status.toLowerCase()}</Badge><Button type="button" variant="outline" size="sm" onClick={() => void navigator.clipboard?.writeText(embed)}><Copy className="mr-1.5 h-3.5 w-3.5" />Copy embed</Button></div></div></div>;
+      })}</div> : <p className="text-sm text-muted-foreground">No Website Chat deployment yet.</p>}
+    </CardContent>
+  </Card>;
 }
 
 function InstallationChannels({ installationId, personal }: { installationId: string; personal: boolean }) {
@@ -1496,6 +1558,8 @@ function AgentTestChat({ installationId, active }: { installationId: string; act
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [clearConfirmation, setClearConfirmation] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [lastRunId, setLastRunId] = useState<string | null>(null);
@@ -1643,6 +1707,28 @@ function AgentTestChat({ installationId, active }: { installationId: string; act
     }
   };
 
+  const clearChats = async () => {
+    if (!active || sending || loading || clearing) return;
+    setClearConfirmation(false);
+    setClearing(true);
+    setLoading(true);
+    setError(null);
+    setLastRunId(null);
+    setRunEvents([]);
+    try {
+      const response = await clearPlatformConversations(installationId);
+      setConversation(response.conversation);
+      setMessages([...response.messages].sort((left, right) => Number(left.sequence_number) - Number(right.sequence_number)));
+      setDraft("");
+      setRunProgress("Ready");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to clear test chats");
+    } finally {
+      setClearing(false);
+      setLoading(false);
+    }
+  };
+
   const stop = async () => {
     if (!activeRunId) return;
     setRunProgress("Cancellation requested…");
@@ -1652,7 +1738,7 @@ function AgentTestChat({ installationId, active }: { installationId: string; act
     setSending(false);
   };
 
-  return <Card className="h-[min(720px,calc(100dvh-9rem))] min-h-[560px] overflow-hidden border-border/80 shadow-sm">
+  return <Card className="relative h-[min(720px,calc(100dvh-9rem))] min-h-[560px] overflow-hidden border-border/80 shadow-sm">
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex shrink-0 flex-col gap-3 border-b border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="flex items-center gap-3">
@@ -1662,7 +1748,8 @@ function AgentTestChat({ installationId, active }: { installationId: string; act
         <div className="flex items-center gap-2 text-xs">
           <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${active ? "border-status-success/30 bg-status-success-soft text-status-success" : "border-status-attention/30 bg-status-attention-soft text-status-attention"}`}><span className={`h-1.5 w-1.5 rounded-full ${active ? "bg-status-success" : "bg-status-attention"}`} />{active ? "Ready" : "Paused"}</span>
           {conversation ? <span className="hidden text-muted-foreground sm:inline">Conversation saved</span> : null}
-          <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5" disabled={!active || loading || sending} onClick={() => void startNewChat()}><Plus className="h-3.5 w-3.5" />New chat</Button>
+          <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5" disabled={!active || loading || sending || clearing} onClick={() => setClearConfirmation(true)}><Trash2 className="h-3.5 w-3.5" />Clear chats</Button>
+          <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5" disabled={!active || loading || sending || clearing} onClick={() => void startNewChat()}><Plus className="h-3.5 w-3.5" />New chat</Button>
         </div>
       </header>
 
@@ -1697,6 +1784,7 @@ function AgentTestChat({ installationId, active }: { installationId: string; act
         </div>
         <p className="mx-auto mt-2 max-w-3xl px-2 text-[11px] text-muted-foreground">Press Enter to send · Shift+Enter for a new line</p>
       </form>
+      {clearConfirmation ? <div className="absolute inset-0 z-20 grid place-items-center bg-background/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="clear-test-chats-title"><div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl"><div className="flex h-11 w-11 items-center justify-center rounded-full bg-destructive/10 text-destructive"><Trash2 className="h-5 w-5" aria-hidden="true" /></div><h3 id="clear-test-chats-title" className="mt-4 text-lg font-semibold text-foreground">Clear test chats?</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">This removes the private test conversations for this agent from the chat view and starts a fresh chat. Customer conversations and workspace inbox history are not affected.</p><div className="mt-6 flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setClearConfirmation(false)}>Cancel</Button><Button type="button" variant="destructive" onClick={() => void clearChats()}>Clear chats</Button></div></div></div> : null}
     </div>
   </Card>;
 }

@@ -2037,4 +2037,29 @@ describe("Agent Platform HTTP foundation", () => {
     expect(revoked.json()).toEqual({ disconnected: true });
     await app.close();
   });
+
+  it("clears only the hosted installation's private test chats", async () => {
+    const clearPrivateConversations = vi.fn(async () => ({
+      conversation: { id: "fresh-conversation", installation_id: "install-1", status: "active" },
+      userParticipant: { id: "user-participant" },
+      agentParticipant: { id: "agent-participant" },
+    }));
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      platformChat: { clearPrivateConversations } as unknown as PlatformChatRepository,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", ...hostedInstallationIdentity }) } as never,
+      conversations: { listMessages: async () => [] } as never,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/installations/install-1/platform/conversations/clear",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: {},
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({ conversation: { id: "fresh-conversation", status: "active" }, messages: [] });
+    expect(clearPrivateConversations).toHaveBeenCalledWith({ organizationId: "org-1", installationId: "install-1", actorId: "user-1" });
+    await app.close();
+  });
 });

@@ -10,6 +10,24 @@ export type AgentInstallation = {
   settings?: Record<string, unknown>;
 };
 
+export type AgentWebsiteDeployment = {
+  id: string;
+  publicId: string;
+  orgId: string;
+  installationId: string;
+  channelConnectionId: string;
+  status: "DRAFT" | "ACTIVE" | "PAUSED" | "REVOKED";
+  allowedOrigins: string[];
+  displayName?: string | null;
+  welcomeText?: string | null;
+  launcherPosition: "bottom-right" | "bottom-left";
+  colorPreset: string;
+  avatarUrl?: string | null;
+  privacyPolicyUrl?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AgentMessage = {
   id: string;
   conversation_id: string;
@@ -782,6 +800,13 @@ export function createNewPlatformConversation(installationId: string): Promise<C
   });
 }
 
+export function clearPlatformConversations(installationId: string): Promise<ConversationResponse> {
+  return request<ConversationResponse>(`/api/agents/installations/${encodeURIComponent(installationId)}/platform/conversations/clear`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
 export function getKasiAiHome(installationId: string): Promise<KasiAiHome> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/kasiai/home`, {
     method: "POST",
@@ -848,6 +873,25 @@ export function listAgentConversations(installationId: string, options: { kind?:
 
 export function listKasiAiChannels(installationId: string): Promise<{ connections: AgentChannelConnection[]; bindings: AgentChannelBinding[] }> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/channels`);
+}
+
+export function listAgentWebsiteDeployments(installationId: string): Promise<{ deployments: AgentWebsiteDeployment[] }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/website-deployments`);
+}
+
+export function createAgentWebsiteDeployment(installationId: string, input: {
+  allowedOrigins?: string[];
+  displayName?: string;
+  welcomeText?: string;
+  launcherPosition?: "bottom-right" | "bottom-left";
+  colorPreset?: string;
+  avatarUrl?: string;
+  privacyPolicyUrl?: string;
+}): Promise<{ deployment: AgentWebsiteDeployment; embedCode: string }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/website-deployments`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export function createAgentChannelConnection(installationId: string, input: { channelType: string; channelKey: string; credentialReference?: string; metadata?: Record<string, unknown> }): Promise<AgentChannelConnection> {

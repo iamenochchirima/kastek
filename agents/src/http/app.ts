@@ -2071,6 +2071,26 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   );
 
   app.post<{ Params: { installationId: string } }>(
+    "/v1/installations/:installationId/platform/conversations/clear",
+    async (request, reply) => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "chat:write");
+      const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+      if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+      requireHostedInstallation(installation);
+      const resolved = await platformChat.clearPrivateConversations({
+        organizationId: auth.organizationId,
+        installationId: request.params.installationId,
+        actorId: auth.actorId,
+      });
+      const messages = conversations.listMessagesPage
+        ? await conversations.listMessagesPage(auth.organizationId, resolved.conversation.id)
+        : { messages: await conversations.listMessages(auth.organizationId, resolved.conversation.id), hasMore: false, nextBefore: null };
+      return reply.code(201).send({ ...resolved, ...messages });
+    },
+  );
+
+  app.post<{ Params: { installationId: string } }>(
     "/v1/installations/:installationId/platform/messages",
     async (request, reply) => {
       const auth = requireAuth(request, dependencies.config);

@@ -58,6 +58,71 @@ export class PlatformChatRepository {
     return withTransaction(this.pool, (client) => this.createNewConversationInTransaction(client, input));
   }
 
+  /**
+   * Clears the private testing transcript for one installation and immediately
+   * creates a fresh conversation. Customer/channel conversations are never
+   * included in this operation.
+   */
+  public async clearPrivateConversations(input: {
+    organizationId: string;
+    installationId: string;
+    actorId: string;
+  }): Promise<PlatformConversation> {
+    return withTransaction(this.pool, async (client) => {
+      const installation = await this.getActiveInstallation(client, input.organizationId, input.installationId);
+      const conversationKind = installation.execution_mode === "system_hosted" ? "personal" : "test";
+      const privateConversations = await client.query<{ id: string }>(
+        `SELECT id FROM conversations
+         WHERE organization_id = $1 AND installation_id = $2 AND owner_actor_id = $3
+           AND conversation_kind = $4 AND status <> 'deleted'
+         FOR UPDATE`,
+        [input.organizationId, input.installationId, input.actorId, conversationKind],
+      );
+      const conversationIds = privateConversations.rows.map((row) => row.id);
+      if (conversationIds.length) {
+        const activeRun = await client.query<{ id: string }>(
+          `SELECT id FROM agent_runs
+           WHERE organization_id = $1
+             AND installation_id = $2
+             AND conversation_id = ANY($3::uuid[])
+             AND status IN ('received', 'queued', 'running', 'awaiting_approval', 'awaiting_human', 'awaiting_external_event')
+           LIMIT 1`,
+          [input.organizationId, input.installationId, conversationIds],
+        );
+        if (activeRun.rows[0]) {
+          throw Object.assign(new Error("A private test chat is still running"), {
+            statusCode: 409,
+            code: "conversation_busy",
+          });
+        }
+        await client.query(
+          `UPDATE conversations
+           SET status = 'deleted', is_primary = false, updated_at = now()
+           WHERE organization_id = $1 AND installation_id = $2 AND owner_actor_id = $3
+             AND conversation_kind = $4 AND status <> 'deleted'`,
+          [input.organizationId, input.installationId, input.actorId, conversationKind],
+        );
+        await client.query(
+          `UPDATE memory_records
+           SET status = 'deleted', deleted_at = COALESCE(deleted_at, now()), updated_at = now()
+           WHERE organization_id = $1 AND conversation_id = ANY($2::uuid[]) AND status <> 'deleted'`,
+          [input.organizationId, conversationIds],
+        );
+        await client.query(
+          `DELETE FROM conversation_summaries
+           WHERE organization_id = $1 AND conversation_id = ANY($2::uuid[])`,
+          [input.organizationId, conversationIds],
+        );
+      }
+      return this.createNewConversationInTransaction(client, {
+        organizationId: input.organizationId,
+        installationId: input.installationId,
+        actorId: input.actorId,
+        title: "New chat",
+      });
+    });
+  }
+
   public async acceptMessage(input: {
     organizationId: string;
     installationId: string;
