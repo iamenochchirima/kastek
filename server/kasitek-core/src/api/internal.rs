@@ -311,6 +311,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::post().to(agent_platform::create_conversation),
             )
             .route(
+                "/installations/{installationId}/platform/conversations/clear",
+                web::post().to(agent_platform::clear_conversations),
+            )
+            .route(
                 "/installations/{installationId}/conversations",
                 web::get().to(agent_platform::list_conversations),
             )

@@ -1409,6 +1409,23 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn clear_platform_conversations(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/platform/conversations/clear"),
+            organization_id,
+            actor_id,
+            &["chat:write"],
+            Some(json!({})),
+        )
+        .await
+    }
+
     pub async fn list_conversations(
         &self,
         organization_id: &str,
@@ -2415,7 +2432,7 @@ mod tests {
 
     #[tokio::test]
     async fn every_non_operator_adapter_uses_the_scoped_agent_boundary() {
-        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 75]).await;
+        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 76]).await;
         let client = test_client(&base_url);
         let body = json!({"value": "test"});
 
@@ -2624,6 +2641,10 @@ mod tests {
             .await
             .unwrap();
         client
+            .clear_platform_conversations("org-1", "actor-1", "install-1")
+            .await
+            .unwrap();
+        client
             .list_conversations("org-1", "actor-1", "install-1")
             .await
             .unwrap();
@@ -2726,7 +2747,7 @@ mod tests {
             .unwrap();
 
         let requests = server.await.unwrap();
-        assert_eq!(requests.len(), 75);
+        assert_eq!(requests.len(), 76);
         let expected_paths = [
             "POST /v1/system-agents/kasiai/installation HTTP/1.1",
             "GET /v1/agents HTTP/1.1",
@@ -2779,6 +2800,7 @@ mod tests {
             "POST /v1/agents/agent-1/archive HTTP/1.1",
             "POST /v1/installations/install-1/platform/conversation HTTP/1.1",
             "POST /v1/installations/install-1/platform/conversation/new HTTP/1.1",
+            "POST /v1/installations/install-1/platform/conversations/clear HTTP/1.1",
             "GET /v1/installations/install-1/conversations HTTP/1.1",
             "POST /v1/installations/install-1/kasiai/home HTTP/1.1",
             "GET /v1/installations/install-1/kasiai/preferences HTTP/1.1",
@@ -2863,6 +2885,7 @@ mod tests {
             "agents:write",   // archive_agent
             "chat:read",      // resolve_platform_conversation
             "chat:write",     // create_platform_conversation
+            "chat:write",     // clear_platform_conversations
             "chat:read",      // list_conversations
             "kasiai:read",    // kasiai_home
             "kasiai:read",    // kasiai_preferences

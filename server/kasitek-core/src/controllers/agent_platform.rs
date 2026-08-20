@@ -1613,6 +1613,19 @@ pub async fn create_conversation(
     Ok(HttpResponse::Created().json(response))
 }
 
+pub async fn clear_conversations(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .clear_platform_conversations(&organization_id, &user.id, &installation_id)
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
 pub async fn send_message(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
