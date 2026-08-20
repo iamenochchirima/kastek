@@ -1008,6 +1008,46 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("rejects unregistered tools before creating versions or grants", async () => {
+    const createVersion = vi.fn();
+    const grantVersionTool = vi.fn();
+    const grantInstallationTool = vi.fn();
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      agents: { createVersion, getAgent: async () => ({ owner_type: "organization", protected: false }) } as never,
+      toolGrants: { grantVersionTool, grantInstallationTool } as never,
+    });
+    const versionResponse = await app.inject({
+      method: "POST",
+      url: "/v1/agents/agent-1/versions",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { instructions: "Respond normally.", policy: { allowedTools: ["not.a.real.tool"] } },
+    });
+    expect(versionResponse.statusCode).toBe(400);
+    expect(versionResponse.json()).toEqual({ error: "unknown_tools", tools: ["not.a.real.tool"] });
+    const grantResponse = await app.inject({
+      method: "POST",
+      url: "/v1/agents/agent-1/versions/version-1/tools",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { toolName: "not.a.real.tool" },
+    });
+    expect(grantResponse.statusCode).toBe(400);
+    expect(grantResponse.json()).toEqual({ error: "unknown_tool", tool: "not.a.real.tool" });
+    const installationGrantResponse = await app.inject({
+      method: "POST",
+      url: "/v1/installations/install-1/tools",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { toolName: "not.a.real.tool" },
+    });
+    expect(installationGrantResponse.statusCode).toBe(400);
+    expect(installationGrantResponse.json()).toEqual({ error: "unknown_tool", tool: "not.a.real.tool" });
+    expect(createVersion).not.toHaveBeenCalled();
+    expect(grantVersionTool).not.toHaveBeenCalled();
+    expect(grantInstallationTool).not.toHaveBeenCalled();
+    await app.close();
+  });
+
   it("exposes the same live access projection used before external creation", async () => {
     const app = buildApp({
       config,

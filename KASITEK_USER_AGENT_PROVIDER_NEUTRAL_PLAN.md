@@ -91,8 +91,8 @@ but it must not be presented as available until its earlier dependencies are com
   selected.
 - [x] Remove browser-owned `kasitek.core.*` defaults and KasiTek-branded starter instructions.
 - [x] Keep the protected KasiAi bootstrap and release policy unchanged. (`agents/src/system/kasiai.ts`)
-- [ ] Validate all persisted tool names against the registered tool catalog and the definition's
-  execution mode.
+- [x] Reject unregistered tool names at version creation and grant HTTP boundaries. (`agents/src/http/app.ts`, `agents/test/http.test.ts`)
+- [ ] Enforce the registered-tool catalog at every non-HTTP repository/database write path.
 - [x] Prove the zero-tool policy at the unit boundary. (`agents/test/hosted-agent-defaults.test.ts`)
 - [ ] Prove that a zero-tool, zero-knowledge user agent can be created, published, installed, and
   tested successfully in a seeded integration environment.

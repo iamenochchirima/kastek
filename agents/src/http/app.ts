@@ -1494,6 +1494,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
     const input = createVersionInputSchema.parse(request.body);
+    const requestedTools = Array.isArray(input.policy.allowedTools)
+      ? input.policy.allowedTools.filter((tool): tool is string => typeof tool === "string" && tool.trim().length > 0)
+      : [];
+    const unknownTools = [...new Set(requestedTools.filter((tool) => !toolRegistry.get(tool)))];
+    if (unknownTools.length) return reply.code(400).send({ error: "unknown_tools", tools: unknownTools });
     const version = await agents.createVersion(auth.organizationId, auth.actorId, request.params.agentId, input);
     return reply.code(201).send(version);
   });
@@ -1523,6 +1528,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         return reply.code(403).send({ error: "protected_installation_policy", code: "PROTECTED_SERVICE_ALLOWLIST_RELEASE_MANAGED" });
       }
       const input = z.object({ toolName: z.string().trim().min(1).max(160) }).parse(request.body);
+      if (!toolRegistry.get(input.toolName)) return reply.code(400).send({ error: "unknown_tool", tool: input.toolName });
       const grant = await toolGrants.grantVersionTool({
         organizationId: auth.organizationId,
         agentId: request.params.agentId,
@@ -1551,6 +1557,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       return reply.code(403).send({ error: "protected_installation_policy", code: "PROTECTED_SERVICE_ALLOWLIST_RELEASE_MANAGED" });
     }
     const input = z.object({ toolName: z.string().trim().min(1).max(160) }).parse(request.body);
+    if (!toolRegistry.get(input.toolName)) return reply.code(400).send({ error: "unknown_tool", tool: input.toolName });
     const grant = await toolGrants.grantInstallationTool({
       organizationId: auth.organizationId,
       installationId: request.params.installationId,
