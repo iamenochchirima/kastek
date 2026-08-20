@@ -152,6 +152,40 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn verify_provider_credential(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            "/v1/credentials/verify",
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn create_provider_credential(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            "/v1/credentials",
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
     pub async fn create_external_agent(
         &self,
         organization_id: &str,
@@ -2134,6 +2168,9 @@ impl AgentPlatformClient {
             .and_then(|value| value.error)
             .unwrap_or_else(|| "Agent Platform request failed".to_string());
         match status {
+            StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => {
+                AppError::BadRequest(detail)
+            }
             StatusCode::UNAUTHORIZED => AppError::Unauthorized,
             StatusCode::FORBIDDEN => AppError::Forbidden(detail),
             StatusCode::NOT_FOUND => AppError::NotFound(detail),
@@ -2217,6 +2254,28 @@ mod tests {
             audience: "kasitek-agents".to_string(),
             timeout: Duration::from_secs(2),
         }
+    }
+
+    #[tokio::test]
+    async fn provider_credential_routes_use_the_scoped_agent_boundary() {
+        let (base_url, server) = mock_agent_server(vec![(200, r#"{"verification":{"status":"verified"}}"#), (201, r#"{"id":"credential-1"}"#)]).await;
+        let client = test_client(&base_url);
+        client
+            .verify_provider_credential("org-1", "actor-1", json!({"provider":"openai","apiKey":"secret-key"}))
+            .await
+            .unwrap();
+        client
+            .create_provider_credential("org-1", "actor-1", json!({"provider":"openai","apiKey":"secret-key","label":"primary"}))
+            .await
+            .unwrap();
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 2);
+        assert!(requests[0].starts_with("POST /v1/credentials/verify HTTP/1.1"));
+        assert!(requests[1].starts_with("POST /v1/credentials HTTP/1.1"));
+        assert_scoped_request(&requests[0], "agents:write");
+        assert_scoped_request(&requests[1], "agents:write");
+        assert!(request_body(&requests[0]).contains("secret-key"));
+        assert!(request_body(&requests[1]).contains("secret-key"));
     }
 
     fn request_header(request: &str, name: &str) -> Option<String> {
