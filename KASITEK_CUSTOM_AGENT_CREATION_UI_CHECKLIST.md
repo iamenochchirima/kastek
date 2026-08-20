@@ -35,9 +35,9 @@ separate.
 ### 3. Knowledge and memory
 
 - [x] Start with platform-managed conversation history and memory behavior.
-- [ ] Allow pasted information and supported file uploads for this agent.
+- [x] Allow pasted information and supported file uploads for this agent.
 - [ ] Show knowledge ingestion progress, errors, ownership, and source status.
-- [ ] Allow this step to be skipped and completed later.
+- [x] Allow this step to be skipped and completed later.
 - [ ] Never mix KasiAi knowledge or memory into a hosted user agent.
 
 ### 4. Tools, credentials, and connections
@@ -118,7 +118,7 @@ separate.
 - [ ] Add integration coverage for blank custom creation with no integrations.
 - [ ] Add integration coverage for one external connection and one optional KasiTek integration.
 - [ ] Add browser smoke coverage for refresh, back-navigation, publish, and test chat.
-- [ ] Run client lint, typecheck, and production build.
+- [x] Run client lint, typecheck, and production build.
 - [ ] Run Agent Platform unit, HTTP, database, and Temporal-backed tests where available.
 - [ ] Gate rollout behind a controlled feature flag or reversible route switch.
 - [ ] Keep the existing details and runtime APIs compatible during migration.
@@ -126,7 +126,8 @@ separate.
 ## Delivery batches
 
 - [x] Batch 1: progressive shell, staged basics, baseline workflow, and draft review.
-- [ ] Batch 2: knowledge and file sources with progress/status.
+- [x] Batch 2: optional pasted/file knowledge sources with installation-scoped ingestion.
+- [ ] Batch 2 follow-up: show per-source ingestion progress, status, and retry controls.
 - [ ] Batch 3: tools, credentials, capability readiness, and explicit KasiTek integrations.
 - [ ] Batch 4: test conversation, activity, approval, retry, and failure UX.
 - [ ] Batch 5: publish, installation rollout, deployment readiness, rollback, and lifecycle.
