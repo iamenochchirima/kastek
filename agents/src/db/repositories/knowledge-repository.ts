@@ -73,7 +73,7 @@ export class KnowledgeRepository {
       this.pool,
       `SELECT * FROM knowledge_sources
        WHERE id = $1 AND organization_id = $2 AND status = 'active'
-         AND ($3::uuid IS NULL OR agent_definition_id IS NULL OR agent_definition_id = $3)
+         AND ($3::uuid IS NULL OR agent_definition_id = $3)
          AND ($4::uuid IS NULL OR installation_id IS NULL OR installation_id = $4)`,
       [sourceId, scope.organizationId, scope.agentId ?? null, scope.installationId ?? null],
     );
@@ -103,7 +103,7 @@ export class KnowledgeRepository {
       const source = await client.query<KnowledgeSourceRecord>(
         `SELECT * FROM knowledge_sources
          WHERE id = $1 AND organization_id = $2 AND status = 'active'
-           AND ($3::uuid IS NULL OR agent_definition_id IS NULL OR agent_definition_id = $3)
+           AND ($3::uuid IS NULL OR agent_definition_id = $3)
            AND ($4::uuid IS NULL OR installation_id IS NULL OR installation_id = $4)
          FOR UPDATE`,
         [input.sourceId, input.scope.organizationId, input.scope.agentId ?? null, input.scope.installationId ?? null],
@@ -133,7 +133,7 @@ export class KnowledgeRepository {
       `SELECT kc.* FROM knowledge_chunks kc
        JOIN knowledge_sources ks ON ks.id = kc.source_id AND ks.status = 'active'
        WHERE kc.organization_id = $1
-         AND (kc.agent_definition_id IS NULL OR kc.agent_definition_id = $2)
+         AND kc.agent_definition_id = $2
          AND (kc.installation_id IS NULL OR kc.installation_id = $3)
          AND kc.revision = ks.revision
          AND kc.search_vector @@ plainto_tsquery('simple', $4)
@@ -145,7 +145,7 @@ export class KnowledgeRepository {
   }
 
   public async listSources(scope: { organizationId: string; agentId?: string; installationId?: string }, limit = 100): Promise<KnowledgeSourceRecord[]> {
-    const result = await query<KnowledgeSourceRecord>(this.pool, `SELECT * FROM knowledge_sources WHERE organization_id = $1 AND status <> 'deleted' AND ($2::uuid IS NULL OR agent_definition_id IS NULL OR agent_definition_id = $2) AND ($3::uuid IS NULL OR installation_id IS NULL OR installation_id = $3) ORDER BY created_at DESC LIMIT $4`, [scope.organizationId, scope.agentId ?? null, scope.installationId ?? null, Math.max(1, Math.min(limit, 500))]);
+    const result = await query<KnowledgeSourceRecord>(this.pool, `SELECT * FROM knowledge_sources WHERE organization_id = $1 AND status <> 'deleted' AND ($2::uuid IS NULL OR agent_definition_id = $2) AND ($3::uuid IS NULL OR installation_id IS NULL OR installation_id = $3) ORDER BY created_at DESC LIMIT $4`, [scope.organizationId, scope.agentId ?? null, scope.installationId ?? null, Math.max(1, Math.min(limit, 500))]);
     return result.rows;
   }
 
@@ -154,7 +154,7 @@ export class KnowledgeRepository {
       const result = await client.query<KnowledgeSourceRecord>(
         `UPDATE knowledge_sources SET status = 'deleted', deleted_at = now(), updated_at = now()
          WHERE id = $1 AND organization_id = $2
-           AND (agent_definition_id IS NULL OR agent_definition_id = $3)
+           AND agent_definition_id = $3
            AND (installation_id IS NULL OR installation_id = $4)
          RETURNING *`,
         [sourceId, scope.organizationId, scope.agentId, scope.installationId ?? null],

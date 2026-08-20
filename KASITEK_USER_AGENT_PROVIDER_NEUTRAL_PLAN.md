@@ -100,16 +100,22 @@ but it must not be presented as available until its earlier dependencies are com
 ### Batch 2 — Enforce agent-local context and data ownership
 
 - **Progress:** Model-facing context no longer includes opaque organization, agent, version,
-  installation, actor, or run identifiers. Knowledge/memory wildcard visibility and database
-  invariants remain pending.
+  installation, actor, or run identifiers. Runtime retrieval now requires the selected agent
+  definition for knowledge and durable memory. A migration adds write-time ownership checks for
+  context records, knowledge chunks, installations, and runs; live seeded-database verification and
+  legacy-row remediation remain pending.
 
-- [ ] Make agent-local knowledge, memory, conversations, instructions, and grants the default.
+- [x] Make runtime knowledge and memory retrieval agent-local by default. (`agents/src/db/repositories/knowledge-repository.ts`, `agents/src/db/repositories/memory-repository.ts`)
+- [ ] Make agent-local conversations, instructions, and grants the default.
 - [ ] Replace nullable organization-wide knowledge and memory visibility with explicit shared-source
   attachments or an explicit organization-shared selection.
+- [x] Require new memory and knowledge writes to carry an owning agent definition and reject
+  mismatched organization or installation scope. (`agents/migrations/057_agent_context_and_ownership_invariants.sql`)
 - [x] Remove organization, installation, version, run, and actor identifiers from model prompts
   unless the model requires a specific identifier to complete the request.
-- [ ] Add database invariants proving that each version belongs to its definition and each run's
-  version and installation belong to the same definition and organization.
+- [ ] Verify the database invariants proving that each version belongs to its definition and each
+  run's version and installation belong to the same definition and organization. The migration
+  implements the installation/run checks; seeded-database execution is still required.
 - [ ] Prevent one definition from mixing `system_hosted`, `kasitek_hosted`, and
   `external_connected` installations.
 - [ ] Reserve the protected sidebar connection and protected system identity for KasiAi.

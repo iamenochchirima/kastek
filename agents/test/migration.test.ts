@@ -169,4 +169,13 @@ describe("foundation migration", () => {
     expect(profileSql).toContain("'custom'");
     expect(profileSql).toContain("'system'");
   });
+
+  it("defines agent context and aggregate ownership invariants", async () => {
+    const scopeSql = await readFile(new URL("../migrations/057_agent_context_and_ownership_invariants.sql", import.meta.url), "utf8");
+    expect(scopeSql).toContain("memory_records_agent_scope_required");
+    expect(scopeSql).toContain("knowledge_sources_agent_scope_required");
+    expect(scopeSql).toContain("kasitek_validate_knowledge_chunk_scope");
+    expect(scopeSql).toContain("agent_installations_ownership_trigger");
+    expect(scopeSql).toContain("agent_runs_ownership_trigger");
+  });
 });

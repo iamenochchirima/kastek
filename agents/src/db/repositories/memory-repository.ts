@@ -103,7 +103,7 @@ export class MemoryRepository {
        WHERE organization_id = $1
          AND status = 'active'
          AND (expires_at IS NULL OR expires_at > now())
-         AND (agent_definition_id IS NULL OR agent_definition_id = $2)
+         AND agent_definition_id = $2
          AND (
            namespace = 'organization_shared'
            OR (namespace = 'agent_private' AND installation_id = $3)
@@ -124,7 +124,7 @@ export class MemoryRepository {
       `SELECT * FROM memory_records
        WHERE organization_id = $1 AND status = 'active'
          AND (expires_at IS NULL OR expires_at > now())
-         AND (agent_definition_id IS NULL OR agent_definition_id = $2)
+         AND agent_definition_id = $2
          AND (namespace <> 'agent_private' OR installation_id = $3)
          AND (namespace <> 'conversation' OR conversation_id = $4)
          AND (namespace <> 'user_private' OR owner_user_id = $5)
@@ -138,7 +138,7 @@ export class MemoryRepository {
     await withTransaction(this.pool, async (client) => {
       const result = await client.query<MemoryRecord>(
         `UPDATE memory_records SET status = 'deleted', deleted_at = now(), updated_at = now()
-         WHERE id = $1 AND organization_id = $2 AND (agent_definition_id IS NULL OR agent_definition_id = $3)
+         WHERE id = $1 AND organization_id = $2 AND agent_definition_id = $3
            AND (
              namespace = 'organization_shared'
              OR (namespace = 'agent_private' AND installation_id = $4)
@@ -185,7 +185,7 @@ export class MemoryRepository {
       this.pool,
       `UPDATE memory_records SET expires_at = $4, last_revalidated_at = now(), updated_at = now()
        WHERE id = $1 AND organization_id = $2 AND status = 'active'
-         AND (agent_definition_id IS NULL OR agent_definition_id = $3)
+         AND agent_definition_id = $3
          AND (
            namespace = 'organization_shared'
            OR (namespace = 'agent_private' AND installation_id = $5)
