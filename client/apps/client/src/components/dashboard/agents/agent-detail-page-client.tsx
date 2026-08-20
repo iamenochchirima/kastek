@@ -1658,9 +1658,9 @@ function AgentTestChat({ installationId, active }: { installationId: string; act
     setSending(false);
   };
 
-  return <Card className="overflow-hidden border-border/80 shadow-sm">
-    <div className="flex min-h-[640px] flex-col">
-      <header className="flex flex-col gap-3 border-b border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+  return <Card className="h-[min(720px,calc(100dvh-9rem))] min-h-[560px] overflow-hidden border-border/80 shadow-sm">
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="flex shrink-0 flex-col gap-3 border-b border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="flex items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary"><Bot className="h-5 w-5" /></div>
           <div><h2 className="text-lg font-semibold text-foreground">Test chat</h2><p className="mt-0.5 text-sm text-muted-foreground">Try a conversation with this agent.</p></div>
@@ -1675,7 +1675,7 @@ function AgentTestChat({ installationId, active }: { installationId: string; act
       {!active ? <div className="border-b border-border bg-status-attention-soft px-5 py-3 text-sm text-status-attention sm:px-6">Resume this installation to start testing.</div> : null}
 
       <div className="min-h-0 flex-1 overflow-y-auto bg-secondary/10 px-4 py-6 sm:px-6" aria-live="polite">
-        <div className="mx-auto flex min-h-[500px] max-w-3xl flex-col justify-end gap-5">
+        <div className="mx-auto flex min-h-full max-w-3xl flex-col justify-end gap-5">
           {loading ? <div className="flex min-h-[460px] items-center justify-center"><p className="text-sm text-muted-foreground">Loading conversation…</p></div> : messages.length ? <>
             {messages.map((message) => {
               const isUser = message.direction === "inbound";
@@ -1695,8 +1695,8 @@ function AgentTestChat({ installationId, active }: { installationId: string; act
         </div>
       </div>
 
-      {error ? <div className="border-t border-destructive/20 bg-destructive/10 px-5 py-3 text-sm text-destructive sm:px-6" role="alert">{error}</div> : null}
-      <form className="border-t border-border bg-card p-4 sm:p-5" onSubmit={(event) => { event.preventDefault(); void send(); }}>
+      {error ? <div className="shrink-0 border-t border-destructive/20 bg-destructive/10 px-5 py-3 text-sm text-destructive sm:px-6" role="alert">{error}</div> : null}
+      <form className="shrink-0 border-t border-border bg-card p-4 sm:p-5" onSubmit={(event) => { event.preventDefault(); void send(); }}>
         <div className="mx-auto flex max-w-3xl items-end gap-3 rounded-2xl border border-border bg-background p-2 shadow-sm focus-within:border-primary/50">
           <textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} disabled={!active || sending || loading || !conversation} rows={2} placeholder="Message this agent…" aria-label="Message this agent" className="min-h-[52px] min-w-0 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed" />
           {sending && activeRunId ? <Button type="button" variant="outline" size="icon" aria-label="Stop agent run" title="Stop agent run" onClick={() => void stop()}><Square className="h-4 w-4" /></Button> : <Button type="submit" size="icon" aria-label="Send message" disabled={!active || loading || !conversation || !draft.trim()}><Send className="h-4 w-4" /></Button>}
