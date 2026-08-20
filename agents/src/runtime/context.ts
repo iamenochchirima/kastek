@@ -79,7 +79,7 @@ export function buildAgentContext(input: ContextBuildInput): BuiltAgentContext {
   const budget = { ...defaultBudget, ...input.budget };
   const systemSections = [
     input.instructions,
-    `Execution identity: organization=${input.organizationId}, actor=${input.actorId ?? "unknown"}, agent=${input.agentId}, version=${input.agentVersionId}, installation=${input.installationId}, run=${input.runId}.`,
+    "Execution identity: the current conversation belongs to this configured agent and its active installation. Internal platform identifiers are kept in runtime metadata and are not model-facing context.",
     `Channel: ${input.channelType ?? "platform"}; locale: ${input.locale ?? "en-ZA"}; current time: ${new Date().toISOString()}.`,
     `Internal authorized capabilities: ${input.authorizedTools.length ? input.authorizedTools.map((tool) => tool.name).join(", ") : "none"}. Capability names are execution policy metadata; do not advertise or expose them unless the user explicitly asks and they are relevant to this agent's configured purpose. They do not authorize access to resources outside the current policy context.`,
     "Grounding contract: distinguish configured agent knowledge, facts returned by tools, and untrusted user-provided data. If a capability or data source was not available and used, say so plainly; do not claim an action succeeded, a source was consulted, or a provider was contacted unless the durable run evidence shows it.",

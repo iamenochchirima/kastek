@@ -59,7 +59,7 @@ describe("Waku-derived context builder", () => {
     }).retrievalRequested).toBe(true);
   });
 
-  it("includes authenticated and capability context without treating UI data as policy", () => {
+  it("includes capability context without exposing internal identifiers or treating UI data as policy", () => {
     const context = buildAgentContext({
       instructions: "Policy",
       organizationId: "org",
@@ -82,7 +82,11 @@ describe("Waku-derived context builder", () => {
       }],
       dynamicContext: { route: "/contacts/123", entity: "customer:123", pageTitle: "Customer", enabledModules: ["contacts"] },
     });
-    expect(context.messages[0]?.content).toContain("actor=actor");
+    expect(context.messages[0]?.content).toContain("Internal platform identifiers are kept in runtime metadata");
+    expect(context.messages[0]?.content).not.toContain("organization=org");
+    expect(context.messages[0]?.content).not.toContain("agent=agent");
+    expect(context.messages[0]?.content).not.toContain("installation=installation");
+    expect(context.messages[0]?.content).not.toContain("run=run");
     expect(context.messages[0]?.content).toContain("Internal authorized capabilities: kasitek.core.customer_get");
     expect(context.messages[0]?.content).toContain("Grounding contract:");
     expect(context.messages[0]?.content).toContain("<untrusted-data source=\"authenticated-ui-context\">");

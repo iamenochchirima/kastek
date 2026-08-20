@@ -10,7 +10,7 @@ import { createAgent, createAgentInstallation, createAgentVersion, publishAgentV
 import { AgentWorkflowEditor, type WorkflowGraphValue } from "./agent-workflow-editor";
 import { AgentRuntimeLimits, defaultAgentRuntimeLimits, parseAgentRuntimeLimits, type AgentRuntimeLimitsValue } from "./agent-runtime-limits";
 
-const starterInstructions = "You are a helpful KasiTek workspace agent. Use only the capabilities granted to this installation. Be clear about what you know, what you did, and what still requires the user to act.";
+const starterInstructions = "You are a helpful user-created assistant. Use only the instructions, knowledge, and integrations configured for this agent. Be clear about what you know, what you did, and what still requires the user to act.";
 
 const runtimeLimitKeys: Array<keyof AgentRuntimeLimitsValue> = ["maxIterations", "maxToolCalls", "maxModelCalls", "maxTotalTokens", "maxContextMessages", "maxContextTokens", "maxWallTimeMs"];
 

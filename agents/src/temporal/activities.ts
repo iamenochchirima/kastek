@@ -1468,6 +1468,19 @@ async function executeLoopForRun(
   if (await controls.isHeld({ organizationId: run.organization_id, installationId: run.installation_id, runId: run.id, holdType: "execution" })) throw new Error("AGENT_EXECUTION_HOLD_ACTIVE");
   const credentialReference = typeof configuration.credentialReference === "string" ? configuration.credentialReference : undefined;
   const modelCredentials = await credentials.resolve(provider, credentialReference, run.organization_id);
+  const fallbackModels = [] as Array<{
+    model: { provider: typeof provider; model: string; temperature?: number };
+    credentials: ModelCredentials;
+  }>;
+  for (const fallback of modelTarget.fallback) {
+    if (fallback.provider === provider && fallback.model === model) continue;
+    const fallbackCredentials = await credentials.resolve(fallback.provider, credentialReference, run.organization_id);
+    if (modelCredentials.fundingSource === "user" && fallbackCredentials.fundingSource === "kasitek" && !modelTarget.allowUserFundedFallbackToKasiTek) continue;
+    fallbackModels.push({
+      model: { provider: fallback.provider, model: fallback.model, temperature: typeof configuration.temperature === "number" ? configuration.temperature : undefined },
+      credentials: fallbackCredentials,
+    });
+  }
   const currentMessage = typeof run.input.message === "string" ? run.input.message : JSON.stringify(run.input);
   const rawDynamicContext = run.input.context && typeof run.input.context === "object" && !Array.isArray(run.input.context)
     ? run.input.context as Record<string, unknown>
@@ -1642,6 +1655,7 @@ async function executeLoopForRun(
     model: { provider, model, temperature: typeof configuration.temperature === "number" ? configuration.temperature : undefined },
     messages: context.messages,
     credentials: modelCredentials,
+    fallbackModels,
     gateway,
     tools,
     grantedTools: allowedTools,
@@ -1825,29 +1839,32 @@ async function executeLoopForRun(
       const stepId = toolSteps.get(failure.toolCallId);
       if (stepId) await runSteps.finishStep({ stepId, status: "failed", error: failure.error });
     },
-    onModelResponse: async (response) => {
+    onModelResponse: async (response, attempt) => {
+      const attemptCredentials = attempt?.credentials ?? modelCredentials;
       await modelCalls.recordCompleted({
         organizationId: run.organization_id,
         runId: run.id,
         provider: response.provider,
         model: response.model,
-        fundingSource: modelCredentials.fundingSource,
-        credentialReference: modelCredentials.credentialReference,
+        fundingSource: attemptCredentials.fundingSource,
+        credentialReference: attemptCredentials.credentialReference,
         response,
       });
       const step = await runSteps.startStep({ runId: run.id, organizationId: run.organization_id, stepType: "model", input: { provider: response.provider, model: response.model } });
       await runSteps.finishStep({ stepId: step.id, status: "completed", output: { totalTokens: response.usage.totalTokens, finishReason: response.finishReason, latencyMs: response.latencyMs } });
     },
-    onModelError: async (error) => {
+    onModelError: async (error, attempt) => {
+      const attemptModel = attempt?.model ?? { provider, model };
+      const attemptCredentials = attempt?.credentials ?? modelCredentials;
       await modelCalls.recordFailed({
         organizationId: run.organization_id,
         runId: run.id,
-        provider,
-        model,
-        fundingSource: modelCredentials.fundingSource,
+        provider: attemptModel.provider,
+        model: attemptModel.model,
+        fundingSource: attemptCredentials.fundingSource,
         error,
       });
-      const step = await runSteps.startStep({ runId: run.id, organizationId: run.organization_id, stepType: "model", input: { provider, model } });
+      const step = await runSteps.startStep({ runId: run.id, organizationId: run.organization_id, stepType: "model", input: { provider: attemptModel.provider, model: attemptModel.model } });
       await runSteps.finishStep({ stepId: step.id, status: "failed", error });
     },
   });

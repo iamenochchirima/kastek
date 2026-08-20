@@ -11,23 +11,6 @@ import { createAgent, createAgentInstallation, createAgentKnowledgeSource, creat
 type Step = 1 | 2 | 3 | 4;
 
 const model = { provider: "openrouter", name: "openai/gpt-oss-20b:free" };
-const generalCapabilities = [
-  "platform.current_time",
-  "kasitek.core.workspace_status",
-  "kasitek.core.workspace_report",
-  "kasitek.core.customer_get",
-  "kasitek.core.booking_services_list",
-  "kasitek.core.bookings_list",
-  "kasitek.core.booking_get",
-  "kasitek.core.campaigns_list",
-  "kasitek.core.campaign_summary",
-  "kasitek.core.templates_list",
-  "kasitek.core.contacts_list",
-  "kasitek.core.inbox_conversations_list",
-  "kasitek.core.inbox_messages_list",
-  "kasitek.core.content_posts_list",
-  "kasitek.core.content_post_get",
-];
 
 export function CreateGeneralAgentPageClient() {
   const router = useRouter();
@@ -75,7 +58,7 @@ export function CreateGeneralAgentPageClient() {
           maxWallTimeMs: 60_000,
         },
         policy: {
-          allowedTools: generalCapabilities,
+          allowedTools: [],
           modelPolicy: {
             version: "hosted-agent-v1",
             primary: { provider: model.provider, model: model.name },
@@ -199,7 +182,7 @@ export function CreateGeneralAgentPageClient() {
                     <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Purpose</dt><dd className="text-foreground sm:max-w-[70%] sm:text-right">{purpose}</dd></div>
                     <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Knowledge</dt><dd className="font-medium text-foreground sm:max-w-[70%] sm:text-right">{knowledgeText.trim() && knowledgeFile ? `Pasted information + ${knowledgeFile.name}` : knowledgeText.trim() ? "Pasted information" : knowledgeFile ? knowledgeFile.name : "None yet"}</dd></div>
                     <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Behavior</dt><dd className="font-medium capitalize text-foreground sm:text-right">{tone}, {responseDetail}</dd></div>
-                    <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Access</dt><dd className="font-medium text-foreground sm:text-right">Read-only workspace context ({generalCapabilities.length} capabilities)</dd></div>
+                    <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Access</dt><dd className="font-medium text-foreground sm:text-right">No tools selected</dd></div>
                     <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Workflow</dt><dd className="font-medium text-foreground sm:text-right">Standard assistant runtime</dd></div>
                   </dl>
                 </> : null}

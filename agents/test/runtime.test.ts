@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ModelGateway } from "../src/model/gateway";
-import type { ModelAdapter, ModelCredentials, ModelRequest, ModelResponse } from "../src/model/types";
+import { ModelProviderError, type ModelAdapter, type ModelCredentials, type ModelRequest, type ModelResponse } from "../src/model/types";
 import { ToolRegistry, effectIdForInvocation, hashToolArguments } from "../src/tools/registry";
 import { runBoundedAgentLoop } from "../src/runtime/loop";
 import { redactSensitiveValue } from "../src/tools/redaction";
@@ -160,6 +160,29 @@ describe("Tool Gateway and bounded runtime", () => {
     });
     expect(result.status).toBe("failed");
     expect(result.error).toMatchObject({ code: "EMPTY_ASSISTANT_RESPONSE" });
+  });
+
+  it("uses an explicitly configured fallback model after a provider failure", async () => {
+    const adapter: ModelAdapter = {
+      provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+      complete: async (request) => {
+        if (request.model === "primary") throw new ModelProviderError("primary unavailable", "PROVIDER_DOWN", false, "openai", 503);
+        return response([], "fallback response");
+      },
+    };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "primary" },
+      fallbackModels: [{ model: { provider: "openai", model: "fallback" }, credentials }],
+      messages: [{ role: "user", content: "hello" }],
+      credentials,
+      gateway: new ModelGateway([adapter], { circuitFailureThreshold: 10 }),
+      tools: new ToolRegistry(),
+      grantedTools: new Set(),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+    });
+    expect(result.status).toBe("completed");
+    expect(result.response?.message.content).toBe("fallback response");
   });
 
   it("stops before invoking a tool when the run tool-call budget is exhausted", async () => {

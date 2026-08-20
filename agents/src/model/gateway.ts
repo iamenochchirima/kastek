@@ -23,10 +23,18 @@ export class ModelGateway {
     this.circuitCooldownMs = Math.max(100, options.circuitCooldownMs ?? 30_000);
   }
 
-  private circuitKey(request: ModelRequest): string { return `${request.provider}:${request.model}`; }
+  private circuitKey(request: ModelRequest, credentials: ModelCredentials): string {
+    // BYOK credentials are tenant-owned and must not share breaker state. The
+    // process environment credential intentionally remains provider-wide so a
+    // genuine upstream outage can be dampened across requests.
+    const credentialScope = credentials.credentialReference
+      ? `credential:${credentials.credentialReference}`
+      : `funding:${credentials.fundingSource}`;
+    return `${request.provider}:${request.model}:${credentialScope}`;
+  }
 
-  private assertCircuitClosed(request: ModelRequest): void {
-    const key = this.circuitKey(request);
+  private assertCircuitClosed(request: ModelRequest, credentials: ModelCredentials): void {
+    const key = this.circuitKey(request, credentials);
     const circuit = this.circuits.get(key);
     if (!circuit?.openedAt) return;
     if (Date.now() - circuit.openedAt >= this.circuitCooldownMs) {
@@ -36,10 +44,10 @@ export class ModelGateway {
     throw new ModelProviderError("Model provider circuit is open", "MODEL_CIRCUIT_OPEN", false, request.provider);
   }
 
-  private recordCircuitSuccess(request: ModelRequest): void { this.circuits.delete(this.circuitKey(request)); }
+  private recordCircuitSuccess(request: ModelRequest, credentials: ModelCredentials): void { this.circuits.delete(this.circuitKey(request, credentials)); }
 
-  private recordCircuitFailure(request: ModelRequest): void {
-    const key = this.circuitKey(request);
+  private recordCircuitFailure(request: ModelRequest, credentials: ModelCredentials): void {
+    const key = this.circuitKey(request, credentials);
     const current = this.circuits.get(key) ?? { failures: 0 };
     current.failures += 1;
     if (current.failures >= this.circuitFailureThreshold) current.openedAt = Date.now();
@@ -51,10 +59,10 @@ export class ModelGateway {
   }
 
   public async complete(request: ModelRequest, credentials: ModelCredentials): Promise<ModelResponse> {
-    this.assertCircuitClosed(request);
     const adapter = this.adapters.get(request.provider);
     if (!adapter) throw new Error(`No model adapter configured for provider ${request.provider}`);
     if (!credentials.apiKey) throw new Error(`No credential supplied for provider ${request.provider}`);
+    this.assertCircuitClosed(request, credentials);
     if (request.tools?.length && !adapter.capabilities.toolCalling) {
       throw new ModelProviderError("Provider does not support tool calling", "MODEL_CAPABILITY_UNSUPPORTED", false, request.provider);
     }
@@ -87,7 +95,7 @@ export class ModelGateway {
         if (response.usage.estimatedCostUsd === undefined) {
           response.usage.estimatedCostUsd = this.estimateCost(response.provider, response.model, response.usage.inputTokens, response.usage.outputTokens);
         }
-        this.recordCircuitSuccess(request);
+        this.recordCircuitSuccess(request, credentials);
         return response;
       } catch (error) {
         const providerError = error instanceof ModelProviderError ? error : undefined;
@@ -95,10 +103,12 @@ export class ModelGateway {
           throw new ModelProviderError("Model request timed out", "MODEL_TIMEOUT", true, request.provider);
         }
         if (!providerError || !providerError.retryable || attempt >= maxAttempts) {
-          if (providerError) this.recordCircuitFailure(request);
+          if (providerError) this.recordCircuitFailure(request, credentials);
           throw error;
         }
-        await new Promise((resolve) => setTimeout(resolve, this.retryBaseDelayMs * 2 ** (attempt - 1)));
+        const retryDelay = this.retryBaseDelayMs * 2 ** (attempt - 1);
+        const jitteredDelay = retryDelay > 0 ? retryDelay + Math.random() * retryDelay : 0;
+        await new Promise((resolve) => setTimeout(resolve, jitteredDelay));
       } finally {
         if (timeout) clearTimeout(timeout);
         request.signal?.removeEventListener("abort", abortParent);
@@ -108,22 +118,22 @@ export class ModelGateway {
   }
 
   public async stream(request: ModelRequest, credentials: ModelCredentials, onDelta: (delta: ModelStreamDelta) => void | Promise<void>): Promise<ModelStreamResult> {
-    this.assertCircuitClosed(request);
     const adapter = this.adapters.get(request.provider);
     if (!adapter) throw new Error(`No model adapter configured for provider ${request.provider}`);
     if (!adapter.capabilities.streaming || !adapter.stream) {
       throw new ModelProviderError("Provider does not support streaming", "MODEL_CAPABILITY_UNSUPPORTED", false, request.provider);
     }
     if (!credentials.apiKey) throw new Error(`No credential supplied for provider ${request.provider}`);
+    this.assertCircuitClosed(request, credentials);
     let deltas = 0;
     let response: ModelResponse;
     try {
       response = await adapter.stream(request, credentials, async (delta) => { deltas += 1; await onDelta(delta); });
     } catch (error) {
-      if (error instanceof ModelProviderError) this.recordCircuitFailure(request);
+      if (error instanceof ModelProviderError) this.recordCircuitFailure(request, credentials);
       throw error;
     }
-    this.recordCircuitSuccess(request);
+    this.recordCircuitSuccess(request, credentials);
     if (response.usage.estimatedCostUsd === undefined) {
       response.usage.estimatedCostUsd = this.estimateCost(response.provider, response.model, response.usage.inputTokens, response.usage.outputTokens);
     }

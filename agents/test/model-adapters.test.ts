@@ -57,6 +57,31 @@ describe("provider adapters", () => {
     await expect(gateway.complete(request, credentials)).rejects.toMatchObject({ code: "PROVIDER_DOWN" });
     await expect(gateway.complete(request, credentials)).rejects.toMatchObject({ code: "MODEL_CIRCUIT_OPEN" });
   });
+
+  it("does not share a BYOK circuit between credential references", async () => {
+    const adapter: ModelAdapter = {
+      provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+      complete: async (_request, requestCredentials) => {
+        if (requestCredentials.credentialReference === "credential-a") {
+          throw new ModelProviderError("credential A is rejected", "PROVIDER_UNAUTHORIZED", false, "openai", 401);
+        }
+        return {
+          provider: "openai",
+          model: "test",
+          message: { role: "assistant", content: "ok" },
+          toolCalls: [],
+          finishReason: "stop",
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          latencyMs: 1,
+        };
+      },
+    };
+    const gateway = new ModelGateway([adapter], { circuitFailureThreshold: 1, circuitCooldownMs: 60_000 });
+    const request = { provider: "openai" as const, model: "test", messages: [{ role: "user" as const, content: "hi" }] };
+    await expect(gateway.complete(request, { ...credentials, fundingSource: "user", credentialReference: "credential-a" })).rejects.toMatchObject({ code: "PROVIDER_UNAUTHORIZED" });
+    await expect(gateway.complete(request, { ...credentials, fundingSource: "user", credentialReference: "credential-b" })).resolves.toMatchObject({ message: { content: "ok" } });
+  });
   it("normalizes an OpenAI-compatible tool response", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       choices: [{ message: { role: "assistant", content: "", tool_calls: [{ id: "call-1", function: { name: "echo", arguments: '{"value":"ok"}' } }] }, finish_reason: "tool_calls" }],

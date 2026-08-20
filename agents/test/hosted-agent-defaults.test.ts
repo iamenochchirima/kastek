@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { GENERAL_HOSTED_AGENT_ALLOWED_TOOLS, resolveHostedAgentAllowedTools } from "../src/system/hosted-agent-defaults";
+import { resolveHostedAgentAllowedTools } from "../src/system/hosted-agent-defaults";
 
-describe("hosted agent default capability pack", () => {
-  it("gives general-purpose agents a read-only platform context pack", () => {
+describe("hosted agent default capability policy", () => {
+  it("keeps ordinary general-purpose agents provider-neutral when no tools are selected", () => {
     const tools = resolveHostedAgentAllowedTools("general", []);
-    expect(tools).toEqual([...GENERAL_HOSTED_AGENT_ALLOWED_TOOLS]);
-    expect(tools.some((tool) => tool.includes("_update") || tool.includes("_publish") || tool.includes("_delete"))).toBe(false);
+    expect(tools).toEqual([]);
   });
 
-  it("preserves explicit custom policy instead of widening it", () => {
+  it("preserves explicit policy without widening it for any hosted profile", () => {
+    expect(resolveHostedAgentAllowedTools("general", ["platform.current_time"])).toEqual(["platform.current_time"]);
     expect(resolveHostedAgentAllowedTools("custom", ["kasitek.core.contacts_list"])).toEqual(["kasitek.core.contacts_list"]);
     expect(resolveHostedAgentAllowedTools("custom", [])).toEqual([]);
+    expect(resolveHostedAgentAllowedTools("system", [])).toEqual([]);
   });
 });

@@ -25,14 +25,18 @@ export interface AgentLoopInput {
   model: Pick<ModelRequest, "provider" | "model" | "temperature" | "maxTokens">;
   messages: ModelMessage[];
   credentials: ModelCredentials;
+  fallbackModels?: Array<{
+    model: Pick<ModelRequest, "provider" | "model" | "temperature" | "maxTokens">;
+    credentials: ModelCredentials;
+  }>;
   gateway: ModelGateway;
   tools: ToolRegistry;
   toolContext: ToolInvocationContext;
   grantedTools: ReadonlySet<string>;
   limits?: Partial<AgentLoopLimits>;
   onEvent?: (event: AgentLoopEvent) => Promise<void> | void;
-  onModelResponse?: (response: ModelResponse) => Promise<void> | void;
-  onModelError?: (error: { code: string; message: string }) => Promise<void> | void;
+  onModelResponse?: (response: ModelResponse, attempt?: { model: AgentLoopInput["model"]; credentials: ModelCredentials }) => Promise<void> | void;
+  onModelError?: (error: { code: string; message: string }, attempt?: { model: AgentLoopInput["model"]; credentials: ModelCredentials }) => Promise<void> | void;
   beforeModelCall?: () => Promise<void> | void;
   beforeToolInvoke?: (input: {
     toolCallId: string;
@@ -105,6 +109,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
   const messages = [...input.messages];
   const usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
   let toolCalls = 0;
+  let lastModelAttempt: { model: AgentLoopInput["model"]; credentials: ModelCredentials } = { model: input.model, credentials: input.credentials };
   const startedAt = Date.now();
   await emit(input, { type: "loop.started", iteration: 0, payload: {} });
 
@@ -172,14 +177,32 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
     }
     const remainingTokens = Math.max(1, limits.maxTotalTokens - usage.totalTokens);
     try {
-      await input.beforeModelCall?.();
-      const response = await input.gateway.complete({
-        ...input.model,
-        messages,
-        tools: input.tools.list(input.grantedTools),
-        maxTokens: input.model.maxTokens === undefined ? remainingTokens : Math.min(input.model.maxTokens, remainingTokens),
-      }, input.credentials);
-      await input.onModelResponse?.(response);
+      const attempts = [
+        { model: input.model, credentials: input.credentials },
+        ...(input.fallbackModels ?? []),
+      ];
+      let response: ModelResponse | undefined;
+      let lastError: unknown;
+      for (const attempt of attempts) {
+        lastModelAttempt = attempt;
+        try {
+          await input.beforeModelCall?.();
+          response = await input.gateway.complete({
+            ...attempt.model,
+            messages,
+            tools: input.tools.list(input.grantedTools),
+            maxTokens: attempt.model.maxTokens === undefined ? remainingTokens : Math.min(attempt.model.maxTokens, remainingTokens),
+          }, attempt.credentials);
+          break;
+        } catch (error) {
+          lastError = error;
+          // A fallback is only for provider failures. Budget, policy, and
+          // cancellation errors must stop the run immediately.
+          if (!(error instanceof ModelProviderError)) throw error;
+        }
+      }
+      if (!response) throw lastError ?? new Error("Model gateway returned no response");
+      await input.onModelResponse?.(response, lastModelAttempt);
       messages.push(response.message);
       usage.inputTokens += response.usage.inputTokens;
       usage.outputTokens += response.usage.outputTokens;
@@ -285,7 +308,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       const normalized = error instanceof ModelProviderError || error instanceof ToolPolicyError
         ? { code: error.code, message: error.message, failureClass: classifyFailureCode(error.code) }
         : { code: "AGENT_LOOP_FAILED", message: error instanceof Error ? error.message : "Unknown agent loop failure", failureClass: "terminal" as const };
-      if (error instanceof ModelProviderError) await input.onModelError?.(normalized);
+      if (error instanceof ModelProviderError) await input.onModelError?.(normalized, lastModelAttempt);
       await emit(input, { type: "loop.failed", iteration, payload: normalized });
       return { status: "failed", messages, usage, iterations: iteration, toolCalls, error: normalized };
     }
