@@ -414,6 +414,9 @@ all implementation and verification items above are complete:
   small-viewport-safe `svh` sizing so mobile browser chrome cannot hide their
   actions or previews. Their existing scroll and max-width treatments remain
   unchanged; lint, TypeScript, and the Webpack build pass.
+- Shared Dialog, AlertDialog, Sheet, shell-sidebar, and Product Tour transitions
+  now read the semantic `--v-motion-fast`/`--v-motion-shell` tokens instead of
+  embedding duplicate durations.
 - The route implementation pass now covers the remaining workspace, customer,
   content, campaign, automation, and connection surfaces with `100dvh` roots,
   Vantage entrance treatment, mobile stacking/overflow rules, and
