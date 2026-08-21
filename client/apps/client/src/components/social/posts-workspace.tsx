@@ -18,6 +18,7 @@ import {
   PageHeaderTitle,
 } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContentWorkspaceNavigation } from "@/components/social/content-workspace-navigation";
 import { SocialPostsLibrary } from "@/components/social/social-posts-library";
@@ -1502,10 +1503,9 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         ) : null}
       </Dialog>
 
-      {isComposerOpen ? (
-        <div className="fixed inset-0 z-50">
-          <button type="button" className="absolute inset-0 bg-overlay" onClick={() => setIsComposerOpen(false)} aria-label="Close composer" />
-          <div className="absolute inset-y-0 right-0 flex w-full max-w-[760px] flex-col border-l border-border bg-card shadow-2xl">
+      <Sheet open={isComposerOpen} onOpenChange={setIsComposerOpen}>
+        {isComposerOpen ? (
+          <SheetContent className="w-full max-w-[760px] gap-0 border-l border-border bg-card p-0 sm:max-w-[760px]">
             <div className="flex items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
               <div>
                 <p className="text-lg font-semibold text-foreground">{composer.id ? "Edit post" : "New post"}</p>
@@ -1628,9 +1628,9 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      ) : null}
+          </SheetContent>
+        ) : null}
+      </Sheet>
     </div>
   );
 }
