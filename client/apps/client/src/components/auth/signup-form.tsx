@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { apiUrl } from "@/lib/server-api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 function getPasswordStrength(password: string) {
   if (!password) return { score: 0, label: "", hint: "Use at least 8 characters." };
@@ -144,9 +146,10 @@ export default function SignupForm() {
         </div>
       )}
 
-      <button
+      <Button
         onClick={handleGoogleSignIn}
-        className="flex w-full items-center justify-center gap-3 rounded-full border border-border bg-secondary px-6 py-3 text-sm font-semibold text-foreground transition-all hover:border-primary/20 hover:bg-secondary/80"
+        className="w-full"
+        variant="outline"
       >
         <svg className="h-5 w-5" viewBox="0 0 24 24">
           <path
@@ -167,7 +170,7 @@ export default function SignupForm() {
           />
         </svg>
         Continue with Google
-      </button>
+      </Button>
 
       <div className="flex items-center gap-4">
         <div className="h-px flex-1 bg-border" />
@@ -180,25 +183,25 @@ export default function SignupForm() {
           <label className="mb-1.5 block text-sm font-medium text-foreground">
             Name
           </label>
-          <input
+          <Input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Your name"
-            className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className="h-10"
           />
         </div>
         <div>
           <label className="mb-1.5 block text-sm font-medium text-foreground">
             Email
           </label>
-          <input
+          <Input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="your@email.com"
             required
-            className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className="h-10"
           />
         </div>
         <div>
@@ -206,14 +209,14 @@ export default function SignupForm() {
             Password
           </label>
           <div className="relative">
-            <input
+            <Input
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter a unique password"
               required
               minLength={8}
-              className="w-full rounded-xl border border-border bg-card px-4 py-3 pr-11 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              className="h-10 pr-11"
             />
             <button
               type="button"
@@ -255,14 +258,14 @@ export default function SignupForm() {
             Confirm Password
           </label>
           <div className="relative">
-            <input
+            <Input
               type={showConfirmPassword ? "text" : "password"}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Confirm your password"
               required
               minLength={8}
-              className="w-full rounded-xl border border-border bg-card px-4 py-3 pr-11 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              className="h-10 pr-11"
             />
             <button
               type="button"
@@ -275,13 +278,13 @@ export default function SignupForm() {
             </button>
           </div>
         </div>
-        <button
+        <Button
           type="submit"
           disabled={loading}
-          className="w-full rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-50 disabled:hover:translate-y-0"
+          className="w-full"
         >
           {loading ? "Creating account..." : "Continue"}
-        </button>
+        </Button>
       </form>
 
       <p className="text-center text-xs text-muted-foreground">

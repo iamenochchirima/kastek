@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { apiUrl } from "@/lib/server-api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function LoginForm() {
   const searchParams = useSearchParams();
@@ -104,9 +106,10 @@ export default function LoginForm() {
         </div>
       )}
 
-      <button
+      <Button
         onClick={handleGoogleSignIn}
-        className="flex w-full items-center justify-center gap-3 rounded-full border border-border bg-secondary px-6 py-3 text-sm font-semibold text-foreground transition-all hover:border-primary/20 hover:bg-secondary/80"
+        className="w-full"
+        variant="outline"
       >
         <svg className="h-5 w-5" viewBox="0 0 24 24">
           <path
@@ -127,7 +130,7 @@ export default function LoginForm() {
           />
         </svg>
         Continue with Google
-      </button>
+      </Button>
 
       <div className="flex items-center gap-4">
         <div className="h-px flex-1 bg-border" />
@@ -140,13 +143,13 @@ export default function LoginForm() {
           <label className="mb-1.5 block text-sm font-medium text-foreground">
             Email
           </label>
-          <input
+          <Input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="your@email.com"
             required
-            className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className="h-10"
           />
         </div>
         <div>
@@ -154,13 +157,13 @@ export default function LoginForm() {
             Password
           </label>
           <div className="relative">
-            <input
+            <Input
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
               required
-              className="w-full rounded-xl border border-border bg-secondary px-4 py-3 pr-11 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              className="h-10 pr-11"
             />
             <button
               type="button"
@@ -173,13 +176,13 @@ export default function LoginForm() {
             </button>
           </div>
         </div>
-        <button
+        <Button
           type="submit"
           disabled={loading}
-          className="w-full rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-50 disabled:hover:translate-y-0"
+          className="w-full"
         >
           {loading ? "Signing in..." : "Sign In"}
-        </button>
+        </Button>
       </form>
 
       {process.env.NEXT_PUBLIC_KASITEK_ACCESS_MODE === "public" && (
