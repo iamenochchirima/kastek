@@ -447,6 +447,10 @@ all implementation and verification items above are complete:
   card and collapse control, and theme, notification, and help actions are no
   longer duplicated as standalone sidebar rows. They remain available through
   Appearance/Notifications, the live top-bar bell, and the profile menu.
+- The Developers portal now uses the same workspace composition as Settings:
+  shared page heading, responsive section rail, selected-state motion, and a
+  constrained content column. Its MCP, API, CLI, resources, and key-management
+  actions remain on their existing routes and data provider.
 - The main KasiAi conversation rail is now desktop-only on phones; mobile uses
   a header-triggered overlay drawer with backdrop/Escape dismissal and focus
   return, keeping the message composer and chat content full width.
