@@ -63,6 +63,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("/{id}", web::get().to(orgs::get_org))
             .route("/{id}", web::patch().to(orgs::update_org))
             .route("/{id}", web::delete().to(orgs::delete_org))
+            .route("/{id}/logo", web::get().to(orgs::download_logo))
+            .route("/{id}/logo", web::post().to(orgs::upload_logo))
             .route("/{id}/members", web::get().to(orgs::list_members))
             .route(
                 "/{id}/members/{userId}",

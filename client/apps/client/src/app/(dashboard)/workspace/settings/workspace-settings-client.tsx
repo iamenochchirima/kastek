@@ -4,7 +4,7 @@ import type { Org } from "@/lib/orgs";
 import type { BillingSummary, AvailablePlan } from "@/lib/billing";
 import { apiUrl } from "@/lib/server-api";
 import { cn } from "@/lib/utils";
-import { Bell, Building2, CreditCard, Palette, UserRound } from "lucide-react";
+import { Bell, Building2, CreditCard, ImagePlus, Palette, Upload, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -16,6 +16,7 @@ import { BillingPanel } from "@/components/dashboard/billing/billing-panel";
 import ProfileForm from "@/components/dashboard/profile/profile-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { VANTAGE_EXPO, VANTAGE_MOTION, VANTAGE_SELECTION_SPRING } from "@/lib/motion";
 import { useAppearance } from "@/lib/appearance";
 
@@ -62,6 +63,8 @@ export function WorkspaceSettingsClient({
   const [tab, setTab] = useState<LocalSettingsTab>(initialTab);
   const [name, setName] = useState(org.name);
   const [logo, setLogo] = useState(org.logo || "");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -75,18 +78,59 @@ export function WorkspaceSettingsClient({
     setTab(initialTab);
   }, [initialTab]);
 
+  useEffect(() => {
+    if (!logoFile) {
+      setLogoPreview(null);
+      return;
+    }
+    const preview = URL.createObjectURL(logoFile);
+    setLogoPreview(preview);
+    return () => URL.revokeObjectURL(preview);
+  }, [logoFile]);
+
+  function chooseLogo(file: File | null) {
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
+      setMessage("Use a PNG, JPEG, WebP, or GIF image.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage("Organization logos must be 5 MB or smaller.");
+      return;
+    }
+    setMessage("");
+    setLogoFile(file);
+  }
+
   async function save() {
     setSaving(true);
     setMessage("");
     try {
+      let nextLogo = logo.trim() || null;
+      if (logoFile) {
+        const formData = new FormData();
+        formData.append("file", logoFile);
+        const uploadResponse = await fetch(apiUrl(`/api/orgs/${org.id}/logo`), {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        });
+        const uploadBody = await uploadResponse.json().catch(() => ({}));
+        if (!uploadResponse.ok || !uploadBody.org?.logo) {
+          throw new Error(uploadBody.error || "Failed to upload organization logo");
+        }
+        nextLogo = uploadBody.org.logo;
+      }
       const response = await fetch(apiUrl(`/api/orgs/${org.id}`), {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, logo: logo.trim() || null }),
+        body: JSON.stringify({ name, logo: nextLogo }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || "Failed to update workspace");
+      setLogo(nextLogo || "");
+      setLogoFile(null);
       toast.success("Settings saved");
       router.refresh();
     } catch (error) {
@@ -144,7 +188,26 @@ export function WorkspaceSettingsClient({
                 {message ? <p className="mt-3 text-sm text-destructive" role="alert">{message}</p> : null}
                 <div className="mt-5 grid max-w-xl gap-4">
                   <label className="text-sm"><span className="text-muted-foreground">Organization name</span><Input disabled={!canManage} value={name} onChange={(event) => setName(event.target.value)} className="mt-2" /></label>
-                  <label className="text-sm"><span className="text-muted-foreground">Organization logo</span><Input disabled={!canManage} value={logo} onChange={(event) => setLogo(event.target.value)} placeholder="https://…" className="mt-2" /></label>
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Organization logo</span>
+                    <div className="mt-2 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-secondary/20 p-3">
+                      <Avatar className="size-14 rounded-lg border border-border bg-background">
+                        <AvatarImage src={logoPreview || logo || undefined} alt="Organization logo preview" className="rounded-lg object-cover" />
+                        <AvatarFallback className="rounded-lg bg-primary/10 text-primary"><ImagePlus className="size-5" /></AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button type="button" variant="outline" size="sm" disabled={!canManage || saving} onClick={() => document.getElementById("organization-logo-upload")?.click()}>
+                            <Upload className="mr-1.5 size-3.5" />Upload image
+                          </Button>
+                          {(logo || logoFile) && canManage ? <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => { setLogo(""); setLogoFile(null); }}><X className="mr-1.5 size-3.5" />Remove</Button> : null}
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">PNG, JPEG, WebP, or GIF · up to 5 MB</p>
+                      </div>
+                      <input id="organization-logo-upload" type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="sr-only" disabled={!canManage || saving} onChange={(event) => { chooseLogo(event.target.files?.[0] ?? null); event.currentTarget.value = ""; }} />
+                    </div>
+                    <label className="mt-3 block text-xs text-muted-foreground">Or use an image URL<Input disabled={!canManage || saving || !!logoFile} value={logo} onChange={(event) => setLogo(event.target.value)} placeholder="https://…" className="mt-1.5 text-sm" /></label>
+                  </div>
                 </div>
                 {canManage ? <Button type="button" onClick={save} disabled={saving || !name.trim()} className="mt-5">{saving ? "Saving…" : "Save changes"}</Button> : null}
               </section>

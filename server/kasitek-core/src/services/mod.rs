@@ -15,6 +15,7 @@ pub mod developer_api_keys;
 pub mod inbox;
 pub mod message_domain;
 pub mod notifications;
+pub mod org_logos;
 pub mod orgs;
 pub mod paystack;
 pub mod public_api;

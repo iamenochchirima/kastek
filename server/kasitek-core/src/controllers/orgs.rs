@@ -1,3 +1,4 @@
+use actix_multipart::Multipart;
 use actix_web::{web, HttpRequest, HttpResponse};
 use serde::Deserialize;
 use sqlx::PgPool;
@@ -5,6 +6,7 @@ use sqlx::PgPool;
 use crate::config::AppConfig;
 use crate::error::AppError;
 use crate::middleware::extract_user;
+use crate::services::org_logos;
 use crate::services::orgs;
 
 // ─── Request types ────────────────────────────────────────
@@ -149,6 +151,33 @@ pub async fn update_org(
 
     let org = orgs::update_org(pool.get_ref(), &org_id, name, logo_update).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "org": org })))
+}
+
+pub async fn upload_logo(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    payload: Multipart,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = path.into_inner();
+    orgs::require_admin(pool.get_ref(), &org_id, &user.id).await?;
+
+    let org = org_logos::upload(pool.get_ref(), config.get_ref(), &org_id, payload).await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "org": org })))
+}
+
+pub async fn download_logo(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = path.into_inner();
+    orgs::require_member(pool.get_ref(), &org_id, &user.id).await?;
+    org_logos::download(config.get_ref(), &org_id).await
 }
 
 pub async fn delete_org(
