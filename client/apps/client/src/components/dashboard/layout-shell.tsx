@@ -47,7 +47,7 @@ import Image from "next/image";
 import { apiUrl } from "@/lib/server-api";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
   useWhatsappInboxUnreadCount,
   WhatsappRealtimeProvider,
@@ -78,6 +78,8 @@ type NavigationGroup = {
   label: string;
   items: NavItem[];
 };
+
+const SIDEBAR_COLLAPSE_KEY = "kasitek-sidebar-collapsed";
 
 function tourTarget(href: string) {
   return ({
@@ -198,7 +200,7 @@ function DesktopTopbar({
   const initials = accountName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "KT";
 
   return (
-    <header className="sticky top-0 z-30 hidden h-16 items-center gap-3 border-b border-line bg-canvas/80 px-4 backdrop-blur-[12px] lg:flex lg:px-6">
+    <header className="sticky top-0 z-30 hidden h-16 items-center gap-3 border-b border-line bg-canvas/80 px-4 backdrop-blur-[12px] md:flex lg:px-6">
       <nav className="flex min-w-0 items-center gap-1.5 text-[13px] text-ink-2" aria-label="Breadcrumb">
         <span className="truncate">{organizationName}</span>
         <ChevronRight className="size-[13px] shrink-0 text-ink-3" />
@@ -351,7 +353,7 @@ function SidebarContent({
     <div className="flex h-full min-w-0 flex-col overflow-x-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       <div
         className={cn(
-          "flex h-[58px] items-center border-b border-border",
+          "flex h-16 items-center border-b border-line",
           collapsed ? "justify-center px-3" : "justify-between gap-2 px-3",
         )}
       >
@@ -379,7 +381,7 @@ function SidebarContent({
         ) : null}
       </div>
 
-      <nav className={cn("sidebar-nav-scroll flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto px-3 py-2.5", collapsed && "px-2")}>
+      <nav className={cn("sidebar-nav-scroll flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto px-3 py-4", collapsed && "px-2")}>
         {hasOrgs ? (
           <div className="mb-3.5" data-tour="workspace-switcher">
             <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} collapsed={collapsed} variant="panel" />
@@ -582,6 +584,24 @@ export function LayoutShell({
   const pathname = usePathname();
   const sectionLabel = getSectionLabel(pathname);
   const organizationName = orgs.find((org) => org.id === activeOrgId)?.name ?? "Workspace";
+  const setSidebarCollapsed = useCallback((value: boolean) => {
+    setCollapsed(value);
+    window.localStorage.setItem(SIDEBAR_COLLAPSE_KEY, value ? "1" : "0");
+  }, []);
+
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 768px) and (max-width: 1279px)");
+    const apply = () => {
+      if (query.matches) {
+        setCollapsed(true);
+        return;
+      }
+      setCollapsed(window.localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === "1");
+    };
+    apply();
+    query.addEventListener("change", apply);
+    return () => query.removeEventListener("change", apply);
+  }, []);
 
   useEffect(() => {
     const onPwaUpdate = (event: Event) => {
@@ -600,10 +620,10 @@ export function LayoutShell({
     <WhatsappRealtimeProvider key={activeOrgId ?? "no-org"} initialInboxUnreadCount={inboxUnreadCount}>
       <>
         <div className="dashboard-theme flex h-screen bg-background">
-          <aside className={cn("hidden lg:flex lg:flex-col", collapsed ? "w-[72px]" : "w-[252px]")}>
+          <aside className={cn("hidden shrink-0 md:flex md:flex-col", collapsed ? "w-[68px]" : "w-[264px]")}>
               <SidebarContent
                 collapsed={collapsed}
-                setCollapsed={setCollapsed}
+                setCollapsed={setSidebarCollapsed}
                 user={user}
                 orgs={orgs}
                 activeOrgId={activeOrgId}
@@ -612,7 +632,7 @@ export function LayoutShell({
               />
             </aside>
           <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
-            <div className="fixed inset-x-0 top-0 z-40 flex h-13 items-center justify-between border-b border-border bg-background/95 px-3 backdrop-blur lg:hidden">
+            <div className="fixed inset-x-0 top-0 z-40 flex h-13 items-center justify-between border-b border-line bg-canvas/80 px-3 backdrop-blur-[12px] md:hidden">
               <div className="flex min-w-0 items-center gap-2">
                 <SheetTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
@@ -648,7 +668,7 @@ export function LayoutShell({
               />
             </SheetContent>
           </Sheet>
-          <main className="flex min-w-0 flex-1 flex-col overflow-auto pt-13 lg:pt-0">
+          <main className="flex min-w-0 flex-1 flex-col overflow-auto pt-13 md:pt-0">
             <DesktopTopbar
               organizationName={organizationName}
               sectionLabel={sectionLabel}
@@ -660,7 +680,7 @@ export function LayoutShell({
             {children}
           </main>
           <ProductTour status={productTourStatus} />
-          <KasiAiChat open={kasiaiOpen} onOpenChange={setKasiaiOpen} leftOffset={collapsed ? 72 : 252} />
+          <KasiAiChat open={kasiaiOpen} onOpenChange={setKasiaiOpen} leftOffset={collapsed ? 68 : 264} />
           <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
         </div>
       </>

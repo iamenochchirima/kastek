@@ -129,6 +129,15 @@ The theme system must meet all of the following conditions:
 
 The following rules apply to every shared primitive, page pattern, and route:
 
+- **Mobile:** below `768px` — navigation is an overlay drawer; controls stack or
+  move into menus; touch targets stay at least `36px`.
+- **Tablet:** `768px` through `1279px` — sidebar becomes the `68px` icon rail;
+  the full Vantage top bar remains visible; dense layouts reduce columns or
+  horizontally scroll only when that is the documented treatment.
+- **Desktop:** `1280px` and above — sidebar honours its persisted `264px` /
+  `68px` expanded/collapsed state and page layouts use their documented full
+  density.
+
 - [ ] Approved desktop, tablet, and mobile breakpoints are defined before
   migration work begins.
 - [ ] Layout, spacing, type scale, wrapping, and hit areas are intentional at
@@ -234,7 +243,7 @@ The following rules apply to every shared primitive, page pattern, and route:
 - [ ] Desktop sidebar, grouped navigation, selected states, collapse behaviour,
   organisation switcher, and account controls.
 - [ ] Desktop top bar and responsive mobile header/drawer.
-  - [ ] Add a sticky desktop top bar with route-aware breadcrumbs, a functional
+  - [x] Add a sticky desktop top bar with route-aware breadcrumbs, a functional
     command/search entry point with `Ctrl+K` / `⌘K`, notifications, theme
     control, and a compact account menu.
   - [ ] Keep workspace context and primary navigation in the sidebar; use the
@@ -283,7 +292,7 @@ interactive states have been checked where applicable.
 | --- | --- | --- | --- |
 | Foundation | tokens and global styles | Implemented | Exact Vantage light/dark tokens, radius scale, shadows, base density, focus, transitions, scrollbars, and Tailwind 4 mappings are in `globals.css`. Lint and Webpack build passed; visual QA follows primitive work. |
 | Foundation | shared UI primitives | In progress | Button, card, input, badge, checkbox, progress, skeleton, table, tabs, scroll area, sheet, dialog, destructive confirmation dialog, and global Sonner toaster are centralized. All native browser confirm/prompt calls have been replaced by the shared provider. Reference styles and Radix behavior are used where the reference does. Lint and Webpack build passed; remaining form/overlay primitives and visual QA are pending. |
-| Shell | sidebar, top bar, mobile drawer, global overlays | In progress | Desktop top bar and command palette now use the reference layout and interactions: route-aware breadcrumbs, Ctrl+K / ⌘K navigation, theme action, notifications route, and account menu. Sidebar and mobile drawer remain to be migrated and visually verified. |
+| Shell | sidebar, top bar, mobile drawer, global overlays | In progress | Desktop top bar and command palette now use the reference layout and interactions: route-aware breadcrumbs, Ctrl+K / ⌘K navigation, theme action, notifications route, and account menu. Shell breakpoints now follow the reference: mobile drawer below 768px, forced 68px tablet rail through 1279px, and persisted 264px/68px desktop sidebar state. Visual QA remains pending because no browser is available in this environment. |
 | Workspace | all workspace routes | Not started | |
 | Customer | inbox, calls, contacts, bookings | Not started | |
 | Content | posts, calendar, analytics, history | Not started | |
@@ -345,3 +354,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Ported the first shared primitive wave and installed the global Vantage-styled toast, dialog, and destructive confirmation foundations; lint and Webpack build passed. |
 | 2026-08-21 | Added the first shell milestone: functional command palette and desktop Vantage top bar; lint and Webpack build passed. |
 | 2026-08-21 | Replaced every native browser confirmation and prompt in the client with a shared Vantage-styled confirmation/input-dialog provider; lint and Webpack build passed. |
+| 2026-08-21 | Applied the approved Vantage shell breakpoints and sidebar widths; lint and Webpack build passed. |
