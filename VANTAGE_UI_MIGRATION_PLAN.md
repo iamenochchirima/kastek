@@ -413,3 +413,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Migrated the external agent connection wizard’s text and select controls to shared Vantage primitives; lint and Webpack build passed. |
 | 2026-08-21 | Migrated reusable Agent runtime-limit fields to the shared Vantage Input primitive; lint and Webpack build passed. |
 | 2026-08-21 | Migrated Agent kill-switch scope and text fields to shared Vantage controls; lint and Webpack build passed. |
+| 2026-08-21 | Migrated the workflow editor’s add-step control, test input, and node-inspector fields to shared Vantage primitives while retaining its bespoke canvas interaction; lint and Webpack build passed. |
