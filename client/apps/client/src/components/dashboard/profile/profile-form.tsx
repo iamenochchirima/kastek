@@ -3,6 +3,8 @@
 import { apiUrl } from "@/lib/server-api";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type ProfileFormProps = {
   user: {
@@ -198,43 +200,39 @@ export default function ProfileForm({ user }: ProfileFormProps) {
           <div className="grid gap-5 md:grid-cols-2">
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-foreground">Full name</span>
-              <input
+              <Input
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder="Your name"
-                className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
               />
             </label>
 
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-foreground">Phone</span>
-              <input
+              <Input
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
                 placeholder="+27 72 123 4567"
-                className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
               />
             </label>
 
             <label className="block md:col-span-2">
               <span className="mb-2 block text-sm font-medium text-foreground">Photo URL</span>
-              <input
+              <Input
                 value={image}
                 onChange={(event) => setImage(event.target.value)}
                 placeholder="https://..."
-                className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
               />
             </label>
           </div>
 
           <div className="mt-6">
-            <button
+            <Button
               type="submit"
               disabled={savingProfile}
-              className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
             >
               {savingProfile ? "Saving..." : "Save profile"}
-            </button>
+            </Button>
           </div>
         </form>
 
@@ -249,20 +247,19 @@ export default function ProfileForm({ user }: ProfileFormProps) {
           <div className="mb-4 grid gap-4 md:grid-cols-2">
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-foreground">Current email</span>
-              <input
+              <Input
                 value={user.email || ""}
                 readOnly
-                className="w-full rounded-xl border border-border bg-secondary/70 px-4 py-3 text-sm text-muted-foreground outline-none"
+                className="bg-secondary/70 text-muted-foreground"
               />
             </label>
 
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-foreground">New email</span>
-              <input
+              <Input
                 value={nextEmail}
                 onChange={(event) => setNextEmail(event.target.value)}
                 placeholder="name@example.com"
-                className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
               />
             </label>
           </div>
@@ -289,13 +286,12 @@ export default function ProfileForm({ user }: ProfileFormProps) {
               </div>
             ))}
 
-          <button
+          <Button
             type="submit"
             disabled={emailSaving}
-            className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
           >
             {emailSaving ? "Sending..." : "Send verification link"}
-          </button>
+          </Button>
         </form>
 
         <form onSubmit={onPasswordSubmit} className="rounded-2xl border border-border bg-card p-6">
@@ -312,32 +308,29 @@ export default function ProfileForm({ user }: ProfileFormProps) {
             {user.hasPassword ? (
               <label className="block md:col-span-2">
                 <span className="mb-2 block text-sm font-medium text-foreground">Current password</span>
-                <input
+                <Input
                   type="password"
                   value={currentPassword}
                   onChange={(event) => setCurrentPassword(event.target.value)}
-                  className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none"
                 />
               </label>
             ) : null}
 
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-foreground">New password</span>
-              <input
+              <Input
                 type="password"
                 value={nextPassword}
                 onChange={(event) => setNextPassword(event.target.value)}
-                className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none"
               />
             </label>
 
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-foreground">Confirm new password</span>
-              <input
+              <Input
                 type="password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
-                className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none"
               />
             </label>
           </div>
@@ -354,13 +347,12 @@ export default function ProfileForm({ user }: ProfileFormProps) {
             ))}
 
           <div className="mt-5">
-            <button
+            <Button
               type="submit"
               disabled={passwordSaving}
-              className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
             >
               {passwordSaving ? "Saving..." : user.hasPassword ? "Change password" : "Set password"}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
