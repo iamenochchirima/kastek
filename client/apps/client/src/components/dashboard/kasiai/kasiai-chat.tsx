@@ -444,6 +444,8 @@ export function KasiAiChat({
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const viewport = useRef<HTMLDivElement | null>(null);
   const resizeStart = useRef<{ x: number; width: number } | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const conversationSelection = useRef(0);
   const runStatusesRef = useRef<Record<string, string>>({});
   const activeRunIdRef = useRef<string | null>(null);
@@ -705,6 +707,18 @@ export function KasiAiChat({
     setLastRunId(null);
     setGroundingSummary(null);
     setRunProgress("Preparing request…");
+  }, [open]);
+  useEffect(() => {
+    if (!open) {
+      const previous = previousFocusRef.current;
+      previousFocusRef.current = null;
+      if (previous && document.contains(previous)) previous.focus();
+      return;
+    }
+
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const frame = window.requestAnimationFrame(() => panelRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
   }, [open]);
   useEffect(() => {
     if (!pairing || !installation) return;
@@ -1211,6 +1225,8 @@ export function KasiAiChat({
   if (!open) return null;
   return (
     <aside
+      ref={panelRef}
+      tabIndex={-1}
       className={cn(
         "fixed inset-y-0 right-0 z-[var(--z-floating)] flex max-w-full flex-col border-l border-border bg-background shadow-2xl",
         resizing && "select-none",
