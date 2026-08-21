@@ -201,7 +201,7 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
   }
 
   return (
-    <div className="min-h-screen p-4 sm:p-6">
+    <div className="min-h-[100dvh] p-4 sm:p-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
         <Link href="/content/posts" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" />

@@ -21,7 +21,8 @@ export function ContentWorkspaceNavigation({ active }: { active: ContentWorkspac
           <Link
             key={item.href}
             href={item.href}
-            className={`inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+            aria-current={item.view === active ? "page" : undefined}
+            className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-t-md border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
               item.view === active
                 ? "border-foreground text-foreground"
                 : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"

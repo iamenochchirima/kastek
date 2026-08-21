@@ -27,6 +27,7 @@ import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icon
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import type { IconType } from "react-icons";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 
 const WhatsAppBrandIcon = getPlatformBrandIcon("WHATSAPP") ?? MessageCircle;
 
@@ -294,7 +295,7 @@ export function CallsWorkspace({
   ];
 
   return (
-    <div className="min-h-screen bg-background px-4 py-6 lg:px-6">
+    <div className="min-h-[100dvh] bg-background px-4 py-6 lg:px-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
         <PageHeader>
           <PageHeaderContent><PageHeaderDescription>Customer</PageHeaderDescription><PageHeaderTitle>Calls</PageHeaderTitle></PageHeaderContent>
@@ -557,7 +558,8 @@ function CallMetric({
   }[tone];
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <MotionReveal hoverLift className="h-full">
+    <div className="h-full rounded-xl border border-border bg-card p-4">
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
         <div className={cn("flex h-8 w-8 items-center justify-center rounded-md", toneClass)}>
@@ -566,6 +568,7 @@ function CallMetric({
       </div>
       <p className="mt-4 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
     </div>
+    </MotionReveal>
   );
 }
 

@@ -16,10 +16,16 @@ import {
 } from "@/components/ui/page-header";
 import { ContentWorkspaceNavigation } from "@/components/social/content-workspace-navigation";
 import { type SocialPost, formatDateTime, getPlatformLabel, getPostStatusMeta } from "@/components/social/social-shared";
+import { useAppearance } from "@/lib/appearance";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 
-const week = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const MONDAY_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const SUNDAY_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export function CalendarView() {
+  const { interface: interfacePreferences } = useAppearance();
+  const weekStartsMonday = interfacePreferences.weekStartsMonday;
+  const week = weekStartsMonday ? MONDAY_WEEK : SUNDAY_WEEK;
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -59,8 +65,10 @@ export function CalendarView() {
     const month = currentMonth.getMonth();
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
-    const leadingDays = (firstDay.getDay() + 6) % 7;
-    const trailingDays = 6 - ((lastDay.getDay() + 6) % 7);
+    const firstDayOffset = weekStartsMonday ? (firstDay.getDay() + 6) % 7 : firstDay.getDay();
+    const lastDayOffset = weekStartsMonday ? (lastDay.getDay() + 6) % 7 : lastDay.getDay();
+    const leadingDays = firstDayOffset;
+    const trailingDays = 6 - lastDayOffset;
 
     const days: { date: Date; inMonth: boolean }[] = [];
 
@@ -77,7 +85,7 @@ export function CalendarView() {
     }
 
     return days;
-  }, [currentMonth]);
+  }, [currentMonth, weekStartsMonday]);
 
   const scheduledPosts = posts.filter((post) => post.scheduledFor);
   const draftPosts = posts.filter((post) => !post.scheduledFor);
@@ -94,7 +102,7 @@ export function CalendarView() {
   }
 
   return (
-    <div className="min-h-screen p-4 sm:p-6">
+    <div className="min-h-[100dvh] p-4 sm:p-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
         <PageHeader>
           <PageHeaderContent>
@@ -135,6 +143,7 @@ export function CalendarView() {
         ) : null}
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_360px]">
+          <MotionReveal className="min-w-0" delay={0.08}>
           <Card>
             <CardHeader>
               <CardTitle>Monthly Publishing Calendar</CardTitle>
@@ -280,8 +289,9 @@ export function CalendarView() {
               )}
             </CardContent>
           </Card>
+          </MotionReveal>
 
-          <div className="space-y-6">
+          <MotionReveal className="space-y-6" delay={0.16}>
             <Card>
               <CardHeader>
                 <CardTitle>Upcoming Schedule</CardTitle>
@@ -324,7 +334,7 @@ export function CalendarView() {
                 ) : null}
               </CardContent>
             </Card>
-          </div>
+          </MotionReveal>
         </div>
       </div>
     </div>

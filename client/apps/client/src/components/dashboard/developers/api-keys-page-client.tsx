@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 import type { CreatedDeveloperApiKey, DeveloperApiKey } from "@/lib/developers";
 import { createDeveloperApiKey, revokeDeveloperApiKey, rotateDeveloperApiKey } from "@/lib/developers";
 import { useDevelopersData } from "./developers-data";
@@ -86,31 +87,37 @@ export function ApiKeysPageClient() {
   -H "Authorization: Bearer <developer-api-key>"`;
 
   return (
-    <div className="min-h-screen p-4 sm:p-6">
+    <div className="min-h-[100dvh] p-4 sm:p-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
         <PageHeader><PageHeaderContent><PageHeaderTitle>API keys</PageHeaderTitle><PageHeaderDescription>Workspace API credentials.</PageHeaderDescription></PageHeaderContent></PageHeader>
 
         {error ? <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p> : null}
 
+        <MotionReveal>
         <Card>
           <CardContent className="space-y-4 p-5">
             <div className="flex items-start gap-3"><KeyRound className="mt-0.5 h-5 w-5 text-muted-foreground" /><div><h2 className="text-base font-semibold">Create an API key</h2><p className="mt-1 text-sm text-muted-foreground">The default test profile includes `api:read` and `api:write`. It does not grant secrets, billing mutations, roles, or workspace deletion.</p></div></div>
             <div className="grid gap-3 sm:grid-cols-[1fr_auto]"><Input value={keyName} onChange={(event) => setKeyName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void createKey(); }} placeholder="Key name, for example Local development" maxLength={80} /><Button type="button" onClick={() => void createKey()} disabled={!keyName.trim() || busy === "create"}>{busy === "create" ? "Creating…" : "Create API key"}</Button></div>
           </CardContent>
         </Card>
+        </MotionReveal>
 
         {newCredential ? <div className="rounded-xl border border-status-attention/40 bg-status-attention-soft p-5" role="alert"><p className="flex items-center gap-2 text-sm font-semibold text-status-attention"><Check className="h-4 w-4" />Copy this API key now</p><p className="mt-1 text-xs text-muted-foreground">This is the only time the complete secret will be shown.</p><div className="mt-3 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded-md bg-background px-3 py-2 text-xs text-foreground">{newCredential.secret}</code><Button type="button" variant="outline" size="sm" onClick={() => copy(newCredential.secret)}><Copy className="mr-2 h-3.5 w-3.5" />Copy</Button></div><Button type="button" variant="ghost" size="sm" className="mt-2" onClick={() => setNewCredential(null)}>Dismiss</Button></div> : null}
 
+        <MotionReveal delay={0.08}>
         <Card>
           <CardContent className="space-y-4 p-5">
             <div><h2 className="text-base font-semibold">Use the key</h2><p className="mt-1 text-sm text-muted-foreground">Use this same workspace key as a Bearer credential for REST and MCP.</p></div>
             <div className="rounded-lg border border-border bg-secondary/30 p-4"><p className="text-xs text-muted-foreground">REST base URL</p><div className="mt-2 flex gap-2"><code className="min-w-0 flex-1 overflow-x-auto rounded-md bg-background px-3 py-2 text-xs text-foreground">{config.restBaseUrl}</code><Button type="button" variant="outline" size="icon-sm" onClick={() => copy(config.restBaseUrl)} aria-label="Copy REST base URL"><Copy className="h-3.5 w-3.5" /></Button></div><pre className="mt-3 overflow-x-auto rounded-md bg-background p-3 text-xs text-muted-foreground">{restExample}</pre></div>
           </CardContent>
         </Card>
+        </MotionReveal>
 
+        <MotionReveal delay={0.16}>
         <Card>
           <CardContent className="space-y-4 p-0"><div className="flex items-center justify-between gap-3 px-5 pt-5"><div><h2 className="text-base font-semibold">Your API keys</h2><p className="mt-1 text-sm text-muted-foreground">Rotate a key if it may have been exposed. Revocation takes effect immediately.</p></div><Badge variant="outline">{activeKeys.length} active</Badge></div><div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="border-y border-border bg-secondary/30 text-xs text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Name</th><th className="px-5 py-3 font-medium">Key</th><th className="px-5 py-3 font-medium">Scopes</th><th className="px-5 py-3 font-medium">Last used</th><th className="px-5 py-3 font-medium">Status</th><th className="px-5 py-3" /></tr></thead><tbody>{keys.map((key) => <tr key={key.id} className="border-b border-border last:border-0"><td className="px-5 py-3 font-medium">{key.name}</td><td className="px-5 py-3 font-mono text-xs text-muted-foreground">{key.prefix}••••••••</td><td className="px-5 py-3 text-xs text-muted-foreground">{key.scopes.join(", ")}</td><td className="px-5 py-3 text-xs text-muted-foreground">{formatDate(key.lastUsedAt)}</td><td className="px-5 py-3"><Badge variant="outline" className={key.status === "ACTIVE" ? "border-emerald-500/30 text-emerald-500" : "text-muted-foreground"}>{statusLabel(key.status)}</Badge></td><td className="px-5 py-3"><div className="flex justify-end gap-2">{key.status === "ACTIVE" ? <><Button type="button" variant="outline" size="sm" disabled={Boolean(busy)} onClick={() => void rotateKey(key)}><RefreshCw className="mr-1.5 h-3.5 w-3.5" />Rotate</Button><Button type="button" variant="ghost" size="sm" disabled={Boolean(busy)} onClick={() => void revokeKey(key)}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Revoke</Button></> : null}</div></td></tr>)}</tbody></table>{!keys.length ? <div className="p-8 text-center text-sm text-muted-foreground">No developer API keys yet. Create one above to get started.</div> : null}</div></CardContent>
         </Card>
+        </MotionReveal>
       </div>
     </div>
   );

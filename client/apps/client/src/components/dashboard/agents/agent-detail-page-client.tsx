@@ -427,7 +427,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   };
 
   return (
-    <div className="min-h-screen p-6 lg:p-8">
+    <div className="min-h-[100dvh] p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1240px]">
         <Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to agents</Link>
         <Card className="mt-5 border-border/80 shadow-sm">

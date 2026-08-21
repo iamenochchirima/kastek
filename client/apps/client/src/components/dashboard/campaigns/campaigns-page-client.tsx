@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Pause, Plus, RefreshCw, Search, Square, Zap } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 
 type Campaign = {
   id: string;
@@ -107,7 +108,7 @@ export default function CampaignsPageClient({
   }, [campaigns, query]);
 
   return (
-    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
+    <div className="min-h-[100dvh] p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1400px] space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -135,15 +136,15 @@ export default function CampaignsPageClient({
         </div>
 
         {filteredCampaigns.length === 0 ? (
-          <Card>
+          <MotionReveal delay={0.08}><Card>
             <CardContent className="p-6 text-sm text-muted-foreground">
               {campaigns.length === 0
                 ? "No campaigns yet. Create your first outbound WhatsApp campaign."
                 : "No campaigns match the current search."}
             </CardContent>
-          </Card>
+          </Card></MotionReveal>
         ) : (
-          <Card>
+          <MotionReveal delay={0.08}><Card>
             <CardContent className="p-0">
               <div className="space-y-3 p-4 md:hidden">
                 {filteredCampaigns.map((campaign) => {
@@ -286,7 +287,7 @@ export default function CampaignsPageClient({
                 </table>
               </div>
             </CardContent>
-          </Card>
+          </Card></MotionReveal>
         )}
       </div>
     </div>

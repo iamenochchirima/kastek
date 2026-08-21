@@ -371,7 +371,7 @@ export function CreateAgentPageClient({ initialTemplate, initialDraft }: { initi
 
   if (created) {
     return (
-      <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-8"><div className="mx-auto max-w-3xl">
+      <div className="min-h-[100dvh] px-4 py-6 sm:px-6 lg:px-8"><div className="mx-auto max-w-3xl">
         <Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to agents</Link>
         <Card className="mt-8 rounded-3xl border-border/80 shadow-xl shadow-black/10"><CardContent className="p-8 text-center sm:p-12">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-status-success-soft text-status-success"><CheckCircle2 className="h-7 w-7" /></div>
@@ -387,7 +387,7 @@ export function CreateAgentPageClient({ initialTemplate, initialDraft }: { initi
 
   if (draft) {
     return (
-      <div className="min-h-screen bg-background px-4 py-4 sm:px-6 lg:px-8">
+      <div className="min-h-[100dvh] bg-background px-4 py-4 sm:px-6 lg:px-8">
         <header className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
           <div className="flex items-center gap-3"><Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Agents</Link><span className="text-border">/</span><div><div className="flex items-center gap-2"><h1 className="text-lg font-semibold text-foreground">{draft.agent.name}</h1><Badge className="border-status-attention/30 bg-status-attention-soft text-status-attention">Draft</Badge></div><p className="text-xs text-muted-foreground">Build the agent on the canvas</p></div></div>
           <div className="flex items-center gap-2"><span className="hidden text-xs text-muted-foreground sm:inline">v{draft.version.version_number} · not published</span><Button type="button" variant="outline" size="sm" disabled={loading} onClick={() => void saveWorkspaceDraft()}>{loading && publishStage === "idle" ? <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}{loading && publishStage === "idle" ? "Saving…" : "Save draft"}</Button><Button type="button" size="sm" disabled={loading || !workflow || !workflowValid} onClick={() => void publishDraft()}>{loading && publishStage !== "idle" ? <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}{loading ? publishStageLabel ?? "Publishing…" : "Publish"}</Button></div>
@@ -403,7 +403,7 @@ export function CreateAgentPageClient({ initialTemplate, initialDraft }: { initi
 
   if (!draft && !created) {
     return (
-      <div className="min-h-screen px-4 py-8 sm:px-6 lg:px-8"><div className="mx-auto max-w-2xl">
+      <div className="min-h-[100dvh] px-4 py-8 sm:px-6 lg:px-8"><div className="mx-auto max-w-2xl">
         <div className="flex items-center justify-between gap-4"><Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to agents</Link><p className="text-xs font-medium text-muted-foreground">New custom agent</p></div>
         <Card className="mt-12 rounded-3xl border-border/80 shadow-xl shadow-black/10"><CardContent className="p-6 sm:p-10 lg:p-12"><div className="text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20"><Bot className="h-7 w-7" /></div><h1 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">Create your agent</h1><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Give it a name and a job. You’ll configure the rest on the canvas.</p></div>{initialTemplate ? <div className="mt-8 rounded-2xl border border-primary/25 bg-primary/5 p-4"><p className="text-sm font-semibold text-foreground">Starting from {initialTemplate.name}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{initialTemplate.description}</p></div> : null}<div className="mt-8 space-y-5"><Field label="Agent name"><Input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Support operations agent" className="mt-2 h-12 px-4 text-base" /></Field><Field label="What should it do?"><Textarea value={purpose} onChange={(event) => setPurpose(event.target.value)} rows={5} maxLength={2000} placeholder="Handle support questions and guide customers to the right next step." className="mt-2 resize-y px-4 py-3 leading-6" /></Field></div>{error ? <p className="mt-5 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p> : null}<div className="mt-8 flex items-center justify-between gap-3 border-t border-border pt-6"><Button type="button" variant="outline" disabled={loading} onClick={() => router.push("/agents")}>Cancel</Button><Button type="button" disabled={loading || !name.trim() || !purpose.trim()} onClick={() => void submit()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Creating draft…</> : "Continue"}</Button></div></CardContent></Card>
       </div></div>
@@ -414,7 +414,7 @@ export function CreateAgentPageClient({ initialTemplate, initialDraft }: { initi
   const stepDescription = step === 1 ? "Name it and describe its job." : step === 2 ? "Start with no tools. Add services after the baseline works." : step === 3 ? "Optional: paste or upload the information it should use." : step === 4 ? "Connect steps visually. Start with the baseline and add services when needed." : "Review the setup before publishing.";
 
   return (
-    <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-8"><div className="mx-auto max-w-5xl">
+    <div className="min-h-[100dvh] px-4 py-6 sm:px-6 lg:px-8"><div className="mx-auto max-w-5xl">
       <div className="flex items-center justify-between gap-4"><Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back</Link><p className="text-xs font-medium text-muted-foreground">Build a custom agent</p></div>
       <div className="mt-8"><Progress step={step} /></div>
       <Card className="mt-10 rounded-3xl border-border/80 shadow-xl shadow-black/10"><CardContent className="p-6 sm:p-10 lg:p-14"><div className="mx-auto max-w-3xl">

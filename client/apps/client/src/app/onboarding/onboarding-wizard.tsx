@@ -5,9 +5,12 @@ import type { OnboardingProfile } from "@/lib/onboarding";
 import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { AnimatePresence, motion, MotionConfig } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAppearance } from "@/lib/appearance";
+import { VANTAGE_EXPO, VANTAGE_MOTION } from "@/lib/motion";
 
 const steps = ["Business", "Goal", "Role", "Industry", "Source"];
 
@@ -47,6 +50,7 @@ function destination(goal: string) {
 
 export function OnboardingWizard({ profile }: { profile: OnboardingProfile }) {
   const router = useRouter();
+  const appearance = useAppearance();
   const [step, setStep] = useState(0);
   const [companyName, setCompanyName] = useState(profile.orgName);
   const [website, setWebsite] = useState(profile.website ?? "");
@@ -98,7 +102,8 @@ export function OnboardingWizard({ profile }: { profile: OnboardingProfile }) {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-8 text-foreground sm:px-6">
+    <MotionConfig reducedMotion={appearance.interface.reduceMotion ? "always" : "user"}>
+    <main className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-8 text-foreground sm:px-6">
       <div className={`w-full rounded-2xl border border-border bg-card p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)] sm:p-8 ${step === 1 ? "max-w-5xl" : "max-w-lg"}`}>
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -112,12 +117,22 @@ export function OnboardingWizard({ profile }: { profile: OnboardingProfile }) {
         </div>
 
         <div className="py-8 sm:py-10">
-          {step === 0 ? <BusinessStep companyName={companyName} setCompanyName={setCompanyName} website={website} setWebsite={setWebsite} /> : null}
-          {step === 1 ? <ChoiceStep title="What would you like to set up first?" description="" options={choices.goal} value="" selectedValues={primaryGoals} onChange={(goal) => setPrimaryGoals((current) => current.includes(goal) ? current.filter((item) => item !== goal) : [...current, goal])} visual multiple /> : null}
-          {step === 2 ? <ChoiceStep title="What best describes you?" description="" options={choices.role} value={teamRole} onChange={setTeamRole} /> : null}
-          {step === 3 ? <IndustryStep value={industry} onChange={setIndustry} /> : null}
-          {step === 4 ? <ChoiceStep title="How did you hear about KasiTek?" description="" options={choices.source} value={referralSource} onChange={setReferralSource} optional /> : null}
-          {error ? <p className="mt-5 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p> : null}
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={step}
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -12 }}
+              transition={{ duration: VANTAGE_MOTION.content / 1000, ease: VANTAGE_EXPO }}
+            >
+              {step === 0 ? <BusinessStep companyName={companyName} setCompanyName={setCompanyName} website={website} setWebsite={setWebsite} /> : null}
+              {step === 1 ? <ChoiceStep title="What would you like to set up first?" description="" options={choices.goal} value="" selectedValues={primaryGoals} onChange={(goal) => setPrimaryGoals((current) => current.includes(goal) ? current.filter((item) => item !== goal) : [...current, goal])} visual multiple /> : null}
+              {step === 2 ? <ChoiceStep title="What best describes you?" description="" options={choices.role} value={teamRole} onChange={setTeamRole} /> : null}
+              {step === 3 ? <IndustryStep value={industry} onChange={setIndustry} /> : null}
+              {step === 4 ? <ChoiceStep title="How did you hear about KasiTek?" description="" options={choices.source} value={referralSource} onChange={setReferralSource} optional /> : null}
+              {error ? <p className="mt-5 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p> : null}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-border pt-5">
@@ -130,6 +145,7 @@ export function OnboardingWizard({ profile }: { profile: OnboardingProfile }) {
         </div>
       </div>
     </main>
+    </MotionConfig>
   );
 }
 

@@ -3,6 +3,7 @@ import { getRustSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
 import { redirect } from "next/navigation";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 
 export const metadata = { title: "Agent Analytics | KasiTek" };
 
@@ -32,7 +33,7 @@ export default async function AgentAnalyticsPage() {
   ];
 
   return (
-    <div className="min-h-screen p-6 lg:p-8">
+    <div className="min-h-[100dvh] p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1400px]">
         <PageHeader className="max-w-3xl">
           <PageHeaderContent>
@@ -41,6 +42,7 @@ export default async function AgentAnalyticsPage() {
           <PageHeaderDescription>Run, model, and tool totals.</PageHeaderDescription>
           </PageHeaderContent>
         </PageHeader>
+        <MotionReveal delay={0.08}>
         <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {metrics.map((metric) => (
             <article key={metric.label} className="rounded-xl border border-border bg-card p-5">
@@ -49,11 +51,16 @@ export default async function AgentAnalyticsPage() {
             </article>
           ))}
         </section>
+        </MotionReveal>
+        <MotionReveal delay={0.16}>
         <section className="mt-8 grid gap-6 lg:grid-cols-2">
           <article className="rounded-xl border border-border bg-card p-6"><h2 className="text-lg font-semibold text-foreground">Run status</h2><div className="mt-4 space-y-3">{summary.runs.runsByStatus.length === 0 ? <p className="text-sm text-muted-foreground">No runs recorded yet.</p> : summary.runs.runsByStatus.map((entry) => <div key={entry.status} className="flex justify-between text-sm"><span className="text-muted-foreground">{entry.status}</span><span className="font-medium text-foreground">{entry.count}</span></div>)}</div></article>
           <article className="rounded-xl border border-border bg-card p-6"><div className="flex items-center justify-between"><h2 className="text-lg font-semibold text-foreground">Tool outcomes</h2><Wrench className="h-4 w-4 text-muted-foreground" /></div><p className="mt-1 text-sm text-muted-foreground">{toolCalls} recorded tool proposals and executions.</p><div className="mt-4 space-y-3">{summary.tools.length === 0 ? <p className="text-sm text-muted-foreground">No tool calls recorded yet.</p> : summary.tools.map((entry) => <div key={entry.status} className="flex justify-between text-sm"><span className="text-muted-foreground">{entry.status}</span><span className="font-medium text-foreground">{entry.count}</span></div>)}</div></article>
         </section>
-        <section className="mt-6 rounded-xl border border-border bg-card p-6"><h2 className="text-lg font-semibold text-foreground">Model usage</h2><div className="mt-4 grid gap-4 sm:grid-cols-4">{[["Input tokens", summary.models.inputTokens], ["Output tokens", summary.models.outputTokens], ["Total tokens", summary.models.totalTokens], ["Failed calls", summary.models.failedCalls]].map(([label, value]) => <div key={label as string}><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-xl font-semibold text-foreground">{Number(value).toLocaleString()}</p></div>)}</div></section>
+        </MotionReveal>
+        <MotionReveal delay={0.24}>
+        <section className="mt-6 rounded-xl border border-border bg-card p-5 sm:p-6"><h2 className="text-lg font-semibold text-foreground">Model usage</h2><div className="mt-4 grid gap-4 sm:grid-cols-4">{[["Input tokens", summary.models.inputTokens], ["Output tokens", summary.models.outputTokens], ["Total tokens", summary.models.totalTokens], ["Failed calls", summary.models.failedCalls]].map(([label, value]) => <div key={label as string}><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-xl font-semibold text-foreground">{Number(value).toLocaleString()}</p></div>)}</div></section>
+        </MotionReveal>
       </div>
     </div>
   );

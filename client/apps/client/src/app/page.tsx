@@ -25,7 +25,7 @@ export default async function AppGatewayPage() {
   }
 
   return (
-    <main className="relative isolate flex min-h-screen flex-col overflow-hidden bg-background text-foreground">
+    <main className="relative isolate flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground">
       <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_20%,color-mix(in_oklab,var(--primary)_13%,transparent),transparent_28%),radial-gradient(circle_at_30%_88%,color-mix(in_oklab,var(--primary)_8%,transparent),transparent_31%)]" />
         <div className="absolute -right-40 top-1/2 h-[46rem] w-[46rem] -translate-y-1/2 rounded-full border border-border/60 bg-card/10 shadow-[0_0_140px_color-mix(in_oklab,var(--background)_78%,transparent)]" />

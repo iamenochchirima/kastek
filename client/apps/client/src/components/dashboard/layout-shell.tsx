@@ -46,6 +46,7 @@ import {
 import Image from "next/image";
 import { apiUrl } from "@/lib/server-api";
 import Link from "next/link";
+import { AnimatePresence, motion, MotionConfig } from "framer-motion";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
@@ -66,6 +67,8 @@ import {
   serverThemeSnapshot,
   subscribeToThemeChange,
 } from "@/lib/theme";
+import { useAppearance } from "@/lib/appearance";
+import { VANTAGE_MOTION, VANTAGE_SELECTION_SPRING } from "@/lib/motion";
 
 type NavItem = {
   name: string;
@@ -146,7 +149,7 @@ const navigationGroups: NavigationGroup[] = [
   },
 ];
 
-function ThemeToggleSimple({ className }: { className?: string }) {
+function ThemeToggleSimple({ className, iconOnly = false }: { className?: string; iconOnly?: boolean }) {
   const theme = useSyncExternalStore(
     subscribeToThemeChange,
     resolveStoredTheme,
@@ -167,14 +170,29 @@ function ThemeToggleSimple({ className }: { className?: string }) {
       aria-label="Toggle theme"
       data-tour="theme"
     >
-      {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-      <span>{theme === "dark" ? "Light" : "Dark"}</span>
+      <AnimatePresence initial={false} mode="wait">
+        <motion.span
+          key={theme}
+          initial={{ opacity: 0, rotate: -90, scale: 0.8 }}
+          animate={{ opacity: 1, rotate: 0, scale: 1 }}
+          exit={{ opacity: 0, rotate: 90, scale: 0.8 }}
+          transition={VANTAGE_SELECTION_SPRING}
+          className="inline-flex"
+        >
+          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </motion.span>
+      </AnimatePresence>
+      <span className={iconOnly ? "sr-only" : undefined}>{theme === "dark" ? "Light" : "Dark"}</span>
     </button>
   );
 }
 
 function isItemActive(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
+  const matches = navigationGroups
+    .flatMap((group) => group.items)
+    .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+    .sort((left, right) => right.href.length - left.href.length);
+  return matches[0]?.href === href;
 }
 
 function getSectionLabel(pathname: string) {
@@ -200,7 +218,7 @@ function DesktopTopbar({
   const initials = accountName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "KT";
 
   return (
-    <header className="sticky top-0 z-30 hidden h-16 items-center gap-3 border-b border-line bg-canvas/80 px-4 backdrop-blur-[12px] md:flex lg:px-6">
+    <header className="sticky top-0 z-[var(--z-topbar)] hidden h-16 items-center gap-3 border-b border-line bg-canvas/80 px-4 backdrop-blur-[12px] md:flex lg:px-6">
       <nav className="flex min-w-0 items-center gap-1.5 text-[13px] text-ink-2" aria-label="Breadcrumb">
         <span className="truncate">{organizationName}</span>
         <ChevronRight className="size-[13px] shrink-0 text-ink-3" />
@@ -219,7 +237,7 @@ function DesktopTopbar({
         <Link href="/workspace/notifications" aria-label="Notifications" className="relative grid size-9 place-items-center rounded-md border border-line bg-surface text-ink-2 transition-colors duration-150 hover:bg-surface-2 hover:text-ink-1">
           <Bell className="size-4" />
         </Link>
-        <ThemeToggleSimple className="size-9 px-0 [&_span]:hidden" />
+        <ThemeToggleSimple iconOnly className="size-9 px-0" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button type="button" aria-label="Account" className="rounded-full">
@@ -238,6 +256,87 @@ function DesktopTopbar({
         </DropdownMenu>
       </div>
     </header>
+  );
+}
+
+function MobileTopbar({
+  sectionLabel,
+  user,
+  onOpenCommand,
+}: {
+  sectionLabel: string;
+  user?: { name?: string | null; email?: string | null; image?: string | null };
+  onOpenCommand: () => void;
+}) {
+  const accountName = user?.name ?? "Account";
+  const initials = accountName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "KT";
+
+  return (
+    <div className="fixed inset-x-0 top-0 z-[var(--z-mobile-topbar)] flex h-16 items-center gap-2 border-b border-line bg-canvas/80 px-3 backdrop-blur-[12px] md:hidden">
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Open menu">
+          <Menu className="h-5 w-5" />
+        </Button>
+      </SheetTrigger>
+
+      <Link href="/workspace" className="flex min-w-0 items-center gap-2 text-left no-underline">
+        <Image src="/logo.png" alt="KasiTek" width={24} height={24} className="h-6 w-6 rounded-sm" />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-foreground">KasiTek</p>
+          <p className="truncate text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{sectionLabel}</p>
+        </div>
+      </Link>
+
+      <div className="flex-1" />
+      <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={onOpenCommand} aria-label="Search">
+        <Search className="h-4 w-4" />
+      </Button>
+      <Link
+        href="/workspace/notifications"
+        aria-label="Notifications"
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+      >
+        <Bell className="h-4 w-4" />
+      </Link>
+      <ThemeToggleSimple iconOnly className="h-9 w-9 shrink-0 px-0" />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button type="button" aria-label="Account" className="shrink-0 rounded-full">
+            <Avatar className="h-8 w-8 ring-2 ring-brand-soft">
+              {user?.image ? <AvatarImage src={user.image} alt={accountName} /> : null}
+              <AvatarFallback className="bg-primary text-[10px] font-semibold text-primary-foreground">{initials}</AvatarFallback>
+            </Avatar>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-52">
+          <div className="px-2 py-1.5">
+            <p className="truncate text-[13px] font-medium text-foreground">{accountName}</p>
+            <p className="truncate text-[11px] text-muted-foreground">{user?.email ?? ""}</p>
+          </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild><Link href="/workspace/profile"><UserRound className="mr-2 h-4 w-4" />Profile</Link></DropdownMenuItem>
+          <DropdownMenuItem asChild><Link href="/workspace/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link></DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onSelect={(event) => {
+              event.preventDefault();
+              void (async () => {
+                await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" });
+                window.location.assign("/");
+              })();
+            }}
+          >
+            <LogOut className="mr-2 h-4 w-4" />Log out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
 
@@ -272,7 +371,7 @@ function NavigationSection({
           <ChevronDown className={cn("h-3 w-3 transition-transform duration-150", !isOpen && "-rotate-90")} />
         </button>
       ) : null}
-      {(collapsed || isOpen) ? <div id={`sidebar-section-${group.label.toLowerCase()}`} className="space-y-0.5">{group.items.map((item) => {
+      {(collapsed || isOpen) ? <div id={`sidebar-section-${group.label.toLowerCase()}`} className="space-y-0.5">{group.items.map((item, index) => {
         const active = isItemActive(pathname, item.href);
         const showBadge = item.href === "/inbox" && inboxUnreadCount > 0;
         const feature = item.featureKey
@@ -282,21 +381,24 @@ function NavigationSection({
         const href = locked ? "/billing" : item.href;
 
         return (
+          <motion.div key={item.href} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.03, duration: VANTAGE_MOTION.shell / 1000 }}>
           <Link
-            key={item.href}
             href={href}
             data-tour={tourTarget(item.href)}
             onClick={onNavigate}
+            aria-label={collapsed ? item.name : undefined}
+            title={collapsed ? item.name : undefined}
             className={cn(
-              "relative flex min-h-9 items-center rounded-md text-[13px] font-normal leading-5 no-underline transition-colors",
+              "relative flex min-h-9 items-center rounded-md text-[13px] font-normal leading-5 no-underline transition-colors duration-[150ms]",
               collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
               active
-                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                ? "text-sidebar-accent-foreground after:absolute after:left-0 after:top-1/2 after:h-5 after:w-[3px] after:-translate-y-1/2 after:rounded-r-full after:bg-primary"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground",
             )}
             >
-              <item.icon className="h-4 w-4 shrink-0" />
-            {!collapsed ? <span>{item.name}</span> : null}
+            {active ? <motion.span layoutId="kasitek-sidebar-active" transition={VANTAGE_SELECTION_SPRING} className="absolute inset-0 rounded-md bg-sidebar-accent" /> : null}
+              <item.icon className="relative z-10 h-4 w-4 shrink-0" />
+            {!collapsed ? <span className="relative z-10">{item.name}</span> : null}
             {locked ? (
               <LockKeyhole
                 className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground", !collapsed && "ml-auto")}
@@ -314,6 +416,7 @@ function NavigationSection({
               </span>
             ) : null}
           </Link>
+          </motion.div>
         );
       })}</div> : null}
     </section>
@@ -373,6 +476,7 @@ function SidebarContent({
               size="icon"
               className="h-8 w-8 text-muted-foreground hover:bg-secondary hover:text-foreground"
               onClick={() => setCollapsed(true)}
+              aria-label="Collapse sidebar"
               data-tour="sidebar-toggle"
             >
               <PanelLeftOpen className="h-4 w-4 scale-x-[-1]" />
@@ -414,7 +518,7 @@ function SidebarContent({
           </div>
         ) : null}
         <div className={cn("flex items-center", collapsed && "justify-center")}>
-          <ThemeToggleSimple className={collapsed ? "w-9 px-0 [&_span]:hidden" : undefined} />
+          <ThemeToggleSimple iconOnly={collapsed} className={collapsed ? "w-9 px-0" : undefined} />
         </div>
 
         <DropdownMenu>
@@ -517,6 +621,7 @@ function SidebarContent({
               size="icon"
               className="h-9 w-full rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
               onClick={() => setCollapsed(false)}
+              aria-label="Expand sidebar"
               data-tour="sidebar-toggle"
             >
               <PanelLeftOpen className="h-4 w-4" />
@@ -581,6 +686,7 @@ export function LayoutShell({
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [kasiaiOpen, setKasiaiOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
+  const appearance = useAppearance();
   const pathname = usePathname();
   const sectionLabel = getSectionLabel(pathname);
   const organizationName = orgs.find((org) => org.id === activeOrgId)?.name ?? "Workspace";
@@ -617,10 +723,11 @@ export function LayoutShell({
   }, []);
 
   return (
-    <WhatsappRealtimeProvider key={activeOrgId ?? "no-org"} initialInboxUnreadCount={inboxUnreadCount}>
-      <>
+    <MotionConfig reducedMotion={appearance.interface.reduceMotion ? "always" : "user"}>
+      <WhatsappRealtimeProvider key={activeOrgId ?? "no-org"} initialInboxUnreadCount={inboxUnreadCount}>
+        <>
         <div className="dashboard-theme flex min-h-[100dvh] bg-canvas">
-          <aside className={cn("hidden shrink-0 md:flex md:flex-col", collapsed ? "w-[68px]" : "w-[264px]")}>
+          <aside className={cn("hidden shrink-0 transition-[width] duration-[250ms] ease-out md:flex md:flex-col", collapsed ? "w-[68px]" : "w-[264px]")}>
               <SidebarContent
                 collapsed={collapsed}
                 setCollapsed={setSidebarCollapsed}
@@ -632,27 +739,7 @@ export function LayoutShell({
               />
             </aside>
           <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
-            <div className="fixed inset-x-0 top-0 z-40 flex h-13 items-center justify-between border-b border-line bg-canvas/80 px-3 backdrop-blur-[12px] md:hidden">
-              <div className="flex min-w-0 items-center gap-2">
-                <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
-                    <Menu className="h-5 w-5" />
-                  </Button>
-                </SheetTrigger>
-                <Link href="/workspace" onClick={() => setMobileSheetOpen(false)} className="flex min-w-0 items-center gap-2 text-left no-underline">
-                  <Image src="/logo.png" alt="KasiTek" width={24} height={24} className="h-6 w-6 rounded-sm" />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-foreground">
-                      KasiTek
-                    </p>
-                    <p className="truncate text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                      {sectionLabel}
-                    </p>
-                  </div>
-                </Link>
-              </div>
-              {hasPwaUpdate ? <span className="h-2 w-2 rounded-full bg-primary" /> : <span className="w-2" />}
-            </div>
+            <MobileTopbar sectionLabel={sectionLabel} user={user} onOpenCommand={() => setCommandOpen(true)} />
             <SheetContent side="left" className="w-64 p-0">
               <SidebarContent
                 collapsed={false}
@@ -668,7 +755,7 @@ export function LayoutShell({
               />
             </SheetContent>
           </Sheet>
-          <main className="flex min-w-0 flex-1 flex-col pt-13 md:pt-0">
+          <main className="flex min-w-0 flex-1 flex-col pt-16 md:pt-0">
             <DesktopTopbar
               organizationName={organizationName}
               sectionLabel={sectionLabel}
@@ -677,13 +764,16 @@ export function LayoutShell({
             />
             <PwaUpdateBanner visible={hasPwaUpdate} />
             <PushNotificationReminder />
-            {children}
+            <div key={pathname} className="v-route-enter min-w-0 flex-1">
+              {children}
+            </div>
           </main>
           <ProductTour status={productTourStatus} />
           <KasiAiChat open={kasiaiOpen} onOpenChange={setKasiaiOpen} leftOffset={collapsed ? 68 : 264} />
           <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
         </div>
-      </>
-    </WhatsappRealtimeProvider>
+        </>
+      </WhatsappRealtimeProvider>
+    </MotionConfig>
   );
 }

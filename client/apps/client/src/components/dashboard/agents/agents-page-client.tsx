@@ -23,6 +23,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { setAgentInstallationStatus, type AgentDefinition, type AgentOperationsSummary, type AgentTemplate } from "@/lib/agent-platform";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 
 export type AgentListItem = AgentDefinition;
 
@@ -88,7 +89,7 @@ export function AgentsPageClient({
   };
 
   return (
-    <div className="min-h-screen p-4 sm:p-6">
+    <div className="min-h-[100dvh] p-4 sm:p-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
         <PageHeader>
           <PageHeaderContent>
@@ -106,7 +107,7 @@ export function AgentsPageClient({
           <Card><CardContent className="flex flex-col items-start gap-4 p-8"><Info className="h-7 w-7 text-status-attention" /><div><h2 className="text-xl font-semibold text-foreground">Agents are unavailable</h2><p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">The Agent Platform could not be reached. Your existing installations are unchanged; try refreshing in a moment.</p></div><Button type="button" variant="outline" onClick={() => router.refresh()}>Retry</Button></CardContent></Card>
         ) : initialAgents.length ? (
           <section className="grid gap-4 lg:grid-cols-2" aria-label="Installed agents">
-            {initialAgents.map((agent) => <AgentCard key={agent.id} agent={agent} onChanged={() => router.refresh()} />)}
+            {initialAgents.map((agent, index) => <AgentCard key={agent.id} agent={agent} onChanged={() => router.refresh()} delay={0.08 + index * 0.06} />)}
           </section>
         ) : (
           <Card>
@@ -208,7 +209,7 @@ function OperationsSummary({ summary }: { summary: AgentOperationsSummary }) {
   </section>;
 }
 
-function AgentCard({ agent, onChanged }: { agent: AgentDefinition; onChanged: () => void }) {
+function AgentCard({ agent, onChanged, delay = 0 }: { agent: AgentDefinition; onChanged: () => void; delay?: number }) {
   const isKasiAi = (agent.execution_mode ?? (agent.protected ? "system_hosted" : "kasitek_hosted")) === "system_hosted";
   const [updating, setUpdating] = useState(false);
   const installationStatus = agent.installation_status ?? "disabled";
@@ -223,7 +224,8 @@ function AgentCard({ agent, onChanged }: { agent: AgentDefinition; onChanged: ()
     }
   };
   return (
-    <Card>
+    <MotionReveal delay={delay} hoverLift className="h-full">
+    <Card className="h-full">
       <CardContent className="space-y-5 p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -259,6 +261,7 @@ function AgentCard({ agent, onChanged }: { agent: AgentDefinition; onChanged: ()
         </div>
       </CardContent>
     </Card>
+    </MotionReveal>
   );
 }
 

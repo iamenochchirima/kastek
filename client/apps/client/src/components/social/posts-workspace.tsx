@@ -26,6 +26,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContentWorkspaceNavigation } from "@/components/social/content-workspace-navigation";
 import { SocialPostsLibrary } from "@/components/social/social-posts-library";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 import {
   SOCIAL_PLATFORM_ORDER,
   type SocialChannelConnection,
@@ -1101,7 +1102,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   }
 
   return (
-    <div className="min-h-screen p-4 sm:p-6">
+    <div className="min-h-[100dvh] p-4 sm:p-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
         <div className="space-y-4 border-b border-border pb-4">
           <PageHeader>
@@ -1132,6 +1133,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
           </div>
         ) : null}
 
+        <MotionReveal delay={0.08}>
         <Card>
           <CardHeader className="flex flex-col gap-4 border-b border-border lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -1381,6 +1383,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
             )}
           </CardContent>
         </Card>
+        </MotionReveal>
       </div>
 
       <Dialog open={isIdeasOpen} onOpenChange={setIsIdeasOpen}>

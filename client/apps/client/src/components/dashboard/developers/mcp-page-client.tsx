@@ -6,6 +6,7 @@ import { Check, Copy, ExternalLink, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 import { useDevelopersData } from "./developers-data";
 
 type ClientId = "claude" | "chatgpt" | "claude-code" | "cursor" | "other";
@@ -29,10 +30,11 @@ export function McpPageClient() {
   const localSetup = `export KASITEK_MCP_URL="${config.mcpEndpoint}"\nexport KASITEK_API_KEY="<developer-api-key>"\nnpx -y ${config.mcpPackage}`;
 
   return (
-    <div className="min-h-screen p-4 sm:p-6">
+    <div className="min-h-[100dvh] p-4 sm:p-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
         <PageHeader><PageHeaderContent><PageHeaderTitle>MCP</PageHeaderTitle><PageHeaderDescription>Connect an AI client.</PageHeaderDescription></PageHeaderContent></PageHeader>
 
+        <MotionReveal>
         <Card>
           <CardContent className="space-y-5 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-semibold">Choose your client</h2><p className="mt-1 text-sm text-muted-foreground">Each path uses the same endpoint, API key, and capability policy.</p></div><Button asChild variant="outline"><Link href="/developers/api-keys"><KeyRound className="mr-2 h-4 w-4" />Create API key</Link></Button></div>
@@ -42,10 +44,13 @@ export function McpPageClient() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground"><Check className="h-4 w-4 text-primary" />Use the same Developer API key for MCP and REST. Keep it in the client environment or secret settings.</div>
           </CardContent>
         </Card>
+        </MotionReveal>
 
+        <MotionReveal delay={0.08}>
         <Card>
           <CardContent className="space-y-4 p-5"><div><h2 className="text-base font-semibold">Local stdio setup</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Use this only when the client requires a local command-launched MCP server. Create one Developer API key, set it in the client environment, and let the package forward MCP messages.</p></div><pre className="overflow-x-auto rounded-lg bg-secondary/50 p-4 text-xs leading-6 text-foreground">{localSetup}</pre><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={() => copy(localSetup)}><Copy className="mr-2 h-3.5 w-3.5" />Copy setup</Button><Button asChild variant="ghost"><Link href="/developers/cli">View CLI setup <ExternalLink className="ml-2 h-3.5 w-3.5" /></Link></Button></div></CardContent>
         </Card>
+        </MotionReveal>
       </div>
     </div>
   );

@@ -7,7 +7,7 @@ function PageHeader({ className, ...props }: React.ComponentProps<"header">) {
 }
 
 function PageHeaderContent({ className, ...props }: React.ComponentProps<"div">) {
-  return <div data-slot="page-header-content" className={cn("min-w-0", className)} {...props} />
+  return <div data-slot="page-header-content" className={cn("min-w-0 flex-1", className)} {...props} />
 }
 
 function PageHeaderTitle({ className, ...props }: React.ComponentProps<"h1">) {
@@ -19,7 +19,7 @@ function PageHeaderDescription({ className, ...props }: React.ComponentProps<"p"
 }
 
 function PageHeaderActions({ className, ...props }: React.ComponentProps<"div">) {
-  return <div data-slot="page-header-actions" className={cn("ml-auto flex flex-wrap items-center gap-2", className)} {...props} />
+  return <div data-slot="page-header-actions" className={cn("flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto", className)} {...props} />
 }
 
 export { PageHeader, PageHeaderActions, PageHeaderContent, PageHeaderDescription, PageHeaderTitle }

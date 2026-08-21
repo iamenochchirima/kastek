@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 import { useDevelopersData } from "./developers-data";
 
 type ClientId = "claude" | "chatgpt" | "claude-code" | "cursor" | "other";
@@ -85,10 +86,10 @@ export function DevelopersPageClient() {
   const selected = clientCopy[selectedClient];
 
   return (
-    <div className="min-h-screen p-4 sm:p-6">
+    <div className="min-h-[100dvh] p-4 sm:p-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
         <PageHeader><PageHeaderContent><PageHeaderTitle>Developers</PageHeaderTitle><PageHeaderDescription>API, MCP, and CLI setup.</PageHeaderDescription></PageHeaderContent></PageHeader>
-        <section>
+        <MotionReveal>
           <h2 className="text-lg font-semibold text-foreground">Choose a path</h2>
           <p className="mt-1 text-sm text-muted-foreground">Post from Claude, ChatGPT, your own code, or the terminal. Pick a path:</p>
 
@@ -113,9 +114,9 @@ export function DevelopersPageClient() {
             </Link>
           </div>
           <p className="mt-3 text-xs text-muted-foreground">1. Create a Developer API key&nbsp;&nbsp; 2. Choose your client&nbsp;&nbsp; 3. Test a safe request</p>
-        </section>
+        </MotionReveal>
 
-        <section>
+        <MotionReveal delay={0.08}>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-base font-semibold">Connect an AI agent</h2>
             <Badge variant="secondary">For AI agents</Badge>
@@ -165,16 +166,16 @@ export function DevelopersPageClient() {
               </div>
             </div>
           </div>
-        </section>
+        </MotionReveal>
 
-        <section className="grid gap-3 md:grid-cols-2">
-          <Card className="gap-3">
+        <MotionReveal delay={0.16} className="grid gap-3 md:grid-cols-2">
+          <Card className="gap-3" data-motion-card>
             <CardContent className="flex items-start gap-3 p-5"><KeyRound className="mt-0.5 h-5 w-5 text-muted-foreground" /><div><h2 className="text-sm font-semibold">Developer API keys</h2><p className="mt-1 text-sm leading-5 text-muted-foreground">Use one workspace API key for REST, MCP, scripts, and local AI clients. Capabilities and approvals still apply.</p><Link href="/developers/api-keys" className="mt-3 inline-flex text-sm font-medium text-foreground underline-offset-4 hover:underline">Manage API keys <ArrowRight className="ml-1.5 h-3.5 w-3.5" /></Link></div></CardContent>
           </Card>
-          <Card className="gap-3">
+          <Card className="gap-3" data-motion-card>
             <CardContent className="flex items-start gap-3 p-5"><Code2 className="mt-0.5 h-5 w-5 text-muted-foreground" /><div><h2 className="text-sm font-semibold">Connected accounts</h2><p className="mt-1 text-sm leading-5 text-muted-foreground">Provider accounts and account identifiers are managed in Connections, not duplicated here.</p><Link href="/connections" className="mt-3 inline-flex text-sm font-medium text-foreground underline-offset-4 hover:underline">Open Connections <ArrowRight className="ml-1.5 h-3.5 w-3.5" /></Link></div></CardContent>
           </Card>
-        </section>
+        </MotionReveal>
       </div>
     </div>
   );

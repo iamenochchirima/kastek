@@ -3,6 +3,7 @@ import { fetchRustJson } from "@/lib/rust-server-api";
 import { fetchBillingSummary } from "@/lib/billing";
 import { Bot, FileText, MessageCircle, PlugZap, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 import { PageHeader, PageHeaderActions, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -86,15 +87,15 @@ export default async function WorkspacePage() {
         </PageHeader>
 
         <SectionHeading title="Work that needs attention" actionHref="/inbox" actionLabel="Open Inbox" />
-        <section className="overflow-hidden rounded-lg border border-border bg-card">
-          {actions.length ? actions.map(([count, href, title, detail]) => <Link key={title} href={href} className="flex items-center justify-between gap-4 border-b border-border px-5 py-4 no-underline last:border-b-0 hover:bg-secondary/60"><span><span className="block text-sm font-semibold text-foreground">{title}</span><span className="mt-1 block text-xs text-muted-foreground">{detail}</span></span><span className="rounded-full bg-status-attention-soft px-2.5 py-1 text-sm font-semibold text-status-attention">{count}</span></Link>) : <EmptyState message="No attention items" />}
-        </section>
+        <MotionReveal delay={0.08} className="v-card overflow-hidden">
+          {actions.length ? actions.map(([count, href, title, detail]) => <Link key={title} href={href} className="flex min-h-16 items-center justify-between gap-4 border-b border-border px-5 py-4 no-underline transition-colors duration-[150ms] last:border-b-0 hover:bg-secondary/60"><span className="min-w-0"><span className="block truncate text-sm font-semibold text-foreground">{title}</span><span className="mt-1 block truncate text-xs text-muted-foreground">{detail}</span></span><span className="shrink-0 rounded-full bg-status-attention-soft px-2.5 py-1 text-sm font-semibold text-status-attention">{count}</span></Link>) : <EmptyState message="No attention items" />}
+        </MotionReveal>
 
         <section className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <OperationalLink href="/inbox" icon={MessageCircle} label="Inbox" detail="Open conversations and customer replies" />
-          <OperationalLink href="/templates" icon={FileText} label="Templates" detail={`${summary.templateStatusMap.APPROVED || 0} approved templates`} />
-          <OperationalLink href="/agents" icon={Bot} label="Agents" detail={`${summary.agentCount} installed agents`} />
-          <OperationalLink href="/connections" icon={PlugZap} label="Connections" detail={`${summary.connections.length} connected numbers`} />
+          <OperationalLink href="/inbox" icon={MessageCircle} label="Inbox" detail="Open conversations and customer replies" delay={0.16} />
+          <OperationalLink href="/templates" icon={FileText} label="Templates" detail={`${summary.templateStatusMap.APPROVED || 0} approved templates`} delay={0.2} />
+          <OperationalLink href="/agents" icon={Bot} label="Agents" detail={`${summary.agentCount} installed agents`} delay={0.24} />
+          <OperationalLink href="/connections" icon={PlugZap} label="Connections" detail={`${summary.connections.length} connected numbers`} delay={0.28} />
         </section>
       </div>
     </div>
@@ -102,13 +103,13 @@ export default async function WorkspacePage() {
 }
 
 function SectionHeading({ title, actionHref, actionLabel }: { title: string; actionHref: string; actionLabel: string }) {
-  return <div className="mb-3 mt-8 flex items-baseline justify-between gap-4"><h2 className="text-base font-semibold text-foreground">{title}</h2><Link href={actionHref} className="text-xs font-medium text-muted-foreground no-underline hover:text-foreground">{actionLabel} →</Link></div>;
+  return <div className="mb-3 mt-8 flex items-center justify-between gap-4"><h2 className="text-base font-semibold text-foreground">{title}</h2><Link href={actionHref} className="inline-flex min-h-9 items-center text-xs font-medium text-muted-foreground no-underline transition-colors duration-[150ms] hover:text-foreground">{actionLabel} →</Link></div>;
 }
 
 function EmptyState({ message, compact = false }: { message: string; compact?: boolean }) {
   return <div className={compact ? "border-t border-border py-5 text-sm text-muted-foreground" : "p-8 text-center text-sm text-muted-foreground"}>{message}</div>;
 }
 
-function OperationalLink({ href, icon: Icon, label, detail }: { href: string; icon: LucideIcon; label: string; detail: string }) {
-  return <Link href={href} className="rounded-lg border border-border bg-card p-4 no-underline transition-colors hover:bg-secondary"><Icon className="size-4 text-muted-foreground" /><p className="mt-4 text-sm font-semibold text-foreground">{label}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></Link>;
+function OperationalLink({ href, icon: Icon, label, detail, delay }: { href: string; icon: LucideIcon; label: string; detail: string; delay: number }) {
+  return <MotionReveal delay={delay} hoverLift className="h-full"><Link href={href} className="v-card group flex h-full min-h-32 flex-col p-4 no-underline transition-[border-color,background-color] duration-[150ms] hover:border-line-strong hover:bg-secondary"><Icon className="size-4 text-muted-foreground transition-colors duration-[150ms] group-hover:text-primary" /><p className="mt-4 text-sm font-semibold text-foreground">{label}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></Link></MotionReveal>;
 }

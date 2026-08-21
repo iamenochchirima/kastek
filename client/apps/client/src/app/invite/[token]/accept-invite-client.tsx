@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiUrl } from "@/lib/server-api";
 import type { InvitationPreview } from "@/lib/orgs";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 
 const ROLE_LABELS: Record<string, string> = {
   OWNER: "Owner",
@@ -34,7 +35,7 @@ export function AcceptInviteClient({
 
   if (!invitation) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background p-4">
         <div className="w-full max-w-md space-y-4 rounded-2xl border border-border bg-card p-8 text-center">
           <XCircle className="mx-auto h-12 w-12 text-destructive" />
           <h1 className="text-xl font-semibold text-foreground">Invitation not found</h1>
@@ -51,7 +52,7 @@ export function AcceptInviteClient({
 
   if (invitation.acceptedAt) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background p-4">
         <div className="w-full max-w-md space-y-4 rounded-2xl border border-border bg-card p-8 text-center">
           <CheckCircle className="mx-auto h-12 w-12 text-status-success" />
           <h1 className="text-xl font-semibold text-foreground">Already accepted</h1>
@@ -70,7 +71,7 @@ export function AcceptInviteClient({
 
   if (isExpired) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background p-4">
         <div className="w-full max-w-md space-y-4 rounded-2xl border border-border bg-card p-8 text-center">
           <XCircle className="mx-auto h-12 w-12 text-destructive" />
           <h1 className="text-xl font-semibold text-foreground">Invitation expired</h1>
@@ -151,7 +152,7 @@ export function AcceptInviteClient({
 
   if (accepted) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background p-4">
         <div className="w-full max-w-md space-y-4 rounded-2xl border border-border bg-card p-8 text-center">
           <CheckCircle className="mx-auto h-12 w-12 text-status-success" />
           <h1 className="text-xl font-semibold text-foreground">Welcome to {invitation.orgName}!</h1>
@@ -162,8 +163,9 @@ export function AcceptInviteClient({
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md space-y-6 rounded-2xl border border-border bg-card p-8">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background p-4">
+      <MotionReveal>
+      <div className="w-full max-w-md space-y-6 rounded-2xl border border-border bg-card p-6 shadow-[0_24px_80px_rgb(0_0_0_/_0.18)] sm:p-8">
         {/* Org info */}
         <div className="flex items-center gap-4">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-border bg-secondary/40 text-lg font-bold text-primary">
@@ -234,6 +236,7 @@ export function AcceptInviteClient({
           By joining, you agree to work within this organisation&apos;s workspace on KasiTek.
         </p>
       </div>
+      </MotionReveal>
     </div>
   );
 }

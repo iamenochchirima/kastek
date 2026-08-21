@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 function AutomationPageFrame({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen p-6 lg:p-8">
+    <div className="min-h-[100dvh] p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1400px]">{children}</div>
     </div>
   );

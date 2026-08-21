@@ -101,7 +101,7 @@ export function CreateGeneralAgentPageClient() {
 
   if (created) {
     return (
-      <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-8">
+      <div className="min-h-[100dvh] px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl">
           <Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to agents</Link>
           <Card className="mt-8 rounded-3xl border-border/80 shadow-xl shadow-black/10"><CardContent className="p-8 text-center sm:p-12">
@@ -128,7 +128,7 @@ export function CreateGeneralAgentPageClient() {
         : "Everything looks good? You can change these settings later.";
 
   return (
-    <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-8">
+      <div className="min-h-[100dvh] px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-5xl">
         <div className="flex items-center justify-between gap-4">
           <Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back</Link>

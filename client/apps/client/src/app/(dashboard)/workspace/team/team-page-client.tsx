@@ -28,6 +28,7 @@ import {
 import { apiUrl } from "@/lib/server-api";
 import type { Org, OrgMember, OrgInvitation, OrgRole } from "@/lib/orgs";
 import { toast } from "sonner";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 
 const ROLE_LABELS: Record<OrgRole, string> = {
   OWNER: "Owner",
@@ -143,6 +144,7 @@ export function TeamPageClient({
 
         {/* Invite form */}
         {canManage ? (
+          <MotionReveal delay={0.08}>
           <section className="rounded-xl border border-border bg-card p-5">
             <h2 className="mb-1 text-base font-semibold text-foreground">Invite a team member</h2>
             <p className="mb-5 text-sm text-muted-foreground">
@@ -167,9 +169,11 @@ export function TeamPageClient({
               <p className="mt-3 text-sm text-destructive">{inviteError}</p>
             ) : null}
           </section>
+          </MotionReveal>
         ) : null}
 
         {/* Members */}
+        <MotionReveal delay={0.16}>
         <section className="rounded-xl border border-border bg-card">
           <div className="border-b border-border px-5 py-4">
             <h2 className="text-base font-semibold text-foreground">
@@ -191,7 +195,7 @@ export function TeamPageClient({
                 canManage && !isSelf && member.role !== "OWNER";
 
               return (
-                <div key={member.id} className="flex items-center gap-4 px-5 py-4">
+                <div key={member.id} className="flex flex-wrap items-center gap-3 px-4 py-4 sm:gap-4 sm:px-5">
                   <Avatar className="h-9 w-9 shrink-0 border border-border">
                     {member.image ? (
                       <AvatarImage src={member.image} alt={member.name ?? ""} />
@@ -200,7 +204,7 @@ export function TeamPageClient({
                       {initials}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 basis-[calc(100%-3rem)] sm:basis-auto">
                     <p className="truncate text-sm font-medium text-foreground">
                       {member.name ?? member.email ?? "Unknown"}
                       {isSelf ? (
@@ -215,7 +219,7 @@ export function TeamPageClient({
                   {canEdit ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={`Manage ${member.name ?? member.email ?? "member"}`}>
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -269,9 +273,11 @@ export function TeamPageClient({
             })}
           </div>
         </section>
+        </MotionReveal>
 
         {/* Pending invitations */}
         {canManage && pendingInvitations.length > 0 ? (
+          <MotionReveal delay={0.24}>
           <section className="rounded-xl border border-border bg-card">
             <div className="border-b border-border px-5 py-4">
               <h2 className="text-base font-semibold text-foreground">
@@ -283,7 +289,7 @@ export function TeamPageClient({
             </div>
             <div className="divide-y divide-border">
               {pendingInvitations.map((inv) => (
-                <div key={inv.id} className="flex items-center gap-4 px-5 py-4">
+                <div key={inv.id} className="flex flex-wrap items-center gap-3 px-4 py-4 sm:gap-4 sm:px-5">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-dashed border-border bg-secondary/40">
                     <Mail className="h-4 w-4 text-muted-foreground" />
                   </div>
@@ -299,6 +305,7 @@ export function TeamPageClient({
                     size="icon"
                     className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                     onClick={() => handleRevokeInvite(inv.id)}
+                    aria-label={`Revoke invitation for ${inv.email}`}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -306,10 +313,12 @@ export function TeamPageClient({
               ))}
             </div>
           </section>
+          </MotionReveal>
         ) : null}
 
         {/* Multiple orgs */}
         {orgs.length > 1 ? (
+          <MotionReveal delay={0.32}>
           <section className="rounded-xl border border-border bg-card p-5">
             <h2 className="mb-3 text-base font-semibold text-foreground">Your organisations</h2>
             <div className="space-y-2">
@@ -331,6 +340,7 @@ export function TeamPageClient({
               ))}
             </div>
           </section>
+          </MotionReveal>
         ) : null}
 
       </div>

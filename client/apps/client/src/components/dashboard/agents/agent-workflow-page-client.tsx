@@ -96,7 +96,7 @@ export function AgentWorkflowPageClient({ agent, initialVersions }: { agent: Age
     });
   };
 
-  return <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-8">
+  return <div className="min-h-[100dvh] px-4 py-6 sm:px-6 lg:px-8">
     <div className="mx-auto max-w-[1240px]">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <Link href={`/agents/${encodeURIComponent(agent.id)}`} className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to agent</Link>

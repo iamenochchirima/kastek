@@ -6,7 +6,7 @@ export const metadata = {
 
 export default function ConnectionsWhatsappOnboardingResultPage() {
   return (
-    <div className="min-h-[calc(100vh-5rem)] px-6 py-10 lg:flex lg:items-center lg:px-8 lg:py-16">
+    <div className="min-h-[calc(100dvh-4rem)] px-4 py-8 sm:px-6 lg:flex lg:items-center lg:px-8 lg:py-16">
       <WhatsappOnboardingResultCard />
     </div>
   );

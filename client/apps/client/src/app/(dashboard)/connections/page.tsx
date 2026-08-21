@@ -37,7 +37,7 @@ export default async function ConnectionsPage({
   ]);
 
   return (
-    <div className="min-h-screen p-4 sm:p-6">
+    <div className="min-h-[100dvh] p-4 sm:p-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
         <PageHeader>
           <PageHeaderContent>

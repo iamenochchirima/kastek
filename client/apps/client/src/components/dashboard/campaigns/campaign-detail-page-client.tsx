@@ -12,6 +12,7 @@ import { useWhatsappRealtimeSubscription } from "@/components/dashboard/whatsapp
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 
 type Campaign = {
   id: string;
@@ -697,7 +698,7 @@ export default function CampaignDetailPageClient({
     liveCampaign.status === "FAILED";
 
   return (
-    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
+    <MotionReveal className="min-h-[100dvh] p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1600px] space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -1311,7 +1312,7 @@ export default function CampaignDetailPageClient({
           ) : null}
         </Dialog>
       </div>
-    </div>
+    </MotionReveal>
   );
 }
 

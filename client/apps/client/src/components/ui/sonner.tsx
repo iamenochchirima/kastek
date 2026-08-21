@@ -31,7 +31,7 @@ function Toaster({ ...props }: ToasterProps) {
   return (
     <Sonner
       theme={theme}
-      className="toaster group"
+      className="toaster group z-[var(--z-toast)]"
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,

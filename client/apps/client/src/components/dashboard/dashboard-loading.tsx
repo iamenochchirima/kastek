@@ -9,7 +9,7 @@ function DashboardPageFrame({
   className?: string;
 }) {
   return (
-    <div className={cn("min-h-screen p-6 lg:p-8", className)}>
+    <div className={cn("min-h-[100dvh] p-4 sm:p-6 lg:p-8", className)}>
       <div className="mx-auto max-w-[1600px] space-y-6">{children}</div>
     </div>
   );
@@ -286,7 +286,7 @@ export function CampaignDetailPageSkeleton() {
 export function InboxPageSkeleton() {
   return (
     <DashboardPageFrame className="p-0 lg:p-0">
-      <div className="grid min-h-screen lg:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="grid min-h-[100dvh] lg:grid-cols-[360px_minmax(0,1fr)]">
         <div className="border-r border-border bg-card/70 p-5">
           <div className="space-y-3">
             <Skeleton className="h-9 w-44" />
@@ -313,7 +313,7 @@ export function InboxPageSkeleton() {
           </div>
         </div>
 
-        <div className="hidden min-h-screen bg-background lg:flex lg:flex-col">
+        <div className="hidden min-h-[100dvh] bg-background lg:flex lg:flex-col">
           <div className="border-b border-border px-6 py-5">
             <div className="flex items-center gap-4">
               <Skeleton className="h-12 w-12 rounded-full" />

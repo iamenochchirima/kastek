@@ -3,6 +3,7 @@ import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle }
 import { getRustSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
 import { redirect } from "next/navigation";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 
 export const metadata = {
   title: "Templates | KasiTek",
@@ -50,7 +51,7 @@ export default async function ReachTemplatesPage({
   const connections = connectionResponse.connections;
 
   return (
-    <div className="min-h-screen px-4 py-6 lg:px-6">
+    <div className="min-h-[100dvh] px-4 py-6 lg:px-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
         <PageHeader>
           <PageHeaderContent>
@@ -60,16 +61,20 @@ export default async function ReachTemplatesPage({
         </PageHeader>
 
         {connections.length === 0 ? (
+          <MotionReveal delay={0.08}>
           <div className="rounded-xl border border-dashed border-border bg-card p-8 text-sm text-muted-foreground">
             Connect a WhatsApp number first before managing templates.
           </div>
+          </MotionReveal>
         ) : (
-          <WhatsappTemplateManager
-            connections={connections}
-            forceCreateForm={params.create === "1"}
-            initialLibraryItemId={params.starter}
-            templates={templates}
-          />
+          <MotionReveal delay={0.08}>
+            <WhatsappTemplateManager
+              connections={connections}
+              forceCreateForm={params.create === "1"}
+              initialLibraryItemId={params.starter}
+              templates={templates}
+            />
+          </MotionReveal>
         )}
       </div>
     </div>

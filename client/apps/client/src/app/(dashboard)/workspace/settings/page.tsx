@@ -3,9 +3,18 @@ import { fetchOrgs, fetchOrgMembers, getActiveOrgId, type Org } from "@/lib/orgs
 import { redirect } from "next/navigation";
 import { WorkspaceSettingsClient } from "./workspace-settings-client";
 
-export const metadata = { title: "Workspace settings | KasiTek" };
+export const metadata = { title: "Settings | KasiTek" };
 
-export default async function WorkspaceSettingsPage() {
+type SettingsSearchParams = {
+  section?: string | string[];
+};
+
+export default async function WorkspaceSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SettingsSearchParams>;
+}) {
+  const { section } = await searchParams;
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
   const orgs = await fetchOrgs();
@@ -14,5 +23,13 @@ export default async function WorkspaceSettingsPage() {
   if (!org) redirect("/workspace");
   const members = await fetchOrgMembers(org.id).catch(() => []);
   const role = members.find((member) => member.userId === session.user.id)?.role ?? "MEMBER";
-  return <WorkspaceSettingsClient org={org} canManage={role === "OWNER" || role === "ADMIN"} />;
+  const initialTab = section === "appearance" ? "appearance" : "general";
+
+  return (
+    <WorkspaceSettingsClient
+      org={org}
+      canManage={role === "OWNER" || role === "ADMIN"}
+      initialTab={initialTab}
+    />
+  );
 }

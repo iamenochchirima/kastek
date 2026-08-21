@@ -11,6 +11,7 @@ import {
   PageHeaderDescription,
   PageHeaderTitle,
 } from "@/components/ui/page-header";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 
 export const metadata = {
   title: "Billing and Usage | KasiTek",
@@ -51,7 +52,7 @@ export default async function BillingPage({
   ]);
 
   return (
-    <div className="min-h-screen p-4 sm:p-6">
+    <div className="min-h-[100dvh] p-4 sm:p-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
         <PageHeader>
           <PageHeaderContent>
@@ -61,7 +62,7 @@ export default async function BillingPage({
         </PageHeader>
 
         {query.payment === "complete" && (query.reference || query.trxref) ? (
-          <PaymentReturnStatus reference={query.reference || query.trxref || ""} />
+          <MotionReveal><PaymentReturnStatus reference={query.reference || query.trxref || ""} /></MotionReveal>
         ) : query.payment === "complete" ? (
           <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
             Paystack returned without a transaction reference. No workspace access was changed.
@@ -73,7 +74,7 @@ export default async function BillingPage({
             Billing information is unavailable right now. No workspace access has been changed.
           </div>
         ) : (
-          <section className="rounded-xl border border-border bg-card p-5">
+          <MotionReveal><section className="rounded-xl border border-border bg-card p-5">
             <div>
               <h2 className="text-lg font-semibold text-foreground">Workspace features</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -99,11 +100,11 @@ export default async function BillingPage({
                 </div>
               ))}
             </div>
-          </section>
+          </section></MotionReveal>
         )}
 
         {summary?.products.some((product) => product.subscriptionId) ? (
-          <section className="rounded-xl border border-border bg-card p-5">
+          <MotionReveal delay={0.08}><section className="rounded-xl border border-border bg-card p-5">
             <h2 className="text-lg font-semibold text-foreground">Current subscription</h2>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               {summary.products.filter((product) => product.subscriptionId).map((product) => (
@@ -125,11 +126,11 @@ export default async function BillingPage({
                 </article>
               ))}
             </div>
-          </section>
+          </section></MotionReveal>
         ) : null}
 
         {summary ? (
-          <section className="rounded-xl border border-border bg-card p-5">
+          <MotionReveal delay={0.16}><section className="rounded-xl border border-border bg-card p-5">
             <h2 className="text-lg font-semibold text-foreground">Current month usage</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Usage meters are independent of plan names and reset at the start of each month.
@@ -148,11 +149,11 @@ export default async function BillingPage({
                 </div>
               ))}
             </div>
-          </section>
+          </section></MotionReveal>
         ) : null}
 
         {planResponse.plans.length ? (
-          <section className="rounded-xl border border-border bg-card p-5">
+          <MotionReveal delay={0.24}><section className="rounded-xl border border-border bg-card p-5">
             <h2 className="text-lg font-semibold text-foreground">Available plans</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Choose the workspace plan that matches the features and limits your team needs.
@@ -168,11 +169,11 @@ export default async function BillingPage({
                 </div>
               ))}
             </div>
-          </section>
+          </section></MotionReveal>
         ) : null}
 
         {summary?.manualGrants.length ? (
-          <section className="rounded-xl border border-border bg-card p-5">
+          <MotionReveal delay={0.32}><section className="rounded-xl border border-border bg-card p-5">
             <h2 className="text-lg font-semibold text-foreground">Manual access</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Temporary or internal access granted outside a paid subscription.
@@ -190,11 +191,11 @@ export default async function BillingPage({
                 </div>
               ))}
             </div>
-          </section>
+          </section></MotionReveal>
         ) : null}
 
         {summary?.payments.length ? (
-          <section className="rounded-xl border border-border bg-card p-5">
+          <MotionReveal delay={0.4}><section className="rounded-xl border border-border bg-card p-5">
             <h2 className="text-lg font-semibold text-foreground">Payment history</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Checkout records confirmed by the billing server.
@@ -213,11 +214,11 @@ export default async function BillingPage({
                 </div>
               ))}
             </div>
-          </section>
+          </section></MotionReveal>
         ) : null}
 
         {summary?.invoices.length ? (
-          <section className="rounded-xl border border-border bg-card p-5">
+          <MotionReveal delay={0.48}><section className="rounded-xl border border-border bg-card p-5">
             <h2 className="text-lg font-semibold text-foreground">Invoices</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Billing documents created after a payment has been verified by the billing server.
@@ -238,7 +239,7 @@ export default async function BillingPage({
                 </div>
               ))}
             </div>
-          </section>
+          </section></MotionReveal>
         ) : null}
       </div>
     </div>

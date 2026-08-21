@@ -8,7 +8,7 @@ function SocialPageFrame({
   wide?: boolean;
 }) {
   return (
-    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
+    <div className="min-h-[100dvh] p-4 sm:p-6 lg:p-8">
       <div className={`mx-auto space-y-6 ${wide ? "max-w-[1600px]" : "max-w-[1400px]"}`}>{children}</div>
     </div>
   );

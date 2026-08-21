@@ -69,6 +69,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { resolveTheme, useAppearance } from "@/lib/appearance";
 import { listAgentConversations, listAgents, type AgentConversation, type AgentDefinition } from "@/lib/agent-platform";
 
 function inboxPlatformKey(channel: string) {
@@ -660,6 +661,8 @@ export default function InboxPageClient({
 }) {
   const searchParams = useSearchParams();
   const { confirm } = useConfirmationDialog();
+  const appearance = useAppearance();
+  const emojiTheme = resolveTheme(appearance.theme);
   const [liveConversations, setLiveConversations] = useState(conversations);
   const [selectedChannel, setSelectedChannel] = useState<
     "all" | "agents" | "whatsapp" | "email" | "sms" | "instagram" | "facebook"
@@ -1350,7 +1353,7 @@ export default function InboxPageClient({
             <h2 className="text-base font-semibold text-foreground">Manage channels</h2>
             <p className="mt-1 text-sm text-muted-foreground">Choose which connected channels appear in Inbox.</p>
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => setShowChannelPanel(false)}>
+          <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" onClick={() => setShowChannelPanel(false)}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -1388,7 +1391,7 @@ export default function InboxPageClient({
                         setMobileConversationOpen(false);
                       }}
                       className={cn(
-                        "flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-secondary",
+                        "flex min-h-9 w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-secondary",
                         selectedChannel === "whatsapp" &&
                           selectedConnectionId === connectionFilter.id &&
                           "bg-secondary text-foreground",
@@ -2485,7 +2488,7 @@ export default function InboxPageClient({
 
   return (
     <TooltipProvider>
-      <div className="relative flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col overflow-hidden bg-background lg:h-[100dvh]">
+      <div className="relative flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden bg-background lg:h-[100dvh]">
         <Sheet open={showChannelPanel} onOpenChange={setShowChannelPanel}>
           <SheetContent side="left" className="flex w-[min(360px,100vw)] flex-col p-0">
             {renderChannelPanelContent()}
@@ -2499,7 +2502,7 @@ export default function InboxPageClient({
               <PageHeaderDescription>Customer conversations.</PageHeaderDescription>
             </PageHeaderContent>
             <PageHeaderActions>
-            <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowChannelPanel(true)}>
+            <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => setShowChannelPanel(true)}>
               <Filter className="h-4 w-4" />
               Manage channels
             </Button>
@@ -2525,7 +2528,7 @@ export default function InboxPageClient({
                     setMobileConversationOpen(false);
                   }}
                   className={cn(
-                    "inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
+                    "inline-flex min-h-9 shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
                     isActive
                       ? "border-foreground text-foreground"
                       : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
@@ -2565,7 +2568,7 @@ export default function InboxPageClient({
             {supportsConnectionFilter && selectedChannelConnected ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="mb-3 h-8 max-w-full gap-2 text-xs">
+                  <Button variant="outline" size="sm" className="mb-3 h-9 max-w-full gap-2 text-xs">
                     {(() => { const Icon = inboxChannelIcon(selectedChannel); return <Icon className={`h-3.5 w-3.5 ${inboxChannelIconClass(selectedChannel)}`} />; })()}
                     <span className="truncate">{selectedConnectionFilter?.label}</span>
                     <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -2618,7 +2621,7 @@ export default function InboxPageClient({
                     setMobileConversationOpen(false);
                   }}
                   className={cn(
-                    "shrink-0 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                    "flex min-h-9 shrink-0 items-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
                     filter === filterItem.id
                       ? "bg-secondary text-foreground"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground",
@@ -2859,7 +2862,7 @@ export default function InboxPageClient({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground md:hidden"
+                    className="h-9 w-9 shrink-0 text-muted-foreground md:hidden"
                     onClick={() => setMobileConversationOpen(false)}
                   >
                     <ArrowLeft className="h-4 w-4" />
@@ -2899,7 +2902,7 @@ export default function InboxPageClient({
                       <span>{selectedConversation.handle}</span>
                       {selectedConversation.status === "online" ? (
                         <span className="ml-1 hidden items-center gap-1 text-status-success sm:inline-flex">
-                          <span className="h-1.5 w-1.5 rounded-full bg-status-success" />
+                          <span className="v-live-dot h-1.5 w-1.5" />
                           Online
                         </span>
                       ) : null}
@@ -2909,7 +2912,7 @@ export default function InboxPageClient({
                 <div className="flex shrink-0 items-center gap-1">
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="hidden h-8 w-8 text-muted-foreground sm:inline-flex">
+                      <Button variant="ghost" size="icon" className="hidden h-9 w-9 text-muted-foreground sm:inline-flex">
                         <Tag className="h-4 w-4" />
                       </Button>
                     </TooltipTrigger>
@@ -2920,7 +2923,7 @@ export default function InboxPageClient({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-muted-foreground"
+                        className="h-9 w-9 text-muted-foreground"
                         onClick={() => void toggleConversationStar()}
                       >
                         <Star
@@ -2935,7 +2938,7 @@ export default function InboxPageClient({
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="hidden h-8 w-8 text-muted-foreground sm:inline-flex">
+                      <Button variant="ghost" size="icon" className="hidden h-9 w-9 text-muted-foreground sm:inline-flex">
                         <Archive className="h-4 w-4" />
                       </Button>
                     </TooltipTrigger>
@@ -2943,7 +2946,7 @@ export default function InboxPageClient({
                   </Tooltip>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+                      <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground">
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -3347,7 +3350,7 @@ export default function InboxPageClient({
               <Picker
                 data={emojiData}
                 previewPosition="none"
-                theme="dark"
+                theme={emojiTheme}
                 perLine={9}
                 maxFrequentRows={1}
                 onEmojiSelect={(payload: { native?: string }) => {
@@ -3463,7 +3466,7 @@ export default function InboxPageClient({
                     <Picker
                       data={emojiData}
                       previewPosition="none"
-                      theme="dark"
+                      theme={emojiTheme}
                       perLine={9}
                       maxFrequentRows={1}
                       onEmojiSelect={(payload: { native?: string }) => {

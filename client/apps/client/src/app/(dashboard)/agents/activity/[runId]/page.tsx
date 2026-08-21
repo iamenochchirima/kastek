@@ -10,6 +10,7 @@ import { AgentApprovalActions } from "@/components/dashboard/agents/agent-approv
 import { AgentRunLiveTimeline } from "@/components/dashboard/agents/agent-run-live-timeline";
 import { AgentApprovalPreview } from "@/components/dashboard/agents/agent-approval-preview";
 import { PageHeader, PageHeaderActions, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 
 export const metadata = { title: "Agent run | KasiTek" };
 
@@ -34,7 +35,7 @@ export default async function AgentRunPage({ params }: { params: Promise<{ runId
   const terminal = ["completed", "failed", "cancelled", "expired"].includes(run.status);
 
   return (
-    <div className="min-h-screen p-6 lg:p-8">
+    <MotionReveal className="min-h-[100dvh] p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1100px] space-y-6">
         <Link href="/agents/activity" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to activity</Link>
         <Card><CardContent className="space-y-5 p-6">
@@ -47,6 +48,6 @@ export default async function AgentRunPage({ params }: { params: Promise<{ runId
         <AgentRunLiveTimeline runId={run.id} initialEvents={events} terminal={terminal} />
         {(steps.length || toolCalls.length || effects.length) ? <Card><CardContent className="space-y-5 p-6"><div><h2 className="text-lg font-semibold text-foreground">Execution evidence</h2><p className="mt-1 text-sm text-muted-foreground">Safe step, tool, and effect records from the same durable run. Secret-like fields are redacted by the Agent API.</p></div><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Steps</p><p className="mt-1 text-xl font-semibold text-foreground">{steps.length}</p></div><div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Tool calls</p><p className="mt-1 text-xl font-semibold text-foreground">{toolCalls.length}</p></div><div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Effect receipts</p><p className="mt-1 text-xl font-semibold text-foreground">{effects.length}</p></div></div>{steps.length ? <div><h3 className="text-sm font-semibold text-foreground">Run steps</h3><div className="mt-2 space-y-2">{steps.map((step, index) => <div key={String(step.id || step.sequence_number || index)} className="rounded-lg border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium capitalize text-foreground">{String(step.step_type || "step")}</span><span className="text-xs text-muted-foreground">{String(step.status || "unknown")}</span></div><pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap text-xs text-muted-foreground">{formatValue({ input: step.input, output: step.output, error: step.error })}</pre></div>)}</div></div> : null}{toolCalls.length ? <div><h3 className="text-sm font-semibold text-foreground">Tool calls</h3><div className="mt-2 space-y-2">{toolCalls.map((toolCall, index) => <div key={String(toolCall.id || toolCall.provider_tool_call_id || index)} className="rounded-lg border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className="break-all font-medium text-foreground">{String(toolCall.tool_name || toolCall.name || "tool")}</span><span className="text-xs text-muted-foreground">{String(toolCall.status || "unknown")}</span></div><pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap text-xs text-muted-foreground">{formatValue({ argumentsHash: toolCall.arguments_hash, output: toolCall.output, error: toolCall.error })}</pre></div>)}</div></div> : null}{effects.length ? <div><h3 className="text-sm font-semibold text-foreground">Effect receipts</h3><div className="mt-2 space-y-2">{effects.map((effect, index) => <div key={String(effect.id || index)} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3"><span className="break-all text-sm text-foreground">{String(effect.capability || "effect")}</span><span className="rounded-full border border-border bg-secondary px-2.5 py-1 text-xs capitalize text-muted-foreground">{String(effect.status || "unknown")}</span></div>)}</div></div> : null}</CardContent></Card> : null}
       </div>
-    </div>
+    </MotionReveal>
   );
 }

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/page-header";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContentWorkspaceNavigation } from "@/components/social/content-workspace-navigation";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 import {
   SOCIAL_PLATFORM_ORDER,
   type SocialChannelConnection,
@@ -129,7 +130,7 @@ export function AnalyticsDashboard() {
   );
 
   return (
-    <div className="min-h-screen p-4 sm:p-6">
+    <div className="min-h-[100dvh] p-4 sm:p-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
         <PageHeader>
           <PageHeaderContent>
@@ -160,26 +161,29 @@ export function AnalyticsDashboard() {
             ["Queued Posts", String(metrics.queueCount), "Posts currently scheduled and waiting to go out"],
             ["Failed Jobs", String(metrics.failureCount), "Posts that need edits or retry handling"],
             ["Top Channel", metrics.topPlatform, "Most-used destination based on saved post coverage"],
-          ].map(([label, value, helper]) => (
-            <Card key={label}>
+          ].map(([label, value, helper], index) => (
+            <MotionReveal key={label} delay={0.08 + index * 0.06} hoverLift className="h-full">
+            <Card className="h-full">
               <CardContent className="p-5">
                 <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
                 <div className="mt-3 text-3xl font-semibold">{loading ? "--" : value}</div>
                 <div className="mt-2 text-sm text-muted-foreground">{helper}</div>
               </CardContent>
             </Card>
+            </MotionReveal>
           ))}
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
+          <MotionReveal delay={0.16} className="h-full">
+          <Card className="h-full">
             <CardHeader>
               <CardTitle>Channel Snapshot</CardTitle>
               <CardDescription>See which destinations are connected and how much content is flowing to each.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {channelSnapshot.map((channel) => (
-                <div key={channel.platform} className="flex items-center justify-between rounded-md bg-secondary/50 p-4 text-sm">
+                <div key={channel.platform} className="grid gap-2 rounded-md bg-secondary/50 p-4 text-sm sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-center">
                   <span className="font-semibold">{getPlatformLabel(channel.platform)}</span>
                   <span className="text-muted-foreground">{channel.contentCount} posts</span>
                   <span className="text-muted-foreground">{channel.connected} connected</span>
@@ -188,8 +192,10 @@ export function AnalyticsDashboard() {
               ))}
             </CardContent>
           </Card>
+          </MotionReveal>
 
-          <Card>
+          <MotionReveal delay={0.22} className="h-full">
+          <Card className="h-full">
             <CardHeader>
               <CardTitle>Insights Queue</CardTitle>
               <CardDescription>Simple product-facing observations based on the current dataset.</CardDescription>
@@ -208,16 +214,17 @@ export function AnalyticsDashboard() {
               ))}
             </CardContent>
           </Card>
+          </MotionReveal>
         </div>
         </> : <>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {[["Recipients", campaignMetrics.recipients], ["Sent", campaignMetrics.sent], ["Delivered", campaignMetrics.delivered], ["Read", campaignMetrics.read]].map(([label, value]) => (
-              <Card key={String(label)}><CardContent className="p-5"><div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div><div className="mt-3 text-3xl font-semibold">{loading ? "--" : Number(value).toLocaleString("en-ZA")}</div></CardContent></Card>
+            {[["Recipients", campaignMetrics.recipients], ["Sent", campaignMetrics.sent], ["Delivered", campaignMetrics.delivered], ["Read", campaignMetrics.read]].map(([label, value], index) => (
+              <MotionReveal key={String(label)} delay={0.08 + index * 0.06} hoverLift className="h-full"><Card className="h-full"><CardContent className="p-5"><div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div><div className="mt-3 text-3xl font-semibold">{loading ? "--" : Number(value).toLocaleString("en-ZA")}</div></CardContent></Card></MotionReveal>
             ))}
           </div>
-          <Card><CardHeader><CardTitle>Campaign delivery</CardTitle><CardDescription>WhatsApp delivery and read totals are separate from social publishing metrics.</CardDescription></CardHeader><CardContent className="space-y-3">
-            {campaigns.length ? campaigns.slice(0, 10).map((campaign) => <Link key={campaign.id} href={`/campaigns/${campaign.id}`} className="flex items-center justify-between rounded-md bg-secondary/50 p-4 text-sm hover:bg-secondary"><span className="font-semibold">{campaign.name}</span><span className="text-muted-foreground">{campaign.deliveredCount} delivered · {campaign.readCount} read · {campaign.failedCount} failed</span></Link>) : <p className="text-sm text-muted-foreground">No campaigns have been created yet.</p>}
-          </CardContent></Card>
+          <MotionReveal delay={0.16}><Card><CardHeader><CardTitle>Campaign delivery</CardTitle><CardDescription>WhatsApp delivery and read totals are separate from social publishing metrics.</CardDescription></CardHeader><CardContent className="space-y-3">
+            {campaigns.length ? campaigns.slice(0, 10).map((campaign) => <Link key={campaign.id} href={`/campaigns/${campaign.id}`} className="flex flex-col gap-2 rounded-md bg-secondary/50 p-4 text-sm transition-colors duration-[150ms] hover:bg-secondary sm:flex-row sm:items-center sm:justify-between"><span className="min-w-0 truncate font-semibold">{campaign.name}</span><span className="text-muted-foreground sm:shrink-0">{campaign.deliveredCount} delivered · {campaign.readCount} read · {campaign.failedCount} failed</span></Link>) : <p className="text-sm text-muted-foreground">No campaigns have been created yet.</p>}
+          </CardContent></Card></MotionReveal>
         </>}
       </div>
     </div>

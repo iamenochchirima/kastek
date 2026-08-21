@@ -8,6 +8,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { WorkspaceConnection } from "@/lib/connections";
 import { apiUrl } from "@/lib/server-api";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icons";
 import {
   Bot,
@@ -240,7 +241,7 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {Object.entries(providerDetails).map(([provider, detail]) => {
+          {Object.entries(providerDetails).map(([provider, detail], index) => {
             const Icon = detail.icon;
             const providerConnections = connections.filter((item) => item.provider === provider);
             const connected = providerConnections.filter((item) => item.status === "CONNECTED").length;
@@ -252,7 +253,8 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
               : detail.connectLabel ?? "Connect";
 
             return (
-              <Card key={provider} className="gap-0 py-0">
+              <MotionReveal key={provider} delay={0.08 + index * 0.05} hoverLift className="h-full">
+              <Card className="h-full gap-0 py-0">
                 <CardContent className="flex items-center justify-between gap-4 p-4">
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="rounded-md border bg-secondary p-2"><Icon className={`h-5 w-5 ${detail.iconClass}`} /></div>
@@ -304,6 +306,7 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                   )}
                 </CardContent>
               </Card>
+              </MotionReveal>
             );
           })}
         </div>
@@ -333,14 +336,14 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                   </div>
 
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {group.connections.map((connection) => {
+                    {group.connections.map((connection, index) => {
                       const detail = group.detail;
                       const Icon = detail?.icon ?? Radio;
                       const status = statusPresentation(connection.status);
 
                       return (
+                        <MotionReveal key={connection.id} delay={0.08 + index * 0.05} hoverLift className="h-full">
                         <Card
-                          key={connection.id}
                           className="cursor-pointer gap-0 py-0 transition-colors hover:border-primary/50 hover:bg-secondary/20"
                           onClick={() => setSelectedConnection(connection)}
                         >
@@ -357,6 +360,7 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                             <Badge variant="outline" className={status.className}>{status.label}</Badge>
                           </CardContent>
                         </Card>
+                        </MotionReveal>
                       );
                     })}
                   </div>

@@ -3,6 +3,7 @@ import { fetchRustJson } from "@/lib/rust-server-api";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 
 type CustomerDetailResponse = {
   customer: {
@@ -97,7 +98,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const customerName = detail.customer.displayName || detail.contacts[0]?.fullName || "Unnamed customer";
 
   return (
-    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
+    <MotionReveal className="min-h-[100dvh] p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-6xl space-y-6">
         <Link href="/contacts" className="text-sm text-muted-foreground hover:text-foreground">
           ← Back to Contacts
@@ -307,6 +308,6 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           </div>
         </section>
       </div>
-    </div>
+    </MotionReveal>
   );
 }

@@ -1,6 +1,6 @@
 # Vantage UI Migration Plan
 
-**Status:** Active
+**Status:** Active — implementation pass in progress; runtime verification pending
 
 **Owner:** KasiTek team
 
@@ -63,11 +63,11 @@ truth for this migration. It is not an inspiration board.
   `tailwind.config.js`: light/dark colours, surfaces, borders, text tiers,
   brand/status/chart colours, shadows, radius, typography, focus treatment,
   motion, and responsive dimensions.
-- [ ] Port component measurements and behavior exactly where applicable from
+- [x] Port component measurements and behavior exactly where applicable from
   the reference shell and UI primitives: sidebar widths, top-bar height,
   content limits, control heights, padding, gaps, icon sizes, states, and
   breakpoints.
-- [ ] Translate the reference implementation into KasiTek's Next.js and
+- [x] Translate the reference implementation into KasiTek's Next.js and
   Tailwind 4 architecture without changing the rendered design values.
 - [ ] Do not introduce approximate colours, spacing, typography, radii, shadows,
   variants, or interaction treatments.
@@ -111,7 +111,7 @@ that produces a clearer and more scalable interface.
 
 The theme system must meet all of the following conditions:
 
-- [ ] Semantic tokens cover canvas, surfaces, borders, text tiers, brand,
+- [x] Semantic tokens cover canvas, surfaces, borders, text tiers, brand,
   statuses, chart colours, focus, overlays, radius, shadows, and motion.
 - [ ] Light and dark token values are designed as complete systems, rather than
   light colours mechanically inverted for dark mode.
@@ -138,7 +138,7 @@ The following rules apply to every shared primitive, page pattern, and route:
   `68px` expanded/collapsed state and page layouts use their documented full
   density.
 
-- [ ] Approved desktop, tablet, and mobile breakpoints are defined before
+- [x] Approved desktop, tablet, and mobile breakpoints are defined before
   migration work begins.
 - [ ] Layout, spacing, type scale, wrapping, and hit areas are intentional at
   every supported breakpoint.
@@ -167,12 +167,12 @@ The following rules apply to every shared primitive, page pattern, and route:
 
 ### Motion
 
-- [ ] Define permitted motion, duration, and easing tokens.
-- [ ] Ensure motion never blocks work and respects reduced-motion preferences.
+- [x] Define permitted motion, duration, and easing tokens.
+- [x] Ensure motion never blocks work and respects reduced-motion preferences.
 
 ### Overlays and layering
 
-- [ ] Define central z-index layers for the sticky top bar, menus, tooltips,
+- [x] Define central z-index layers for the sticky top bar, menus, tooltips,
   sheets, dialogs, toasts, product tour, and KasiAi.
 - [ ] Verify that overlays do not obscure or trap one another incorrectly.
 
@@ -241,13 +241,13 @@ The following rules apply to every shared primitive, page pattern, and route:
 
 ### 3. Application shell
 
-- [ ] Desktop sidebar, grouped navigation, selected states, collapse behaviour,
+- [x] Desktop sidebar, grouped navigation, selected states, collapse behaviour,
   organisation switcher, and account controls.
-- [ ] Desktop top bar and responsive mobile header/drawer.
+- [x] Desktop top bar and responsive mobile header/drawer.
   - [x] Add a sticky desktop top bar with route-aware breadcrumbs, a functional
     command/search entry point with `Ctrl+K` / `⌘K`, notifications, theme
     control, and a compact account menu.
-  - [ ] Keep workspace context and primary navigation in the sidebar; use the
+  - [x] Keep workspace context and primary navigation in the sidebar; use the
     top bar for page context and global actions so controls are not duplicated.
   - [ ] Do not add non-functional decoration such as a live clock. Every top-bar
     control must support a real KasiTek workflow.
@@ -293,17 +293,17 @@ interactive states have been checked where applicable.
 | --- | --- | --- | --- |
 | Foundation | tokens and global styles | Implemented | Exact Vantage light/dark tokens, radius scale, shadows, base density, focus, transitions, scrollbars, reduced-motion handling, and Tailwind 4 mappings are in `globals.css`. Obsolete `theme-*` compatibility aliases have been removed; lint and Webpack build passed. Visual QA follows primitive work. |
 | Foundation | shared UI primitives | In progress | Button, card, input, badge, checkbox, progress, skeleton, table, tabs, scroll area, sheet, dialog, destructive confirmation dialog, and global Sonner toaster are centralized. All native browser confirm/prompt calls have been replaced by the shared provider. Reference styles and Radix behavior are used where the reference does. Lint and Webpack build passed; remaining form/overlay primitives and visual QA are pending. |
-| Shell | sidebar, top bar, mobile drawer, global overlays | In progress | Desktop top bar and command palette now use the reference layout and interactions: route-aware breadcrumbs, Ctrl+K / ⌘K navigation, theme action, notifications route, and account menu. Shell breakpoints now follow the reference: mobile drawer below 768px, forced 68px tablet rail through 1279px, and persisted 264px/68px desktop sidebar state. Visual QA remains pending: the available visual-QA runtime was checked and currently exposes no browser backend. |
-| Workspace | Overview, profile, settings, team, notifications | In progress | Workspace routes now use the central Vantage header and `1440px` content limit. Profile, Settings, and Team use shared controls and toast feedback; Profile and Notification standard surfaces use the Vantage card radius; Team destructive actions require the shared confirmation dialog. Notification actions and reminder use shared Vantage buttons rather than legacy pills. Remaining visual review is pending. |
-| Customer | inbox, Calls, Contacts, and Bookings | In progress | Inbox now uses central page context, shared textarea, Vantage alert controls, and an accessible shared dialog for attachment preview while retaining its intentionally responsive three-pane conversation workspace. Calls adopted the central Vantage page header, `1440px` content density, shared Select control, and accessible call dialog. Contacts list and detail use the same header/density, shared form controls, central accessible dialogs, and Vantage card radius. Bookings uses the shared header, forms, dialogs, and toast feedback. Visual review remains pending. |
-| Content | calendar, analytics, posts, and post detail | In progress | Calendar and Analytics now use the central page-header, concise content hierarchy, `1440px` content density, and shared controls/tabs. Posts and post detail use the same header/density and shared actions. The ideas generator, AI text generator, activity view, and two-scope post deletion all use the shared accessible dialog; the stepped composer uses the shared Sheet primitive. Visual review remains pending. |
-| Campaigns | WhatsApp templates, creation, and campaign detail | In progress | Replaced the legacy rounded primary and ad-hoc action buttons with shared Vantage button variants; template create/sync feedback now uses the global toast API. The template form uses shared input, textarea, and accessible select primitives, while both bespoke overlays now use the shared dialog implementation. Campaign creation standard sections use the Vantage card radius. Campaign detail's template preview, delivery failure, and send-more flows also use the shared dialog. Full campaign-area hierarchy and visual review remain pending. |
-| Agents | list, detail, activity, analytics, templates, workflow, and appearance | In progress | The list now uses the central header, `1440px` content density, concise copy, and shared accessible dialogs for creation and template selection. Agent Detail's permanent deletion, knowledge-source editor, knowledge-save feedback, Website Chat deployment, and test-chat clearing use the shared dialog; typed deletion confirmation remains intact. Activity, run detail, Analytics, Templates, Workflow, and Website Chat Appearance now use the central Vantage header and concise hierarchy; Appearance ordinary fields use shared Input, Textarea, Checkbox, and Select primitives. Identity, connect, color controls, and visual review remain pending. |
-| Connections | connections | In progress | The Connections page uses the central header and `1440px` content density. The Threads sign-in reminder now uses the shared accessible dialog. WhatsApp embedded and manual connection actions now use the shared Vantage button, removing legacy pill treatments; the manual setup and maintenance flow also uses shared Vantage inputs and textareas. The WhatsApp onboarding result uses the central header and action primitive. Visual review remains pending. |
-| Developers | portal, Resources, MCP, CLI, API, and API keys | In progress | The full Developers route group uses the central header, concise copy, and `1440px` density. Shared tab/feedback and visual checks remain pending. |
-| Billing | billing and usage | In progress | Billing uses the central header, concise hierarchy, `1440px` density, and shared checkout/subscription action buttons. Payment, loading/error, responsive and visual checks remain pending. |
-| Entry surfaces | login, sign-up, password setup, onboarding, verification, invitations, and offline | In progress | Login, sign-up, password setup, onboarding, invitation activation, email verification, auth-error recovery, and offline use the Vantage type scale, concise copy, and shared controls where applicable. Responsive and visual checks remain pending. |
-| Quality | visual, accessibility, and runtime verification | In progress | Native browser-dialog audit finds no `window.alert`, `window.confirm`, or `window.prompt` use. Lint now passes with no warnings or errors after dynamic application media and organization logo rendering moved to `next/image` with deliberate unoptimized handling for authenticated/dynamic sources. Production Webpack build and the canonical-route contract check pass. The visual-QA runtime was checked and has no available browser backend, so visual and breakpoint review remain pending rather than being inferred from static checks. |
+| Shell | sidebar, top bar, mobile drawer, global overlays | Implementation pass; runtime pending | Desktop top bar and command palette now use the reference layout and interactions: route-aware breadcrumbs, Ctrl+K / ⌘K navigation, theme action, notifications route, and account menu. Shell breakpoints now follow the reference: mobile drawer below 768px, forced 68px tablet rail through 1279px, and persisted 264px/68px desktop sidebar state. Active nested routes use the most-specific match and shared overlay z-index tokens. Browser smoke checks are limited to the public auth surface; dashboard runtime QA remains pending. |
+| Workspace | Overview, profile, settings, team, notifications | Implementation pass; runtime pending | Workspace routes now use the central Vantage header and `1440px` content limit. Profile, Settings, and Team use shared controls and toast feedback; Profile and Notification standard surfaces use the Vantage card radius; Team destructive actions require the shared confirmation dialog. Settings navigation, mobile stacking, and motion entrances are implemented. Runtime visual review is pending. |
+| Customer | inbox, Calls, Contacts, and Bookings | Implementation pass; runtime pending | Inbox now uses central page context, shared textarea, Vantage alert controls, and an accessible shared dialog for attachment preview while retaining its intentionally responsive three-pane conversation workspace. Calls adopted the central Vantage page header, `1440px` content density, shared Select control, and accessible call dialog. Contacts list and detail use the same header/density, shared form controls, central accessible dialogs, and Vantage card radius. Bookings uses the shared header, forms, dialogs, and toast feedback. Dense mobile treatments are implemented; visual review remains pending. |
+| Content | calendar, analytics, posts, and post detail | Implementation pass; runtime pending | Calendar and Analytics now use the central page-header, concise content hierarchy, `1440px` content density, and shared controls/tabs. Posts and post detail use the same header/density and shared actions. The ideas generator, AI text generator, activity view, and two-scope post deletion all use the shared accessible dialog; the stepped composer uses the shared Sheet primitive. Mobile calendar/list treatments and route entrances are implemented; visual review remains pending. |
+| Campaigns | WhatsApp templates, creation, and campaign detail | Implementation pass; runtime pending | Replaced the legacy rounded primary and ad-hoc action buttons with shared Vantage button variants; template create/sync feedback now uses the global toast API. The template form uses shared input, textarea, and accessible select primitives, while both bespoke overlays now use the shared dialog implementation. Campaign creation standard sections use the Vantage card radius. Campaign detail's template preview, delivery failure, and send-more flows also use the shared dialog. Mobile cards, `100dvh` roots, and route entrances are implemented; runtime visual review remains pending. |
+| Agents | list, detail, activity, analytics, templates, workflow, and appearance | Implementation pass; runtime pending | The list now uses the central header, `1440px` content density, concise copy, and shared accessible dialogs for creation and template selection. Agent Detail's permanent deletion, knowledge-source editor, knowledge-save feedback, Website Chat deployment, and test-chat clearing use the shared dialog; typed deletion confirmation remains intact. Activity, run detail, Analytics, Templates, Workflow, and Website Chat Appearance now use the central Vantage header and concise hierarchy; Appearance ordinary fields use shared Input, Textarea, Checkbox, and Select primitives. Mobile viewport roots and dense layout treatments are implemented; runtime visual review remains pending. |
+| Connections | connections | Implementation pass; runtime pending | The Connections page uses the central header and `1440px` content density. The Threads sign-in reminder now uses the shared accessible dialog. WhatsApp embedded and manual connection actions now use the shared Vantage button, removing legacy pill treatments; the manual setup and maintenance flow also uses shared Vantage inputs and textareas. The WhatsApp onboarding result uses the central header and action primitive. Mobile provider cards and maintenance overflow treatments are implemented; visual review remains pending. |
+| Developers | portal, Resources, MCP, CLI, API, and API keys | Implementation pass; runtime pending | The full Developers route group uses the central header, concise copy, `1440px` density, mobile horizontal rail, shared route entrances, and selected-state motion. Runtime and visual checks remain pending. |
+| Billing | billing and usage | Implementation pass; runtime pending | Billing uses the central header, concise hierarchy, `1440px` density, shared checkout/subscription action buttons, and staggered section entrances. Payment, loading/error, responsive and visual checks remain pending. |
+| Entry surfaces | login, sign-up, password setup, onboarding, verification, invitations, and offline | Implementation pass; runtime pending | Login, sign-up, password setup, onboarding, invitation activation, email verification, auth-error recovery, and offline use the Vantage type scale, concise copy, shared controls, `100dvh` layout, and reduced-motion-aware entrances. Responsive and authenticated visual checks remain pending. |
+| Quality | visual, accessibility, and runtime verification | In progress | Native browser-dialog audit finds no `window.alert`, `window.confirm`, or `window.prompt` use. Lint, TypeScript, canonical-route checks, `git diff --check`, and production Webpack build pass. Chrome headless smoke checks confirm the local `/login` route renders at 360px and 1440px with the pre-hydration appearance state; authenticated dashboard breakpoint, keyboard, overlay, and non-happy-path review remain pending. |
 
 ## Verification standard per migration wave
 
@@ -407,6 +407,7 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Replaced the Product Tour's hand-styled action controls with shared Vantage button variants; lint and Webpack build passed. |
 | 2026-08-21 | Migrated the root workspace-access route from a hard-coded light-only palette to semantic Vantage theme tokens and shared action buttons; lint and Webpack build passed. |
 | 2026-08-21 | Replaced hard-coded connection success, warning, and information treatments with shared semantic Vantage status tokens; lint and Webpack build passed. |
+| 2026-08-21 | Added the unified Vantage appearance engine and Settings Appearance panel for system/light/dark theme, accent, density, motion, live indicators, and calendar-week preferences; removed forced-dark Inbox emoji pickers and aligned PWA theme metadata. Lint, Webpack build, and canonical route checks passed. |
 | 2026-08-21 | Replaced Campaign Detail's hard-coded delivery status treatment with the shared semantic Vantage information status token; lint and Webpack build passed. |
 | 2026-08-21 | Audited remaining fixed colours and direct controls: product-preview, third-party-brand, file-picker, chat-composer, and color-picker exceptions are intentional; the embedded KasiAi WhatsApp pairing selector remains to be extracted into the shared Select primitive. |
 | 2026-08-21 | Migrated standalone billing, sign-out, and notification-reminder actions to shared Vantage buttons; lint and Webpack build passed. |
@@ -433,3 +434,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Confirmed the canonical client route map remains clean after the migration changes. |
 | 2026-08-21 | Confirmed the available visual-QA runtime currently has no browser backend; visual verification remains an explicit outstanding requirement. |
 | 2026-08-21 | Added central reduced-motion handling for Vantage transitions and animations; lint and Webpack build passed. |
+| 2026-08-21 | Completed the broad responsive/motion implementation pass across workspace, customer, content, campaign, automation, connection, developer, billing, and entry surfaces; added semantic overlay z-index layers, mobile-safe dialog sizing, most-specific nested-route active navigation, and local Chrome auth smoke checks. Runtime breakpoint and authenticated-state verification remains explicitly pending. |

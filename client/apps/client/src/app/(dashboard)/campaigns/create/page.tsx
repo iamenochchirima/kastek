@@ -2,6 +2,7 @@ import CampaignCreateForm from "@/components/dashboard/campaigns/campaign-create
 import { getRustSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
 import { redirect } from "next/navigation";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 
 export const metadata = {
   title: "Create Campaign | KasiTek",
@@ -54,7 +55,7 @@ export default async function ReachCampaignsCreatePage() {
   ]);
 
   return (
-    <div className="min-h-screen p-6 lg:p-8">
+    <MotionReveal className="min-h-[100dvh] p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1200px] space-y-6">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-foreground">Create campaign</h1>
@@ -71,6 +72,6 @@ export default async function ReachCampaignsCreatePage() {
           lists={contactResponse.lists}
         />
       </div>
-    </div>
+    </MotionReveal>
   );
 }

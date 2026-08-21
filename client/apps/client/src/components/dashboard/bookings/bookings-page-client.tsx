@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarCheck, Check, Clock3, Plus, RefreshCw } from "lucide-react";
 import { apiUrl } from "@/lib/server-api";
+import { MotionReveal } from "@/components/ui/motion-reveal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -228,7 +229,7 @@ export function BookingsPageClient() {
   }
 
   return (
-    <div className="min-h-screen p-4 sm:p-6">
+    <div className="min-h-[100dvh] p-4 sm:p-6">
       <div className="mx-auto max-w-[1440px] space-y-6">
         <PageHeader>
           <PageHeaderContent>
@@ -250,7 +251,7 @@ export function BookingsPageClient() {
             ["Confirmed", bookings.filter((booking) => booking.status === "CONFIRMED").length, "Ready to deliver"],
             ["Completed", bookings.filter((booking) => booking.status === "COMPLETED").length, "Recorded service outcomes"],
             ["No shows", bookings.filter((booking) => booking.status === "NO_SHOW").length, "Contacts to re-engage"],
-          ].map(([label, value, helper]) => <Card key={String(label)}><CardContent className="p-5"><p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{label}</p><p className="mt-3 text-3xl font-semibold text-foreground">{loading ? "–" : value}</p><p className="mt-2 text-sm text-muted-foreground">{helper}</p></CardContent></Card>)}
+          ].map(([label, value, helper], index) => <MotionReveal key={String(label)} delay={0.08 + index * 0.06} hoverLift className="h-full"><Card className="h-full"><CardContent className="p-5"><p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{label}</p><p className="mt-3 text-3xl font-semibold text-foreground">{loading ? "–" : value}</p><p className="mt-2 text-sm text-muted-foreground">{helper}</p></CardContent></Card></MotionReveal>)}
         </section>
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
