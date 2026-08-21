@@ -1,7 +1,9 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -633,8 +635,8 @@ function ModelCard({ model, selected = false }: { model: KasiAiModel; selected?:
 }
 
 function SettingTitle({ title, description }: { title: string; description: string }) { return <div><h4 className="text-base font-semibold">{title}</h4><p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p></div>; }
-function SelectSetting({ label, value, options, onChange }: { label: string; value: string; options: Array<[string, string]>; onChange: (value: string) => void }) { return <label className="block text-sm font-medium">{label}<select value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-md border border-border bg-card px-3 py-2 text-sm font-normal">{options.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>; }
-function Toggle({ label, description, checked, onChange }: { label: string; description: string; checked: boolean; onChange: (checked: boolean) => void }) { return <label className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-border p-3"><span><span className="block text-sm font-medium">{label}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{description}</span></span><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-1 h-4 w-4 accent-primary" /></label>; }
+function SelectSetting({ label, value, options, onChange }: { label: string; value: string; options: Array<[string, string]>; onChange: (value: string) => void }) { return <label className="block text-sm font-medium">{label}<Select value={value} onValueChange={onChange}><SelectTrigger className="mt-2 w-full bg-card font-normal"><SelectValue /></SelectTrigger><SelectContent>{options.map(([id, name]) => <SelectItem key={id} value={id}>{name}</SelectItem>)}</SelectContent></Select></label>; }
+function Toggle({ label, description, checked, onChange }: { label: string; description: string; checked: boolean; onChange: (checked: boolean) => void }) { return <label className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-border p-3"><span><span className="block text-sm font-medium">{label}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{description}</span></span><Checkbox checked={checked} onCheckedChange={(next) => onChange(next === true)} className="mt-1" /></label>; }
 
 export function KasiAiTrigger({ collapsed, onClick }: { collapsed: boolean; onClick: () => void }) {
   return <Button type="button" variant="ghost" onClick={onClick} className={cn("relative flex min-h-9 w-full items-center rounded-md text-[13px] font-medium leading-5 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground", collapsed ? "justify-center px-2 py-2" : "justify-start gap-2 px-2.5 py-2")} title="Open KasiAi" aria-label="Open KasiAi"><MessageCircle className="h-4 w-4 shrink-0" />{!collapsed ? <span>KasiAi</span> : null}</Button>;
