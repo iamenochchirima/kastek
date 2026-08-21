@@ -1,4 +1,5 @@
 import WhatsappTemplateManager from "@/components/dashboard/campaigns/whatsapp-template-manager";
+import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 import { getRustSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
 import { redirect } from "next/navigation";
@@ -49,14 +50,14 @@ export default async function ReachTemplatesPage({
   const connections = connectionResponse.connections;
 
   return (
-    <div className="min-h-screen p-6 lg:p-8">
-      <div className="mx-auto max-w-[1600px] space-y-6">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Templates</h1>
-          <p className="mt-1 max-w-2xl text-muted-foreground">
-            Create, submit, sync, and manage the WhatsApp templates attached to your account.
-          </p>
-        </div>
+    <div className="min-h-screen px-4 py-6 lg:px-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
+        <PageHeader>
+          <PageHeaderContent>
+            <PageHeaderTitle>Templates</PageHeaderTitle>
+            <PageHeaderDescription>WhatsApp templates</PageHeaderDescription>
+          </PageHeaderContent>
+        </PageHeader>
 
         {connections.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card p-8 text-sm text-muted-foreground">

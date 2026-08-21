@@ -236,6 +236,7 @@ The following rules apply to every shared primitive, page pattern, and route:
   warning, information, loading, and optional action/undo feedback.
   - [x] Mounted one Vantage-styled Sonner provider at the application root; feature migrations must now replace browser-native feedback with its shared API.
 - [ ] Shared page header, toolbar/filter, confirmation, and feedback patterns.
+  - [x] Added the Vantage page-header pattern from the reference reports surface; it is now adopted by Templates.
 - [ ] Document each primitive's variants, states, and intended use.
 
 ### 3. Application shell
@@ -358,3 +359,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Began the Campaign templates migration by replacing legacy button treatments and inline success banners with shared Vantage primitives and the global toast API; lint and Webpack build passed. |
 | 2026-08-21 | Added the reference Select primitive and adopted it, with the shared text controls, on the Templates form; lint and Webpack build passed. |
 | 2026-08-21 | Replaced the Templates route's bespoke detail and create overlays with shared accessible dialogs; Webpack build passed. |
+| 2026-08-21 | Added the reference page-header primitive and adopted it on Templates; lint and Webpack build passed. |
