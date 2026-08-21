@@ -4,7 +4,7 @@ import type { ProductTourStatus } from "@/lib/product-tour";
 import { apiUrl } from "@/lib/server-api";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight, Check, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type TourStep = {
   target: string;
@@ -56,6 +56,8 @@ export function ProductTour({ status }: { status: ProductTourStatus | null }) {
   const [stepIndex, setStepIndex] = useState(Math.min(status?.currentStep ?? 0, steps.length - 1));
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [compact, setCompact] = useState(false);
+  const dialogRef = useRef<HTMLElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const step = steps[stepIndex];
 
   const measureTarget = useCallback(() => {
@@ -97,6 +99,23 @@ export function ProductTour({ status }: { status: ProductTourStatus | null }) {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [open, stepIndex]);
 
+  useEffect(() => {
+    if (!open) {
+      const previous = previousFocusRef.current;
+      previousFocusRef.current = null;
+      if (previous && document.contains(previous)) previous.focus();
+      return;
+    }
+
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = window.requestAnimationFrame(() => dialogRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [open, stepIndex]);
+
   if (!open || !step) return null;
   const isLast = stepIndex === steps.length - 1;
   const viewportHeight = typeof window === "undefined" ? 800 : window.innerHeight;
@@ -125,8 +144,8 @@ export function ProductTour({ status }: { status: ProductTourStatus | null }) {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[var(--z-tour)]" aria-live="polite">
-      {!compact && targetRect ? <div className="fixed rounded-lg border-2 border-primary/80 bg-transparent transition-[top,left,width,height] duration-500 ease-out" style={{ top: targetRect.top - 6, left: targetRect.left - 6, width: targetRect.width + 12, height: targetRect.height + 12, boxShadow: "0 0 0 9999px rgba(5, 7, 10, 0.64)" }} /> : <div className="fixed inset-0 bg-foreground/65" />}
-      <section className={`pointer-events-auto fixed max-h-[calc(100dvh-2rem)] w-[min(360px,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-border bg-card p-5 text-foreground shadow-2xl transition-all duration-[var(--v-motion-shell)] ease-out ${compact || !targetRect ? "bottom-4 left-1/2 -translate-x-1/2" : ""}`} style={compact || !targetRect ? undefined : { top: popoverTop, left: popoverLeft }} role="dialog" aria-modal="true" aria-label="KasiTek product tour">
+      {!compact && targetRect ? <div className="fixed rounded-lg border-2 border-primary/80 bg-transparent transition-[top,left,width,height] duration-[var(--v-motion-shell)] ease-out" style={{ top: targetRect.top - 6, left: targetRect.left - 6, width: targetRect.width + 12, height: targetRect.height + 12, boxShadow: "0 0 0 9999px rgba(5, 7, 10, 0.64)" }} /> : <div className="fixed inset-0 bg-foreground/65" />}
+      <section ref={dialogRef} tabIndex={-1} className={`pointer-events-auto fixed max-h-[calc(100dvh-2rem)] w-[min(360px,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-border bg-card p-5 text-foreground shadow-2xl transition-all duration-[var(--v-motion-shell)] ease-out ${compact || !targetRect ? "bottom-4 left-1/2 -translate-x-1/2" : ""}`} style={compact || !targetRect ? undefined : { top: popoverTop, left: popoverLeft }} role="dialog" aria-modal="true" aria-label="KasiTek product tour">
         {!compact && targetRect ? <span className="absolute -left-2 top-1/2 h-4 w-4 -translate-y-1/2 rotate-45 border-b border-l border-border bg-card" /> : null}
         <div className="relative flex items-start justify-between gap-4">
           <div>
