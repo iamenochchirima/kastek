@@ -68,7 +68,7 @@ import {
   subscribeToThemeChange,
 } from "@/lib/theme";
 import { useAppearance } from "@/lib/appearance";
-import { VANTAGE_LIST_ITEM_VARIANTS, VANTAGE_MOTION, VANTAGE_SELECTION_SPRING } from "@/lib/motion";
+import { VANTAGE_LIST_ITEM_VARIANTS, VANTAGE_SELECTION_SPRING } from "@/lib/motion";
 
 type NavItem = {
   name: string;
@@ -539,6 +539,7 @@ function SidebarContent({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
+              aria-label="Help"
               className={cn(
                 "flex min-h-9 w-full items-center rounded-md text-[13px] font-normal leading-5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
                 collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
@@ -565,8 +566,12 @@ function SidebarContent({
         <Link
           href="/workspace/notifications"
           onClick={onNavigate}
+          aria-current={pathname === "/workspace/notifications" ? "page" : undefined}
+          aria-label={collapsed ? "Notifications" : undefined}
+          title={collapsed ? "Notifications" : undefined}
           className={cn(
-            "flex min-h-9 items-center rounded-md text-[13px] font-normal leading-5 text-muted-foreground no-underline transition-colors hover:bg-secondary hover:text-foreground",
+            "flex min-h-9 items-center rounded-md text-[13px] font-normal leading-5 no-underline transition-colors hover:bg-secondary hover:text-foreground",
+            pathname === "/workspace/notifications" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground",
             collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
           )}
         >

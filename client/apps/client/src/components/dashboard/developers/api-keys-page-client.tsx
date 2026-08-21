@@ -115,7 +115,48 @@ export function ApiKeysPageClient() {
 
         <MotionReveal delay={0.16}>
         <Card>
-          <CardContent className="space-y-4 p-0"><div className="flex items-center justify-between gap-3 px-5 pt-5"><div><h2 className="text-base font-semibold">Your API keys</h2><p className="mt-1 text-sm text-muted-foreground">Rotate a key if it may have been exposed. Revocation takes effect immediately.</p></div><Badge variant="outline">{activeKeys.length} active</Badge></div><div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="border-y border-border bg-secondary/30 text-xs text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Name</th><th className="px-5 py-3 font-medium">Key</th><th className="px-5 py-3 font-medium">Scopes</th><th className="px-5 py-3 font-medium">Last used</th><th className="px-5 py-3 font-medium">Status</th><th className="px-5 py-3" /></tr></thead><tbody>{keys.map((key) => <tr key={key.id} className="border-b border-border last:border-0"><td className="px-5 py-3 font-medium">{key.name}</td><td className="px-5 py-3 font-mono text-xs text-muted-foreground">{key.prefix}••••••••</td><td className="px-5 py-3 text-xs text-muted-foreground">{key.scopes.join(", ")}</td><td className="px-5 py-3 text-xs text-muted-foreground">{formatDate(key.lastUsedAt)}</td><td className="px-5 py-3"><Badge variant="outline" className={key.status === "ACTIVE" ? "border-emerald-500/30 text-emerald-500" : "text-muted-foreground"}>{statusLabel(key.status)}</Badge></td><td className="px-5 py-3"><div className="flex justify-end gap-2">{key.status === "ACTIVE" ? <><Button type="button" variant="outline" size="sm" disabled={Boolean(busy)} onClick={() => void rotateKey(key)}><RefreshCw className="mr-1.5 h-3.5 w-3.5" />Rotate</Button><Button type="button" variant="ghost" size="sm" disabled={Boolean(busy)} onClick={() => void revokeKey(key)}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Revoke</Button></> : null}</div></td></tr>)}</tbody></table>{!keys.length ? <div className="p-8 text-center text-sm text-muted-foreground">No developer API keys yet. Create one above to get started.</div> : null}</div></CardContent>
+          <CardContent className="space-y-4 p-0">
+            <div className="flex items-start justify-between gap-3 px-5 pt-5">
+              <div>
+                <h2 className="text-base font-semibold">Your API keys</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Rotate a key if it may have been exposed. Revocation takes effect immediately.</p>
+              </div>
+              <Badge variant="outline" className="shrink-0">{activeKeys.length} active</Badge>
+            </div>
+
+            <div className="space-y-3 px-4 pb-4 md:hidden">
+              {keys.map((key) => (
+                <article key={key.id} className="rounded-lg border border-border bg-secondary/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="truncate text-sm font-semibold text-foreground">{key.name}</h3>
+                      <code className="mt-1 block truncate text-xs text-muted-foreground">{key.prefix}••••••••</code>
+                    </div>
+                    <Badge variant="outline" className={key.status === "ACTIVE" ? "shrink-0 border-emerald-500/30 text-emerald-500" : "shrink-0 text-muted-foreground"}>{statusLabel(key.status)}</Badge>
+                  </div>
+                  <dl className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                    <div><dt className="text-muted-foreground">Scopes</dt><dd className="mt-1 break-words text-foreground">{key.scopes.join(", ")}</dd></div>
+                    <div><dt className="text-muted-foreground">Last used</dt><dd className="mt-1 text-foreground">{formatDate(key.lastUsedAt)}</dd></div>
+                  </dl>
+                  {key.status === "ACTIVE" ? (
+                    <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-3">
+                      <Button type="button" variant="outline" size="sm" disabled={Boolean(busy)} onClick={() => void rotateKey(key)}><RefreshCw className="mr-1.5 h-3.5 w-3.5" />Rotate</Button>
+                      <Button type="button" variant="ghost" size="sm" disabled={Boolean(busy)} onClick={() => void revokeKey(key)}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Revoke</Button>
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <thead className="border-y border-border bg-secondary/30 text-xs text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Name</th><th className="px-5 py-3 font-medium">Key</th><th className="px-5 py-3 font-medium">Scopes</th><th className="px-5 py-3 font-medium">Last used</th><th className="px-5 py-3 font-medium">Status</th><th className="px-5 py-3" /></tr></thead>
+                <tbody>{keys.map((key) => <tr key={key.id} className="border-b border-border last:border-0"><td className="px-5 py-3 font-medium">{key.name}</td><td className="px-5 py-3 font-mono text-xs text-muted-foreground">{key.prefix}••••••••</td><td className="px-5 py-3 text-xs text-muted-foreground">{key.scopes.join(", ")}</td><td className="px-5 py-3 text-xs text-muted-foreground">{formatDate(key.lastUsedAt)}</td><td className="px-5 py-3"><Badge variant="outline" className={key.status === "ACTIVE" ? "border-emerald-500/30 text-emerald-500" : "text-muted-foreground"}>{statusLabel(key.status)}</Badge></td><td className="px-5 py-3"><div className="flex justify-end gap-2">{key.status === "ACTIVE" ? <><Button type="button" variant="outline" size="sm" disabled={Boolean(busy)} onClick={() => void rotateKey(key)}><RefreshCw className="mr-1.5 h-3.5 w-3.5" />Rotate</Button><Button type="button" variant="ghost" size="sm" disabled={Boolean(busy)} onClick={() => void revokeKey(key)}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Revoke</Button></> : null}</div></td></tr>)}</tbody>
+              </table>
+            </div>
+
+            {!keys.length ? <div className="px-5 pb-5 text-center text-sm text-muted-foreground">No developer API keys yet. Create one above to get started.</div> : null}
+          </CardContent>
         </Card>
         </MotionReveal>
       </div>
