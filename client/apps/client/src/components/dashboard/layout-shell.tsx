@@ -68,7 +68,7 @@ import {
   subscribeToThemeChange,
 } from "@/lib/theme";
 import { useAppearance } from "@/lib/appearance";
-import { VANTAGE_MOTION, VANTAGE_SELECTION_SPRING } from "@/lib/motion";
+import { VANTAGE_LIST_ITEM_VARIANTS, VANTAGE_MOTION, VANTAGE_SELECTION_SPRING } from "@/lib/motion";
 
 type NavItem = {
   name: string;
@@ -394,7 +394,7 @@ function NavigationSection({
         const href = locked ? "/billing" : item.href;
 
         return (
-          <motion.div key={item.href} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.03, duration: VANTAGE_MOTION.shell / 1000 }}>
+          <motion.div key={item.href} variants={VANTAGE_LIST_ITEM_VARIANTS} initial="hidden" animate="visible" custom={index}>
           <Link
             href={href}
             data-tour={tourTarget(item.href)}
