@@ -455,7 +455,7 @@ function NavigationSection({
               <span
                 className={cn(
                   "ml-auto shrink-0 rounded-full bg-status-attention text-[11px] font-semibold text-primary-foreground",
-                  collapsed ? "absolute right-1 top-1 min-w-[18px] px-1.5 py-0.5 text-center" : "px-2 py-0.5",
+                  collapsed ? "absolute right-0 top-0 z-20 h-4 min-w-4 px-1 py-0 text-center text-[10px] leading-4" : "px-2 py-0.5",
                 )}
               >
                 {inboxUnreadCount > 99 ? "99+" : inboxUnreadCount}
