@@ -393,6 +393,12 @@ all implementation and verification items above are complete:
   consumed by dialogs, sheets, menus, selects, tooltips, toast notifications,
   and shell top bars. Dialog and alert-dialog content preserve a scrollable
   viewport on small screens.
+- Developer API keys now use an intentional stacked-card treatment below the
+  `768px` shell breakpoint instead of forcing a dense table into a narrow
+  viewport. The shell also exposes active notification state and accessible
+  labels for collapsed Help and Notifications controls. Lint, TypeScript,
+  route checks, Webpack build, and public runtime smoke pass; authenticated
+  preference and overlay QA remains pending.
 - The route implementation pass now covers the remaining workspace, customer,
   content, campaign, automation, and connection surfaces with `100dvh` roots,
   Vantage entrance treatment, mobile stacking/overflow rules, and
