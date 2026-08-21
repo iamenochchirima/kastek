@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -327,17 +328,18 @@ export default function WhatsappTemplateManager({
         )}
       </section>
 
-      {selectedTemplate ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4">
-          <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl">
+      <Dialog open={selectedTemplate !== null} onOpenChange={(open) => { if (!open) setSelectedTemplateId(null); }}>
+        <DialogContent showCloseButton={false} className="max-h-[92vh] max-w-4xl overflow-y-auto">
+          {selectedTemplate ? (
+            <>
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-foreground">
+                <DialogTitle>
                   {selectedTemplate.templateName}
-                </h2>
-                <p className="mt-1 text-sm text-muted-foreground">
+                </DialogTitle>
+                <DialogDescription className="mt-1">
                   {categoryLabel(selectedTemplate.category)} · {selectedTemplate.language}
-                </p>
+                </DialogDescription>
               </div>
               <div className="flex items-center gap-3">
                 <span
@@ -393,19 +395,21 @@ export default function WhatsappTemplateManager({
                 />
               </div>
             </div>
-          </div>
-        </div>
-      ) : null}
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
-      {showCreateForm ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4">
-          <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl">
+      <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
+        <DialogContent showCloseButton={false} className="max-h-[92vh] max-w-6xl overflow-y-auto">
+          {showCreateForm ? (
+            <>
             <div className="mb-5 flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-foreground">Create template</h2>
-                <p className="text-sm text-muted-foreground">
+                <DialogTitle>Create template</DialogTitle>
+                <DialogDescription>
                   Build a new WhatsApp template and submit it to Meta for approval.
-                </p>
+                </DialogDescription>
               </div>
               <Button
                 variant="outline"
@@ -594,9 +598,10 @@ export default function WhatsappTemplateManager({
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      ) : null}
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

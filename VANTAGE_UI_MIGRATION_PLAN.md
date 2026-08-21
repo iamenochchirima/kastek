@@ -296,7 +296,7 @@ interactive states have been checked where applicable.
 | Workspace | all workspace routes | Not started | |
 | Customer | inbox, calls, contacts, bookings | Not started | |
 | Content | posts, calendar, analytics, history | Not started | |
-| Campaigns | WhatsApp templates | In progress | Replaced the legacy rounded primary and ad-hoc action buttons with shared Vantage button variants; template create/sync feedback now uses the global toast API. The template form now uses shared input, textarea, and accessible select primitives. Full campaign-area hierarchy and visual review remain pending. |
+| Campaigns | WhatsApp templates | In progress | Replaced the legacy rounded primary and ad-hoc action buttons with shared Vantage button variants; template create/sync feedback now uses the global toast API. The template form uses shared input, textarea, and accessible select primitives, while both bespoke overlays now use the shared dialog implementation. Full campaign-area hierarchy and visual review remain pending. |
 | Agents | all list, detail, create, activity, workflow, and appearance routes | Not started | |
 | Connections | connections and WhatsApp onboarding | Not started | |
 | Developers | developer portal and subroutes | Not started | |
@@ -357,3 +357,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Applied the approved Vantage shell breakpoints and sidebar widths; lint and Webpack build passed. |
 | 2026-08-21 | Began the Campaign templates migration by replacing legacy button treatments and inline success banners with shared Vantage primitives and the global toast API; lint and Webpack build passed. |
 | 2026-08-21 | Added the reference Select primitive and adopted it, with the shared text controls, on the Templates form; lint and Webpack build passed. |
+| 2026-08-21 | Replaced the Templates route's bespoke detail and create overlays with shared accessible dialogs; Webpack build passed. |
