@@ -2,6 +2,7 @@
 
 import type { ProductTourStatus } from "@/lib/product-tour";
 import { apiUrl } from "@/lib/server-api";
+import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight, Check, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -123,16 +124,16 @@ export function ProductTour({ status }: { status: ProductTourStatus | null }) {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground">Step {stepIndex + 1} of {steps.length}</span>
-            <button type="button" onClick={dismiss} className="rounded-md p-1.5 text-muted-foreground transition hover:bg-secondary hover:text-foreground" aria-label="Skip tour"><X className="h-4 w-4" /></button>
+            <Button type="button" variant="ghost" size="icon-sm" onClick={dismiss} aria-label="Skip tour"><X className="h-4 w-4" /></Button>
           </div>
         </div>
         <p className="relative mt-3 text-sm leading-6 text-muted-foreground">{step.description}</p>
         <div className="relative mt-5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-1">
-            {stepIndex > 0 ? <button type="button" onClick={previous} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back</button> : null}
-            <button type="button" onClick={dismiss} className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">Skip tour</button>
+            {stepIndex > 0 ? <Button type="button" variant="ghost" size="sm" onClick={previous}><ArrowLeft className="h-4 w-4" />Back</Button> : null}
+            <Button type="button" variant="ghost" size="sm" onClick={dismiss}>Skip tour</Button>
           </div>
-          <button type="button" onClick={next} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90">{isLast ? "Finish" : "Next"}{isLast ? <Check className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}</button>
+          <Button type="button" onClick={next}>{isLast ? "Finish" : "Next"}{isLast ? <Check className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}</Button>
         </div>
       </section>
     </div>
