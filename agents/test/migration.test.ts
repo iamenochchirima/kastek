@@ -202,4 +202,11 @@ describe("foundation migration", () => {
     expect(systemInstallationSql).toContain("ad.protected = TRUE");
     expect(systemInstallationSql).toContain("agent_installations_ownership_trigger");
   });
+
+  it("allows runs for protected system definitions installed in workspace organizations", async () => {
+    const systemRunSql = await readFile(new URL("../migrations/062_system_run_ownership.sql", import.meta.url), "utf8");
+    expect(systemRunSql).toContain("ad.owner_type = 'system'");
+    expect(systemRunSql).toContain("ad.protected = TRUE");
+    expect(systemRunSql).toContain("agent_runs_ownership_trigger");
+  });
 });

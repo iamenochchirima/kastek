@@ -73,6 +73,5 @@ cd /home/enoch/aworkspace/apersonal/kasitek-workspace/kasitek/client
 pnpm --filter tenant-portal dev
 ```
 
-```bash
-ngrok http 4000
-```
+The public development API origin is `https://dev-client.kasitek.co.za`; no
+local tunnel is required for provider webhooks.

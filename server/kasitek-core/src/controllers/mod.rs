@@ -28,6 +28,7 @@ pub mod profile;
 pub mod public_v1;
 pub mod realtime;
 pub mod social;
+pub mod telegram;
 pub mod website;
 pub mod whatsapp;
 pub mod whatsapp_calls;

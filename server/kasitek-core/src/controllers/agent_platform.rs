@@ -1132,7 +1132,7 @@ pub async fn create_channel_connection(
             "Channel connection body must be an object".to_string(),
         ));
     }
-    for field in ["channelType", "channelKey"] {
+    for field in ["channelType"] {
         if body
             .get(field)
             .and_then(Value::as_str)
@@ -1142,6 +1142,41 @@ pub async fn create_channel_connection(
         {
             return Err(AppError::BadRequest(format!("{field} is required")));
         }
+    }
+    let channel_type = body
+        .get("channelType")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or_default();
+    if channel_type != "telegram"
+        && body
+            .get("channelKey")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_none()
+    {
+        return Err(AppError::BadRequest(
+            "channelKey is required for this channel".to_string(),
+        ));
+    }
+    if channel_type == "telegram"
+        && body
+            .get("credentialSecret")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_none()
+        && body
+            .get("credentialReference")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_none()
+    {
+        return Err(AppError::BadRequest(
+            "A Telegram bot token is required".to_string(),
+        ));
     }
     let response = client(config.get_ref())?
         .ensure_channel_connection(
@@ -1501,6 +1536,19 @@ pub async fn list_installation_capabilities(
     let (user, organization_id) = scope(&req, pool.get_ref()).await?;
     let response = client(config.get_ref())?
         .list_installation_capabilities(&organization_id, &user.id, installation_id.trim(), None)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn get_installation_readiness(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .get_installation_readiness(&organization_id, &user.id, installation_id.trim())
         .await?;
     Ok(HttpResponse::Ok().json(response))
 }

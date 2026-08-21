@@ -207,6 +207,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_platform::list_installation_capabilities),
             )
             .route(
+                "/installations/{installationId}/readiness",
+                web::get().to(agent_platform::get_installation_readiness),
+            )
+            .route(
                 "/installations/{installationId}/grants",
                 web::get().to(agent_platform::list_installation_grants),
             )

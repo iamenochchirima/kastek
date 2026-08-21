@@ -23,6 +23,8 @@ import { resolveModelTarget } from "../model/policy";
 import { KillSwitchRepository } from "../db/repositories/kill-switch-repository";
 import { OperatorControlRepository } from "../db/repositories/operator-control-repository";
 import { ChannelRepository } from "../db/repositories/channel-repository";
+import { ChannelCredentialRepository } from "../db/repositories/channel-credential-repository";
+import { TelegramBotClient } from "../channels/telegram-client";
 import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference-repository";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
 import { ApprovalRepository } from "../db/repositories/approval-repository";
@@ -43,6 +45,7 @@ export interface ActivityOptions {
   credentials?: CredentialResolver;
   tools?: ToolRegistry;
   coreClient?: KasitekCoreReadClient;
+  telegramClient?: TelegramBotClient;
   config?: AppConfig;
 }
 
@@ -991,6 +994,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const killSwitches = new KillSwitchRepository(pool);
   const controls = new OperatorControlRepository(pool);
   const channels = new ChannelRepository(pool);
+  const channelCredentials = options.config ? new ChannelCredentialRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY) : undefined;
   const kasiaiPreferences = new KasiAiPreferenceRepository(pool);
   const effectReceipts = new EffectReceiptRepository(pool);
   const approvals = new ApprovalRepository(pool);
@@ -1001,6 +1005,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     ? new VaultCredentialResolver(new CredentialVaultRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY))
     : new EnvironmentCredentialResolver());
   const coreClient = options.coreClient ?? (options.config ? new KasitekCoreReadClient(options.config) : undefined);
+  const telegramClient = options.telegramClient ?? (options.config ? new TelegramBotClient({ apiBaseUrl: options.config.TELEGRAM_API_BASE_URL, timeoutMs: options.config.TELEGRAM_API_TIMEOUT_MS }) : undefined);
   const tools = options.tools ?? createDefaultTools(coreClient);
   return {
     async transitionRun(input) {
@@ -1136,17 +1141,25 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       try {
         await channels.claimDelivery(pending.organization_id, pending.attempt_id);
         claimed = true;
-        if (!coreClient) throw new Error("kasitek-core channel delivery boundary is not configured");
-        const result = await coreClient.deliverChannelMessage({
-          organizationId: pending.organization_id,
-          installationId: pending.installation_id,
-          actorId: pending.actor_id,
-          runId: pending.run_id,
-          correlationId: pending.correlation_id,
-          channelType: pending.channel_type,
-          externalConversationId: pending.external_conversation_id,
-          text,
-        });
+        const result = pending.channel_type === "telegram"
+          ? await (async () => {
+            if (!channelCredentials || !telegramClient || !pending.credential_reference) throw new Error("Telegram channel delivery is not configured");
+            const token = await channelCredentials.resolve(pending.organization_id, pending.credential_reference, "telegram");
+            return telegramClient.sendMessage(token, pending.external_conversation_id, text);
+          })()
+          : await (async () => {
+            if (!coreClient) throw new Error("kasitek-core channel delivery boundary is not configured");
+            return coreClient.deliverChannelMessage({
+              organizationId: pending.organization_id,
+              installationId: pending.installation_id,
+              actorId: pending.actor_id,
+              runId: pending.run_id,
+              correlationId: pending.correlation_id,
+              channelType: pending.channel_type,
+              externalConversationId: pending.external_conversation_id,
+              text,
+            });
+          })();
         await channels.markDelivered({
           organizationId: pending.organization_id,
           attemptId: pending.attempt_id,

@@ -22,6 +22,7 @@ import { ToolInvocationRepository } from "../db/repositories/tool-invocation-rep
 import { ToolGrantRepository } from "../db/repositories/tool-grant-repository";
 import { ModelCallRepository } from "../db/repositories/model-call-repository";
 import { ChannelRepository } from "../db/repositories/channel-repository";
+import { ChannelCredentialRepository } from "../db/repositories/channel-credential-repository";
 import { CredentialVaultRepository } from "../db/repositories/credential-vault-repository";
 import { InstallationCredentialRepository } from "../db/repositories/installation-credential-repository";
 import { InstallationGrantRepository } from "../db/repositories/installation-grant-repository";
@@ -56,6 +57,10 @@ import { KasitekCoreDeveloperApiKeyResolver, type DeveloperApiKeyResolver } from
 import { ToolRegistry } from "../tools/registry";
 import { redactSensitiveValue } from "../tools/redaction";
 import { randomUUID } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import { TelegramBotClient } from "../channels/telegram-client";
+import { TelegramChannelAdapter } from "../channels/telegram";
+import { channelSecretsEqual, hashChannelSecret } from "../db/channel-secret-crypto";
 import {
   clientSupportsExtension,
   cacheableResult,
@@ -99,6 +104,8 @@ export interface AppDependencies {
   toolGrants?: ToolGrantRepository;
   modelCalls?: ModelCallRepository;
   channels?: ChannelRepository;
+  channelCredentials?: ChannelCredentialRepository;
+  telegramClient?: TelegramBotClient;
   credentials?: CredentialVaultRepository;
   /** Provider preflight used before a model credential is persisted. */
   verifyCredential?: (input: CredentialVerificationInput) => Promise<CredentialVerificationResult>;
@@ -135,6 +142,13 @@ export interface AppDependencies {
 function headerValue(request: FastifyRequest, name: string): string | undefined {
   const value = request.headers[name];
   return Array.isArray(value) ? value[0] : value;
+}
+
+function secretHeaderMatches(expected: string | undefined, provided: string | undefined): boolean {
+  if (!expected || !provided) return false;
+  const left = Buffer.from(expected, "utf8");
+  const right = Buffer.from(provided, "utf8");
+  return left.length === right.length && timingSafeEqual(left, right);
 }
 
 function requireAuth(request: FastifyRequest, config: AppConfig): AuthContext {
@@ -367,6 +381,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const toolGrants = dependencies.toolGrants ?? new ToolGrantRepository(dependencies.pool);
   const modelCalls = dependencies.modelCalls ?? new ModelCallRepository(dependencies.pool);
   const channels = dependencies.channels ?? new ChannelRepository(dependencies.pool);
+  const channelCredentials = dependencies.channelCredentials ?? new ChannelCredentialRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
+  const telegramClient = dependencies.telegramClient ?? new TelegramBotClient({ apiBaseUrl: dependencies.config.TELEGRAM_API_BASE_URL, timeoutMs: dependencies.config.TELEGRAM_API_TIMEOUT_MS });
   const credentials = dependencies.credentials ?? new CredentialVaultRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
   const verifyCredential = dependencies.verifyCredential ?? ((input: CredentialVerificationInput) => verifyProviderCredential(input));
   const installationCredentials = dependencies.installationCredentials ?? new InstallationCredentialRepository(dependencies.pool);
@@ -501,6 +517,78 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       app.log.error(error);
       return reply.code(503).send({ status: "not_ready" });
     }
+  });
+
+  app.post<{ Params: { connectionId: string } }>("/v1/webhooks/telegram/:connectionId", async (request, reply) => {
+    if (!secretHeaderMatches(dependencies.config.INTERNAL_AUTH_SECRET, headerValue(request, "x-kasitek-core-forward-secret"))) {
+      return reply.code(401).send({ error: "Unauthorized" });
+    }
+    const providerSecret = headerValue(request, "x-telegram-bot-api-secret-token");
+    const connection = await channels.getConnectionForWebhook(request.params.connectionId);
+    if (!connection || connection.channel_type !== "telegram" || connection.status !== "active" || connection.installation_status !== "active") {
+      return reply.code(404).send({ error: "telegram_connection_not_found" });
+    }
+    if (!connection.webhook_secret_hash || !channelSecretsEqual(connection.webhook_secret_hash, providerSecret ?? "")) {
+      return reply.code(401).send({ error: "Unauthorized" });
+    }
+    const update = request.body && typeof request.body === "object" ? request.body as Record<string, unknown> : {};
+    if (!update.message || typeof update.message !== "object") return reply.code(200).send({ ok: true, ignored: true });
+
+    const adapter = new TelegramChannelAdapter();
+    const event = adapter.normalizeInbound(update);
+    const messageText = typeof event.message.content.text === "string" ? event.message.content.text.trim() : "";
+    if (connection.execution_mode === "system_hosted") {
+      const pairingMatch = messageText.match(/^(?:\/start(?:@[A-Za-z0-9_]+)?\s+)?(kasiai_pair_[A-Za-z0-9_-]+)$/i);
+      if (pairingMatch) {
+        try {
+          await channels.consumePairingToken({
+            organizationId: connection.organization_id,
+            token: pairingMatch[1]!,
+            externalIdentity: event.externalIdentity,
+          });
+          if (connection.credential_reference) {
+            const token = await channelCredentials.resolve(connection.organization_id, connection.credential_reference, "telegram");
+            await telegramClient.sendMessage(token, event.externalConversationId, "Connected. You can now message this agent.").catch(() => undefined);
+          }
+        } catch (error) {
+          request.log.warn({ error: error instanceof Error ? error.message : "pairing failed" }, "Telegram pairing attempt failed");
+        }
+        return reply.code(200).send({ ok: true });
+      }
+    }
+
+    try {
+      const accepted = await platformChat.acceptExternalMessage({
+        organizationId: connection.organization_id,
+        installationId: connection.installation_id,
+        channelType: event.channelType,
+        channelKey: connection.channel_key,
+        provider: event.provider,
+        providerEventId: event.providerEventId,
+        providerMessageId: event.message.providerMessageId!,
+        externalIdentity: event.externalIdentity,
+        externalConversationId: event.externalConversationId,
+        messageType: event.message.messageType,
+        content: parseCanonicalMessageContent(event.message.messageType, event.message.content),
+        occurredAt: event.message.occurredAt,
+        displayName: typeof event.metadata.senderDisplayName === "string" ? event.metadata.senderDisplayName : undefined,
+        correlationId: randomUUID(),
+      });
+      const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
+      if (workflowEnabled && dependencies.startWorkflow && accepted.created && accepted.run.status === "received") {
+        await dependencies.startWorkflow(accepted.run.id);
+      }
+    } catch (error) {
+      if ((error as { code?: string }).code === "channel_identity_not_paired") {
+        if (connection.execution_mode === "system_hosted" && connection.credential_reference) {
+          const token = await channelCredentials.resolve(connection.organization_id, connection.credential_reference, "telegram").catch(() => undefined);
+          if (token) await telegramClient.sendMessage(token, event.externalConversationId, "This bot is not paired yet.").catch(() => undefined);
+        }
+        return reply.code(200).send({ ok: true });
+      }
+      throw error;
+    }
+    return reply.code(200).send({ ok: true });
   });
 
   app.get("/v1/operator/summary", async (request) => {
@@ -2256,11 +2344,80 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireHostedInstallation(installation);
     const input = z.object({
       channelType: z.string().trim().min(1).max(80),
-      channelKey: z.string().trim().min(1).max(160),
+      channelKey: z.string().trim().min(1).max(160).optional(),
       credentialReference: z.string().trim().max(240).optional(),
+      credentialSecret: z.string().trim().min(1).max(512).optional(),
       metadata: z.record(z.string(), z.unknown()).default({}),
     }).parse(request.body);
-    const connection = await channels.createConnection({ organizationId: auth.organizationId, installationId: request.params.installationId, ...input, actorId: auth.actorId });
+    if (input.channelType !== "telegram" && !input.channelKey) {
+      throw Object.assign(new Error("channelKey is required for this channel"), { statusCode: 400 });
+    }
+    if (input.credentialSecret && input.credentialReference) {
+      throw Object.assign(new Error("Use credentialSecret or credentialReference, not both"), { statusCode: 400 });
+    }
+    if (input.channelType !== "telegram") {
+      const connection = await channels.createConnection({ organizationId: auth.organizationId, installationId: request.params.installationId, channelType: input.channelType, channelKey: input.channelKey!, credentialReference: input.credentialReference, metadata: input.metadata, actorId: auth.actorId });
+      return reply.code(201).send(connection);
+    }
+
+    if (!input.credentialSecret && !input.credentialReference) {
+      throw Object.assign(new Error("A Telegram bot token is required"), { statusCode: 400, code: "telegram_token_required" });
+    }
+    if (!dependencies.config.TELEGRAM_WEBHOOK_BASE_URL) {
+      throw Object.assign(new Error("Telegram webhook hosting is not configured"), { statusCode: 503, code: "telegram_webhook_not_configured" });
+    }
+
+    const botToken = input.credentialSecret
+      ?? await channelCredentials.resolve(auth.organizationId, input.credentialReference!, "telegram");
+    let bot;
+    try {
+      bot = await telegramClient.getMe(botToken);
+    } catch (error) {
+      throw Object.assign(new Error("Telegram bot token could not be verified"), { statusCode: 400, code: "telegram_token_invalid", cause: error });
+    }
+    const channelKey = input.channelKey ?? `bot:${bot.id}`;
+    const webhookSecret = randomBytes(32).toString("base64url");
+    const credential = input.credentialSecret
+      ? await channelCredentials.store({ organizationId: auth.organizationId, provider: "telegram", secret: input.credentialSecret, label: bot.username ? `Telegram @${bot.username}` : `Telegram bot ${bot.id}`, actorId: auth.actorId })
+      : undefined;
+    let connection;
+    try {
+      connection = await channels.createConnection({
+        organizationId: auth.organizationId,
+        installationId: request.params.installationId,
+        channelType: "telegram",
+        channelKey,
+        credentialReference: credential?.id ?? input.credentialReference,
+        webhookSecretHash: hashChannelSecret(webhookSecret),
+        metadata: {
+          ...input.metadata,
+          telegram: {
+            botId: bot.id,
+            ...(bot.username ? { username: bot.username } : {}),
+            name: [bot.firstName, bot.lastName].filter(Boolean).join(" "),
+          },
+        },
+        actorId: auth.actorId,
+      });
+      const configuredWebhookUrl = telegramClient.getWebhookUrl(dependencies.config.TELEGRAM_WEBHOOK_BASE_URL, connection.id);
+      await telegramClient.setWebhook(botToken, configuredWebhookUrl, webhookSecret);
+      connection = await channels.updateConnection({
+        organizationId: auth.organizationId,
+        connectionId: connection.id,
+        status: "active",
+        webhookUrl: configuredWebhookUrl,
+        metadata: {
+          ...connection.metadata,
+          webhook: { status: "active", url: configuredWebhookUrl },
+        },
+      });
+    } catch (error) {
+      if (connection) {
+        await channels.updateConnection({ organizationId: auth.organizationId, connectionId: connection.id, status: "failed" }).catch(() => undefined);
+      }
+      if (credential) await channelCredentials.revoke(auth.organizationId, credential.id).catch(() => undefined);
+      throw error;
+    }
     return reply.code(201).send(connection);
   });
 
@@ -2275,7 +2432,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       channels.listOwnerBindings(auth.organizationId, request.params.installationId, auth.actorId),
     ]);
     return {
-      connections: connections.map(({ credential_reference: _credentialReference, ...connection }) => connection),
+      connections: connections.map(({ credential_reference: _credentialReference, webhook_secret_hash: _webhookSecretHash, ...connection }) => connection),
       bindings,
     };
   });
@@ -2297,11 +2454,19 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) throw Object.assign(new Error("Installation not found"), { statusCode: 404 });
     requireHostedInstallation(installation);
+    const connection = await channels.getConnection(auth.organizationId, request.params.connectionId);
+    if (connection?.channel_type === "telegram" && connection.credential_reference) {
+      const botToken = await channelCredentials.resolve(auth.organizationId, connection.credential_reference, "telegram").catch(() => undefined);
+      if (botToken) await telegramClient.deleteWebhook(botToken).catch(() => undefined);
+    }
     await channels.revokeConnection({
       organizationId: auth.organizationId,
       installationId: request.params.installationId,
       connectionId: request.params.connectionId,
     });
+    if (connection?.channel_type === "telegram" && connection.credential_reference) {
+      await channelCredentials.revoke(auth.organizationId, connection.credential_reference).catch(() => undefined);
+    }
     return { disconnected: true };
   });
 

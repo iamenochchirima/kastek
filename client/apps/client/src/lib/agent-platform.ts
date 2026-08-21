@@ -948,7 +948,7 @@ export function setAgentWebsiteDeploymentStatus(installationId: string, deployme
   });
 }
 
-export function createAgentChannelConnection(installationId: string, input: { channelType: string; channelKey: string; credentialReference?: string; metadata?: Record<string, unknown> }): Promise<AgentChannelConnection> {
+export function createAgentChannelConnection(installationId: string, input: { channelType: string; channelKey?: string; credentialReference?: string; credentialSecret?: string; metadata?: Record<string, unknown> }): Promise<AgentChannelConnection> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/channels`, {
     method: "POST",
     body: JSON.stringify(input),

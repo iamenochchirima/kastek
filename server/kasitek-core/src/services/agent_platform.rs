@@ -932,6 +932,23 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn get_installation_readiness(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/installations/{installation_id}/readiness"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
     pub async fn grant_installation_tool(
         &self,
         organization_id: &str,
@@ -1649,6 +1666,40 @@ impl AgentPlatformClient {
             Some(body),
         )
         .await
+    }
+
+    pub async fn forward_telegram_webhook(
+        &self,
+        connection_id: &str,
+        provider_secret: Option<&str>,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        let mut request = self
+            .client
+            .request(
+                Method::POST,
+                format!("{}/v1/webhooks/telegram/{connection_id}", self.base_url),
+            )
+            .timeout(self.timeout)
+            .header("x-kasitek-core-forward-secret", &self.secret);
+        if let Some(provider_secret) = provider_secret.filter(|value| !value.trim().is_empty()) {
+            request = request.header("x-telegram-bot-api-secret-token", provider_secret);
+        }
+        let response = request
+            .json(&body)
+            .send()
+            .await
+            .map_err(|error| self.map_request_error(error))?;
+        if !response.status().is_success() {
+            return Err(self.map_status(response).await);
+        }
+        if response.status() == StatusCode::NO_CONTENT {
+            return Ok(Value::Null);
+        }
+        response.json::<Value>().await.map_err(|error| {
+            log::error!("Agent Platform returned invalid Telegram webhook JSON: {error}");
+            AppError::BadGateway("Agent Platform returned an invalid response".to_string())
+        })
     }
 
     pub async fn update_channel_delivery_status(
@@ -2508,7 +2559,7 @@ mod tests {
 
     #[tokio::test]
     async fn every_non_operator_adapter_uses_the_scoped_agent_boundary() {
-        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 77]).await;
+        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 78]).await;
         let client = test_client(&base_url);
         let body = json!({"value": "test"});
 
@@ -2597,6 +2648,10 @@ mod tests {
             .unwrap();
         client
             .list_installation_capabilities("org-1", "actor-1", "install-1", Some("credential-1"))
+            .await
+            .unwrap();
+        client
+            .get_installation_readiness("org-1", "actor-1", "install-1")
             .await
             .unwrap();
         client
@@ -2827,7 +2882,7 @@ mod tests {
             .unwrap();
 
         let requests = server.await.unwrap();
-        assert_eq!(requests.len(), 77);
+        assert_eq!(requests.len(), 78);
         let expected_paths = [
             "POST /v1/system-agents/kasiai/installation HTTP/1.1",
             "GET /v1/agents HTTP/1.1",
@@ -2853,6 +2908,7 @@ mod tests {
             "DELETE /v1/installations/install-1/credentials/credential-1 HTTP/1.1",
             "POST /v1/installations/install-1/credentials/credential-1/rotate HTTP/1.1",
             "GET /v1/installations/install-1/capabilities?credentialId=credential-1 HTTP/1.1",
+            "GET /v1/installations/install-1/readiness HTTP/1.1",
             "POST /v1/installations/install-1/tools HTTP/1.1",
             "GET /v1/installations/install-1/grants HTTP/1.1",
             "POST /v1/installations/install-1/grants/resources HTTP/1.1",
@@ -2939,6 +2995,7 @@ mod tests {
             "agents:write",   // revoke_installation_credential
             "agents:write",   // rotate_installation_credential
             "agents:read",    // list_installation_capabilities
+            "agents:read",    // get_installation_readiness
             "agents:write",   // grant_installation_tool
             "agents:read",    // list_installation_grants
             "agents:write",   // grant_installation_resource

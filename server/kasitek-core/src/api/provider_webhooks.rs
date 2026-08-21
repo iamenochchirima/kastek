@@ -7,7 +7,8 @@ use crate::controllers::{
     admin, admin_billing, admin_conversations, admin_invoices, admin_leads, admin_notifications,
     admin_outreach, admin_quotations, admin_web_services, agent_internal, agent_platform, ai, auth,
     billing, bookings, calls, connections, customers, health, inbox, notifications, onboarding,
-    orgs, product_tour, profile, public_v1, realtime, social, whatsapp, whatsapp_calls, workspace,
+    orgs, product_tour, profile, public_v1, realtime, social, telegram, whatsapp, whatsapp_calls,
+    workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -28,6 +29,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.route(
         "/api/webhooks/tiktok",
         web::post().to(social::receive_tiktok_webhook),
+    );
+    cfg.route(
+        "/api/webhooks/telegram/{connectionId}",
+        web::post().to(telegram::receive_webhook),
     );
     cfg.service(
         web::scope("/api/webhooks/twilio")

@@ -9,6 +9,8 @@ export interface ChannelConnectionRecord {
   channel_type: string;
   channel_key: string;
   credential_reference: string | null;
+  webhook_secret_hash: string | null;
+  webhook_url: string | null;
   metadata: Record<string, unknown>;
   status: string;
   created_by: string;
@@ -64,6 +66,7 @@ export interface RunReplyDeliveryRecord {
   installation_id: string;
   actor_id: string;
   correlation_id: string;
+  credential_reference: string | null;
 }
 
 export interface ChannelPairingResult {
@@ -86,25 +89,29 @@ export class ChannelRepository {
     channelType: string;
     channelKey: string;
     credentialReference?: string;
+    webhookSecretHash?: string;
+    webhookUrl?: string;
     metadata?: Record<string, unknown>;
     actorId: string;
   }): Promise<ChannelConnectionRecord> {
     const result = await query<ChannelConnectionRecord>(
       this.pool,
       `INSERT INTO channel_connections
-        (organization_id, installation_id, channel_type, channel_key, credential_reference, metadata, created_by)
-       SELECT $1, id, $3, $4, $5, $6::jsonb, $7 FROM agent_installations
+        (organization_id, installation_id, channel_type, channel_key, credential_reference, webhook_secret_hash, webhook_url, metadata, created_by)
+       SELECT $1, id, $3, $4, $5, $6, $7, $8::jsonb, $9 FROM agent_installations
        WHERE id = $2 AND organization_id = $1 AND status = 'active'
          AND execution_mode IN ('system_hosted', 'kasitek_hosted')
        ON CONFLICT (organization_id, channel_type, channel_key) DO UPDATE SET
          installation_id = EXCLUDED.installation_id,
          credential_reference = EXCLUDED.credential_reference,
+         webhook_secret_hash = EXCLUDED.webhook_secret_hash,
+         webhook_url = EXCLUDED.webhook_url,
          metadata = EXCLUDED.metadata,
          status = 'active', updated_at = now()
        WHERE channel_connections.installation_id = EXCLUDED.installation_id
           OR channel_connections.status = 'revoked'
        RETURNING *`,
-      [input.organizationId, input.installationId, input.channelType, input.channelKey, input.credentialReference ?? null, JSON.stringify(input.metadata ?? {}), input.actorId],
+      [input.organizationId, input.installationId, input.channelType, input.channelKey, input.credentialReference ?? null, input.webhookSecretHash ?? null, input.webhookUrl ?? null, JSON.stringify(input.metadata ?? {}), input.actorId],
     );
     if (!result.rows[0]) {
       const existing = await query<{ installation_id: string }>(
@@ -122,6 +129,49 @@ export class ChannelRepository {
       }
       throw new Error("Active installation not found");
     }
+    return result.rows[0];
+  }
+
+  public async getConnection(organizationId: string, connectionId: string): Promise<ChannelConnectionRecord | null> {
+    const result = await query<ChannelConnectionRecord>(
+      this.pool,
+      `SELECT * FROM channel_connections WHERE organization_id = $1 AND id = $2 LIMIT 1`,
+      [organizationId, connectionId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  public async getConnectionForWebhook(connectionId: string): Promise<(ChannelConnectionRecord & { installation_status: string; execution_mode: string }) | null> {
+    const result = await query<ChannelConnectionRecord & { installation_status: string; execution_mode: string }>(
+      this.pool,
+      `SELECT cc.*, ai.status AS installation_status, ai.execution_mode
+       FROM channel_connections cc
+       JOIN agent_installations ai ON ai.id = cc.installation_id
+       WHERE cc.id = $1 LIMIT 1`,
+      [connectionId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  public async updateConnection(input: {
+    organizationId: string;
+    connectionId: string;
+    status?: "active" | "paused" | "revoked" | "failed";
+    metadata?: Record<string, unknown>;
+    webhookUrl?: string | null;
+  }): Promise<ChannelConnectionRecord> {
+    const result = await query<ChannelConnectionRecord>(
+      this.pool,
+      `UPDATE channel_connections
+       SET status = COALESCE($3, status),
+           metadata = COALESCE($4::jsonb, metadata),
+           webhook_url = COALESCE($5, webhook_url),
+           updated_at = now()
+       WHERE organization_id = $1 AND id = $2
+       RETURNING *`,
+      [input.organizationId, input.connectionId, input.status ?? null, input.metadata ? JSON.stringify(input.metadata) : null, input.webhookUrl ?? null],
+    );
+    if (!result.rows[0]) throw Object.assign(new Error("Channel connection not found"), { statusCode: 404 });
     return result.rows[0];
   }
 
@@ -327,7 +377,8 @@ export class ChannelRepository {
       this.pool,
       `SELECT da.id AS attempt_id, m.id AS message_id, m.organization_id, m.conversation_id,
               da.channel_type, m.external_conversation_id, m.content, ar.id AS run_id,
-              ar.created_by AS actor_id, ar.correlation_id, ar.installation_id
+              ar.created_by AS actor_id, ar.correlation_id, ar.installation_id,
+              cc.credential_reference
        FROM agent_runs ar
        JOIN messages m ON m.run_id = ar.id AND m.direction = 'outbound'
        JOIN delivery_attempts da ON da.message_id = m.id

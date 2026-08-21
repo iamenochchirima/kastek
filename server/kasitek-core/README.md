@@ -48,6 +48,11 @@ operations, run inspection/cancellation, and the durable SSE event stream. Core 
 accepts only route and page-title context from the browser; resource-specific context must be
 authorized by a future core read boundary before it is passed to an agent.
 
+Telegram webhooks are exposed at `/api/webhooks/telegram/{connectionId}`. Set the Agent Platform's
+`TELEGRAM_WEBHOOK_BASE_URL` to the public core origin so it can register that URL with Telegram.
+Core forwards the provider update over the existing Agent Platform bridge; no Telegram secret is
+stored in core.
+
 If you need to disable embedded workers for a pure API process, set:
 
 ```bash
