@@ -15,6 +15,9 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
+import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { apiUrl } from "@/lib/server-api";
 import type { Org, OrgMember, OrgInvitation, OrgRole } from "@/lib/orgs";
+import { toast } from "sonner";
 
 const ROLE_LABELS: Record<OrgRole, string> = {
   OWNER: "Owner",
@@ -68,7 +72,7 @@ export function TeamPageClient({
   const [inviteRole, setInviteRole] = useState<"ADMIN" | "MEMBER">("MEMBER");
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
-  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
+  const { confirm } = useConfirmationDialog();
 
   const canManage = currentRole === "OWNER" || currentRole === "ADMIN";
   const pendingInvitations = invitations.filter((i) => !i.acceptedAt);
@@ -82,7 +86,6 @@ export function TeamPageClient({
     if (!inviteEmail.trim()) return;
     setInviting(true);
     setInviteError(null);
-    setInviteSuccess(null);
 
     const res = await fetch(apiUrl(`/api/orgs/${org.id}/invitations`), {
       method: "POST",
@@ -95,7 +98,7 @@ export function TeamPageClient({
 
     if (res.ok) {
       setInviteEmail("");
-      setInviteSuccess(`Invitation sent to ${inviteEmail.trim()}`);
+      toast.success("Invitation sent", { description: inviteEmail.trim() });
       refresh();
     } else {
       const data = await res.json().catch(() => ({}));
@@ -104,6 +107,7 @@ export function TeamPageClient({
   }
 
   async function handleRevokeInvite(invId: string) {
+    if (!await confirm({ title: "Revoke invitation?", confirmLabel: "Revoke", variant: "destructive" })) return;
     await fetch(apiUrl(`/api/orgs/${org.id}/invitations/${invId}`), {
       method: "DELETE",
       credentials: "include",
@@ -112,6 +116,7 @@ export function TeamPageClient({
   }
 
   async function handleRemoveMember(userId: string) {
+    if (!await confirm({ title: "Remove member?", confirmLabel: "Remove", variant: "destructive" })) return;
     await fetch(apiUrl(`/api/orgs/${org.id}/members/${userId}`), {
       method: "DELETE",
       credentials: "include",
@@ -130,21 +135,11 @@ export function TeamPageClient({
   }
 
   return (
-    <div className="space-y-6 p-4 sm:space-y-8 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-3xl space-y-8">
+    <div className="space-y-6 px-4 py-6 sm:space-y-8 lg:px-6">
+      <div className="mx-auto max-w-[1440px] space-y-8">
 
         {/* Header */}
-        <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-            Organisation
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-            {org.name}
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Manage members and invitations for your organisation.
-          </p>
-        </div>
+        <PageHeader><PageHeaderContent><PageHeaderDescription>Workspace</PageHeaderDescription><PageHeaderTitle>{org.name}</PageHeaderTitle></PageHeaderContent></PageHeader>
 
         {/* Invite form */}
         {canManage ? (
@@ -162,14 +157,7 @@ export function TeamPageClient({
                 className="flex-1"
                 required
               />
-              <select
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value as "ADMIN" | "MEMBER")}
-                className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="MEMBER">Member</option>
-                <option value="ADMIN">Admin</option>
-              </select>
+              <Select value={inviteRole} onValueChange={(value) => setInviteRole(value as "ADMIN" | "MEMBER")}><SelectTrigger className="w-full sm:w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="MEMBER">Member</SelectItem><SelectItem value="ADMIN">Admin</SelectItem></SelectContent></Select>
               <Button type="submit" disabled={inviting} className="shrink-0 gap-2">
                 <Plus className="h-4 w-4" />
                 {inviting ? "Sending…" : "Send invite"}
@@ -177,9 +165,6 @@ export function TeamPageClient({
             </form>
             {inviteError ? (
               <p className="mt-3 text-sm text-destructive">{inviteError}</p>
-            ) : null}
-            {inviteSuccess ? (
-              <p className="mt-3 text-sm text-status-success">{inviteSuccess}</p>
             ) : null}
           </section>
         ) : null}

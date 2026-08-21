@@ -1,5 +1,6 @@
 import InboxAlertControls from "@/components/dashboard/inbox/inbox-alert-controls";
 import PushNotificationSettings from "@/components/dashboard/notifications/push-notification-settings";
+import { PageHeader, PageHeaderContent, PageHeaderTitle } from "@/components/ui/page-header";
 
 export const metadata = {
   title: "Notifications | KasiTek",
@@ -7,8 +8,9 @@ export const metadata = {
 
 export default function WorkspaceNotificationsPage() {
   return (
-    <div className="min-h-screen p-6 lg:p-8">
-      <div className="mx-auto max-w-[1000px] space-y-6">
+    <div className="min-h-screen px-4 py-6 lg:px-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
+        <PageHeader><PageHeaderContent><PageHeaderTitle>Notifications</PageHeaderTitle></PageHeaderContent></PageHeader>
         <PushNotificationSettings />
         <section className="rounded-xl border border-border bg-card p-5">
           <h2 className="text-lg font-semibold text-foreground">Inbox alerts</h2>
