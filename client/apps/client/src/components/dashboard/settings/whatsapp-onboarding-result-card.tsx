@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 
 type Diagnostic = {
   step: string;
@@ -61,10 +63,7 @@ export default function WhatsappOnboardingResultCard() {
             : "border-destructive/30 bg-status-danger-soft"
         }`}
       >
-        <h1 className="mb-2 text-3xl font-semibold tracking-tight">
-          {ok ? "WhatsApp Connected" : "WhatsApp Connection Error"}
-        </h1>
-        <p className="text-sm text-muted-foreground">{message}</p>
+        <PageHeader><PageHeaderContent><PageHeaderTitle>{ok ? "WhatsApp connected" : "WhatsApp connection error"}</PageHeaderTitle><PageHeaderDescription>{message}</PageHeaderDescription></PageHeaderContent></PageHeader>
 
         {ok && (
           <div className="mt-3 text-sm text-foreground">
@@ -107,12 +106,7 @@ export default function WhatsappOnboardingResultCard() {
       </section>
 
       <div className="flex justify-end">
-        <Link
-          href="/connections"
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground no-underline"
-        >
-          Finish
-        </Link>
+        <Button asChild><Link href="/connections">Finish</Link></Button>
       </div>
     </div>
   );
