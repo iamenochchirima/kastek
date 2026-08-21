@@ -282,7 +282,7 @@ interactive states have been checked where applicable.
 | --- | --- | --- | --- |
 | Foundation | tokens and global styles | Implemented | Exact Vantage light/dark tokens, radius scale, shadows, base density, focus, transitions, scrollbars, and Tailwind 4 mappings are in `globals.css`. Lint and Webpack build passed; visual QA follows primitive work. |
 | Foundation | shared UI primitives | In progress | Button, card, input, badge, checkbox, progress, skeleton, table, tabs, scroll area, sheet, dialog, destructive confirmation dialog, and global Sonner toaster are centralized. Reference styles and Radix behavior are used where the reference does. Lint and Webpack build passed; remaining form/overlay primitives, removal of native dialogs, and visual QA are pending. |
-| Shell | sidebar, top bar, mobile drawer, global overlays | Not started | |
+| Shell | sidebar, top bar, mobile drawer, global overlays | In progress | Desktop top bar and command palette now use the reference layout and interactions: route-aware breadcrumbs, Ctrl+K / ⌘K navigation, theme action, notifications route, and account menu. Sidebar and mobile drawer remain to be migrated and visually verified. |
 | Workspace | all workspace routes | Not started | |
 | Customer | inbox, calls, contacts, bookings | Not started | |
 | Content | posts, calendar, analytics, history | Not started | |
@@ -341,3 +341,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Added the replacement-based migration and cleanup rule. |
 | 2026-08-21 | Ported the exact Vantage token foundation to Tailwind 4 while retaining Geist; lint and Webpack build passed. |
 | 2026-08-21 | Ported the first shared primitive wave and installed the global Vantage-styled toast, dialog, and destructive confirmation foundations; lint and Webpack build passed. |
+| 2026-08-21 | Added the first shell milestone: functional command palette and desktop Vantage top bar; lint and Webpack build passed. |

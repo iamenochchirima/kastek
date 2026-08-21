@@ -19,6 +19,7 @@ import {
   ChartColumn,
   Code2,
   ChevronDown,
+  ChevronRight,
   CreditCard,
   Download,
   Bot,
@@ -34,6 +35,7 @@ import {
   Moon,
   PanelLeftOpen,
   PhoneCall,
+  Search,
   Send,
   Settings,
   Sparkles,
@@ -57,6 +59,7 @@ import type { Org } from "@/lib/orgs";
 import type { ProductTourStatus } from "@/lib/product-tour";
 import { ProductTour } from "@/components/dashboard/product-tour";
 import { KasiAiChat, KasiAiTrigger } from "@/components/dashboard/kasiai/kasiai-chat";
+import { CommandPalette } from "@/components/dashboard/command-palette";
 import {
   applyTheme,
   resolveStoredTheme,
@@ -177,6 +180,62 @@ function getSectionLabel(pathname: string) {
     navigationGroups.find((group) =>
       group.items.some((item) => isItemActive(pathname, item.href)),
     )?.label ?? "Home"
+  );
+}
+
+function DesktopTopbar({
+  organizationName,
+  sectionLabel,
+  user,
+  onOpenCommand,
+}: {
+  organizationName: string;
+  sectionLabel: string;
+  user?: { name?: string | null; email?: string | null; image?: string | null };
+  onOpenCommand: () => void;
+}) {
+  const accountName = user?.name ?? "Account";
+  const initials = accountName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "KT";
+
+  return (
+    <header className="sticky top-0 z-30 hidden h-16 items-center gap-3 border-b border-line bg-canvas/80 px-4 backdrop-blur-[12px] lg:flex lg:px-6">
+      <nav className="flex min-w-0 items-center gap-1.5 text-[13px] text-ink-2" aria-label="Breadcrumb">
+        <span className="truncate">{organizationName}</span>
+        <ChevronRight className="size-[13px] shrink-0 text-ink-3" />
+        <span className="truncate font-medium text-ink-1">{sectionLabel}</span>
+      </nav>
+
+      <div className="mx-auto w-full max-w-sm flex-1 px-2">
+        <button type="button" onClick={onOpenCommand} className="flex h-9 w-full items-center gap-2 rounded-full border border-line bg-surface px-3.5 text-[13px] text-ink-3 transition-colors duration-150 hover:border-line-strong hover:text-ink-2">
+          <Search className="size-3.5" />
+          <span className="flex-1 text-left">Search or jump to…</span>
+          <kbd className="rounded-sm border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-ink-2">⌘K</kbd>
+        </button>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Link href="/workspace/notifications" aria-label="Notifications" className="relative grid size-9 place-items-center rounded-md border border-line bg-surface text-ink-2 transition-colors duration-150 hover:bg-surface-2 hover:text-ink-1">
+          <Bell className="size-4" />
+        </Link>
+        <ThemeToggleSimple className="size-9 px-0 [&_span]:hidden" />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button type="button" aria-label="Account" className="rounded-full">
+              <Avatar className="size-9 ring-2 ring-brand-soft">
+                {user?.image ? <AvatarImage src={user.image} alt={accountName} /> : null}
+                <AvatarFallback className="bg-primary text-[11px] font-semibold text-primary-foreground">{initials}</AvatarFallback>
+              </Avatar>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            <div className="px-2 py-1.5"><p className="truncate text-[13px] font-medium text-ink-1">{accountName}</p><p className="truncate text-[11px] text-ink-3">{user?.email ?? ""}</p></div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild><Link href="/workspace/profile"><UserRound className="mr-2 size-4" />Profile</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link href="/workspace/settings"><Settings className="mr-2 size-4" />Settings</Link></DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </header>
   );
 }
 
@@ -519,8 +578,10 @@ export function LayoutShell({
   const [hasPwaUpdate, setHasPwaUpdate] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [kasiaiOpen, setKasiaiOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
   const pathname = usePathname();
   const sectionLabel = getSectionLabel(pathname);
+  const organizationName = orgs.find((org) => org.id === activeOrgId)?.name ?? "Workspace";
 
   useEffect(() => {
     const onPwaUpdate = (event: Event) => {
@@ -587,13 +648,20 @@ export function LayoutShell({
               />
             </SheetContent>
           </Sheet>
-          <main className="flex-1 overflow-auto pt-13 lg:pt-0">
+          <main className="flex min-w-0 flex-1 flex-col overflow-auto pt-13 lg:pt-0">
+            <DesktopTopbar
+              organizationName={organizationName}
+              sectionLabel={sectionLabel}
+              user={user}
+              onOpenCommand={() => setCommandOpen(true)}
+            />
             <PwaUpdateBanner visible={hasPwaUpdate} />
             <PushNotificationReminder />
             {children}
           </main>
           <ProductTour status={productTourStatus} />
           <KasiAiChat open={kasiaiOpen} onOpenChange={setKasiaiOpen} leftOffset={collapsed ? 72 : 252} />
+          <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
         </div>
       </>
     </WhatsappRealtimeProvider>
