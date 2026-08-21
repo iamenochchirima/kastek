@@ -442,6 +442,11 @@ all implementation and verification items above are complete:
   reuse their existing server actions. The top-bar bell is a responsive live
   popover backed by the WhatsApp realtime feed and unread count. The legacy
   routes remain available for direct links and compatibility.
+- The expanded sidebar Account area now follows the Vantage identity pattern:
+  workspace identity remains at the top, the bottom contains a compact profile
+  card and collapse control, and theme, notification, and help actions are no
+  longer duplicated as standalone sidebar rows. They remain available through
+  Appearance/Notifications, the live top-bar bell, and the profile menu.
 - The main KasiAi conversation rail is now desktop-only on phones; mobile uses
   a header-triggered overlay drawer with backdrop/Escape dismissal and focus
   return, keeping the message composer and chat content full width.
