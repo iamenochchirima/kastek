@@ -178,7 +178,7 @@ export default function ProfileForm({ user }: ProfileFormProps) {
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="space-y-6">
-        <form onSubmit={onProfileSubmit} className="rounded-2xl border border-border bg-card p-6">
+        <form onSubmit={onProfileSubmit} className="rounded-xl border border-border bg-card p-6">
           <div className="mb-6">
             <h2 className="text-xl font-semibold tracking-tight text-foreground">Personal details</h2>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -236,7 +236,7 @@ export default function ProfileForm({ user }: ProfileFormProps) {
           </div>
         </form>
 
-        <form onSubmit={onEmailSubmit} className="rounded-2xl border border-border bg-card p-6">
+        <form onSubmit={onEmailSubmit} className="rounded-xl border border-border bg-card p-6">
           <div className="mb-6">
             <h2 className="text-xl font-semibold tracking-tight text-foreground">Email address</h2>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -294,7 +294,7 @@ export default function ProfileForm({ user }: ProfileFormProps) {
           </Button>
         </form>
 
-        <form onSubmit={onPasswordSubmit} className="rounded-2xl border border-border bg-card p-6">
+        <form onSubmit={onPasswordSubmit} className="rounded-xl border border-border bg-card p-6">
           <div className="mb-6">
             <h2 className="text-xl font-semibold tracking-tight text-foreground">Password</h2>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -357,10 +357,10 @@ export default function ProfileForm({ user }: ProfileFormProps) {
         </form>
       </div>
 
-      <aside className="rounded-2xl border border-border bg-card p-6">
+      <aside className="rounded-xl border border-border bg-card p-6">
         <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Preview</div>
 
-        <div className="mt-5 rounded-2xl border border-border bg-secondary/50 p-5">
+        <div className="mt-5 rounded-xl border border-border bg-secondary/50 p-5">
           {image ? (
             <div
               aria-hidden="true"
