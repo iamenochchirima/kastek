@@ -33,6 +33,8 @@
   --info: #0284C7;
   --v-shadow-card: 0 1px 2px rgba(16, 24, 40, .05);
   --v-shadow-pop: 0 12px 32px -8px rgba(16, 24, 40, .18);
+  --v-shadow-glow: 0 0 24px rgba(91, 91, 240, .18);
+  --v-card-gradient: none;
 
   --background: var(--canvas);
   --foreground: var(--ink-1);
@@ -122,6 +124,8 @@
   --info: #38BDF8;
   --v-shadow-card: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 8px 24px rgba(0, 0, 0, .35);
   --v-shadow-pop: 0 16px 48px rgba(0, 0, 0, .55);
+  --v-shadow-glow: 0 0 24px rgba(129, 140, 248, .22);
+  --v-card-gradient: linear-gradient(180deg, rgba(255, 255, 255, .03), transparent 40%);
 
   --background: var(--canvas);
   --foreground: var(--ink-1);
@@ -249,6 +253,7 @@
   --color-info: var(--info);
   --shadow-card: var(--v-shadow-card);
   --shadow-pop: var(--v-shadow-pop);
+  --shadow-glow: var(--v-shadow-glow);
 
   --animate-pulse-dot: pulse-dot 2s infinite;
   --animate-live-pulse: live-pulse 2s ease-out infinite;
@@ -338,6 +343,60 @@
 }
 
 @layer components {
+  /* Shared Vantage surface treatment. Keep this on the primitive so every
+     page gets the same depth hierarchy without repeating gradient classes. */
+  .v-card {
+    background-color: var(--card);
+    background-image: var(--v-card-gradient);
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) - 1px);
+    box-shadow: var(--shadow-panel);
+  }
+
+  .v-settings-card,
+  [data-slot="card"],
+  [class~="bg-card"] {
+    background-image: var(--v-card-gradient);
+  }
+
+  .v-label {
+    color: var(--ink-3);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .04em;
+    line-height: 1.25;
+    text-transform: uppercase;
+  }
+
+  .v-skeleton {
+    background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+    background-size: 800px 100%;
+    border-radius: var(--radius-sm);
+    animation: shimmer 1.6s linear infinite;
+  }
+
+  .v-brand-gradient {
+    background-image: linear-gradient(135deg, #6366F1 0%, #8B5CF6 55%, #D946EF 100%);
+  }
+
+  .v-aurora {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .v-aurora::before {
+    content: "";
+    position: absolute;
+    inset: -20%;
+    background:
+      radial-gradient(38% 42% at 24% 30%, rgba(99, 102, 241, .4), transparent 70%),
+      radial-gradient(34% 38% at 74% 24%, rgba(34, 211, 238, .32), transparent 70%),
+      radial-gradient(40% 44% at 58% 78%, rgba(167, 139, 250, .38), transparent 70%);
+    filter: blur(80px);
+    animation: aurora-drift 24s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+
   [data-slot="card"] {
     padding-top: var(--density-card-padding);
     padding-bottom: var(--density-card-padding);
@@ -426,6 +485,12 @@
 @keyframes shimmer {
   0% { background-position: -400px 0; }
   100% { background-position: 400px 0; }
+}
+
+@keyframes aurora-drift {
+  0% { transform: translate3d(-3%, -2%, 0) rotate(0deg) scale(1); }
+  50% { transform: translate3d(3%, 2%, 0) rotate(4deg) scale(1.06); }
+  100% { transform: translate3d(-2%, 3%, 0) rotate(-3deg) scale(1.02); }
 }
 
 @keyframes typing-bounce {
