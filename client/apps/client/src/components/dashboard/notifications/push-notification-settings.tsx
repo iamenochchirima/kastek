@@ -176,7 +176,7 @@ export default function PushNotificationSettings() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-border bg-card p-5">
+      <section className="rounded-xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl space-y-2">
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">
@@ -219,7 +219,7 @@ export default function PushNotificationSettings() {
         {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
       </section>
 
-      <section className="rounded-2xl border border-border bg-card p-5">
+      <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="text-lg font-semibold text-foreground">What to expect</h2>
         <div className="mt-3 space-y-2 text-sm text-muted-foreground">
           <p>Android: enable notifications and you are done.</p>
