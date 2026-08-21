@@ -5,6 +5,8 @@ import type { OnboardingProfile } from "@/lib/onboarding";
 import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const steps = ["Business", "Goal", "Role", "Industry", "Source"];
 
@@ -118,12 +120,12 @@ export function OnboardingWizard({ profile }: { profile: OnboardingProfile }) {
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-border pt-5">
-          {step > 0 ? <div className="flex items-center gap-1"><button type="button" onClick={() => { setError(""); setStep((current) => current - 1); }} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back</button><button type="button" onClick={() => void save({ skip: true })} disabled={saving} className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-50">Skip for now</button></div> : <span />}
-          <button type="button" onClick={next} disabled={!canContinue || saving} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50">
+          {step > 0 ? <div className="flex items-center gap-1"><Button type="button" variant="ghost" size="sm" onClick={() => { setError(""); setStep((current) => current - 1); }}><ArrowLeft className="h-4 w-4" />Back</Button><Button type="button" variant="ghost" size="sm" onClick={() => void save({ skip: true })} disabled={saving}>Skip</Button></div> : <span />}
+          <Button type="button" onClick={next} disabled={!canContinue || saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : step === steps.length - 1 ? <Check className="h-4 w-4" /> : null}
             {saving ? "Saving…" : step === steps.length - 1 ? "Finish setup" : "Continue"}
             {!saving && step < steps.length - 1 ? <ArrowRight className="h-4 w-4" /> : null}
-          </button>
+          </Button>
         </div>
       </div>
     </main>
@@ -131,7 +133,7 @@ export function OnboardingWizard({ profile }: { profile: OnboardingProfile }) {
 }
 
 function BusinessStep({ companyName, setCompanyName, website, setWebsite }: { companyName: string; setCompanyName: (value: string) => void; website: string; setWebsite: (value: string) => void }) {
-  return <div><span className="inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">Business details</span><h1 className="mt-4 text-3xl font-semibold tracking-tight">Tell us about your business</h1><p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">Start with the essentials. Your website is optional, and helps us personalise future agent and content setup.</p><label className="mt-7 block text-sm font-medium">Company name<input autoFocus value={companyName} onChange={(event) => setCompanyName(event.target.value)} className="mt-2 w-full rounded-lg border border-input bg-background px-3.5 py-3 text-base outline-none transition focus:border-primary focus-visible:ring-2 focus-visible:ring-ring" placeholder="Your business name" /></label><label className="mt-4 block text-sm font-medium">Website <span className="font-normal text-muted-foreground">(optional)</span><input type="url" value={website} onChange={(event) => setWebsite(event.target.value)} className="mt-2 w-full rounded-lg border border-input bg-background px-3.5 py-3 text-base outline-none transition focus:border-primary focus-visible:ring-2 focus-visible:ring-ring" placeholder="https://yourbusiness.com" /></label></div>;
+  return <div><span className="inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">Business details</span><h1 className="mt-4 text-3xl font-semibold tracking-tight">Tell us about your business</h1><p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">Start with the essentials. Your website is optional.</p><label className="mt-7 block text-sm font-medium">Company name<Input autoFocus value={companyName} onChange={(event) => setCompanyName(event.target.value)} className="mt-2" placeholder="Your business name" /></label><label className="mt-4 block text-sm font-medium">Website <span className="font-normal text-muted-foreground">(optional)</span><Input type="url" value={website} onChange={(event) => setWebsite(event.target.value)} className="mt-2" placeholder="https://yourbusiness.com" /></label></div>;
 }
 
 function IndustryStep({ value, onChange }: { value: string; onChange: (value: string) => void }) {
