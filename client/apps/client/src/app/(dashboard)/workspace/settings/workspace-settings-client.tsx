@@ -2,10 +2,9 @@
 
 import type { Org } from "@/lib/orgs";
 import type { BillingSummary, AvailablePlan } from "@/lib/billing";
-import type { DevelopersBootstrap } from "@/lib/developers";
 import { apiUrl } from "@/lib/server-api";
 import { cn } from "@/lib/utils";
-import { Bell, CreditCard, KeyRound, Palette, SlidersHorizontal } from "lucide-react";
+import { Bell, CreditCard, Palette, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -13,20 +12,18 @@ import { toast } from "sonner";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { AppearancePanel } from "@/components/dashboard/settings/appearance-panel";
 import { WorkspaceNotificationsPanel } from "@/components/dashboard/settings/workspace-notifications-panel";
-import { ApiKeysPageClient } from "@/components/dashboard/developers/api-keys-page-client";
 import { BillingPanel } from "@/components/dashboard/billing/billing-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { VANTAGE_EXPO, VANTAGE_MOTION, VANTAGE_SELECTION_SPRING } from "@/lib/motion";
 import { useAppearance } from "@/lib/appearance";
 
-export type LocalSettingsTab = "general" | "appearance" | "notifications" | "api-keys" | "billing";
+export type LocalSettingsTab = "general" | "appearance" | "notifications" | "billing";
 
 const SETTINGS_LINKS = [
   { id: "general", label: "General", icon: SlidersHorizontal },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "notifications", label: "Notifications", icon: Bell },
-  { id: "api-keys", label: "API Keys", icon: KeyRound },
   { id: "billing", label: "Billing", icon: CreditCard },
 ] as const;
 
@@ -34,7 +31,6 @@ export function WorkspaceSettingsClient({
   org,
   canManage,
   initialTab,
-  developers,
   billingSummary,
   billingPlans,
   billingQuery,
@@ -42,7 +38,6 @@ export function WorkspaceSettingsClient({
   org: Org;
   canManage: boolean;
   initialTab: LocalSettingsTab;
-  developers: DevelopersBootstrap;
   billingSummary: BillingSummary | null;
   billingPlans: { plans: AvailablePlan[] };
   billingQuery: { payment?: string; reference?: string; trxref?: string };
@@ -92,7 +87,7 @@ export function WorkspaceSettingsClient({
       <div className="mx-auto max-w-[1440px]">
         <header>
           <h1 className="text-[24px] font-semibold leading-8 tracking-[-0.02em] text-foreground">Settings</h1>
-          <p className="mt-1 text-[13px] text-muted-foreground">Manage your workspace, appearance, notifications, API keys and billing.</p>
+          <p className="mt-1 text-[13px] text-muted-foreground">Manage your workspace, appearance, notifications, and billing.</p>
         </header>
 
         <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-start">
@@ -118,7 +113,7 @@ export function WorkspaceSettingsClient({
           <div className="min-w-0 w-full max-w-[760px] flex-1">
             <AnimatePresence initial={false} mode="wait">
             <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: VANTAGE_MOTION.shell / 1000, ease: VANTAGE_EXPO }}>
-            {tab === "appearance" ? <AppearancePanel /> : tab === "notifications" ? <WorkspaceNotificationsPanel /> : tab === "api-keys" ? <ApiKeysPageClient embedded initial={developers} /> : tab === "billing" ? <BillingPanel embedded summary={billingSummary} planResponse={billingPlans} query={billingQuery} /> : (
+            {tab === "appearance" ? <AppearancePanel /> : tab === "notifications" ? <WorkspaceNotificationsPanel /> : tab === "billing" ? <BillingPanel embedded summary={billingSummary} planResponse={billingPlans} query={billingQuery} /> : (
               <div className="flex flex-col gap-5">
                 <section className="v-settings-card rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
                   <h2 className="text-base font-semibold text-foreground">Business identity</h2>

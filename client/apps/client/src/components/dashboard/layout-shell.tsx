@@ -22,7 +22,6 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ChevronRight,
-  CreditCard,
   Download,
   Bot,
   FileText,
@@ -144,8 +143,6 @@ const navigationGroups: NavigationGroup[] = [
     items: [
       { name: "Developers", href: "/developers", icon: Code2 },
       { name: "Connections", href: "/connections", icon: Cable },
-      { name: "Team", href: "/workspace/team", icon: Users },
-      { name: "Billing and usage", href: "/billing", icon: CreditCard },
       { name: "Workspace settings", href: "/workspace/settings", icon: Settings },
     ],
   },
