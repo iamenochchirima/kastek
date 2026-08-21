@@ -4,6 +4,8 @@ import { apiUrl } from "@/lib/server-api";
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 type WhatsappConnectionView = {
   id: string;
@@ -227,42 +229,38 @@ export default function WhatsappManualConnectionCard({
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2 text-sm">
               <span className="text-muted-foreground">WABA ID</span>
-              <input
+              <Input
                 value={wabaId}
                 onChange={(event) => setWabaId(event.target.value)}
                 placeholder="WhatsApp Business Account ID"
-                className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
               />
             </label>
 
             <label className="space-y-2 text-sm">
               <span className="text-muted-foreground">Phone Number ID</span>
-              <input
+              <Input
                 value={phoneNumberId}
                 onChange={(event) => setPhoneNumberId(event.target.value)}
                 placeholder="Phone Number ID from Meta"
-                className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
               />
             </label>
 
             <label className="space-y-2 text-sm">
               <span className="text-muted-foreground">Display Number (optional)</span>
-              <input
+              <Input
                 value={phoneDisplayNumber}
                 onChange={(event) => setPhoneDisplayNumber(event.target.value)}
                 placeholder="+27 ..."
-                className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
               />
             </label>
 
             <label className="space-y-2 text-sm md:col-span-2">
               <span className="text-muted-foreground">Permanent Access Token</span>
-              <textarea
+              <Textarea
                 value={accessToken}
                 onChange={(event) => setAccessToken(event.target.value)}
                 rows={4}
                 placeholder="Paste your Meta system user access token"
-                className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
               />
             </label>
           </div>
@@ -352,52 +350,51 @@ export default function WhatsappManualConnectionCard({
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      type="button"
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => runHealthCheck(connection.id)}
-                      className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-secondary"
                       disabled={healthLoadingId === connection.id}
                     >
                       {healthLoadingId === connection.id ? "Checking..." : "Check health"}
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => runConnectionAction(connection.id, "refresh")}
-                      className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-secondary"
                       disabled={actionLoadingKey === `${connection.id}:refresh`}
                     >
                       {actionLoadingKey === `${connection.id}:refresh` ? "Refreshing..." : "Refresh"}
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => runConnectionAction(connection.id, "sync_templates")}
-                      className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-secondary"
                       disabled={actionLoadingKey === `${connection.id}:sync_templates`}
                     >
                       {actionLoadingKey === `${connection.id}:sync_templates` ? "Syncing..." : "Sync templates"}
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => {
                         setEditingTokenConnectionId((current) =>
                           current === connection.id ? null : connection.id
                         );
                         setUpdatedAccessToken("");
                       }}
-                      className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-secondary"
                     >
                       {editingTokenConnectionId === connection.id ? "Cancel" : "Update token"}
-                    </button>
+                    </Button>
                   </div>
                   {editingTokenConnectionId === connection.id ? (
                     <div className="mt-3 space-y-3 rounded-lg border border-border bg-background/40 p-3">
                       <p className="text-sm font-medium text-foreground">Rotate access token</p>
-                      <textarea
+                      <Textarea
                         value={updatedAccessToken}
                         onChange={(event) => setUpdatedAccessToken(event.target.value)}
                         rows={4}
                         placeholder="Paste your new Meta access token"
-                        className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground"
                       />
                       <div className="flex justify-end">
                         <Button
@@ -465,49 +462,49 @@ export default function WhatsappManualConnectionCard({
                       <td className="px-3 py-2">{connection.verified ? "Yes" : "No"}</td>
                       <td className="px-3 py-2">{connection.dailyLimitEstimate || "-"}</td>
                       <td className="px-3 py-2">
-                        <button
-                          type="button"
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => runHealthCheck(connection.id)}
-                          className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-secondary"
                           disabled={healthLoadingId === connection.id}
                         >
                           {healthLoadingId === connection.id ? "Checking..." : "Check health"}
-                        </button>
+                        </Button>
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
+                          <Button
+                            variant="outline"
+                            size="sm"
                             onClick={() => runConnectionAction(connection.id, "refresh")}
-                            className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-secondary"
                             disabled={actionLoadingKey === `${connection.id}:refresh`}
                           >
                             {actionLoadingKey === `${connection.id}:refresh`
                               ? "Refreshing..."
                               : "Refresh"}
-                          </button>
-                          <button
-                            type="button"
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
                             onClick={() => runConnectionAction(connection.id, "sync_templates")}
-                            className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-secondary"
                             disabled={actionLoadingKey === `${connection.id}:sync_templates`}
                           >
                             {actionLoadingKey === `${connection.id}:sync_templates`
                               ? "Syncing..."
                               : "Sync templates"}
-                          </button>
-                          <button
-                            type="button"
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
                             onClick={() => {
                               setEditingTokenConnectionId((current) =>
                                 current === connection.id ? null : connection.id
                               );
                               setUpdatedAccessToken("");
                             }}
-                            className="rounded-md border border-border bg-secondary/50 px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-secondary"
                           >
                             {editingTokenConnectionId === connection.id ? "Cancel" : "Update token"}
-                          </button>
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -524,12 +521,11 @@ export default function WhatsappManualConnectionCard({
                               </p>
                             </div>
 
-                            <textarea
+                            <Textarea
                               value={updatedAccessToken}
                               onChange={(event) => setUpdatedAccessToken(event.target.value)}
                               rows={4}
                               placeholder="Paste your new Meta access token"
-                              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground"
                             />
 
                             <div className="flex justify-end">
