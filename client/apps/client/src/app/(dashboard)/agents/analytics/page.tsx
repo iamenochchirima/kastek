@@ -2,6 +2,7 @@ import { Activity, ChartColumn, Coins, Wrench } from "lucide-react";
 import { getRustSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
 import { redirect } from "next/navigation";
+import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 
 export const metadata = { title: "Agent Analytics | KasiTek" };
 
@@ -33,11 +34,13 @@ export default async function AgentAnalyticsPage() {
   return (
     <div className="min-h-screen p-6 lg:p-8">
       <div className="mx-auto max-w-[1400px]">
-        <header className="max-w-3xl">
+        <PageHeader className="max-w-3xl">
+          <PageHeaderContent>
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Automation</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">Agent analytics</h1>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">Operational run, model usage, and tool outcome totals from the Agent Platform.</p>
-        </header>
+          <PageHeaderTitle>Agent analytics</PageHeaderTitle>
+          <PageHeaderDescription>Run, model, and tool totals.</PageHeaderDescription>
+          </PageHeaderContent>
+        </PageHeader>
         <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {metrics.map((metric) => (
             <article key={metric.label} className="rounded-xl border border-border bg-card p-5">

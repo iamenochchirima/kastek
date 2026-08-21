@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getRustSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
 import { redirect } from "next/navigation";
+import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 
 export const metadata = { title: "Agent Templates | KasiTek" };
 
@@ -18,11 +19,13 @@ export default async function AgentTemplatesPage() {
   return (
     <div className="min-h-screen p-6 lg:p-8">
       <div className="mx-auto max-w-[1400px]">
-        <header className="max-w-3xl">
+        <PageHeader className="max-w-3xl">
+          <PageHeaderContent>
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Automation</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">Agent templates</h1>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">Server-owned starting points with bounded instructions, policies, and installation rules.</p>
-        </header>
+          <PageHeaderTitle>Agent templates</PageHeaderTitle>
+          <PageHeaderDescription>Starting points for new agents.</PageHeaderDescription>
+          </PageHeaderContent>
+        </PageHeader>
         <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Agent templates">
           {response.templates.map((template, index) => {
             const Icon = icons[index % icons.length]!;

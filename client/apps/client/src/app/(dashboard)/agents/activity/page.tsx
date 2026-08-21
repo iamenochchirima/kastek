@@ -5,6 +5,7 @@ import { fetchRustJson } from "@/lib/rust-server-api";
 import type { AgentEffectReceipt, AgentKillSwitch, AgentOperationRun } from "@/lib/agent-platform";
 import { AgentKillSwitchControls } from "@/components/dashboard/agents/agent-kill-switch-controls";
 import { AgentReconciliationActions } from "@/components/dashboard/agents/agent-reconciliation-actions";
+import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 import { redirect } from "next/navigation";
 
 export const metadata = { title: "Agent Activity | KasiTek" };
@@ -46,11 +47,13 @@ export default async function AgentActivityPage() {
   return (
     <div className="min-h-screen p-6 lg:p-8">
       <div className="mx-auto max-w-[1400px]">
-        <header className="max-w-3xl">
+        <PageHeader className="max-w-3xl">
+          <PageHeaderContent>
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Automation</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">Agent activity</h1>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">Recent Agent Platform changes and durable run status for this workspace.</p>
-        </header>
+          <PageHeaderTitle>Agent activity</PageHeaderTitle>
+          <PageHeaderDescription>Recent agent runs and recovery actions.</PageHeaderDescription>
+          </PageHeaderContent>
+        </PageHeader>
         <section className="mt-8 grid gap-4 sm:grid-cols-3">
           <article className="rounded-xl border border-border bg-card p-5"><p className="text-sm text-muted-foreground">Recorded runs</p><p className="mt-3 text-3xl font-semibold text-foreground">{totalRuns}</p></article>
           <article className="rounded-xl border border-border bg-card p-5"><p className="text-sm text-muted-foreground">Audit records</p><p className="mt-3 text-3xl font-semibold text-foreground">{audit.records.length}</p></article>
