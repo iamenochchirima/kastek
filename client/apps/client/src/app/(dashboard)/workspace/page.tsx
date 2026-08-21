@@ -2,6 +2,8 @@ import { getRustSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
 import { fetchBillingSummary } from "@/lib/billing";
 import { Bot, FileText, MessageCircle, PlugZap, type LucideIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { PageHeader, PageHeaderActions, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -71,24 +73,21 @@ export default async function WorkspacePage() {
   ].filter(([count]) => Number(count) > 0) as Array<[number, string, string, string]>;
 
   return (
-    <div className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-      <div className="mx-auto max-w-[1280px]">
-        <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs text-muted-foreground">Workspace</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">Overview</h1>
-          </div>
-          <Link
-            href="/campaigns/create"
-            className="inline-flex h-9 items-center rounded-md bg-primary px-3.5 text-sm font-semibold text-primary-foreground no-underline transition-opacity hover:opacity-90"
-          >
-            New campaign
-          </Link>
-        </header>
+    <div className="px-4 py-6 lg:px-6">
+      <div className="mx-auto max-w-[1440px]">
+        <PageHeader>
+          <PageHeaderContent>
+            <PageHeaderDescription>Workspace</PageHeaderDescription>
+            <PageHeaderTitle>Overview</PageHeaderTitle>
+          </PageHeaderContent>
+          <PageHeaderActions>
+            <Button asChild><Link href="/campaigns/create">New campaign</Link></Button>
+          </PageHeaderActions>
+        </PageHeader>
 
         <SectionHeading title="Work that needs attention" actionHref="/inbox" actionLabel="Open Inbox" />
         <section className="overflow-hidden rounded-lg border border-border bg-card">
-          {actions.length ? actions.map(([count, href, title, detail]) => <Link key={title} href={href} className="flex items-center justify-between gap-4 border-b border-border px-5 py-4 no-underline last:border-b-0 hover:bg-secondary/60"><span><span className="block text-sm font-semibold text-foreground">{title}</span><span className="mt-1 block text-xs text-muted-foreground">{detail}</span></span><span className="rounded-full bg-status-attention-soft px-2.5 py-1 text-sm font-semibold text-status-attention">{count}</span></Link>) : <EmptyState message="Nothing needs attention right now." />}
+          {actions.length ? actions.map(([count, href, title, detail]) => <Link key={title} href={href} className="flex items-center justify-between gap-4 border-b border-border px-5 py-4 no-underline last:border-b-0 hover:bg-secondary/60"><span><span className="block text-sm font-semibold text-foreground">{title}</span><span className="mt-1 block text-xs text-muted-foreground">{detail}</span></span><span className="rounded-full bg-status-attention-soft px-2.5 py-1 text-sm font-semibold text-status-attention">{count}</span></Link>) : <EmptyState message="No attention items" />}
         </section>
 
         <section className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
