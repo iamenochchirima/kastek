@@ -302,7 +302,7 @@ interactive states have been checked where applicable.
 | Connections | connections | In progress | The Connections page uses the central header and `1440px` content density. The Threads sign-in reminder now uses the shared accessible dialog. WhatsApp setup/onboarding and visual review remain pending. |
 | Developers | portal, Resources, MCP, CLI, API, and API keys | In progress | The full Developers route group uses the central header, concise copy, and `1440px` density. Shared tab/feedback and visual checks remain pending. |
 | Billing | billing and usage | In progress | Billing uses the central header, concise hierarchy, and `1440px` density. Payment, loading/error, responsive and visual checks remain pending. |
-| Entry surfaces | login, sign-up, password setup, and onboarding | In progress | Login, sign-up, password setup, and onboarding use shared Vantage controls; auth copy uses the Vantage type scale and concise wording. Verification, invitations, offline, responsive and visual checks remain pending. |
+| Entry surfaces | login, sign-up, password setup, onboarding, and invitations | In progress | Login, sign-up, password setup, onboarding, and invitation activation use shared Vantage controls; auth copy uses the Vantage type scale and concise wording. Verification, offline, responsive and visual checks remain pending. |
 | Quality | visual, accessibility, and runtime verification | Not started | |
 
 ## Verification standard per migration wave
@@ -380,3 +380,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Migrated Login and Sign-up actions and fields to the shared Vantage Button and Input primitives; lint and Webpack build passed. |
 | 2026-08-21 | Migrated password setup fields and actions to shared Vantage controls; lint and Webpack build passed. |
 | 2026-08-21 | Migrated onboarding navigation and business fields to shared Vantage Button and Input controls; lint and Webpack build passed. |
+| 2026-08-21 | Migrated invitation activation fields to shared Vantage Inputs and simplified its activation copy; lint and Webpack build passed. |

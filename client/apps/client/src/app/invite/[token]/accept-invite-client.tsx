@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { apiUrl } from "@/lib/server-api";
 import type { InvitationPreview } from "@/lib/orgs";
 
@@ -213,15 +214,15 @@ export function AcceptInviteClient({
           </Button>
         ) : (
           <form onSubmit={handleActivation} className="space-y-3">
-            <p className="text-sm text-muted-foreground">Create your account now. After this, use the normal KasiTek login page whenever you return.</p>
+            <p className="text-sm text-muted-foreground">Create your account to join this workspace.</p>
             <label className="block text-sm font-medium text-foreground">Name
-              <input value={name} onChange={(event) => setName(event.target.value)} required className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" placeholder="Your name" />
+              <Input value={name} onChange={(event) => setName(event.target.value)} required className="mt-1.5" placeholder="Your name" />
             </label>
             <label className="block text-sm font-medium text-foreground">Password
-              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" placeholder="At least 8 characters" />
+              <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} className="mt-1.5" placeholder="At least 8 characters" />
             </label>
             <label className="block text-sm font-medium text-foreground">Confirm password
-              <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required minLength={8} className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm" placeholder="Confirm your password" />
+              <Input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required minLength={8} className="mt-1.5" placeholder="Confirm your password" />
             </label>
             <Button type="submit" disabled={loading} className="w-full" size="lg">{loading ? "Creating account…" : "Create account and join"}</Button>
             <p className="text-center text-xs text-muted-foreground">Already have an account? <button type="button" onClick={() => router.push(`/login?callbackUrl=${encodeURIComponent(`/invite/${token}`)}`)} className="text-primary hover:underline">Sign in</button></p>
