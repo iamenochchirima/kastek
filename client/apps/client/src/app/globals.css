@@ -543,6 +543,15 @@ html.v-reduce-motion .v-route-enter {
   padding-bottom: max(6px, calc((var(--density-table-row) - 20px) / 2)) !important;
 }
 
+[data-slot="table-head"] {
+  height: var(--density-table-row);
+}
+
+html[data-density="compact"] [data-slot="card"] {
+  padding-top: var(--density-card-padding) !important;
+  padding-bottom: var(--density-card-padding) !important;
+}
+
 html[data-density="compact"] [data-slot="button"][data-size="default"],
 html[data-density="compact"] [data-slot="input"],
 html[data-density="compact"] [data-slot="select-trigger"][data-size="default"] {
