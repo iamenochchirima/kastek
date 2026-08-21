@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { BellRing } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   fetchPushStatus,
   getLocalPushSupport,
@@ -64,32 +65,24 @@ export default function PushNotificationReminder() {
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground">Enable mobile notifications</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Turn on notifications so new WhatsApp inbox messages can reach you like a normal phone notification.
-              {!configured ? " The server is not fully configured yet." : ""}
-            </p>
+            <p className="mt-1 text-sm text-muted-foreground">{configured ? "New inbox messages." : "Notification service is unavailable."}</p>
           </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Link
-            href="/workspace/notifications"
-            className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground no-underline transition-opacity hover:opacity-90"
-          >
-            Enable now
-          </Link>
-          <button
+          <Button asChild><Link href="/workspace/notifications">Enable</Link></Button>
+          <Button
             type="button"
+            variant="outline"
             onClick={() => {
               setDismissed(true);
               if (typeof window !== "undefined") {
                 window.localStorage.setItem(REMINDER_DISMISS_KEY, "true");
               }
             }}
-            className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
           >
             Not now
-          </button>
+          </Button>
         </div>
       </div>
     </div>

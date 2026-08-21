@@ -2,6 +2,7 @@
 
 import { apiUrl } from "@/lib/server-api";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
 export function CheckoutButton({ planKey, disabled = false }: { planKey: string; disabled?: boolean }) {
   const [loading, setLoading] = useState(false);
@@ -31,14 +32,14 @@ export function CheckoutButton({ planKey, disabled = false }: { planKey: string;
 
   return (
     <div className="mt-4">
-      <button
+      <Button
         type="button"
         disabled={disabled || loading}
         onClick={startCheckout}
-        className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+        className="w-full"
       >
         {loading ? "Opening checkout..." : disabled ? "Checkout unavailable" : "Choose plan"}
-      </button>
+      </Button>
       {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
     </div>
   );
