@@ -224,7 +224,7 @@ The following rules apply to every shared primitive, page pattern, and route:
 - [ ] Button and button variants.
   - [x] Ported from the reference implementation.
 - [ ] Inputs, textareas, selects, checkboxes, and field feedback.
-  - [x] Input and checkbox ported from the reference implementation.
+  - [x] Input, textarea, and checkbox ported from the reference implementation.
 - [ ] Cards, surfaces, dividers, badges, status indicators, and progress.
   - [x] Card, badge, skeleton, and progress ported from the reference implementation.
 - [ ] Tables, tabs, scroll areas, skeletons, and empty states.

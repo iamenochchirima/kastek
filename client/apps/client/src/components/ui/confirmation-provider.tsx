@@ -6,6 +6,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 
 type ConfirmOptions = {
   title: string
@@ -88,7 +89,7 @@ export function ConfirmationProvider({ children }: { children: React.ReactNode }
             </DialogHeader>
             <label className="mt-5 block space-y-2 text-sm font-medium text-foreground">
               <span>{promptOptions?.label}</span>
-              {promptOptions?.multiline ? <textarea autoFocus value={promptValue} onChange={(event) => setPromptValue(event.target.value)} placeholder={promptOptions.placeholder} className="border-input dark:bg-input/30 focus-visible:border-ring focus-visible:ring-ring/50 min-h-28 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]" /> : <Input autoFocus value={promptValue} onChange={(event) => setPromptValue(event.target.value)} placeholder={promptOptions?.placeholder} />}
+              {promptOptions?.multiline ? <Textarea autoFocus value={promptValue} onChange={(event) => setPromptValue(event.target.value)} placeholder={promptOptions.placeholder} className="min-h-28" /> : <Input autoFocus value={promptValue} onChange={(event) => setPromptValue(event.target.value)} placeholder={promptOptions?.placeholder} />}
             </label>
             <DialogFooter className="mt-6">
               <Button type="button" variant="outline" onClick={() => settlePrompt(null)}>Cancel</Button>
