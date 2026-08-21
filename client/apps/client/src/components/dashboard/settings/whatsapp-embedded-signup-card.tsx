@@ -421,30 +421,30 @@ export default function WhatsappEmbeddedSignupCard({
                   </p>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    type="button"
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => runHealthCheck(connection.id)}
-                    className="rounded-md border border-border px-2.5 py-1 text-xs text-foreground hover:border-primary/20"
                     disabled={healthLoadingId === connection.id}
                   >
                     {healthLoadingId === connection.id ? "Checking..." : "Check health"}
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => runConnectionAction(connection.id, "refresh")}
-                    className="rounded-md border border-border px-2.5 py-1 text-xs text-foreground hover:border-primary/20"
                     disabled={actionLoadingKey === `${connection.id}:refresh`}
                   >
                     {actionLoadingKey === `${connection.id}:refresh` ? "Refreshing..." : "Refresh"}
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => runConnectionAction(connection.id, "sync_templates")}
-                    className="rounded-md border border-border px-2.5 py-1 text-xs text-foreground hover:border-primary/20"
                     disabled={actionLoadingKey === `${connection.id}:sync_templates`}
                   >
                     {actionLoadingKey === `${connection.id}:sync_templates` ? "Syncing..." : "Sync templates"}
-                  </button>
+                  </Button>
                 </div>
                 {healthByConnectionId[connection.id] ? (
                   <div className="mt-3 space-y-1 rounded-lg border border-border bg-background/40 p-3 text-xs text-muted-foreground">
@@ -497,37 +497,37 @@ export default function WhatsappEmbeddedSignupCard({
                     <td className="px-3 py-2">{connection.verified ? "Yes" : "No"}</td>
                     <td className="px-3 py-2">{connection.dailyLimitEstimate || "-"}</td>
                     <td className="px-3 py-2">
-                      <button
-                        type="button"
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => runHealthCheck(connection.id)}
-                        className="rounded-md border border-border px-2.5 py-1 text-xs text-foreground hover:border-primary/20"
                         disabled={healthLoadingId === connection.id}
                       >
                         {healthLoadingId === connection.id ? "Checking..." : "Check health"}
-                      </button>
+                      </Button>
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => runConnectionAction(connection.id, "refresh")}
-                          className="rounded-md border border-border px-2.5 py-1 text-xs text-foreground hover:border-primary/20"
                           disabled={actionLoadingKey === `${connection.id}:refresh`}
                         >
                           {actionLoadingKey === `${connection.id}:refresh`
                             ? "Refreshing..."
                             : "Refresh"}
-                        </button>
-                        <button
-                          type="button"
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => runConnectionAction(connection.id, "sync_templates")}
-                          className="rounded-md border border-border px-2.5 py-1 text-xs text-foreground hover:border-primary/20"
                           disabled={actionLoadingKey === `${connection.id}:sync_templates`}
                         >
                           {actionLoadingKey === `${connection.id}:sync_templates`
                             ? "Syncing..."
                             : "Sync templates"}
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>

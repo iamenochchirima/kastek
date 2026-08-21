@@ -395,3 +395,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Migrated Agent run detail to the central Vantage page-header; lint and Webpack build passed. |
 | 2026-08-21 | Migrated Agent Workflow and Website Chat Appearance to the central Vantage page-header and concise UI copy; lint and Webpack build passed. |
 | 2026-08-21 | Migrated the WhatsApp manual connection setup and maintenance flow to shared Vantage inputs, textareas, and button variants; lint and Webpack build passed. |
+| 2026-08-21 | Migrated Meta Embedded Signup connection management actions to shared Vantage button variants; lint and Webpack build passed. |
