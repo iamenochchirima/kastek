@@ -401,6 +401,7 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Migrated Website Chat Appearance ordinary fields to shared Vantage Input, Textarea, and Checkbox primitives; lint and Webpack build passed. |
 | 2026-08-21 | Replaced the Posts stepped composer’s bespoke overlay with the shared Vantage Sheet primitive; lint and Webpack build passed. |
 | 2026-08-21 | Migrated Website Chat Appearance deployment and position selectors to the shared Vantage Select primitive; lint and Webpack build passed. |
+| 2026-08-21 | Refactored the embedded Agent Website Chat deployment appearance editor to use the shared Vantage Input, Select, Textarea, and Checkbox primitives; its color picker remains intentionally specialized. Lint and Webpack build passed. |
 | 2026-08-21 | Migrated standalone billing, sign-out, and notification-reminder actions to shared Vantage buttons; lint and Webpack build passed. |
 | 2026-08-21 | Replaced all client `<img>` use with `next/image`; authenticated/dynamic media paths use deliberate unoptimized rendering, lint is clean, and the Webpack build passed. |
 | 2026-08-21 | Removed unused legacy theme compatibility aliases and the final direct dependency on them; lint and Webpack build passed. |
