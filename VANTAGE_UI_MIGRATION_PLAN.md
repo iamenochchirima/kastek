@@ -408,3 +408,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Migrated Profile’s standard form and preview surfaces to the Vantage card radius; lint and Webpack build passed. |
 | 2026-08-21 | Migrated Campaign Create standard form surfaces to the Vantage card radius; lint and Webpack build passed. |
 | 2026-08-21 | Migrated Notification settings standard surfaces to the Vantage card radius; lint and Webpack build passed. |
+| 2026-08-21 | Migrated Workspace Team and organisation-create standard surfaces to the Vantage card radius; lint and Webpack build passed. |

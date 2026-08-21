@@ -143,7 +143,7 @@ export function TeamPageClient({
 
         {/* Invite form */}
         {canManage ? (
-          <section className="rounded-2xl border border-border bg-card p-5">
+          <section className="rounded-xl border border-border bg-card p-5">
             <h2 className="mb-1 text-base font-semibold text-foreground">Invite a team member</h2>
             <p className="mb-5 text-sm text-muted-foreground">
               They&apos;ll receive an email with a link to join this organisation.
@@ -170,7 +170,7 @@ export function TeamPageClient({
         ) : null}
 
         {/* Members */}
-        <section className="rounded-2xl border border-border bg-card">
+        <section className="rounded-xl border border-border bg-card">
           <div className="border-b border-border px-5 py-4">
             <h2 className="text-base font-semibold text-foreground">
               Members
@@ -272,7 +272,7 @@ export function TeamPageClient({
 
         {/* Pending invitations */}
         {canManage && pendingInvitations.length > 0 ? (
-          <section className="rounded-2xl border border-border bg-card">
+          <section className="rounded-xl border border-border bg-card">
             <div className="border-b border-border px-5 py-4">
               <h2 className="text-base font-semibold text-foreground">
                 Pending invitations
@@ -310,7 +310,7 @@ export function TeamPageClient({
 
         {/* Multiple orgs */}
         {orgs.length > 1 ? (
-          <section className="rounded-2xl border border-border bg-card p-5">
+          <section className="rounded-xl border border-border bg-card p-5">
             <h2 className="mb-3 text-base font-semibold text-foreground">Your organisations</h2>
             <div className="space-y-2">
               {orgs.map((o) => (

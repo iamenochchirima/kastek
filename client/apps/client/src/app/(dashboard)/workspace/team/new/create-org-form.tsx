@@ -58,7 +58,7 @@ export function CreateOrgForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-border bg-card p-6">
+    <form onSubmit={handleSubmit} className="space-y-5 rounded-xl border border-border bg-card p-6">
       <div className="space-y-2">
         <label className="text-sm font-medium text-foreground" htmlFor="org-name">
           Organisation name
