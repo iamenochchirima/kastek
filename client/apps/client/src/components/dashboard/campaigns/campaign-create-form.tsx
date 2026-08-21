@@ -1,6 +1,9 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { apiUrl } from "@/lib/server-api";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -283,10 +286,10 @@ export default function CampaignCreateForm({
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <label className="space-y-2 text-sm">
             <span className="text-muted-foreground">Campaign base name</span>
-            <input
+            <Input
               value={baseName}
               onChange={(event) => setBaseName(event.target.value)}
-              className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
+              className="bg-secondary"
               placeholder="website-outreach-kasitek"
             />
             <p className="text-xs text-muted-foreground">
@@ -296,80 +299,78 @@ export default function CampaignCreateForm({
 
           <label className="space-y-2 text-sm">
             <span className="text-muted-foreground">Connection</span>
-            <select
+            <Select
               value={connectionId}
-              onChange={(event) => {
-                setConnectionId(event.target.value);
+              onValueChange={(value) => {
+                setConnectionId(value);
                 setTemplateId("");
               }}
-              className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
             >
+              <SelectTrigger className="w-full bg-secondary"><SelectValue /></SelectTrigger><SelectContent>
               {connections.map((connection) => (
-                <option key={connection.id} value={connection.id}>
+                <SelectItem key={connection.id} value={connection.id}>
                   {connection.phoneDisplayNumber || connection.phoneNumberId}
-                </option>
+                </SelectItem>
               ))}
-            </select>
+              </SelectContent></Select>
           </label>
 
           <label className="space-y-2 text-sm">
             <span className="text-muted-foreground">Template</span>
-            <select
+            <Select
               value={templateId}
-              onChange={(event) => {
-                const nextTemplateId = event.target.value;
+              onValueChange={(nextTemplateId) => {
                 setTemplateId(nextTemplateId);
                 const template = availableTemplates.find((candidate) => candidate.id === nextTemplateId);
                 syncVariableMappings(template?.variablesCount || 0);
               }}
-              className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
             >
-              <option value="">Select an approved template</option>
+              <SelectTrigger className="w-full bg-secondary"><SelectValue placeholder="Select an approved template" /></SelectTrigger><SelectContent>
               {availableTemplates.map((template) => (
-                <option key={template.id} value={template.id}>
+                <SelectItem key={template.id} value={template.id}>
                   {template.templateName} ({template.connectionLabel})
-                </option>
+                </SelectItem>
               ))}
-            </select>
+              </SelectContent></Select>
           </label>
 
           <label className="space-y-2 text-sm">
             <span className="text-muted-foreground">Contact list</span>
-            <select
+            <Select
               value={listLabel}
-              onChange={(event) => {
-                setListLabel(event.target.value);
+              onValueChange={(value) => {
+                setListLabel(value);
                 setExcludedContactIds([]);
               }}
-              className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
             >
+              <SelectTrigger className="w-full bg-secondary"><SelectValue /></SelectTrigger><SelectContent>
               {lists.map((list) => (
-                <option key={list.label} value={list.label}>
+                <SelectItem key={list.label} value={list.label}>
                   {list.label} ({list.totalContacts})
-                </option>
+                </SelectItem>
               ))}
-            </select>
+              </SelectContent></Select>
           </label>
 
           <label className="space-y-2 text-sm">
             <span className="text-muted-foreground">How many to send now</span>
-            <input
+            <Input
               type="number"
               min={1}
               max={eligibleCount || 1}
               value={batchSize}
               onChange={(event) => setBatchSize(event.target.value)}
-              className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
+              className="bg-secondary"
             />
           </label>
 
           <label className="space-y-2 text-sm md:col-span-2">
             <span className="text-muted-foreground">Description</span>
-            <textarea
+            <Textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               rows={3}
-              className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
+              className="resize-y bg-secondary"
               placeholder="Internal note about this campaign."
             />
           </label>
@@ -420,10 +421,10 @@ export default function CampaignCreateForm({
                       className="grid gap-3 rounded-lg border border-border p-3 md:grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)]"
                     >
                       <div className="text-sm font-medium text-foreground">Variable {index + 1}</div>
-                      <select
+                      <Select
                         value={mapping.source}
-                        onChange={(event) => {
-                          const nextSource = event.target.value as "static" | "contact";
+                        onValueChange={(value) => {
+                          const nextSource = value as "static" | "contact";
                           setVariableMappings((current) => {
                             const next = [...current];
                             next[index] = {
@@ -433,32 +434,29 @@ export default function CampaignCreateForm({
                             return next;
                           });
                         }}
-                        className="rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                       >
-                        <option value="contact">Contact field</option>
-                        <option value="static">Static text</option>
-                      </select>
+                        <SelectTrigger className="bg-secondary"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="contact">Contact field</SelectItem><SelectItem value="static">Static text</SelectItem></SelectContent>
+                      </Select>
                       {mapping.source === "contact" ? (
-                        <select
+                        <Select
                           value={mapping.key}
-                          onChange={(event) => {
-                            const key = event.target.value;
+                          onValueChange={(key) => {
                             setVariableMappings((current) => {
                               const next = [...current];
                               next[index] = { source: "contact", key };
                               return next;
                             });
                           }}
-                          className="rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                         >
+                          <SelectTrigger className="bg-secondary"><SelectValue /></SelectTrigger><SelectContent>
                           {availableFieldOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
+                            <SelectItem key={option.value} value={option.value}>
                               {option.label}
-                            </option>
+                            </SelectItem>
                           ))}
-                        </select>
+                          </SelectContent></Select>
                       ) : (
-                        <input
+                        <Input
                           value={mapping.key}
                           onChange={(event) => {
                             const key = event.target.value;
@@ -468,7 +466,7 @@ export default function CampaignCreateForm({
                               return next;
                             });
                           }}
-                          className="rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
+                          className="bg-secondary"
                           placeholder="Static replacement text"
                         />
                       )}
@@ -508,11 +506,11 @@ export default function CampaignCreateForm({
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-3">
-            <input
+            <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search by name, phone, or field value"
-              className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground"
+              className="bg-secondary"
             />
             <div className="max-h-[420px] space-y-2 overflow-y-auto rounded-xl border border-border p-3">
               {searchableContacts.map((contact) => {

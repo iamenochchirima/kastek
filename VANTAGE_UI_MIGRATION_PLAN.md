@@ -416,3 +416,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Migrated the workflow editor’s add-step control, test input, and node-inspector fields to shared Vantage primitives while retaining its bespoke canvas interaction; lint and Webpack build passed. |
 | 2026-08-21 | Migrated Agent Detail identity, workspace-preference, model-policy, and instruction fields to shared Vantage form primitives; lint and Webpack build passed. |
 | 2026-08-21 | Migrated Agent Detail credential, resource-grant, knowledge, and schedule fields to shared Vantage inputs and textareas; concise unavailable state applied to website crawling. Lint and Webpack build passed. |
+| 2026-08-21 | Migrated Campaign Create setup, template-variable mapping, and recipient-search controls to shared Vantage primitives; lint and Webpack build passed. |
