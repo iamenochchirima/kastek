@@ -19,8 +19,7 @@ import {
   PageHeaderDescription,
   PageHeaderTitle,
 } from "@/components/ui/page-header";
-import { ArrowLeft, Bot, Info, MessageSquare, PlugZap, Sparkles, X } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { ArrowLeft, Bot, Info, MessageSquare, Sparkles, X } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -29,6 +28,7 @@ import { MotionReveal } from "@/components/ui/motion-reveal";
 import { AgentChatPanel } from "./agent-chat-panel";
 
 export type AgentListItem = AgentDefinition;
+export type AgentView = "agents" | "external";
 
 type SelectableTemplate = {
   value: string;
@@ -43,74 +43,45 @@ function statusClass(status: string) {
   return "border-border bg-secondary text-muted-foreground";
 }
 
-type AgentCardVariant = "platform" | "hosted" | "external";
-
 function agentExecutionMode(agent: AgentDefinition): NonNullable<AgentDefinition["execution_mode"]> {
   return agent.execution_mode ?? (agent.protected ? "system_hosted" : "kasitek_hosted");
 }
 
-function agentCardVariant(agent: AgentDefinition): AgentCardVariant {
-  const mode = agentExecutionMode(agent);
-  if (mode === "system_hosted") return "platform";
-  if (mode === "external_connected") return "external";
-  return "hosted";
+function isExternalAgent(agent: AgentDefinition): boolean {
+  return agentExecutionMode(agent) === "external_connected";
 }
 
 function modeLabel(agent: AgentDefinition): string {
-  const variant = agentCardVariant(agent);
-  if (variant === "platform") return "KasiAI";
-  if (variant === "external") return "External connected";
+  const mode = agentExecutionMode(agent);
+  if (mode === "system_hosted") return "KasiAI";
+  if (mode === "external_connected") return "External connected";
   return "KasiTek hosted";
 }
 
 function modeClass(agent: AgentDefinition): string {
-  const variant = agentCardVariant(agent);
-  if (variant === "external") return "border-status-info/30 bg-status-info-soft text-status-info";
-  if (variant === "platform") return "border-primary/20 bg-primary/10 text-primary";
+  const mode = agentExecutionMode(agent);
+  if (mode === "external_connected") return "border-status-info/30 bg-status-info-soft text-status-info";
+  if (mode === "system_hosted") return "border-primary/20 bg-primary/10 text-primary";
   return "border-border bg-secondary text-muted-foreground";
 }
 
 function creationProfileLabel(agent: AgentDefinition): string | null {
-  if (agentCardVariant(agent) !== "hosted") return null;
+  if (agentExecutionMode(agent) !== "kasitek_hosted") return null;
   return agent.creation_profile === "general" ? "General-purpose" : "Custom";
 }
-
-const agentVariantMeta: Record<AgentCardVariant, {
-  eyebrow: string;
-  fallbackDescription: string;
-  icon: LucideIcon;
-  iconClass: string;
-}> = {
-  platform: {
-    eyebrow: "Platform agent",
-    fallbackDescription: "KasiTek's protected platform guidance agent.",
-    icon: Sparkles,
-    iconClass: "bg-primary/15 text-primary ring-1 ring-primary/25",
-  },
-  hosted: {
-    eyebrow: "Hosted agent",
-    fallbackDescription: "Installed Agent Platform agent.",
-    icon: Bot,
-    iconClass: "bg-secondary text-muted-foreground ring-1 ring-border",
-  },
-  external: {
-    eyebrow: "Connected agent",
-    fallbackDescription: "Connected external agent.",
-    icon: PlugZap,
-    iconClass: "bg-status-info-soft text-status-info ring-1 ring-status-info/25",
-  },
-};
 
 export function AgentsPageClient({
   initialAgents,
   initialTemplates,
   initialTemplateKey,
+  initialView = "agents",
   agentsUnavailable = false,
   initialOperations = null,
 }: {
   initialAgents: AgentListItem[];
   initialTemplates: AgentTemplate[];
   initialTemplateKey?: string;
+  initialView?: AgentView;
   agentsUnavailable?: boolean;
   initialOperations?: AgentOperationsSummary | null;
 }) {
@@ -119,6 +90,7 @@ export function AgentsPageClient({
   const [createStep, setCreateStep] = useState<"type" | "custom">("type");
   const [chatAgent, setChatAgent] = useState<AgentDefinition | null>(null);
   const templates: SelectableTemplate[] = initialTemplates.map((template) => ({ value: template.key, label: template.name, description: template.description, available: true }));
+  const visibleAgents = initialAgents.filter((agent) => initialView === "external" ? isExternalAgent(agent) : !isExternalAgent(agent));
 
   const closeCreate = () => {
     setCreateOpen(false);
@@ -143,23 +115,40 @@ export function AgentsPageClient({
           </PageHeaderActions>
         </PageHeader>
 
-        {initialOperations ? <OperationsSummary summary={initialOperations} /> : null}
+        <nav aria-label="Agent views" className="flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-border bg-secondary/40 p-1">
+          <Link
+            href="/agents"
+            aria-current={initialView === "agents" ? "page" : undefined}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${initialView === "agents" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Agents
+          </Link>
+          <Link
+            href="/agents?view=external"
+            aria-current={initialView === "external" ? "page" : undefined}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${initialView === "external" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            External agents
+          </Link>
+        </nav>
+
+        {initialOperations && initialView === "agents" ? <OperationsSummary summary={initialOperations} /> : null}
 
         {agentsUnavailable ? (
           <Card><CardContent className="flex flex-col items-start gap-4 p-8"><Info className="h-7 w-7 text-status-attention" /><div><h2 className="text-xl font-semibold text-foreground">Agents are unavailable</h2><p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">The Agent Platform could not be reached. Your existing installations are unchanged; try refreshing in a moment.</p></div><Button type="button" variant="outline" onClick={() => router.refresh()}>Retry</Button></CardContent></Card>
-        ) : initialAgents.length ? (
+        ) : visibleAgents.length ? (
           <section className="grid gap-4 lg:grid-cols-2" aria-label="Installed agents">
-            {initialAgents.map((agent, index) => <AgentCard key={agent.id} agent={agent} onChanged={() => router.refresh()} onChat={() => setChatAgent(agent)} onOpenDetails={() => router.push(`/agents/${encodeURIComponent(agent.id)}`)} delay={0.08 + index * 0.06} />)}
+            {visibleAgents.map((agent, index) => <AgentCard key={agent.id} agent={agent} onChanged={() => router.refresh()} onChat={() => setChatAgent(agent)} onOpenDetails={() => router.push(`/agents/${encodeURIComponent(agent.id)}`)} delay={0.08 + index * 0.06} />)}
           </section>
         ) : (
           <Card>
             <CardContent className="flex flex-col items-start gap-4 p-8">
               <Sparkles className="h-7 w-7 text-primary" />
               <div>
-                <h2 className="text-xl font-semibold text-foreground">No installed agents yet</h2>
-                <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">Install KasiAi or choose an available template to get started.</p>
+                <h2 className="text-xl font-semibold text-foreground">{initialView === "external" ? "No external agents yet" : "No installed agents yet"}</h2>
+                <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">{initialView === "external" ? "External connections will appear here." : "Install KasiAI or choose an available template to get started."}</p>
               </div>
-              <Button type="button" onClick={() => { setCreateStep("type"); setCreateOpen(true); }}>Create agent</Button>
+              {initialView === "agents" ? <Button type="button" onClick={() => { setCreateStep("type"); setCreateOpen(true); }}>Create agent</Button> : null}
             </CardContent>
           </Card>
         )}
@@ -253,9 +242,8 @@ function OperationsSummary({ summary }: { summary: AgentOperationsSummary }) {
 }
 
 function AgentCard({ agent, onChanged, onChat, onOpenDetails, delay = 0 }: { agent: AgentDefinition; onChanged: () => void; onChat: () => void; onOpenDetails: () => void; delay?: number }) {
-  const variant = agentCardVariant(agent);
-  const meta = agentVariantMeta[variant];
-  const canChat = Boolean(agent.installation_id) && variant !== "external";
+  const isKasiAi = agentExecutionMode(agent) === "system_hosted";
+  const canChat = Boolean(agent.installation_id) && !isExternalAgent(agent);
   const [updating, setUpdating] = useState(false);
   const installationStatus = agent.installation_status ?? "disabled";
   const toggleStatus = async () => {
@@ -271,8 +259,7 @@ function AgentCard({ agent, onChanged, onChat, onOpenDetails, delay = 0 }: { age
   return (
     <MotionReveal delay={delay} hoverLift className="h-full">
     <Card
-      className="agent-card h-full cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      data-agent-kind={variant}
+      className={`h-full cursor-pointer transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isKasiAi ? "border-primary/45 bg-primary/[0.04]" : ""}`}
       role="button"
       tabIndex={0}
       aria-label={`Open ${agent.name}`}
@@ -288,16 +275,15 @@ function AgentCard({ agent, onChanged, onChat, onOpenDetails, delay = 0 }: { age
         }
       }}
     >
-      <CardContent className="relative z-10 space-y-5 p-5">
+      <CardContent className="space-y-5 p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
-            <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${meta.iconClass}`}>
-              <meta.icon className="h-5 w-5" />
+            <div className="grid h-11 w-11 place-items-center rounded-full bg-primary/10 text-primary">
+              {isKasiAi ? <Sparkles className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
             </div>
             <div>
-              <p className={`v-label ${variant === "platform" ? "text-primary" : variant === "external" ? "text-status-info" : ""}`}>{meta.eyebrow}</p>
-              <h2 className="mt-1 text-lg font-semibold text-foreground">{agent.name}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">{agent.description || meta.fallbackDescription}</p>
+              <h2 className="text-lg font-semibold text-foreground">{agent.name}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{agent.description || "Installed Agent Platform agent"}</p>
             </div>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
@@ -313,9 +299,9 @@ function AgentCard({ agent, onChanged, onChat, onOpenDetails, delay = 0 }: { age
         </div>
         <div className="flex flex-wrap gap-2">
           {canChat ? <Button type="button" size="sm" onClick={onChat}><MessageSquare className="mr-1.5 h-3.5 w-3.5" />Chat</Button> : null}
-          {variant !== "platform" ? (
+          {!isKasiAi ? (
             <Button type="button" variant="outline" size="sm" disabled={!agent.installation_id || updating} onClick={() => void toggleStatus()}>
-              {updating ? "Updating…" : installationStatus === "active" ? variant === "external" ? "Pause connection" : "Pause agent" : variant === "external" ? "Resume connection" : "Resume agent"}
+              {updating ? "Updating…" : installationStatus === "active" ? "Pause agent" : "Resume agent"}
             </Button>
           ) : null}
         </div>

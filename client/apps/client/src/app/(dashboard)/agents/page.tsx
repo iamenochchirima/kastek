@@ -3,6 +3,7 @@ import { fetchRustJson } from "@/lib/rust-server-api";
 import { redirect } from "next/navigation";
 import {
   AgentsPageClient,
+  type AgentView,
   type AgentListItem,
 } from "@/components/dashboard/agents/agents-page-client";
 import type { AgentOperationsSummary, AgentTemplate } from "@/lib/agent-platform";
@@ -14,11 +15,12 @@ export const metadata = {
 export default async function AgentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ template?: string }>;
+  searchParams: Promise<{ template?: string; view?: string }>;
 }) {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
-  const { template } = await searchParams;
+  const { template, view } = await searchParams;
+  const initialView: AgentView = view === "external" ? "external" : "agents";
 
   await fetchRustJson<{ id: string }>("/api/agents/kasiai/ensure", {
     method: "POST",
@@ -35,6 +37,7 @@ export default async function AgentsPage({
       initialAgents={agentResult.value.agents}
       initialTemplates={templates.templates}
       initialTemplateKey={template}
+      initialView={initialView}
       agentsUnavailable={agentResult.unavailable}
       initialOperations={operations}
     />
