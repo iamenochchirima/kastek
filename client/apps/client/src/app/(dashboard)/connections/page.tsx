@@ -5,6 +5,12 @@ import type { WhatsappConnectionView, WorkspaceConnection } from "@/lib/connecti
 import { getRustSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
 import { redirect } from "next/navigation";
+import {
+  PageHeader,
+  PageHeaderContent,
+  PageHeaderDescription,
+  PageHeaderTitle,
+} from "@/components/ui/page-header";
 
 export const metadata = {
   title: "Connections | KasiTek",
@@ -31,15 +37,14 @@ export default async function ConnectionsPage({
   ]);
 
   return (
-    <div className="min-h-screen p-6 lg:p-8">
-      <div className="mx-auto max-w-[1600px] space-y-6">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Connections</h1>
-          <p className="mt-2 max-w-2xl text-muted-foreground">
-            Connect the external accounts your workspace uses. A connection can support Inbox,
-            campaigns, agents, and social publishing according to your workspace access.
-          </p>
-        </div>
+    <div className="min-h-screen p-4 sm:p-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
+        <PageHeader>
+          <PageHeaderContent>
+            <PageHeaderTitle>Connections</PageHeaderTitle>
+            <PageHeaderDescription>Connected workspace accounts.</PageHeaderDescription>
+          </PageHeaderContent>
+        </PageHeader>
 
         {params.connected === "meta" && params.instagram_count === "0" ? (
           <div className="flex items-start justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">

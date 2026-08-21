@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { WorkspaceConnection } from "@/lib/connections";
 import { apiUrl } from "@/lib/server-api";
 import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icons";
@@ -366,22 +367,15 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
         )}
       </section>
 
-      {threadsConnectPath ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="threads-connect-title">
-          <button
-            type="button"
-            className="absolute inset-0 bg-overlay"
-            onClick={() => setThreadsConnectPath(null)}
-            aria-label="Close Threads connection dialog"
-          />
-          <div className="relative w-full max-w-md space-y-5 rounded-xl border border-border bg-card p-6 shadow-xl">
-            <div className="space-y-2">
-              <h2 id="threads-connect-title" className="text-lg font-semibold">Before connecting Threads</h2>
-              <p className="text-sm text-muted-foreground">
+      <Dialog open={Boolean(threadsConnectPath)} onOpenChange={(open) => !open && setThreadsConnectPath(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Before connecting Threads</DialogTitle>
+              <DialogDescription>
                 Make sure you are already signed in to Threads in this browser.
-              </p>
-            </div>
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
               <Button variant="ghost" onClick={() => setThreadsConnectPath(null)}>Cancel</Button>
               <Button variant="outline" asChild>
                 <a href="https://www.threads.com/" target="_blank" rel="noreferrer">Open Threads</a>
@@ -389,14 +383,13 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
               <Button onClick={() => {
                 const path = threadsConnectPath;
                 setThreadsConnectPath(null);
-                startOAuthConnection(path);
+                if (path) startOAuthConnection(path);
               }}>
                 I&apos;m signed in — Continue
               </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+            </DialogFooter>
+          </DialogContent>
+      </Dialog>
 
       <Sheet
         open={connectionPicker !== null}

@@ -299,7 +299,7 @@ interactive states have been checked where applicable.
 | Content | calendar, analytics, posts, and post detail | In progress | Calendar and Analytics now use the central page-header, concise content hierarchy, `1440px` content density, and shared controls/tabs. Posts and post detail use the same header/density and shared actions. Post deletion now uses the central accessible dialog while retaining its two product scopes. Composer overlays and visual review remain pending. |
 | Campaigns | WhatsApp templates | In progress | Replaced the legacy rounded primary and ad-hoc action buttons with shared Vantage button variants; template create/sync feedback now uses the global toast API. The template form uses shared input, textarea, and accessible select primitives, while both bespoke overlays now use the shared dialog implementation. Full campaign-area hierarchy and visual review remain pending. |
 | Agents | list and detail | In progress | The list now uses the central header, `1440px` content density, concise copy, and shared accessible dialogs for creation and template selection. Agent Detail's permanent deletion uses the shared accessible dialog and typed confirmation. Its remaining identity, knowledge, website chat, activity, workflow, appearance, connect, templates, and analytics surfaces remain pending. |
-| Connections | connections and WhatsApp onboarding | Not started | |
+| Connections | connections | In progress | The Connections page uses the central header and `1440px` content density. The Threads sign-in reminder now uses the shared accessible dialog. WhatsApp setup/onboarding and visual review remain pending. |
 | Developers | developer portal and subroutes | Not started | |
 | Billing | billing and usage | Not started | |
 | Entry surfaces | auth, onboarding, invitations, offline | Not started | |
@@ -372,3 +372,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Migrated Post Detail to the central header/density and shared destructive dialog; lint and Webpack build passed. |
 | 2026-08-21 | Began Agents migration with the list: central page header and shared accessible create/template dialogs; lint and Webpack build passed. |
 | 2026-08-21 | Migrated Agent Detail's permanent deletion workflow to the shared dialog and input primitives while retaining typed confirmation; lint and Webpack build passed. |
+| 2026-08-21 | Began Connections migration with the central page header and the shared Threads pre-connection dialog; lint and Webpack build passed. |
