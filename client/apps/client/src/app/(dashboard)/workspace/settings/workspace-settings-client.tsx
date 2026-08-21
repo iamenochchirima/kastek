@@ -4,7 +4,7 @@ import type { Org } from "@/lib/orgs";
 import type { BillingSummary, AvailablePlan } from "@/lib/billing";
 import { apiUrl } from "@/lib/server-api";
 import { cn } from "@/lib/utils";
-import { Bell, Building2, CreditCard, Palette, SlidersHorizontal } from "lucide-react";
+import { Bell, Building2, CreditCard, Palette, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -13,15 +13,27 @@ import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { AppearancePanel } from "@/components/dashboard/settings/appearance-panel";
 import { WorkspaceNotificationsPanel } from "@/components/dashboard/settings/workspace-notifications-panel";
 import { BillingPanel } from "@/components/dashboard/billing/billing-panel";
+import ProfileForm from "@/components/dashboard/profile/profile-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { VANTAGE_EXPO, VANTAGE_MOTION, VANTAGE_SELECTION_SPRING } from "@/lib/motion";
 import { useAppearance } from "@/lib/appearance";
 
-export type LocalSettingsTab = "general" | "organization" | "appearance" | "notifications" | "billing";
+export type LocalSettingsTab = "profile" | "organization" | "appearance" | "notifications" | "billing";
+
+export type WorkspaceProfile = {
+  user: {
+    name: string | null;
+    email: string | null;
+    emailVerified: string | null;
+    phone: string | null;
+    image: string | null;
+  };
+  hasPassword: boolean;
+};
 
 const SETTINGS_LINKS = [
-  { id: "general", label: "General", icon: SlidersHorizontal },
+  { id: "profile", label: "Profile", icon: UserRound },
   { id: "organization", label: "Organization", icon: Building2 },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "notifications", label: "Notifications", icon: Bell },
@@ -31,6 +43,7 @@ const SETTINGS_LINKS = [
 export function WorkspaceSettingsClient({
   org,
   canManage,
+  profile,
   initialTab,
   billingSummary,
   billingPlans,
@@ -38,6 +51,7 @@ export function WorkspaceSettingsClient({
 }: {
   org: Org;
   canManage: boolean;
+  profile: WorkspaceProfile;
   initialTab: LocalSettingsTab;
   billingSummary: BillingSummary | null;
   billingPlans: { plans: AvailablePlan[] };
@@ -53,7 +67,7 @@ export function WorkspaceSettingsClient({
 
   function selectTab(nextTab: LocalSettingsTab) {
     setTab(nextTab);
-    const query = nextTab === "general" ? "" : `?section=${nextTab}`;
+    const query = `?section=${nextTab}`;
     router.push(`/workspace/settings${query}`, { scroll: false });
   }
 
@@ -88,7 +102,7 @@ export function WorkspaceSettingsClient({
       <div className="mx-auto max-w-[1440px]">
         <header>
           <h1 className="text-[24px] font-semibold leading-8 tracking-[-0.02em] text-foreground">Settings</h1>
-          <p className="mt-1 text-[13px] text-muted-foreground">Manage your organization, appearance, notifications, and billing.</p>
+          <p className="mt-1 text-[13px] text-muted-foreground">Manage your profile, organization, appearance, notifications, and billing.</p>
         </header>
 
         <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-start">
@@ -114,7 +128,16 @@ export function WorkspaceSettingsClient({
           <div className="min-w-0 w-full max-w-[760px] flex-1">
             <AnimatePresence initial={false} mode="wait">
             <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: VANTAGE_MOTION.shell / 1000, ease: VANTAGE_EXPO }}>
-            {tab === "appearance" ? <AppearancePanel /> : tab === "notifications" ? <WorkspaceNotificationsPanel /> : tab === "billing" ? <BillingPanel embedded summary={billingSummary} planResponse={billingPlans} query={billingQuery} /> : tab === "organization" ? (
+            {tab === "profile" ? (
+              <div className="space-y-5">
+                <ProfileForm user={{ ...profile.user, emailVerified: !!profile.user.emailVerified, hasPassword: profile.hasPassword }} />
+                <section className="v-settings-card rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
+                  <h2 className="text-base font-semibold text-foreground">Workspace access</h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Manage the people in this workspace.</p>
+                  <Button asChild variant="outline" className="mt-4"><Link href="/workspace/team">Team</Link></Button>
+                </section>
+              </div>
+            ) : tab === "appearance" ? <AppearancePanel /> : tab === "notifications" ? <WorkspaceNotificationsPanel /> : tab === "billing" ? <BillingPanel embedded summary={billingSummary} planResponse={billingPlans} query={billingQuery} /> : tab === "organization" ? (
               <section className="v-settings-card rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
                 <h2 className="text-base font-semibold text-foreground">Organization settings</h2>
                 <p className="mt-0.5 text-xs text-muted-foreground">Manage the identity shown across KasiTek.</p>
@@ -125,18 +148,7 @@ export function WorkspaceSettingsClient({
                 </div>
                 {canManage ? <Button type="button" onClick={save} disabled={saving || !name.trim()} className="mt-5">{saving ? "Saving…" : "Save changes"}</Button> : null}
               </section>
-            ) : (
-              <div className="flex flex-col gap-5">
-                <section className="v-settings-card rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
-                  <h2 className="text-base font-semibold text-foreground">Workspace access</h2>
-                  <p className="mt-0.5 text-xs text-muted-foreground">Manage people and your personal profile.</p>
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <Button asChild variant="outline"><Link href="/workspace/profile">Profile</Link></Button>
-                    <Button asChild variant="outline"><Link href="/workspace/team">Team</Link></Button>
-                  </div>
-                </section>
-              </div>
-            )}
+            ) : null}
             </motion.div>
             </AnimatePresence>
           </div>

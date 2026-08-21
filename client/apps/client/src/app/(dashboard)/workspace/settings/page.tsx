@@ -1,8 +1,9 @@
 import { getRustSession } from "@/lib/rust-auth";
 import { fetchOrgs, fetchOrgMembers, getActiveOrgId, type Org } from "@/lib/orgs";
 import { fetchBillingPlans, fetchBillingSummary } from "@/lib/billing";
+import { fetchRustJson } from "@/lib/rust-server-api";
 import { redirect } from "next/navigation";
-import { WorkspaceSettingsClient } from "./workspace-settings-client";
+import { WorkspaceSettingsClient, type WorkspaceProfile } from "./workspace-settings-client";
 
 export const metadata = { title: "Settings | KasiTek" };
 
@@ -27,15 +28,17 @@ export default async function WorkspaceSettingsPage({
   const activeId = await getActiveOrgId();
   const org: Org | undefined = (activeId ? orgs.find((item) => item.id === activeId) : undefined) ?? orgs[0];
   if (!org) redirect("/workspace");
-  const [members, billingSummary, billingPlans] = await Promise.all([
+  const [members, billingSummary, billingPlans, profile] = await Promise.all([
     fetchOrgMembers(org.id).catch(() => []),
     fetchBillingSummary().catch(() => null),
     fetchBillingPlans().catch(() => ({ plans: [] })),
+    fetchRustJson<WorkspaceProfile>("/api/profile").catch(() => null),
   ]);
+  if (!profile?.user) redirect("/login");
   const role = members.find((member) => member.userId === session.user.id)?.role ?? "MEMBER";
-  const initialTab = ["organization", "appearance", "notifications", "billing"].includes(sectionValue ?? "")
-    ? sectionValue as "organization" | "appearance" | "notifications" | "billing"
-    : "general";
+  const initialTab = ["profile", "organization", "appearance", "notifications", "billing"].includes(sectionValue ?? "")
+    ? sectionValue as "profile" | "organization" | "appearance" | "notifications" | "billing"
+    : "profile";
   const query = {
     payment: Array.isArray(payment) ? payment[0] : payment,
     reference: Array.isArray(reference) ? reference[0] : reference,
@@ -46,6 +49,7 @@ export default async function WorkspaceSettingsPage({
     <WorkspaceSettingsClient
       org={org}
       canManage={role === "OWNER" || role === "ADMIN"}
+      profile={profile}
       initialTab={initialTab}
       billingSummary={billingSummary}
       billingPlans={billingPlans}

@@ -438,10 +438,11 @@ all implementation and verification items above are complete:
 - KasiAi settings now use a horizontal navigation rail below 480px and stack
   WhatsApp pairing controls on phone widths; desktop retains the Vantage side
   rail. The selected settings section exposes semantic active state.
-- Workspace Settings now keeps General, Organization, Appearance, Notifications,
-  and Billing in one tab composition. General contains profile/team access;
-  Organization owns the existing admin/owner-protected name/logo form and its
-  real organization update API. Notifications use a Vantage-style
+- Workspace Settings now keeps Profile, Organization, Appearance,
+  Notifications, and Billing in one tab composition. Profile embeds the
+  existing personal details, email, and password forms and retains the Team
+  access link; Organization owns the existing admin/owner-protected name/logo
+  form and its real organization update API. Notifications use a Vantage-style
   category/channel panel backed by browser-local personal preferences while
   retaining the real push and desktop inbox controls; billing reuses its
   existing server actions. API-key management remains under Developers. The
