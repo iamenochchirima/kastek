@@ -29,7 +29,38 @@ function excerpt(post: SocialPost) {
 
 function SocialPostsTable({ posts }: { posts: SocialPost[] }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-border/70">
+    <div className="rounded-xl border border-border/70">
+      <div className="space-y-2 p-3 md:hidden">
+        {posts.map((post) => {
+          const status = getPostStatusMeta(post.status);
+          const StatusIcon = status.icon;
+          const publishedJobs = post.publishJobs?.filter((job) => job.status === "PUBLISHED").length || 0;
+
+          return (
+            <Link
+              key={post.id}
+              href={`/content/posts/${encodeURIComponent(post.id)}`}
+              className="block rounded-lg border border-border bg-card p-3 transition-colors hover:border-foreground/30 hover:bg-secondary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-foreground">{post.title || "Untitled social post"}</p>
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{excerpt(post)}</p>
+                </div>
+                <ArrowUpRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Badge className={status.className}><StatusIcon className="mr-1 h-3.5 w-3.5" />{status.label}</Badge>
+                <span className="text-xs text-muted-foreground">{post.publishedAt ? formatDateTime(post.publishedAt) : "Not published"}</span>
+                {publishedJobs ? <span className="text-xs text-muted-foreground">{publishedJobs} published</span> : null}
+              </div>
+              {post.channels.length ? <div className="mt-2 flex flex-wrap gap-1.5">{post.channels.map((platform) => { const Icon = getPlatformIcon(platform); return <span key={platform} className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] ${getPlatformTone(platform)}`}><Icon className={`size-3 ${getPlatformIconClass(platform)}`} />{getPlatformLabel(platform)}</span>; })}</div> : null}
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
       <table className="w-full min-w-[760px] border-collapse text-left text-sm">
         <thead className="bg-secondary/30 text-xs uppercase tracking-[0.12em] text-muted-foreground">
           <tr>
@@ -81,6 +112,7 @@ function SocialPostsTable({ posts }: { posts: SocialPost[] }) {
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
