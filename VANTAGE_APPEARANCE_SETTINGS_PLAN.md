@@ -420,6 +420,9 @@ all implementation and verification items above are complete:
 - Agent knowledge-source editing now uses `svh` sizing, and the embedded test
   chat lowers its minimum height on phones while retaining the desktop height
   from the `sm` breakpoint upward.
+- Product Tour now focuses its dialog when opened or advanced, restores the
+  invoking control when dismissed, and uses the shared shell motion duration.
+  Escape dismissal remains available.
 - The route implementation pass now covers the remaining workspace, customer,
   content, campaign, automation, and connection surfaces with `100dvh` roots,
   Vantage entrance treatment, mobile stacking/overflow rules, and
