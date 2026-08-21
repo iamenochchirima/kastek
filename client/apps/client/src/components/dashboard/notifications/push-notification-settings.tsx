@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiUrl } from "@/lib/server-api";
+import { Button } from "@/components/ui/button";
 import {
   fetchPushStatus,
   getLocalPushSupport,
@@ -192,30 +193,26 @@ export default function PushNotificationSettings() {
         </div>
 
         <div className="mt-5 flex flex-wrap gap-3">
-          <button
-            type="button"
+          <Button
             onClick={subscribe}
             disabled={busyAction !== null || !status?.configured}
-            className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {busyAction === "subscribe" ? "Enabling..." : "Enable notifications"}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="outline"
             onClick={unsubscribe}
             disabled={busyAction !== null}
-            className="rounded-full border border-border px-4 py-2 text-sm font-medium text-foreground transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
           >
             {busyAction === "unsubscribe" ? "Disabling..." : "Disable on this device"}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="outline"
             onClick={sendTest}
             disabled={busyAction !== null || !status?.subscribed}
-            className="rounded-full border border-border px-4 py-2 text-sm font-medium text-foreground transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
           >
             {busyAction === "test" ? "Sending..." : "Send test notification"}
-          </button>
+          </Button>
         </div>
 
         {message ? <p className="mt-4 text-sm text-status-success">{message}</p> : null}
