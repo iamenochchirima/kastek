@@ -293,7 +293,6 @@ function AgentCard({ agent, onChanged, onChat, onOpenDetails, delay = 0 }: { age
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-          <span>Slug: {agent.slug}</span>
           <span>Created {new Date(agent.created_at).toLocaleDateString()}</span>
           {agent.version_number ? <span>Version {agent.version_number}</span> : null}
         </div>
