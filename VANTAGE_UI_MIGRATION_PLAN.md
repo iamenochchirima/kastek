@@ -338,6 +338,8 @@ interactive states have been checked where applicable.
 | Cross-cutting UX | Accessibility, data visualization, motion, layering, errors, performance, and visual regression are migration contracts, not later polish. | KasiTek team | Decided |
 | Design review | Every migrated surface must be reassessed around the user's primary task, hierarchy, disclosure, actions, responsive behavior, shared patterns, and non-happy-path states. | KasiTek team | Decided |
 | Migration cleanup | Each completed wave fully replaces the previous visual implementation. Do not retain legacy styling fallbacks, duplicate primitives, aliases, imports, dependencies, or dead UI code. | KasiTek team | Decided |
+| Fixed colours | Reserve fixed colours for third-party brand marks and rendered product previews (such as Website Chat and the workflow canvas). General app surfaces, feedback, and statuses must use semantic Vantage tokens. | KasiTek team | Decided |
+| Native controls | The remaining direct controls are intentionally specialized: file pickers, chat composers, and the Website Chat color input. Ordinary form controls use shared primitives. | KasiTek team | Decided |
 | Component catalogue | Decide whether a dedicated component preview/visual-regression setup is needed after foundation work begins. | KasiTek team | Open |
 
 ## Change log
@@ -405,6 +407,7 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Replaced the Product Tour's hand-styled action controls with shared Vantage button variants; lint and Webpack build passed. |
 | 2026-08-21 | Migrated the root workspace-access route from a hard-coded light-only palette to semantic Vantage theme tokens and shared action buttons; lint and Webpack build passed. |
 | 2026-08-21 | Replaced hard-coded connection success, warning, and information treatments with shared semantic Vantage status tokens; lint and Webpack build passed. |
+| 2026-08-21 | Audited remaining fixed colours and direct controls: only product-preview, third-party-brand, file-picker, chat-composer, and color-picker exceptions remain; all are recorded as intentional adaptations. |
 | 2026-08-21 | Migrated standalone billing, sign-out, and notification-reminder actions to shared Vantage buttons; lint and Webpack build passed. |
 | 2026-08-21 | Replaced all client `<img>` use with `next/image`; authenticated/dynamic media paths use deliberate unoptimized rendering, lint is clean, and the Webpack build passed. |
 | 2026-08-21 | Removed unused legacy theme compatibility aliases and the final direct dependency on them; lint and Webpack build passed. |
