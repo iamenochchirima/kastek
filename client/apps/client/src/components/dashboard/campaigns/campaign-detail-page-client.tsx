@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { apiUrl } from "@/lib/server-api";
 import type { WhatsappRealtimeEvent } from "@/lib/whatsapp/types";
@@ -1053,20 +1054,17 @@ export default function CampaignDetailPageClient({
             </div>
           </CardContent>
         </Card>
-        {previewRecipient ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-4 py-8">
-            <div className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-2xl border border-border bg-background shadow-2xl">
+        <Dialog open={Boolean(previewRecipient)} onOpenChange={(open) => { if (!open) setPreviewRecipient(null); }}>
+          {previewRecipient ? (
+            <DialogContent className="max-h-[calc(100svh-2rem)] max-w-4xl overflow-auto p-0">
               <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
-                <div>
-                  <h2 className="text-2xl font-semibold text-foreground">Template preview</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                <DialogHeader>
+                  <DialogTitle>Template preview</DialogTitle>
+                  <DialogDescription>
                     {previewRecipient.contactFullName || previewRecipient.contactPhone} · {liveCampaign.templateName} ·{" "}
                     {liveCampaign.templateLanguage}
-                  </p>
-                </div>
-                <Button variant="outline" onClick={() => setPreviewRecipient(null)}>
-                  Close
-                </Button>
+                  </DialogDescription>
+                </DialogHeader>
               </div>
 
               <div className="space-y-6 px-6 py-5">
@@ -1135,23 +1133,20 @@ export default function CampaignDetailPageClient({
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        ) : null}
-        {errorPreviewRecipient ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-4 py-8">
-            <div className="w-full max-w-2xl rounded-2xl border border-border bg-background shadow-2xl">
+            </DialogContent>
+          ) : null}
+        </Dialog>
+        <Dialog open={Boolean(errorPreviewRecipient)} onOpenChange={(open) => { if (!open) setErrorPreviewRecipient(null); }}>
+          {errorPreviewRecipient ? (
+            <DialogContent className="max-w-2xl p-0">
               <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
-                <div>
-                  <h2 className="text-2xl font-semibold text-foreground">Delivery failure</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                <DialogHeader>
+                  <DialogTitle>Delivery failure</DialogTitle>
+                  <DialogDescription>
                     {errorPreviewRecipient.contactFullName || errorPreviewRecipient.contactPhone} ·{" "}
                     {errorPreviewRecipient.contactPhone}
-                  </p>
-                </div>
-                <Button variant="outline" onClick={() => setErrorPreviewRecipient(null)}>
-                  Close
-                </Button>
+                  </DialogDescription>
+                </DialogHeader>
               </div>
 
               <div className="space-y-4 px-6 py-5">
@@ -1180,23 +1175,20 @@ export default function CampaignDetailPageClient({
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        ) : null}
-        {sendMoreOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-4 py-8">
-            <div className="max-h-[90vh] w-full max-w-5xl overflow-auto rounded-2xl border border-border bg-background p-6">
+            </DialogContent>
+          ) : null}
+        </Dialog>
+        <Dialog open={sendMoreOpen} onOpenChange={setSendMoreOpen}>
+          {sendMoreOpen ? (
+            <DialogContent className="max-h-[calc(100svh-2rem)] max-w-5xl overflow-auto p-6">
               <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-semibold text-foreground">Send more: {liveCampaign.name}</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                <DialogHeader>
+                  <DialogTitle>Send more: {liveCampaign.name}</DialogTitle>
+                  <DialogDescription>
                     Locked list: {liveCampaign.listLabel || "default"} · Already sent: {effectiveCampaign.sentCount} · Delivered:{" "}
                     {effectiveCampaign.deliveredCount} · Read: {effectiveCampaign.readCount}
-                  </p>
-                </div>
-                <Button variant="outline" onClick={() => setSendMoreOpen(false)}>
-                  Close
-                </Button>
+                  </DialogDescription>
+                </DialogHeader>
               </div>
 
               <div className="mt-5 grid gap-4 md:grid-cols-4">
@@ -1315,9 +1307,9 @@ export default function CampaignDetailPageClient({
                   {loadingAction === "send_more" ? "Queueing..." : "Send next batch"}
                 </Button>
               </div>
-            </div>
-          </div>
-        ) : null}
+            </DialogContent>
+          ) : null}
+        </Dialog>
       </div>
     </div>
   );
