@@ -3,6 +3,7 @@
 import { apiUrl } from "@/lib/server-api";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
 type WhatsappConnectionView = {
   id: string;
@@ -374,14 +375,12 @@ export default function WhatsappEmbeddedSignupCard({
           </p>
         </div>
 
-        <button
-          type="button"
+        <Button
           onClick={startEmbeddedSignup}
           disabled={loading || !sdkReady || envMissing.length > 0}
-          className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-60 disabled:hover:translate-y-0"
         >
           {loading ? "Connecting..." : connections.length ? "Connect Another" : "Connect WhatsApp"}
-        </button>
+        </Button>
       </div>
 
       {error && (

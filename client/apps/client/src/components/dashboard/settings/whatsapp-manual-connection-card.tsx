@@ -3,6 +3,7 @@
 import { apiUrl } from "@/lib/server-api";
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
 type WhatsappConnectionView = {
   id: string;
@@ -267,14 +268,12 @@ export default function WhatsappManualConnectionCard({
           </div>
 
           <div className="mt-5 flex justify-end">
-            <button
-              type="button"
+            <Button
               onClick={connectManually}
               disabled={loading || !wabaId.trim() || !phoneNumberId.trim() || !accessToken.trim()}
-              className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
             >
               {loading ? "Connecting..." : "Connect WhatsApp"}
-            </button>
+            </Button>
           </div>
         </div>
       ) : mode === "maintenance" ? (
@@ -287,13 +286,11 @@ export default function WhatsappManualConnectionCard({
                 numbers that are already connected.
               </p>
             </div>
-            <button
-              type="button"
+            <Button
               onClick={() => setShowSetupForm(true)}
-              className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
             >
               Connect another number
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}
@@ -403,17 +400,15 @@ export default function WhatsappManualConnectionCard({
                         className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground"
                       />
                       <div className="flex justify-end">
-                        <button
-                          type="button"
+                        <Button
                           onClick={() => updateAccessToken(connection.id)}
                           disabled={
                             tokenUpdateLoadingId === connection.id ||
                             !updatedAccessToken.trim()
                           }
-                          className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {tokenUpdateLoadingId === connection.id ? "Updating..." : "Save new token"}
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   ) : null}
@@ -538,19 +533,17 @@ export default function WhatsappManualConnectionCard({
                             />
 
                             <div className="flex justify-end">
-                              <button
-                                type="button"
+                              <Button
                                 onClick={() => updateAccessToken(connection.id)}
                                 disabled={
                                   tokenUpdateLoadingId === connection.id ||
                                   !updatedAccessToken.trim()
                                 }
-                                className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 {tokenUpdateLoadingId === connection.id
                                   ? "Updating..."
                                   : "Save new token"}
-                              </button>
+                              </Button>
                             </div>
                           </div>
                         </td>
