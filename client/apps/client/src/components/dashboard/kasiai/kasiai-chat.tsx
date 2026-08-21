@@ -1217,6 +1217,7 @@ export function KasiAiChat({
       )}
       style={{ width: `min(${width}px, 100vw)` }}
       role="dialog"
+      aria-modal="true"
       aria-label="KasiAi"
     >
       <div

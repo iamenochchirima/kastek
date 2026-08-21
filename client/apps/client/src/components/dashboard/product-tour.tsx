@@ -86,6 +86,17 @@ export function ProductTour({ status }: { status: ProductTourStatus | null }) {
     return () => window.removeEventListener("kasitek:restart-product-tour", restart);
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      void updateTour("dismiss", stepIndex).catch(() => undefined);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [open, stepIndex]);
+
   if (!open || !step) return null;
   const isLast = stepIndex === steps.length - 1;
   const viewportHeight = typeof window === "undefined" ? 800 : window.innerHeight;

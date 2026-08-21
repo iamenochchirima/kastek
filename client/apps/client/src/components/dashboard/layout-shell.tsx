@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import {
   Bell,
@@ -386,6 +386,7 @@ function NavigationSection({
             href={href}
             data-tour={tourTarget(item.href)}
             onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
             aria-label={collapsed ? item.name : undefined}
             title={collapsed ? item.name : undefined}
             className={cn(
@@ -564,6 +565,7 @@ function SidebarContent({
           <DropdownMenuTrigger asChild>
             <button
               data-tour="profile"
+              aria-label="Account menu"
               className={cn(
                 "flex min-h-9 w-full items-center rounded-md text-[13px] font-normal leading-5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
                 collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
@@ -745,6 +747,8 @@ export function LayoutShell({
           <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
             <MobileTopbar sectionLabel={sectionLabel} user={user} onOpenCommand={() => setCommandOpen(true)} />
             <SheetContent side="left" className="w-64 p-0">
+              <SheetTitle className="sr-only">Workspace navigation</SheetTitle>
+              <SheetDescription className="sr-only">Navigate between KasiTek workspace sections.</SheetDescription>
               <SidebarContent
                 collapsed={false}
                 user={user}
