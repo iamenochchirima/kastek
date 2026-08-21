@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -18,12 +19,13 @@ import {
   PageHeaderDescription,
   PageHeaderTitle,
 } from "@/components/ui/page-header";
-import { ArrowLeft, Bot, Info, MessageSquare, Sparkles } from "lucide-react";
+import { ArrowLeft, Bot, Info, MessageSquare, Sparkles, X } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { setAgentInstallationStatus, type AgentDefinition, type AgentOperationsSummary, type AgentTemplate } from "@/lib/agent-platform";
 import { MotionReveal } from "@/components/ui/motion-reveal";
+import { AgentChatPanel } from "./agent-chat-panel";
 
 export type AgentListItem = AgentDefinition;
 
@@ -76,6 +78,7 @@ export function AgentsPageClient({
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(Boolean(initialTemplateKey));
   const [createStep, setCreateStep] = useState<"type" | "custom">("type");
+  const [chatAgent, setChatAgent] = useState<AgentDefinition | null>(null);
   const templates: SelectableTemplate[] = initialTemplates.map((template) => ({ value: template.key, label: template.name, description: template.description, available: true }));
 
   const closeCreate = () => {
@@ -107,7 +110,7 @@ export function AgentsPageClient({
           <Card><CardContent className="flex flex-col items-start gap-4 p-8"><Info className="h-7 w-7 text-status-attention" /><div><h2 className="text-xl font-semibold text-foreground">Agents are unavailable</h2><p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">The Agent Platform could not be reached. Your existing installations are unchanged; try refreshing in a moment.</p></div><Button type="button" variant="outline" onClick={() => router.refresh()}>Retry</Button></CardContent></Card>
         ) : initialAgents.length ? (
           <section className="grid gap-4 lg:grid-cols-2" aria-label="Installed agents">
-            {initialAgents.map((agent, index) => <AgentCard key={agent.id} agent={agent} onChanged={() => router.refresh()} delay={0.08 + index * 0.06} />)}
+            {initialAgents.map((agent, index) => <AgentCard key={agent.id} agent={agent} onChanged={() => router.refresh()} onChat={() => setChatAgent(agent)} onOpenDetails={() => router.push(`/agents/${encodeURIComponent(agent.id)}`)} delay={0.08 + index * 0.06} />)}
           </section>
         ) : (
           <Card>
@@ -128,6 +131,7 @@ export function AgentsPageClient({
       ) : (
         <CreateAgentDialog step={createStep} onStepChange={setCreateStep} onClose={closeCreate} onChooseGeneral={() => openCreateRoute("/agents/new/general")} onChooseCustom={() => setCreateStep("custom")} onBrowseTemplates={() => openCreateRoute("/agents/templates")} onStartFromScratch={() => openCreateRoute("/agents/new")} />
       ) : null}
+      {chatAgent?.installation_id ? <AgentChatDialog agent={chatAgent} onClose={() => setChatAgent(null)} /> : null}
     </div>
   );
 }
@@ -209,8 +213,9 @@ function OperationsSummary({ summary }: { summary: AgentOperationsSummary }) {
   </section>;
 }
 
-function AgentCard({ agent, onChanged, delay = 0 }: { agent: AgentDefinition; onChanged: () => void; delay?: number }) {
+function AgentCard({ agent, onChanged, onChat, onOpenDetails, delay = 0 }: { agent: AgentDefinition; onChanged: () => void; onChat: () => void; onOpenDetails: () => void; delay?: number }) {
   const isKasiAi = (agent.execution_mode ?? (agent.protected ? "system_hosted" : "kasitek_hosted")) === "system_hosted";
+  const canChat = Boolean(agent.installation_id) && (isKasiAi || agent.execution_mode !== "external_connected");
   const [updating, setUpdating] = useState(false);
   const installationStatus = agent.installation_status ?? "disabled";
   const toggleStatus = async () => {
@@ -225,7 +230,23 @@ function AgentCard({ agent, onChanged, delay = 0 }: { agent: AgentDefinition; on
   };
   return (
     <MotionReveal delay={delay} hoverLift className="h-full">
-    <Card className="h-full">
+    <Card
+      className="h-full cursor-pointer transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${agent.name}`}
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest("button,a")) return;
+        onOpenDetails();
+      }}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpenDetails();
+        }
+      }}
+    >
       <CardContent className="space-y-5 p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -233,7 +254,7 @@ function AgentCard({ agent, onChanged, delay = 0 }: { agent: AgentDefinition; on
               {isKasiAi ? <Sparkles className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-foreground"><Link className="hover:text-primary" href={`/agents/${encodeURIComponent(agent.id)}`}>{agent.name}</Link></h2>
+              <h2 className="text-lg font-semibold text-foreground">{agent.name}</h2>
               <p className="mt-1 text-sm text-muted-foreground">{agent.description || "Installed Agent Platform agent"}</p>
             </div>
           </div>
@@ -249,19 +270,34 @@ function AgentCard({ agent, onChanged, delay = 0 }: { agent: AgentDefinition; on
           {agent.version_number ? <span>Version {agent.version_number}</span> : null}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild type="button" variant="outline" size="sm"><Link href={`/agents/${encodeURIComponent(agent.id)}`}>Open details</Link></Button>
-          {!isKasiAi && agent.execution_mode !== "external_connected" ? <Button asChild type="button" size="sm"><Link href={`/agents/${encodeURIComponent(agent.id)}?section=activity`}><MessageSquare className="mr-1.5 h-3.5 w-3.5" />Chat</Link></Button> : null}
-          {isKasiAi ? (
-            <Button asChild type="button" size="sm"><Link href={`/agents/${encodeURIComponent(agent.id)}?section=activity`}><MessageSquare className="mr-1.5 h-3.5 w-3.5" />Chat</Link></Button>
-          ) : (
+          {canChat ? <Button type="button" size="sm" onClick={onChat}><MessageSquare className="mr-1.5 h-3.5 w-3.5" />Chat</Button> : null}
+          {!isKasiAi ? (
             <Button type="button" variant="outline" size="sm" disabled={!agent.installation_id || updating} onClick={() => void toggleStatus()}>
               {updating ? "Updating…" : installationStatus === "active" ? "Pause agent" : "Resume agent"}
             </Button>
-          )}
+          ) : null}
         </div>
       </CardContent>
     </Card>
     </MotionReveal>
+  );
+}
+
+function AgentChatDialog({ agent, onClose }: { agent: AgentDefinition; onClose: () => void }) {
+  const active = (agent.installation_status ?? agent.status) === "active";
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent showCloseButton={false} className="h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] max-w-5xl gap-0 overflow-hidden p-0 sm:h-[min(820px,calc(100dvh-2rem))] sm:max-h-[calc(100dvh-2rem)]">
+        <DialogTitle className="sr-only">{agent.name} chat</DialogTitle>
+        <DialogDescription className="sr-only">Chat with {agent.name}.</DialogDescription>
+        <DialogClose asChild>
+          <Button type="button" variant="ghost" size="icon" className="absolute right-3 top-3 z-20 bg-card/90" aria-label="Close chat">
+            <X className="h-4 w-4" />
+          </Button>
+        </DialogClose>
+        <AgentChatPanel installationId={agent.installation_id!} active={active} agentName={agent.name} modal />
+      </DialogContent>
+    </Dialog>
   );
 }
 
