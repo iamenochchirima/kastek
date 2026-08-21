@@ -398,6 +398,7 @@ export function KasiAiChat({
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [view, setView] = useState<View>("chat");
   const [navigationExpanded, setNavigationExpanded] = useState(false);
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [settingsSection, setSettingsSection] =
     useState<SettingsSection>("general");
   const [draft, setDraft] = useState("");
@@ -445,6 +446,9 @@ export function KasiAiChat({
   const viewport = useRef<HTMLDivElement | null>(null);
   const resizeStart = useRef<{ x: number; width: number } | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
+  const mobileNavigationPanelRef = useRef<HTMLDivElement | null>(null);
+  const mobileNavigationTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const mobileNavigationWasOpenRef = useRef(false);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const conversationSelection = useRef(0);
   const runStatusesRef = useRef<Record<string, string>>({});
@@ -710,6 +714,7 @@ export function KasiAiChat({
   }, [open]);
   useEffect(() => {
     if (!open) {
+      setMobileNavigationOpen(false);
       const previous = previousFocusRef.current;
       previousFocusRef.current = null;
       if (previous && document.contains(previous)) previous.focus();
@@ -720,6 +725,29 @@ export function KasiAiChat({
     const frame = window.requestAnimationFrame(() => panelRef.current?.focus());
     return () => window.cancelAnimationFrame(frame);
   }, [open]);
+  useEffect(() => {
+    if (!mobileNavigationOpen) {
+      if (mobileNavigationWasOpenRef.current) {
+        mobileNavigationWasOpenRef.current = false;
+        mobileNavigationTriggerRef.current?.focus();
+      }
+      return;
+    }
+    mobileNavigationWasOpenRef.current = true;
+    const frame = window.requestAnimationFrame(() => {
+      mobileNavigationPanelRef.current
+        ?.querySelector<HTMLButtonElement>("button")
+        ?.focus();
+    });
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileNavigationOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [mobileNavigationOpen]);
   useEffect(() => {
     if (!pairing || !installation) return;
     const timer = window.setInterval(() => {
@@ -1247,6 +1275,17 @@ export function KasiAiChat({
       />
       <header className="flex h-16 items-center justify-between border-b border-border px-4">
         <div className="flex min-w-0 items-center gap-2">
+          <Button
+            ref={mobileNavigationTriggerRef}
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 sm:hidden"
+            onClick={() => setMobileNavigationOpen(true)}
+            aria-label="Open KasiAi navigation"
+            aria-expanded={mobileNavigationOpen}
+          >
+            <PanelLeft className="h-4 w-4" />
+          </Button>
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary/10 text-primary">
             <Sparkles className="h-4 w-4" />
           </span>
@@ -1287,18 +1326,58 @@ export function KasiAiChat({
           </Button>
         </div>
       </header>
-      <div className="flex min-h-0 flex-1">
-        <KasiAiNavigation
-          expanded={navigationExpanded}
-          view={view}
-          conversations={activeConversations}
-          selectedId={conversation?.id}
-          onToggle={() => setNavigationExpanded((current) => !current)}
-          onNew={newChat}
-          onChats={() => setView("library")}
-          onSettings={() => setView("settings")}
-          onOpen={(item) => void loadConversation(item.id)}
-        />
+      <div className="relative flex min-h-0 flex-1">
+        <div className="hidden min-h-0 shrink-0 sm:flex">
+          <KasiAiNavigation
+            expanded={navigationExpanded}
+            view={view}
+            conversations={activeConversations}
+            selectedId={conversation?.id}
+            onToggle={() => setNavigationExpanded((current) => !current)}
+            onNew={newChat}
+            onChats={() => setView("library")}
+            onSettings={() => setView("settings")}
+            onOpen={(item) => void loadConversation(item.id)}
+          />
+        </div>
+        {mobileNavigationOpen ? (
+          <>
+            <button
+              type="button"
+              className="absolute inset-0 z-[var(--z-overlay)] bg-black/40 sm:hidden"
+              onClick={() => setMobileNavigationOpen(false)}
+              aria-label="Close KasiAi navigation"
+            />
+            <div
+              ref={mobileNavigationPanelRef}
+              className="absolute inset-y-0 left-0 z-[var(--z-popover)] flex w-56 max-w-[calc(100%-3rem)] sm:hidden"
+            >
+              <KasiAiNavigation
+                expanded
+                view={view}
+                conversations={activeConversations}
+                selectedId={conversation?.id}
+                onToggle={() => setMobileNavigationOpen(false)}
+                onNew={() => {
+                  setMobileNavigationOpen(false);
+                  newChat();
+                }}
+                onChats={() => {
+                  setMobileNavigationOpen(false);
+                  setView("library");
+                }}
+                onSettings={() => {
+                  setMobileNavigationOpen(false);
+                  setView("settings");
+                }}
+                onOpen={(item) => {
+                  setMobileNavigationOpen(false);
+                  void loadConversation(item.id);
+                }}
+              />
+            </div>
+          </>
+        ) : null}
         <div className="flex min-w-0 flex-1 flex-col">
           {view === "library" ? (
             <ConversationLibrary

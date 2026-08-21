@@ -429,6 +429,9 @@ all implementation and verification items above are complete:
 - KasiAi settings now use a horizontal navigation rail below 480px and stack
   WhatsApp pairing controls on phone widths; desktop retains the Vantage side
   rail. The selected settings section exposes semantic active state.
+- The main KasiAi conversation rail is now desktop-only on phones; mobile uses
+  a header-triggered overlay drawer with backdrop/Escape dismissal and focus
+  return, keeping the message composer and chat content full width.
 - The route implementation pass now covers the remaining workspace, customer,
   content, campaign, automation, and connection surfaces with `100dvh` roots,
   Vantage entrance treatment, mobile stacking/overflow rules, and
