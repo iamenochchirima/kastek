@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export const metadata = {
   title: "Authentication Error | KasiTek",
@@ -15,12 +16,7 @@ export default function AuthErrorPage() {
       <p className="text-muted-foreground">
         There was a problem signing you in. Please try again.
       </p>
-      <Link
-        href="/login"
-        className="inline-block rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-primary/90"
-      >
-        Back to Sign In
-      </Link>
+      <Button asChild><Link href="/login">Back to sign in</Link></Button>
     </div>
   );
 }
