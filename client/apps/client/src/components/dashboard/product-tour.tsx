@@ -126,7 +126,7 @@ export function ProductTour({ status }: { status: ProductTourStatus | null }) {
   return (
     <div className="pointer-events-none fixed inset-0 z-[var(--z-tour)]" aria-live="polite">
       {!compact && targetRect ? <div className="fixed rounded-lg border-2 border-primary/80 bg-transparent transition-[top,left,width,height] duration-500 ease-out" style={{ top: targetRect.top - 6, left: targetRect.left - 6, width: targetRect.width + 12, height: targetRect.height + 12, boxShadow: "0 0 0 9999px rgba(5, 7, 10, 0.64)" }} /> : <div className="fixed inset-0 bg-foreground/65" />}
-      <section className={`pointer-events-auto fixed max-h-[calc(100dvh-2rem)] w-[min(360px,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-border bg-card p-5 text-foreground shadow-2xl transition-all duration-[250ms] ease-out ${compact || !targetRect ? "bottom-4 left-1/2 -translate-x-1/2" : ""}`} style={compact || !targetRect ? undefined : { top: popoverTop, left: popoverLeft }} role="dialog" aria-modal="true" aria-label="KasiTek product tour">
+      <section className={`pointer-events-auto fixed max-h-[calc(100dvh-2rem)] w-[min(360px,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-border bg-card p-5 text-foreground shadow-2xl transition-all duration-[var(--v-motion-shell)] ease-out ${compact || !targetRect ? "bottom-4 left-1/2 -translate-x-1/2" : ""}`} style={compact || !targetRect ? undefined : { top: popoverTop, left: popoverLeft }} role="dialog" aria-modal="true" aria-label="KasiTek product tour">
         {!compact && targetRect ? <span className="absolute -left-2 top-1/2 h-4 w-4 -translate-y-1/2 rotate-45 border-b border-l border-border bg-card" /> : null}
         <div className="relative flex items-start justify-between gap-4">
           <div>

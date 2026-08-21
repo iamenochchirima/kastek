@@ -756,7 +756,7 @@ export function LayoutShell({
       <WhatsappRealtimeProvider key={activeOrgId ?? "no-org"} initialInboxUnreadCount={inboxUnreadCount}>
         <>
         <div className="dashboard-theme flex min-h-[100dvh] bg-canvas">
-          <aside className={cn("hidden shrink-0 transition-[width] duration-[250ms] ease-out md:flex md:flex-col", collapsed ? "w-[68px]" : "w-[264px]")}>
+          <aside className={cn("hidden shrink-0 transition-[width] duration-[var(--v-motion-shell)] ease-out md:flex md:flex-col", collapsed ? "w-[68px]" : "w-[264px]")}>
               <SidebarContent
                 collapsed={collapsed}
                 setCollapsed={setSidebarCollapsed}
