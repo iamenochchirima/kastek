@@ -692,7 +692,11 @@ export function LayoutShell({
   const organizationName = orgs.find((org) => org.id === activeOrgId)?.name ?? "Workspace";
   const setSidebarCollapsed = useCallback((value: boolean) => {
     setCollapsed(value);
-    window.localStorage.setItem(SIDEBAR_COLLAPSE_KEY, value ? "1" : "0");
+    try {
+      window.localStorage.setItem(SIDEBAR_COLLAPSE_KEY, value ? "1" : "0");
+    } catch {
+      // Sidebar state is an enhancement; blocked storage must not break navigation.
+    }
   }, []);
 
   useEffect(() => {

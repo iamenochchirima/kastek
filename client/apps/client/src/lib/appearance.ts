@@ -188,6 +188,33 @@ function persistAppearance(preferences: AppearancePreferences) {
   writeStorage(APPEARANCE_STORAGE_KEYS.weekStartsMonday, preferences.interface.weekStartsMonday ? "1" : "0");
 }
 
+function normalizeAppearance(next: Partial<AppearancePreferences>): AppearancePreferences {
+  const theme = next.theme === "light" || next.theme === "dark" || next.theme === "system"
+    ? next.theme
+    : state.theme;
+  const accent = next.accent && isAccent(next.accent) ? next.accent : state.accent;
+  const density = next.density === "compact" || next.density === "comfortable"
+    ? next.density
+    : state.density;
+
+  return {
+    theme,
+    accent,
+    density,
+    interface: {
+      reduceMotion: typeof next.interface?.reduceMotion === "boolean"
+        ? next.interface.reduceMotion
+        : state.interface.reduceMotion,
+      liveIndicators: typeof next.interface?.liveIndicators === "boolean"
+        ? next.interface.liveIndicators
+        : state.interface.liveIndicators,
+      weekStartsMonday: typeof next.interface?.weekStartsMonday === "boolean"
+        ? next.interface.weekStartsMonday
+        : state.interface.weekStartsMonday,
+    },
+  };
+}
+
 export function initializeAppearance() {
   if (typeof window === "undefined" || initialized) return;
   initialized = true;
@@ -220,11 +247,7 @@ export function getAppearance(): AppearancePreferences {
 
 export function setAppearance(next: Partial<AppearancePreferences>) {
   initializeAppearance();
-  state = {
-    ...state,
-    ...next,
-    interface: { ...state.interface, ...next.interface },
-  };
+  state = normalizeAppearance(next);
   persistAppearance(state);
   applyAppearanceToDom(state);
   emit();

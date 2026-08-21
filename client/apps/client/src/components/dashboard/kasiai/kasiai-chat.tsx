@@ -1212,7 +1212,7 @@ export function KasiAiChat({
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 right-0 z-50 flex max-w-full flex-col border-l border-border bg-background shadow-2xl",
+        "fixed inset-y-0 right-0 z-[var(--z-floating)] flex max-w-full flex-col border-l border-border bg-background shadow-2xl",
         resizing && "select-none",
       )}
       style={{ width: `min(${width}px, 100vw)` }}
@@ -2752,7 +2752,7 @@ function KasiAiModelSettings({
       {pickerOpen ? (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 p-4">
           <div
-            className="flex max-h-[calc(100vh-4rem)] w-full max-w-2xl flex-col rounded-xl border border-border bg-background shadow-2xl"
+            className="flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-background shadow-2xl"
             role="dialog"
             aria-modal="true"
             aria-label="Choose a model"

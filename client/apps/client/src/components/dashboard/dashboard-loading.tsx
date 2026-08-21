@@ -10,7 +10,7 @@ function DashboardPageFrame({
 }) {
   return (
     <div className={cn("min-h-[100dvh] p-4 sm:p-6 lg:p-8", className)}>
-      <div className="mx-auto max-w-[1600px] space-y-6">{children}</div>
+      <div className="mx-auto max-w-[1440px] space-y-6">{children}</div>
     </div>
   );
 }
@@ -75,8 +75,8 @@ export function DashboardShellSkeleton({
   children: React.ReactNode;
 }) {
   return (
-    <div className="dashboard-theme flex h-screen bg-background">
-      <aside className="hidden w-64 border-r border-border bg-card lg:flex lg:flex-col">
+    <div className="dashboard-theme flex min-h-[100dvh] bg-background">
+      <aside className="hidden w-[68px] border-r border-border bg-card md:flex md:flex-col lg:w-64">
         <div className="border-b border-border px-3 py-3">
           <div className="rounded-xl border border-border bg-secondary/30 px-3 py-3">
             <div className="flex items-center gap-3">
@@ -110,8 +110,8 @@ export function DashboardShellSkeleton({
         </div>
       </aside>
 
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-background/95 px-3 backdrop-blur lg:hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="fixed inset-x-0 top-0 z-[var(--z-mobile-topbar)] flex h-16 items-center justify-between border-b border-border bg-background/95 px-3 backdrop-blur md:hidden">
           <div className="flex items-center gap-3">
             <Skeleton className="h-9 w-9 rounded-md" />
             <div className="space-y-2">
@@ -121,7 +121,7 @@ export function DashboardShellSkeleton({
           </div>
           <Skeleton className="h-9 w-9 rounded-md" />
         </div>
-        <main className="flex-1 overflow-auto pt-14 lg:pt-0">{children}</main>
+        <main className="min-w-0 flex-1 overflow-auto pt-16 md:pt-0">{children}</main>
       </div>
     </div>
   );
