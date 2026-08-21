@@ -1,12 +1,36 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarCheck, Check, Clock3, Plus, RefreshCw, X } from "lucide-react";
+import { CalendarCheck, Check, Clock3, Plus, RefreshCw } from "lucide-react";
 import { apiUrl } from "@/lib/server-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  PageHeader,
+  PageHeaderActions,
+  PageHeaderContent,
+  PageHeaderDescription,
+  PageHeaderTitle,
+} from "@/components/ui/page-header";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 type BookingService = {
   id: string;
@@ -90,7 +114,6 @@ export function BookingsPageClient() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [showBookingForm, setShowBookingForm] = useState(false);
   const [serviceForm, setServiceForm] = useState(emptyService);
@@ -143,7 +166,7 @@ export function BookingsPageClient() {
       setBookingForm((current) => ({ ...current, serviceId: current.serviceId || payload.service!.id }));
       setServiceForm(emptyService);
       setShowServiceForm(false);
-      setNotice("Service created. You can now schedule appointments for it.");
+      toast.success("Service created");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to create service");
     } finally { setSaving(false); }
@@ -182,7 +205,7 @@ export function BookingsPageClient() {
       setBookings((current) => [...current, payload.booking!].sort((a, b) => a.scheduledStart.localeCompare(b.scheduledStart)));
       setBookingForm(emptyBookingDraft(activeServices[0]?.id || ""));
       setShowBookingForm(false);
-      setNotice("Booking scheduled.");
+      toast.success("Booking scheduled");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to create booking");
     } finally { setSaving(false); }
@@ -205,23 +228,21 @@ export function BookingsPageClient() {
   }
 
   return (
-    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Growth</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.02em] text-foreground sm:text-3xl">Bookings</h1>
-            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Turn interest into confirmed appointments and keep the outcome connected to the contact.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
+    <div className="min-h-screen p-4 sm:p-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
+        <PageHeader>
+          <PageHeaderContent>
+            <PageHeaderTitle>Bookings</PageHeaderTitle>
+            <PageHeaderDescription>Appointments and services.</PageHeaderDescription>
+          </PageHeaderContent>
+          <PageHeaderActions>
             <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}><RefreshCw className="h-4 w-4" /> Refresh</Button>
             <Button variant="outline" size="sm" onClick={() => setShowServiceForm(true)}><Plus className="h-4 w-4" /> Add service</Button>
             <Button size="sm" onClick={() => { setBookingForm(emptyBookingDraft(activeServices[0]?.id || "")); setShowBookingForm(true); }} disabled={!activeServices.length}><CalendarCheck className="h-4 w-4" /> New booking</Button>
-          </div>
-        </header>
+          </PageHeaderActions>
+        </PageHeader>
 
         {error ? <div className="rounded-lg border border-destructive/30 bg-status-danger-soft px-4 py-3 text-sm text-destructive">{error}</div> : null}
-        {notice ? <div className="flex items-center justify-between gap-3 rounded-lg border border-status-success/30 bg-status-success-soft px-4 py-3 text-sm text-status-success"><span>{notice}</span><button type="button" onClick={() => setNotice("")}><X className="h-4 w-4" /></button></div> : null}
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
@@ -250,9 +271,42 @@ export function BookingsPageClient() {
         </div>
       </div>
 
-      {showServiceForm ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"><form onSubmit={createService} className="w-full max-w-lg rounded-lg border border-border bg-card p-5 shadow-[var(--shadow-floating)]"><div className="flex items-start justify-between gap-4"><div><h2 className="text-lg font-semibold text-foreground">Add booking service</h2><p className="mt-1 text-sm text-muted-foreground">Define what can be scheduled in this workspace.</p></div><Button type="button" variant="ghost" size="icon" onClick={() => setShowServiceForm(false)}><X className="h-4 w-4" /></Button></div><div className="mt-5 space-y-4"><label className="block text-sm font-medium text-foreground">Service name<Input className="mt-1.5" value={serviceForm.name} onChange={(event) => setServiceForm({ ...serviceForm, name: event.target.value })} placeholder="Consultation" required /></label><label className="block text-sm font-medium text-foreground">Duration (minutes)<Input className="mt-1.5" type="number" min="5" max="1440" value={serviceForm.durationMinutes} onChange={(event) => setServiceForm({ ...serviceForm, durationMinutes: event.target.value })} required /></label><label className="block text-sm font-medium text-foreground">Description <span className="font-normal text-muted-foreground">(optional)</span><textarea className="mt-1.5 min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring" value={serviceForm.description} onChange={(event) => setServiceForm({ ...serviceForm, description: event.target.value })} placeholder="What the client can expect" /></label></div><div className="mt-6 flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setShowServiceForm(false)}>Cancel</Button><Button type="submit" disabled={saving}>{saving ? "Creating…" : "Create service"}</Button></div></form></div> : null}
+      <Dialog open={showServiceForm} onOpenChange={setShowServiceForm}>
+        <DialogContent className="max-w-lg">
+          <form onSubmit={createService}>
+            <DialogHeader>
+              <DialogTitle>Add booking service</DialogTitle>
+              <DialogDescription>Create a service clients can book.</DialogDescription>
+            </DialogHeader>
+            <div className="mt-5 space-y-4">
+              <label className="block text-sm font-medium text-foreground">Service name<Input className="mt-1.5" value={serviceForm.name} onChange={(event) => setServiceForm({ ...serviceForm, name: event.target.value })} placeholder="Consultation" required /></label>
+              <label className="block text-sm font-medium text-foreground">Duration (minutes)<Input className="mt-1.5" type="number" min="5" max="1440" value={serviceForm.durationMinutes} onChange={(event) => setServiceForm({ ...serviceForm, durationMinutes: event.target.value })} required /></label>
+              <label className="block text-sm font-medium text-foreground">Description <span className="font-normal text-muted-foreground">(optional)</span><Textarea className="mt-1.5" value={serviceForm.description} onChange={(event) => setServiceForm({ ...serviceForm, description: event.target.value })} placeholder="What the client can expect" /></label>
+            </div>
+            <DialogFooter className="mt-6"><Button type="button" variant="outline" onClick={() => setShowServiceForm(false)}>Cancel</Button><Button type="submit" disabled={saving}>{saving ? "Creating…" : "Create service"}</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-      {showBookingForm ? <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-overlay p-4"><form onSubmit={createBooking} className="my-6 w-full max-w-xl rounded-lg border border-border bg-card p-5 shadow-[var(--shadow-floating)]"><div className="flex items-start justify-between gap-4"><div><h2 className="text-lg font-semibold text-foreground">New booking</h2><p className="mt-1 text-sm text-muted-foreground">Schedule a service and keep it connected to the contact.</p></div><Button type="button" variant="ghost" size="icon" onClick={() => setShowBookingForm(false)}><X className="h-4 w-4" /></Button></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="block text-sm font-medium text-foreground">Service<select className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground" value={bookingForm.serviceId} onChange={(event) => setBookingForm({ ...bookingForm, serviceId: event.target.value })} required><option value="">Choose service</option>{activeServices.map((service) => <option key={service.id} value={service.id}>{service.name} · {formatDuration(service.durationMinutes)}</option>)}</select></label><label className="block text-sm font-medium text-foreground">Start time<Input className="mt-1.5" type="datetime-local" value={bookingForm.scheduledStart} onChange={(event) => setBookingForm({ ...bookingForm, scheduledStart: event.target.value })} required /></label><label className="block text-sm font-medium text-foreground sm:col-span-2">Existing Contact <span className="font-normal text-muted-foreground">(optional)</span><select className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground" value={bookingForm.contactId} onChange={(event) => chooseContact(event.target.value)}><option value="">Enter contact details manually</option>{contacts.map((contact) => <option key={contact.id} value={contact.id}>{contact.fullName || contact.phone} · {contact.phone}</option>)}</select></label><label className="block text-sm font-medium text-foreground">Contact name<Input className="mt-1.5" value={bookingForm.contactName} onChange={(event) => setBookingForm({ ...bookingForm, contactName: event.target.value })} required /></label><label className="block text-sm font-medium text-foreground">Phone <span className="font-normal text-muted-foreground">(optional)</span><Input className="mt-1.5" value={bookingForm.contactPhone} onChange={(event) => setBookingForm({ ...bookingForm, contactPhone: event.target.value })} /></label><label className="block text-sm font-medium text-foreground sm:col-span-2">Notes <span className="font-normal text-muted-foreground">(optional)</span><textarea className="mt-1.5 min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring" value={bookingForm.notes} onChange={(event) => setBookingForm({ ...bookingForm, notes: event.target.value })} placeholder="Context, preference, or preparation notes" /></label></div><div className="mt-6 flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setShowBookingForm(false)}>Cancel</Button><Button type="submit" disabled={saving || !activeServices.length}>{saving ? "Scheduling…" : "Schedule booking"}</Button></div></form></div> : null}
+      <Dialog open={showBookingForm} onOpenChange={setShowBookingForm}>
+        <DialogContent className="max-h-[calc(100svh-2rem)] max-w-xl overflow-y-auto">
+          <form onSubmit={createBooking}>
+            <DialogHeader>
+              <DialogTitle>New booking</DialogTitle>
+              <DialogDescription>Schedule a service and contact.</DialogDescription>
+            </DialogHeader>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <label className="block text-sm font-medium text-foreground">Service<Select value={bookingForm.serviceId} onValueChange={(serviceId) => setBookingForm({ ...bookingForm, serviceId })}><SelectTrigger className="mt-1.5 w-full"><SelectValue placeholder="Choose service" /></SelectTrigger><SelectContent>{activeServices.map((service) => <SelectItem key={service.id} value={service.id}>{service.name} · {formatDuration(service.durationMinutes)}</SelectItem>)}</SelectContent></Select></label>
+              <label className="block text-sm font-medium text-foreground">Start time<Input className="mt-1.5" type="datetime-local" value={bookingForm.scheduledStart} onChange={(event) => setBookingForm({ ...bookingForm, scheduledStart: event.target.value })} required /></label>
+              <label className="block text-sm font-medium text-foreground sm:col-span-2">Existing Contact <span className="font-normal text-muted-foreground">(optional)</span><Select value={bookingForm.contactId || "manual"} onValueChange={(value) => chooseContact(value === "manual" ? "" : value)}><SelectTrigger className="mt-1.5 w-full"><SelectValue placeholder="Enter contact details manually" /></SelectTrigger><SelectContent><SelectItem value="manual">Enter contact details manually</SelectItem>{contacts.map((contact) => <SelectItem key={contact.id} value={contact.id}>{contact.fullName || contact.phone} · {contact.phone}</SelectItem>)}</SelectContent></Select></label>
+              <label className="block text-sm font-medium text-foreground">Contact name<Input className="mt-1.5" value={bookingForm.contactName} onChange={(event) => setBookingForm({ ...bookingForm, contactName: event.target.value })} required /></label>
+              <label className="block text-sm font-medium text-foreground">Phone <span className="font-normal text-muted-foreground">(optional)</span><Input className="mt-1.5" value={bookingForm.contactPhone} onChange={(event) => setBookingForm({ ...bookingForm, contactPhone: event.target.value })} /></label>
+              <label className="block text-sm font-medium text-foreground sm:col-span-2">Notes <span className="font-normal text-muted-foreground">(optional)</span><Textarea className="mt-1.5" value={bookingForm.notes} onChange={(event) => setBookingForm({ ...bookingForm, notes: event.target.value })} placeholder="Context, preference, or preparation notes" /></label>
+            </div>
+            <DialogFooter className="mt-6"><Button type="button" variant="outline" onClick={() => setShowBookingForm(false)}>Cancel</Button><Button type="submit" disabled={saving || !bookingForm.serviceId}>{saving ? "Scheduling…" : "Schedule booking"}</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
