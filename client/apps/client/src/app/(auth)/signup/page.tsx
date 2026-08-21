@@ -6,14 +6,9 @@ export const metadata = {
 
 export default function SignupPage() {
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="text-center">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-          Get started
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Create your Kasi<span className="text-primary">Tek</span> account
-        </h1>
+        <h1 className="text-[24px] leading-8 font-semibold tracking-[-0.02em] text-ink-1">Create account</h1>
       </div>
       <SignupForm />
     </div>

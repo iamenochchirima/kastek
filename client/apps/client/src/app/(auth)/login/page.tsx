@@ -14,17 +14,10 @@ export default async function LoginPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="text-center">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-          Welcome back
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Sign in to Kasi<span className="text-primary">Tek</span>
-        </h1>
-        <p className="mt-2 text-muted-foreground">
-          Access your workspace, products, and connected automation flows.
-        </p>
+        <h1 className="text-[24px] leading-8 font-semibold tracking-[-0.02em] text-ink-1">Sign in</h1>
+        <p className="mt-0.5 text-[13px] text-ink-2">KasiTek workspace.</p>
       </div>
       <Suspense fallback={null}>
         <LoginForm />
