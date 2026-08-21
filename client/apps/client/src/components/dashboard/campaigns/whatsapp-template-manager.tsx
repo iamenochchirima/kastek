@@ -3,6 +3,8 @@
 import { apiUrl } from "@/lib/server-api";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
   TEMPLATE_CATEGORY_OPTIONS,
   TEMPLATE_LIBRARY,
@@ -101,7 +103,6 @@ export default function WhatsappTemplateManager({
   const [syncingConnectionId, setSyncingConnectionId] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
 
   const activeConnection =
     connections.find((connection) => connection.id === connectionId) || connections[0] || null;
@@ -137,7 +138,6 @@ export default function WhatsappTemplateManager({
   async function handleCreateTemplate() {
     setSubmitting(true);
     setError("");
-    setNotice("");
 
     if (variablePlacementError) {
       setError(variablePlacementError);
@@ -181,11 +181,7 @@ export default function WhatsappTemplateManager({
         throw new Error(payload.error || "Failed to create template");
       }
 
-      setNotice(
-        payload.status === "APPROVED"
-          ? "Template created and approved."
-          : "Template submitted to Meta for review. Approval may take time on newer accounts."
-      );
+      toast.success(payload.status === "APPROVED" ? "Template approved" : "Template submitted");
       setTemplateName("");
       setHeader("");
       setBody("");
@@ -203,7 +199,6 @@ export default function WhatsappTemplateManager({
   async function handleSync(connectionIdToSync: string) {
     setSyncingConnectionId(connectionIdToSync);
     setError("");
-    setNotice("");
 
     try {
       const res = await fetch(apiUrl(`/api/whatsapp/connections/${connectionIdToSync}/templates/sync`), {
@@ -215,7 +210,7 @@ export default function WhatsappTemplateManager({
         throw new Error(payload.error || "Failed to sync templates");
       }
 
-      setNotice(`Template sync completed. Synced ${payload.synced || 0} WhatsApp templates.`);
+      toast.success("Templates synced", { description: `${payload.synced || 0} templates updated` });
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to sync templates");
@@ -226,7 +221,7 @@ export default function WhatsappTemplateManager({
 
   return (
     <div className="space-y-6">
-      {(displayError || notice) && (
+      {displayError && (
         <div
           className={`rounded-lg border px-3 py-2 text-xs ${
             displayError
@@ -234,33 +229,32 @@ export default function WhatsappTemplateManager({
               : "border-status-success/30 bg-status-success-soft text-status-success"
           }`}
         >
-          {displayError || notice}
+          {displayError}
         </div>
       )}
 
       <section className="rounded-xl border border-border bg-card p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <button
-            type="button"
+          <Button
             onClick={() => setShowCreateForm((current) => !current)}
-            className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
           >
             {showCreateForm ? "Close creator" : "Create new template"}
-          </button>
+          </Button>
 
           <div className="flex flex-wrap gap-2">
             {connections.map((connection) => (
-              <button
+              <Button
                 key={connection.id}
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => handleSync(connection.id)}
                 disabled={syncingConnectionId === connection.id}
-                className="rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {syncingConnectionId === connection.id
                   ? "Syncing..."
                   : `Sync ${connection.phoneDisplayNumber || connection.phoneNumberId}`}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -272,13 +266,11 @@ export default function WhatsappTemplateManager({
               Create your first WhatsApp template here, or start from the Template Library and then
               customize it before submitting to Meta.
             </p>
-            <button
-              type="button"
+            <Button
               onClick={() => setShowCreateForm(true)}
-              className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
             >
               Create new template
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -318,13 +310,13 @@ export default function WhatsappTemplateManager({
                 </div>
 
                 <div className="mt-4">
-                  <button
-                    type="button"
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => setSelectedTemplateId(template.id)}
-                    className="rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
                   >
                     View full details
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
@@ -350,13 +342,12 @@ export default function WhatsappTemplateManager({
                 >
                   {selectedTemplate.status}
                 </span>
-                <button
-                  type="button"
+                <Button
+                  variant="outline"
                   onClick={() => setSelectedTemplateId(null)}
-                  className="rounded-lg border border-border bg-secondary/50 px-4 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
                 >
                   Close
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -413,13 +404,12 @@ export default function WhatsappTemplateManager({
                   Build a new WhatsApp template and submit it to Meta for approval.
                 </p>
               </div>
-              <button
-                type="button"
+              <Button
+                variant="outline"
                 onClick={() => setShowCreateForm(false)}
-                className="rounded-lg border border-border bg-secondary/50 px-4 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
               >
                 Close
-              </button>
+              </Button>
             </div>
 
             <div className="mb-6">
@@ -550,14 +540,12 @@ export default function WhatsappTemplateManager({
                   <p className="text-xs text-muted-foreground">
                     Meta reviews every template after submission. Newer accounts may wait longer.
                   </p>
-                  <button
-                    type="button"
+                  <Button
                     onClick={handleCreateTemplate}
                     disabled={submitting || !connectionId || Boolean(variablePlacementError)}
-                    className="rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {submitting ? "Submitting..." : "Submit template"}
-                  </button>
+                  </Button>
                 </div>
               </div>
 

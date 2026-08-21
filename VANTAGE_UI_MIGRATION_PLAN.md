@@ -296,7 +296,7 @@ interactive states have been checked where applicable.
 | Workspace | all workspace routes | Not started | |
 | Customer | inbox, calls, contacts, bookings | Not started | |
 | Content | posts, calendar, analytics, history | Not started | |
-| Campaigns | list, create, detail, templates | Not started | |
+| Campaigns | WhatsApp templates | In progress | Replaced the legacy rounded primary and ad-hoc action buttons with shared Vantage button variants; template create/sync feedback now uses the global toast API. Full campaign-area hierarchy and visual review remain pending. |
 | Agents | all list, detail, create, activity, workflow, and appearance routes | Not started | |
 | Connections | connections and WhatsApp onboarding | Not started | |
 | Developers | developer portal and subroutes | Not started | |
@@ -355,3 +355,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Added the first shell milestone: functional command palette and desktop Vantage top bar; lint and Webpack build passed. |
 | 2026-08-21 | Replaced every native browser confirmation and prompt in the client with a shared Vantage-styled confirmation/input-dialog provider; lint and Webpack build passed. |
 | 2026-08-21 | Applied the approved Vantage shell breakpoints and sidebar widths; lint and Webpack build passed. |
+| 2026-08-21 | Began the Campaign templates migration by replacing legacy button treatments and inline success banners with shared Vantage primitives and the global toast API; lint and Webpack build passed. |
