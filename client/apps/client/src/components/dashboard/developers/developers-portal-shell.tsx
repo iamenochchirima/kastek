@@ -8,6 +8,7 @@ import { PanelLeft } from "lucide-react";
 import type { DevelopersBootstrap } from "@/lib/developers";
 import { cn } from "@/lib/utils";
 import { DevelopersDataProvider } from "./developers-data";
+import { VANTAGE_SELECTION_SPRING } from "@/lib/motion";
 
 type DevelopersSection = {
   label: string;
@@ -59,7 +60,7 @@ export function DevelopersPortalShell({
                       : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground",
                   )}
                 >
-                  {active ? <motion.span layoutId="developers-nav-active" className="absolute inset-0 z-0 rounded-md bg-secondary" transition={{ type: "spring", stiffness: 300, damping: 30 }} /> : null}
+                  {active ? <motion.span layoutId="developers-nav-active" className="absolute inset-0 z-0 rounded-md bg-secondary" transition={VANTAGE_SELECTION_SPRING} /> : null}
                   <span className="relative z-[1]">{section.label}</span>
                 </Link>
               );

@@ -9,6 +9,7 @@ import {
   settingsCardVariants,
   settingsModeVariants,
   VANTAGE_DENSITY_TRANSITION,
+  VANTAGE_MOTION,
   VANTAGE_SELECTION_SPRING,
 } from "@/lib/motion";
 
@@ -121,7 +122,7 @@ function ModeCard({ mode, selected, accent, index }: { mode: (typeof MODES)[numb
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 400, damping: 22 }}
+              transition={VANTAGE_SELECTION_SPRING}
               className="absolute right-2 top-2 grid size-5 place-items-center rounded-full bg-primary text-primary-foreground shadow-[var(--shadow-floating)]"
             >
               <Check size={12} strokeWidth={3} />
@@ -162,7 +163,7 @@ export function AppearancePanel() {
           {ACCENTS.map((accent) => {
             const selected = accent.id === preferences.accent;
             return (
-              <motion.button key={accent.id} type="button" title={accent.name} aria-label={`${accent.name} accent`} aria-pressed={selected} onClick={() => setAccent(accent.id)} whileTap={{ scale: 0.9 }} animate={selected ? { scale: [1.15, 1] } : { scale: 1 }} transition={{ duration: 0.2 }} className="relative grid size-7 place-items-center rounded-full" style={{ backgroundColor: accent.swatch }}>
+              <motion.button key={accent.id} type="button" title={accent.name} aria-label={`${accent.name} accent`} aria-pressed={selected} onClick={() => setAccent(accent.id)} whileTap={{ scale: 0.9 }} animate={selected ? { scale: [1.15, 1] } : { scale: 1 }} transition={{ duration: VANTAGE_MOTION.fast / 1000 }} className="relative grid size-7 place-items-center rounded-full" style={{ backgroundColor: accent.swatch }}>
                 {selected ? <><span className="absolute -inset-1 rounded-full border-2" style={{ borderColor: accent.swatch }} /><Check size={13} strokeWidth={3.5} className="relative text-white drop-shadow" /></> : null}
               </motion.button>
             );

@@ -12,7 +12,7 @@ import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { AppearancePanel } from "@/components/dashboard/settings/appearance-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { VANTAGE_EXPO, VANTAGE_SELECTION_SPRING } from "@/lib/motion";
+import { VANTAGE_EXPO, VANTAGE_MOTION, VANTAGE_SELECTION_SPRING } from "@/lib/motion";
 import { useAppearance } from "@/lib/appearance";
 
 type LocalSettingsTab = "general" | "appearance";
@@ -96,7 +96,7 @@ export function WorkspaceSettingsClient({
 
           <div className="min-w-0 w-full max-w-[760px] flex-1">
             <AnimatePresence initial={false} mode="wait">
-            <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25, ease: VANTAGE_EXPO }}>
+            <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: VANTAGE_MOTION.shell / 1000, ease: VANTAGE_EXPO }}>
             {tab === "appearance" ? <AppearancePanel /> : (
               <div className="flex flex-col gap-5">
                 <section className="v-settings-card rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
