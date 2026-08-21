@@ -302,7 +302,7 @@ interactive states have been checked where applicable.
 | Connections | connections | In progress | The Connections page uses the central header and `1440px` content density. The Threads sign-in reminder now uses the shared accessible dialog. WhatsApp embedded and manual connection actions now use the shared Vantage button, removing legacy pill treatments; the manual setup and maintenance flow also uses shared Vantage inputs and textareas. The WhatsApp onboarding result uses the central header and action primitive. Visual review remains pending. |
 | Developers | portal, Resources, MCP, CLI, API, and API keys | In progress | The full Developers route group uses the central header, concise copy, and `1440px` density. Shared tab/feedback and visual checks remain pending. |
 | Billing | billing and usage | In progress | Billing uses the central header, concise hierarchy, and `1440px` density. Payment, loading/error, responsive and visual checks remain pending. |
-| Entry surfaces | login, sign-up, password setup, onboarding, verification, and invitations | In progress | Login, sign-up, password setup, onboarding, invitation activation, email verification, and auth-error recovery use shared Vantage controls; auth copy uses the Vantage type scale and concise wording. Offline, responsive and visual checks remain pending. |
+| Entry surfaces | login, sign-up, password setup, onboarding, verification, invitations, and offline | In progress | Login, sign-up, password setup, onboarding, invitation activation, email verification, auth-error recovery, and offline use the Vantage type scale, concise copy, and shared controls where applicable. Responsive and visual checks remain pending. |
 | Quality | visual, accessibility, and runtime verification | Not started | |
 
 ## Verification standard per migration wave
@@ -397,3 +397,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Migrated the WhatsApp manual connection setup and maintenance flow to shared Vantage inputs, textareas, and button variants; lint and Webpack build passed. |
 | 2026-08-21 | Migrated Meta Embedded Signup connection management actions to shared Vantage button variants; lint and Webpack build passed. |
 | 2026-08-21 | Migrated the WhatsApp onboarding result header and finish action to shared Vantage primitives; lint and Webpack build passed. |
+| 2026-08-21 | Simplified the offline surface to the Vantage density and concise copy contract; lint passed. |
