@@ -475,7 +475,7 @@ function SidebarContent({
 
       </div>
 
-      <nav className={cn("sidebar-nav-scroll flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto px-3 py-4", collapsed && "px-2")}>
+      <nav className={cn("sidebar-nav-scroll min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto px-3 py-4", collapsed && "px-2")}>
         {hasOrgs ? (
           <div className="mb-3.5" data-tour="workspace-switcher">
             <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} collapsed={collapsed} variant="panel" />
@@ -499,7 +499,7 @@ function SidebarContent({
         ))}
       </nav>
 
-      <div className={cn("space-y-2 border-t border-border p-2.5", collapsed && "px-2")}>
+      <div className={cn("shrink-0 space-y-2 border-t border-border p-2.5", collapsed && "px-2")}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
