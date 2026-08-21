@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   PageHeader,
   PageHeaderActions,
@@ -3895,11 +3896,8 @@ function MediaLightbox({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
-      onClick={onClose}
-      role="presentation"
-    >
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-h-[calc(100svh-2rem)] max-w-5xl overflow-hidden border-0 bg-transparent p-3 shadow-none">
       <button
         type="button"
         onClick={onClose}
@@ -3939,8 +3937,7 @@ function MediaLightbox({
         </div>
       ) : null}
       <div
-        className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-border bg-background p-3"
-        onClick={(event) => event.stopPropagation()}
+        className="max-h-[90vh] w-full overflow-hidden rounded-xl border border-border bg-background p-3"
         onWheel={(event) => {
           if (!isZoomable) return;
           event.preventDefault();
@@ -3995,6 +3992,7 @@ function MediaLightbox({
         ) : null}
         {caption ? <p className="mt-2 text-sm text-muted-foreground">{caption}</p> : null}
       </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
