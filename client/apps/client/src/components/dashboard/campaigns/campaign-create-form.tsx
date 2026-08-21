@@ -278,7 +278,7 @@ export default function CampaignCreateForm({
         </div>
       ) : null}
 
-      <section className="rounded-2xl border border-border bg-card p-5">
+      <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="text-lg font-semibold text-foreground">Campaign setup</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <label className="space-y-2 text-sm">
@@ -396,7 +396,7 @@ export default function CampaignCreateForm({
       </section>
 
       {selectedTemplate && selectedTemplate.variablesCount > 0 ? (
-        <section className="rounded-2xl border border-border bg-card p-5">
+        <section className="rounded-xl border border-border bg-card p-5">
           <h2 className="text-lg font-semibold text-foreground">Template variables</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Map each template variable to a field from the selected contact list or to static text.
@@ -495,7 +495,7 @@ export default function CampaignCreateForm({
         </section>
       ) : null}
 
-      <section className="rounded-2xl border border-border bg-card p-5">
+      <section className="rounded-xl border border-border bg-card p-5">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-foreground">Exclude specific numbers</h2>
@@ -599,7 +599,7 @@ export default function CampaignCreateForm({
           </Button>
         </div>
       ) : (
-        <section className="rounded-2xl border border-border bg-card p-5">
+        <section className="rounded-xl border border-border bg-card p-5">
           <h2 className="text-lg font-semibold text-foreground">Confirm campaign</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <SummaryItem label="Campaign" value={generatedCampaignName} />
