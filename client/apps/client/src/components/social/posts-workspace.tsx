@@ -8,6 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
+import {
+  PageHeader,
+  PageHeaderActions,
+  PageHeaderContent,
+  PageHeaderDescription,
+  PageHeaderTitle,
+} from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContentWorkspaceNavigation } from "@/components/social/content-workspace-navigation";
@@ -1087,17 +1094,15 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   }
 
   return (
-    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-[1520px] space-y-6">
+    <div className="min-h-screen p-4 sm:p-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
         <div className="space-y-4 border-b border-border pb-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">{view === "history" ? "Posts" : "Create"}</h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {view === "history" ? "Manage published posts, failures, and retry work." : "Create, review, and schedule posts."}
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
+          <PageHeader>
+            <PageHeaderContent>
+              <PageHeaderTitle>{view === "history" ? "Posts" : "Create"}</PageHeaderTitle>
+              <PageHeaderDescription>{view === "history" ? "Published posts and retries." : "Draft and schedule posts."}</PageHeaderDescription>
+            </PageHeaderContent>
+            <PageHeaderActions>
               {view === "posts" ? (
                 <Button variant="outline" className="gap-2" onClick={() => setIsIdeasOpen(true)}>
                   <Sparkles className="h-4 w-4" />
@@ -1108,8 +1113,8 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                 <Plus className="h-4 w-4" />
                 Create post
               </Button>
-            </div>
-          </div>
+            </PageHeaderActions>
+          </PageHeader>
 
           <ContentWorkspaceNavigation active={view} />
         </div>
