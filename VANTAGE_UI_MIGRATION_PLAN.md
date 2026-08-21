@@ -1,0 +1,291 @@
+# Vantage UI Migration Plan
+
+**Status:** Active
+
+**Owner:** KasiTek team
+
+**Last updated:** 2026-08-21
+
+## Objective
+
+Replace the current KasiTek client visual system with a consistent Vantage-inspired
+system, while preserving all existing product behavior, routes, data flows,
+authentication, and accessibility.
+
+Success means that every client surface uses the same semantic design tokens,
+shared UI primitives, and responsive patterns in both light and dark themes.
+
+## Scope
+
+### Included
+
+- `client/apps/client` only; it remains a Next.js application.
+- Light and dark themes, including persisted user preference and system fallback.
+- Shared UI primitives, application shell, dashboard routes, auth/onboarding
+  routes, and global/edge UI states.
+- Information architecture, content hierarchy, and interaction patterns where
+  the existing structure does not support the user's primary task clearly.
+- Responsive desktop and mobile behavior, keyboard focus, loading, empty, error,
+  disabled, and destructive states.
+- Visual QA and regression checks for every migrated surface.
+
+### Excluded
+
+- Migrating the client application from Next.js to Vite.
+- Reworking product behavior, API contracts, authentication, or data models unless
+  a UI defect requires a narrowly scoped fix.
+- Restyling the separate `admin`, `labs`, or `tenant-portal` applications.
+
+## Design-system rules
+
+1. Pages use semantic tokens and shared primitives; they do not introduce their
+   own colors, spacing scales, radii, shadows, or button treatments.
+2. The token system is the source of truth. Product-specific visual data, such
+   as charts or channel colours, is documented as an explicit exception.
+3. Components expose intentional variants and sizes. Callers do not override a
+   primitive into a new visual component with ad hoc utility classes.
+4. Every reusable component is designed and checked in both themes before it is
+   adopted by feature pages.
+5. Existing functionality is retained while appearance is changed. Functional
+   changes require an explicit decision in this document.
+6. Every UI element has intentional desktop, tablet, and mobile behavior and
+   density. A component that only works at one viewport is incomplete.
+
+## Required design review
+
+Before migrating a page, shared pattern, or meaningful interaction, answer the
+following questions and record any material decision in the migration matrix or
+decision log:
+
+1. What is the user's primary task on this surface?
+2. What must be visible immediately, and what can be progressively disclosed?
+3. Which actions are primary, contextual, or secondary?
+4. Does each action belong in the page, a side panel, an overflow menu, or a
+   focused dialog?
+5. Does the information hierarchy make the next action obvious without
+   explanatory UI copy?
+6. How does the same task work at desktop, tablet, and mobile widths?
+7. Does the pattern already exist in the shared component system? If not, should
+   it become a shared pattern rather than a one-off implementation?
+8. Which loading, empty, error, permission, and destructive states apply?
+9. Does the result preserve the existing product behavior, or does it require an
+   explicit functional decision?
+
+Do not treat the existing layout as fixed. Preserve product behavior by default,
+but redesign hierarchy, grouping, disclosure, and interaction placement when
+that produces a clearer and more scalable interface.
+
+## Theme contract
+
+The theme system must meet all of the following conditions:
+
+- [ ] Semantic tokens cover canvas, surfaces, borders, text tiers, brand,
+  statuses, chart colours, focus, overlays, radius, shadows, and motion.
+- [ ] Light and dark token values are designed as complete systems, rather than
+  light colours mechanically inverted for dark mode.
+- [ ] Existing stored theme preference, `ThemeScript`, and `ThemeScope` behavior
+  remain compatible and do not produce a visible theme flash on load.
+- [ ] Interactive states (hover, active, focus-visible, disabled, selected, and
+  invalid) are defined for both themes.
+- [ ] Text, icons, controls, and status treatments meet accessible contrast in
+  both themes.
+- [ ] Toast surfaces, icons, actions, and progress/loading states use semantic
+  tokens and remain legible in both themes.
+- [ ] Every primitive and migrated route receives a light and dark visual check.
+
+## Responsive and density contract
+
+The following rules apply to every shared primitive, page pattern, and route:
+
+- [ ] Approved desktop, tablet, and mobile breakpoints are defined before
+  migration work begins.
+- [ ] Layout, spacing, type scale, wrapping, and hit areas are intentional at
+  every supported breakpoint.
+- [ ] Controls intentionally remain visible, collapse, scroll, stack, move into
+  a menu, or use a mobile-specific affordance; none are left to overflow by
+  accident.
+- [ ] Tables and other dense data layouts have an explicit small-screen
+  treatment.
+- [ ] The application shell, navigation, panels, dialogs, menus, and overlays
+  work together at desktop, tablet, and mobile widths.
+- [ ] Each component is reviewed at the full set of approved breakpoints before
+  it is marked verified.
+
+## Cross-cutting UI contracts
+
+### Accessibility
+
+- [ ] Define semantic HTML, keyboard interaction, focus order, accessible names,
+  contrast, and reduced-motion requirements for shared primitives.
+- [ ] Verify these requirements for each migration wave, not only at the end.
+
+### Data visualization
+
+- [ ] Define chart colours, legends, tooltips, loading/empty states, and
+  colour-blind-safe status and chart combinations.
+
+### Motion
+
+- [ ] Define permitted motion, duration, and easing tokens.
+- [ ] Ensure motion never blocks work and respects reduced-motion preferences.
+
+### Overlays and layering
+
+- [ ] Define central z-index layers for the sticky top bar, menus, tooltips,
+  sheets, dialogs, toasts, product tour, and KasiAi.
+- [ ] Verify that overlays do not obscure or trap one another incorrectly.
+
+### Error, offline, and interrupted states
+
+- [ ] Add Vantage-styled route error, not-found, offline, and recoverable
+  background-action states where applicable.
+
+### Performance
+
+- [ ] Define a performance baseline for representative dashboard routes before
+  migration.
+- [ ] Do not increase critical route load, interaction, or rendering cost without
+  a documented reason and mitigation.
+
+### Component catalogue and regression checks
+
+- [ ] Decide and implement a component preview and visual-regression approach
+  for shared primitives, themes, and responsive states.
+
+### Command palette
+
+- [ ] Define the first release as real route navigation and global actions;
+  defer product-data search until its API and interaction scope are agreed.
+
+## Implementation checklist
+
+### 1. Foundation and governance
+
+- [ ] Record the approved Vantage visual decisions: token names, colour values,
+  type scale, spacing scale, radius, shadows, density, and motion.
+- [ ] Apply the Required design review to every migration wave; redesign
+  information hierarchy and interaction placement where needed.
+- [ ] Implement the semantic token layer in `client/apps/client/src/app/globals.css`
+  for Tailwind 4.
+- [ ] Replace temporary compatibility aliases in a controlled way and remove
+  them when no longer needed.
+- [ ] Define a no-new-hard-coded-styles review rule and document allowed
+  exceptions.
+- [ ] Add a route and shared-surface migration matrix with status tracking.
+
+### 2. Shared UI primitives
+
+- [ ] Button and button variants.
+- [ ] Inputs, textareas, selects, checkboxes, and field feedback.
+- [ ] Cards, surfaces, dividers, badges, status indicators, and progress.
+- [ ] Tables, tabs, scroll areas, skeletons, and empty states.
+- [ ] Dropdown menus, tooltips, sheets, dialogs, and popovers.
+- [ ] A single application-wide toast provider and toast API for success, error,
+  warning, information, loading, and optional action/undo feedback.
+- [ ] Shared page header, toolbar/filter, confirmation, and feedback patterns.
+- [ ] Document each primitive's variants, states, and intended use.
+
+### 3. Application shell
+
+- [ ] Desktop sidebar, grouped navigation, selected states, collapse behaviour,
+  organisation switcher, and account controls.
+- [ ] Desktop top bar and responsive mobile header/drawer.
+  - [ ] Add a sticky desktop top bar with route-aware breadcrumbs, a functional
+    command/search entry point with `Ctrl+K` / `⌘K`, notifications, theme
+    control, and a compact account menu.
+  - [ ] Keep workspace context and primary navigation in the sidebar; use the
+    top bar for page context and global actions so controls are not duplicated.
+  - [ ] Do not add non-functional decoration such as a live clock. Every top-bar
+    control must support a real KasiTek workflow.
+- [ ] Notifications, PWA update message, product tour, KasiAi trigger/chat, and
+  other global overlays.
+- [ ] Verify shell behavior in light/dark and collapsed/mobile forms.
+
+### 4. Product-area migration
+
+- [ ] Workspace: overview, profile, team, settings, and notifications.
+- [ ] Customer: inbox, calls, contacts, and bookings.
+- [ ] Content: posts, calendar, analytics, history, and post detail.
+- [ ] Campaigns: list, create, detail, templates, and related loading states.
+- [ ] Agents: list, create, detail, workflow, appearance, connect, templates,
+  activity, analytics, and loading states.
+- [ ] Connections and WhatsApp onboarding.
+- [ ] Developers: overview, API, API keys, CLI, MCP, and resources.
+- [ ] Billing, generic dashboard loading, and all nested detail/create states.
+
+### 5. Entry and edge surfaces
+
+- [ ] Login, sign-up, set password, verification, and authentication errors.
+- [ ] Onboarding and invitation acceptance.
+- [ ] Offline page, PWA states, and no-data/error fallbacks.
+
+### 6. Completion and verification
+
+- [ ] All matrix entries are marked verified; no client route is left on the old
+  visual system.
+- [ ] Light and dark screenshots/reviews completed for desktop and mobile
+  breakpoints.
+- [ ] Keyboard navigation, focus visibility, and reduced-motion behavior checked.
+- [ ] Relevant lint, type, build, and targeted runtime checks pass.
+- [ ] Obsolete tokens, compatibility aliases, and duplicate styling are removed.
+
+## Route and shared-surface matrix
+
+Use this matrix as the source of completion status. A surface only moves to
+**Verified** after its responsive, light/dark, loading, empty, error, and
+interactive states have been checked where applicable.
+
+| Area | Surface group | Status | Evidence / notes |
+| --- | --- | --- | --- |
+| Foundation | tokens and global styles | Not started | |
+| Foundation | shared UI primitives | Not started | |
+| Shell | sidebar, top bar, mobile drawer, global overlays | Not started | |
+| Workspace | all workspace routes | Not started | |
+| Customer | inbox, calls, contacts, bookings | Not started | |
+| Content | posts, calendar, analytics, history | Not started | |
+| Campaigns | list, create, detail, templates | Not started | |
+| Agents | all list, detail, create, activity, workflow, and appearance routes | Not started | |
+| Connections | connections and WhatsApp onboarding | Not started | |
+| Developers | developer portal and subroutes | Not started | |
+| Billing | billing and usage | Not started | |
+| Entry surfaces | auth, onboarding, invitations, offline | Not started | |
+| Quality | visual, accessibility, and runtime verification | Not started | |
+
+## Verification standard per migration wave
+
+- [ ] Review the route at desktop and mobile widths.
+- [ ] Review the route at the approved tablet width and its intended density.
+- [ ] Review the route in light and dark themes.
+- [ ] Check normal, loading, empty, error, disabled, and destructive states that
+  apply to the route.
+- [ ] Use the shared toast API for transient feedback; do not add page-specific
+  toast implementations or browser dialogs.
+- [ ] Check keyboard focus, menus/dialogs, and relevant async interactions.
+- [ ] Review UI copy against the root `AGENTS.md` UI Copy & Content Rules.
+- [ ] Run the most relevant lint/type/build or targeted runtime check.
+- [ ] Add the verification evidence to the migration matrix.
+
+## Decisions and open questions
+
+| Topic | Decision or question | Owner | Status |
+| --- | --- | --- | --- |
+| Framework | Keep the main client on Next.js. | KasiTek team | Decided |
+| Visual reference | Use `/home/enoch/aworkspace/kasitek-labs/dashboard-new` as the Vantage visual reference; translate it to the current Next.js and Tailwind 4 architecture. | KasiTek team | Decided |
+| Theme | Light and dark themes are first-class acceptance criteria for the migration. | KasiTek team | Decided |
+| Design-system location | Use the existing client global styles and `components/ui` primitives as the central system; do not create a parallel styling stack. | KasiTek team | Decided |
+| Desktop top bar | Add breadcrumbs, a functional command/search entry point, notifications, theme control, and account menu. Sidebar retains workspace context and primary navigation. | KasiTek team | Decided |
+| Toasts | Introduce one global Vantage-styled toast provider and shared API. Use it for concise transient feedback across auth and dashboard surfaces; do not use native browser dialogs. | KasiTek team | Decided |
+| Responsive design | Every UI element must have intentional approved desktop, tablet, and mobile behavior and density before it is complete. | KasiTek team | Decided |
+| Cross-cutting UX | Accessibility, data visualization, motion, layering, errors, performance, and visual regression are migration contracts, not later polish. | KasiTek team | Decided |
+| Design review | Every migrated surface must be reassessed around the user's primary task, hierarchy, disclosure, actions, responsive behavior, shared patterns, and non-happy-path states. | KasiTek team | Decided |
+| Component catalogue | Decide whether a dedicated component preview/visual-regression setup is needed after foundation work begins. | KasiTek team | Open |
+
+## Change log
+
+| Date | Change |
+| --- | --- |
+| 2026-08-21 | Created the living plan and checklist. |
+| 2026-08-21 | Added the approved desktop top-bar scope and responsibility boundaries. |
+| 2026-08-21 | Added the global toast-system decision and verification requirements. |
+| 2026-08-21 | Added responsive/density and cross-cutting UI architecture contracts. |
+| 2026-08-21 | Added required task-focused design review for every migration surface. |

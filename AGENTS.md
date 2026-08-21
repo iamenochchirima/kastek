@@ -89,6 +89,249 @@ Preferred working order:
 - Do not use generic AI-marketing phrases such as "powerful," "seamless," "transformative," "unlock," or "the future of" unless they are technically necessary and supported by a specific explanation.
 - Treat architecture documents as engineering references, not sales material. Explain tradeoffs, ownership, constraints, and open decisions plainly.
 
+## UI Copy & Content Rules
+
+Keep interface copy extremely concise.
+
+### Never explain the interface to the user
+
+Do not add instructional or conversational UI text unless it is genuinely necessary for completing the task.
+
+Bad:
+
+> Connect your agents here and manage them without leaving this page.
+
+Good:
+
+> Connect agent
+
+Bad:
+
+> View all your conversations and respond to customers from one place.
+
+Good:
+
+> Conversations
+
+Bad:
+
+> You haven't created any campaigns yet. Create your first campaign to start reaching your customers.
+
+Good:
+
+> No campaigns yet
+>
+> [Create campaign]
+
+### Do not narrate product design decisions
+
+Never expose implementation, navigation, or design decisions in UI copy.
+
+Bad:
+
+> Manage connections here instead of from the sidebar.
+
+Bad:
+
+> We've made it easier to access your agents.
+
+Bad:
+
+> Use this section to manage your integrations.
+
+The UI should communicate these things through its design.
+
+### Empty states
+
+Use:
+
+- Short title
+- Optional one-sentence description only when clarification is necessary
+- Primary action
+
+Prefer:
+
+> No agents yet
+>
+> [Create agent]
+
+Instead of:
+
+> You haven't created any AI agents yet. Agents can help automate your business processes. Click the button below to get started.
+>
+> [Create your first agent]
+
+### General tone
+
+- Product UI, not marketing copy.
+- Concise and functional.
+- No unnecessary explanations.
+- No conversational filler.
+- No feature narration.
+- No congratulatory text unless meaningful.
+- Avoid "Here you can...", "Use this to...", "This allows you to...", "From here...", and similar phrasing.
+- Prefer labels over sentences.
+- Prefer 2–5 word headings.
+- Buttons should normally be 1–3 words.
+- Descriptions should normally be one short sentence or omitted.
+
+## Frontend / UX Rules
+
+### Native Browser UI — Forbidden
+
+Never use native browser dialogs in application UI:
+
+- `alert()`
+- `confirm()`
+- `prompt()`
+- `window.alert()`
+- `window.confirm()`
+- `window.prompt()`
+
+Always use application UI instead.
+
+| Need | Use |
+| --- | --- |
+| Confirmation | Custom confirmation dialog |
+| Destructive confirmation | Destructive-action dialog |
+| Input request | Form or modal |
+| Information | Toast, banner, inline feedback, or modal |
+| Success | Toast or inline state |
+| Error | Toast or inline error state |
+
+Bad:
+
+```ts
+if (confirm("Delete this agent?")) {
+  deleteAgent();
+}
+```
+
+Good:
+
+```tsx
+<ConfirmDialog
+  title="Delete agent?"
+  description="This action cannot be undone."
+  confirmLabel="Delete"
+  variant="destructive"
+  onConfirm={deleteAgent}
+/>
+```
+
+Reuse the project's existing modal and dialog components before creating new ones.
+
+### Modals and dialogs
+
+Use custom application dialogs for confirmations and focused actions. Dialogs must:
+
+- Match the application's design system.
+- Support light and dark themes.
+- Have clear primary and secondary actions.
+- Close on Escape where appropriate.
+- Handle focus correctly.
+- Have accessible labels.
+- Prevent accidental destructive actions.
+
+Destructive actions should clearly distinguish **Cancel** from **Delete**. Never
+use a generic browser confirmation as a shortcut.
+
+### Toasts
+
+Use toasts for transient feedback, including saved, copied, updated, deleted,
+successful connections, and failed background actions. Do not use modals for
+simple success messages.
+
+Bad: a modal stating that settings were saved.
+
+Good: a toast stating **Settings saved**.
+
+### Destructive actions
+
+Never immediately execute significant destructive actions from a single click.
+For actions such as deleting an agent or campaign, disconnecting an integration,
+removing a team member, or deleting an API key, require an appropriate custom
+confirmation. Require stronger confirmation for particularly destructive actions
+when justified.
+
+### Loading states
+
+Never leave the UI appearing frozen during asynchronous operations. Use the
+appropriate skeleton, spinner, progress state, or disabled button with a loading
+indicator. Prefer skeletons for initial content loading.
+
+Do not replace an entire page with a large centred spinner when a skeleton can
+preserve the page structure.
+
+### Responsive design and density
+
+Every UI element must have intentional responsive behavior and an appropriate
+density at the approved desktop, tablet, and mobile breakpoints. Do not treat
+mobile as a desktop layout squeezed into a narrower viewport.
+
+Before a UI change is complete, verify:
+
+- The element's layout, spacing, text wrapping, and hit area at each supported
+  breakpoint.
+- Whether controls should remain visible, collapse, scroll, stack, move into a
+  menu, or be replaced by a mobile-specific affordance.
+- That tables and dense data layouts have an intentional small-screen treatment.
+- That the application shell, navigation, panels, dialogs, and overlays work
+  together at desktop, tablet, and mobile widths.
+
+Use the central responsive and density rules in the active project plan. A
+component that only works at one viewport is incomplete.
+
+### Empty states
+
+Keep empty states minimal and follow the existing UI Copy & Content Rules.
+
+Prefer:
+
+> No campaigns yet
+>
+> [Create campaign]
+
+Avoid paragraphs explaining the page unless the information is necessary.
+
+### Forms
+
+- Validate inline.
+- Show errors near the relevant field.
+- Preserve user input after validation errors.
+- Disable submission while submitting when duplicate requests are possible.
+- Never use `alert()` for validation.
+- Do not show validation errors before the user has interacted with a field,
+  unless submission was attempted.
+
+### Components
+
+Before creating a new UI primitive:
+
+1. Search the existing component library.
+2. Reuse an existing component where appropriate.
+3. Extend existing variants if necessary.
+4. Create a new primitive only when no suitable one exists.
+
+Do not create slightly different versions of a modal, button, input, select,
+dropdown, toast, tooltip, card, or badge. Maintain visual consistency.
+
+### UX philosophy
+
+Prefer:
+
+- Obvious UI over explanatory text.
+- Direct manipulation over instructions.
+- Visual hierarchy over descriptions.
+- Progressive disclosure over showing everything.
+- Contextual actions over duplicated actions.
+- Concise labels over sentences.
+- Application UI over browser-native UI.
+
+The interface should explain itself through good design. If it requires a
+paragraph explaining how to use it, first consider whether the UI itself should
+be improved.
+
 ## Verification Rule
 
 After implementation, always run the most relevant verification available:
