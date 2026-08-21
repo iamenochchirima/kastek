@@ -1,5 +1,7 @@
 "use client";
 
+import { Input } from "@/components/ui/input";
+
 export type AgentRuntimeLimitsValue = {
   maxIterations: string;
   maxToolCalls: string;
@@ -55,7 +57,7 @@ export function AgentRuntimeLimits({ value, onChange }: { value: AgentRuntimeLim
     <h2 className="text-sm font-semibold text-foreground">Runtime limits</h2>
     <p className="mt-1 text-xs leading-5 text-muted-foreground">These ceilings apply to every run and are persisted in the published version. Lower limits are safer for testing and can be raised in a new version.</p>
     <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {fields.map(([key, label, range]) => <label key={key} className="text-xs font-medium text-foreground">{label}<span className="ml-1 font-normal text-muted-foreground">({range})</span><input value={value[key]} onChange={(event) => update(key, event.target.value)} inputMode="numeric" className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" /></label>)}
+      {fields.map(([key, label, range]) => <label key={key} className="text-xs font-medium text-foreground">{label}<span className="ml-1 font-normal text-muted-foreground">({range})</span><Input value={value[key]} onChange={(event) => update(key, event.target.value)} inputMode="numeric" className="mt-1" /></label>)}
     </div>
   </div>;
 }

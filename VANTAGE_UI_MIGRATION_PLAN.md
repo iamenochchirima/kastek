@@ -411,3 +411,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Migrated Workspace Team and organisation-create standard surfaces to the Vantage card radius; lint and Webpack build passed. |
 | 2026-08-21 | Migrated custom and general agent creation flows to shared Vantage form controls and concise unavailable-state copy; lint and Webpack build passed. |
 | 2026-08-21 | Migrated the external agent connection wizard’s text and select controls to shared Vantage primitives; lint and Webpack build passed. |
+| 2026-08-21 | Migrated reusable Agent runtime-limit fields to the shared Vantage Input primitive; lint and Webpack build passed. |
