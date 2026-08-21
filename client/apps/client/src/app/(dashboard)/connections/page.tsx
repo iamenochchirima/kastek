@@ -47,7 +47,7 @@ export default async function ConnectionsPage({
         </PageHeader>
 
         {params.connected === "meta" && params.instagram_count === "0" ? (
-          <div className="flex items-start justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+          <div className="flex items-start justify-between gap-3 rounded-xl border border-status-attention/30 bg-status-attention-soft px-4 py-3 text-sm text-status-attention">
             <span>
               Facebook connected successfully
               {params.facebook_count ? ` (${params.facebook_count} Page${params.facebook_count === "1" ? "" : "s"})` : ""},
@@ -57,7 +57,7 @@ export default async function ConnectionsPage({
             <a href="/connections" className="shrink-0 text-lg leading-none" aria-label="Dismiss message">×</a>
           </div>
         ) : params.connected === "meta" ? (
-          <div className="flex items-start justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
+          <div className="flex items-start justify-between gap-3 rounded-xl border border-status-success/30 bg-status-success-soft px-4 py-3 text-sm text-status-success">
             <span>
               Meta connected successfully: {params.facebook_count ?? "0"} Facebook Page
               {params.facebook_count === "1" ? "" : "s"} and {params.instagram_count ?? "0"} Instagram
@@ -72,7 +72,7 @@ export default async function ConnectionsPage({
         params.connected === "tiktok" ||
         params.connected === "linkedin" ||
         params.connected === "x" ? (
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
+          <div className="rounded-xl border border-status-success/30 bg-status-success-soft px-4 py-3 text-sm text-status-success">
             Your{" "}
             {params.connected === "instagram"
               ? "Instagram"

@@ -102,11 +102,11 @@ const productLabels: Record<string, string> = {
 function statusPresentation(status: WorkspaceConnection["status"]) {
   switch (status) {
     case "CONNECTED":
-      return { label: "Connected", className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-500" };
+      return { label: "Connected", className: "border-status-success/30 bg-status-success-soft text-status-success" };
     case "NEEDS_ATTENTION":
-      return { label: "Needs attention", className: "border-amber-500/30 bg-amber-500/10 text-amber-500" };
+      return { label: "Needs attention", className: "border-status-attention/30 bg-status-attention-soft text-status-attention" };
     case "CONNECTING":
-      return { label: "Connecting", className: "border-sky-500/30 bg-sky-500/10 text-sky-500" };
+      return { label: "Connecting", className: "border-status-info/30 bg-status-info-soft text-status-info" };
     case "REVOKED":
       return { label: "Revoked", className: "border-destructive/30 bg-destructive/10 text-destructive" };
     default:
