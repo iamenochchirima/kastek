@@ -476,20 +476,6 @@ function SidebarContent({
           {!collapsed ? <span className="text-[13px] font-semibold text-foreground">KasiTek</span> : null}
         </Link>
 
-        {setCollapsed && !collapsed ? (
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:bg-secondary hover:text-foreground"
-              onClick={() => setCollapsed(true)}
-              aria-label="Collapse sidebar"
-              data-tour="sidebar-toggle"
-            >
-              <PanelLeftOpen className="h-4 w-4 scale-x-[-1]" />
-            </Button>
-          </div>
-        ) : null}
       </div>
 
       <nav className={cn("sidebar-nav-scroll flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto px-3 py-4", collapsed && "px-2")}>
@@ -516,82 +502,28 @@ function SidebarContent({
         ))}
       </nav>
 
-      <div className={cn("space-y-1 border-t border-border p-2.5", collapsed && "px-2")}>
-        {!collapsed ? (
-          <div className="px-3 pb-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Account
-            </p>
-          </div>
-        ) : null}
-        <div className={cn("flex items-center", collapsed && "justify-center")}>
-          <ThemeToggleSimple iconOnly={collapsed} className={collapsed ? "w-9 px-0" : undefined} />
-        </div>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label="Help"
-              className={cn(
-                "flex min-h-9 w-full items-center rounded-md text-[13px] font-normal leading-5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
-                collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
-              )}
-              title="Help"
-            >
-              <HelpCircle className="h-[18px] w-[18px] shrink-0" />
-              {!collapsed ? <span>Help</span> : null}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-48">
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                window.dispatchEvent(new CustomEvent("kasitek:restart-product-tour"));
-              }}
-            >
-              <HelpCircle className="mr-2 h-4 w-4" />
-              Take a tour
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <Link
-          href="/workspace/settings?section=notifications"
-          onClick={onNavigate}
-          aria-current={pathname === "/workspace/settings" ? "page" : undefined}
-          aria-label={collapsed ? "Notifications" : undefined}
-          title={collapsed ? "Notifications" : undefined}
-          className={cn(
-            "flex min-h-9 items-center rounded-md text-[13px] font-normal leading-5 no-underline transition-colors hover:bg-secondary hover:text-foreground",
-            pathname === "/workspace/settings" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground",
-            collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
-          )}
-        >
-          <Bell className="h-[18px] w-[18px] shrink-0" />
-          {!collapsed ? <span>Notifications</span> : null}
-        </Link>
-
+      <div className={cn("space-y-2 border-t border-border p-2.5", collapsed && "px-2")}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               data-tour="profile"
               aria-label="Account menu"
               className={cn(
-                "flex min-h-9 w-full items-center rounded-md text-[13px] font-normal leading-5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
-                collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
+                "flex w-full items-center rounded-xl border border-sidebar-border bg-sidebar text-left transition-colors hover:border-line-strong hover:bg-secondary",
+                collapsed ? "justify-center p-2" : "gap-3 p-2.5",
               )}
             >
-              <Avatar className="h-7 w-7 border border-border">
+              <Avatar className={cn("shrink-0 border border-border", collapsed ? "h-8 w-8" : "h-9 w-9")}>
                 {user?.image ? <AvatarImage src={user.image} alt={user?.name ?? "User"} /> : null}
                 <AvatarFallback className="bg-primary/20 text-primary text-xs">{initials}</AvatarFallback>
               </Avatar>
               {!collapsed ? (
-                <div className="flex-1 text-left">
-                  <p className="text-sm font-medium text-foreground">{accountName}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-foreground">{accountName}</p>
                   <p className="truncate text-xs text-muted-foreground">{accountEmail}</p>
                 </div>
               ) : null}
+              {!collapsed ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : null}
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
@@ -606,6 +538,21 @@ function SidebarContent({
                 <Users className="mr-2 h-4 w-4" />
                 Team
               </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/workspace/settings" onClick={onNavigate}>
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault();
+                window.dispatchEvent(new CustomEvent("kasitek:restart-product-tour"));
+              }}
+            >
+              <HelpCircle className="mr-2 h-4 w-4" />
+              Take a tour
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -627,19 +574,17 @@ function SidebarContent({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {setCollapsed && collapsed ? (
-          <div className="border-t border-border pt-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-full rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
-              onClick={() => setCollapsed(false)}
-              aria-label="Expand sidebar"
-              data-tour="sidebar-toggle"
-            >
-              <PanelLeftOpen className="h-4 w-4" />
-            </Button>
-          </div>
+        {setCollapsed ? (
+          <Button
+            variant="ghost"
+            className={cn("h-8 w-full rounded-md text-xs text-muted-foreground hover:bg-secondary hover:text-foreground", collapsed ? "px-0" : "justify-center gap-2")}
+            onClick={() => setCollapsed(!collapsed)}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            data-tour="sidebar-toggle"
+          >
+            <PanelLeftOpen className={cn("h-4 w-4", !collapsed && "scale-x-[-1]")} />
+            {!collapsed ? <span>Collapse</span> : null}
+          </Button>
         ) : null}
       </div>
     </div>

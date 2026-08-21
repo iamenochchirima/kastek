@@ -86,6 +86,7 @@ export function OrgSwitcher({
             <>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] font-medium text-foreground">{activeOrg.name}</p>
+                {variant === "panel" ? <p className="truncate text-[11px] text-muted-foreground">Workspace</p> : null}
               </div>
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </>
