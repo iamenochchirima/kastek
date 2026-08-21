@@ -303,7 +303,7 @@ interactive states have been checked where applicable.
 | Developers | portal, Resources, MCP, CLI, API, and API keys | In progress | The full Developers route group uses the central header, concise copy, and `1440px` density. Shared tab/feedback and visual checks remain pending. |
 | Billing | billing and usage | In progress | Billing uses the central header, concise hierarchy, `1440px` density, and shared checkout/subscription action buttons. Payment, loading/error, responsive and visual checks remain pending. |
 | Entry surfaces | login, sign-up, password setup, onboarding, verification, invitations, and offline | In progress | Login, sign-up, password setup, onboarding, invitation activation, email verification, auth-error recovery, and offline use the Vantage type scale, concise copy, and shared controls where applicable. Responsive and visual checks remain pending. |
-| Quality | visual, accessibility, and runtime verification | In progress | Native browser-dialog audit finds no `window.alert`, `window.confirm`, or `window.prompt` use. Lint now passes with no warnings or errors after dynamic application media and organization logo rendering moved to `next/image` with deliberate unoptimized handling for authenticated/dynamic sources. Production Webpack build passes. Visual and breakpoint review remain pending because no browser is available in this environment. |
+| Quality | visual, accessibility, and runtime verification | In progress | Native browser-dialog audit finds no `window.alert`, `window.confirm`, or `window.prompt` use. Lint now passes with no warnings or errors after dynamic application media and organization logo rendering moved to `next/image` with deliberate unoptimized handling for authenticated/dynamic sources. Production Webpack build and the canonical-route contract check pass. Visual and breakpoint review remain pending because no browser is available in this environment. |
 
 ## Verification standard per migration wave
 
@@ -422,3 +422,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Migrated Agent Detail website-origin and channel-registration fields to shared Vantage controls; lint and Webpack build passed. |
 | 2026-08-21 | Added the central Radix-backed Vantage radio group and migrated both post deletion-scope flows from native radio styling; lint and Webpack build passed. |
 | 2026-08-21 | Migrated KasiAi settings selects and toggles to shared Vantage Select and Checkbox primitives; lint and Webpack build passed. |
+| 2026-08-21 | Confirmed the canonical client route map remains clean after the migration changes. |
