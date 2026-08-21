@@ -3344,7 +3344,7 @@ export default function InboxPageClient({
           {reactionPicker ? (
             <div
               ref={reactionPickerRef}
-              className="fixed z-50 overflow-hidden rounded-xl border border-border/70 shadow-[0_16px_36px_rgba(0,0,0,0.35)]"
+              className="fixed z-[var(--z-popover)] overflow-hidden rounded-xl border border-border/70 shadow-[var(--shadow-floating)]"
               style={{ top: reactionPicker.top, left: reactionPicker.left }}
             >
               <Picker
@@ -3461,7 +3461,7 @@ export default function InboxPageClient({
                 {showEmojiPicker ? (
                   <div
                     ref={emojiPickerRef}
-                    className="absolute bottom-[calc(100%+10px)] right-14 z-50 overflow-hidden rounded-xl border border-border/70 shadow-[0_16px_36px_rgba(0,0,0,0.35)]"
+                    className="absolute bottom-[calc(100%+10px)] right-14 z-[var(--z-popover)] overflow-hidden rounded-xl border border-border/70 shadow-[var(--shadow-floating)]"
                   >
                     <Picker
                       data={emojiData}
