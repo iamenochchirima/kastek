@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const steps = ["Business", "Goal", "Role", "Industry", "Source"];
 
@@ -137,7 +138,7 @@ function BusinessStep({ companyName, setCompanyName, website, setWebsite }: { co
 }
 
 function IndustryStep({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  return <div><h1 className="text-3xl font-semibold tracking-tight">What industry are you in?</h1><label className="mt-8 block text-sm font-medium">Industry<select value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-lg border border-input bg-background px-3.5 py-3 text-base text-foreground outline-none transition focus:border-primary focus-visible:ring-2 focus-visible:ring-ring"><option value="" disabled>Select an industry</option>{choices.industry.map((industryOption) => <option key={industryOption} value={industryOption}>{industryOption}</option>)}</select></label></div>;
+  return <div><h1 className="text-3xl font-semibold tracking-tight">What industry are you in?</h1><label className="mt-8 block text-sm font-medium">Industry<Select value={value} onValueChange={onChange}><SelectTrigger className="mt-2 h-12 text-base"><SelectValue placeholder="Select an industry" /></SelectTrigger><SelectContent>{choices.industry.map((industryOption) => <SelectItem key={industryOption} value={industryOption}>{industryOption}</SelectItem>)}</SelectContent></Select></label></div>;
 }
 
 function ChoiceStep({ title, description, options, value, selectedValues = [], onChange, optional = false, visual = false, multiple = false }: { title: string; description: string; options: readonly (string | readonly string[])[]; value: string; selectedValues?: string[]; onChange: (value: string) => void; optional?: boolean; visual?: boolean; multiple?: boolean }) {
