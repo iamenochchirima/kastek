@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowUpRight, CalendarDays, FileImage, Play } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -119,7 +120,10 @@ export function SocialPostsLibrary({
                       preload="metadata"
                     />
                   ) : (
-                    <img
+                    <Image
+                      unoptimized
+                      width={640}
+                      height={360}
                       className="h-full w-full object-cover"
                       src={mediaUrl(firstMedia.assetId)}
                       alt={firstMedia.altText || firstMedia.fileName || "Post media"}

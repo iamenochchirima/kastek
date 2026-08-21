@@ -303,7 +303,7 @@ interactive states have been checked where applicable.
 | Developers | portal, Resources, MCP, CLI, API, and API keys | In progress | The full Developers route group uses the central header, concise copy, and `1440px` density. Shared tab/feedback and visual checks remain pending. |
 | Billing | billing and usage | In progress | Billing uses the central header, concise hierarchy, `1440px` density, and shared checkout/subscription action buttons. Payment, loading/error, responsive and visual checks remain pending. |
 | Entry surfaces | login, sign-up, password setup, onboarding, verification, invitations, and offline | In progress | Login, sign-up, password setup, onboarding, invitation activation, email verification, auth-error recovery, and offline use the Vantage type scale, concise copy, and shared controls where applicable. Responsive and visual checks remain pending. |
-| Quality | visual, accessibility, and runtime verification | Not started | |
+| Quality | visual, accessibility, and runtime verification | In progress | Native browser-dialog audit finds no `window.alert`, `window.confirm`, or `window.prompt` use. Lint now passes with no warnings or errors after dynamic application media and organization logo rendering moved to `next/image` with deliberate unoptimized handling for authenticated/dynamic sources. Production Webpack build passes. Visual and breakpoint review remain pending because no browser is available in this environment. |
 
 ## Verification standard per migration wave
 
@@ -402,3 +402,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Replaced the Posts stepped composer’s bespoke overlay with the shared Vantage Sheet primitive; lint and Webpack build passed. |
 | 2026-08-21 | Migrated Website Chat Appearance deployment and position selectors to the shared Vantage Select primitive; lint and Webpack build passed. |
 | 2026-08-21 | Migrated standalone billing, sign-out, and notification-reminder actions to shared Vantage buttons; lint and Webpack build passed. |
+| 2026-08-21 | Replaced all client `<img>` use with `next/image`; authenticated/dynamic media paths use deliberate unoptimized rendering, lint is clean, and the Webpack build passed. |

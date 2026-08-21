@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -167,7 +168,7 @@ export function AcceptInviteClient({
         <div className="flex items-center gap-4">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-border bg-secondary/40 text-lg font-bold text-primary">
             {invitation.orgLogo ? (
-              <img src={invitation.orgLogo} alt={invitation.orgName} className="h-full w-full rounded-xl object-cover" />
+              <Image unoptimized width={56} height={56} src={invitation.orgLogo} alt={invitation.orgName} className="h-full w-full rounded-xl object-cover" />
             ) : (
               invitation.orgName[0]?.toUpperCase()
             )}

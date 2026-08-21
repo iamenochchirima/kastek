@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Activity, AlertTriangle, ArrowLeft, CheckCircle2, Clock3, Pencil, Play, RotateCcw, Trash2 } from "lucide-react";
@@ -280,7 +281,7 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
                           </span>
                         </div>
                       ) : (
-                        <img className="h-56 w-full object-cover" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />
+                        <Image unoptimized width={960} height={560} className="h-56 w-full object-cover" src={mediaUrl(item.assetId)} alt={item.altText || item.fileName || "Attached image"} />
                       )}
                       <div className="flex items-center justify-between gap-3 p-3 text-xs text-muted-foreground">
                         <span className="min-w-0 truncate">{item.fileName || (item.kind === "VIDEO" ? "Video" : "Image")}</span>
