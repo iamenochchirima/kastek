@@ -3,8 +3,14 @@
 import { apiUrl } from "@/lib/server-api";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  PageHeader,
+  PageHeaderContent,
+  PageHeaderDescription,
+  PageHeaderTitle,
+} from "@/components/ui/page-header";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContentWorkspaceNavigation } from "@/components/social/content-workspace-navigation";
 import {
   SOCIAL_PLATFORM_ORDER,
@@ -123,25 +129,23 @@ export function AnalyticsDashboard() {
   );
 
   return (
-    <div className="min-h-screen p-6 lg:p-8">
-      <div className="mx-auto max-w-[1400px] space-y-6">
-        <div>
-          <Badge className="mb-2 border-primary/30 bg-primary/5 text-primary">Analytics</Badge>
-          <h1 className="text-3xl font-semibold tracking-tight">Measure what content actually performs.</h1>
-          <p className="mt-1 text-muted-foreground">
-            Content publishing and customer campaigns share one reporting entry point, with separate metrics and definitions.
-          </p>
-        </div>
+    <div className="min-h-screen p-4 sm:p-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
+        <PageHeader>
+          <PageHeaderContent>
+            <PageHeaderTitle>Analytics</PageHeaderTitle>
+            <PageHeaderDescription>Content and campaign performance.</PageHeaderDescription>
+          </PageHeaderContent>
+        </PageHeader>
 
         <ContentWorkspaceNavigation active="analytics" />
 
-        <div className="flex gap-2 border-b border-border">
-          {(["content", "campaigns"] as const).map((tab) => (
-            <button key={tab} type="button" onClick={() => setView(tab)} className={`border-b-2 px-4 py-2 text-sm font-medium ${view === tab ? "border-primary text-foreground" : "border-transparent text-muted-foreground"}`}>
-              {tab === "content" ? "Content" : "Campaigns"}
-            </button>
-          ))}
-        </div>
+        <Tabs value={view} onValueChange={(value) => setView(value as "content" | "campaigns")}>
+          <TabsList>
+            <TabsTrigger value="content">Content</TabsTrigger>
+            <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         {error ? (
           <div className="rounded-md border border-destructive/30 bg-status-danger-soft px-4 py-3 text-sm text-destructive">

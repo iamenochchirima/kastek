@@ -7,6 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  PageHeader,
+  PageHeaderActions,
+  PageHeaderContent,
+  PageHeaderDescription,
+  PageHeaderTitle,
+} from "@/components/ui/page-header";
 import { ContentWorkspaceNavigation } from "@/components/social/content-workspace-navigation";
 import { type SocialPost, formatDateTime, getPlatformLabel, getPostStatusMeta } from "@/components/social/social-shared";
 
@@ -87,13 +94,14 @@ export function CalendarView() {
   }
 
   return (
-    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-[1600px] space-y-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Calendar</h1>
-          </div>
-          <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start">
+    <div className="min-h-screen p-4 sm:p-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
+        <PageHeader>
+          <PageHeaderContent>
+            <PageHeaderTitle>Calendar</PageHeaderTitle>
+            <PageHeaderDescription>Scheduled posts.</PageHeaderDescription>
+          </PageHeaderContent>
+          <PageHeaderActions className="w-full justify-between sm:w-auto sm:justify-start">
             <Button
               variant="outline"
               size="icon"
@@ -115,8 +123,8 @@ export function CalendarView() {
             >
               <ArrowRight className="h-4 w-4" />
             </Button>
-          </div>
-        </div>
+          </PageHeaderActions>
+        </PageHeader>
 
         <ContentWorkspaceNavigation active="calendar" />
 
