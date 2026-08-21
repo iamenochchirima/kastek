@@ -3,7 +3,22 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Bot, Info, MessageSquare, Sparkles, X } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  PageHeader,
+  PageHeaderActions,
+  PageHeaderContent,
+  PageHeaderDescription,
+  PageHeaderTitle,
+} from "@/components/ui/page-header";
+import { ArrowLeft, Bot, Info, MessageSquare, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -73,15 +88,17 @@ export function AgentsPageClient({
   };
 
   return (
-    <div className="min-h-screen p-6 lg:p-8">
-      <div className="mx-auto max-w-[1400px] space-y-7">
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Automation</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">Agents</h1>
-          </div>
+    <div className="min-h-screen p-4 sm:p-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
+        <PageHeader>
+          <PageHeaderContent>
+            <PageHeaderTitle>Agents</PageHeaderTitle>
+            <PageHeaderDescription>Installed agents.</PageHeaderDescription>
+          </PageHeaderContent>
+          <PageHeaderActions>
           <Button type="button" onClick={() => { setCreateStep("type"); setCreateOpen(true); }}>Create agent</Button>
-        </header>
+          </PageHeaderActions>
+        </PageHeader>
 
         {initialOperations ? <OperationsSummary summary={initialOperations} /> : null}
 
@@ -132,16 +149,13 @@ function CreateAgentDialog({
   onStartFromScratch: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="create-agent-title">
-      <button type="button" className="absolute inset-0 bg-overlay" aria-label="Close create agent dialog" onClick={onClose} />
-      <div className="relative w-full max-w-2xl rounded-2xl border border-border bg-background p-5 shadow-2xl sm:p-6">
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-2xl">
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Automation</p>
-            <h2 id="create-agent-title" className="mt-1 text-xl font-semibold text-foreground">Create an agent</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Choose how you want to get started.</p>
-          </div>
-          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close create agent dialog"><X className="h-4 w-4" /></Button>
+          <DialogHeader>
+            <DialogTitle>Create an agent</DialogTitle>
+            <DialogDescription>Choose a starting point.</DialogDescription>
+          </DialogHeader>
         </div>
 
         {step === "type" ? (
@@ -177,9 +191,9 @@ function CreateAgentDialog({
             </div>
           </div>
         )}
-        <div className="mt-6 flex justify-end border-t border-border pt-4"><Button type="button" variant="outline" onClick={onClose}>Cancel</Button></div>
-      </div>
-    </div>
+        <DialogFooter className="mt-6 border-t border-border pt-4"><Button type="button" variant="outline" onClick={onClose}>Cancel</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -254,16 +268,13 @@ function TemplateDialog({ templates, onClose, initialTemplateKey }: { templates:
   const selectedTemplate = templates.find((template) => template.value === selected);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="agent-template-title">
-      <button type="button" className="absolute inset-0 bg-overlay" aria-label="Close templates" onClick={onClose} />
-      <div className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-border bg-background p-5 shadow-2xl sm:p-6">
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[calc(100svh-2rem)] max-w-3xl overflow-y-auto">
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Automation</p>
-            <h2 id="agent-template-title" className="mt-1 text-xl font-semibold text-foreground">Choose an agent template</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Choose a blueprint, then review and finish it in the custom builder.</p>
-          </div>
-          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close templates"><X className="h-4 w-4" /></Button>
+          <DialogHeader>
+            <DialogTitle>Choose an agent template</DialogTitle>
+            <DialogDescription>Choose a blueprint, then configure it in the builder.</DialogDescription>
+          </DialogHeader>
         </div>
         {step === "select" ? <div className="mt-6 grid gap-3 sm:grid-cols-2">
           {templates.map((template) => (
@@ -285,12 +296,12 @@ function TemplateDialog({ templates, onClose, initialTemplateKey }: { templates:
           </div>
         ) : null}
         {step === "review" && selectedTemplate ? <div className="mt-6 space-y-4"><h3 className="font-semibold text-foreground">Open the custom builder</h3><dl className="divide-y divide-border rounded-xl border border-border bg-card text-sm"><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Blueprint</dt><dd className="font-medium text-foreground">{selectedTemplate.label}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">What happens next</dt><dd className="max-w-[65%] text-right font-medium text-foreground">Instructions, policy, and configuration load into an editable draft</dd></div></dl><p className="text-sm text-muted-foreground">Nothing is installed from this preview. The builder creates a draft, validates it, and only publishes after you review it.</p></div> : null}
-        <div className="mt-6 flex justify-end gap-2">
+        <DialogFooter className="mt-6">
           <Button type="button" variant="outline" onClick={step === "select" ? onClose : () => setStep(step === "review" ? "configure" : "select")}>{step === "select" ? "Close" : "Back"}</Button>
           {step === "configure" ? <Button type="button" disabled={!selectedTemplate?.available} onClick={() => setStep("review")}>Review</Button> : null}
           {step === "review" && selectedTemplate ? <Button asChild type="button"><Link href={`/agents/new?template=${encodeURIComponent(selectedTemplate.value)}`}>Open custom builder</Link></Button> : null}
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
