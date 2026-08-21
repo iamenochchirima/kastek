@@ -426,6 +426,9 @@ all implementation and verification items above are complete:
 - KasiAi now follows the same focus lifecycle: its panel receives focus on
   open and focus returns to the trigger when the panel closes. The existing
   nested model picker and resize interactions remain unchanged.
+- KasiAi settings now use a horizontal navigation rail below 480px and stack
+  WhatsApp pairing controls on phone widths; desktop retains the Vantage side
+  rail. The selected settings section exposes semantic active state.
 - The route implementation pass now covers the remaining workspace, customer,
   content, campaign, automation, and connection surfaces with `100dvh` roots,
   Vantage entrance treatment, mobile stacking/overflow rules, and

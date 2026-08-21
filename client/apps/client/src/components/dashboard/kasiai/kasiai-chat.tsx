@@ -1883,7 +1883,7 @@ function KasiAiNavigation({
   return (
     <nav
       className={cn(
-        "flex shrink-0 flex-col border-r border-border bg-card/30 p-2 transition-[width] duration-200",
+        "flex shrink-0 flex-col border-r border-border bg-card/30 p-2 transition-[width] duration-[var(--v-motion-shell)]",
         expanded ? "w-56" : "w-14",
       )}
       aria-label="KasiAi navigation"
@@ -2352,15 +2352,16 @@ function KasiAiSettings({
         </Button>
         <h3 className="text-sm font-semibold">KasiAi settings</h3>
       </div>
-      <div className="flex min-h-0 flex-1">
-        <nav className="w-36 shrink-0 border-r border-border p-2">
+      <div className="flex min-h-0 flex-1 flex-col min-[480px]:flex-row">
+        <nav className="flex w-full shrink-0 gap-1 overflow-x-auto border-b border-border p-2 min-[480px]:block min-[480px]:w-36 min-[480px]:overflow-visible min-[480px]:border-b-0 min-[480px]:border-r">
           {nav.map(([key, label, Icon]) => (
             <button
               key={key}
               type="button"
               onClick={() => onSection(key)}
+              aria-current={section === key ? "page" : undefined}
               className={cn(
-                "mb-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs",
+                "flex min-h-9 shrink-0 items-center gap-2 rounded-md px-2 py-2 text-left text-xs min-[480px]:mb-1 min-[480px]:w-full",
                 section === key
                   ? "bg-muted font-medium"
                   : "text-muted-foreground hover:bg-muted/60",
@@ -2560,7 +2561,7 @@ function KasiAiSettings({
                     Send a one-time code to your selected KasiTek WhatsApp
                     number.
                   </p>
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-3 flex flex-col gap-2 min-[480px]:flex-row">
                     <Select value={selectedWhatsapp} onValueChange={onWhatsapp}>
                       <SelectTrigger className="min-w-0 flex-1 text-xs">
                         <SelectValue placeholder="Select a number" />
@@ -2574,7 +2575,7 @@ function KasiAiSettings({
                       ))}
                       </SelectContent>
                     </Select>
-                    <Button size="sm" onClick={onPair}>
+                    <Button size="sm" className="w-full min-[480px]:w-auto" onClick={onPair}>
                       Connect
                     </Button>
                   </div>
@@ -2712,15 +2713,16 @@ function KasiAiModelSettings({
         </Button>
         <h3 className="text-sm font-semibold">KasiAi settings</h3>
       </div>
-      <div className="flex min-h-0 flex-1">
-        <nav className="w-36 shrink-0 border-r border-border p-2">
+      <div className="flex min-h-0 flex-1 flex-col min-[480px]:flex-row">
+        <nav className="flex w-full shrink-0 gap-1 overflow-x-auto border-b border-border p-2 min-[480px]:block min-[480px]:w-36 min-[480px]:overflow-visible min-[480px]:border-b-0 min-[480px]:border-r">
           {nav.map(([key, label, Icon]) => (
             <button
               key={key}
               type="button"
               onClick={() => onSection(key)}
+              aria-current={key === "model" ? "page" : undefined}
               className={cn(
-                "mb-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs",
+                "flex min-h-9 shrink-0 items-center gap-2 rounded-md px-2 py-2 text-left text-xs min-[480px]:mb-1 min-[480px]:w-full",
                 key === "model"
                   ? "bg-muted font-medium"
                   : "text-muted-foreground hover:bg-muted/60",

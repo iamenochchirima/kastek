@@ -445,3 +445,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Made Agent knowledge-source and test-chat surfaces mobile-safe with `svh` editor sizing and a smaller phone minimum height; lint, TypeScript, and Webpack build passed. |
 | 2026-08-21 | Added Product Tour focus-on-open/step and focus restoration on close while routing its highlight transition through the shared shell duration; lint, TypeScript, and Webpack build passed. |
 | 2026-08-21 | Added KasiAi panel focus-on-open and focus restoration on close without changing its nested picker, resize, or chat behavior; lint, TypeScript, and Webpack build passed. |
+| 2026-08-21 | Made KasiAi settings navigation and WhatsApp pairing controls use an intentional phone-width treatment: horizontal settings navigation below 480px, stacked pairing controls, semantic active navigation state, and the shared Vantage navigation motion token. |
