@@ -2,7 +2,7 @@
 
 import { apiUrl } from "@/lib/server-api";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Activity, AlertTriangle, ArrowLeft, ArrowRight, BarChart3, CalendarDays, CalendarClock, Check, CheckCircle2, CircleAlert, FileClock, FileImage, LayoutGrid, List, Pencil, Play, Plus, RotateCcw, Search, Smartphone, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, FileImage, LayoutGrid, List, Pencil, Play, Plus, RotateCcw, Search, Smartphone, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
