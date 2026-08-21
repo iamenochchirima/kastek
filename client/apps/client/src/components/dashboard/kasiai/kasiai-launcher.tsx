@@ -157,10 +157,7 @@ export function KasiAiLauncher({
     >
       <span
         aria-hidden="true"
-        className={cn(
-          "pointer-events-none absolute -inset-2 rounded-full bg-primary/30 blur-lg",
-          !reduceMotion && "motion-safe:animate-[live-pulse_2.8s_ease-out_infinite]",
-        )}
+        className="pointer-events-none absolute -inset-2 rounded-full bg-primary/25 blur-md"
       />
       <Button
         type="button"
@@ -172,12 +169,33 @@ export function KasiAiLauncher({
         onPointerUp={finishDrag}
         onPointerCancel={finishDrag}
         className={cn(
-          "relative h-14 w-14 rounded-full border border-white/30 p-0 text-white shadow-[0_12px_30px_-8px_color-mix(in_srgb,var(--brand)_70%,transparent)] hover:scale-105 hover:brightness-110",
+          "relative h-14 w-14 overflow-hidden rounded-full border border-white/30 bg-[#161b62] p-0 text-white shadow-[0_12px_30px_-8px_color-mix(in_srgb,var(--brand)_70%,transparent)] hover:scale-105 hover:brightness-110",
           dragging ? "cursor-grabbing scale-105" : "cursor-grab",
         )}
-        style={{ background: "linear-gradient(135deg, var(--brand), var(--brand-2))" }}
       >
-        <Sparkles className="h-6 w-6" aria-hidden="true" />
+        <span
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none absolute -inset-5 rounded-[45%] blur-[5px]",
+            !reduceMotion && "motion-safe:animate-[kasiai-wave_5s_ease-in-out_infinite]",
+          )}
+          style={{
+            background:
+              "radial-gradient(ellipse at 24% 28%, rgba(196,181,253,.98), transparent 48%), radial-gradient(ellipse at 78% 78%, rgba(37,99,235,.98), transparent 54%), linear-gradient(135deg, #312e81, #11154e 58%, #050817)",
+          }}
+        />
+        <span
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none absolute -inset-6 rounded-[48%] opacity-75 blur-[4px]",
+            !reduceMotion && "motion-safe:animate-[kasiai-wave-secondary_7s_ease-in-out_infinite]",
+          )}
+          style={{
+            background:
+              "radial-gradient(ellipse at 72% 22%, rgba(129,140,248,.88), transparent 42%), radial-gradient(ellipse at 28% 78%, rgba(14,165,233,.78), transparent 48%)",
+          }}
+        />
+        <Sparkles className="relative z-10 h-6 w-6 drop-shadow-[0_1px_3px_rgba(0,0,0,.4)]" aria-hidden="true" />
       </Button>
     </div>
   );
