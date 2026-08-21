@@ -186,7 +186,7 @@ function recipientTone(status: string) {
     case "SENT":
       return "border-status-info/30 bg-status-info-soft text-status-info";
     case "DELIVERED":
-      return "border-cyan-500/30 bg-cyan-500/10 text-cyan-300";
+      return "border-status-info/30 bg-status-info-soft text-status-info";
     case "READ":
       return "border-status-success/30 bg-status-success-soft text-status-success";
     case "FAILED":
