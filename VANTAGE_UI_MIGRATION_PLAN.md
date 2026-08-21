@@ -419,3 +419,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Migrated Campaign Create setup, template-variable mapping, and recipient-search controls to shared Vantage primitives; lint and Webpack build passed. |
 | 2026-08-21 | Migrated onboarding industry selection to the shared Vantage Select primitive; lint and Webpack build passed. |
 | 2026-08-21 | Migrated Posts filtering and composer text, select, and consent controls to shared Vantage primitives; lint and Webpack build passed. |
+| 2026-08-21 | Migrated Agent Detail website-origin and channel-registration fields to shared Vantage controls; lint and Webpack build passed. |
