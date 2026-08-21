@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const publicSiteUrl = "https://kasitek.co.za";
 
 const nextConfig: NextConfig = {
+  // Keep Next's development indicator out of the fixed dashboard sidebar.
+  devIndicators: { position: "bottom-right" },
   // The development client is served through this public hostname. Next uses
   // the browser Origin to protect development/HMR connections, so the public
   // origin must be explicitly permitted or client-side hydration is blocked.
