@@ -152,6 +152,23 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn delete_agent(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        agent_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::DELETE,
+            &format!("/v1/agents/{agent_id}"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
     pub async fn verify_provider_credential(
         &self,
         organization_id: &str,
@@ -2491,7 +2508,7 @@ mod tests {
 
     #[tokio::test]
     async fn every_non_operator_adapter_uses_the_scoped_agent_boundary() {
-        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 76]).await;
+        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 77]).await;
         let client = test_client(&base_url);
         let body = json!({"value": "test"});
 
@@ -2506,6 +2523,10 @@ mod tests {
             .unwrap();
         client
             .update_agent("org-1", "actor-1", "agent-1", body.clone())
+            .await
+            .unwrap();
+        client
+            .delete_agent("org-1", "actor-1", "agent-1")
             .await
             .unwrap();
         client
@@ -2806,12 +2827,13 @@ mod tests {
             .unwrap();
 
         let requests = server.await.unwrap();
-        assert_eq!(requests.len(), 76);
+        assert_eq!(requests.len(), 77);
         let expected_paths = [
             "POST /v1/system-agents/kasiai/installation HTTP/1.1",
             "GET /v1/agents HTTP/1.1",
             "POST /v1/agents HTTP/1.1",
             "PATCH /v1/agents/agent-1 HTTP/1.1",
+            "DELETE /v1/agents/agent-1 HTTP/1.1",
             "POST /v1/agents/agent-1/versions HTTP/1.1",
             "GET /v1/operations/summary HTTP/1.1",
             "GET /v1/operations/runs?limit=25 HTTP/1.1",
@@ -2897,6 +2919,7 @@ mod tests {
             "agents:read",    // list_agents
             "agents:write",   // create_agent
             "agents:write",   // update_agent
+            "agents:write",   // delete_agent
             "agents:write",   // create_agent_version
             "agents:read",    // operations_summary
             "agents:read",    // operations_runs

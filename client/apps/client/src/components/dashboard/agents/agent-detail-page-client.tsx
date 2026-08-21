@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Activity, Archive, ArrowLeft, BookOpen, Bot, CheckCircle2, Copy, Globe2, History, KeyRound, LayoutDashboard, LoaderCircle, MessageSquare, PlugZap, Plus, RefreshCw, Rocket, RotateCcw, Send, Settings2, SlidersHorizontal, Sparkles, Square, Trash2, Upload } from "lucide-react";
+import { Activity, Archive, ArrowLeft, BookOpen, Bot, CheckCircle2, Copy, Globe2, History, KeyRound, LayoutDashboard, LoaderCircle, MessageSquare, PlugZap, Plus, RefreshCw, Rocket, RotateCcw, Send, Settings2, SlidersHorizontal, Sparkles, Square, Trash2, Upload, Workflow } from "lucide-react";
 import type { IconType } from "react-icons";
 import { SiDiscord, SiInstagram, SiMessenger, SiModelcontextprotocol, SiSlack, SiTelegram, SiWhatsapp, SiWordpress } from "react-icons/si";
 import { Badge } from "@/components/ui/badge";
@@ -13,8 +13,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { AgentWorkflowEditor, type WorkflowGraphValue } from "./agent-workflow-editor";
 import { AgentRuntimeLimits, defaultAgentRuntimeLimits, parseAgentRuntimeLimits, type AgentRuntimeLimitsValue } from "./agent-runtime-limits";
 import { listWorkspaceConnections, type WorkspaceConnection } from "@/lib/connections";
+import { apiUrl } from "@/lib/server-api";
 import {
   archiveAgent,
+  deleteAgent,
   archiveExternalAgent,
   updateAgent,
   getExternalAgentHealth,
@@ -76,6 +78,8 @@ import {
   disconnectKasiAiChannel,
   createAgentWebsiteDeployment,
   listAgentWebsiteDeployments,
+  updateAgentWebsiteDeployment,
+  setAgentWebsiteDeploymentStatus,
   type AgentChannelConnection,
   type AgentChannelBinding,
   type AgentDefinition,
@@ -136,7 +140,7 @@ function sanitizeAgentSlug(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
 }
 
-type DetailSection = "overview" | "activity" | "conversations" | "operations" | "knowledge" | "behavior" | "integrations" | "deployment" | "connection" | "settings" | "advanced";
+type DetailSection = "overview" | "activity" | "conversations" | "operations" | "knowledge" | "behavior" | "integrations" | "appearance" | "deployment" | "connection" | "settings" | "advanced";
 
 type DetailNavigationItem = {
   section: DetailSection;
@@ -151,7 +155,7 @@ type DetailNavigationGroup = {
 };
 
 function isDetailSection(value: string | null): value is DetailSection {
-  return value === "overview" || value === "activity" || value === "conversations" || value === "operations" || value === "knowledge" || value === "behavior" || value === "integrations" || value === "deployment" || value === "connection" || value === "settings" || value === "advanced";
+  return value === "overview" || value === "activity" || value === "conversations" || value === "operations" || value === "knowledge" || value === "behavior" || value === "integrations" || value === "appearance" || value === "deployment" || value === "connection" || value === "settings" || value === "advanced";
 }
 
 export function AgentDetailPageClient({ agent, initialVersions }: { agent: AgentDefinition; initialVersions: AgentVersion[] }) {
@@ -192,13 +196,35 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const [workflow, setWorkflow] = useState<WorkflowGraphValue | null>(null);
   const [workflowValid, setWorkflowValid] = useState(true);
   const [workflowReady, setWorkflowReady] = useState(false);
+  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
+  const [deleteConfirmationValue, setDeleteConfirmationValue] = useState("");
+  const [websiteChatConfigured, setWebsiteChatConfigured] = useState(false);
   const protectedAgent = agent.protected;
   const executionMode = agent.execution_mode ?? (protectedAgent ? "system_hosted" : "kasitek_hosted");
   const externalAgent = executionMode === "external_connected";
   const hostedAgent = executionMode === "system_hosted" || executionMode === "kasitek_hosted";
   const kasitekHostedAgent = executionMode === "kasitek_hosted";
+  const customHostedAgent = kasitekHostedAgent && agent.creation_profile === "custom";
+  const deletableAgent = !protectedAgent && agent.owner_type === "organization";
   const requestedSection = searchParams.get("section");
   const activeSection: DetailSection = isDetailSection(requestedSection) ? requestedSection : "overview";
+
+  useEffect(() => {
+    if (!hostedAgent || protectedAgent || !agent.installation_id) {
+      setWebsiteChatConfigured(false);
+      return;
+    }
+    let cancelled = false;
+    void listAgentWebsiteDeployments(agent.installation_id)
+      .then((result) => {
+        if (!cancelled) setWebsiteChatConfigured(result.deployments.some((deployment) => deployment.status !== "REVOKED"));
+      })
+      .catch(() => {
+        if (!cancelled) setWebsiteChatConfigured(false);
+      });
+    return () => { cancelled = true; };
+  }, [agent.installation_id, hostedAgent, protectedAgent]);
+
   const navigationGroups = useMemo<DetailNavigationGroup[]>(() => {
     const activityItems: DetailNavigationItem[] = [{ section: "activity", label: "Test chat", description: "Chat with this agent privately", icon: MessageSquare }];
     if (kasitekHostedAgent) {
@@ -228,6 +254,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
           label: "Deployment",
           items: [
             { section: "integrations", label: "Integrations", description: "Connect channels and surfaces", icon: PlugZap },
+            ...(websiteChatConfigured ? [{ section: "appearance" as const, label: "Appearance", description: "Customize Website Chat", icon: Sparkles }] : []),
             { section: "deployment", label: "Channels & status", description: "Health, routing, and delivery", icon: Rocket },
           ],
         },
@@ -236,13 +263,24 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
       groups.push({ label: "Connection", items: [{ section: "connection", label: "Credentials", description: "Connect and monitor runtime", icon: KeyRound }] });
     }
     if (!protectedAgent) {
-      groups.push({ label: "Settings", items: [{ section: "settings", label: "Agent settings", description: "Edit the agent name, description, and slug", icon: Settings2 }] });
+      groups.push({
+        label: "Settings",
+        items: [
+          { section: "settings", label: "Agent settings", description: "Edit the agent name, description, and slug", icon: Settings2 },
+          { section: "advanced", label: "Advanced settings", description: hostedAgent ? "Versions, scopes, and schedules" : "Scopes and audit", icon: Settings2 },
+        ],
+      });
+    } else {
+      groups.push({ label: "Settings", items: [{ section: "advanced", label: "Advanced settings", description: hostedAgent ? "Versions, scopes, and schedules" : "Scopes and audit", icon: Settings2 }] });
     }
-    groups.push({ label: "Advanced", items: [{ section: "advanced", label: "Advanced settings", description: hostedAgent ? "Versions, scopes, and schedules" : "Scopes and audit", icon: Settings2 }] });
     return groups;
-  }, [externalAgent, hostedAgent, kasitekHostedAgent, protectedAgent]);
+  }, [externalAgent, hostedAgent, kasitekHostedAgent, protectedAgent, websiteChatConfigured]);
 
   const selectSection = (section: DetailSection) => {
+    if (section === "appearance") {
+      router.push(`/agents/${encodeURIComponent(agent.id)}/appearance`);
+      return;
+    }
     const query = new URLSearchParams(searchParams.toString());
     if (section === "overview") query.delete("section");
     else query.set("section", section);
@@ -282,11 +320,29 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         if (action === `retire:${version.id}`) return { ...version, status: "retired", retired_at: new Date().toISOString() };
         return action === "archive" ? current[0] ?? version : version;
       }));
-      if (action === "archive") router.push("/agents");
+      if (action === "archive" || action === "delete") router.push("/agents");
+      return true;
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Agent operation failed");
+      return false;
     } finally {
       setBusy(null);
+    }
+  };
+
+  const deleteCurrentAgent = () => {
+    if (busy || !deletableAgent) return;
+    setError(null);
+    setDeleteConfirmationValue("");
+    setDeleteConfirmationOpen(true);
+  };
+
+  const confirmDeleteCurrentAgent = async () => {
+    if (busy || !deleteConfirmationOpen || deleteConfirmationValue !== agentName) return;
+    const deleted = await mutate("delete", () => deleteAgent(agent.id));
+    if (deleted) {
+      setDeleteConfirmationOpen(false);
+      setDeleteConfirmationValue("");
     }
   };
 
@@ -372,7 +428,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">{agentDescription || "Installed Agent Platform agent"}</p>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">{agent.installation_id && installationStatus !== "disabled" ? <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void toggleInstallation()}>{busy === "installation-status" ? "Updating…" : installationStatus === "active" ? "Pause installation" : "Resume installation"}</Button> : null}{protectedAgent ? <Badge className="w-fit border-primary/20 bg-primary/10 text-primary">Protected system agent</Badge> : <Button type="button" variant="outline" disabled={busy === "archive"} onClick={() => void mutate("archive", () => externalAgent && agent.installation_id ? archiveExternalAgent(agent.installation_id) : archiveAgent(agent.id))}><Archive className="mr-2 h-4 w-4" />{busy === "archive" ? "Archiving…" : "Archive agent"}</Button>}</div>
+              <div className="flex flex-wrap items-center justify-end gap-2">{customHostedAgent ? <Button asChild><Link href={`/agents/${encodeURIComponent(agent.id)}/workflow`}><Workflow className="mr-2 h-4 w-4" />Edit workflow</Link></Button> : null}{agent.installation_id && installationStatus !== "disabled" ? <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void toggleInstallation()}>{busy === "installation-status" ? "Updating…" : installationStatus === "active" ? "Pause installation" : "Resume installation"}</Button> : null}{protectedAgent ? <Badge className="w-fit border-primary/20 bg-primary/10 text-primary">Protected system agent</Badge> : deletableAgent ? <Button type="button" variant="outline" disabled={busy === "archive" || busy === "delete"} onClick={() => void mutate("archive", () => externalAgent && agent.installation_id ? archiveExternalAgent(agent.installation_id) : archiveAgent(agent.id))}><Archive className="mr-2 h-4 w-4" />{busy === "archive" ? "Archiving…" : "Archive agent"}</Button> : null}</div>
             </div>
             {externalAgent ? <p className="rounded-lg border border-status-info/20 bg-status-info-soft/40 px-3 py-2 text-sm text-muted-foreground">This is an external-connected installation. It calls KasiTek through MCP or REST and does not run hosted chat, channels, schedules, knowledge, or model workflows here.</p> : null}
           </CardContent>
@@ -384,7 +440,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
             <Card className="overflow-hidden border-border/80 shadow-sm"><CardContent className="p-3 sm:p-4">
               <div className="mb-3 px-2"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Manage agent</p><p className="mt-1 truncate text-sm font-medium text-foreground">{agentName}</p></div>
               <nav aria-label="Agent management" className="flex gap-1 overflow-x-auto lg:block">
-                {navigationGroups.map((group, groupIndex) => <div key={group.label ?? `group-${groupIndex}`} className="lg:mt-4 first:mt-0">{group.label ? <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{group.label}</p> : null}{group.items.map((item) => { const Icon = item.icon; const active = activeSection === item.section; return <button key={item.section} type="button" aria-current={active ? "page" : undefined} title={item.description} onClick={() => selectSection(item.section)} className={`flex min-w-max items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors lg:min-w-0 lg:w-full ${active ? "bg-primary/10 font-semibold text-primary" : "text-foreground/80 hover:bg-secondary hover:text-foreground"}`}><Icon className="h-4 w-4 shrink-0" /><span>{item.label}</span></button>; })}</div>)}
+                {navigationGroups.map((group, groupIndex) => <div key={group.label ?? `group-${groupIndex}`} className="lg:mt-4 first:mt-0">{group.label ? <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{group.label}</p> : null}{group.items.map((item) => { const Icon = item.icon; const active = activeSection === item.section; return <button key={item.section} type="button" aria-current={active ? "page" : undefined} title={item.description} onClick={() => selectSection(item.section)} className={`flex min-w-max items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors lg:min-w-0 lg:w-full ${active ? "bg-primary/10 font-semibold text-primary" : "text-foreground/80 hover:bg-secondary hover:text-foreground"}`}><Icon className="h-4 w-4 shrink-0" /><span>{item.label}</span></button>; })}{group.label === "Settings" && deletableAgent ? <><div className="my-2 border-t border-border/70" /><button type="button" title="Permanently delete this agent" onClick={() => void deleteCurrentAgent()} disabled={busy !== null} className="flex min-w-max items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50 lg:min-w-0 lg:w-full"><Trash2 className="h-4 w-4 shrink-0" /><span>{busy === "delete" ? "Deleting…" : "Delete agent"}</span></button></> : null}</div>)}
               </nav>
               <div className="mt-4 hidden rounded-xl border border-border bg-secondary/30 p-3 lg:block"><p className="text-xs text-muted-foreground">{protectedAgent ? "Protected platform agent" : externalAgent ? "External runtime" : "Hosted runtime"}</p><p className="mt-1 text-xs font-medium capitalize text-foreground">{installationStatus.replaceAll("_", " ")}</p></div>
             </CardContent></Card>
@@ -420,7 +476,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 
         {activeSection === "conversations" && kasitekHostedAgent && agent.installation_id ? <AgentConversationHistory installationId={agent.installation_id} /> : null}
 
-        {activeSection === "integrations" && hostedAgent && agent.installation_id ? <InstallationIntegrations installationId={agent.installation_id} personal={protectedAgent} agentName={agent.name} /> : null}
+        {activeSection === "integrations" && hostedAgent && agent.installation_id ? <InstallationIntegrations agentId={agent.id} installationId={agent.installation_id} personal={protectedAgent} agentName={agent.name} onWebsiteDeploymentStateChange={setWebsiteChatConfigured} /> : null}
 
         {activeSection === "deployment" && hostedAgent && agent.installation_id ? <InstallationChannels installationId={agent.installation_id} personal={protectedAgent} /> : null}
 
@@ -452,6 +508,17 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         </section> : null}
           </main>
         </div>
+        {deleteConfirmationOpen ? <div className="fixed inset-0 z-[80] flex items-center justify-center bg-overlay p-4" role="dialog" aria-modal="true" aria-labelledby="delete-agent-title" aria-describedby="delete-agent-description" onMouseDown={(event) => { if (event.target === event.currentTarget && busy === null) { setDeleteConfirmationOpen(false); setDeleteConfirmationValue(""); } }}>
+          <div className="w-full max-w-md rounded-2xl border border-destructive/30 bg-card p-6 shadow-2xl">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-destructive/10 text-destructive"><Trash2 className="h-5 w-5" aria-hidden="true" /></div>
+            <h2 id="delete-agent-title" className="mt-4 text-lg font-semibold text-foreground">Delete agent permanently?</h2>
+            <p id="delete-agent-description" className="mt-2 text-sm leading-6 text-muted-foreground">This permanently removes the agent, its versions, installations, conversations, knowledge, credentials, and run history.</p>
+            <p className="mt-4 text-sm text-foreground">Type <code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs">{agentName}</code> to continue.</p>
+            <input autoFocus value={deleteConfirmationValue} onChange={(event) => setDeleteConfirmationValue(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void confirmDeleteCurrentAgent(); if (event.key === "Escape" && busy === null) { setDeleteConfirmationOpen(false); setDeleteConfirmationValue(""); } }} className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-destructive/50" aria-label={`Type ${agentName} to confirm deletion`} placeholder={agentName} />
+            {error ? <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+            <div className="mt-6 flex justify-end gap-2"><Button type="button" variant="outline" disabled={busy !== null} onClick={() => { setDeleteConfirmationOpen(false); setDeleteConfirmationValue(""); }}>Cancel</Button><Button type="button" variant="destructive" disabled={busy !== null || deleteConfirmationValue !== agentName} onClick={() => void confirmDeleteCurrentAgent()}>{busy === "delete" ? "Deleting…" : "Delete permanently"}</Button></div>
+          </div>
+        </div> : null}
       </div>
     </div>
   );
@@ -1217,7 +1284,7 @@ function integrationIconColor(provider: string) {
   }
 }
 
-function InstallationIntegrations({ installationId, personal, agentName }: { installationId: string; personal: boolean; agentName: string }) {
+function InstallationIntegrations({ agentId, installationId, personal, agentName, onWebsiteDeploymentStateChange }: { agentId: string; installationId: string; personal: boolean; agentName: string; onWebsiteDeploymentStateChange?: (configured: boolean) => void }) {
   const [workspaceConnections, setWorkspaceConnections] = useState<WorkspaceConnection[]>([]);
   const [agentConnections, setAgentConnections] = useState<AgentChannelConnection[]>([]);
   const [bindings, setBindings] = useState<AgentChannelBinding[]>([]);
@@ -1225,6 +1292,8 @@ function InstallationIntegrations({ installationId, personal, agentName }: { ins
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [websiteChatOpen, setWebsiteChatOpen] = useState(false);
+  const [websiteDeployments, setWebsiteDeployments] = useState<AgentWebsiteDeployment[]>([]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -1245,6 +1314,25 @@ function InstallationIntegrations({ installationId, personal, agentName }: { ins
   }, [installationId]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  const refreshWebsiteDeployments = useCallback(async () => {
+    if (personal) {
+      setWebsiteDeployments([]);
+      return;
+    }
+    try {
+      const result = await listAgentWebsiteDeployments(installationId);
+      setWebsiteDeployments(result.deployments);
+      onWebsiteDeploymentStateChange?.(result.deployments.some((deployment) => deployment.status !== "REVOKED"));
+    } catch {
+      // Keep the integration card usable if the deployment status request fails.
+      setWebsiteDeployments([]);
+    }
+  }, [installationId, onWebsiteDeploymentStateChange, personal]);
+
+  useEffect(() => { void refreshWebsiteDeployments(); }, [refreshWebsiteDeployments]);
+
+  const openWebsiteChat = () => setWebsiteChatOpen(true);
 
   const agentChannelFor = (connection: WorkspaceConnection) => agentConnections.find((entry) => (
     entry.channel_type === "whatsapp" && entry.status === "active"
@@ -1327,7 +1415,11 @@ function InstallationIntegrations({ installationId, personal, agentName }: { ins
     provider,
     connections: linkedConnections.filter((connection) => connection.provider.toUpperCase() === provider),
   })).filter((group) => group.connections.length > 0);
+  const websiteConfigured = websiteDeployments.some((deployment) => deployment.status !== "REVOKED");
+  const websiteActive = websiteDeployments.some((deployment) => deployment.status === "ACTIVE");
+  const websiteStatus = websiteActive ? "Active" : websiteConfigured ? "Configured" : "Configure";
   const upcomingIntegrations = [
+    ...(!personal ? [{ label: "Website Chat", description: "Add this agent to any website", icon: Globe2, iconClass: "text-[#06B6D4]", status: websiteStatus, action: "website" as const }] : []),
     { label: "Telegram", description: "Bot messaging", icon: SiTelegram, iconClass: "text-[#229ED9]", status: "Coming soon" },
     { label: "Discord", description: "Servers and direct messages", icon: SiDiscord, iconClass: "text-[#5865F2]", status: "Coming soon" },
     { label: "Slack", description: "Workspace messaging", icon: SiSlack, iconClass: "text-[#36C5F0]", status: "Coming soon" },
@@ -1338,7 +1430,6 @@ function InstallationIntegrations({ installationId, personal, agentName }: { ins
   ];
 
   return <div className="space-y-4">
-    {!personal ? <WebsiteChatDeployments installationId={installationId} agentName={agentName} /> : null}
     <Card>
       <CardContent className="space-y-4 p-6">
         <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Deployment</p><h2 className="mt-1 text-lg font-semibold text-foreground">Integrations</h2><p className="mt-1 text-sm text-muted-foreground">{personal ? "Connect this personal agent to private workspace channels." : "Assign workspace channels to this agent. Everyone who messages an assigned business number will reach this agent."}</p></div>
@@ -1359,16 +1450,35 @@ function InstallationIntegrations({ installationId, personal, agentName }: { ins
       </CardContent>
     </Card>
     <Card>
-      <CardContent className="space-y-4 p-6"><div><h3 className="text-sm font-semibold text-foreground">Available integrations</h3><p className="mt-1 text-sm text-muted-foreground">More ways to deploy this agent.</p></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{upcomingIntegrations.map((integration) => { const Icon = integration.icon; return <div key={integration.label} className="rounded-xl border border-border p-4"><div className="flex items-start justify-between gap-3"><div className="rounded-lg border border-border bg-secondary p-2"><Icon className={`h-5 w-5 ${integration.iconClass}`} /></div><Badge className="border-border bg-secondary text-muted-foreground">{integration.status}</Badge></div><p className="mt-3 font-medium text-foreground">{integration.label}</p><p className="mt-1 text-sm text-muted-foreground">{integration.description}</p>{integration.status === "Developer setup" ? <Link href="/developers" className="mt-3 inline-flex text-xs font-medium text-foreground underline-offset-4 hover:underline">Open Developers</Link> : null}</div>; })}</div></CardContent>
+      <CardContent className="space-y-4 p-6"><div><h3 className="text-sm font-semibold text-foreground">Available integrations</h3><p className="mt-1 text-sm text-muted-foreground">More ways to deploy this agent.</p></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{upcomingIntegrations.map((integration) => { const Icon = integration.icon; const isWebsite = integration.action === "website"; return <div key={integration.label} role={isWebsite ? "button" : undefined} tabIndex={isWebsite ? 0 : undefined} onClick={isWebsite ? openWebsiteChat : undefined} onKeyDown={isWebsite ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openWebsiteChat(); } } : undefined} className={`rounded-xl border border-border p-4${isWebsite ? " cursor-pointer transition-colors hover:border-primary/60 hover:bg-secondary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" : ""}`}><div className="flex items-start justify-between gap-3"><div className="rounded-lg border border-border bg-secondary p-2"><Icon className={`h-5 w-5 ${integration.iconClass}`} /></div><Badge className="border-border bg-secondary text-muted-foreground">{integration.status}</Badge></div><p className="mt-3 font-medium text-foreground">{integration.label}</p><p className="mt-1 text-sm text-muted-foreground">{integration.description}</p>{isWebsite ? <span className="mt-3 inline-flex text-xs font-medium text-foreground">{websiteConfigured ? "Manage Website Chat" : "Configure Website Chat"} <span aria-hidden="true" className="ml-1">→</span></span> : integration.status === "Developer setup" ? <Link href="/developers" className="mt-3 inline-flex text-xs font-medium text-foreground underline-offset-4 hover:underline">Open Developers</Link> : null}</div>; })}</div></CardContent>
     </Card>
+    {!personal && websiteChatOpen ? <WebsiteChatDeployments agentId={agentId} installationId={installationId} agentName={agentName} onClose={() => { setWebsiteChatOpen(false); void refreshWebsiteDeployments(); }} /> : null}
   </div>;
 }
 
-function WebsiteChatDeployments({ installationId, agentName }: { installationId: string; agentName: string }) {
+const DEFAULT_WEBSITE_APPEARANCE: AgentWebsiteDeployment["appearance"] = {
+  primaryColor: "#3730a3",
+  launcherSize: 56,
+  windowWidth: 390,
+  windowHeight: 620,
+  borderRadius: 16,
+  launcherOffset: 16,
+  showBranding: true,
+};
+
+function websiteAppearance(deployment: AgentWebsiteDeployment) {
+  return { ...DEFAULT_WEBSITE_APPEARANCE, ...(deployment.appearance || {}) };
+}
+
+function WebsiteChatDeployments({ agentId, installationId, agentName, onClose }: { agentId: string; installationId: string; agentName: string; onClose: () => void }) {
   const [deployments, setDeployments] = useState<AgentWebsiteDeployment[]>([]);
   const [origin, setOrigin] = useState("");
+  const [selectedId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<AgentWebsiteDeployment | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [changingStatus, setChangingStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -1385,6 +1495,11 @@ function WebsiteChatDeployments({ installationId, agentName }: { installationId:
   }, [installationId]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
 
   const createDeployment = async () => {
     if (!origin.trim() || creating) return;
@@ -1405,21 +1520,69 @@ function WebsiteChatDeployments({ installationId, agentName }: { installationId:
     }
   };
 
-  return <Card>
-    <CardContent className="space-y-4 p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Website Chat</p><h2 className="mt-1 text-lg font-semibold text-foreground">Put this agent on your website</h2><p className="mt-1 text-sm text-muted-foreground">Each deployment is restricted to the website origins you approve. WordPress and Custom Button will use this same deployment.</p></div>
-        <Badge className="border-border bg-secondary text-muted-foreground">Foundation ready</Badge>
+  const editDeployment = (deployment: AgentWebsiteDeployment) => {
+    if (!deployment.id) return;
+    window.location.assign(`/agents/${encodeURIComponent(agentId)}/appearance`);
+  };
+
+  const saveAppearance = async () => {
+    if (!draft || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const result = await updateAgentWebsiteDeployment(installationId, draft.id, {
+        displayName: draft.displayName || "",
+        welcomeText: draft.welcomeText || "",
+        launcherPosition: draft.launcherPosition,
+        colorPreset: draft.colorPreset,
+        appearance: draft.appearance,
+      });
+      setDeployments((current) => current.map((entry) => entry.id === draft.id ? result.deployment : entry));
+      setDraft(result.deployment);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to save Website Chat appearance");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const changeStatus = async (deployment: AgentWebsiteDeployment, status: "ACTIVE" | "PAUSED" | "REVOKED") => {
+    if (changingStatus || (status === "REVOKED" && !window.confirm("Revoke this Website Chat deployment? Existing visitors will no longer be able to start a chat."))) return;
+    setChangingStatus(deployment.id);
+    setError(null);
+    try {
+      const result = await setAgentWebsiteDeploymentStatus(installationId, deployment.id, status);
+      setDeployments((current) => current.map((entry) => entry.id === deployment.id ? result.deployment : entry));
+      if (draft?.id === deployment.id) setDraft(result.deployment);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to update Website Chat status");
+    } finally {
+      setChangingStatus(null);
+    }
+  };
+
+  const updateDraft = (changes: Partial<AgentWebsiteDeployment>) => setDraft((current) => current ? { ...current, ...changes } : current);
+  const updateAppearance = (changes: Partial<AgentWebsiteDeployment["appearance"]>) => setDraft((current) => current ? { ...current, appearance: { ...websiteAppearance(current), ...changes } } : current);
+  const preview = draft ? websiteAppearance(draft) : DEFAULT_WEBSITE_APPEARANCE;
+
+  return <div className="fixed inset-0 z-[70] flex items-center justify-center bg-overlay/70 p-4" role="dialog" aria-modal="true" aria-labelledby="website-chat-dialog-title">
+    <button type="button" className="absolute inset-0 cursor-default" aria-label="Close Website Chat setup" onClick={onClose} />
+    <div className="relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
+      <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-4">
+        <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Deployment</p><h2 id="website-chat-dialog-title" className="mt-1 text-lg font-semibold text-foreground">Website Chat</h2></div>
+        <Button type="button" variant="ghost" size="sm" onClick={onClose}>Close</Button>
       </div>
-      {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-      <div className="flex flex-col gap-2 sm:flex-row"><input value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder="https://www.example.com" className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring" aria-label="Website origin" /><Button type="button" disabled={!origin.trim() || creating} onClick={() => void createDeployment()}>{creating ? "Creating…" : "Create Website Chat"}</Button></div>
-      <p className="text-xs text-muted-foreground">Enter only the origin, for example <code>https://www.example.com</code>. Add a separate <code>http://localhost:3000</code> origin only when you need local testing.</p>
-      {loading ? <p className="text-sm text-muted-foreground">Loading deployments…</p> : deployments.length ? <div className="space-y-2">{deployments.map((deployment) => {
-        const embed = `<script async src="https://widget.kasitek.co.za/v1/loader.js" data-kasitek-deployment="${deployment.publicId}"></script>`;
-        return <div key={deployment.id} className="rounded-xl border border-border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-medium text-foreground">{deployment.displayName || agentName}</p><p className="mt-1 font-mono text-xs text-muted-foreground">{deployment.publicId}</p><p className="mt-2 text-xs text-muted-foreground">{deployment.allowedOrigins.join(", ") || "No origin configured"}</p></div><div className="flex items-center gap-2"><Badge className="border-border bg-secondary text-muted-foreground">{deployment.status.toLowerCase()}</Badge><Button type="button" variant="outline" size="sm" onClick={() => void navigator.clipboard?.writeText(embed)}><Copy className="mr-1.5 h-3.5 w-3.5" />Copy embed</Button></div></div></div>;
-      })}</div> : <p className="text-sm text-muted-foreground">No Website Chat deployment yet.</p>}
-    </CardContent>
-  </Card>;
+      <div className="min-h-0 space-y-4 overflow-y-auto p-5 sm:p-6">
+        {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+        <div className="flex flex-col gap-2 sm:flex-row"><label className="sr-only" htmlFor="website-chat-origin">Website origin</label><input id="website-chat-origin" value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder="https://example.com" className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring" /><Button type="button" disabled={!origin.trim() || creating} onClick={() => void createDeployment()}>{creating ? "Adding…" : "Add origin"}</Button></div>
+        {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : deployments.length ? <div className="space-y-3">{deployments.map((deployment) => {
+          const embed = `<script async src="${apiUrl("/api/widget/v1/loader.js")}" data-kasitek-deployment="${deployment.publicId}"></script>`;
+          const shareUrl = deployment.shareUrl || apiUrl(`/api/widget/v1/share/${deployment.publicId}`);
+          return <div key={deployment.id} className="rounded-xl border border-border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="font-medium text-foreground">{deployment.displayName || agentName}</p><p className="mt-1 truncate font-mono text-xs text-muted-foreground">{deployment.publicId}</p><p className="mt-2 text-xs text-muted-foreground">{deployment.allowedOrigins.join(", ")}</p></div><div className="flex flex-wrap items-center gap-2"><Badge className="border-border bg-secondary text-muted-foreground">{deployment.status.toLowerCase()}</Badge><Button type="button" variant="outline" size="sm" onClick={() => editDeployment(deployment)}>Appearance</Button><Button type="button" variant="outline" size="sm" onClick={() => void navigator.clipboard?.writeText(embed)}><Copy className="mr-1.5 h-3.5 w-3.5" />Copy embed</Button><Button type="button" variant="outline" size="sm" onClick={() => void navigator.clipboard?.writeText(shareUrl)}>Copy share link</Button>{deployment.status === "ACTIVE" ? <Button type="button" variant="outline" size="sm" disabled={changingStatus === deployment.id} onClick={() => void changeStatus(deployment, "PAUSED")}>Pause</Button> : null}{deployment.status === "PAUSED" ? <Button type="button" variant="outline" size="sm" disabled={changingStatus === deployment.id} onClick={() => void changeStatus(deployment, "ACTIVE")}>Resume</Button> : null}{deployment.status !== "REVOKED" ? <Button type="button" variant="ghost" size="sm" disabled={changingStatus === deployment.id} onClick={() => void changeStatus(deployment, "REVOKED")}>Revoke</Button> : null}</div></div>{selectedId === deployment.id && draft ? <div className="mt-4 grid gap-4 border-t border-border pt-4 lg:grid-cols-[1fr_220px]"><div className="space-y-3"><div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-medium text-muted-foreground">Title<input value={draft.displayName || ""} onChange={(event) => updateDraft({ displayName: event.target.value })} className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground" /></label><label className="text-xs font-medium text-muted-foreground">Launcher position<select value={draft.launcherPosition} onChange={(event) => updateDraft({ launcherPosition: event.target.value as AgentWebsiteDeployment["launcherPosition"] })} className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"><option value="bottom-right">Bottom right</option><option value="bottom-left">Bottom left</option></select></label></div><label className="block text-xs font-medium text-muted-foreground">Welcome message<textarea value={draft.welcomeText || ""} onChange={(event) => updateDraft({ welcomeText: event.target.value })} rows={2} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground" /></label><div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-medium text-muted-foreground">Theme<select value={draft.colorPreset} onChange={(event) => updateDraft({ colorPreset: event.target.value })} className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"><option value="indigo">Indigo</option><option value="violet">Violet</option><option value="emerald">Emerald</option><option value="blue">Blue</option><option value="slate">Slate</option></select></label><label className="text-xs font-medium text-muted-foreground">Primary color<input type="color" value={preview.primaryColor} onChange={(event) => updateAppearance({ primaryColor: event.target.value })} className="mt-1 h-9 w-full rounded-md border border-input bg-background p-1" /></label></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{([["launcherSize", "Launcher", 44, 96], ["windowWidth", "Width", 300, 600], ["windowHeight", "Height", 360, 800], ["borderRadius", "Radius", 0, 28]] as const).map(([field, label, min, max]) => <label key={field} className="text-xs font-medium text-muted-foreground">{label}<input type="number" min={min} max={max} value={preview[field]} onChange={(event) => updateAppearance({ [field]: Number(event.target.value) })} className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground" /></label>)}</div><label className="flex items-center gap-2 text-sm text-foreground"><input type="checkbox" checked={preview.showBranding} onChange={(event) => updateAppearance({ showBranding: event.target.checked })} />Show KasiTek branding</label><Button type="button" disabled={saving} onClick={() => void saveAppearance()}>{saving ? "Saving…" : "Save appearance"}</Button></div><div className="rounded-xl border border-border bg-secondary/30 p-3"><p className="mb-2 text-xs font-medium text-muted-foreground">Preview</p><div className="overflow-hidden border border-border bg-background shadow-sm" style={{ borderRadius: preview.borderRadius, width: "100%" }}><div className="px-3 py-2 text-sm font-semibold text-white" style={{ backgroundColor: preview.primaryColor }}>{draft.displayName || agentName}<span className="float-right">×</span></div><div className="min-h-28 space-y-2 p-3 text-xs"><div className="w-fit rounded-lg bg-secondary px-2 py-1">{draft.welcomeText || `Hi, I’m ${agentName}. How can I help?`}</div><div className="ml-auto w-fit rounded-lg px-2 py-1 text-white" style={{ backgroundColor: preview.primaryColor }}>What can you help with?</div></div><div className="border-t border-border p-2 text-center text-[10px] text-muted-foreground">{preview.showBranding ? "Powered by KasiTek" : ""}</div></div></div></div> : null}</div>;
+        })}</div> : <p className="text-sm text-muted-foreground">No origins added yet.</p>}
+      </div>
+    </div>
+  </div>;
 }
 
 function InstallationChannels({ installationId, personal }: { installationId: string; personal: boolean }) {

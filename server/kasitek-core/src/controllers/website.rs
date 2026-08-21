@@ -12,22 +12,29 @@ use crate::services::{agent_platform::AgentPlatformClient, website};
 const WEBSITE_CHAT_LOADER: &str = r#"(() => {
   const script = document.currentScript;
   const deployment = script?.dataset?.kasitekDeployment;
+  const share = script?.dataset?.kasitekShare === 'true';
   if (!deployment || window.KasiTekChat?.instances?.[deployment]) return;
   const base = new URL(script.src, window.location.href).origin;
   const api = `${base}/api/widget/v1`;
+  const shareSuffix = share ? '?share=1' : '';
   const instance = { open: () => {}, close: () => {} };
   window.KasiTekChat = window.KasiTekChat || { instances: {}, open: (id) => window.KasiTekChat?.instances?.[id]?.open() };
   window.KasiTekChat.instances[deployment] = instance;
   Promise.all([
-    fetch(`${api}/deployments/${encodeURIComponent(deployment)}`, { credentials: 'omit' }).then((r) => r.ok ? r.json() : Promise.reject(new Error('Website Chat is unavailable'))),
-    fetch(`${api}/deployments/${encodeURIComponent(deployment)}/sessions`, { method: 'POST', credentials: 'omit' }).then((r) => r.ok ? r.json() : Promise.reject(new Error('Website Chat could not start')))
+    fetch(`${api}/deployments/${encodeURIComponent(deployment)}${shareSuffix}`, { credentials: 'omit' }).then((r) => r.ok ? r.json() : Promise.reject(new Error('Website Chat is unavailable'))),
+    fetch(`${api}/deployments/${encodeURIComponent(deployment)}/sessions${shareSuffix}`, { method: 'POST', credentials: 'omit' }).then((r) => r.ok ? r.json() : Promise.reject(new Error('Website Chat could not start')))
   ]).then(([config, session]) => {
-    const color = ({ indigo: '#3730a3', violet: '#7c3aed', emerald: '#059669', blue: '#2563eb', slate: '#334155' })[config.colorPreset] || '#3730a3';
+    const appearance = config.appearance || {};
+    const color = appearance.primaryColor || ({ indigo: '#3730a3', violet: '#7c3aed', emerald: '#059669', blue: '#2563eb', slate: '#334155' })[config.colorPreset] || '#3730a3';
+    const launcherSize = Number(appearance.launcherSize) || 56;
+    const launcherOffset = Number(appearance.launcherOffset) || 16;
+    const windowWidth = Number(appearance.windowWidth) || 390;
+    const windowHeight = Number(appearance.windowHeight) || 620;
     const launcher = document.createElement('button');
     launcher.type = 'button';
     launcher.setAttribute('aria-label', `Open ${config.displayName || 'KasiTek'} chat`);
     launcher.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11.5a8 8 0 0 1-8 8 8.7 8.7 0 0 1-3.7-.8L4 20l1.3-3.4A8 8 0 1 1 20 11.5Z"></path><path d="M8 11.5h.01M12 11.5h.01M16 11.5h.01"></path></svg>';
-    launcher.style.cssText = `position:absolute;z-index:2;width:56px;height:56px;border:0;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;background:${color};box-shadow:0 8px 24px #11182740;pointer-events:auto;${config.launcherPosition === 'bottom-right' ? 'right:16px' : 'left:16px'};bottom:16px`;
+    launcher.style.cssText = `position:absolute;z-index:2;width:${launcherSize}px;height:${launcherSize}px;border:0;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;background:${color};box-shadow:0 8px 24px #11182740;pointer-events:auto;${config.launcherPosition === 'bottom-right' ? `right:${launcherOffset}px` : `left:${launcherOffset}px`};bottom:${launcherOffset}px`;
     const overlay = document.createElement('div');
     overlay.setAttribute('data-kasitek-chat-overlay', deployment);
     overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483000;pointer-events:none;';
@@ -36,7 +43,7 @@ const WEBSITE_CHAT_LOADER: &str = r#"(() => {
     frame.src = `${api}/frame.html`;
     frame.title = `${config.displayName || 'KasiTek'} chat`;
     frame.setAttribute('aria-label', `${config.displayName || 'KasiTek'} chat`);
-    frame.style.cssText = `position:absolute;z-index:1;border:0;width:390px;height:620px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);${config.launcherPosition === 'bottom-left' ? 'left:12px' : 'right:12px'};bottom:12px;display:none;background:transparent;pointer-events:auto`;
+    frame.style.cssText = `position:absolute;z-index:1;border:0;width:${windowWidth}px;height:${windowHeight}px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);${config.launcherPosition === 'bottom-left' ? `left:${launcherOffset}px` : `right:${launcherOffset}px`};bottom:${launcherOffset}px;display:none;background:transparent;pointer-events:auto`;
     overlay.appendChild(frame);
     document.body.appendChild(overlay);
     let ready = false;
@@ -49,13 +56,13 @@ const WEBSITE_CHAT_LOADER: &str = r#"(() => {
       if (event.data.type === 'kasitek:ready') { ready = true; emit({ type: 'kasitek:init', config, sessionId: session.sessionId }); }
       if (event.data.type === 'kasitek:close') instance.close();
       if (event.data.type === 'kasitek:send' && typeof event.data.text === 'string') {
-        fetch(`${api}/sessions/${encodeURIComponent(session.sessionId)}/messages`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idempotencyKey: crypto.randomUUID(), text: event.data.text }) })
+        fetch(`${api}/sessions/${encodeURIComponent(session.sessionId)}/messages${shareSuffix}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idempotencyKey: crypto.randomUUID(), text: event.data.text }) })
           .then((r) => { if (!r.ok) throw new Error('Message not accepted'); emit({ type: 'kasitek:accepted' }); })
           .catch(() => emit({ type: 'kasitek:error', message: 'Unable to send your message. Please try again.' }));
       }
     });
     let after = '';
-    setInterval(() => fetch(`${api}/sessions/${encodeURIComponent(session.sessionId)}/deliveries${after ? `?after=${encodeURIComponent(after)}` : ''}`, { credentials: 'omit' })
+    setInterval(() => fetch(`${api}/sessions/${encodeURIComponent(session.sessionId)}/deliveries${share ? `?share=1${after ? `&after=${encodeURIComponent(after)}` : ''}` : after ? `?after=${encodeURIComponent(after)}` : ''}`, { credentials: 'omit' })
       .then((r) => r.ok ? r.json() : null).then((result) => result?.deliveries?.forEach((delivery) => { after = delivery.id; emit({ type: 'kasitek:reply', text: delivery.messageText }); })).catch(() => {}), 1500);
   }).catch((error) => console.warn('[KasiTek Chat]', error.message));
 })();"#;
@@ -68,13 +75,13 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     *{box-sizing:border-box}
     html,body{width:100%;height:100%;overflow:hidden}
     body{margin:0;font-family:Inter,system-ui,sans-serif;color:#172033}
-    #chat{height:100%;min-height:0;display:flex;flex-direction:column;background:#fff;border:1px solid #d8deea;border-radius:16px;box-shadow:0 18px 50px #11182730;overflow:hidden}
-    header{padding:15px 16px;background:#3730a3;color:#fff;font-weight:650;display:flex;justify-content:space-between;flex:0 0 auto}
+    #chat{height:100%;min-height:0;display:flex;flex-direction:column;background:#fff;border:1px solid #d8deea;border-radius:var(--chat-radius,16px);box-shadow:0 18px 50px #11182730;overflow:hidden}
+    header{padding:15px 16px;background:var(--chat-primary,#3730a3);color:#fff;font-weight:650;display:flex;justify-content:space-between;flex:0 0 auto}
     button{border:0;background:transparent;color:inherit;font:inherit;cursor:pointer}
     button:disabled,input:disabled{cursor:not-allowed;opacity:.65}
     #messages{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:14px;background:#f8fafc;display:flex;flex-direction:column;gap:9px}
     .m{max-width:88%;padding:10px 12px;border-radius:12px;overflow-wrap:anywhere;word-break:break-word;line-height:1.35}
-    .me{align-self:flex-end;background:#3730a3;color:#fff}
+    .me{align-self:flex-end;background:var(--chat-primary,#3730a3);color:#fff}
     .bot{align-self:flex-start;max-width:92%;background:#e7eaf2}
     .line{min-height:1.35em}
     .line.bullet{padding-left:4px}
@@ -85,10 +92,14 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     .bot th{background:#dce2ee;font-weight:700}
     form{display:flex;gap:8px;padding:10px;border-top:1px solid #e2e8f0;flex:0 0 auto}
     input{min-width:0;flex:1;border:1px solid #cbd5e1;border-radius:9px;padding:10px;font:inherit}
-    form button{background:#3730a3;color:#fff;border-radius:9px;padding:0 13px;white-space:nowrap}
+    form button{background:var(--chat-primary,#3730a3);color:#fff;border-radius:9px;padding:0 13px;white-space:nowrap}
     small{display:block;padding:0 12px 10px;color:#64748b;text-align:center;flex:0 0 auto}
+    small[hidden]{display:none}
+    small a{color:inherit;text-decoration:none}
+    small a:hover{text-decoration:underline}
     #error{color:#b91c1c;padding:0 12px 8px;font-size:12px;flex:0 0 auto}
     .typing{display:flex;align-items:center;gap:4px;color:#64748b}
+    .typing[hidden]{display:none!important}
     .typing span{margin-right:2px}
     .typing i{width:5px;height:5px;border-radius:50%;background:#64748b;animation:typing-dot 1s infinite ease-in-out}
     .typing i:nth-child(2){animation-delay:.15s}
@@ -104,7 +115,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     <div id="typing" class="m bot typing" hidden aria-live="polite"><span>Thinking</span><i></i><i></i><i></i></div>
     <div id="error" role="alert"></div>
     <form id="form"><input id="input" maxlength="4000" placeholder="Type a message…" aria-label="Message"><button id="send-button" type="submit">Send</button></form>
-    <small>Powered by KasiTek</small>
+    <small id="branding">Powered by <a href="https://kasitek.co.za" target="_blank" rel="noopener noreferrer">KasiTek</a></small>
   </div>
   <script>
     const q=(selector)=>document.querySelector(selector);
@@ -228,6 +239,11 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
       const data=event.data;
       if(data.type==='kasitek:init'){
         q('#name').textContent=data.config.displayName||'Chat';
+        const appearance=data.config.appearance||{};
+        const root=document.documentElement;
+        if(typeof appearance.primaryColor==='string')root.style.setProperty('--chat-primary',appearance.primaryColor);
+        if(Number.isFinite(Number(appearance.borderRadius)))root.style.setProperty('--chat-radius',`${appearance.borderRadius}px`);
+        q('#branding').hidden=appearance.showBranding===false;
         if(data.config.welcomeText)add(data.config.welcomeText,'bot');
       }
       if(data.type==='kasitek:accepted'){
@@ -309,6 +325,28 @@ pub async fn agent_website_chat_frame() -> HttpResponse {
         .body(WEBSITE_CHAT_FRAME)
 }
 
+pub async fn agent_website_chat_share(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    public_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let share_origin = website::normalize_origin(&config.public_api_url)?;
+    website::public_agent_website_deployment(pool.get_ref(), public_id.trim(), &share_origin, true)
+        .await?;
+    let api_base = config.public_api_url.trim_end_matches('/');
+    let public_id = public_id.trim();
+    let html = format!(
+        r#"<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Website Chat</title>
+<style>html,body{{min-height:100%;margin:0}}body{{min-height:100vh;background:#f8fafc}}</style></head>
+<body><script async src="{api_base}/api/widget/v1/loader.js" data-kasitek-deployment="{public_id}" data-kasitek-share="true"></script></body></html>"#
+    );
+    Ok(HttpResponse::Ok()
+        .insert_header(("Content-Type", "text/html; charset=utf-8"))
+        .insert_header(("Cache-Control", "no-store"))
+        .body(html))
+}
+
 pub async fn agent_website_chat_preflight(req: HttpRequest) -> Result<HttpResponse, AppError> {
     let origin = req
         .headers()
@@ -341,17 +379,30 @@ pub async fn create_waitlist_entry(
 /// the authorization decision.
 pub async fn get_agent_website_chat_config(
     pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
     req: HttpRequest,
     public_id: web::Path<String>,
+    query: web::Query<std::collections::HashMap<String, String>>,
 ) -> Result<HttpResponse, AppError> {
+    let share_request = query
+        .get("share")
+        .is_some_and(|value| value == "1" || value == "true");
     let origin = req
         .headers()
         .get("origin")
         .and_then(|value| value.to_str().ok())
+        .map(str::to_string)
+        .or_else(|| share_request.then(|| config.public_api_url.clone()))
         .ok_or_else(|| AppError::Unauthorized)?;
-    let deployment =
-        website::public_agent_website_deployment(pool.get_ref(), public_id.trim(), origin).await?;
-    let normalized_origin = website::normalize_origin(origin)?;
+    let normalized_origin = website::normalize_origin(&origin)?;
+    let share_origin = website::normalize_origin(&config.public_api_url)?;
+    let deployment = website::public_agent_website_deployment(
+        pool.get_ref(),
+        public_id.trim(),
+        &origin,
+        share_request && normalized_origin == share_origin,
+    )
+    .await?;
     Ok(HttpResponse::Ok()
         .insert_header(("Access-Control-Allow-Origin", normalized_origin))
         .insert_header(("Vary", "Origin"))
@@ -361,6 +412,7 @@ pub async fn get_agent_website_chat_config(
             "welcomeText": deployment.welcome_text,
             "launcherPosition": deployment.launcher_position,
             "colorPreset": deployment.color_preset,
+            "appearance": deployment.appearance,
             "avatarUrl": deployment.avatar_url,
             "privacyPolicyUrl": deployment.privacy_policy_url,
             "poweredBy": "KasiTek",
@@ -369,19 +421,32 @@ pub async fn get_agent_website_chat_config(
 
 pub async fn create_agent_website_chat_session(
     pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
     req: HttpRequest,
     public_id: web::Path<String>,
+    query: web::Query<std::collections::HashMap<String, String>>,
 ) -> Result<HttpResponse, AppError> {
+    let share_request = query
+        .get("share")
+        .is_some_and(|value| value == "1" || value == "true");
     let origin = req
         .headers()
         .get("origin")
         .and_then(|value| value.to_str().ok())
+        .map(str::to_string)
+        .or_else(|| share_request.then(|| config.public_api_url.clone()))
         .ok_or(AppError::Unauthorized)?;
-    let deployment =
-        website::public_agent_website_deployment(pool.get_ref(), public_id.trim(), origin).await?;
+    let normalized_origin = website::normalize_origin(&origin)?;
+    let share_origin = website::normalize_origin(&config.public_api_url)?;
+    let deployment = website::public_agent_website_deployment(
+        pool.get_ref(),
+        public_id.trim(),
+        &origin,
+        share_request && normalized_origin == share_origin,
+    )
+    .await?;
     let session =
-        website::create_agent_website_visitor_session(pool.get_ref(), &deployment, origin).await?;
-    let normalized_origin = website::normalize_origin(origin)?;
+        website::create_agent_website_visitor_session(pool.get_ref(), &deployment, &origin).await?;
     Ok(HttpResponse::Created()
         .insert_header(("Access-Control-Allow-Origin", normalized_origin))
         .insert_header(("Vary", "Origin"))
@@ -394,11 +459,17 @@ pub async fn send_agent_website_chat_message(
     req: HttpRequest,
     session_id: web::Path<String>,
     body: web::Json<AgentWebsiteVisitorMessageRequest>,
+    query: web::Query<std::collections::HashMap<String, String>>,
 ) -> Result<HttpResponse, AppError> {
+    let share_request = query
+        .get("share")
+        .is_some_and(|value| value == "1" || value == "true");
     let origin = req
         .headers()
         .get("origin")
         .and_then(|value| value.to_str().ok())
+        .map(str::to_string)
+        .or_else(|| share_request.then(|| config.public_api_url.clone()))
         .ok_or(AppError::Unauthorized)?;
     let input = body.into_inner();
     let text = input.text.trim();
@@ -412,7 +483,7 @@ pub async fn send_agent_website_chat_message(
         ));
     }
     let session =
-        website::active_agent_website_visitor_session(pool.get_ref(), session_id.trim(), origin)
+        website::active_agent_website_visitor_session(pool.get_ref(), session_id.trim(), &origin)
             .await?;
     let deployment = sqlx::query_scalar::<_, String>(
         r#"SELECT "publicId" FROM "AgentWebsiteDeployment" WHERE id = $1 AND status = 'ACTIVE'"#,
@@ -449,7 +520,7 @@ pub async fn send_agent_website_chat_message(
     Ok(HttpResponse::Accepted()
         .insert_header((
             "Access-Control-Allow-Origin",
-            website::normalize_origin(origin)?,
+            website::normalize_origin(&origin)?,
         ))
         .insert_header(("Vary", "Origin"))
         .json(accepted))
@@ -493,17 +564,23 @@ mod tests {
 
 pub async fn list_agent_website_chat_deliveries(
     pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
     req: HttpRequest,
     session_id: web::Path<String>,
     query: web::Query<std::collections::HashMap<String, String>>,
 ) -> Result<HttpResponse, AppError> {
+    let share_request = query
+        .get("share")
+        .is_some_and(|value| value == "1" || value == "true");
     let origin = req
         .headers()
         .get("origin")
         .and_then(|value| value.to_str().ok())
+        .map(str::to_string)
+        .or_else(|| share_request.then(|| config.public_api_url.clone()))
         .ok_or(AppError::Unauthorized)?;
     let session =
-        website::active_agent_website_visitor_session(pool.get_ref(), session_id.trim(), origin)
+        website::active_agent_website_visitor_session(pool.get_ref(), session_id.trim(), &origin)
             .await?;
     let deliveries = website::list_agent_website_deliveries(
         pool.get_ref(),
@@ -511,7 +588,7 @@ pub async fn list_agent_website_chat_deliveries(
         query.get("after").map(String::as_str),
     )
     .await?;
-    let normalized_origin = website::normalize_origin(origin)?;
+    let normalized_origin = website::normalize_origin(&origin)?;
     Ok(HttpResponse::Ok()
         .insert_header(("Access-Control-Allow-Origin", normalized_origin))
         .insert_header(("Vary", "Origin"))

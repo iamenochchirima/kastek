@@ -12,7 +12,15 @@ describe("agent templates", () => {
       expect(template.instructions.length).toBeGreaterThan(20);
       expect(template.requiredCapabilities.length).toBeGreaterThan(0);
       expect(template.setupSteps.length).toBeGreaterThan(0);
-      expect(template.configuration.workflow).toMatchObject({ version: 1, entryNodeId: "prepare" });
+      expect(template.configuration.workflow).toMatchObject({
+        version: 1,
+        entryNodeId: "chat",
+        nodes: [
+          { id: "chat", type: "deterministic", config: { uiRole: "gateway", value: "chat" } },
+          { id: "agent", type: "model", config: { uiRole: "agent" } },
+        ],
+        edges: [{ from: "chat", to: "agent" }],
+      });
       expect(template.policy.allowedTools).toEqual(["platform.current_time"]);
       expect(template.channelCompatibility).toContain("platform");
     }

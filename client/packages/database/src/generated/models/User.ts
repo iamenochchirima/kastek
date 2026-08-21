@@ -236,6 +236,7 @@ export type UserWhereInput = {
   pushSubscriptions?: Prisma.PushSubscriptionListRelationFilter
   billingCheckouts?: Prisma.BillingCheckoutListRelationFilter
   productTours?: Prisma.UserProductTourListRelationFilter
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentListRelationFilter
 }
 
 export type UserOrderByWithRelationInput = {
@@ -270,6 +271,7 @@ export type UserOrderByWithRelationInput = {
   pushSubscriptions?: Prisma.PushSubscriptionOrderByRelationAggregateInput
   billingCheckouts?: Prisma.BillingCheckoutOrderByRelationAggregateInput
   productTours?: Prisma.UserProductTourOrderByRelationAggregateInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentOrderByRelationAggregateInput
 }
 
 export type UserWhereUniqueInput = Prisma.AtLeast<{
@@ -307,6 +309,7 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   pushSubscriptions?: Prisma.PushSubscriptionListRelationFilter
   billingCheckouts?: Prisma.BillingCheckoutListRelationFilter
   productTours?: Prisma.UserProductTourListRelationFilter
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentListRelationFilter
 }, "id" | "email">
 
 export type UserOrderByWithAggregationInput = {
@@ -371,6 +374,7 @@ export type UserCreateInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateInput = {
@@ -405,6 +409,7 @@ export type UserUncheckedCreateInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUpdateInput = {
@@ -439,6 +444,7 @@ export type UserUpdateInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateInput = {
@@ -473,6 +479,7 @@ export type UserUncheckedUpdateInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateManyInput = {
@@ -620,6 +627,20 @@ export type UserUpdateOneRequiredWithoutCreatedDeveloperApiKeysNestedInput = {
   upsert?: Prisma.UserUpsertWithoutCreatedDeveloperApiKeysInput
   connect?: Prisma.UserWhereUniqueInput
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutCreatedDeveloperApiKeysInput, Prisma.UserUpdateWithoutCreatedDeveloperApiKeysInput>, Prisma.UserUncheckedUpdateWithoutCreatedDeveloperApiKeysInput>
+}
+
+export type UserCreateNestedOneWithoutAgentWebsiteDeploymentsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutAgentWebsiteDeploymentsInput, Prisma.UserUncheckedCreateWithoutAgentWebsiteDeploymentsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutAgentWebsiteDeploymentsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutAgentWebsiteDeploymentsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutAgentWebsiteDeploymentsInput, Prisma.UserUncheckedCreateWithoutAgentWebsiteDeploymentsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutAgentWebsiteDeploymentsInput
+  upsert?: Prisma.UserUpsertWithoutAgentWebsiteDeploymentsInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutAgentWebsiteDeploymentsInput, Prisma.UserUpdateWithoutAgentWebsiteDeploymentsInput>, Prisma.UserUncheckedUpdateWithoutAgentWebsiteDeploymentsInput>
 }
 
 export type UserCreateNestedOneWithoutBillingCheckoutsInput = {
@@ -891,6 +912,7 @@ export type UserCreateWithoutOwnedOrganizationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutOwnedOrganizationsInput = {
@@ -924,6 +946,7 @@ export type UserUncheckedCreateWithoutOwnedOrganizationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutOwnedOrganizationsInput = {
@@ -973,6 +996,7 @@ export type UserUpdateWithoutOwnedOrganizationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutOwnedOrganizationsInput = {
@@ -1006,6 +1030,7 @@ export type UserUncheckedUpdateWithoutOwnedOrganizationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutOrgMembershipsInput = {
@@ -1039,6 +1064,7 @@ export type UserCreateWithoutOrgMembershipsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutOrgMembershipsInput = {
@@ -1072,6 +1098,7 @@ export type UserUncheckedCreateWithoutOrgMembershipsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutOrgMembershipsInput = {
@@ -1121,6 +1148,7 @@ export type UserUpdateWithoutOrgMembershipsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutOrgMembershipsInput = {
@@ -1154,6 +1182,7 @@ export type UserUncheckedUpdateWithoutOrgMembershipsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutSentInvitationsInput = {
@@ -1187,6 +1216,7 @@ export type UserCreateWithoutSentInvitationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutSentInvitationsInput = {
@@ -1220,6 +1250,7 @@ export type UserUncheckedCreateWithoutSentInvitationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutSentInvitationsInput = {
@@ -1269,6 +1300,7 @@ export type UserUpdateWithoutSentInvitationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSentInvitationsInput = {
@@ -1302,6 +1334,7 @@ export type UserUncheckedUpdateWithoutSentInvitationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutProductToursInput = {
@@ -1335,6 +1368,7 @@ export type UserCreateWithoutProductToursInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutProductToursInput = {
@@ -1368,6 +1402,7 @@ export type UserUncheckedCreateWithoutProductToursInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutProductToursInput = {
@@ -1417,6 +1452,7 @@ export type UserUpdateWithoutProductToursInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutProductToursInput = {
@@ -1450,6 +1486,7 @@ export type UserUncheckedUpdateWithoutProductToursInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutCreatedDeveloperApiKeysInput = {
@@ -1483,6 +1520,7 @@ export type UserCreateWithoutCreatedDeveloperApiKeysInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutCreatedDeveloperApiKeysInput = {
@@ -1516,6 +1554,7 @@ export type UserUncheckedCreateWithoutCreatedDeveloperApiKeysInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutCreatedDeveloperApiKeysInput = {
@@ -1565,6 +1604,7 @@ export type UserUpdateWithoutCreatedDeveloperApiKeysInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutCreatedDeveloperApiKeysInput = {
@@ -1582,6 +1622,159 @@ export type UserUncheckedUpdateWithoutCreatedDeveloperApiKeysInput = {
   ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
   orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
   sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
+  businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
+  conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutUserNestedInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutUploadedByNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutUserNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutUserNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutUserNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutUserNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutUserNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutUserNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
+  pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
+  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
+}
+
+export type UserCreateWithoutAgentWebsiteDeploymentsInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  password?: string | null
+  phone?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  ownedOrganizations?: Prisma.OrganizationCreateNestedManyWithoutOwnerInput
+  orgMemberships?: Prisma.OrganizationMemberCreateNestedManyWithoutUserInput
+  sentInvitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutInvitedByInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutCreatedByInput
+  businessProfile?: Prisma.BusinessProfileCreateNestedOneWithoutUserInput
+  conversations?: Prisma.OnboardingConversationCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutUserInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutUploadedByInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutUserInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutUserInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutUserInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutUserInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutUserInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutUserInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
+  pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
+  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
+  productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutAgentWebsiteDeploymentsInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  password?: string | null
+  phone?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  ownedOrganizations?: Prisma.OrganizationUncheckedCreateNestedManyWithoutOwnerInput
+  orgMemberships?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutUserInput
+  sentInvitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutInvitedByInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutCreatedByInput
+  businessProfile?: Prisma.BusinessProfileUncheckedCreateNestedOneWithoutUserInput
+  conversations?: Prisma.OnboardingConversationUncheckedCreateNestedManyWithoutUserInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutUserInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutUserInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutUserInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutUploadedByInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutUserInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutUserInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutUserInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutUserInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutUserInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutUserInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
+  pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
+  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutAgentWebsiteDeploymentsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutAgentWebsiteDeploymentsInput, Prisma.UserUncheckedCreateWithoutAgentWebsiteDeploymentsInput>
+}
+
+export type UserUpsertWithoutAgentWebsiteDeploymentsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutAgentWebsiteDeploymentsInput, Prisma.UserUncheckedUpdateWithoutAgentWebsiteDeploymentsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutAgentWebsiteDeploymentsInput, Prisma.UserUncheckedCreateWithoutAgentWebsiteDeploymentsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutAgentWebsiteDeploymentsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutAgentWebsiteDeploymentsInput, Prisma.UserUncheckedUpdateWithoutAgentWebsiteDeploymentsInput>
+}
+
+export type UserUpdateWithoutAgentWebsiteDeploymentsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  ownedOrganizations?: Prisma.OrganizationUpdateManyWithoutOwnerNestedInput
+  orgMemberships?: Prisma.OrganizationMemberUpdateManyWithoutUserNestedInput
+  sentInvitations?: Prisma.OrganizationInvitationUpdateManyWithoutInvitedByNestedInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutCreatedByNestedInput
+  businessProfile?: Prisma.BusinessProfileUpdateOneWithoutUserNestedInput
+  conversations?: Prisma.OnboardingConversationUpdateManyWithoutUserNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutUserNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutUserNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutUserNestedInput
+  uploadedContentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutUploadedByNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutUserNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutUserNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutUserNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutUserNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutUserNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutUserNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
+  pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
+  productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutAgentWebsiteDeploymentsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  password?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  ownedOrganizations?: Prisma.OrganizationUncheckedUpdateManyWithoutOwnerNestedInput
+  orgMemberships?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutUserNestedInput
+  sentInvitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutInvitedByNestedInput
+  createdDeveloperApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutCreatedByNestedInput
   businessProfile?: Prisma.BusinessProfileUncheckedUpdateOneWithoutUserNestedInput
   conversations?: Prisma.OnboardingConversationUncheckedUpdateManyWithoutUserNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutUserNestedInput
@@ -1631,6 +1824,7 @@ export type UserCreateWithoutBillingCheckoutsInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutBillingCheckoutsInput = {
@@ -1664,6 +1858,7 @@ export type UserUncheckedCreateWithoutBillingCheckoutsInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutBillingCheckoutsInput = {
@@ -1713,6 +1908,7 @@ export type UserUpdateWithoutBillingCheckoutsInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutBillingCheckoutsInput = {
@@ -1746,6 +1942,7 @@ export type UserUncheckedUpdateWithoutBillingCheckoutsInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutPushSubscriptionsInput = {
@@ -1779,6 +1976,7 @@ export type UserCreateWithoutPushSubscriptionsInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutPushSubscriptionsInput = {
@@ -1812,6 +2010,7 @@ export type UserUncheckedCreateWithoutPushSubscriptionsInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutPushSubscriptionsInput = {
@@ -1861,6 +2060,7 @@ export type UserUpdateWithoutPushSubscriptionsInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutPushSubscriptionsInput = {
@@ -1894,6 +2094,7 @@ export type UserUncheckedUpdateWithoutPushSubscriptionsInput = {
   whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutAccountsInput = {
@@ -1927,6 +2128,7 @@ export type UserCreateWithoutAccountsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutAccountsInput = {
@@ -1960,6 +2162,7 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutAccountsInput = {
@@ -2009,6 +2212,7 @@ export type UserUpdateWithoutAccountsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAccountsInput = {
@@ -2042,6 +2246,7 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutSessionsInput = {
@@ -2075,6 +2280,7 @@ export type UserCreateWithoutSessionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutSessionsInput = {
@@ -2108,6 +2314,7 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutSessionsInput = {
@@ -2157,6 +2364,7 @@ export type UserUpdateWithoutSessionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSessionsInput = {
@@ -2190,6 +2398,7 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutBusinessProfileInput = {
@@ -2223,6 +2432,7 @@ export type UserCreateWithoutBusinessProfileInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutBusinessProfileInput = {
@@ -2256,6 +2466,7 @@ export type UserUncheckedCreateWithoutBusinessProfileInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutBusinessProfileInput = {
@@ -2305,6 +2516,7 @@ export type UserUpdateWithoutBusinessProfileInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutBusinessProfileInput = {
@@ -2338,6 +2550,7 @@ export type UserUncheckedUpdateWithoutBusinessProfileInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutConversationsInput = {
@@ -2371,6 +2584,7 @@ export type UserCreateWithoutConversationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutConversationsInput = {
@@ -2404,6 +2618,7 @@ export type UserUncheckedCreateWithoutConversationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutConversationsInput = {
@@ -2453,6 +2668,7 @@ export type UserUpdateWithoutConversationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutConversationsInput = {
@@ -2486,6 +2702,7 @@ export type UserUncheckedUpdateWithoutConversationsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutWhatsappConnectionsInput = {
@@ -2519,6 +2736,7 @@ export type UserCreateWithoutWhatsappConnectionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutWhatsappConnectionsInput = {
@@ -2552,6 +2770,7 @@ export type UserUncheckedCreateWithoutWhatsappConnectionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutWhatsappConnectionsInput = {
@@ -2601,6 +2820,7 @@ export type UserUpdateWithoutWhatsappConnectionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutWhatsappConnectionsInput = {
@@ -2634,6 +2854,7 @@ export type UserUncheckedUpdateWithoutWhatsappConnectionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutWhatsappCallSessionsInput = {
@@ -2667,6 +2888,7 @@ export type UserCreateWithoutWhatsappCallSessionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutWhatsappCallSessionsInput = {
@@ -2700,6 +2922,7 @@ export type UserUncheckedCreateWithoutWhatsappCallSessionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutWhatsappCallSessionsInput = {
@@ -2749,6 +2972,7 @@ export type UserUpdateWithoutWhatsappCallSessionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutWhatsappCallSessionsInput = {
@@ -2782,6 +3006,7 @@ export type UserUncheckedUpdateWithoutWhatsappCallSessionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutSocialChannelConnectionsInput = {
@@ -2815,6 +3040,7 @@ export type UserCreateWithoutSocialChannelConnectionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutSocialChannelConnectionsInput = {
@@ -2848,6 +3074,7 @@ export type UserUncheckedCreateWithoutSocialChannelConnectionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutSocialChannelConnectionsInput = {
@@ -2897,6 +3124,7 @@ export type UserUpdateWithoutSocialChannelConnectionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSocialChannelConnectionsInput = {
@@ -2930,6 +3158,7 @@ export type UserUncheckedUpdateWithoutSocialChannelConnectionsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutSocialPostsInput = {
@@ -2963,6 +3192,7 @@ export type UserCreateWithoutSocialPostsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutSocialPostsInput = {
@@ -2996,6 +3226,7 @@ export type UserUncheckedCreateWithoutSocialPostsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutSocialPostsInput = {
@@ -3045,6 +3276,7 @@ export type UserUpdateWithoutSocialPostsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSocialPostsInput = {
@@ -3078,6 +3310,7 @@ export type UserUncheckedUpdateWithoutSocialPostsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutSocialPublishJobsInput = {
@@ -3111,6 +3344,7 @@ export type UserCreateWithoutSocialPublishJobsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutSocialPublishJobsInput = {
@@ -3144,6 +3378,7 @@ export type UserUncheckedCreateWithoutSocialPublishJobsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutSocialPublishJobsInput = {
@@ -3193,6 +3428,7 @@ export type UserUpdateWithoutSocialPublishJobsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSocialPublishJobsInput = {
@@ -3226,6 +3462,7 @@ export type UserUncheckedUpdateWithoutSocialPublishJobsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutUploadedContentMediaAssetsInput = {
@@ -3259,6 +3496,7 @@ export type UserCreateWithoutUploadedContentMediaAssetsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutUploadedContentMediaAssetsInput = {
@@ -3292,6 +3530,7 @@ export type UserUncheckedCreateWithoutUploadedContentMediaAssetsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutUploadedContentMediaAssetsInput = {
@@ -3341,6 +3580,7 @@ export type UserUpdateWithoutUploadedContentMediaAssetsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutUploadedContentMediaAssetsInput = {
@@ -3374,6 +3614,7 @@ export type UserUncheckedUpdateWithoutUploadedContentMediaAssetsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutWhatsappContactsInput = {
@@ -3407,6 +3648,7 @@ export type UserCreateWithoutWhatsappContactsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutWhatsappContactsInput = {
@@ -3440,6 +3682,7 @@ export type UserUncheckedCreateWithoutWhatsappContactsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutWhatsappContactsInput = {
@@ -3489,6 +3732,7 @@ export type UserUpdateWithoutWhatsappContactsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutWhatsappContactsInput = {
@@ -3522,6 +3766,7 @@ export type UserUncheckedUpdateWithoutWhatsappContactsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutWhatsappContactListMembershipsInput = {
@@ -3555,6 +3800,7 @@ export type UserCreateWithoutWhatsappContactListMembershipsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutWhatsappContactListMembershipsInput = {
@@ -3588,6 +3834,7 @@ export type UserUncheckedCreateWithoutWhatsappContactListMembershipsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutWhatsappContactListMembershipsInput = {
@@ -3637,6 +3884,7 @@ export type UserUpdateWithoutWhatsappContactListMembershipsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutWhatsappContactListMembershipsInput = {
@@ -3670,6 +3918,7 @@ export type UserUncheckedUpdateWithoutWhatsappContactListMembershipsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutWhatsappTemplatesInput = {
@@ -3703,6 +3952,7 @@ export type UserCreateWithoutWhatsappTemplatesInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutWhatsappTemplatesInput = {
@@ -3736,6 +3986,7 @@ export type UserUncheckedCreateWithoutWhatsappTemplatesInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutWhatsappTemplatesInput = {
@@ -3785,6 +4036,7 @@ export type UserUpdateWithoutWhatsappTemplatesInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutWhatsappTemplatesInput = {
@@ -3818,6 +4070,7 @@ export type UserUncheckedUpdateWithoutWhatsappTemplatesInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutWhatsappCampaignsInput = {
@@ -3851,6 +4104,7 @@ export type UserCreateWithoutWhatsappCampaignsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutWhatsappCampaignsInput = {
@@ -3884,6 +4138,7 @@ export type UserUncheckedCreateWithoutWhatsappCampaignsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutWhatsappCampaignsInput = {
@@ -3933,6 +4188,7 @@ export type UserUpdateWithoutWhatsappCampaignsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutWhatsappCampaignsInput = {
@@ -3966,6 +4222,7 @@ export type UserUncheckedUpdateWithoutWhatsappCampaignsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserCreateWithoutWhatsappSendEventsInput = {
@@ -3999,6 +4256,7 @@ export type UserCreateWithoutWhatsappSendEventsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserUncheckedCreateWithoutWhatsappSendEventsInput = {
@@ -4032,6 +4290,7 @@ export type UserUncheckedCreateWithoutWhatsappSendEventsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedCreateNestedManyWithoutUserInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutUserInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutUserInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutCreatedByInput
 }
 
 export type UserCreateOrConnectWithoutWhatsappSendEventsInput = {
@@ -4081,6 +4340,7 @@ export type UserUpdateWithoutWhatsappSendEventsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutCreatedByNestedInput
 }
 
 export type UserUncheckedUpdateWithoutWhatsappSendEventsInput = {
@@ -4114,6 +4374,7 @@ export type UserUncheckedUpdateWithoutWhatsappSendEventsInput = {
   pushSubscriptions?: Prisma.PushSubscriptionUncheckedUpdateManyWithoutUserNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutUserNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutUserNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutCreatedByNestedInput
 }
 
 
@@ -4143,6 +4404,7 @@ export type UserCountOutputType = {
   pushSubscriptions: number
   billingCheckouts: number
   productTours: number
+  agentWebsiteDeployments: number
 }
 
 export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -4167,6 +4429,7 @@ export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.I
   pushSubscriptions?: boolean | UserCountOutputTypeCountPushSubscriptionsArgs
   billingCheckouts?: boolean | UserCountOutputTypeCountBillingCheckoutsArgs
   productTours?: boolean | UserCountOutputTypeCountProductToursArgs
+  agentWebsiteDeployments?: boolean | UserCountOutputTypeCountAgentWebsiteDeploymentsArgs
 }
 
 /**
@@ -4326,6 +4589,13 @@ export type UserCountOutputTypeCountProductToursArgs<ExtArgs extends runtime.Typ
   where?: Prisma.UserProductTourWhereInput
 }
 
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountAgentWebsiteDeploymentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.AgentWebsiteDeploymentWhereInput
+}
+
 
 export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -4359,6 +4629,7 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   pushSubscriptions?: boolean | Prisma.User$pushSubscriptionsArgs<ExtArgs>
   billingCheckouts?: boolean | Prisma.User$billingCheckoutsArgs<ExtArgs>
   productTours?: boolean | Prisma.User$productToursArgs<ExtArgs>
+  agentWebsiteDeployments?: boolean | Prisma.User$agentWebsiteDeploymentsArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["user"]>
 
@@ -4422,6 +4693,7 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   pushSubscriptions?: boolean | Prisma.User$pushSubscriptionsArgs<ExtArgs>
   billingCheckouts?: boolean | Prisma.User$billingCheckoutsArgs<ExtArgs>
   productTours?: boolean | Prisma.User$productToursArgs<ExtArgs>
+  agentWebsiteDeployments?: boolean | Prisma.User$agentWebsiteDeploymentsArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type UserIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -4452,6 +4724,7 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     pushSubscriptions: Prisma.$PushSubscriptionPayload<ExtArgs>[]
     billingCheckouts: Prisma.$BillingCheckoutPayload<ExtArgs>[]
     productTours: Prisma.$UserProductTourPayload<ExtArgs>[]
+    agentWebsiteDeployments: Prisma.$AgentWebsiteDeploymentPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -4879,6 +5152,7 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   pushSubscriptions<T extends Prisma.User$pushSubscriptionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$pushSubscriptionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PushSubscriptionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   billingCheckouts<T extends Prisma.User$billingCheckoutsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$billingCheckoutsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$BillingCheckoutPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   productTours<T extends Prisma.User$productToursArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$productToursArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$UserProductTourPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  agentWebsiteDeployments<T extends Prisma.User$agentWebsiteDeploymentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$agentWebsiteDeploymentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AgentWebsiteDeploymentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -5825,6 +6099,30 @@ export type User$productToursArgs<ExtArgs extends runtime.Types.Extensions.Inter
   take?: number
   skip?: number
   distinct?: Prisma.UserProductTourScalarFieldEnum | Prisma.UserProductTourScalarFieldEnum[]
+}
+
+/**
+ * User.agentWebsiteDeployments
+ */
+export type User$agentWebsiteDeploymentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the AgentWebsiteDeployment
+   */
+  select?: Prisma.AgentWebsiteDeploymentSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the AgentWebsiteDeployment
+   */
+  omit?: Prisma.AgentWebsiteDeploymentOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AgentWebsiteDeploymentInclude<ExtArgs> | null
+  where?: Prisma.AgentWebsiteDeploymentWhereInput
+  orderBy?: Prisma.AgentWebsiteDeploymentOrderByWithRelationInput | Prisma.AgentWebsiteDeploymentOrderByWithRelationInput[]
+  cursor?: Prisma.AgentWebsiteDeploymentWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.AgentWebsiteDeploymentScalarFieldEnum | Prisma.AgentWebsiteDeploymentScalarFieldEnum[]
 }
 
 /**

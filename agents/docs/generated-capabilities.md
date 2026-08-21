@@ -827,7 +827,7 @@ Mark one organization-scoped WhatsApp inbox conversation read after approval.
 ```
 ## kasitek.core.channel_deliver (1.0.0)
 
-Send an approved reply to an organization-scoped WhatsApp conversation.
+Send an approved reply to an organization-scoped external channel conversation.
 
 - Owner: `kasitek-core`
 - Permission: `channels.write` (Channels Write permission)
@@ -845,7 +845,8 @@ Send an approved reply to an organization-scoped WhatsApp conversation.
     "channelType": {
       "type": "string",
       "enum": [
-        "whatsapp"
+        "whatsapp",
+        "website"
       ]
     },
     "externalConversationId": {

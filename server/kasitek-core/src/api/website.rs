@@ -1,6 +1,6 @@
 //! Route registration for the `website` boundary.
 
-use actix_web::web;
+use actix_web::{http::Method, web};
 
 #[allow(unused_imports)]
 use crate::controllers::{
@@ -12,6 +12,42 @@ use crate::controllers::{
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
+    cfg.route(
+        "/api/widget/v1/loader.js",
+        web::get().to(website::agent_website_chat_loader),
+    );
+    cfg.route(
+        "/api/widget/v1/frame.html",
+        web::get().to(website::agent_website_chat_frame),
+    );
+    cfg.route(
+        "/api/widget/v1/share/{publicId}",
+        web::get().to(website::agent_website_chat_share),
+    );
+    cfg.route(
+        "/api/widget/v1/deployments/{publicId}",
+        web::get().to(website::get_agent_website_chat_config),
+    );
+    cfg.route(
+        "/api/widget/v1/deployments/{publicId}/sessions",
+        web::post().to(website::create_agent_website_chat_session),
+    );
+    cfg.route(
+        "/api/widget/v1/deployments/{publicId}/sessions",
+        web::method(Method::OPTIONS).to(website::agent_website_chat_preflight),
+    );
+    cfg.route(
+        "/api/widget/v1/sessions/{sessionId}/messages",
+        web::post().to(website::send_agent_website_chat_message),
+    );
+    cfg.route(
+        "/api/widget/v1/sessions/{sessionId}/messages",
+        web::method(Method::OPTIONS).to(website::agent_website_chat_preflight),
+    );
+    cfg.route(
+        "/api/widget/v1/sessions/{sessionId}/deliveries",
+        web::get().to(website::list_agent_website_chat_deliveries),
+    );
     cfg.route(
         "/api/quote-requests",
         web::post().to(website::create_quote_request),

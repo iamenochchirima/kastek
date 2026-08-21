@@ -50,6 +50,7 @@ model Organization {
   bookings                       Booking[]
   onboardingProfile              OrganizationOnboardingProfile?
   productTours                   UserProductTour[]
+  agentWebsiteDeployments        AgentWebsiteDeployment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -381,6 +382,70 @@ model DeveloperApiKey {
   @@index([orgId, createdAt])
 }
 
+// A public website surface for one hosted Agent Platform installation. The
+// browser only ever receives `publicId`; the installation and channel
+// connection identifiers stay inside the KasiTek service boundary.
+model AgentWebsiteDeployment {
+  id                  String       @id @default(cuid())
+  publicId            String       @unique
+  orgId               String
+  org                 Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  installationId      String
+  channelConnectionId String       @unique
+  status              String       @default("DRAFT")
+  allowedOrigins      String[]     @default([])
+  displayName         String?
+  welcomeText         String?
+  launcherPosition    String       @default("bottom-right")
+  colorPreset         String       @default("indigo")
+  appearance          Json         @default("{}")
+  avatarUrl           String?
+  privacyPolicyUrl    String?
+  createdById         String
+  createdBy           User         @relation("AgentWebsiteDeploymentCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  publishedAt         DateTime?    @db.Timestamptz(3)
+  pausedAt            DateTime?    @db.Timestamptz(3)
+  revokedAt           DateTime?    @db.Timestamptz(3)
+  lastError           String?      @db.Text
+  visitorSessions     AgentWebsiteVisitorSession[]
+  createdAt           DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime     @updatedAt @db.Timestamptz(3)
+
+  @@index([orgId, installationId, status])
+  @@index([orgId, createdAt])
+}
+
+// Delivery events are a Core-owned browser transport projection. Agent
+// Platform conversations and messages remain authoritative.
+model AgentWebsiteVisitorSession {
+  id                     String                 @id @default(cuid())
+  publicSessionId        String                 @unique
+  deploymentId           String
+  deployment             AgentWebsiteDeployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  origin                 String
+  externalIdentity       String                 @unique
+  externalConversationId String                 @unique
+  status                 String                 @default("ACTIVE")
+  expiresAt              DateTime               @db.Timestamptz(3)
+  lastSeenAt             DateTime               @default(now()) @db.Timestamptz(3)
+  createdAt              DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime               @updatedAt @db.Timestamptz(3)
+  deliveries             AgentWebsiteDeliveryEvent[]
+
+  @@index([deploymentId, status, expiresAt])
+}
+
+model AgentWebsiteDeliveryEvent {
+  id          String                     @id @default(cuid())
+  sessionId   String
+  session     AgentWebsiteVisitorSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  eventKey    String                     @unique
+  messageText String                     @db.Text
+  createdAt   DateTime                   @default(now()) @db.Timestamptz(3)
+
+  @@index([sessionId, createdAt])
+}
+
 model PublicApiWebhookSubscription {
   id               String   @id @default(cuid())
   orgId            String
@@ -551,6 +616,7 @@ model User {
   pushSubscriptions              PushSubscription[]
   billingCheckouts               BillingCheckout[]
   productTours                   UserProductTour[]
+  agentWebsiteDeployments        AgentWebsiteDeployment[] @relation("AgentWebsiteDeploymentCreator")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

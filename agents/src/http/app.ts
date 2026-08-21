@@ -45,6 +45,7 @@ import { PlatformChatRepository } from "../db/repositories/platform-chat-reposit
 import { listAgentTemplates, parseTemplateSettings } from "../system/templates";
 import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference-repository";
 import { availableKasiAiModels, getKasiAiModelCatalog, isAllowedKasiAiModel } from "../system/kasiai-models";
+import { verifyProviderCredential, type CredentialVerificationResult, type CredentialVerificationInput } from "../model/credential-verification";
 import { installationTokenJwks, issueInstallationToken, readClientAssertionSubject, verifyClientAssertion, verifyInstallationToken } from "../auth/installation-token";
 import { createPublicKey } from "node:crypto";
 import { createDefaultTools } from "../temporal/activities";
@@ -99,6 +100,8 @@ export interface AppDependencies {
   modelCalls?: ModelCallRepository;
   channels?: ChannelRepository;
   credentials?: CredentialVaultRepository;
+  /** Provider preflight used before a model credential is persisted. */
+  verifyCredential?: (input: CredentialVerificationInput) => Promise<CredentialVerificationResult>;
   installationCredentials?: InstallationCredentialRepository;
   developerApiKeyResolver?: DeveloperApiKeyResolver;
   installationGrants?: InstallationGrantRepository;
@@ -365,6 +368,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const modelCalls = dependencies.modelCalls ?? new ModelCallRepository(dependencies.pool);
   const channels = dependencies.channels ?? new ChannelRepository(dependencies.pool);
   const credentials = dependencies.credentials ?? new CredentialVaultRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
+  const verifyCredential = dependencies.verifyCredential ?? ((input: CredentialVerificationInput) => verifyProviderCredential(input));
   const installationCredentials = dependencies.installationCredentials ?? new InstallationCredentialRepository(dependencies.pool);
   const developerApiKeyResolver = dependencies.developerApiKeyResolver ?? new KasitekCoreDeveloperApiKeyResolver(dependencies.config);
   const installationGrants = dependencies.installationGrants ?? new InstallationGrantRepository(dependencies.pool);
@@ -1310,6 +1314,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const input = updateAgentInputSchema.parse(request.body);
     return reply.send(await agents.updateAgent(auth.organizationId, auth.actorId, request.params.agentId, input));
+  });
+
+  app.delete<{ Params: { agentId: string } }>("/v1/agents/:agentId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    return reply.send(await agents.deleteAgent(auth.organizationId, auth.actorId, request.params.agentId));
   });
 
   app.post("/v1/external-agents", async (request, reply) => {
@@ -2659,10 +2669,22 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return reply.code(204).send();
   });
 
+  app.post("/v1/credentials/verify", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const input = z.object({ provider: z.enum(["openrouter", "openai", "anthropic", "gemini"]), apiKey: z.string().min(1).max(10_000) }).parse(request.body);
+    // Verification is deliberately separate from persistence so clients can
+    // provide an explicit “Test credential” step. The create route repeats
+    // the check server-side and cannot be bypassed by skipping this endpoint.
+    return { verification: await verifyCredential(input) };
+  });
+
   app.post("/v1/credentials", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
     const input = z.object({ provider: z.enum(["openrouter", "openai", "anthropic", "gemini"]), apiKey: z.string().min(1).max(10_000), label: z.string().trim().max(160).optional() }).parse(request.body);
+    // Never persist a provider secret before a successful, bounded preflight.
+    await verifyCredential({ provider: input.provider, apiKey: input.apiKey });
     const credential = await credentials.store({ organizationId: auth.organizationId, actorId: auth.actorId, ...input });
     return reply.code(201).send(credential);
   });
@@ -2684,6 +2706,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
     const input = z.object({ apiKey: z.string().min(1).max(10_000), label: z.string().trim().max(160).optional() }).parse(request.body);
+    const existing = (await credentials.list(auth.organizationId)).find((credential) => credential.id === request.params.credentialId && credential.status === "active");
+    if (!existing) return reply.code(404).send({ error: "Credential not found" });
+    await verifyCredential({ provider: existing.provider, apiKey: input.apiKey });
     const credential = await credentials.rotate({ organizationId: auth.organizationId, credentialId: request.params.credentialId, actorId: auth.actorId, ...input });
     return reply.code(201).send(credential);
   });

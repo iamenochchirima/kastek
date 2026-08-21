@@ -52,6 +52,11 @@ export default function LabsLandingPage() {
   return (
     <main className="labs-page">
       <LabsHeader home />
+      <script
+        async
+        src="http://localhost:4000/api/widget/v1/loader.js"
+        data-kasitek-deployment="wdg_vr6p4v6p62qsospw8ocs0f10"
+      />
 
       <section className="hero" id="top">
         <div className="hero-image" aria-hidden="true">

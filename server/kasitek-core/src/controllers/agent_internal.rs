@@ -20,7 +20,7 @@ use crate::db::models::{
 use crate::error::AppError;
 use crate::identity::internal_delegation;
 use crate::identity::request_context::RequestContext;
-use crate::services::{customers, whatsapp};
+use crate::services::{customers, website, whatsapp};
 
 async fn require_internal_agent(
     config: &AppConfig,
@@ -760,6 +760,17 @@ pub async fn deliver_channel_message(
                 idempotency_key,
             )
             .await?
+        }
+        "website" => {
+            let event = website::record_agent_website_delivery(
+                pool.get_ref(),
+                body.external_conversation_id.trim(),
+                idempotency_key,
+                text,
+            )
+            .await?
+            .ok_or_else(|| AppError::NotFound("Website Chat session not found".to_string()))?;
+            serde_json::json!({ "providerMessageId": event.id, "status": "sent" })
         }
         _ => {
             return Err(AppError::BadRequest(format!(

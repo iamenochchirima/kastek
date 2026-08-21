@@ -13,6 +13,7 @@ export type AgentInstallation = {
 export type AgentWebsiteDeployment = {
   id: string;
   publicId: string;
+  shareUrl?: string;
   orgId: string;
   installationId: string;
   channelConnectionId: string;
@@ -22,6 +23,15 @@ export type AgentWebsiteDeployment = {
   welcomeText?: string | null;
   launcherPosition: "bottom-right" | "bottom-left";
   colorPreset: string;
+  appearance: {
+    primaryColor: string;
+    launcherSize: number;
+    windowWidth: number;
+    windowHeight: number;
+    borderRadius: number;
+    launcherOffset: number;
+    showBranding: boolean;
+  };
   avatarUrl?: string | null;
   privacyPolicyUrl?: string | null;
   createdAt: string;
@@ -318,6 +328,22 @@ export function listAgents(): Promise<{ agents: AgentDefinition[] }> {
 
 export function createAgent(input: { name: string; slug?: string; description?: string; creationProfile?: "general" | "custom" }): Promise<AgentDefinition> {
   return request("/api/agents", { method: "POST", body: JSON.stringify({ ...input, protected: false }) });
+}
+
+export type AgentModelProvider = "openrouter" | "openai" | "anthropic" | "gemini";
+
+export type AgentCredentialVerification = {
+  provider: AgentModelProvider;
+  status: "verified";
+  verifiedAt: string;
+};
+
+export function verifyAgentProviderCredential(input: { provider: AgentModelProvider; apiKey: string }): Promise<{ verification: AgentCredentialVerification }> {
+  return request("/api/agents/credentials/verify", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function createAgentProviderCredential(input: { provider: AgentModelProvider; apiKey: string; label?: string }): Promise<{ id: string; provider: AgentModelProvider; label: string; status: string }> {
+  return request("/api/agents/credentials", { method: "POST", body: JSON.stringify(input) });
 }
 
 export function updateAgent(agentId: string, input: { name?: string; slug?: string; description?: string | null }): Promise<AgentDefinition> {
@@ -786,6 +812,10 @@ export function archiveAgent(agentId: string): Promise<AgentDefinition> {
   return request(`/api/agents/${encodeURIComponent(agentId)}/archive`, { method: "POST" });
 }
 
+export function deleteAgent(agentId: string): Promise<{ agentId: string; installationIds?: string[]; deleted: true }> {
+  return request(`/api/agents/${encodeURIComponent(agentId)}`, { method: "DELETE" });
+}
+
 export function resolvePlatformConversation(installationId: string): Promise<ConversationResponse> {
   return request<ConversationResponse>(`/api/agents/installations/${encodeURIComponent(installationId)}/platform/conversation`, {
     method: "POST",
@@ -887,10 +917,34 @@ export function createAgentWebsiteDeployment(installationId: string, input: {
   colorPreset?: string;
   avatarUrl?: string;
   privacyPolicyUrl?: string;
-}): Promise<{ deployment: AgentWebsiteDeployment; embedCode: string }> {
+  appearance?: Partial<AgentWebsiteDeployment["appearance"]>;
+}): Promise<{ deployment: AgentWebsiteDeployment; embedCode: string; shareUrl: string }> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/website-deployments`, {
     method: "POST",
     body: JSON.stringify(input),
+  });
+}
+
+export function updateAgentWebsiteDeployment(installationId: string, deploymentId: string, input: {
+  allowedOrigins?: string[];
+  displayName?: string;
+  welcomeText?: string;
+  launcherPosition?: "bottom-right" | "bottom-left";
+  colorPreset?: string;
+  avatarUrl?: string;
+  privacyPolicyUrl?: string;
+  appearance?: Partial<AgentWebsiteDeployment["appearance"]>;
+}): Promise<{ deployment: AgentWebsiteDeployment }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/website-deployments/${encodeURIComponent(deploymentId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function setAgentWebsiteDeploymentStatus(installationId: string, deploymentId: string, status: "ACTIVE" | "PAUSED" | "REVOKED"): Promise<{ deployment: AgentWebsiteDeployment }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/website-deployments/${encodeURIComponent(deploymentId)}/status/${status}`, {
+    method: "POST",
+    body: JSON.stringify({}),
   });
 }
 

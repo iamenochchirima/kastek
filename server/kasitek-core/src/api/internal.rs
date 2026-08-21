@@ -103,6 +103,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("", web::get().to(agent_platform::list_agents))
             .route("", web::post().to(agent_platform::create_agent))
             .route("/{agentId}", web::patch().to(agent_platform::update_agent))
+            .route("/{agentId}", web::delete().to(agent_platform::delete_agent))
             .route(
                 "/external-agents",
                 web::post().to(agent_platform::create_external_agent),
@@ -161,6 +162,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             )
             .route("/audit", web::get().to(agent_platform::list_audit))
             .route("/templates", web::get().to(agent_platform::list_templates))
+            .route(
+                "/credentials/verify",
+                web::post().to(agent_platform::verify_provider_credential),
+            )
+            .route(
+                "/credentials",
+                web::post().to(agent_platform::create_provider_credential),
+            )
             .route(
                 "/templates/{templateKey}/install",
                 web::post().to(agent_platform::install_template),
@@ -349,6 +358,22 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route(
                 "/installations/{installationId}/channels",
                 web::get().to(agent_platform::list_channels),
+            )
+            .route(
+                "/installations/{installationId}/website-deployments",
+                web::get().to(agent_platform::list_website_deployments),
+            )
+            .route(
+                "/installations/{installationId}/website-deployments",
+                web::post().to(agent_platform::create_website_deployment),
+            )
+            .route(
+                "/installations/{installationId}/website-deployments/{deploymentId}/status/{status}",
+                web::post().to(agent_platform::set_website_deployment_status),
+            )
+            .route(
+                "/installations/{installationId}/website-deployments/{deploymentId}",
+                web::patch().to(agent_platform::update_website_deployment),
             )
             .route(
                 "/installations/{installationId}/channels",

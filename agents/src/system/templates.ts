@@ -25,12 +25,12 @@ const templateSettingsSchema = z.object({
 function starterWorkflow(instruction: string): Record<string, unknown> {
   return {
     version: 1,
-    entryNodeId: "prepare",
+    entryNodeId: "chat",
     nodes: [
-      { id: "prepare", type: "deterministic", config: { operation: "set", path: "workflow.started", value: true }, reads: [], writes: ["workflow.started"] },
-      { id: "respond", type: "model", config: { instruction }, reads: ["input"], writes: ["output"] },
+      { id: "chat", type: "deterministic", config: { uiRole: "gateway", operation: "set", path: "workflow.gateway", value: "chat" }, reads: ["input"], writes: ["workflow.gateway"] },
+      { id: "agent", type: "model", config: { uiRole: "agent", instruction }, reads: ["input", "knowledge"], writes: ["output"] },
     ],
-    edges: [{ from: "prepare", to: "respond" }],
+    edges: [{ from: "chat", to: "agent" }],
     stateSchema: {},
   };
 }

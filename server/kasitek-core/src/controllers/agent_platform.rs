@@ -6,9 +6,10 @@ use serde_json::{Map, Value};
 use sqlx::PgPool;
 
 use crate::config::AppConfig;
+use crate::db::models::{CreateAgentWebsiteDeploymentRequest, UpdateAgentWebsiteDeploymentRequest};
 use crate::error::AppError;
 use crate::middleware::{extract_user, resolve_active_org_id};
-use crate::services::{agent_platform::AgentPlatformClient, billing, whatsapp};
+use crate::services::{agent_platform::AgentPlatformClient, billing, website, whatsapp};
 
 #[derive(Debug, Deserialize)]
 pub struct StreamQuery {
@@ -111,6 +112,73 @@ pub async fn update_agent(
         )
         .await?;
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn delete_agent(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    agent_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .delete_agent(&organization_id, &user.id, agent_id.trim())
+        .await?;
+    if let Some(installation_ids) = response
+        .get("installationIds")
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+    {
+        website::delete_agent_website_deployments(
+            pool.get_ref(),
+            &organization_id,
+            &installation_ids,
+        )
+        .await?;
+    }
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn verify_provider_credential(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Credential verification body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .verify_provider_credential(&organization_id, &user.id, body.into_inner())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn create_provider_credential(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Credential body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .create_provider_credential(&organization_id, &user.id, body.into_inner())
+        .await?;
+    Ok(HttpResponse::Created().json(response))
 }
 
 pub async fn create_external_agent(
@@ -925,6 +993,130 @@ pub async fn list_channels(
         .list_installation_channels(&organization_id, &user.id, &installation_id)
         .await?;
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn list_website_deployments(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (_user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let deployments = website::list_agent_website_deployments(
+        pool.get_ref(),
+        &organization_id,
+        installation_id.trim(),
+    )
+    .await?;
+    let share_base = config.public_api_url.trim_end_matches('/');
+    let deployments = deployments
+        .into_iter()
+        .map(|deployment| {
+            let mut value = serde_json::to_value(deployment).unwrap_or_else(|_| Value::Null);
+            if let Value::Object(ref mut object) = value {
+                if let Some(public_id) = object.get("publicId").and_then(Value::as_str) {
+                    object.insert(
+                        "shareUrl".to_string(),
+                        Value::String(format!("{share_base}/api/widget/v1/share/{public_id}")),
+                    );
+                }
+            }
+            value
+        })
+        .collect::<Vec<_>>();
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "deployments": deployments })))
+}
+
+pub async fn create_website_deployment(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+    body: web::Json<CreateAgentWebsiteDeploymentRequest>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let installation_id = installation_id.into_inner();
+    let installation_id = installation_id.trim();
+    let public_id = format!("wdg_{}", cuid2::create_id());
+    // A website deployment is a normal public hosted-agent channel. The Agent
+    // Platform refuses system-hosted (KasiAi) installations here, so a browser
+    // surface cannot accidentally expose a private assistant.
+    let channel = client(config.get_ref())?
+        .ensure_channel_connection(
+            &organization_id,
+            &user.id,
+            installation_id,
+            serde_json::json!({
+                "channelType": "website",
+                "channelKey": public_id,
+                "metadata": { "surface": "website-chat", "publicDeploymentId": public_id },
+            }),
+        )
+        .await?;
+    let channel_connection_id = channel.get("id").and_then(Value::as_str).ok_or_else(|| {
+        AppError::Internal("Agent website channel response is invalid".to_string())
+    })?;
+    let deployment = website::create_agent_website_deployment(
+        pool.get_ref(),
+        &organization_id,
+        installation_id,
+        channel_connection_id,
+        &public_id,
+        &user.id,
+        body.into_inner(),
+    )
+    .await?;
+    Ok(HttpResponse::Created().json(serde_json::json!({
+        "deployment": deployment,
+        "embedCode": format!(
+            "<script async src=\"{}/api/widget/v1/loader.js\" data-kasitek-deployment=\"{}\"></script>",
+            config.public_api_url.trim_end_matches('/'),
+            public_id,
+        ),
+        "shareUrl": format!(
+            "{}/api/widget/v1/share/{}",
+            config.public_api_url.trim_end_matches('/'),
+            public_id,
+        ),
+    })))
+}
+
+pub async fn set_website_deployment_status(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<(String, String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let (_user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let (installation_id, deployment_id, status) = path.into_inner();
+    let status = status.trim().to_ascii_uppercase();
+    let deployment = website::set_agent_website_deployment_status(
+        pool.get_ref(),
+        &organization_id,
+        installation_id.trim(),
+        deployment_id.trim(),
+        &status,
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "deployment": deployment })))
+}
+
+pub async fn update_website_deployment(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+    body: web::Json<UpdateAgentWebsiteDeploymentRequest>,
+) -> Result<HttpResponse, AppError> {
+    let (_user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let (installation_id, deployment_id) = path.into_inner();
+    let deployment = website::update_agent_website_deployment(
+        pool.get_ref(),
+        &organization_id,
+        installation_id.trim(),
+        deployment_id.trim(),
+        body.into_inner(),
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "deployment": deployment })))
 }
 
 pub async fn create_channel_connection(

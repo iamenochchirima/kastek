@@ -231,6 +231,7 @@ export type OrganizationWhereInput = {
   bookings?: Prisma.BookingListRelationFilter
   onboardingProfile?: Prisma.XOR<Prisma.OrganizationOnboardingProfileNullableScalarRelationFilter, Prisma.OrganizationOnboardingProfileWhereInput> | null
   productTours?: Prisma.UserProductTourListRelationFilter
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentListRelationFilter
 }
 
 export type OrganizationOrderByWithRelationInput = {
@@ -274,6 +275,7 @@ export type OrganizationOrderByWithRelationInput = {
   bookings?: Prisma.BookingOrderByRelationAggregateInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileOrderByWithRelationInput
   productTours?: Prisma.UserProductTourOrderByRelationAggregateInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentOrderByRelationAggregateInput
 }
 
 export type OrganizationWhereUniqueInput = Prisma.AtLeast<{
@@ -320,6 +322,7 @@ export type OrganizationWhereUniqueInput = Prisma.AtLeast<{
   bookings?: Prisma.BookingListRelationFilter
   onboardingProfile?: Prisma.XOR<Prisma.OrganizationOnboardingProfileNullableScalarRelationFilter, Prisma.OrganizationOnboardingProfileWhereInput> | null
   productTours?: Prisma.UserProductTourListRelationFilter
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentListRelationFilter
 }, "id" | "slug">
 
 export type OrganizationOrderByWithAggregationInput = {
@@ -388,6 +391,7 @@ export type OrganizationCreateInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateInput = {
@@ -430,6 +434,7 @@ export type OrganizationUncheckedCreateInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUpdateInput = {
@@ -472,6 +477,7 @@ export type OrganizationUpdateInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateInput = {
@@ -514,6 +520,7 @@ export type OrganizationUncheckedUpdateInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateManyInput = {
@@ -745,6 +752,20 @@ export type OrganizationUpdateOneRequiredWithoutDeveloperApiKeysNestedInput = {
   upsert?: Prisma.OrganizationUpsertWithoutDeveloperApiKeysInput
   connect?: Prisma.OrganizationWhereUniqueInput
   update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutDeveloperApiKeysInput, Prisma.OrganizationUpdateWithoutDeveloperApiKeysInput>, Prisma.OrganizationUncheckedUpdateWithoutDeveloperApiKeysInput>
+}
+
+export type OrganizationCreateNestedOneWithoutAgentWebsiteDeploymentsInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutAgentWebsiteDeploymentsInput, Prisma.OrganizationUncheckedCreateWithoutAgentWebsiteDeploymentsInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutAgentWebsiteDeploymentsInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+}
+
+export type OrganizationUpdateOneRequiredWithoutAgentWebsiteDeploymentsNestedInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutAgentWebsiteDeploymentsInput, Prisma.OrganizationUncheckedCreateWithoutAgentWebsiteDeploymentsInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutAgentWebsiteDeploymentsInput
+  upsert?: Prisma.OrganizationUpsertWithoutAgentWebsiteDeploymentsInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutAgentWebsiteDeploymentsInput, Prisma.OrganizationUpdateWithoutAgentWebsiteDeploymentsInput>, Prisma.OrganizationUncheckedUpdateWithoutAgentWebsiteDeploymentsInput>
 }
 
 export type OrganizationCreateNestedOneWithoutPublicApiWebhookSubscriptionsInput = {
@@ -1160,6 +1181,7 @@ export type OrganizationCreateWithoutMembersInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutMembersInput = {
@@ -1201,6 +1223,7 @@ export type OrganizationUncheckedCreateWithoutMembersInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutMembersInput = {
@@ -1258,6 +1281,7 @@ export type OrganizationUpdateWithoutMembersInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutMembersInput = {
@@ -1299,6 +1323,7 @@ export type OrganizationUncheckedUpdateWithoutMembersInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutOnboardingProfileInput = {
@@ -1340,6 +1365,7 @@ export type OrganizationCreateWithoutOnboardingProfileInput = {
   bookingServices?: Prisma.BookingServiceCreateNestedManyWithoutOrgInput
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutOnboardingProfileInput = {
@@ -1381,6 +1407,7 @@ export type OrganizationUncheckedCreateWithoutOnboardingProfileInput = {
   bookingServices?: Prisma.BookingServiceUncheckedCreateNestedManyWithoutOrgInput
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutOnboardingProfileInput = {
@@ -1438,6 +1465,7 @@ export type OrganizationUpdateWithoutOnboardingProfileInput = {
   bookingServices?: Prisma.BookingServiceUpdateManyWithoutOrgNestedInput
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutOnboardingProfileInput = {
@@ -1479,6 +1507,7 @@ export type OrganizationUncheckedUpdateWithoutOnboardingProfileInput = {
   bookingServices?: Prisma.BookingServiceUncheckedUpdateManyWithoutOrgNestedInput
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutInvitationsInput = {
@@ -1520,6 +1549,7 @@ export type OrganizationCreateWithoutInvitationsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutInvitationsInput = {
@@ -1561,6 +1591,7 @@ export type OrganizationUncheckedCreateWithoutInvitationsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutInvitationsInput = {
@@ -1618,6 +1649,7 @@ export type OrganizationUpdateWithoutInvitationsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutInvitationsInput = {
@@ -1659,6 +1691,7 @@ export type OrganizationUncheckedUpdateWithoutInvitationsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutExternalConnectionsInput = {
@@ -1700,6 +1733,7 @@ export type OrganizationCreateWithoutExternalConnectionsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutExternalConnectionsInput = {
@@ -1741,6 +1775,7 @@ export type OrganizationUncheckedCreateWithoutExternalConnectionsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutExternalConnectionsInput = {
@@ -1798,6 +1833,7 @@ export type OrganizationUpdateWithoutExternalConnectionsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutExternalConnectionsInput = {
@@ -1839,6 +1875,7 @@ export type OrganizationUncheckedUpdateWithoutExternalConnectionsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutProductToursInput = {
@@ -1880,6 +1917,7 @@ export type OrganizationCreateWithoutProductToursInput = {
   bookingServices?: Prisma.BookingServiceCreateNestedManyWithoutOrgInput
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutProductToursInput = {
@@ -1921,6 +1959,7 @@ export type OrganizationUncheckedCreateWithoutProductToursInput = {
   bookingServices?: Prisma.BookingServiceUncheckedCreateNestedManyWithoutOrgInput
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutProductToursInput = {
@@ -1978,6 +2017,7 @@ export type OrganizationUpdateWithoutProductToursInput = {
   bookingServices?: Prisma.BookingServiceUpdateManyWithoutOrgNestedInput
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutProductToursInput = {
@@ -2019,6 +2059,7 @@ export type OrganizationUncheckedUpdateWithoutProductToursInput = {
   bookingServices?: Prisma.BookingServiceUncheckedUpdateManyWithoutOrgNestedInput
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutSubscriptionsInput = {
@@ -2060,6 +2101,7 @@ export type OrganizationCreateWithoutSubscriptionsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutSubscriptionsInput = {
@@ -2101,6 +2143,7 @@ export type OrganizationUncheckedCreateWithoutSubscriptionsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutSubscriptionsInput = {
@@ -2158,6 +2201,7 @@ export type OrganizationUpdateWithoutSubscriptionsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutSubscriptionsInput = {
@@ -2199,6 +2243,7 @@ export type OrganizationUncheckedUpdateWithoutSubscriptionsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutEntitlementGrantsInput = {
@@ -2240,6 +2285,7 @@ export type OrganizationCreateWithoutEntitlementGrantsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutEntitlementGrantsInput = {
@@ -2281,6 +2327,7 @@ export type OrganizationUncheckedCreateWithoutEntitlementGrantsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutEntitlementGrantsInput = {
@@ -2338,6 +2385,7 @@ export type OrganizationUpdateWithoutEntitlementGrantsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutEntitlementGrantsInput = {
@@ -2379,6 +2427,7 @@ export type OrganizationUncheckedUpdateWithoutEntitlementGrantsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutUsageEventsInput = {
@@ -2420,6 +2469,7 @@ export type OrganizationCreateWithoutUsageEventsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutUsageEventsInput = {
@@ -2461,6 +2511,7 @@ export type OrganizationUncheckedCreateWithoutUsageEventsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutUsageEventsInput = {
@@ -2518,6 +2569,7 @@ export type OrganizationUpdateWithoutUsageEventsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutUsageEventsInput = {
@@ -2559,6 +2611,7 @@ export type OrganizationUncheckedUpdateWithoutUsageEventsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutPublicApiRequestsInput = {
@@ -2600,6 +2653,7 @@ export type OrganizationCreateWithoutPublicApiRequestsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutPublicApiRequestsInput = {
@@ -2641,6 +2695,7 @@ export type OrganizationUncheckedCreateWithoutPublicApiRequestsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutPublicApiRequestsInput = {
@@ -2698,6 +2753,7 @@ export type OrganizationUpdateWithoutPublicApiRequestsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutPublicApiRequestsInput = {
@@ -2739,6 +2795,7 @@ export type OrganizationUncheckedUpdateWithoutPublicApiRequestsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutDeveloperApiKeysInput = {
@@ -2780,6 +2837,7 @@ export type OrganizationCreateWithoutDeveloperApiKeysInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutDeveloperApiKeysInput = {
@@ -2821,6 +2879,7 @@ export type OrganizationUncheckedCreateWithoutDeveloperApiKeysInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutDeveloperApiKeysInput = {
@@ -2878,6 +2937,7 @@ export type OrganizationUpdateWithoutDeveloperApiKeysInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutDeveloperApiKeysInput = {
@@ -2910,6 +2970,191 @@ export type OrganizationUncheckedUpdateWithoutDeveloperApiKeysInput = {
   entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedUpdateManyWithoutOrgNestedInput
   usageEvents?: Prisma.UsageEventUncheckedUpdateManyWithoutOrgNestedInput
   publicApiRequests?: Prisma.PublicApiRequestUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedUpdateManyWithoutOrgNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUncheckedUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationCreateWithoutAgentWebsiteDeploymentsInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
+  members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueCreateNestedManyWithoutOrgInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
+  productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+}
+
+export type OrganizationUncheckedCreateWithoutAgentWebsiteDeploymentsInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  ownerId: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerUncheckedCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventUncheckedCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedCreateNestedManyWithoutOrgInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceUncheckedCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
+  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+}
+
+export type OrganizationCreateOrConnectWithoutAgentWebsiteDeploymentsInput = {
+  where: Prisma.OrganizationWhereUniqueInput
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutAgentWebsiteDeploymentsInput, Prisma.OrganizationUncheckedCreateWithoutAgentWebsiteDeploymentsInput>
+}
+
+export type OrganizationUpsertWithoutAgentWebsiteDeploymentsInput = {
+  update: Prisma.XOR<Prisma.OrganizationUpdateWithoutAgentWebsiteDeploymentsInput, Prisma.OrganizationUncheckedUpdateWithoutAgentWebsiteDeploymentsInput>
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutAgentWebsiteDeploymentsInput, Prisma.OrganizationUncheckedCreateWithoutAgentWebsiteDeploymentsInput>
+  where?: Prisma.OrganizationWhereInput
+}
+
+export type OrganizationUpdateToOneWithWhereWithoutAgentWebsiteDeploymentsInput = {
+  where?: Prisma.OrganizationWhereInput
+  data: Prisma.XOR<Prisma.OrganizationUpdateWithoutAgentWebsiteDeploymentsInput, Prisma.OrganizationUncheckedUpdateWithoutAgentWebsiteDeploymentsInput>
+}
+
+export type OrganizationUpdateWithoutAgentWebsiteDeploymentsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
+  members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUpdateManyWithoutOrgNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationUncheckedUpdateWithoutAgentWebsiteDeploymentsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerId?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUncheckedUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUncheckedUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutOrgNestedInput
   publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
   billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutOrgNestedInput
   billingInvoices?: Prisma.BillingInvoiceUncheckedUpdateManyWithoutOrgNestedInput
@@ -2960,6 +3205,7 @@ export type OrganizationCreateWithoutPublicApiWebhookSubscriptionsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutPublicApiWebhookSubscriptionsInput = {
@@ -3001,6 +3247,7 @@ export type OrganizationUncheckedCreateWithoutPublicApiWebhookSubscriptionsInput
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutPublicApiWebhookSubscriptionsInput = {
@@ -3058,6 +3305,7 @@ export type OrganizationUpdateWithoutPublicApiWebhookSubscriptionsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutPublicApiWebhookSubscriptionsInput = {
@@ -3099,6 +3347,7 @@ export type OrganizationUncheckedUpdateWithoutPublicApiWebhookSubscriptionsInput
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutBillingCheckoutsInput = {
@@ -3140,6 +3389,7 @@ export type OrganizationCreateWithoutBillingCheckoutsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutBillingCheckoutsInput = {
@@ -3181,6 +3431,7 @@ export type OrganizationUncheckedCreateWithoutBillingCheckoutsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutBillingCheckoutsInput = {
@@ -3238,6 +3489,7 @@ export type OrganizationUpdateWithoutBillingCheckoutsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutBillingCheckoutsInput = {
@@ -3279,6 +3531,7 @@ export type OrganizationUncheckedUpdateWithoutBillingCheckoutsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutBillingInvoicesInput = {
@@ -3320,6 +3573,7 @@ export type OrganizationCreateWithoutBillingInvoicesInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutBillingInvoicesInput = {
@@ -3361,6 +3615,7 @@ export type OrganizationUncheckedCreateWithoutBillingInvoicesInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutBillingInvoicesInput = {
@@ -3418,6 +3673,7 @@ export type OrganizationUpdateWithoutBillingInvoicesInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutBillingInvoicesInput = {
@@ -3459,6 +3715,7 @@ export type OrganizationUncheckedUpdateWithoutBillingInvoicesInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutBillingIssuesInput = {
@@ -3500,6 +3757,7 @@ export type OrganizationCreateWithoutBillingIssuesInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutBillingIssuesInput = {
@@ -3541,6 +3799,7 @@ export type OrganizationUncheckedCreateWithoutBillingIssuesInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutBillingIssuesInput = {
@@ -3598,6 +3857,7 @@ export type OrganizationUpdateWithoutBillingIssuesInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutBillingIssuesInput = {
@@ -3639,6 +3899,7 @@ export type OrganizationUncheckedUpdateWithoutBillingIssuesInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutOwnerInput = {
@@ -3680,6 +3941,7 @@ export type OrganizationCreateWithoutOwnerInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutOwnerInput = {
@@ -3721,6 +3983,7 @@ export type OrganizationUncheckedCreateWithoutOwnerInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutOwnerInput = {
@@ -3801,6 +4064,7 @@ export type OrganizationCreateWithoutSupportAccessGrantsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutSupportAccessGrantsInput = {
@@ -3842,6 +4106,7 @@ export type OrganizationUncheckedCreateWithoutSupportAccessGrantsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutSupportAccessGrantsInput = {
@@ -3899,6 +4164,7 @@ export type OrganizationUpdateWithoutSupportAccessGrantsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutSupportAccessGrantsInput = {
@@ -3940,6 +4206,7 @@ export type OrganizationUncheckedUpdateWithoutSupportAccessGrantsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutCustomersInput = {
@@ -3981,6 +4248,7 @@ export type OrganizationCreateWithoutCustomersInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutCustomersInput = {
@@ -4022,6 +4290,7 @@ export type OrganizationUncheckedCreateWithoutCustomersInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutCustomersInput = {
@@ -4079,6 +4348,7 @@ export type OrganizationUpdateWithoutCustomersInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutCustomersInput = {
@@ -4120,6 +4390,7 @@ export type OrganizationUncheckedUpdateWithoutCustomersInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutCustomerIdentitiesInput = {
@@ -4161,6 +4432,7 @@ export type OrganizationCreateWithoutCustomerIdentitiesInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutCustomerIdentitiesInput = {
@@ -4202,6 +4474,7 @@ export type OrganizationUncheckedCreateWithoutCustomerIdentitiesInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutCustomerIdentitiesInput = {
@@ -4259,6 +4532,7 @@ export type OrganizationUpdateWithoutCustomerIdentitiesInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutCustomerIdentitiesInput = {
@@ -4300,6 +4574,7 @@ export type OrganizationUncheckedUpdateWithoutCustomerIdentitiesInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutBookingServicesInput = {
@@ -4341,6 +4616,7 @@ export type OrganizationCreateWithoutBookingServicesInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutBookingServicesInput = {
@@ -4382,6 +4658,7 @@ export type OrganizationUncheckedCreateWithoutBookingServicesInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutBookingServicesInput = {
@@ -4439,6 +4716,7 @@ export type OrganizationUpdateWithoutBookingServicesInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutBookingServicesInput = {
@@ -4480,6 +4758,7 @@ export type OrganizationUncheckedUpdateWithoutBookingServicesInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutBookingsInput = {
@@ -4521,6 +4800,7 @@ export type OrganizationCreateWithoutBookingsInput = {
   bookingServices?: Prisma.BookingServiceCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutBookingsInput = {
@@ -4562,6 +4842,7 @@ export type OrganizationUncheckedCreateWithoutBookingsInput = {
   bookingServices?: Prisma.BookingServiceUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutBookingsInput = {
@@ -4619,6 +4900,7 @@ export type OrganizationUpdateWithoutBookingsInput = {
   bookingServices?: Prisma.BookingServiceUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutBookingsInput = {
@@ -4660,6 +4942,7 @@ export type OrganizationUncheckedUpdateWithoutBookingsInput = {
   bookingServices?: Prisma.BookingServiceUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutConversationsInput = {
@@ -4701,6 +4984,7 @@ export type OrganizationCreateWithoutConversationsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutConversationsInput = {
@@ -4742,6 +5026,7 @@ export type OrganizationUncheckedCreateWithoutConversationsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutConversationsInput = {
@@ -4799,6 +5084,7 @@ export type OrganizationUpdateWithoutConversationsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutConversationsInput = {
@@ -4840,6 +5126,7 @@ export type OrganizationUncheckedUpdateWithoutConversationsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutCallsInput = {
@@ -4881,6 +5168,7 @@ export type OrganizationCreateWithoutCallsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutCallsInput = {
@@ -4922,6 +5210,7 @@ export type OrganizationUncheckedCreateWithoutCallsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutCallsInput = {
@@ -4979,6 +5268,7 @@ export type OrganizationUpdateWithoutCallsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutCallsInput = {
@@ -5020,6 +5310,7 @@ export type OrganizationUncheckedUpdateWithoutCallsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutWhatsappConnectionsInput = {
@@ -5061,6 +5352,7 @@ export type OrganizationCreateWithoutWhatsappConnectionsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutWhatsappConnectionsInput = {
@@ -5102,6 +5394,7 @@ export type OrganizationUncheckedCreateWithoutWhatsappConnectionsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutWhatsappConnectionsInput = {
@@ -5159,6 +5452,7 @@ export type OrganizationUpdateWithoutWhatsappConnectionsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutWhatsappConnectionsInput = {
@@ -5200,6 +5494,7 @@ export type OrganizationUncheckedUpdateWithoutWhatsappConnectionsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutWhatsappCallSessionsInput = {
@@ -5241,6 +5536,7 @@ export type OrganizationCreateWithoutWhatsappCallSessionsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutWhatsappCallSessionsInput = {
@@ -5282,6 +5578,7 @@ export type OrganizationUncheckedCreateWithoutWhatsappCallSessionsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutWhatsappCallSessionsInput = {
@@ -5339,6 +5636,7 @@ export type OrganizationUpdateWithoutWhatsappCallSessionsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutWhatsappCallSessionsInput = {
@@ -5380,6 +5678,7 @@ export type OrganizationUncheckedUpdateWithoutWhatsappCallSessionsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutSocialChannelConnectionsInput = {
@@ -5421,6 +5720,7 @@ export type OrganizationCreateWithoutSocialChannelConnectionsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutSocialChannelConnectionsInput = {
@@ -5462,6 +5762,7 @@ export type OrganizationUncheckedCreateWithoutSocialChannelConnectionsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutSocialChannelConnectionsInput = {
@@ -5519,6 +5820,7 @@ export type OrganizationUpdateWithoutSocialChannelConnectionsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutSocialChannelConnectionsInput = {
@@ -5560,6 +5862,7 @@ export type OrganizationUncheckedUpdateWithoutSocialChannelConnectionsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutSocialPostsInput = {
@@ -5601,6 +5904,7 @@ export type OrganizationCreateWithoutSocialPostsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutSocialPostsInput = {
@@ -5642,6 +5946,7 @@ export type OrganizationUncheckedCreateWithoutSocialPostsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutSocialPostsInput = {
@@ -5699,6 +6004,7 @@ export type OrganizationUpdateWithoutSocialPostsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutSocialPostsInput = {
@@ -5740,6 +6046,7 @@ export type OrganizationUncheckedUpdateWithoutSocialPostsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutSocialPublishJobsInput = {
@@ -5781,6 +6088,7 @@ export type OrganizationCreateWithoutSocialPublishJobsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutSocialPublishJobsInput = {
@@ -5822,6 +6130,7 @@ export type OrganizationUncheckedCreateWithoutSocialPublishJobsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutSocialPublishJobsInput = {
@@ -5879,6 +6188,7 @@ export type OrganizationUpdateWithoutSocialPublishJobsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutSocialPublishJobsInput = {
@@ -5920,6 +6230,7 @@ export type OrganizationUncheckedUpdateWithoutSocialPublishJobsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutContentMediaAssetsInput = {
@@ -5961,6 +6272,7 @@ export type OrganizationCreateWithoutContentMediaAssetsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutContentMediaAssetsInput = {
@@ -6002,6 +6314,7 @@ export type OrganizationUncheckedCreateWithoutContentMediaAssetsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutContentMediaAssetsInput = {
@@ -6059,6 +6372,7 @@ export type OrganizationUpdateWithoutContentMediaAssetsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutContentMediaAssetsInput = {
@@ -6100,6 +6414,7 @@ export type OrganizationUncheckedUpdateWithoutContentMediaAssetsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutWhatsappContactsInput = {
@@ -6141,6 +6456,7 @@ export type OrganizationCreateWithoutWhatsappContactsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutWhatsappContactsInput = {
@@ -6182,6 +6498,7 @@ export type OrganizationUncheckedCreateWithoutWhatsappContactsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutWhatsappContactsInput = {
@@ -6239,6 +6556,7 @@ export type OrganizationUpdateWithoutWhatsappContactsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutWhatsappContactsInput = {
@@ -6280,6 +6598,7 @@ export type OrganizationUncheckedUpdateWithoutWhatsappContactsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutWhatsappContactListMembershipsInput = {
@@ -6321,6 +6640,7 @@ export type OrganizationCreateWithoutWhatsappContactListMembershipsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutWhatsappContactListMembershipsInput = {
@@ -6362,6 +6682,7 @@ export type OrganizationUncheckedCreateWithoutWhatsappContactListMembershipsInpu
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutWhatsappContactListMembershipsInput = {
@@ -6419,6 +6740,7 @@ export type OrganizationUpdateWithoutWhatsappContactListMembershipsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutWhatsappContactListMembershipsInput = {
@@ -6460,6 +6782,7 @@ export type OrganizationUncheckedUpdateWithoutWhatsappContactListMembershipsInpu
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutWhatsappTemplatesInput = {
@@ -6501,6 +6824,7 @@ export type OrganizationCreateWithoutWhatsappTemplatesInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutWhatsappTemplatesInput = {
@@ -6542,6 +6866,7 @@ export type OrganizationUncheckedCreateWithoutWhatsappTemplatesInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutWhatsappTemplatesInput = {
@@ -6599,6 +6924,7 @@ export type OrganizationUpdateWithoutWhatsappTemplatesInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutWhatsappTemplatesInput = {
@@ -6640,6 +6966,7 @@ export type OrganizationUncheckedUpdateWithoutWhatsappTemplatesInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutWhatsappCampaignsInput = {
@@ -6681,6 +7008,7 @@ export type OrganizationCreateWithoutWhatsappCampaignsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutWhatsappCampaignsInput = {
@@ -6722,6 +7050,7 @@ export type OrganizationUncheckedCreateWithoutWhatsappCampaignsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutWhatsappCampaignsInput = {
@@ -6779,6 +7108,7 @@ export type OrganizationUpdateWithoutWhatsappCampaignsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutWhatsappCampaignsInput = {
@@ -6820,6 +7150,7 @@ export type OrganizationUncheckedUpdateWithoutWhatsappCampaignsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateWithoutWhatsappSendEventsInput = {
@@ -6861,6 +7192,7 @@ export type OrganizationCreateWithoutWhatsappSendEventsInput = {
   bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationUncheckedCreateWithoutWhatsappSendEventsInput = {
@@ -6902,6 +7234,7 @@ export type OrganizationUncheckedCreateWithoutWhatsappSendEventsInput = {
   bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
   productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
 }
 
 export type OrganizationCreateOrConnectWithoutWhatsappSendEventsInput = {
@@ -6959,6 +7292,7 @@ export type OrganizationUpdateWithoutWhatsappSendEventsInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutWhatsappSendEventsInput = {
@@ -7000,6 +7334,7 @@ export type OrganizationUncheckedUpdateWithoutWhatsappSendEventsInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationCreateManyOwnerInput = {
@@ -7050,6 +7385,7 @@ export type OrganizationUpdateWithoutOwnerInput = {
   bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutOwnerInput = {
@@ -7091,6 +7427,7 @@ export type OrganizationUncheckedUpdateWithoutOwnerInput = {
   bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
   onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
   productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
 }
 
 export type OrganizationUncheckedUpdateManyWithoutOwnerInput = {
@@ -7139,6 +7476,7 @@ export type OrganizationCountOutputType = {
   bookingServices: number
   bookings: number
   productTours: number
+  agentWebsiteDeployments: number
 }
 
 export type OrganizationCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -7173,6 +7511,7 @@ export type OrganizationCountOutputTypeSelect<ExtArgs extends runtime.Types.Exte
   bookingServices?: boolean | OrganizationCountOutputTypeCountBookingServicesArgs
   bookings?: boolean | OrganizationCountOutputTypeCountBookingsArgs
   productTours?: boolean | OrganizationCountOutputTypeCountProductToursArgs
+  agentWebsiteDeployments?: boolean | OrganizationCountOutputTypeCountAgentWebsiteDeploymentsArgs
 }
 
 /**
@@ -7402,6 +7741,13 @@ export type OrganizationCountOutputTypeCountProductToursArgs<ExtArgs extends run
   where?: Prisma.UserProductTourWhereInput
 }
 
+/**
+ * OrganizationCountOutputType without action
+ */
+export type OrganizationCountOutputTypeCountAgentWebsiteDeploymentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.AgentWebsiteDeploymentWhereInput
+}
+
 
 export type OrganizationSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -7444,6 +7790,7 @@ export type OrganizationSelect<ExtArgs extends runtime.Types.Extensions.Internal
   bookings?: boolean | Prisma.Organization$bookingsArgs<ExtArgs>
   onboardingProfile?: boolean | Prisma.Organization$onboardingProfileArgs<ExtArgs>
   productTours?: boolean | Prisma.Organization$productToursArgs<ExtArgs>
+  agentWebsiteDeployments?: boolean | Prisma.Organization$agentWebsiteDeploymentsArgs<ExtArgs>
   _count?: boolean | Prisma.OrganizationCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["organization"]>
 
@@ -7514,6 +7861,7 @@ export type OrganizationInclude<ExtArgs extends runtime.Types.Extensions.Interna
   bookings?: boolean | Prisma.Organization$bookingsArgs<ExtArgs>
   onboardingProfile?: boolean | Prisma.Organization$onboardingProfileArgs<ExtArgs>
   productTours?: boolean | Prisma.Organization$productToursArgs<ExtArgs>
+  agentWebsiteDeployments?: boolean | Prisma.Organization$agentWebsiteDeploymentsArgs<ExtArgs>
   _count?: boolean | Prisma.OrganizationCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type OrganizationIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -7559,6 +7907,7 @@ export type $OrganizationPayload<ExtArgs extends runtime.Types.Extensions.Intern
     bookings: Prisma.$BookingPayload<ExtArgs>[]
     onboardingProfile: Prisma.$OrganizationOnboardingProfilePayload<ExtArgs> | null
     productTours: Prisma.$UserProductTourPayload<ExtArgs>[]
+    agentWebsiteDeployments: Prisma.$AgentWebsiteDeploymentPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -7995,6 +8344,7 @@ export interface Prisma__OrganizationClient<T, Null = never, ExtArgs extends run
   bookings<T extends Prisma.Organization$bookingsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$bookingsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$BookingPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   onboardingProfile<T extends Prisma.Organization$onboardingProfileArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$onboardingProfileArgs<ExtArgs>>): Prisma.Prisma__OrganizationOnboardingProfileClient<runtime.Types.Result.GetResult<Prisma.$OrganizationOnboardingProfilePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   productTours<T extends Prisma.Organization$productToursArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$productToursArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$UserProductTourPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  agentWebsiteDeployments<T extends Prisma.Organization$agentWebsiteDeploymentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$agentWebsiteDeploymentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AgentWebsiteDeploymentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -9187,6 +9537,30 @@ export type Organization$productToursArgs<ExtArgs extends runtime.Types.Extensio
   take?: number
   skip?: number
   distinct?: Prisma.UserProductTourScalarFieldEnum | Prisma.UserProductTourScalarFieldEnum[]
+}
+
+/**
+ * Organization.agentWebsiteDeployments
+ */
+export type Organization$agentWebsiteDeploymentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the AgentWebsiteDeployment
+   */
+  select?: Prisma.AgentWebsiteDeploymentSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the AgentWebsiteDeployment
+   */
+  omit?: Prisma.AgentWebsiteDeploymentOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AgentWebsiteDeploymentInclude<ExtArgs> | null
+  where?: Prisma.AgentWebsiteDeploymentWhereInput
+  orderBy?: Prisma.AgentWebsiteDeploymentOrderByWithRelationInput | Prisma.AgentWebsiteDeploymentOrderByWithRelationInput[]
+  cursor?: Prisma.AgentWebsiteDeploymentWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.AgentWebsiteDeploymentScalarFieldEnum | Prisma.AgentWebsiteDeploymentScalarFieldEnum[]
 }
 
 /**

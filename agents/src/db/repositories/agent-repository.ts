@@ -1102,6 +1102,134 @@ export class AgentRepository {
     });
   }
 
+  /** Permanently removes an organization-owned agent and all agent-scoped data. */
+  public async deleteAgent(organizationId: string, actorId: string, agentId: string): Promise<{ agentId: string; installationIds: string[]; deleted: true }> {
+    return withTransaction(this.pool, async (client) => {
+      const agentResult = await client.query<Pick<AgentRecord, "id" | "name" | "owner_type" | "protected">>(
+        `SELECT id, name, owner_type, protected
+         FROM agent_definitions
+         WHERE organization_id = $1 AND id = $2
+         FOR UPDATE`,
+        [organizationId, agentId],
+      );
+      const agent = agentResult.rows[0];
+      if (!agent) throw Object.assign(new Error("Agent not found"), { statusCode: 404, code: "AGENT_NOT_FOUND" });
+      if (agent.protected || agent.owner_type !== "organization") {
+        throw Object.assign(new Error("Protected agents cannot be deleted"), { statusCode: 403, code: "AGENT_PROTECTED" });
+      }
+
+      await client.query(
+        `CREATE TEMP TABLE _agent_delete_installations ON COMMIT DROP AS
+           SELECT id FROM agent_installations WHERE organization_id = $1 AND agent_definition_id = $2`,
+        [organizationId, agentId],
+      );
+      await client.query(
+        `CREATE TEMP TABLE _agent_delete_versions ON COMMIT DROP AS
+           SELECT id FROM agent_versions WHERE agent_definition_id = $1`,
+        [agentId],
+      );
+      await client.query(
+        `CREATE TEMP TABLE _agent_delete_runs ON COMMIT DROP AS
+           SELECT id FROM agent_runs WHERE organization_id = $1 AND agent_definition_id = $2`,
+        [organizationId, agentId],
+      );
+      await client.query(
+        `CREATE TEMP TABLE _agent_delete_conversations ON COMMIT DROP AS
+           SELECT id FROM conversations WHERE organization_id = $1 AND installation_id IN (SELECT id FROM _agent_delete_installations)`,
+        [organizationId],
+      );
+      await client.query(
+        `CREATE TEMP TABLE _agent_delete_sources ON COMMIT DROP AS
+           SELECT id FROM knowledge_sources
+           WHERE organization_id = $1
+             AND (agent_definition_id = $2 OR installation_id IN (SELECT id FROM _agent_delete_installations))`,
+        [organizationId, agentId],
+      );
+      const installationIds = (await client.query<{ id: string }>("SELECT id::text AS id FROM _agent_delete_installations")).rows.map((row) => row.id);
+
+      const activeRuns = await client.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM agent_runs
+         WHERE id IN (SELECT id FROM _agent_delete_runs)
+           AND status NOT IN ('completed', 'failed', 'cancelled', 'expired')`,
+      );
+      if (Number(activeRuns.rows[0]?.count ?? 0) > 0) {
+        throw Object.assign(new Error("Cancel active agent runs before deleting this agent"), { statusCode: 409, code: "AGENT_ACTIVE_RUNS" });
+      }
+      const activeLegalHold = await client.query(
+        `SELECT 1
+         FROM agent_legal_holds
+         WHERE organization_id = $1
+           AND status = 'active'
+           AND (expires_at IS NULL OR expires_at > now())
+           AND (
+             (scope_type = 'organization' AND scope_id = $1)
+             OR (scope_type = 'installation' AND scope_id IN (SELECT id::text FROM _agent_delete_installations))
+             OR (scope_type = 'conversation' AND scope_id IN (SELECT id::text FROM _agent_delete_conversations))
+           )
+         LIMIT 1`,
+        [organizationId],
+      );
+      if (activeLegalHold.rows[0]) {
+        throw Object.assign(new Error("Release the active legal hold before deleting this agent"), { statusCode: 409, code: "AGENT_LEGAL_HOLD_ACTIVE" });
+      }
+
+      // Preserve immutable audit history, but remove execution, conversation, knowledge,
+      // credentials, channel, and installation data owned by this agent.
+      await client.query(
+        `INSERT INTO audit_records
+          (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'human', $2, 'agent.deleted', 'agent_definition', $3, $4::jsonb)`,
+        [organizationId, actorId, agentId, JSON.stringify({ name: agent.name })],
+      );
+      await client.query("DELETE FROM agent_client_assertion_replays WHERE credential_id IN (SELECT id FROM agent_installation_credentials WHERE installation_id IN (SELECT id FROM _agent_delete_installations))");
+      await client.query("DELETE FROM agent_usage_records WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
+      await client.query("DELETE FROM agent_installation_resource_grants WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
+      await client.query("DELETE FROM agent_installation_connector_grants WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
+      await client.query("DELETE FROM agent_installation_credentials WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
+      await client.query("DELETE FROM agent_attachment_references WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
+      await client.query("DELETE FROM agent_schedules WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
+      await client.query("DELETE FROM agent_operator_holds WHERE organization_id = $1 AND ((scope_type = 'installation' AND scope_id IN (SELECT id::text FROM _agent_delete_installations)) OR (scope_type = 'run' AND scope_id IN (SELECT id::text FROM _agent_delete_runs)))", [organizationId]);
+      await client.query("DELETE FROM agent_operator_feature_flags WHERE scope_type = 'installation' AND scope_id IN (SELECT id::text FROM _agent_delete_installations)");
+      await client.query("DELETE FROM agent_kill_switches WHERE (organization_id = $1 AND scope_type = 'agent' AND scope_id = $2) OR (organization_id = $1 AND scope_type = 'installation' AND scope_id IN (SELECT id::text FROM _agent_delete_installations))", [organizationId, agentId]);
+
+      await client.query("DELETE FROM agent_operator_run_assignments WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
+      await client.query("DELETE FROM agent_approval_records WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
+      await client.query("DELETE FROM agent_effect_receipts WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
+      await client.query("DELETE FROM tool_invocations WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
+      await client.query("DELETE FROM run_attempts WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
+      await client.query("DELETE FROM run_steps WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
+      await client.query("DELETE FROM model_calls WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
+      await client.query("DELETE FROM evaluation_runs WHERE run_id IN (SELECT id FROM _agent_delete_runs) OR agent_version_id IN (SELECT id FROM _agent_delete_versions) OR scenario_id IN (SELECT id FROM evaluation_scenarios WHERE agent_definition_id = $1)", [agentId]);
+      await client.query("DELETE FROM agent_events WHERE run_id IN (SELECT id FROM _agent_delete_runs) OR installation_id IN (SELECT id FROM _agent_delete_installations)");
+      // Platform chat messages may reference a run without belonging to a
+      // conversation, so remove those before deleting the referenced runs.
+      await client.query("DELETE FROM messages WHERE run_id IN (SELECT id FROM _agent_delete_runs)");
+      await client.query("DELETE FROM agent_runs WHERE id IN (SELECT id FROM _agent_delete_runs)");
+      await client.query("DELETE FROM evaluation_scenarios WHERE agent_definition_id = $1", [agentId]);
+
+      await client.query("DELETE FROM delivery_attempts WHERE conversation_id IN (SELECT id FROM _agent_delete_conversations)");
+      await client.query("DELETE FROM conversation_summaries WHERE conversation_id IN (SELECT id FROM _agent_delete_conversations)");
+      await client.query("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM _agent_delete_conversations)");
+      await client.query("DELETE FROM participants WHERE conversation_id IN (SELECT id FROM _agent_delete_conversations)");
+      await client.query("UPDATE conversations SET rotated_from_id = NULL WHERE id IN (SELECT id FROM _agent_delete_conversations)");
+      await client.query("DELETE FROM conversations WHERE id IN (SELECT id FROM _agent_delete_conversations)");
+      await client.query("DELETE FROM channel_pairing_tokens WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
+      await client.query("DELETE FROM channel_bindings WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
+      await client.query("DELETE FROM channel_connections WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
+      await client.query("DELETE FROM kasiai_user_preferences WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
+
+      await client.query("DELETE FROM memory_records WHERE agent_definition_id = $1 OR installation_id IN (SELECT id FROM _agent_delete_installations) OR conversation_id IN (SELECT id FROM _agent_delete_conversations)", [agentId]);
+      await client.query("DELETE FROM knowledge_chunks WHERE source_id IN (SELECT id FROM _agent_delete_sources) OR agent_definition_id = $1", [agentId]);
+      await client.query("DELETE FROM knowledge_sources WHERE id IN (SELECT id FROM _agent_delete_sources)");
+      await client.query("DELETE FROM agent_tool_grants WHERE agent_version_id IN (SELECT id FROM _agent_delete_versions)");
+      await client.query("DELETE FROM agent_principals WHERE installation_id IN (SELECT id FROM _agent_delete_installations)");
+      await client.query("DELETE FROM agent_installations WHERE id IN (SELECT id FROM _agent_delete_installations)");
+      await client.query("DELETE FROM agent_versions WHERE id IN (SELECT id FROM _agent_delete_versions)");
+      await client.query("DELETE FROM agent_definitions WHERE organization_id = $1 AND id = $2", [organizationId, agentId]);
+      return { agentId, installationIds, deleted: true };
+    });
+  }
+
   public async getVersion(organizationId: string, versionId: string): Promise<AgentVersionRecord | null> {
     const result = await query<AgentVersionRecord>(
       this.pool,

@@ -67,6 +67,9 @@ export const ModelName = {
   UsageEvent: 'UsageEvent',
   PublicApiRequest: 'PublicApiRequest',
   DeveloperApiKey: 'DeveloperApiKey',
+  AgentWebsiteDeployment: 'AgentWebsiteDeployment',
+  AgentWebsiteVisitorSession: 'AgentWebsiteVisitorSession',
+  AgentWebsiteDeliveryEvent: 'AgentWebsiteDeliveryEvent',
   PublicApiWebhookSubscription: 'PublicApiWebhookSubscription',
   PublicApiWebhookDelivery: 'PublicApiWebhookDelivery',
   BillingCheckout: 'BillingCheckout',
@@ -405,6 +408,61 @@ export const DeveloperApiKeyScalarFieldEnum = {
 } as const
 
 export type DeveloperApiKeyScalarFieldEnum = (typeof DeveloperApiKeyScalarFieldEnum)[keyof typeof DeveloperApiKeyScalarFieldEnum]
+
+
+export const AgentWebsiteDeploymentScalarFieldEnum = {
+  id: 'id',
+  publicId: 'publicId',
+  orgId: 'orgId',
+  installationId: 'installationId',
+  channelConnectionId: 'channelConnectionId',
+  status: 'status',
+  allowedOrigins: 'allowedOrigins',
+  displayName: 'displayName',
+  welcomeText: 'welcomeText',
+  launcherPosition: 'launcherPosition',
+  colorPreset: 'colorPreset',
+  appearance: 'appearance',
+  avatarUrl: 'avatarUrl',
+  privacyPolicyUrl: 'privacyPolicyUrl',
+  createdById: 'createdById',
+  publishedAt: 'publishedAt',
+  pausedAt: 'pausedAt',
+  revokedAt: 'revokedAt',
+  lastError: 'lastError',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AgentWebsiteDeploymentScalarFieldEnum = (typeof AgentWebsiteDeploymentScalarFieldEnum)[keyof typeof AgentWebsiteDeploymentScalarFieldEnum]
+
+
+export const AgentWebsiteVisitorSessionScalarFieldEnum = {
+  id: 'id',
+  publicSessionId: 'publicSessionId',
+  deploymentId: 'deploymentId',
+  origin: 'origin',
+  externalIdentity: 'externalIdentity',
+  externalConversationId: 'externalConversationId',
+  status: 'status',
+  expiresAt: 'expiresAt',
+  lastSeenAt: 'lastSeenAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AgentWebsiteVisitorSessionScalarFieldEnum = (typeof AgentWebsiteVisitorSessionScalarFieldEnum)[keyof typeof AgentWebsiteVisitorSessionScalarFieldEnum]
+
+
+export const AgentWebsiteDeliveryEventScalarFieldEnum = {
+  id: 'id',
+  sessionId: 'sessionId',
+  eventKey: 'eventKey',
+  messageText: 'messageText',
+  createdAt: 'createdAt'
+} as const
+
+export type AgentWebsiteDeliveryEventScalarFieldEnum = (typeof AgentWebsiteDeliveryEventScalarFieldEnum)[keyof typeof AgentWebsiteDeliveryEventScalarFieldEnum]
 
 
 export const PublicApiWebhookSubscriptionScalarFieldEnum = {

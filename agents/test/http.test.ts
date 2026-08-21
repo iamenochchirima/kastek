@@ -942,6 +942,20 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("deletes an organization agent through the scoped control-plane contract", async () => {
+    const deleteAgent = vi.fn(async () => ({ agentId: "agent-1", installationIds: ["installation-1"], deleted: true as const }));
+    const app = buildApp({ config, pool: fakePool, agents: { deleteAgent } as unknown as AgentRepository });
+    const response = await app.inject({
+      method: "DELETE",
+      url: "/v1/agents/agent-1",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ agentId: "agent-1", installationIds: ["installation-1"], deleted: true });
+    expect(deleteAgent).toHaveBeenCalledWith("org-1", "user-1", "agent-1");
+    await app.close();
+  });
+
   it("defaults an organization installation scope to the authenticated organization", async () => {
     const createInstallation = vi.fn(async (_organizationId: string, _actorId: string, input: Record<string, unknown>) => ({ id: "installation-1", ...input }));
     const app = buildApp({ config, pool: fakePool, agents: { createInstallation } as unknown as AgentRepository });
@@ -1922,20 +1936,52 @@ describe("Agent Platform HTTP foundation", () => {
   });
 
   it("exposes only opaque credential records", async () => {
+    const verifyCredential = vi.fn(async (input: { provider: string; apiKey: string }) => ({
+      provider: input.provider,
+      status: "verified" as const,
+      verifiedAt: "2026-08-20T00:00:00.000Z",
+    }));
     const app = buildApp({
       config,
       pool: fakePool,
+      verifyCredential,
       credentials: {
         store: async () => ({ id: "credential-1", provider: "openai", label: "test", funding_source: "user", status: "active" }),
         list: async () => [{ id: "credential-1", provider: "openai", label: "test", funding_source: "user", status: "active" }],
         revoke: async () => undefined,
       } as never,
     });
+    const verified = await app.inject({ method: "POST", url: "/v1/credentials/verify", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" }, payload: { provider: "openai", apiKey: "secret-key" } });
+    expect(verified.statusCode).toBe(200);
+    expect(verified.json()).toEqual({ verification: { provider: "openai", status: "verified", verifiedAt: "2026-08-20T00:00:00.000Z" } });
     const created = await app.inject({ method: "POST", url: "/v1/credentials", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" }, payload: { provider: "openai", apiKey: "secret-key", label: "test" } });
     expect(created.statusCode).toBe(201);
     expect(created.body).not.toContain("secret-key");
+    expect(verifyCredential).toHaveBeenCalledTimes(2);
     const listed = await app.inject({ method: "GET", url: "/v1/credentials", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
     expect(listed.body).not.toContain("secret-key");
+    await app.close();
+  });
+
+  it("does not persist a provider credential when verification fails", async () => {
+    const store = vi.fn(async () => ({ id: "credential-1", provider: "openai", label: "test", funding_source: "user", status: "active" }));
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      verifyCredential: async () => {
+        throw Object.assign(new Error("openai rejected this credential"), { code: "credential_rejected", statusCode: 422 });
+      },
+      credentials: {
+        store,
+        list: async () => [],
+        revoke: async () => undefined,
+      } as never,
+    });
+    const response = await app.inject({ method: "POST", url: "/v1/credentials", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" }, payload: { provider: "openai", apiKey: "secret-key", label: "test" } });
+    expect(response.statusCode).toBe(422);
+    expect(response.json()).toEqual({ error: "openai rejected this credential", code: "credential_rejected" });
+    expect(response.body).not.toContain("secret-key");
+    expect(store).not.toHaveBeenCalled();
     await app.close();
   });
 

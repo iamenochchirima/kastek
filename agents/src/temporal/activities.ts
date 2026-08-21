@@ -530,14 +530,14 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
   tools.register({
     name: "kasitek.core.channel_deliver",
     version: "1.0.0",
-    description: "Send an approved reply to an organization-scoped WhatsApp conversation.",
+    description: "Send an approved reply to an organization-scoped external channel conversation.",
     riskClass: "external-effect",
     requiresApproval: true,
     timeoutMs: 60_000,
     inputSchema: {
       type: "object",
       properties: {
-        channelType: { type: "string", enum: ["whatsapp"] },
+        channelType: { type: "string", enum: ["whatsapp", "website"] },
         externalConversationId: { type: "string", minLength: 1, maxLength: 240 },
         text: { type: "string", minLength: 1, maxLength: 20_000 },
       },

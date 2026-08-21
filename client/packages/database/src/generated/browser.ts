@@ -98,6 +98,21 @@ export type PublicApiRequest = Prisma.PublicApiRequestModel
  */
 export type DeveloperApiKey = Prisma.DeveloperApiKeyModel
 /**
+ * Model AgentWebsiteDeployment
+ * 
+ */
+export type AgentWebsiteDeployment = Prisma.AgentWebsiteDeploymentModel
+/**
+ * Model AgentWebsiteVisitorSession
+ * 
+ */
+export type AgentWebsiteVisitorSession = Prisma.AgentWebsiteVisitorSessionModel
+/**
+ * Model AgentWebsiteDeliveryEvent
+ * 
+ */
+export type AgentWebsiteDeliveryEvent = Prisma.AgentWebsiteDeliveryEventModel
+/**
  * Model PublicApiWebhookSubscription
  * 
  */

@@ -3,7 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Bot, ChevronRight, Info, MessageSquare, Plus, Sparkles } from "lucide-react";
+import { ArrowLeft, Bot, Info, MessageSquare, Sparkles, X } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -59,7 +59,18 @@ export function AgentsPageClient({
 }) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(Boolean(initialTemplateKey));
+  const [createStep, setCreateStep] = useState<"type" | "custom">("type");
   const templates: SelectableTemplate[] = initialTemplates.map((template) => ({ value: template.key, label: template.name, description: template.description, available: true }));
+
+  const closeCreate = () => {
+    setCreateOpen(false);
+    setCreateStep("type");
+  };
+
+  const openCreateRoute = (path: string) => {
+    closeCreate();
+    router.push(path);
+  };
 
   return (
     <div className="min-h-screen p-6 lg:p-8">
@@ -69,7 +80,7 @@ export function AgentsPageClient({
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Automation</p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">Agents</h1>
           </div>
-          <div className="flex flex-wrap gap-2"><Button asChild type="button"><Link href="/agents/new/general">Create general-purpose agent</Link></Button><Button asChild type="button" variant="outline"><Link href="/agents/new">Build custom agent</Link></Button><Button type="button" variant="outline" className="gap-2" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" />Browse custom templates</Button></div>
+          <Button type="button" onClick={() => { setCreateStep("type"); setCreateOpen(true); }}>Create agent</Button>
         </header>
 
         {initialOperations ? <OperationsSummary summary={initialOperations} /> : null}
@@ -88,13 +99,86 @@ export function AgentsPageClient({
                 <h2 className="text-xl font-semibold text-foreground">No installed agents yet</h2>
                 <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">Install KasiAi or choose an available template to get started.</p>
               </div>
-              <div className="flex flex-wrap gap-2"><Button asChild type="button"><Link href="/agents/new/general">Create general-purpose agent</Link></Button><Button asChild type="button" variant="outline"><Link href="/agents/new">Build custom agent</Link></Button></div>
+              <Button type="button" onClick={() => { setCreateStep("type"); setCreateOpen(true); }}>Create agent</Button>
             </CardContent>
           </Card>
         )}
       </div>
 
-      {createOpen ? <TemplateDialog templates={templates} onClose={() => setCreateOpen(false)} initialTemplateKey={initialTemplateKey} /> : null}
+      {createOpen ? initialTemplateKey ? (
+        <TemplateDialog templates={templates} onClose={closeCreate} initialTemplateKey={initialTemplateKey} />
+      ) : (
+        <CreateAgentDialog step={createStep} onStepChange={setCreateStep} onClose={closeCreate} onChooseGeneral={() => openCreateRoute("/agents/new/general")} onChooseCustom={() => setCreateStep("custom")} onBrowseTemplates={() => openCreateRoute("/agents/templates")} onStartFromScratch={() => openCreateRoute("/agents/new")} />
+      ) : null}
+    </div>
+  );
+}
+
+function CreateAgentDialog({
+  step,
+  onStepChange,
+  onClose,
+  onChooseGeneral,
+  onChooseCustom,
+  onBrowseTemplates,
+  onStartFromScratch,
+}: {
+  step: "type" | "custom";
+  onStepChange: (step: "type" | "custom") => void;
+  onClose: () => void;
+  onChooseGeneral: () => void;
+  onChooseCustom: () => void;
+  onBrowseTemplates: () => void;
+  onStartFromScratch: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="create-agent-title">
+      <button type="button" className="absolute inset-0 bg-overlay" aria-label="Close create agent dialog" onClick={onClose} />
+      <div className="relative w-full max-w-2xl rounded-2xl border border-border bg-background p-5 shadow-2xl sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Automation</p>
+            <h2 id="create-agent-title" className="mt-1 text-xl font-semibold text-foreground">Create an agent</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Choose how you want to get started.</p>
+          </div>
+          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close create agent dialog"><X className="h-4 w-4" /></Button>
+        </div>
+
+        {step === "type" ? (
+          <div className="mt-6 grid items-stretch gap-4 sm:grid-cols-2">
+            <div className="flex min-h-[284px] flex-col rounded-xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35">
+              <h3 className="text-base font-semibold text-foreground">General-purpose agent</h3>
+              <p className="mx-auto mt-3 max-w-xs text-sm leading-5 text-muted-foreground">A complete assistant for a common job. Give it a name, purpose, and a few preferences.</p>
+              <div className="mt-5 flex flex-wrap justify-center gap-1.5" aria-label="Common general-purpose use cases">
+                {['Customer support', 'Lead qualification', 'Booking assistant', 'Internal helpdesk'].map((useCase) => <span key={useCase} className="rounded-full border border-border bg-secondary px-2 py-1 text-[11px] text-muted-foreground">{useCase}</span>)}
+              </div>
+              <Button type="button" className="mx-auto mt-auto w-full max-w-[210px]" onClick={onChooseGeneral}>Choose general-purpose</Button>
+            </div>
+            <div className="flex min-h-[284px] flex-col rounded-xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35">
+              <h3 className="text-base font-semibold text-foreground">Custom agent</h3>
+              <p className="mx-auto mt-3 max-w-xs text-sm leading-5 text-muted-foreground">Build a workflow from a canvas. Connect tools, knowledge, channels, and services when you need them.</p>
+              <Button type="button" variant="outline" className="mx-auto mt-auto w-full max-w-[210px]" onClick={onChooseCustom}>Choose custom</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-6 space-y-4">
+            <button type="button" onClick={() => onStepChange("type")} className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="mr-1.5 h-4 w-4" />Back</button>
+            <div className="grid items-stretch gap-4 sm:grid-cols-2">
+              <div className="flex min-h-[218px] flex-col rounded-xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35">
+                <h3 className="text-base font-semibold text-foreground">Start from scratch</h3>
+                <p className="mx-auto mt-3 max-w-xs text-sm leading-5 text-muted-foreground">Build your agent on a clean workflow canvas.</p>
+                <Button type="button" className="mx-auto mt-auto w-full max-w-[190px]" onClick={onStartFromScratch}>Start from scratch</Button>
+              </div>
+              <div className="flex min-h-[218px] flex-col rounded-xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35">
+                <h3 className="text-base font-semibold text-foreground">Browse templates</h3>
+                <p className="mx-auto mt-3 max-w-xs text-sm leading-5 text-muted-foreground">Choose a prepared workflow, then configure its services.</p>
+                <Button type="button" variant="outline" className="mx-auto mt-auto w-full max-w-[190px]" onClick={onBrowseTemplates}>Browse templates</Button>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="mt-6 flex justify-end border-t border-border pt-4"><Button type="button" variant="outline" onClick={onClose}>Cancel</Button></div>
+      </div>
     </div>
   );
 }
@@ -179,7 +263,7 @@ function TemplateDialog({ templates, onClose, initialTemplateKey }: { templates:
             <h2 id="agent-template-title" className="mt-1 text-xl font-semibold text-foreground">Choose an agent template</h2>
             <p className="mt-1 text-sm text-muted-foreground">Choose a blueprint, then review and finish it in the custom builder.</p>
           </div>
-          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close templates"><ChevronRight className="h-4 w-4 rotate-45" /></Button>
+          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close templates"><X className="h-4 w-4" /></Button>
         </div>
         {step === "select" ? <div className="mt-6 grid gap-3 sm:grid-cols-2">
           {templates.map((template) => (

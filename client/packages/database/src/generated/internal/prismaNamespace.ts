@@ -400,6 +400,9 @@ export const ModelName = {
   UsageEvent: 'UsageEvent',
   PublicApiRequest: 'PublicApiRequest',
   DeveloperApiKey: 'DeveloperApiKey',
+  AgentWebsiteDeployment: 'AgentWebsiteDeployment',
+  AgentWebsiteVisitorSession: 'AgentWebsiteVisitorSession',
+  AgentWebsiteDeliveryEvent: 'AgentWebsiteDeliveryEvent',
   PublicApiWebhookSubscription: 'PublicApiWebhookSubscription',
   PublicApiWebhookDelivery: 'PublicApiWebhookDelivery',
   BillingCheckout: 'BillingCheckout',
@@ -478,7 +481,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "organization" | "organizationMember" | "organizationOnboardingProfile" | "organizationInvitation" | "externalConnection" | "externalConnectionCapability" | "externalConnectionConsumer" | "product" | "productPlan" | "userProductTour" | "planEntitlement" | "organizationSubscription" | "organizationEntitlementGrant" | "usageEvent" | "publicApiRequest" | "developerApiKey" | "publicApiWebhookSubscription" | "publicApiWebhookDelivery" | "billingCheckout" | "billingInvoice" | "paystackWebhookEvent" | "billingReconciliationIssue" | "user" | "pushSubscription" | "account" | "session" | "verificationToken" | "adminUser" | "adminSupportAccessGrant" | "adminSupportAccessAuditEvent" | "adminWebhookReplayCommand" | "adminWebhookReplayAuditEvent" | "businessProfile" | "onboardingConversation" | "quoteRequest" | "productWaitlistEntry" | "quotation" | "invoice" | "invoiceRun" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "customer" | "customerIdentity" | "bookingService" | "booking" | "conversation" | "communicationCall" | "communicationCallLeg" | "message" | "messageAttachment" | "messageReference" | "messageReaction" | "messageEvent" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "whatsappCallSession" | "whatsappCallEvent" | "socialChannelConnection" | "socialDataDeletionRequest" | "socialWebhookEvent" | "socialOAuthAuthorization" | "socialPost" | "socialPostVariant" | "socialPublishJob" | "contentMediaAsset" | "contentMediaRendition" | "socialPostMedia" | "socialPostVariantMedia" | "whatsappContact" | "whatsappContactListMembership" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent"
+    modelProps: "organization" | "organizationMember" | "organizationOnboardingProfile" | "organizationInvitation" | "externalConnection" | "externalConnectionCapability" | "externalConnectionConsumer" | "product" | "productPlan" | "userProductTour" | "planEntitlement" | "organizationSubscription" | "organizationEntitlementGrant" | "usageEvent" | "publicApiRequest" | "developerApiKey" | "agentWebsiteDeployment" | "agentWebsiteVisitorSession" | "agentWebsiteDeliveryEvent" | "publicApiWebhookSubscription" | "publicApiWebhookDelivery" | "billingCheckout" | "billingInvoice" | "paystackWebhookEvent" | "billingReconciliationIssue" | "user" | "pushSubscription" | "account" | "session" | "verificationToken" | "adminUser" | "adminSupportAccessGrant" | "adminSupportAccessAuditEvent" | "adminWebhookReplayCommand" | "adminWebhookReplayAuditEvent" | "businessProfile" | "onboardingConversation" | "quoteRequest" | "productWaitlistEntry" | "quotation" | "invoice" | "invoiceRun" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "customer" | "customerIdentity" | "bookingService" | "booking" | "conversation" | "communicationCall" | "communicationCallLeg" | "message" | "messageAttachment" | "messageReference" | "messageReaction" | "messageEvent" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "whatsappCallSession" | "whatsappCallEvent" | "socialChannelConnection" | "socialDataDeletionRequest" | "socialWebhookEvent" | "socialOAuthAuthorization" | "socialPost" | "socialPostVariant" | "socialPublishJob" | "contentMediaAsset" | "contentMediaRendition" | "socialPostMedia" | "socialPostVariantMedia" | "whatsappContact" | "whatsappContactListMembership" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1663,6 +1666,228 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.DeveloperApiKeyCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.DeveloperApiKeyCountAggregateOutputType> | number
+        }
+      }
+    }
+    AgentWebsiteDeployment: {
+      payload: Prisma.$AgentWebsiteDeploymentPayload<ExtArgs>
+      fields: Prisma.AgentWebsiteDeploymentFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.AgentWebsiteDeploymentFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeploymentPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.AgentWebsiteDeploymentFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeploymentPayload>
+        }
+        findFirst: {
+          args: Prisma.AgentWebsiteDeploymentFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeploymentPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.AgentWebsiteDeploymentFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeploymentPayload>
+        }
+        findMany: {
+          args: Prisma.AgentWebsiteDeploymentFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeploymentPayload>[]
+        }
+        create: {
+          args: Prisma.AgentWebsiteDeploymentCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeploymentPayload>
+        }
+        createMany: {
+          args: Prisma.AgentWebsiteDeploymentCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.AgentWebsiteDeploymentCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeploymentPayload>[]
+        }
+        delete: {
+          args: Prisma.AgentWebsiteDeploymentDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeploymentPayload>
+        }
+        update: {
+          args: Prisma.AgentWebsiteDeploymentUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeploymentPayload>
+        }
+        deleteMany: {
+          args: Prisma.AgentWebsiteDeploymentDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.AgentWebsiteDeploymentUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.AgentWebsiteDeploymentUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeploymentPayload>[]
+        }
+        upsert: {
+          args: Prisma.AgentWebsiteDeploymentUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeploymentPayload>
+        }
+        aggregate: {
+          args: Prisma.AgentWebsiteDeploymentAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateAgentWebsiteDeployment>
+        }
+        groupBy: {
+          args: Prisma.AgentWebsiteDeploymentGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AgentWebsiteDeploymentGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.AgentWebsiteDeploymentCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AgentWebsiteDeploymentCountAggregateOutputType> | number
+        }
+      }
+    }
+    AgentWebsiteVisitorSession: {
+      payload: Prisma.$AgentWebsiteVisitorSessionPayload<ExtArgs>
+      fields: Prisma.AgentWebsiteVisitorSessionFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.AgentWebsiteVisitorSessionFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteVisitorSessionPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.AgentWebsiteVisitorSessionFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteVisitorSessionPayload>
+        }
+        findFirst: {
+          args: Prisma.AgentWebsiteVisitorSessionFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteVisitorSessionPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.AgentWebsiteVisitorSessionFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteVisitorSessionPayload>
+        }
+        findMany: {
+          args: Prisma.AgentWebsiteVisitorSessionFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteVisitorSessionPayload>[]
+        }
+        create: {
+          args: Prisma.AgentWebsiteVisitorSessionCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteVisitorSessionPayload>
+        }
+        createMany: {
+          args: Prisma.AgentWebsiteVisitorSessionCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.AgentWebsiteVisitorSessionCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteVisitorSessionPayload>[]
+        }
+        delete: {
+          args: Prisma.AgentWebsiteVisitorSessionDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteVisitorSessionPayload>
+        }
+        update: {
+          args: Prisma.AgentWebsiteVisitorSessionUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteVisitorSessionPayload>
+        }
+        deleteMany: {
+          args: Prisma.AgentWebsiteVisitorSessionDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.AgentWebsiteVisitorSessionUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.AgentWebsiteVisitorSessionUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteVisitorSessionPayload>[]
+        }
+        upsert: {
+          args: Prisma.AgentWebsiteVisitorSessionUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteVisitorSessionPayload>
+        }
+        aggregate: {
+          args: Prisma.AgentWebsiteVisitorSessionAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateAgentWebsiteVisitorSession>
+        }
+        groupBy: {
+          args: Prisma.AgentWebsiteVisitorSessionGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AgentWebsiteVisitorSessionGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.AgentWebsiteVisitorSessionCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AgentWebsiteVisitorSessionCountAggregateOutputType> | number
+        }
+      }
+    }
+    AgentWebsiteDeliveryEvent: {
+      payload: Prisma.$AgentWebsiteDeliveryEventPayload<ExtArgs>
+      fields: Prisma.AgentWebsiteDeliveryEventFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.AgentWebsiteDeliveryEventFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeliveryEventPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.AgentWebsiteDeliveryEventFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeliveryEventPayload>
+        }
+        findFirst: {
+          args: Prisma.AgentWebsiteDeliveryEventFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeliveryEventPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.AgentWebsiteDeliveryEventFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeliveryEventPayload>
+        }
+        findMany: {
+          args: Prisma.AgentWebsiteDeliveryEventFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeliveryEventPayload>[]
+        }
+        create: {
+          args: Prisma.AgentWebsiteDeliveryEventCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeliveryEventPayload>
+        }
+        createMany: {
+          args: Prisma.AgentWebsiteDeliveryEventCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.AgentWebsiteDeliveryEventCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeliveryEventPayload>[]
+        }
+        delete: {
+          args: Prisma.AgentWebsiteDeliveryEventDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeliveryEventPayload>
+        }
+        update: {
+          args: Prisma.AgentWebsiteDeliveryEventUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeliveryEventPayload>
+        }
+        deleteMany: {
+          args: Prisma.AgentWebsiteDeliveryEventDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.AgentWebsiteDeliveryEventUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.AgentWebsiteDeliveryEventUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeliveryEventPayload>[]
+        }
+        upsert: {
+          args: Prisma.AgentWebsiteDeliveryEventUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AgentWebsiteDeliveryEventPayload>
+        }
+        aggregate: {
+          args: Prisma.AgentWebsiteDeliveryEventAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateAgentWebsiteDeliveryEvent>
+        }
+        groupBy: {
+          args: Prisma.AgentWebsiteDeliveryEventGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AgentWebsiteDeliveryEventGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.AgentWebsiteDeliveryEventCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AgentWebsiteDeliveryEventCountAggregateOutputType> | number
         }
       }
     }
@@ -6626,6 +6851,61 @@ export const DeveloperApiKeyScalarFieldEnum = {
 export type DeveloperApiKeyScalarFieldEnum = (typeof DeveloperApiKeyScalarFieldEnum)[keyof typeof DeveloperApiKeyScalarFieldEnum]
 
 
+export const AgentWebsiteDeploymentScalarFieldEnum = {
+  id: 'id',
+  publicId: 'publicId',
+  orgId: 'orgId',
+  installationId: 'installationId',
+  channelConnectionId: 'channelConnectionId',
+  status: 'status',
+  allowedOrigins: 'allowedOrigins',
+  displayName: 'displayName',
+  welcomeText: 'welcomeText',
+  launcherPosition: 'launcherPosition',
+  colorPreset: 'colorPreset',
+  appearance: 'appearance',
+  avatarUrl: 'avatarUrl',
+  privacyPolicyUrl: 'privacyPolicyUrl',
+  createdById: 'createdById',
+  publishedAt: 'publishedAt',
+  pausedAt: 'pausedAt',
+  revokedAt: 'revokedAt',
+  lastError: 'lastError',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AgentWebsiteDeploymentScalarFieldEnum = (typeof AgentWebsiteDeploymentScalarFieldEnum)[keyof typeof AgentWebsiteDeploymentScalarFieldEnum]
+
+
+export const AgentWebsiteVisitorSessionScalarFieldEnum = {
+  id: 'id',
+  publicSessionId: 'publicSessionId',
+  deploymentId: 'deploymentId',
+  origin: 'origin',
+  externalIdentity: 'externalIdentity',
+  externalConversationId: 'externalConversationId',
+  status: 'status',
+  expiresAt: 'expiresAt',
+  lastSeenAt: 'lastSeenAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AgentWebsiteVisitorSessionScalarFieldEnum = (typeof AgentWebsiteVisitorSessionScalarFieldEnum)[keyof typeof AgentWebsiteVisitorSessionScalarFieldEnum]
+
+
+export const AgentWebsiteDeliveryEventScalarFieldEnum = {
+  id: 'id',
+  sessionId: 'sessionId',
+  eventKey: 'eventKey',
+  messageText: 'messageText',
+  createdAt: 'createdAt'
+} as const
+
+export type AgentWebsiteDeliveryEventScalarFieldEnum = (typeof AgentWebsiteDeliveryEventScalarFieldEnum)[keyof typeof AgentWebsiteDeliveryEventScalarFieldEnum]
+
+
 export const PublicApiWebhookSubscriptionScalarFieldEnum = {
   id: 'id',
   orgId: 'orgId',
@@ -8473,6 +8753,9 @@ export type GlobalOmitConfig = {
   usageEvent?: Prisma.UsageEventOmit
   publicApiRequest?: Prisma.PublicApiRequestOmit
   developerApiKey?: Prisma.DeveloperApiKeyOmit
+  agentWebsiteDeployment?: Prisma.AgentWebsiteDeploymentOmit
+  agentWebsiteVisitorSession?: Prisma.AgentWebsiteVisitorSessionOmit
+  agentWebsiteDeliveryEvent?: Prisma.AgentWebsiteDeliveryEventOmit
   publicApiWebhookSubscription?: Prisma.PublicApiWebhookSubscriptionOmit
   publicApiWebhookDelivery?: Prisma.PublicApiWebhookDeliveryOmit
   billingCheckout?: Prisma.BillingCheckoutOmit
