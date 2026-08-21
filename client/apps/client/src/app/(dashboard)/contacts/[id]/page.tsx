@@ -2,6 +2,7 @@ import { getRustSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 
 type CustomerDetailResponse = {
   customer: {
@@ -102,15 +103,10 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           ← Back to Contacts
         </Link>
 
-        <section className="rounded-2xl border border-border bg-card p-6">
+        <section className="rounded-xl border border-border bg-card p-6">
           <p className="text-sm font-medium text-muted-foreground">Customer</p>
           <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h1 className="text-3xl font-semibold tracking-tight text-foreground">{customerName}</h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Customer record created {dateTime(detail.customer.createdAt)}.
-              </p>
-            </div>
+            <PageHeader><PageHeaderContent><PageHeaderTitle>{customerName}</PageHeaderTitle><PageHeaderDescription>Customer record created {dateTime(detail.customer.createdAt)}.</PageHeaderDescription></PageHeaderContent></PageHeader>
             <div className="flex flex-wrap gap-2 text-sm">
               <span className="rounded-full border border-border px-3 py-1.5 text-muted-foreground">
                 {detail.identities.length} identities
@@ -126,7 +122,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         </section>
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
-          <section className="rounded-2xl border border-border bg-card p-6">
+          <section className="rounded-xl border border-border bg-card p-6">
             <h2 className="text-lg font-semibold text-foreground">Channel identities</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               These remain separate provider identities. Matching names are not merged automatically.
@@ -152,7 +148,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             </div>
           </section>
 
-          <section className="rounded-2xl border border-border bg-card p-6">
+          <section className="rounded-xl border border-border bg-card p-6">
             <h2 className="text-lg font-semibold text-foreground">WhatsApp consent</h2>
             <div className="mt-5 space-y-4">
               {detail.contacts.length ? (
@@ -185,7 +181,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           </section>
         </div>
 
-        <section className="rounded-2xl border border-border bg-card p-6">
+        <section className="rounded-xl border border-border bg-card p-6">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-foreground">Conversations</h2>
@@ -217,7 +213,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           </div>
         </section>
 
-        <section className="rounded-2xl border border-border bg-card p-6">
+        <section className="rounded-xl border border-border bg-card p-6">
           <h2 className="text-lg font-semibold text-foreground">Campaign participation</h2>
           <div className="mt-5 space-y-3">
             {detail.campaigns.length ? (
@@ -245,7 +241,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           </div>
         </section>
 
-        <section className="rounded-2xl border border-border bg-card p-6">
+        <section className="rounded-xl border border-border bg-card p-6">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-foreground">Bookings</h2>
@@ -275,7 +271,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           </div>
         </section>
 
-        <section className="rounded-2xl border border-border bg-card p-6">
+        <section className="rounded-xl border border-border bg-card p-6">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-foreground">Agent Platform activity</h2>
