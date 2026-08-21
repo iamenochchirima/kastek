@@ -12,7 +12,6 @@ import {
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import {
-  Bell,
   Cable,
   CalendarDays,
   CalendarCheck,
@@ -28,6 +27,7 @@ import {
   Grid2x2,
   HelpCircle,
   History,
+  Inbox,
   LayoutTemplate,
   LayoutGrid,
   LockKeyhole,
@@ -109,7 +109,7 @@ const navigationGroups: NavigationGroup[] = [
   {
     label: "Customer",
     items: [
-      { name: "Inbox", href: "/inbox", icon: Bell },
+      { name: "Inbox", href: "/inbox", icon: Inbox },
       { name: "Calls", href: "/calls", icon: PhoneCall },
       { name: "Contacts", href: "/contacts", icon: Users },
       { name: "Bookings", href: "/bookings", icon: CalendarCheck },
