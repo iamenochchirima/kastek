@@ -227,7 +227,7 @@ function NavigationSection({
             data-tour={tourTarget(item.href)}
             onClick={onNavigate}
             className={cn(
-              "relative flex min-h-9 items-center rounded-md text-[13px] font-medium leading-5 no-underline transition-colors",
+              "relative flex min-h-9 items-center rounded-md text-[13px] font-normal leading-5 no-underline transition-colors",
               collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
               active
                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
@@ -361,7 +361,7 @@ function SidebarContent({
             <button
               type="button"
               className={cn(
-                "flex min-h-9 w-full items-center rounded-md text-[13px] font-medium leading-5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
+                "flex min-h-9 w-full items-center rounded-md text-[13px] font-normal leading-5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
                 collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
               )}
               title="Help"
@@ -387,7 +387,7 @@ function SidebarContent({
           href="/workspace/notifications"
           onClick={onNavigate}
           className={cn(
-            "flex min-h-9 items-center rounded-md text-[13px] font-medium leading-5 text-muted-foreground no-underline transition-colors hover:bg-secondary hover:text-foreground",
+            "flex min-h-9 items-center rounded-md text-[13px] font-normal leading-5 text-muted-foreground no-underline transition-colors hover:bg-secondary hover:text-foreground",
             collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
           )}
         >
@@ -400,7 +400,7 @@ function SidebarContent({
             <button
               data-tour="profile"
               className={cn(
-                "flex min-h-9 w-full items-center rounded-md text-[13px] font-medium leading-5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
+                "flex min-h-9 w-full items-center rounded-md text-[13px] font-normal leading-5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
                 collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
               )}
             >
