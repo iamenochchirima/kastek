@@ -33,8 +33,8 @@ export default async function WorkspaceSettingsPage({
     fetchBillingPlans().catch(() => ({ plans: [] })),
   ]);
   const role = members.find((member) => member.userId === session.user.id)?.role ?? "MEMBER";
-  const initialTab = ["appearance", "notifications", "billing"].includes(sectionValue ?? "")
-    ? sectionValue as "appearance" | "notifications" | "billing"
+  const initialTab = ["organization", "appearance", "notifications", "billing"].includes(sectionValue ?? "")
+    ? sectionValue as "organization" | "appearance" | "notifications" | "billing"
     : "general";
   const query = {
     payment: Array.isArray(payment) ? payment[0] : payment,

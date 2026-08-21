@@ -29,8 +29,9 @@ migrated routes without a reload or a route-specific implementation.
   as the first day of the week.
 - A Vantage-style Settings composition at `/workspace/settings`, including
   responsive desktop and mobile navigation.
-- Migration of the existing real workspace identity form into Settings >
-  General, without changing its API, authorization, or data model.
+- Migration of the existing real organization identity form into a dedicated
+  Settings > Organization tab, without changing its API, authorization, or
+  data model.
 - Appearance, shell, primitive, and route audit needed to make the preferences
   genuinely application-wide.
 - Targeted verification and reconciliation into the parent migration plan after
@@ -74,7 +75,7 @@ switches listed in scope.
 - `client/apps/client/src/app/globals.css` already contains the Vantage
   semantic light/dark token layer, Tailwind 4 mappings, and sidebar tokens.
 - `/workspace/settings` currently owns a real organisation name/logo form and
-  role-based permission behavior. These must remain intact in General.
+  role-based permission behavior. These must remain intact in Organization.
 - The dashboard shell, command palette, theme toggle, and Sonner currently
   read the existing theme bridge and must be migrated to the unified one rather
   than duplicated.
@@ -88,7 +89,7 @@ switches listed in scope.
 | Persistence boundary | Keep persistence behind the central appearance store so an explicit future server-sync decision can add an adapter without changing consumers. | Decided |
 | Root application | Resolve preferences once at `<html>` before hydration, then update the same root state at runtime. | Decided |
 | Token consumption | Pages and primitives consume semantic tokens only; they must not branch on theme, accent, or density themselves. | Decided |
-| Settings route | Retain `/workspace/settings` and its real General behavior; replace its layout with the Vantage Settings composition. | Decided |
+| Settings route | Retain `/workspace/settings` and its real organization behavior; replace its layout with the Vantage Settings composition. | Decided |
 | Existing settings panels | Keep real Notifications and Billing in `/workspace/settings`; keep API-key management in Developers with its MCP/CLI/API documentation. Legacy routes remain available for compatibility. | Decided |
 | Future customizations | Add a customisation only through a typed preference, root application rule, semantic-token contract, Settings control, and verification case. | Decided |
 | Glass sidebar | Defer until after this plan. It is a KasiTek-specific extension, not a Vantage behavior. | Deferred |
@@ -162,7 +163,7 @@ soft. Its rendered values must match the Vantage presets.
   responsive section navigation: vertical desktop navigation and horizontal
   mobile navigation.
 - [x] Preserve the existing organisation form, API call, permissions, inline
-  error handling, and toast feedback in Settings > General.
+  error handling, and toast feedback in Settings > Organization.
 - [x] Port the Vantage Appearance panel exactly: preview cards, selected-state
   behavior, accent picker, density sample, and interface switches.
 - [x] Wire every Appearance control to the central engine so it applies live
@@ -329,7 +330,7 @@ reduced-motion states checked where applicable.
 - [ ] Capture comparable Vantage/KasiTek desktop and mobile evidence for each
   migrated shell or route pattern before considering it complete.
 - [ ] Check Settings desktop and mobile navigation, keyboard focus, and all
-  real General form success/error/permission states.
+  real Organization form success/error/permission states.
 - [x] Run client lint, relevant targeted tests, production build, and available
   visual/runtime checks.
 
@@ -437,8 +438,10 @@ all implementation and verification items above are complete:
 - KasiAi settings now use a horizontal navigation rail below 480px and stack
   WhatsApp pairing controls on phone widths; desktop retains the Vantage side
   rail. The selected settings section exposes semantic active state.
-- Workspace Settings now keeps General, Appearance, Notifications, and Billing
-  in one tab composition. Notifications use a Vantage-style
+- Workspace Settings now keeps General, Organization, Appearance, Notifications,
+  and Billing in one tab composition. General contains profile/team access;
+  Organization owns the existing admin/owner-protected name/logo form and its
+  real organization update API. Notifications use a Vantage-style
   category/channel panel backed by browser-local personal preferences while
   retaining the real push and desktop inbox controls; billing reuses its
   existing server actions. API-key management remains under Developers. The
