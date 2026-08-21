@@ -402,6 +402,10 @@ all implementation and verification items above are complete:
 - Social Posts table mode now follows the same rule: phones receive a compact
   tappable list with status, publication, and channel metadata while the full
   table remains a tablet/desktop treatment.
+- Settings tab transitions, Developers navigation selection, and Appearance
+  accent/selection feedback now consume the shared Vantage motion contract;
+  route-level timing literals were removed. Lint, TypeScript, route checks,
+  and the Webpack build pass.
 - The route implementation pass now covers the remaining workspace, customer,
   content, campaign, automation, and connection surfaces with `100dvh` roots,
   Vantage entrance treatment, mobile stacking/overflow rules, and
