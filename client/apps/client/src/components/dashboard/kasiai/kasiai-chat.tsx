@@ -3045,30 +3045,3 @@ function Toggle({
     </label>
   );
 }
-
-export function KasiAiTrigger({
-  collapsed,
-  onClick,
-}: {
-  collapsed: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      onClick={onClick}
-      className={cn(
-        "relative flex min-h-9 w-full items-center rounded-md text-[13px] font-medium leading-5 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-        collapsed
-          ? "justify-center px-2 py-2"
-          : "justify-start gap-2 px-2.5 py-2",
-      )}
-      title="Open KasiAi"
-      aria-label="Open KasiAi"
-    >
-      <MessageCircle className="h-4 w-4 shrink-0" />
-      {!collapsed ? <span>KasiAi</span> : null}
-    </Button>
-  );
-}

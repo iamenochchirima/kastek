@@ -60,7 +60,8 @@ import type { BillingSummary, CapabilityKey } from "@/lib/billing";
 import type { Org } from "@/lib/orgs";
 import type { ProductTourStatus } from "@/lib/product-tour";
 import { ProductTour } from "@/components/dashboard/product-tour";
-import { KasiAiChat, KasiAiTrigger } from "@/components/dashboard/kasiai/kasiai-chat";
+import { KasiAiChat } from "@/components/dashboard/kasiai/kasiai-chat";
+import { KasiAiLauncher } from "@/components/dashboard/kasiai/kasiai-launcher";
 import { CommandPalette } from "@/components/dashboard/command-palette";
 import {
   applyTheme,
@@ -435,7 +436,6 @@ function SidebarContent({
   orgs = [],
   activeOrgId = null,
   billingSummary = null,
-  onOpenKasiAi,
 }: {
   collapsed: boolean;
   setCollapsed?: (value: boolean) => void;
@@ -444,7 +444,6 @@ function SidebarContent({
   orgs?: Org[];
   activeOrgId?: string | null;
   billingSummary?: BillingSummary | null;
-  onOpenKasiAi?: () => void;
 }) {
   const pathname = usePathname();
   const liveInboxUnreadCount = useWhatsappInboxUnreadCount();
@@ -479,11 +478,6 @@ function SidebarContent({
         {hasOrgs ? (
           <div className="mb-3.5" data-tour="workspace-switcher">
             <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} collapsed={collapsed} variant="panel" />
-          </div>
-        ) : null}
-        {onOpenKasiAi ? (
-          <div className="mb-3 border-b border-sidebar-border pb-3">
-            <KasiAiTrigger collapsed={collapsed} onClick={onOpenKasiAi} />
           </div>
         ) : null}
         {navigationGroups.map((group) => (
@@ -639,7 +633,7 @@ export function LayoutShell({
   const [collapsed, setCollapsed] = useState(false);
   const [hasPwaUpdate, setHasPwaUpdate] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
-  const [kasiaiOpen, setKasiaiOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const appearance = useAppearance();
   const pathname = usePathname();
@@ -699,7 +693,6 @@ export function LayoutShell({
                 orgs={orgs}
                 activeOrgId={activeOrgId}
                 billingSummary={billingSummary}
-                onOpenKasiAi={() => setKasiaiOpen(true)}
               />
             </aside>
           <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
@@ -713,14 +706,16 @@ export function LayoutShell({
                 orgs={orgs}
                 activeOrgId={activeOrgId}
                 billingSummary={billingSummary}
-                onOpenKasiAi={() => {
-                  setMobileSheetOpen(false);
-                  setKasiaiOpen(true);
-                }}
                 onNavigate={() => setMobileSheetOpen(false)}
               />
             </SheetContent>
           </Sheet>
+          <KasiAiLauncher
+            open={assistantOpen}
+            hidden={mobileSheetOpen}
+            reduceMotion={appearance.interface.reduceMotion}
+            onOpen={() => setAssistantOpen(true)}
+          />
           <main className={cn("flex min-w-0 flex-1 flex-col pt-16 transition-[padding] duration-[var(--v-motion-shell)] ease-out md:pt-0", collapsed ? "md:pl-[68px]" : "md:pl-[264px]")}>
             <DesktopTopbar
               organizationName={organizationName}
@@ -735,7 +730,7 @@ export function LayoutShell({
             </div>
           </main>
           <ProductTour status={productTourStatus} />
-          <KasiAiChat open={kasiaiOpen} onOpenChange={setKasiaiOpen} leftOffset={collapsed ? 68 : 264} />
+          <KasiAiChat open={assistantOpen} onOpenChange={setAssistantOpen} leftOffset={collapsed ? 68 : 264} />
           <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
         </div>
         </>
