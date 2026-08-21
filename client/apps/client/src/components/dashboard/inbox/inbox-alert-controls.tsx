@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   ALERT_SETTINGS_EVENT,
   playInboxAlertSoundSafely,
@@ -95,17 +96,19 @@ export default function InboxAlertControls({
 
       <div className="flex flex-wrap items-center gap-2">
         {supportsDesktopNotifications() ? (
-          <button
+          <Button
             type="button"
             onClick={enableDesktopAlerts}
-            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+            size="sm"
+            variant="outline"
+            className={
               preferences.desktopAlertsEnabled
-                ? "border-status-success/30 bg-status-success-soft text-status-success"
-                : "border-border bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
-            }`}
+                ? "border-status-success/30 bg-status-success-soft text-status-success hover:bg-status-success-soft"
+                : "text-muted-foreground"
+            }
           >
             {desktopButtonLabel}
-          </button>
+          </Button>
         ) : (
           <span className="rounded-full border border-border bg-secondary/50 px-3 py-1.5 text-xs font-medium text-muted-foreground">
             Desktop Alerts Unsupported
@@ -113,17 +116,19 @@ export default function InboxAlertControls({
         )}
 
         {supportsAudioContext() ? (
-          <button
+          <Button
             type="button"
             onClick={toggleSoundAlerts}
-            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+            size="sm"
+            variant="outline"
+            className={
               preferences.soundAlertsEnabled
-                ? "border-status-success/30 bg-status-success-soft text-status-success"
-                : "border-border bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
-            }`}
+                ? "border-status-success/30 bg-status-success-soft text-status-success hover:bg-status-success-soft"
+                : "text-muted-foreground"
+            }
           >
             {preferences.soundAlertsEnabled ? "Sound On" : "Sound Off"}
-          </button>
+          </Button>
         ) : (
           <span className="rounded-full border border-border bg-secondary/50 px-3 py-1.5 text-xs font-medium text-muted-foreground">
             Sound Unsupported

@@ -49,6 +49,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  PageHeader,
+  PageHeaderActions,
+  PageHeaderContent,
+  PageHeaderDescription,
+  PageHeaderTitle,
+} from "@/components/ui/page-header";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -2484,18 +2492,18 @@ export default function InboxPageClient({
         </Sheet>
 
         <header className="shrink-0 border-b border-border bg-card px-4 pt-4 sm:px-6 sm:pt-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Customer workspace
-              </p>
-              <h1 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-foreground">Inbox</h1>
-            </div>
+          <PageHeader className="items-center">
+            <PageHeaderContent>
+              <PageHeaderTitle>Inbox</PageHeaderTitle>
+              <PageHeaderDescription>Customer conversations.</PageHeaderDescription>
+            </PageHeaderContent>
+            <PageHeaderActions>
             <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowChannelPanel(true)}>
               <Filter className="h-4 w-4" />
               Manage channels
             </Button>
-          </div>
+            </PageHeaderActions>
+          </PageHeader>
 
           <div className="mt-4 flex gap-1 overflow-x-auto pb-0" role="tablist" aria-label="Inbox channels">
             {channels.map((channel) => {
@@ -3430,7 +3438,7 @@ export default function InboxPageClient({
                 >
                   <Paperclip className="h-4 w-4" />
                 </Button>
-                <textarea
+                <Textarea
                   ref={composerInputRef}
                   placeholder={selectedConversation ? `Message ${selectedConversation.name}...` : "Type a message"}
                   value={messageInput}
