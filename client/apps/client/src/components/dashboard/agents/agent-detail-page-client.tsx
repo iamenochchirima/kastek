@@ -11,6 +11,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { AgentWorkflowEditor, type WorkflowGraphValue } from "./agent-workflow-editor";
 import { AgentRuntimeLimits, defaultAgentRuntimeLimits, parseAgentRuntimeLimits, type AgentRuntimeLimitsValue } from "./agent-runtime-limits";
 import { listWorkspaceConnections, type WorkspaceConnection } from "@/lib/connections";
@@ -509,17 +518,18 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         </section> : null}
           </main>
         </div>
-        {deleteConfirmationOpen ? <div className="fixed inset-0 z-[80] flex items-center justify-center bg-overlay p-4" role="dialog" aria-modal="true" aria-labelledby="delete-agent-title" aria-describedby="delete-agent-description" onMouseDown={(event) => { if (event.target === event.currentTarget && busy === null) { setDeleteConfirmationOpen(false); setDeleteConfirmationValue(""); } }}>
-          <div className="w-full max-w-md rounded-2xl border border-destructive/30 bg-card p-6 shadow-2xl">
+        <Dialog open={deleteConfirmationOpen} onOpenChange={(open) => {
+          if (!open && busy === null) { setDeleteConfirmationOpen(false); setDeleteConfirmationValue(""); }
+        }}>
+          <DialogContent className="max-w-md border-destructive/30">
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-destructive/10 text-destructive"><Trash2 className="h-5 w-5" aria-hidden="true" /></div>
-            <h2 id="delete-agent-title" className="mt-4 text-lg font-semibold text-foreground">Delete agent permanently?</h2>
-            <p id="delete-agent-description" className="mt-2 text-sm leading-6 text-muted-foreground">This permanently removes the agent, its versions, installations, conversations, knowledge, credentials, and run history.</p>
+            <DialogHeader className="mt-4"><DialogTitle>Delete agent permanently?</DialogTitle><DialogDescription>This permanently removes the agent, its versions, installations, conversations, knowledge, credentials, and run history.</DialogDescription></DialogHeader>
             <p className="mt-4 text-sm text-foreground">Type <code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs">{agentName}</code> to continue.</p>
-            <input autoFocus value={deleteConfirmationValue} onChange={(event) => setDeleteConfirmationValue(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void confirmDeleteCurrentAgent(); if (event.key === "Escape" && busy === null) { setDeleteConfirmationOpen(false); setDeleteConfirmationValue(""); } }} className="mt-2 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-destructive/50" aria-label={`Type ${agentName} to confirm deletion`} placeholder={agentName} />
+            <Input autoFocus value={deleteConfirmationValue} onChange={(event) => setDeleteConfirmationValue(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void confirmDeleteCurrentAgent(); }} className="mt-2" aria-label={`Type ${agentName} to confirm deletion`} placeholder={agentName} />
             {error ? <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-            <div className="mt-6 flex justify-end gap-2"><Button type="button" variant="outline" disabled={busy !== null} onClick={() => { setDeleteConfirmationOpen(false); setDeleteConfirmationValue(""); }}>Cancel</Button><Button type="button" variant="destructive" disabled={busy !== null || deleteConfirmationValue !== agentName} onClick={() => void confirmDeleteCurrentAgent()}>{busy === "delete" ? "Deleting…" : "Delete permanently"}</Button></div>
-          </div>
-        </div> : null}
+            <DialogFooter className="mt-6"><Button type="button" variant="outline" disabled={busy !== null} onClick={() => { setDeleteConfirmationOpen(false); setDeleteConfirmationValue(""); }}>Cancel</Button><Button type="button" variant="destructive" disabled={busy !== null || deleteConfirmationValue !== agentName} onClick={() => void confirmDeleteCurrentAgent()}>{busy === "delete" ? "Deleting…" : "Delete permanently"}</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
