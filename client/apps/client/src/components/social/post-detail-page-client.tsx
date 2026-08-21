@@ -9,6 +9,7 @@ import { apiUrl } from "@/lib/server-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog,
   DialogContent,
@@ -427,9 +428,9 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
               </DialogHeader>
             </div>
 
-            <div className="mt-5 space-y-3">
+            <RadioGroup value={deleteScope} onValueChange={(value) => setDeleteScope(value as "local" | "platforms")} className="mt-5 space-y-3">
               <label className={`flex cursor-pointer gap-3 rounded-xl border p-4 transition-colors ${deleteScope === "local" ? "border-primary bg-primary/5" : "border-border hover:bg-secondary/30"}`}>
-                <input type="radio" name="delete-scope" value="local" checked={deleteScope === "local"} onChange={() => setDeleteScope("local")} className="mt-1 accent-primary" />
+                <RadioGroupItem value="local" className="mt-1" />
                 <span>
                   <span className="block text-sm font-medium text-foreground">Remove from KasiTek only</span>
                   <span className="mt-1 block text-xs leading-5 text-muted-foreground">The published copies on social platforms will remain online.</span>
@@ -437,7 +438,7 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
               </label>
 
               <label className={`flex gap-3 rounded-xl border p-4 transition-colors ${publishedProviderJobs.length ? "cursor-pointer" : "cursor-not-allowed opacity-60"} ${deleteScope === "platforms" ? "border-destructive bg-destructive/5" : "border-border"}`}>
-                <input type="radio" name="delete-scope" value="platforms" checked={deleteScope === "platforms"} onChange={() => publishedProviderJobs.length && setDeleteScope("platforms")} disabled={!publishedProviderJobs.length} className="mt-1 accent-destructive" />
+                <RadioGroupItem value="platforms" disabled={!publishedProviderJobs.length} className="mt-1 text-destructive" />
                 <span>
                   <span className="block text-sm font-medium text-foreground">Remove from KasiTek and platforms</span>
                   <span className="mt-1 block text-xs leading-5 text-muted-foreground">
@@ -447,7 +448,7 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
                   </span>
                 </span>
               </label>
-            </div>
+            </RadioGroup>
 
             {deleteProviderResults.length ? (
               <div className="mt-4 rounded-xl border border-destructive/30 bg-status-danger-soft p-3">

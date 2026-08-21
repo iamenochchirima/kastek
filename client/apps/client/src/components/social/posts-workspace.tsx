@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -1482,21 +1483,21 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                 <DialogDescription>Choose where this post should be removed.</DialogDescription>
               </DialogHeader>
             </div>
-            <div className="mt-5 space-y-3">
+            <RadioGroup value={deleteScope} onValueChange={(value) => setDeleteScope(value as "local" | "platforms")} className="mt-5 space-y-3">
               <label className={`flex cursor-pointer gap-3 rounded-xl border p-4 ${deleteScope === "local" ? "border-primary bg-primary/5" : "border-border"}`}>
-                <input type="radio" name="workspace-delete-scope" checked={deleteScope === "local"} onChange={() => setDeleteScope("local")} className="mt-1 accent-primary" />
+                <RadioGroupItem value="local" className="mt-1" />
                 <span><span className="block text-sm font-medium text-foreground">Remove from KasiTek only</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">Published copies on social platforms remain online.</span></span>
               </label>
               {(() => {
                 const publishedJobs = deleteTarget.publishJobs?.filter((job) => job.status === "PUBLISHED" && job.externalPostId) || [];
                 return (
                   <label className={`flex gap-3 rounded-xl border p-4 ${publishedJobs.length ? "cursor-pointer" : "cursor-not-allowed opacity-60"} ${deleteScope === "platforms" ? "border-destructive bg-destructive/5" : "border-border"}`}>
-                    <input type="radio" name="workspace-delete-scope" checked={deleteScope === "platforms"} onChange={() => publishedJobs.length && setDeleteScope("platforms")} disabled={!publishedJobs.length} className="mt-1 accent-destructive" />
+                    <RadioGroupItem value="platforms" disabled={!publishedJobs.length} className="mt-1 text-destructive" />
                     <span><span className="block text-sm font-medium text-foreground">Remove from KasiTek and platforms</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{publishedJobs.length ? `Attempts deletion on ${publishedJobs.map((job) => getPlatformLabel(job.platform)).join(", ")}. Failed platform deletions keep this record available for retry.` : "There are no published platform copies recorded for this post."}</span></span>
                   </label>
                 );
               })()}
-            </div>
+            </RadioGroup>
             {deleteProviderResults.length ? <div className="mt-4 rounded-xl border border-destructive/30 bg-status-danger-soft p-3"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-destructive">Platform deletion results</p><div className="mt-2 space-y-2">{deleteProviderResults.map((result, index) => <div key={`${result.platform}-${index}`} className="flex items-start gap-2 text-xs">{result.status === "DELETED" ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-status-success" /> : <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />}<span className="text-foreground"><strong>{getPlatformLabel(result.platform)}</strong>{result.message ? ` · ${result.message}` : ` · ${result.status.toLowerCase()}`}</span></div>)}</div></div> : null}
             {error ? <p className="mt-4 rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
             <div className="mt-6 flex justify-end gap-2"><Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deletingPost}>Cancel</Button><Button variant="destructive" onClick={() => void deletePost(deleteTarget.id, deleteScope === "platforms")} disabled={deletingPost}>{deletingPost ? "Deleting..." : deleteScope === "platforms" ? "Delete everywhere" : "Delete post"}</Button></div>
