@@ -1,6 +1,6 @@
 # Vantage Appearance and Settings Plan
 
-**Status:** Implementation pass; runtime pending  
+**Status:** Implementation pass; public runtime smoke verified; authenticated runtime pending  
 **Owner:** KasiTek team  
 **Last updated:** 2026-08-21  
 **Parent plan:** [`VANTAGE_UI_MIGRATION_PLAN.md`](VANTAGE_UI_MIGRATION_PLAN.md)
@@ -237,7 +237,7 @@ primitives rather than re-created as ad-hoc page CSS.
 - [x] Create shared motion variants for drawer, backdrop, page entrance,
   list entrance, menu content, and selected controls; remove one-off variants
   when each consumer is migrated.
-- [ ] Reuse Vantage shimmer/live-pulse/selection patterns through shared
+- [x] Reuse Vantage shimmer/live-pulse/selection patterns through shared
   primitives, then remove conflicting legacy animation definitions.
 - [ ] Verify the foundation with keyboard navigation, Escape, focus return,
   touch scrolling, light/dark themes, all accents, both densities, and reduced
@@ -322,8 +322,14 @@ reduced-motion states checked where applicable.
   migrated shell or route pattern before considering it complete.
 - [ ] Check Settings desktop and mobile navigation, keyboard focus, and all
   real General form success/error/permission states.
-- [ ] Run client lint, relevant targeted tests, production build, and available
+- [x] Run client lint, relevant targeted tests, production build, and available
   visual/runtime checks.
+
+Public runtime evidence (2026-08-21): production `/login` rendered at 360px,
+768px, 1024px, and 1440px; protected `/workspace` redirected to `/login`; a
+production 404 rendered the Vantage not-found surface. Authenticated dashboard
+interaction, preference switching, and overlay/focus QA still require a real
+session.
 
 ## Completion and parent-plan reconciliation
 
