@@ -252,6 +252,19 @@ function DesktopTopbar({
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild><Link href="/workspace/profile"><UserRound className="mr-2 size-4" />Profile</Link></DropdownMenuItem>
             <DropdownMenuItem asChild><Link href="/workspace/settings"><Settings className="mr-2 size-4" />Settings</Link></DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onSelect={(event) => {
+                event.preventDefault();
+                void (async () => {
+                  await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" });
+                  window.location.assign("/");
+                })();
+              }}
+            >
+              <LogOut className="mr-2 size-4" />Log out
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -714,6 +727,11 @@ export function LayoutShell({
     query.addEventListener("change", apply);
     return () => query.removeEventListener("change", apply);
   }, []);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setMobileSheetOpen(false));
+    return () => window.cancelAnimationFrame(frame);
+  }, [pathname]);
 
   useEffect(() => {
     const onPwaUpdate = (event: Event) => {
