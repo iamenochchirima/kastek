@@ -410,6 +410,10 @@ all implementation and verification items above are complete:
   `appearance-contract.ts` values for accents and storage keys, keeping first
   paint and runtime application on one source of truth without importing the
   client appearance store into the server layout.
+- Large Contacts, WhatsApp template, and Inbox media overlays now use
+  small-viewport-safe `svh` sizing so mobile browser chrome cannot hide their
+  actions or previews. Their existing scroll and max-width treatments remain
+  unchanged; lint, TypeScript, and the Webpack build pass.
 - The route implementation pass now covers the remaining workspace, customer,
   content, campaign, automation, and connection surfaces with `100dvh` roots,
   Vantage entrance treatment, mobile stacking/overflow rules, and

@@ -440,3 +440,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Extended explicit dense-surface mobile treatment to Social Posts table mode with a compact tappable list below the shell breakpoint; desktop/tablet table behavior remains intact. Lint, TypeScript, and `git diff --check` passed. |
 | 2026-08-21 | Centralized remaining Settings, Developers, and Appearance route motion literals on the shared Vantage timing/spring contract; lint, TypeScript, and Webpack build passed. |
 | 2026-08-21 | Consolidated pre-hydration appearance accents and storage keys into a server-safe shared contract, avoiding duplicated first-paint values and client-hook imports in the root layout; lint, TypeScript, route checks, and Webpack build passed. |
+| 2026-08-21 | Converted large Contacts, WhatsApp template, and Inbox media overlays from `vh` to `svh` sizing for mobile browser-safe action and preview placement; lint, TypeScript, and Webpack build passed. |
