@@ -423,6 +423,9 @@ all implementation and verification items above are complete:
 - Product Tour now focuses its dialog when opened or advanced, restores the
   invoking control when dismissed, and uses the shared shell motion duration.
   Escape dismissal remains available.
+- KasiAi now follows the same focus lifecycle: its panel receives focus on
+  open and focus returns to the trigger when the panel closes. The existing
+  nested model picker and resize interactions remain unchanged.
 - The route implementation pass now covers the remaining workspace, customer,
   content, campaign, automation, and connection surfaces with `100dvh` roots,
   Vantage entrance treatment, mobile stacking/overflow rules, and
