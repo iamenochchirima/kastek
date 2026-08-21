@@ -691,7 +691,7 @@ export function LayoutShell({
       <WhatsappRealtimeProvider key={activeOrgId ?? "no-org"} initialInboxUnreadCount={inboxUnreadCount}>
         <>
         <div className="dashboard-theme flex min-h-[100dvh] bg-canvas">
-          <aside className={cn("hidden shrink-0 transition-[width] duration-[var(--v-motion-shell)] ease-out md:flex md:flex-col", collapsed ? "w-[68px]" : "w-[264px]")}>
+          <aside className={cn("fixed inset-y-0 left-0 z-20 hidden transition-[width] duration-[var(--v-motion-shell)] ease-out md:flex md:flex-col", collapsed ? "w-[68px]" : "w-[264px]")}>
               <SidebarContent
                 collapsed={collapsed}
                 setCollapsed={setSidebarCollapsed}
@@ -721,7 +721,7 @@ export function LayoutShell({
               />
             </SheetContent>
           </Sheet>
-          <main className="flex min-w-0 flex-1 flex-col pt-16 md:pt-0">
+          <main className={cn("flex min-w-0 flex-1 flex-col pt-16 transition-[padding] duration-[var(--v-motion-shell)] ease-out md:pt-0", collapsed ? "md:pl-[68px]" : "md:pl-[264px]")}>
             <DesktopTopbar
               organizationName={organizationName}
               sectionLabel={sectionLabel}
