@@ -206,11 +206,15 @@ function DesktopTopbar({
   organizationName,
   sectionLabel,
   user,
+  orgs,
+  activeOrgId,
   onOpenCommand,
 }: {
   organizationName: string;
   sectionLabel: string;
   user?: { name?: string | null; email?: string | null; image?: string | null };
+  orgs: Org[];
+  activeOrgId: string | null;
   onOpenCommand: () => void;
 }) {
   const accountName = user?.name ?? "Account";
@@ -219,7 +223,11 @@ function DesktopTopbar({
   return (
     <header className="sticky top-0 z-[var(--z-topbar)] hidden h-16 items-center gap-3 border-b border-line bg-canvas/80 px-4 backdrop-blur-[12px] md:flex lg:px-6">
       <nav className="flex min-w-0 items-center gap-1.5 text-[13px] text-ink-2" aria-label="Breadcrumb">
-        <span className="truncate">{organizationName}</span>
+        {orgs.length > 0 ? (
+          <div className="min-w-0 max-w-[190px]" data-tour="workspace-switcher">
+            <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} variant="header" />
+          </div>
+        ) : <span className="truncate">{organizationName}</span>}
         <ChevronRight className="size-[13px] shrink-0 text-ink-3" />
         <span className="truncate font-medium text-ink-1">{sectionLabel}</span>
       </nav>
@@ -237,7 +245,7 @@ function DesktopTopbar({
         <ThemeToggleSimple iconOnly className="size-9 px-0" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button type="button" aria-label="Account" className="rounded-full">
+            <button type="button" aria-label="Account" data-tour="profile" className="rounded-full">
               <Avatar className="size-9 ring-2 ring-brand-soft">
                 {user?.image ? <AvatarImage src={user.image} alt={accountName} /> : null}
                 <AvatarFallback className="bg-primary text-[11px] font-semibold text-primary-foreground">{initials}</AvatarFallback>
@@ -245,10 +253,28 @@ function DesktopTopbar({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
-            <div className="px-2 py-1.5"><p className="truncate text-[13px] font-medium text-ink-1">{accountName}</p><p className="truncate text-[11px] text-ink-3">{user?.email ?? ""}</p></div>
+            <div className="flex items-center gap-2 px-2 py-2">
+              <Avatar className="h-8 w-8 shrink-0 ring-1 ring-brand-soft">
+                {user?.image ? <AvatarImage src={user.image} alt={accountName} /> : null}
+                <AvatarFallback className="bg-primary text-[10px] font-semibold text-primary-foreground">{initials}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-medium text-ink-1">{accountName}</p>
+                <p className="truncate text-[11px] text-ink-3">{user?.email ?? ""}</p>
+              </div>
+            </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild><Link href="/workspace/settings?section=profile"><UserRound className="mr-2 size-4" />Profile</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link href="/workspace/team"><Users className="mr-2 size-4" />Team</Link></DropdownMenuItem>
             <DropdownMenuItem asChild><Link href="/workspace/settings"><Settings className="mr-2 size-4" />Settings</Link></DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault();
+                window.dispatchEvent(new CustomEvent("kasitek:restart-product-tour"));
+              }}
+            >
+              <HelpCircle className="mr-2 size-4" />Take a tour
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
@@ -310,7 +336,7 @@ function MobileTopbar({
       <ThemeToggleSimple iconOnly className="h-9 w-9 shrink-0 px-0" />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button type="button" aria-label="Account" className="shrink-0 rounded-full">
+          <button type="button" aria-label="Account" data-tour="profile" className="shrink-0 rounded-full">
             <Avatar className="h-8 w-8 ring-2 ring-brand-soft">
               {user?.image ? <AvatarImage src={user.image} alt={accountName} /> : null}
               <AvatarFallback className="bg-primary text-[10px] font-semibold text-primary-foreground">{initials}</AvatarFallback>
@@ -318,13 +344,28 @@ function MobileTopbar({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
-          <div className="px-2 py-1.5">
-            <p className="truncate text-[13px] font-medium text-foreground">{accountName}</p>
-            <p className="truncate text-[11px] text-muted-foreground">{user?.email ?? ""}</p>
+          <div className="flex items-center gap-2 px-2 py-2">
+            <Avatar className="h-8 w-8 shrink-0 ring-1 ring-brand-soft">
+              {user?.image ? <AvatarImage src={user.image} alt={accountName} /> : null}
+              <AvatarFallback className="bg-primary text-[10px] font-semibold text-primary-foreground">{initials}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="truncate text-[13px] font-medium text-foreground">{accountName}</p>
+              <p className="truncate text-[11px] text-muted-foreground">{user?.email ?? ""}</p>
+            </div>
           </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild><Link href="/workspace/settings?section=profile"><UserRound className="mr-2 h-4 w-4" />Profile</Link></DropdownMenuItem>
+          <DropdownMenuItem asChild><Link href="/workspace/team"><Users className="mr-2 h-4 w-4" />Team</Link></DropdownMenuItem>
           <DropdownMenuItem asChild><Link href="/workspace/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link></DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault();
+              window.dispatchEvent(new CustomEvent("kasitek:restart-product-tour"));
+            }}
+          >
+            <HelpCircle className="mr-2 h-4 w-4" />Take a tour
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-destructive focus:text-destructive"
@@ -431,29 +472,16 @@ function NavigationSection({
 function SidebarContent({
   collapsed,
   setCollapsed,
-  user,
   onNavigate,
-  orgs = [],
-  activeOrgId = null,
   billingSummary = null,
 }: {
   collapsed: boolean;
   setCollapsed?: (value: boolean) => void;
-  user?: { name?: string | null; email?: string | null; image?: string | null };
   onNavigate?: () => void;
-  orgs?: Org[];
-  activeOrgId?: string | null;
   billingSummary?: BillingSummary | null;
 }) {
   const pathname = usePathname();
   const liveInboxUnreadCount = useWhatsappInboxUnreadCount();
-  const accountName = user?.name ?? "Admin";
-  const accountEmail = user?.email ?? "admin@kasitek.com";
-  const initialsSource = accountName.includes(" ")
-    ? accountName.split(" ").filter(Boolean).slice(0, 2)
-    : (accountEmail.split("@")[0] || accountName).split(/[\s._-]+/).filter(Boolean).slice(0, 2);
-  const initials = initialsSource.map((part) => part.slice(0, 1).toUpperCase()).join("") || "AD";
-  const hasOrgs = orgs.length > 0;
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-x-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
@@ -475,11 +503,6 @@ function SidebarContent({
       </div>
 
       <nav className={cn("sidebar-nav-scroll min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto px-3 py-4", collapsed && "px-2")}>
-        {hasOrgs ? (
-          <div className="mb-3.5" data-tour="workspace-switcher">
-            <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} collapsed={collapsed} variant="panel" />
-          </div>
-        ) : null}
         {navigationGroups.map((group) => (
           <NavigationSection
             key={group.label}
@@ -493,79 +516,8 @@ function SidebarContent({
         ))}
       </nav>
 
-      <div className={cn("shrink-0 space-y-2 border-t border-border p-2.5", collapsed && "px-2")}>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              data-tour="profile"
-              aria-label="Account menu"
-              className={cn(
-                "flex w-full items-center rounded-xl border border-sidebar-border bg-sidebar text-left transition-colors hover:border-line-strong hover:bg-secondary",
-                collapsed ? "justify-center p-2" : "gap-3 p-2.5",
-              )}
-            >
-              <Avatar className={cn("shrink-0 border border-border", collapsed ? "h-8 w-8" : "h-9 w-9")}>
-                {user?.image ? <AvatarImage src={user.image} alt={user?.name ?? "User"} /> : null}
-                <AvatarFallback className="bg-primary/20 text-primary text-xs">{initials}</AvatarFallback>
-              </Avatar>
-              {!collapsed ? (
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-foreground">{accountName}</p>
-                  <p className="truncate text-xs text-muted-foreground">{accountEmail}</p>
-                </div>
-              ) : null}
-              {!collapsed ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : null}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem asChild>
-              <Link href="/workspace/settings?section=profile" onClick={onNavigate}>
-                <UserRound className="mr-2 h-4 w-4" />
-                Profile
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/workspace/team" onClick={onNavigate}>
-                <Users className="mr-2 h-4 w-4" />
-                Team
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/workspace/settings" onClick={onNavigate}>
-                <Settings className="mr-2 h-4 w-4" />
-                Settings
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                window.dispatchEvent(new CustomEvent("kasitek:restart-product-tour"));
-              }}
-            >
-              <HelpCircle className="mr-2 h-4 w-4" />
-              Take a tour
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onSelect={(event) => {
-                event.preventDefault();
-                void (async () => {
-                  await fetch(apiUrl("/api/auth/logout"), {
-                    method: "POST",
-                    credentials: "include",
-                  });
-                  window.location.assign("/");
-                })();
-              }}
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              Log out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {setCollapsed ? (
+      {setCollapsed ? (
+        <div className="shrink-0 border-t border-border p-2">
           <Button
             variant="ghost"
             className={cn("h-8 w-full rounded-md text-xs text-muted-foreground hover:bg-secondary hover:text-foreground", collapsed ? "px-0" : "justify-center gap-2")}
@@ -576,8 +528,8 @@ function SidebarContent({
             {collapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
             {!collapsed ? <span>Collapse</span> : null}
           </Button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -689,9 +641,6 @@ export function LayoutShell({
               <SidebarContent
                 collapsed={collapsed}
                 setCollapsed={setSidebarCollapsed}
-                user={user}
-                orgs={orgs}
-                activeOrgId={activeOrgId}
                 billingSummary={billingSummary}
               />
             </aside>
@@ -700,11 +649,13 @@ export function LayoutShell({
             <SheetContent side="left" className="w-64 p-0">
               <SheetTitle className="sr-only">Workspace navigation</SheetTitle>
               <SheetDescription className="sr-only">Navigate between KasiTek workspace sections.</SheetDescription>
+              {orgs.length > 0 ? (
+                <div className="border-b border-line p-3" data-tour="workspace-switcher">
+                  <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} variant="header" />
+                </div>
+              ) : null}
               <SidebarContent
                 collapsed={false}
-                user={user}
-                orgs={orgs}
-                activeOrgId={activeOrgId}
                 billingSummary={billingSummary}
                 onNavigate={() => setMobileSheetOpen(false)}
               />
@@ -721,6 +672,8 @@ export function LayoutShell({
               organizationName={organizationName}
               sectionLabel={sectionLabel}
               user={user}
+              orgs={orgs}
+              activeOrgId={activeOrgId}
               onOpenCommand={() => setCommandOpen(true)}
             />
             <PwaUpdateBanner visible={hasPwaUpdate} />
