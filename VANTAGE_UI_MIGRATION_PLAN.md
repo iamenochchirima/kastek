@@ -442,3 +442,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Consolidated pre-hydration appearance accents and storage keys into a server-safe shared contract, avoiding duplicated first-paint values and client-hook imports in the root layout; lint, TypeScript, route checks, and Webpack build passed. |
 | 2026-08-21 | Converted large Contacts, WhatsApp template, and Inbox media overlays from `vh` to `svh` sizing for mobile browser-safe action and preview placement; lint, TypeScript, and Webpack build passed. |
 | 2026-08-21 | Routed shared Dialog, AlertDialog, Sheet, shell-sidebar, and Product Tour transition durations through semantic Vantage motion variables; lint, TypeScript, and Webpack build passed. |
+| 2026-08-21 | Made Agent knowledge-source and test-chat surfaces mobile-safe with `svh` editor sizing and a smaller phone minimum height; lint, TypeScript, and Webpack build passed. |

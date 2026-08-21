@@ -417,6 +417,9 @@ all implementation and verification items above are complete:
 - Shared Dialog, AlertDialog, Sheet, shell-sidebar, and Product Tour transitions
   now read the semantic `--v-motion-fast`/`--v-motion-shell` tokens instead of
   embedding duplicate durations.
+- Agent knowledge-source editing now uses `svh` sizing, and the embedded test
+  chat lowers its minimum height on phones while retaining the desktop height
+  from the `sm` breakpoint upward.
 - The route implementation pass now covers the remaining workspace, customer,
   content, campaign, automation, and connection surfaces with `100dvh` roots,
   Vantage entrance treatment, mobile stacking/overflow rules, and
