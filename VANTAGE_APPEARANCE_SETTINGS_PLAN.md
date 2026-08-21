@@ -406,6 +406,10 @@ all implementation and verification items above are complete:
   accent/selection feedback now consume the shared Vantage motion contract;
   route-level timing literals were removed. Lint, TypeScript, route checks,
   and the Webpack build pass.
+- The root pre-hydration script now consumes the server-safe
+  `appearance-contract.ts` values for accents and storage keys, keeping first
+  paint and runtime application on one source of truth without importing the
+  client appearance store into the server layout.
 - The route implementation pass now covers the remaining workspace, customer,
   content, campaign, automation, and connection surfaces with `100dvh` roots,
   Vantage entrance treatment, mobile stacking/overflow rules, and
