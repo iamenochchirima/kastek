@@ -6,6 +6,32 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  PageHeader,
+  PageHeaderActions,
+  PageHeaderContent,
+  PageHeaderDescription,
+  PageHeaderTitle,
+} from "@/components/ui/page-header";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { apiUrl } from "@/lib/server-api";
 import { MoreHorizontal } from "lucide-react";
 import Link from "next/link";
@@ -144,12 +170,9 @@ function CustomerDetailsLink({ customerId }: { customerId: string | null }) {
   if (!customerId) return null;
 
   return (
-    <Link
-      href={`/contacts/${customerId}`}
-      className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground"
-    >
-      View customer
-    </Link>
+    <Button asChild size="sm" variant="outline">
+      <Link href={`/contacts/${customerId}`}>View customer</Link>
+    </Button>
   );
 }
 
@@ -514,14 +537,28 @@ export default function ContactsManager({
   }
 
   return (
-    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-[1600px] space-y-6">
-        <div>
-          <h1 className="mb-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Contacts</h1>
-          <p className="text-muted-foreground">
-            Manage named contact lists, upload CSVs with arbitrary fields, and keep campaign targeting clean.
-          </p>
-        </div>
+    <div className="min-h-screen p-4 sm:p-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
+        <PageHeader>
+          <PageHeaderContent>
+            <PageHeaderTitle>Contacts</PageHeaderTitle>
+            <PageHeaderDescription>Contact lists and consent.</PageHeaderDescription>
+          </PageHeaderContent>
+          <PageHeaderActions>
+            <Button
+              type="button"
+              onClick={() => {
+                setImportListLabel(filters.listLabel || "default");
+                setCsvFile(null);
+                setDefaultOptIn(false);
+                setConsentConfirmed(false);
+                setShowImportModal(true);
+              }}
+            >
+              Import contacts
+            </Button>
+          </PageHeaderActions>
+        </PageHeader>
 
         {(error || notice) && (
           <div
@@ -565,20 +602,17 @@ export default function ContactsManager({
                 }}
                 className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row"
               >
-                <input
+                <Input
                   name="q"
                   defaultValue={filters.q}
                   placeholder="Search list, phone, name, field"
-                  className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground sm:w-[360px]"
+                  className="w-full sm:w-[360px]"
                 />
-                <button
-                  type="submit"
-                  className="rounded-lg border border-border bg-secondary/50 px-4 py-2 text-sm font-medium text-foreground"
-                >
+                <Button type="submit" variant="outline">
                   Search
-                </button>
+                </Button>
               </form>
-              <button
+              <Button
                 type="button"
                 onClick={() => {
                   setImportListLabel(filters.listLabel || "default");
@@ -587,10 +621,9 @@ export default function ContactsManager({
                   setConsentConfirmed(false);
                   setShowImportModal(true);
                 }}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
               >
                 Create
-              </button>
+              </Button>
             </div>
           </div>
           {(importing || importProgress.phase === "done") && !showImportModal ? (
@@ -738,139 +771,122 @@ export default function ContactsManager({
                 <h2 className="text-sm font-semibold text-foreground">Edit contact</h2>
                 <p className="text-xs text-muted-foreground">{selectedContact.phone}</p>
               </div>
-              <button
+              <Button
                 type="button"
                 onClick={() => {
                   setEditingId(null);
                   setForm(null);
                 }}
-                className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground"
+                size="sm"
+                variant="outline"
               >
                 Close
-              </button>
+              </Button>
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
               <label className="space-y-2 text-sm">
                 <span className="text-muted-foreground">Full name</span>
-                <input
+                <Input
                   value={form.fullName}
                   onChange={(event) => setForm({ ...form, fullName: event.target.value })}
-                  className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                 />
               </label>
 
               <label className="space-y-2 text-sm">
                 <span className="text-muted-foreground">Phone</span>
-                <input
+                <Input
                   value={form.phone}
                   onChange={(event) => setForm({ ...form, phone: event.target.value })}
-                  className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                 />
               </label>
 
               <label className="space-y-2 text-sm">
                 <span className="text-muted-foreground">List label</span>
-                <input
+                <Input
                   list="contact-list-labels"
                   value={form.listLabel}
                   onChange={(event) => setForm({ ...form, listLabel: event.target.value })}
-                  className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                 />
               </label>
 
               <label className="space-y-2 text-sm">
                 <span className="text-muted-foreground">Location</span>
-                <input
+                <Input
                   value={form.location}
                   onChange={(event) => setForm({ ...form, location: event.target.value })}
-                  className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                 />
               </label>
 
               <label className="space-y-2 text-sm md:col-span-2">
                 <span className="text-muted-foreground">Tags</span>
-                <input
+                <Input
                   value={form.tags}
                   onChange={(event) => setForm({ ...form, tags: event.target.value })}
                   placeholder="vip, johannesburg, retail"
-                  className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                 />
               </label>
             </div>
 
             <label className="mt-4 block space-y-2 text-sm">
               <span className="text-muted-foreground">Notes</span>
-              <textarea
+              <Textarea
                 rows={3}
                 value={form.notes}
                 onChange={(event) => setForm({ ...form, notes: event.target.value })}
-                className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
               />
             </label>
 
             <div className="mt-4 flex flex-wrap gap-4 text-sm text-muted-foreground">
               <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={form.optIn}
-                  onChange={(event) => setForm({ ...form, optIn: event.target.checked })}
+                  onCheckedChange={(checked) => setForm({ ...form, optIn: checked === true })}
                 />
                 Opted in
               </label>
 
               <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={form.excluded}
-                  onChange={(event) => setForm({ ...form, excluded: event.target.checked })}
+                  onCheckedChange={(checked) => setForm({ ...form, excluded: checked === true })}
                 />
                 Excluded
               </label>
             </div>
 
             <div className="mt-5 flex justify-end">
-              <button
+              <Button
                 type="button"
                 onClick={saveEdit}
                 disabled={savingId === selectedContact.id}
-                className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
               >
                 {savingId === selectedContact.id ? "Saving..." : "Save changes"}
-              </button>
+              </Button>
             </div>
           </section>
         ) : null}
 
-        {showImportModal ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-4 py-8">
-            <div className="w-full max-w-2xl rounded-2xl border border-border bg-background p-4 sm:p-6">
+        <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
+          <DialogContent className="max-h-[calc(100svh-2rem)] max-w-2xl overflow-y-auto">
               <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-semibold text-foreground">Create or import contacts</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                <DialogHeader>
+                  <DialogTitle>Create or import contacts</DialogTitle>
+                  <DialogDescription>
                     Import a CSV into <span className="font-semibold text-foreground">{importListLabel || "default"}</span>.
                     Use a new label to create a new list, or pick an existing one to add more contacts.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowImportModal(false)}
-                  className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground"
-                >
-                  Close
-                </button>
+                  </DialogDescription>
+                </DialogHeader>
               </div>
 
               <div className="mt-5 grid gap-4">
                 <label className="space-y-2 text-sm">
                   <span className="text-muted-foreground">Target list</span>
-                  <input
+                  <Input
                     list="contact-list-labels"
                     value={importListLabel}
                     onChange={(event) => setImportListLabel(event.target.value)}
                     placeholder="websites-reachout"
-                    className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                   />
                 </label>
 
@@ -882,28 +898,25 @@ export default function ContactsManager({
 
                 <label className="space-y-2 text-sm">
                   <span className="text-muted-foreground">CSV file</span>
-                  <input
+                  <Input
                     type="file"
                     accept=".csv,text/csv"
                     onChange={(event) => setCsvFile(event.target.files?.[0] || null)}
-                    className="rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground"
                   />
                 </label>
 
                 <label className="flex items-center gap-2 rounded-lg border border-border bg-secondary/50 px-3 py-3 text-sm text-muted-foreground">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={defaultOptIn}
-                    onChange={(event) => setDefaultOptIn(event.target.checked)}
+                    onCheckedChange={(checked) => setDefaultOptIn(checked === true)}
                   />
                   Default imported contacts to opted-in
                 </label>
 
                 <label className="flex items-start gap-2 rounded-lg border border-border bg-secondary/50 px-3 py-3 text-sm text-muted-foreground">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={consentConfirmed}
-                    onChange={(event) => setConsentConfirmed(event.target.checked)}
+                    onCheckedChange={(checked) => setConsentConfirmed(checked === true)}
                     className="mt-0.5"
                   />
                   <span>
@@ -917,44 +930,42 @@ export default function ContactsManager({
                 </div>
               ) : null}
 
-              <div className="mt-6 flex justify-end gap-3">
-                <button
+              <DialogFooter className="mt-6">
+                <Button
                   type="button"
                   onClick={() => setShowImportModal(false)}
-                  className="rounded-lg border border-border bg-secondary/50 px-4 py-2 text-sm text-foreground"
+                  variant="outline"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={onImportCsv}
                   disabled={importing || (defaultOptIn && !consentConfirmed)}
-                  className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
                 >
                   {importing ? "Importing..." : "Import into list"}
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
+                </Button>
+              </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-        {filters.q ? (
-          <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay px-4 py-6">
-            <div className="flex h-[min(84vh,860px)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
+        <Dialog open={Boolean(filters.q)} onOpenChange={(open) => !open && navigate({ q: "" })}>
+          <DialogContent showCloseButton={false} className="flex h-[min(84vh,860px)] max-w-6xl flex-col gap-0 overflow-hidden p-0">
               <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
                 <div>
-                  <h2 className="text-2xl font-semibold text-foreground">Search results</h2>
-                  <p className="text-sm text-muted-foreground">
+                  <DialogTitle>Search results</DialogTitle>
+                  <DialogDescription>
                     Results for <span className="font-semibold text-foreground">{filters.q}</span>.
-                  </p>
+                  </DialogDescription>
                 </div>
-                <button
+                <Button
                   type="button"
                   onClick={() => navigate({ q: "" })}
-                  className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground"
+                  size="sm"
+                  variant="outline"
                 >
                   Close
-                </button>
+                </Button>
               </div>
 
               {searchResults.length === 0 ? (
@@ -1052,38 +1063,35 @@ export default function ContactsManager({
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-        ) : null}
+          </DialogContent>
+        </Dialog>
 
-        {filters.listLabel && !filters.q ? (
-          <div className="fixed inset-0 z-40 flex items-center justify-center bg-overlay px-4 py-6">
-            <div className="flex h-[min(88vh,920px)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
+        <Dialog open={Boolean(filters.listLabel && !filters.q)} onOpenChange={(open) => !open && navigate({ listLabel: "" })}>
+          <DialogContent showCloseButton={false} className="flex h-[min(88vh,920px)] max-w-7xl flex-col gap-0 overflow-hidden p-0">
               <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
                 <div>
-                  <h2 className="text-2xl font-semibold text-foreground">
+                  <DialogTitle>
                     {filters.listLabel} ({contacts.length})
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    Viewing one contact list with its own field layout.
-                  </p>
+                  </DialogTitle>
+                  <DialogDescription>Viewing one contact list.</DialogDescription>
                   <div className="mt-4 flex flex-wrap items-end gap-3">
                     <label className="w-full space-y-2 text-sm sm:max-w-[280px]">
                       <span className="block text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                         Switch list
                       </span>
-                      <select
-                        value={filters.listLabel}
-                        onChange={(event) => navigate({ listLabel: event.target.value })}
-                        className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground"
-                      >
-                        <option value="">All contact lists</option>
+                      <Select value={filters.listLabel || "all"} onValueChange={(value) => navigate({ listLabel: value === "all" ? "" : value })}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="All contact lists" />
+                        </SelectTrigger>
+                        <SelectContent>
+                        <SelectItem value="all">All contact lists</SelectItem>
                         {sortedLists.map((list) => (
-                          <option key={list.label} value={list.label}>
+                          <SelectItem key={list.label} value={list.label}>
                             {list.label}
-                          </option>
+                          </SelectItem>
                         ))}
-                      </select>
+                        </SelectContent>
+                      </Select>
                     </label>
                     {activeList ? (
                       <p className="pb-2 text-xs text-muted-foreground">
@@ -1094,11 +1102,10 @@ export default function ContactsManager({
                       <span className="block text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                         Search this list
                       </span>
-                      <input
+                      <Input
                         value={listSearch}
                         onChange={(event) => setListSearch(event.target.value)}
                         placeholder="Search name, phone, tag, field"
-                        className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground"
                       />
                     </label>
                   </div>
@@ -1111,13 +1118,14 @@ export default function ContactsManager({
                     onRename={openRenameModal}
                     onDelete={openDeleteModal}
                   />
-                  <button
+                  <Button
                     type="button"
                     onClick={() => navigate({ listLabel: "" })}
-                    className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground"
+                    size="sm"
+                    variant="outline"
                   >
                     Close
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -1224,81 +1232,79 @@ export default function ContactsManager({
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-        ) : null}
+          </DialogContent>
+        </Dialog>
 
-        {renamingListLabel ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-4 py-8">
-            <div className="w-full max-w-md rounded-2xl border border-border bg-background p-6">
-              <div>
-                <h2 className="text-xl font-semibold text-foreground">Rename list</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
+        <Dialog open={Boolean(renamingListLabel)} onOpenChange={(open) => {
+          if (!open) {
+            setRenamingListLabel(null);
+            setRenameValue("");
+          }
+        }}>
+          <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Rename list</DialogTitle>
+                <DialogDescription>
                   Update the label for <span className="font-semibold text-foreground">{renamingListLabel}</span>.
-                </p>
-              </div>
+                </DialogDescription>
+              </DialogHeader>
 
               <label className="mt-5 block space-y-2 text-sm">
                 <span className="text-muted-foreground">New label</span>
-                <input
+                <Input
                   value={renameValue}
                   onChange={(event) => setRenameValue(event.target.value)}
-                  className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                 />
               </label>
 
-              <div className="mt-6 flex justify-end gap-3">
-                <button
+              <DialogFooter className="mt-6">
+                <Button
                   type="button"
                   onClick={() => {
                     setRenamingListLabel(null);
                     setRenameValue("");
                   }}
-                  className="rounded-lg border border-border bg-secondary/50 px-4 py-2 text-sm text-foreground"
+                  variant="outline"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  onClick={() => renameList(renamingListLabel, renameValue)}
-                  className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+                  onClick={() => renamingListLabel && renameList(renamingListLabel, renameValue)}
                 >
                   Save
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
+                </Button>
+              </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-        {deleteTargetLabel ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay px-4 py-8">
-            <div className="w-full max-w-md rounded-2xl border border-border bg-background p-6">
-              <div>
-                <h2 className="text-xl font-semibold text-foreground">Remove list</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
+        <Dialog open={Boolean(deleteTargetLabel)} onOpenChange={(open) => !open && setDeleteTargetLabel(null)}>
+          <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Remove list</DialogTitle>
+                <DialogDescription>
                   Remove <span className="font-semibold text-foreground">{deleteTargetLabel}</span> and its memberships. Customer records and consent history stay intact.
-                </p>
-              </div>
+                </DialogDescription>
+              </DialogHeader>
 
-              <div className="mt-6 flex justify-end gap-3">
-                <button
+              <DialogFooter className="mt-6">
+                <Button
                   type="button"
                   onClick={() => setDeleteTargetLabel(null)}
-                  className="rounded-lg border border-border bg-secondary/50 px-4 py-2 text-sm text-foreground"
+                  variant="outline"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  onClick={() => deleteList(deleteTargetLabel)}
-                  className="rounded-md bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground hover:opacity-90"
+                  onClick={() => deleteTargetLabel && deleteList(deleteTargetLabel)}
+                  variant="destructive"
                 >
                   Remove list
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
+                </Button>
+              </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
