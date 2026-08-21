@@ -19,7 +19,8 @@ import {
   PageHeaderDescription,
   PageHeaderTitle,
 } from "@/components/ui/page-header";
-import { ArrowLeft, Bot, Info, MessageSquare, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Bot, Info, MessageSquare, PlugZap, Sparkles, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -42,25 +43,63 @@ function statusClass(status: string) {
   return "border-border bg-secondary text-muted-foreground";
 }
 
+type AgentCardVariant = "platform" | "hosted" | "external";
+
+function agentExecutionMode(agent: AgentDefinition): NonNullable<AgentDefinition["execution_mode"]> {
+  return agent.execution_mode ?? (agent.protected ? "system_hosted" : "kasitek_hosted");
+}
+
+function agentCardVariant(agent: AgentDefinition): AgentCardVariant {
+  const mode = agentExecutionMode(agent);
+  if (mode === "system_hosted") return "platform";
+  if (mode === "external_connected") return "external";
+  return "hosted";
+}
+
 function modeLabel(agent: AgentDefinition): string {
-  const mode = agent.execution_mode ?? (agent.protected ? "system_hosted" : "kasitek_hosted");
-  if (mode === "system_hosted") return "KasiAi";
-  if (mode === "external_connected") return "External connected";
+  const variant = agentCardVariant(agent);
+  if (variant === "platform") return "KasiAI";
+  if (variant === "external") return "External connected";
   return "KasiTek hosted";
 }
 
 function modeClass(agent: AgentDefinition): string {
-  return agent.execution_mode === "external_connected"
-    ? "border-status-info/30 bg-status-info-soft text-status-info"
-    : agent.protected
-      ? "border-primary/20 bg-primary/10 text-primary"
-      : "border-border bg-secondary text-muted-foreground";
+  const variant = agentCardVariant(agent);
+  if (variant === "external") return "border-status-info/30 bg-status-info-soft text-status-info";
+  if (variant === "platform") return "border-primary/20 bg-primary/10 text-primary";
+  return "border-border bg-secondary text-muted-foreground";
 }
 
 function creationProfileLabel(agent: AgentDefinition): string | null {
-  if ((agent.execution_mode ?? (agent.protected ? "system_hosted" : "kasitek_hosted")) !== "kasitek_hosted") return null;
+  if (agentCardVariant(agent) !== "hosted") return null;
   return agent.creation_profile === "general" ? "General-purpose" : "Custom";
 }
+
+const agentVariantMeta: Record<AgentCardVariant, {
+  eyebrow: string;
+  fallbackDescription: string;
+  icon: LucideIcon;
+  iconClass: string;
+}> = {
+  platform: {
+    eyebrow: "Platform agent",
+    fallbackDescription: "KasiTek's protected platform guidance agent.",
+    icon: Sparkles,
+    iconClass: "bg-primary/15 text-primary ring-1 ring-primary/25",
+  },
+  hosted: {
+    eyebrow: "Hosted agent",
+    fallbackDescription: "Installed Agent Platform agent.",
+    icon: Bot,
+    iconClass: "bg-secondary text-muted-foreground ring-1 ring-border",
+  },
+  external: {
+    eyebrow: "Connected agent",
+    fallbackDescription: "Connected external agent.",
+    icon: PlugZap,
+    iconClass: "bg-status-info-soft text-status-info ring-1 ring-status-info/25",
+  },
+};
 
 export function AgentsPageClient({
   initialAgents,
@@ -214,8 +253,9 @@ function OperationsSummary({ summary }: { summary: AgentOperationsSummary }) {
 }
 
 function AgentCard({ agent, onChanged, onChat, onOpenDetails, delay = 0 }: { agent: AgentDefinition; onChanged: () => void; onChat: () => void; onOpenDetails: () => void; delay?: number }) {
-  const isKasiAi = (agent.execution_mode ?? (agent.protected ? "system_hosted" : "kasitek_hosted")) === "system_hosted";
-  const canChat = Boolean(agent.installation_id) && (isKasiAi || agent.execution_mode !== "external_connected");
+  const variant = agentCardVariant(agent);
+  const meta = agentVariantMeta[variant];
+  const canChat = Boolean(agent.installation_id) && variant !== "external";
   const [updating, setUpdating] = useState(false);
   const installationStatus = agent.installation_status ?? "disabled";
   const toggleStatus = async () => {
@@ -231,7 +271,8 @@ function AgentCard({ agent, onChanged, onChat, onOpenDetails, delay = 0 }: { age
   return (
     <MotionReveal delay={delay} hoverLift className="h-full">
     <Card
-      className="h-full cursor-pointer transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="agent-card h-full cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      data-agent-kind={variant}
       role="button"
       tabIndex={0}
       aria-label={`Open ${agent.name}`}
@@ -247,15 +288,16 @@ function AgentCard({ agent, onChanged, onChat, onOpenDetails, delay = 0 }: { age
         }
       }}
     >
-      <CardContent className="space-y-5 p-5">
+      <CardContent className="relative z-10 space-y-5 p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-full bg-primary/10 text-primary">
-              {isKasiAi ? <Sparkles className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
+            <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${meta.iconClass}`}>
+              <meta.icon className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-foreground">{agent.name}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">{agent.description || "Installed Agent Platform agent"}</p>
+              <p className={`v-label ${variant === "platform" ? "text-primary" : variant === "external" ? "text-status-info" : ""}`}>{meta.eyebrow}</p>
+              <h2 className="mt-1 text-lg font-semibold text-foreground">{agent.name}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{agent.description || meta.fallbackDescription}</p>
             </div>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
@@ -271,9 +313,9 @@ function AgentCard({ agent, onChanged, onChat, onOpenDetails, delay = 0 }: { age
         </div>
         <div className="flex flex-wrap gap-2">
           {canChat ? <Button type="button" size="sm" onClick={onChat}><MessageSquare className="mr-1.5 h-3.5 w-3.5" />Chat</Button> : null}
-          {!isKasiAi ? (
+          {variant !== "platform" ? (
             <Button type="button" variant="outline" size="sm" disabled={!agent.installation_id || updating} onClick={() => void toggleStatus()}>
-              {updating ? "Updating…" : installationStatus === "active" ? "Pause agent" : "Resume agent"}
+              {updating ? "Updating…" : installationStatus === "active" ? variant === "external" ? "Pause connection" : "Pause agent" : variant === "external" ? "Resume connection" : "Resume agent"}
             </Button>
           ) : null}
         </div>
