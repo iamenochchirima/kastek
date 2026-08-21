@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useState } from "react";
-import { ArrowLeft, CheckCircle2, LoaderCircle, Upload, Workflow } from "lucide-react";
+import { ArrowLeft, CheckCircle2, LoaderCircle, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader, PageHeaderActions, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 import {
   createAgentVersion,
   publishAgentVersion,
@@ -102,7 +103,7 @@ export function AgentWorkflowPageClient({ agent, initialVersions }: { agent: Age
         <div className="flex items-center gap-2 text-xs text-muted-foreground"><span className="rounded-full border border-border bg-secondary px-2.5 py-1">Live {versionLabel(publishedVersion)}</span>{draftVersion ? <span className="rounded-full border border-status-attention/30 bg-status-attention-soft px-2.5 py-1 text-status-attention">Draft {versionLabel(draftVersion)}</span> : null}</div>
       </div>
       <Card className="mt-5 border-border/80 shadow-sm"><CardContent className="space-y-4 p-5 sm:p-7">
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start"><div className="flex items-start gap-3"><div className="grid h-11 w-11 place-items-center rounded-xl bg-primary/10 text-primary"><Workflow className="h-5 w-5" /></div><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Workflow editor</p><h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{agent.name}</h1><p className="mt-1 text-sm leading-6 text-muted-foreground">Connect the steps this agent runs. Changes are saved as a new version and only take effect after publishing.</p></div></div><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={busy !== null || !workflowReady || !workflowValid || !workflow} onClick={() => void saveDraft()}>{busy === "save" ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Saving…</> : "Save draft"}</Button><Button type="button" disabled={busy !== null || !workflowReady || !workflowValid || !workflow} onClick={() => void publish()}>{busy === "publish" ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Publishing…</> : "Publish"}</Button></div></div>
+        <PageHeader><PageHeaderContent><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Workflow editor</p><PageHeaderTitle>{agent.name}</PageHeaderTitle><PageHeaderDescription>Configure steps, then save and publish a version.</PageHeaderDescription></PageHeaderContent><PageHeaderActions><Button type="button" variant="outline" disabled={busy !== null || !workflowReady || !workflowValid || !workflow} onClick={() => void saveDraft()}>{busy === "save" ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Saving…</> : "Save draft"}</Button><Button type="button" disabled={busy !== null || !workflowReady || !workflowValid || !workflow} onClick={() => void publish()}>{busy === "publish" ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Publishing…</> : "Publish"}</Button></PageHeaderActions></PageHeader>
         {error ? <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
         {notice ? <p className="flex items-center gap-2 rounded-lg border border-status-success/30 bg-status-success-soft px-3 py-2 text-sm text-status-success" role="status"><CheckCircle2 className="h-4 w-4" />{notice}</p> : null}
       </CardContent></Card>

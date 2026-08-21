@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Check, LoaderCircle, MessageCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader, PageHeaderActions, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 import {
   listAgentWebsiteDeployments,
   updateAgentWebsiteDeployment,
@@ -154,7 +155,7 @@ export function AgentWebsiteChatAppearancePageClient({ agent }: { agent: AgentDe
   return <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-8">
     <div className="mx-auto max-w-[1500px]">
       <Link href={`/agents/${encodeURIComponent(agent.id)}`} className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to {agent.name}</Link>
-      <div className="mt-5 flex flex-col justify-between gap-4 border-b border-border pb-5 sm:flex-row sm:items-end"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Website Chat</p><h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">Appearance</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Style the chat window your visitors use. Deployment status, allowed websites, and embed code remain in Integrations.</p></div>{draft ? <Button type="button" onClick={() => void save()} disabled={saving}>{saving ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Saving…</> : "Save changes"}</Button> : null}</div>
+      <PageHeader className="mt-5 border-b border-border pb-5"><PageHeaderContent><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Website Chat</p><PageHeaderTitle>Appearance</PageHeaderTitle><PageHeaderDescription>Style the visitor chat window.</PageHeaderDescription></PageHeaderContent>{draft ? <PageHeaderActions><Button type="button" onClick={() => void save()} disabled={saving}>{saving ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Saving…</> : "Save changes"}</Button></PageHeaderActions> : null}</PageHeader>
 
       {error ? <p className="mt-5 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p> : null}
       {notice ? <p className="mt-5 flex items-center gap-2 rounded-xl border border-status-success/30 bg-status-success-soft px-4 py-3 text-sm text-status-success" role="status"><Check className="h-4 w-4" />{notice}</p> : null}
