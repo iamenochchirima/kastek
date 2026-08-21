@@ -50,6 +50,38 @@ shared UI primitives, and responsive patterns in both light and dark themes.
    changes require an explicit decision in this document.
 6. Every UI element has intentional desktop, tablet, and mobile behavior and
    density. A component that only works at one viewport is incomplete.
+7. A completed migration wave replaces its old visual implementation. Do not
+   leave parallel old/new component paths, legacy styling fallbacks, unused
+   tokens, compatibility aliases, or dead UI code behind.
+
+## Vantage fidelity contract
+
+`/home/enoch/aworkspace/kasitek-labs/dashboard-new` is the visual source of
+truth for this migration. It is not an inspiration board.
+
+- [x] Port Vantage token values exactly from its `src/index.css` and
+  `tailwind.config.js`: light/dark colours, surfaces, borders, text tiers,
+  brand/status/chart colours, shadows, radius, typography, focus treatment,
+  motion, and responsive dimensions.
+- [ ] Port component measurements and behavior exactly where applicable from
+  the reference shell and UI primitives: sidebar widths, top-bar height,
+  content limits, control heights, padding, gaps, icon sizes, states, and
+  breakpoints.
+- [ ] Translate the reference implementation into KasiTek's Next.js and
+  Tailwind 4 architecture without changing the rendered design values.
+- [ ] Do not introduce approximate colours, spacing, typography, radii, shadows,
+  variants, or interaction treatments.
+- [ ] Record every required KasiTek-specific adaptation in the Decisions and
+  open questions table before implementing it. Accepted adaptations must be
+  behavior- or product-specific, never a styling shortcut.
+- [ ] Compare each shared primitive and shell surface with the reference in the
+  same theme and viewport before marking it verified.
+
+Vantage specifies Inter as its primary UI font. KasiTek will retain Geist as an
+approved product-specific typography adaptation. The migration must still port
+the Vantage type scale, weights, line heights, tracking, hierarchy, and density
+exactly; Geist must not be made heavier or looser as a substitute for those
+decisions.
 
 ## Required design review
 
@@ -161,14 +193,19 @@ The following rules apply to every shared primitive, page pattern, and route:
 
 ### 1. Foundation and governance
 
-- [ ] Record the approved Vantage visual decisions: token names, colour values,
+- [x] Record the approved Vantage visual decisions: token names, colour values,
   type scale, spacing scale, radius, shadows, density, and motion.
+- [x] Extract and record exact Vantage values from the reference source before
+  translating the token layer to Tailwind 4.
 - [ ] Apply the Required design review to every migration wave; redesign
   information hierarchy and interaction placement where needed.
-- [ ] Implement the semantic token layer in `client/apps/client/src/app/globals.css`
+- [x] Implement the semantic token layer in `client/apps/client/src/app/globals.css`
   for Tailwind 4.
 - [ ] Replace temporary compatibility aliases in a controlled way and remove
   them when no longer needed.
+- [ ] Remove superseded styles, components, imports, dependencies, and obsolete
+  code paths as each migration wave completes; do not defer this cleanup to an
+  unspecified later pass.
 - [ ] Define a no-new-hard-coded-styles review rule and document allowed
   exceptions.
 - [ ] Add a route and shared-surface migration matrix with status tracking.
@@ -176,12 +213,18 @@ The following rules apply to every shared primitive, page pattern, and route:
 ### 2. Shared UI primitives
 
 - [ ] Button and button variants.
+  - [x] Ported from the reference implementation.
 - [ ] Inputs, textareas, selects, checkboxes, and field feedback.
+  - [x] Input and checkbox ported from the reference implementation.
 - [ ] Cards, surfaces, dividers, badges, status indicators, and progress.
+  - [x] Card, badge, skeleton, and progress ported from the reference implementation.
 - [ ] Tables, tabs, scroll areas, skeletons, and empty states.
+  - [x] Table, tabs, scroll area, and skeleton ported from the reference implementation.
 - [ ] Dropdown menus, tooltips, sheets, dialogs, and popovers.
+  - [x] Sheet, dialog, and destructive confirmation dialog ported from the reference implementation.
 - [ ] A single application-wide toast provider and toast API for success, error,
   warning, information, loading, and optional action/undo feedback.
+  - [x] Mounted one Vantage-styled Sonner provider at the application root; feature migrations must now replace browser-native feedback with its shared API.
 - [ ] Shared page header, toolbar/filter, confirmation, and feedback patterns.
 - [ ] Document each primitive's variants, states, and intended use.
 
@@ -237,8 +280,8 @@ interactive states have been checked where applicable.
 
 | Area | Surface group | Status | Evidence / notes |
 | --- | --- | --- | --- |
-| Foundation | tokens and global styles | Not started | |
-| Foundation | shared UI primitives | Not started | |
+| Foundation | tokens and global styles | Implemented | Exact Vantage light/dark tokens, radius scale, shadows, base density, focus, transitions, scrollbars, and Tailwind 4 mappings are in `globals.css`. Lint and Webpack build passed; visual QA follows primitive work. |
+| Foundation | shared UI primitives | In progress | Button, card, input, badge, checkbox, progress, skeleton, table, tabs, scroll area, sheet, dialog, destructive confirmation dialog, and global Sonner toaster are centralized. Reference styles and Radix behavior are used where the reference does. Lint and Webpack build passed; remaining form/overlay primitives, removal of native dialogs, and visual QA are pending. |
 | Shell | sidebar, top bar, mobile drawer, global overlays | Not started | |
 | Workspace | all workspace routes | Not started | |
 | Customer | inbox, calls, contacts, bookings | Not started | |
@@ -271,13 +314,18 @@ interactive states have been checked where applicable.
 | --- | --- | --- | --- |
 | Framework | Keep the main client on Next.js. | KasiTek team | Decided |
 | Visual reference | Use `/home/enoch/aworkspace/kasitek-labs/dashboard-new` as the Vantage visual reference; translate it to the current Next.js and Tailwind 4 architecture. | KasiTek team | Decided |
+| Fidelity | Treat the Vantage source as the exact visual specification. Required KasiTek-specific adaptations must be recorded; styling approximations are not permitted. | KasiTek team | Decided |
+| Typography | Retain Geist as KasiTek's primary UI font. Port Vantage's type scale, weights, line heights, tracking, hierarchy, and density exactly. | KasiTek team | Decided |
+| Soft status backgrounds | Derive KasiTek-only soft status surfaces directly from Vantage status colours with `color-mix`: 10% light and 12% dark, matching Vantage's accent-soft opacity. | KasiTek team | Decided |
 | Theme | Light and dark themes are first-class acceptance criteria for the migration. | KasiTek team | Decided |
 | Design-system location | Use the existing client global styles and `components/ui` primitives as the central system; do not create a parallel styling stack. | KasiTek team | Decided |
 | Desktop top bar | Add breadcrumbs, a functional command/search entry point, notifications, theme control, and account menu. Sidebar retains workspace context and primary navigation. | KasiTek team | Decided |
 | Toasts | Introduce one global Vantage-styled toast provider and shared API. Use it for concise transient feedback across auth and dashboard surfaces; do not use native browser dialogs. | KasiTek team | Decided |
+| Toast theme bridge | Read the existing `data-theme` attribute instead of adding a second theme provider. This preserves the current no-flash theme contract while rendering the reference Sonner styles exactly. | KasiTek team | Decided |
 | Responsive design | Every UI element must have intentional approved desktop, tablet, and mobile behavior and density before it is complete. | KasiTek team | Decided |
 | Cross-cutting UX | Accessibility, data visualization, motion, layering, errors, performance, and visual regression are migration contracts, not later polish. | KasiTek team | Decided |
 | Design review | Every migrated surface must be reassessed around the user's primary task, hierarchy, disclosure, actions, responsive behavior, shared patterns, and non-happy-path states. | KasiTek team | Decided |
+| Migration cleanup | Each completed wave fully replaces the previous visual implementation. Do not retain legacy styling fallbacks, duplicate primitives, aliases, imports, dependencies, or dead UI code. | KasiTek team | Decided |
 | Component catalogue | Decide whether a dedicated component preview/visual-regression setup is needed after foundation work begins. | KasiTek team | Open |
 
 ## Change log
@@ -289,3 +337,7 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Added the global toast-system decision and verification requirements. |
 | 2026-08-21 | Added responsive/density and cross-cutting UI architecture contracts. |
 | 2026-08-21 | Added required task-focused design review for every migration surface. |
+| 2026-08-21 | Added the exact Vantage fidelity contract and retained Geist as the approved typography adaptation. |
+| 2026-08-21 | Added the replacement-based migration and cleanup rule. |
+| 2026-08-21 | Ported the exact Vantage token foundation to Tailwind 4 while retaining Geist; lint and Webpack build passed. |
+| 2026-08-21 | Ported the first shared primitive wave and installed the global Vantage-styled toast, dialog, and destructive confirmation foundations; lint and Webpack build passed. |

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Geist_Pixel } from "next/font/google";
 import PwaRegister from "@/components/pwa-register";
 import ThemeScript from "@/components/theme-script";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const geist = Geist({
@@ -63,6 +64,7 @@ export default async function RootLayout({
       <body className={`${geist.variable} ${geistMono.variable} ${geistPixel.variable} font-sans antialiased`}>
         {children}
         <PwaRegister />
+        <Toaster />
       </body>
     </html>
   );

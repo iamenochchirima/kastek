@@ -3000,7 +3000,8 @@ export default function InboxPageClient({
             </div>
           ) : null}
 
-          <ScrollArea className="min-h-0 flex-1 p-3 sm:p-6">
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="p-3 sm:p-6">
             {selectedConversation ? (
             <div className="mx-auto max-w-3xl space-y-4">
               {selectedConversationCall ? (
@@ -3324,6 +3325,7 @@ export default function InboxPageClient({
                 </div>
               </div>
             )}
+            </div>
           </ScrollArea>
           {reactionPicker ? (
             <div
