@@ -339,7 +339,7 @@ interactive states have been checked where applicable.
 | Design review | Every migrated surface must be reassessed around the user's primary task, hierarchy, disclosure, actions, responsive behavior, shared patterns, and non-happy-path states. | KasiTek team | Decided |
 | Migration cleanup | Each completed wave fully replaces the previous visual implementation. Do not retain legacy styling fallbacks, duplicate primitives, aliases, imports, dependencies, or dead UI code. | KasiTek team | Decided |
 | Fixed colours | Reserve fixed colours for third-party brand marks and rendered product previews (such as Website Chat and the workflow canvas). General app surfaces, feedback, and statuses must use semantic Vantage tokens. | KasiTek team | Decided |
-| Native controls | File pickers, chat composers, and the Website Chat color input are intentionally specialized. The embedded KasiAi WhatsApp pairing selector is the remaining ordinary control to extract into the shared Select primitive. | KasiTek team | In progress |
+| Native controls | File pickers, chat composers, and the Website Chat color input are intentionally specialized. All ordinary form controls use shared primitives. | KasiTek team | Decided |
 | Component catalogue | Decide whether a dedicated component preview/visual-regression setup is needed after foundation work begins. | KasiTek team | Open |
 
 ## Change log
