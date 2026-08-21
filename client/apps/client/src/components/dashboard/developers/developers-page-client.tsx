@@ -6,6 +6,7 @@ import { ArrowRight, Check, Code2, Copy, KeyRound, Plug, Terminal } from "lucide
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 import { useDevelopersData } from "./developers-data";
 
 type ClientId = "claude" | "chatgpt" | "claude-code" | "cursor" | "other";
@@ -84,10 +85,11 @@ export function DevelopersPageClient() {
   const selected = clientCopy[selectedClient];
 
   return (
-    <div className="p-5 lg:p-8">
-      <div className="mx-auto max-w-[1080px] space-y-8">
+    <div className="min-h-screen p-4 sm:p-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
+        <PageHeader><PageHeaderContent><PageHeaderTitle>Developers</PageHeaderTitle><PageHeaderDescription>API, MCP, and CLI setup.</PageHeaderDescription></PageHeaderContent></PageHeader>
         <section>
-          <h1 className="text-lg font-semibold text-foreground">What do you want to do?</h1>
+          <h2 className="text-lg font-semibold text-foreground">Choose a path</h2>
           <p className="mt-1 text-sm text-muted-foreground">Post from Claude, ChatGPT, your own code, or the terminal. Pick a path:</p>
 
           <div className="mt-4 grid gap-3 overflow-x-auto lg:grid-cols-3">
