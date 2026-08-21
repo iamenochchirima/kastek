@@ -246,7 +246,7 @@ function DesktopTopbar({
           <DropdownMenuContent align="end" className="w-52">
             <div className="px-2 py-1.5"><p className="truncate text-[13px] font-medium text-ink-1">{accountName}</p><p className="truncate text-[11px] text-ink-3">{user?.email ?? ""}</p></div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild><Link href="/workspace/profile"><UserRound className="mr-2 size-4" />Profile</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link href="/workspace/settings?section=profile"><UserRound className="mr-2 size-4" />Profile</Link></DropdownMenuItem>
             <DropdownMenuItem asChild><Link href="/workspace/settings"><Settings className="mr-2 size-4" />Settings</Link></DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -322,7 +322,7 @@ function MobileTopbar({
             <p className="truncate text-[11px] text-muted-foreground">{user?.email ?? ""}</p>
           </div>
           <DropdownMenuSeparator />
-          <DropdownMenuItem asChild><Link href="/workspace/profile"><UserRound className="mr-2 h-4 w-4" />Profile</Link></DropdownMenuItem>
+          <DropdownMenuItem asChild><Link href="/workspace/settings?section=profile"><UserRound className="mr-2 h-4 w-4" />Profile</Link></DropdownMenuItem>
           <DropdownMenuItem asChild><Link href="/workspace/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link></DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -525,7 +525,7 @@ function SidebarContent({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuItem asChild>
-              <Link href="/workspace/profile" onClick={onNavigate}>
+              <Link href="/workspace/settings?section=profile" onClick={onNavigate}>
                 <UserRound className="mr-2 h-4 w-4" />
                 Profile
               </Link>

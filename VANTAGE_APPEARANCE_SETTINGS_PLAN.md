@@ -447,7 +447,9 @@ all implementation and verification items above are complete:
   retaining the real push and desktop inbox controls; billing reuses its
   existing server actions. API-key management remains under Developers. The
   top-bar bell is a responsive live popover backed by the WhatsApp realtime
-  feed and unread count. Legacy routes remain available for compatibility.
+  feed and unread count. Profile links now target the Settings Profile tab;
+  `/workspace/profile` remains as a compatibility redirect, including email
+  change status parameters.
 - The expanded sidebar Account area now follows the Vantage identity pattern:
   workspace identity remains at the top, the bottom contains a compact profile
   card and collapse control, and theme, notification, and help actions are no
