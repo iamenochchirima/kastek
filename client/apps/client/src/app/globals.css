@@ -79,27 +79,6 @@
   --shadow-floating: var(--v-shadow-pop);
   --overlay: rgba(0, 0, 0, 0.40);
 
-  /* Temporary compatibility aliases. New application code must use semantic tokens above. */
-  --theme-bg: var(--background);
-  --theme-surface: var(--card);
-  --theme-surface-2: var(--secondary);
-  --theme-surface-3: var(--surface-3);
-  --theme-border: var(--border);
-  --theme-border-light: var(--input);
-  --theme-text: var(--foreground);
-  --theme-text-muted: var(--muted-foreground);
-  --theme-text-dim: var(--ink-3);
-  --theme-success: var(--status-success);
-  --theme-warning: var(--status-attention);
-  --theme-danger: var(--destructive);
-  --theme-shadow-soft: var(--shadow-panel);
-  --theme-shadow-panel: var(--shadow-panel);
-  --theme-hero-aura: none;
-  --theme-chat-input-bg: var(--card);
-  --theme-chat-input-border: var(--input);
-  --theme-chat-panel-bg: var(--card);
-  --theme-chat-panel-text: var(--foreground);
-  --theme-chat-placeholder: var(--muted-foreground);
   color-scheme: light;
 }
 
@@ -244,14 +223,6 @@
   --shadow-card: var(--v-shadow-card);
   --shadow-pop: var(--v-shadow-pop);
 
-  --color-bg: var(--theme-bg);
-  --color-border-light: var(--theme-border-light);
-  --color-text: var(--theme-text);
-  --color-text-muted: var(--theme-text-muted);
-  --color-text-dim: var(--theme-text-dim);
-  --color-accent-dim: var(--status-attention);
-  --color-accent-glow: var(--status-attention-soft);
-  --color-warm: var(--status-attention);
   --animate-pulse-dot: pulse-dot 2s infinite;
   --animate-live-pulse: live-pulse 2s ease-out infinite;
   --animate-shimmer: shimmer 1.6s linear infinite;
