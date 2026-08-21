@@ -143,7 +143,6 @@ const navigationGroups: NavigationGroup[] = [
     items: [
       { name: "Developers", href: "/developers", icon: Code2 },
       { name: "Connections", href: "/connections", icon: Cable },
-      { name: "Workspace settings", href: "/workspace/settings", icon: Settings },
     ],
   },
 ];
