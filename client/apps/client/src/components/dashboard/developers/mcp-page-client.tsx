@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Check, Copy, ExternalLink, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 import { useDevelopersData } from "./developers-data";
 
 type ClientId = "claude" | "chatgpt" | "claude-code" | "cursor" | "other";
@@ -28,13 +29,9 @@ export function McpPageClient() {
   const localSetup = `export KASITEK_MCP_URL="${config.mcpEndpoint}"\nexport KASITEK_API_KEY="<developer-api-key>"\nnpx -y ${config.mcpPackage}`;
 
   return (
-    <div className="p-5 lg:p-8">
-      <div className="mx-auto max-w-[1080px] space-y-7">
-        <header>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">MCP Server</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Connect an AI agent</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">Use the KasiTek MCP endpoint with Claude, ChatGPT, Cursor, Claude Code, or another compatible client. MCP and REST use the same Developer API key, while capabilities and approvals control what the client can do.</p>
-        </header>
+    <div className="min-h-screen p-4 sm:p-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
+        <PageHeader><PageHeaderContent><PageHeaderTitle>MCP</PageHeaderTitle><PageHeaderDescription>Connect an AI client.</PageHeaderDescription></PageHeaderContent></PageHeader>
 
         <Card>
           <CardContent className="space-y-5 p-5">

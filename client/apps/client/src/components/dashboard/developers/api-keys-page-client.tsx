@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import type { CreatedDeveloperApiKey, DeveloperApiKey } from "@/lib/developers";
 import { createDeveloperApiKey, revokeDeveloperApiKey, rotateDeveloperApiKey } from "@/lib/developers";
@@ -85,13 +86,9 @@ export function ApiKeysPageClient() {
   -H "Authorization: Bearer <developer-api-key>"`;
 
   return (
-    <div className="p-5 lg:p-8">
-      <div className="mx-auto max-w-[1080px] space-y-7">
-        <header>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">API Keys</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Create a Developer API key</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Use one workspace key for REST, MCP, scripts, and local AI clients. Keys are scoped to this workspace and the secret is shown only once.</p>
-        </header>
+    <div className="min-h-screen p-4 sm:p-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
+        <PageHeader><PageHeaderContent><PageHeaderTitle>API keys</PageHeaderTitle><PageHeaderDescription>Workspace API credentials.</PageHeaderDescription></PageHeaderContent></PageHeader>
 
         {error ? <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p> : null}
 
