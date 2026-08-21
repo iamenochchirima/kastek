@@ -115,6 +115,8 @@ export function AgentsPageClient({
           </PageHeaderActions>
         </PageHeader>
 
+        {initialOperations && initialView === "agents" ? <OperationsSummary summary={initialOperations} /> : null}
+
         <nav aria-label="Agent views" className="flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-border bg-secondary/40 p-1">
           <Link
             href="/agents"
@@ -131,8 +133,6 @@ export function AgentsPageClient({
             External agents
           </Link>
         </nav>
-
-        {initialOperations && initialView === "agents" ? <OperationsSummary summary={initialOperations} /> : null}
 
         {agentsUnavailable ? (
           <Card><CardContent className="flex flex-col items-start gap-4 p-8"><Info className="h-7 w-7 text-status-attention" /><div><h2 className="text-xl font-semibold text-foreground">Agents are unavailable</h2><p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">The Agent Platform could not be reached. Your existing installations are unchanged; try refreshing in a moment.</p></div><Button type="button" variant="outline" onClick={() => router.refresh()}>Retry</Button></CardContent></Card>
