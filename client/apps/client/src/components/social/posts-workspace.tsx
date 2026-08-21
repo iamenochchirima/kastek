@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import {
   PageHeader,
   PageHeaderActions,
@@ -1378,18 +1380,10 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         </Card>
       </div>
 
-      {isIdeasOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button type="button" className="absolute inset-0 bg-overlay" onClick={() => setIsIdeasOpen(false)} aria-label="Close idea generator" />
-          <div className="relative max-h-[min(760px,calc(100vh-2rem))] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-card shadow-2xl">
+      <Dialog open={isIdeasOpen} onOpenChange={setIsIdeasOpen}>
+          <DialogContent className="max-h-[calc(100svh-2rem)] max-w-2xl overflow-y-auto p-0">
             <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
-              <div>
-                <p className="text-lg font-semibold text-foreground">Generate ideas</p>
-                <p className="mt-1 text-sm text-muted-foreground">Start with a topic and an objective, then turn an idea into a post.</p>
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => setIsIdeasOpen(false)} aria-label="Close idea generator">
-                <X className="h-4 w-4" />
-              </Button>
+              <DialogHeader><DialogTitle>Generate ideas</DialogTitle><DialogDescription>Start with a topic and objective.</DialogDescription></DialogHeader>
             </div>
             <div className="space-y-4 p-5">
               <div className="grid gap-3 sm:grid-cols-2">
@@ -1419,32 +1413,27 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                 </div>
               ) : null}
             </div>
-          </div>
-        </div>
-      ) : null}
+          </DialogContent>
+      </Dialog>
 
-      {aiGenerationTarget ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button type="button" className="absolute inset-0 bg-overlay" onClick={() => { if (!generatingCaption && !generatingVariantPlatform) setAiGenerationTarget(null); }} aria-label="Close AI generator" />
-          <div className="relative w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="ai-generator-title">
+      <Dialog open={Boolean(aiGenerationTarget)} onOpenChange={(open) => { if (!open && !generatingCaption && !generatingVariantPlatform) setAiGenerationTarget(null); }}>
+        {aiGenerationTarget ? (
+          <DialogContent className="max-w-lg p-0">
             <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
-              <div>
-                <p className="text-lg font-semibold text-foreground" id="ai-generator-title">
+              <DialogHeader>
+                <DialogTitle>
                   {aiGenerationTarget.kind === "shared" ? "Generate post text" : `Generate ${getPlatformLabel(aiGenerationTarget.platform)} text`}
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">
+                </DialogTitle>
+                <DialogDescription>
                   {aiGenerationTarget.kind === "shared" ? "Describe what you want, or ask AI to improve the current post." : "Describe the angle or change you want for this destination."}
-                </p>
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => setAiGenerationTarget(null)} disabled={Boolean(generatingCaption || generatingVariantPlatform)} aria-label="Close AI generator">
-                <X className="h-4 w-4" />
-              </Button>
+                </DialogDescription>
+              </DialogHeader>
             </div>
             <div className="space-y-4 p-5">
               {error ? <p className="rounded-md border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
               <label className="block space-y-2">
                 <span className="text-sm font-medium text-foreground">Prompt <span className="font-normal text-muted-foreground">(optional)</span></span>
-                <textarea autoFocus value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="For example: make it warmer, clearer, and more concise" className="min-h-[130px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground focus:border-primary" />
+                <Textarea autoFocus value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} placeholder="For example: make it warmer, clearer, and more concise" className="min-h-[130px]" />
               </label>
               <p className="text-xs text-muted-foreground">The result will be added to the editor so you can change it before saving or publishing.</p>
               <div className="flex justify-end gap-2">
@@ -1455,17 +1444,15 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                 </Button>
               </div>
             </div>
-          </div>
-        </div>
-      ) : null}
+          </DialogContent>
+        ) : null}
+      </Dialog>
 
-      {activityPost ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button type="button" className="absolute inset-0 bg-overlay" onClick={() => setActivityPost(null)} aria-label="Close post activity" />
-          <div className="relative max-h-[min(760px,calc(100vh-2rem))] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-card shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="post-activity-title">
+      <Dialog open={Boolean(activityPost)} onOpenChange={(open) => { if (!open) setActivityPost(null); }}>
+        {activityPost ? (
+          <DialogContent className="max-h-[calc(100svh-2rem)] max-w-2xl overflow-y-auto p-0">
             <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
-              <div><p className="text-lg font-semibold text-foreground" id="post-activity-title">Post activity</p><p className="mt-1 text-sm text-muted-foreground">{activityPost.post.title || "Untitled social post"} · durable content and provider job state</p></div>
-              <Button variant="ghost" size="icon" onClick={() => setActivityPost(null)} aria-label="Close post activity"><X className="h-4 w-4" /></Button>
+              <DialogHeader><DialogTitle>Post activity</DialogTitle><DialogDescription>{activityPost.post.title || "Untitled social post"} · durable content and provider job state</DialogDescription></DialogHeader>
             </div>
             <div className="space-y-3 px-5 py-5">
               {activityError ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{activityError}</p> : null}
@@ -1477,22 +1464,21 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                 </div>
               )) : <p className="text-sm text-muted-foreground">No activity has been recorded for this post yet.</p>}
             </div>
-          </div>
-        </div>
-      ) : null}
+          </DialogContent>
+        ) : null}
+      </Dialog>
 
-      {deleteTarget ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4" role="presentation">
-          <div className="relative w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="workspace-delete-post-title">
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open && !deletingPost) setDeleteTarget(null); }}>
+        {deleteTarget ? (
+          <DialogContent className="max-w-lg p-5">
             <div className="flex items-start justify-between gap-4">
-              <div>
+              <DialogHeader>
                 <div className="flex items-center gap-2 text-destructive">
                   <AlertTriangle className="h-5 w-5" />
-                  <h2 id="workspace-delete-post-title" className="text-lg font-semibold text-foreground">Delete post?</h2>
+                  <DialogTitle>Delete post?</DialogTitle>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">Choose where this post should be removed.</p>
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(null)} disabled={deletingPost} aria-label="Close delete dialog"><X className="h-4 w-4" /></Button>
+                <DialogDescription>Choose where this post should be removed.</DialogDescription>
+              </DialogHeader>
             </div>
             <div className="mt-5 space-y-3">
               <label className={`flex cursor-pointer gap-3 rounded-xl border p-4 ${deleteScope === "local" ? "border-primary bg-primary/5" : "border-border"}`}>
@@ -1512,9 +1498,9 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
             {deleteProviderResults.length ? <div className="mt-4 rounded-xl border border-destructive/30 bg-status-danger-soft p-3"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-destructive">Platform deletion results</p><div className="mt-2 space-y-2">{deleteProviderResults.map((result, index) => <div key={`${result.platform}-${index}`} className="flex items-start gap-2 text-xs">{result.status === "DELETED" ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-status-success" /> : <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />}<span className="text-foreground"><strong>{getPlatformLabel(result.platform)}</strong>{result.message ? ` · ${result.message}` : ` · ${result.status.toLowerCase()}`}</span></div>)}</div></div> : null}
             {error ? <p className="mt-4 rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
             <div className="mt-6 flex justify-end gap-2"><Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deletingPost}>Cancel</Button><Button variant="destructive" onClick={() => void deletePost(deleteTarget.id, deleteScope === "platforms")} disabled={deletingPost}>{deletingPost ? "Deleting..." : deleteScope === "platforms" ? "Delete everywhere" : "Delete post"}</Button></div>
-          </div>
-        </div>
-      ) : null}
+          </DialogContent>
+        ) : null}
+      </Dialog>
 
       {isComposerOpen ? (
         <div className="fixed inset-0 z-50">
