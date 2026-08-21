@@ -407,6 +407,7 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Replaced the Product Tour's hand-styled action controls with shared Vantage button variants; lint and Webpack build passed. |
 | 2026-08-21 | Migrated the root workspace-access route from a hard-coded light-only palette to semantic Vantage theme tokens and shared action buttons; lint and Webpack build passed. |
 | 2026-08-21 | Replaced hard-coded connection success, warning, and information treatments with shared semantic Vantage status tokens; lint and Webpack build passed. |
+| 2026-08-21 | Replaced Campaign Detail's hard-coded delivery status treatment with the shared semantic Vantage information status token; lint and Webpack build passed. |
 | 2026-08-21 | Audited remaining fixed colours and direct controls: only product-preview, third-party-brand, file-picker, chat-composer, and color-picker exceptions remain; all are recorded as intentional adaptations. |
 | 2026-08-21 | Migrated standalone billing, sign-out, and notification-reminder actions to shared Vantage buttons; lint and Webpack build passed. |
 | 2026-08-21 | Replaced all client `<img>` use with `next/image`; authenticated/dynamic media paths use deliberate unoptimized rendering, lint is clean, and the Webpack build passed. |
