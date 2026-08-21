@@ -302,7 +302,7 @@ interactive states have been checked where applicable.
 | Connections | connections | In progress | The Connections page uses the central header and `1440px` content density. The Threads sign-in reminder now uses the shared accessible dialog. WhatsApp setup/onboarding and visual review remain pending. |
 | Developers | portal, Resources, MCP, CLI, API, and API keys | In progress | The full Developers route group uses the central header, concise copy, and `1440px` density. Shared tab/feedback and visual checks remain pending. |
 | Billing | billing and usage | In progress | Billing uses the central header, concise hierarchy, and `1440px` density. Payment, loading/error, responsive and visual checks remain pending. |
-| Entry surfaces | login and sign-up | In progress | Login and sign-up use the Vantage type scale, concise auth copy, and shared buttons/inputs. Password, verification, onboarding, invitations, offline, responsive and visual checks remain pending. |
+| Entry surfaces | login, sign-up, and password setup | In progress | Login, sign-up, and password setup use the Vantage type scale, concise auth copy, and shared buttons/inputs. Verification, onboarding, invitations, offline, responsive and visual checks remain pending. |
 | Quality | visual, accessibility, and runtime verification | Not started | |
 
 ## Verification standard per migration wave
@@ -378,3 +378,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Began Billing migration with the central header, concise hierarchy, and reference density; lint and Webpack build passed. |
 | 2026-08-21 | Began entry-surface migration with Login and Sign-up: Vantage auth typography and concise UI copy; lint and Webpack build passed. |
 | 2026-08-21 | Migrated Login and Sign-up actions and fields to the shared Vantage Button and Input primitives; lint and Webpack build passed. |
+| 2026-08-21 | Migrated password setup fields and actions to shared Vantage controls; lint and Webpack build passed. |

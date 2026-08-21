@@ -3,6 +3,8 @@
 import { useState, use } from "react";
 import Link from "next/link";
 import { apiUrl } from "@/lib/server-api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function SetPasswordForm({
   searchParams,
@@ -87,22 +89,22 @@ function RequestSetupForm() {
           <label className="mb-1.5 block text-sm font-medium text-foreground">
             Email
           </label>
-          <input
+          <Input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="your@email.com"
             required
-            className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className="h-10"
           />
         </div>
-        <button
+        <Button
           type="submit"
           disabled={loading}
-          className="w-full rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-50 disabled:hover:translate-y-0"
+          className="w-full"
         >
           {loading ? "Sending..." : "Send Setup Link"}
-        </button>
+        </Button>
       </form>
 
       <p className="text-center text-sm text-muted-foreground">
@@ -166,12 +168,7 @@ function PasswordSetupForm({
           You can now sign in with your email and password, or continue using
           Google.
         </p>
-        <Link
-          href="/login"
-          className="inline-block rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-primary/90"
-        >
-          Sign In
-        </Link>
+        <Button asChild><Link href="/login">Sign in</Link></Button>
       </div>
     );
   }
@@ -193,37 +190,37 @@ function PasswordSetupForm({
           <label className="mb-1.5 block text-sm font-medium text-foreground">
             Password
           </label>
-          <input
+          <Input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Enter a password"
             required
             minLength={8}
-            className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className="h-10"
           />
         </div>
         <div>
           <label className="mb-1.5 block text-sm font-medium text-foreground">
             Confirm Password
           </label>
-          <input
+          <Input
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder="Confirm your password"
             required
             minLength={8}
-            className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className="h-10"
           />
         </div>
-        <button
+        <Button
           type="submit"
           disabled={loading}
-          className="w-full rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-50 disabled:hover:translate-y-0"
+          className="w-full"
         >
           {loading ? "Setting password..." : "Set Password"}
-        </button>
+        </Button>
       </form>
     </div>
   );
