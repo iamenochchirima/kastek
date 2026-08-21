@@ -19,6 +19,8 @@ import {
   ChartColumn,
   Code2,
   ChevronDown,
+  ChevronsLeft,
+  ChevronsRight,
   ChevronRight,
   CreditCard,
   Download,
@@ -33,7 +35,6 @@ import {
   LogOut,
   Menu,
   Moon,
-  PanelLeftOpen,
   PhoneCall,
   Search,
   Send,
@@ -582,7 +583,7 @@ function SidebarContent({
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             data-tour="sidebar-toggle"
           >
-            <PanelLeftOpen className={cn("h-4 w-4", !collapsed && "scale-x-[-1]")} />
+            {collapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
             {!collapsed ? <span>Collapse</span> : null}
           </Button>
         ) : null}
