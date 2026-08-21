@@ -699,7 +699,7 @@ export default function CampaignDetailPageClient({
 
   return (
     <MotionReveal className="min-h-[100dvh] p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-[1600px] space-y-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <Link href="/campaigns" className="text-sm text-muted-foreground underline-offset-4 hover:underline">

@@ -157,7 +157,7 @@ export function AgentWebsiteChatAppearancePageClient({ agent }: { agent: AgentDe
   const appearance = draft ? normalizedAppearance(draft) : DEFAULT_APPEARANCE;
 
   return <div className="min-h-[100dvh] px-4 py-6 sm:px-6 lg:px-8">
-    <div className="mx-auto max-w-[1500px]">
+    <div className="mx-auto max-w-[1440px]">
       <Link href={`/agents/${encodeURIComponent(agent.id)}`} className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to {agent.name}</Link>
       <PageHeader className="mt-5 border-b border-border pb-5"><PageHeaderContent><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Website Chat</p><PageHeaderTitle>Appearance</PageHeaderTitle><PageHeaderDescription>Style the visitor chat window.</PageHeaderDescription></PageHeaderContent>{draft ? <PageHeaderActions><Button type="button" onClick={() => void save()} disabled={saving}>{saving ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Saving…</> : "Save changes"}</Button></PageHeaderActions> : null}</PageHeader>
 

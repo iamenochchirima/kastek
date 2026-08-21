@@ -109,7 +109,7 @@ export default function CampaignsPageClient({
 
   return (
     <div className="min-h-[100dvh] p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-[1400px] space-y-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">Campaigns</h1>

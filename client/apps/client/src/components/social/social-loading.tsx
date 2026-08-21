@@ -2,14 +2,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 function SocialPageFrame({
   children,
-  wide = false,
 }: {
   children: React.ReactNode;
-  wide?: boolean;
 }) {
   return (
     <div className="min-h-[100dvh] p-4 sm:p-6 lg:p-8">
-      <div className={`mx-auto space-y-6 ${wide ? "max-w-[1600px]" : "max-w-[1400px]"}`}>{children}</div>
+      <div className="mx-auto max-w-[1440px] space-y-6">{children}</div>
     </div>
   );
 }
@@ -35,7 +33,7 @@ function SocialMetricCards({ count = 4 }: { count?: number }) {
 
 export function SocialCalendarSkeleton() {
   return (
-    <SocialPageFrame wide>
+      <SocialPageFrame>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-3">
           <Skeleton className="h-6 w-24 rounded-full" />
@@ -86,7 +84,7 @@ export function SocialCalendarSkeleton() {
 
 export function SocialPostsSkeleton() {
   return (
-    <SocialPageFrame wide>
+      <SocialPageFrame>
       <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <div className="space-y-6">
           <div className="rounded-xl border border-border bg-card p-6">

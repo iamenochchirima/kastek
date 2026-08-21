@@ -57,7 +57,7 @@ export default function PushNotificationReminder() {
   }
 
   return (
-    <div className="mx-auto mb-6 max-w-[1600px] px-6 pt-6 lg:px-8 lg:pt-8">
+    <div className="mx-auto mb-6 max-w-[1440px] px-6 pt-6 lg:px-8 lg:pt-8">
       <div className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-border bg-card p-4">
         <div className="flex min-w-0 items-start gap-3">
           <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">

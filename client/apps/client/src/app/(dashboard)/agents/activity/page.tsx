@@ -47,7 +47,7 @@ export default async function AgentActivityPage() {
 
   return (
     <div className="min-h-[100dvh] p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-[1400px]">
+      <div className="mx-auto max-w-[1440px]">
         <PageHeader className="max-w-3xl">
           <PageHeaderContent>
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Automation</p>
