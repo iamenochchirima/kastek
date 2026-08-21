@@ -19,6 +19,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { PageHeader, PageHeaderActions, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiUrl } from "@/lib/server-api";
 import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icons";
 import { cn } from "@/lib/utils";
@@ -186,19 +189,6 @@ export function CallsWorkspace({
     };
   }, []);
 
-  useEffect(() => {
-    if (!showCallOptions) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && callState === "idle") {
-        setShowCallOptions(false);
-        setShowDialer(false);
-        setShowVoiceSetup(false);
-      }
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [callState, showCallOptions]);
-
   async function registerVoiceNumber() {
     setSetupError("");
     if (!voiceNumber.trim()) {
@@ -304,18 +294,11 @@ export function CallsWorkspace({
   ];
 
   return (
-    <div className="min-h-screen bg-background p-5 lg:p-8">
-      <div className="mx-auto max-w-[1500px] space-y-6">
-        <header className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Customer operations
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.02em] text-foreground">Calls</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Review call activity and handle customer conversations across your connected channels.
-            </p>
-          </div>
+    <div className="min-h-screen bg-background px-4 py-6 lg:px-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
+        <PageHeader>
+          <PageHeaderContent><PageHeaderDescription>Customer</PageHeaderDescription><PageHeaderTitle>Calls</PageHeaderTitle></PageHeaderContent>
+          <PageHeaderActions>
           <Button
             onClick={() => {
               setShowCallOptions((visible) => !visible);
@@ -325,7 +308,8 @@ export function CallsWorkspace({
           >
             {showCallOptions ? "Close" : "New call"}
           </Button>
-        </header>
+          </PageHeaderActions>
+        </PageHeader>
 
         <section className="grid overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-2">
           <CallSupport
@@ -345,30 +329,15 @@ export function CallsWorkspace({
           />
         </section>
 
-        {showCallOptions ? (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm"
-            onMouseDown={() => {
-              if (callState === "idle") {
-                setShowCallOptions(false);
-                setShowDialer(false);
-                setShowVoiceSetup(false);
-              }
-            }}
-          >
-            <section
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="new-call-title"
-              className="w-full max-w-2xl rounded-xl border border-border bg-card shadow-2xl"
-              onMouseDown={(event) => event.stopPropagation()}
-            >
+        <Dialog open={showCallOptions} onOpenChange={(open) => { if (open || callState === "idle") { setShowCallOptions(open); if (!open) { setShowDialer(false); setShowVoiceSetup(false); } } }}>
+          <DialogContent showCloseButton={false} className="max-w-2xl p-0">
+            {showCallOptions ? (
+              <>
               <header className="flex items-start justify-between border-b border-border px-5 py-4">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Calls</p>
-                  <h2 id="new-call-title" className="mt-1 text-lg font-semibold text-foreground">
+                  <DialogTitle>
                     {showDialer ? "Business phone call" : showVoiceSetup ? "Connect business number" : "Start a call"}
-                  </h2>
+                  </DialogTitle>
                 </div>
                 <Button
                   variant="ghost"
@@ -442,18 +411,16 @@ export function CallsWorkspace({
                   <div className="space-y-4">
                     <p className="text-sm leading-6 text-muted-foreground">Your browser will ask for microphone access before it connects the selected business number to the customer.</p>
                     <div className="grid gap-2 sm:grid-cols-2">
-                      <select
-                        value={dialConnectionId}
-                        onChange={(event) => setDialConnectionId(event.target.value)}
-                        className="h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground"
-                        disabled={callState !== "idle"}
-                      >
+                      <Select value={dialConnectionId} onValueChange={setDialConnectionId} disabled={callState !== "idle"}>
+                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                        <SelectContent>
                         {voiceConnections.map((connection) => (
-                          <option key={connection.id} value={connection.id}>
+                          <SelectItem key={connection.id} value={connection.id}>
                             {connection.displayName}{connection.externalAccountId ? ` (${connection.externalAccountId})` : ""}
-                          </option>
+                          </SelectItem>
                         ))}
-                      </select>
+                        </SelectContent>
+                      </Select>
                       <Input value={dialDestination} onChange={(event) => setDialDestination(event.target.value)} placeholder="Customer number, e.g. +27115550123" disabled={callState !== "idle"} />
                     </div>
                     {dialError ? <p className="text-sm text-destructive">{dialError}</p> : null}
@@ -468,9 +435,10 @@ export function CallsWorkspace({
                   </div>
                 ) : null}
               </div>
-            </section>
-          </div>
-        ) : null}
+              </>
+            ) : null}
+          </DialogContent>
+        </Dialog>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <CallMetric label="All calls" value={summary?.summary.totalCalls ?? initialCalls.length} icon={PhoneCall} />
