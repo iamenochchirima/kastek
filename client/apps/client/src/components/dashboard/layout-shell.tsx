@@ -646,19 +646,21 @@ export function LayoutShell({
             </aside>
           <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
             <MobileTopbar sectionLabel={sectionLabel} user={user} onOpenCommand={() => setCommandOpen(true)} />
-            <SheetContent side="left" className="w-64 p-0">
+            <SheetContent side="left" className="flex w-64 flex-col gap-0 overflow-hidden p-0">
               <SheetTitle className="sr-only">Workspace navigation</SheetTitle>
               <SheetDescription className="sr-only">Navigate between KasiTek workspace sections.</SheetDescription>
               {orgs.length > 0 ? (
-                <div className="border-b border-line p-3" data-tour="workspace-switcher">
+                <div className="shrink-0 border-b border-line p-3" data-tour="workspace-switcher">
                   <OrgSwitcher orgs={orgs} activeOrgId={activeOrgId} variant="header" />
                 </div>
               ) : null}
-              <SidebarContent
-                collapsed={false}
-                billingSummary={billingSummary}
-                onNavigate={() => setMobileSheetOpen(false)}
-              />
+              <div className="min-h-0 flex-1">
+                <SidebarContent
+                  collapsed={false}
+                  billingSummary={billingSummary}
+                  onNavigate={() => setMobileSheetOpen(false)}
+                />
+              </div>
             </SheetContent>
           </Sheet>
           <KasiAiLauncher
