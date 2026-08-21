@@ -3,11 +3,26 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Activity, AlertTriangle, ArrowLeft, CheckCircle2, Clock3, Pencil, Play, RotateCcw, Trash2, X } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, CheckCircle2, Clock3, Pencil, Play, RotateCcw, Trash2 } from "lucide-react";
 import { apiUrl } from "@/lib/server-api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  PageHeader,
+  PageHeaderActions,
+  PageHeaderContent,
+  PageHeaderDescription,
+  PageHeaderTitle,
+} from "@/components/ui/page-header";
 import {
   SOCIAL_PLATFORM_ORDER,
   type SocialPlatform,
@@ -184,26 +199,24 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
   }
 
   return (
-    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-6xl space-y-6">
+    <div className="min-h-screen p-4 sm:p-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
         <Link href="/content/posts" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" />
           Back to Posts
         </Link>
 
-        <section className="rounded-2xl border border-border bg-card p-5 sm:p-6">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0">
+        <section className="rounded-lg border border-border bg-card p-5 sm:p-6">
+          <PageHeader>
+            <PageHeaderContent>
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Post details</p>
                 <Badge className={status.className}>
                   <StatusIcon className="mr-1 h-3.5 w-3.5" />
                   {status.label}
                 </Badge>
               </div>
-              <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-                {post.title || "Untitled social post"}
-              </h1>
+              <PageHeaderTitle className="mt-2">{post.title || "Untitled social post"}</PageHeaderTitle>
+              <PageHeaderDescription>Post details.</PageHeaderDescription>
               <div className="mt-3 flex flex-wrap gap-2">
                 {post.channels.map((platform) => {
                   const Icon = getPlatformIcon(platform);
@@ -215,8 +228,8 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
                   );
                 })}
               </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
+            </PageHeaderContent>
+            <PageHeaderActions>
               <Button variant="outline" className="gap-2" onClick={() => router.push(`/content?edit=${encodeURIComponent(post.id)}`)}>
                 <Pencil className="h-4 w-4" />
                 Edit
@@ -224,8 +237,8 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
               <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" onClick={() => { setError(""); setDeleteProviderResults([]); setDeleteModalOpen(true); }} disabled={busyKey === "delete"} aria-label="Delete post">
                 <Trash2 className="h-4 w-4" />
               </Button>
-            </div>
-          </div>
+            </PageHeaderActions>
+          </PageHeader>
           {error ? <p className="mt-5 rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
         </section>
 
@@ -399,22 +412,18 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
         </Card>
       </div>
 
-      {deleteModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4" role="presentation">
-          <div className="relative w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="delete-post-title">
+      <Dialog open={deleteModalOpen} onOpenChange={(open) => !open && busyKey !== "delete" && setDeleteModalOpen(false)}>
+          <DialogContent className="max-w-lg">
             <div className="flex items-start justify-between gap-4">
-              <div>
+              <DialogHeader>
                 <div className="flex items-center gap-2 text-destructive">
                   <AlertTriangle className="h-5 w-5" />
-                  <h2 id="delete-post-title" className="text-lg font-semibold text-foreground">Delete post?</h2>
+                  <DialogTitle>Delete post?</DialogTitle>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                <DialogDescription>
                   Choose whether this removes only the KasiTek record or also attempts to remove published copies from their platforms.
-                </p>
-              </div>
-              <Button variant="ghost" size="icon" className="shrink-0" onClick={() => setDeleteModalOpen(false)} disabled={busyKey === "delete"} aria-label="Close delete dialog">
-                <X className="h-4 w-4" />
-              </Button>
+                </DialogDescription>
+              </DialogHeader>
             </div>
 
             <div className="mt-5 space-y-3">
@@ -455,15 +464,14 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
 
             {error ? <p className="mt-4 rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
 
-            <div className="mt-6 flex justify-end gap-2">
+            <DialogFooter className="mt-6">
               <Button variant="outline" onClick={() => setDeleteModalOpen(false)} disabled={busyKey === "delete"}>Cancel</Button>
               <Button variant="destructive" onClick={() => void deletePost(deleteScope === "platforms")} disabled={busyKey === "delete"}>
                 {busyKey === "delete" ? "Deleting..." : deleteScope === "platforms" ? "Delete everywhere" : "Delete post"}
               </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+            </DialogFooter>
+          </DialogContent>
+      </Dialog>
     </div>
   );
 }
