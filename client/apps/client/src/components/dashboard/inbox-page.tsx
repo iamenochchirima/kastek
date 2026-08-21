@@ -3940,7 +3940,7 @@ function MediaLightbox({
         </div>
       ) : null}
       <div
-        className="max-h-[90vh] w-full overflow-hidden rounded-xl border border-border bg-background p-3"
+        className="max-h-[90svh] w-full overflow-hidden rounded-xl border border-border bg-background p-3"
         onWheel={(event) => {
           if (!isZoomable) return;
           event.preventDefault();
@@ -3950,7 +3950,7 @@ function MediaLightbox({
       >
         {kind === "image" || kind === "sticker" ? (
           <div
-            className="flex max-h-[80vh] min-h-[70vh] items-center justify-center overflow-hidden"
+            className="flex max-h-[80svh] min-h-[70svh] items-center justify-center overflow-hidden"
             onMouseDown={(event) => {
               if (zoom <= 1) return;
               setDragging(true);
@@ -3971,7 +3971,7 @@ function MediaLightbox({
             <img
               src={url}
               alt={caption || "media"}
-              className="max-h-[80vh] w-full select-none object-contain"
+              className="max-h-[80svh] w-full select-none object-contain"
               draggable={false}
               onDoubleClick={() => updateZoom(zoom > 1 ? 1 : 2)}
               style={{
@@ -3983,14 +3983,14 @@ function MediaLightbox({
           </div>
         ) : null}
         {kind === "video" ? (
-          <video controls autoPlay className="max-h-[80vh] w-full object-contain" src={url} />
+          <video controls autoPlay className="max-h-[80svh] w-full object-contain" src={url} />
         ) : null}
         {kind === "audio" ? <audio controls autoPlay className="w-full" src={url} /> : null}
         {kind === "document" ? (
           <iframe
             title="Document preview"
             src={url}
-            className="h-[80vh] w-full rounded-xl border border-border/50"
+            className="h-[80svh] w-full rounded-xl border border-border/50"
           />
         ) : null}
         {caption ? <p className="mt-2 text-sm text-muted-foreground">{caption}</p> : null}

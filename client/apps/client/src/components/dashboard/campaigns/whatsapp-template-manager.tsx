@@ -329,7 +329,7 @@ export default function WhatsappTemplateManager({
       </section>
 
       <Dialog open={selectedTemplate !== null} onOpenChange={(open) => { if (!open) setSelectedTemplateId(null); }}>
-        <DialogContent showCloseButton={false} className="max-h-[92vh] max-w-4xl overflow-y-auto">
+        <DialogContent showCloseButton={false} className="max-h-[92svh] max-w-4xl overflow-y-auto">
           {selectedTemplate ? (
             <>
             <div className="mb-5 flex items-start justify-between gap-4">
@@ -401,7 +401,7 @@ export default function WhatsappTemplateManager({
       </Dialog>
 
       <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
-        <DialogContent showCloseButton={false} className="max-h-[92vh] max-w-6xl overflow-y-auto">
+        <DialogContent showCloseButton={false} className="max-h-[92svh] max-w-6xl overflow-y-auto">
           {showCreateForm ? (
             <>
             <div className="mb-5 flex items-center justify-between gap-4">

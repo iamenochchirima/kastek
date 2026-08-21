@@ -951,7 +951,7 @@ export default function ContactsManager({
         </Dialog>
 
         <Dialog open={Boolean(filters.q)} onOpenChange={(open) => !open && navigate({ q: "" })}>
-          <DialogContent showCloseButton={false} className="flex h-[min(84vh,860px)] max-w-6xl flex-col gap-0 overflow-hidden p-0">
+          <DialogContent showCloseButton={false} className="flex h-[min(84svh,860px)] max-w-6xl flex-col gap-0 overflow-hidden p-0">
               <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
                 <div>
                   <DialogTitle>Search results</DialogTitle>
@@ -1068,7 +1068,7 @@ export default function ContactsManager({
         </Dialog>
 
         <Dialog open={Boolean(filters.listLabel && !filters.q)} onOpenChange={(open) => !open && navigate({ listLabel: "" })}>
-          <DialogContent showCloseButton={false} className="flex h-[min(88vh,920px)] max-w-7xl flex-col gap-0 overflow-hidden p-0">
+          <DialogContent showCloseButton={false} className="flex h-[min(88svh,920px)] max-w-7xl flex-col gap-0 overflow-hidden p-0">
               <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
                 <div>
                   <DialogTitle>
