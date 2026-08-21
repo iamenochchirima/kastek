@@ -1,4 +1,5 @@
 import ProfileForm from "@/components/dashboard/profile/profile-form";
+import { PageHeader, PageHeaderContent, PageHeaderTitle } from "@/components/ui/page-header";
 import { getRustSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
 import { redirect } from "next/navigation";
@@ -25,14 +26,9 @@ export default async function WorkspaceProfilePage() {
   if (!profile?.user) redirect("/login");
 
   return (
-    <div className="min-h-screen p-6 lg:p-8">
-      <div className="mx-auto max-w-[1600px] space-y-6">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Profile</h1>
-          <p className="mt-2 text-muted-foreground">
-            Manage your personal account details separately from workspace integrations and channels.
-          </p>
-        </div>
+    <div className="min-h-screen px-4 py-6 lg:px-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
+        <PageHeader><PageHeaderContent><PageHeaderTitle>Profile</PageHeaderTitle></PageHeaderContent></PageHeader>
 
         <ProfileForm
           user={{
