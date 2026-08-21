@@ -5,6 +5,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import {
   TEMPLATE_CATEGORY_OPTIONS,
   TEMPLATE_LIBRARY,
@@ -447,17 +450,16 @@ export default function WhatsappTemplateManager({
                   {shouldChooseConnection ? (
                     <label className="space-y-2 text-sm">
                       <span className="text-muted-foreground">Connection</span>
-                      <select
-                        value={connectionId}
-                        onChange={(event) => setConnectionId(event.target.value)}
-                        className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
-                      >
+                      <Select value={connectionId} onValueChange={setConnectionId}>
+                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                        <SelectContent>
                         {connections.map((connection) => (
-                          <option key={connection.id} value={connection.id}>
+                          <SelectItem key={connection.id} value={connection.id}>
                             {connection.phoneDisplayNumber || connection.phoneNumberId}
-                          </option>
+                          </SelectItem>
                         ))}
-                      </select>
+                        </SelectContent>
+                      </Select>
                     </label>
                   ) : (
                     <div className="space-y-2 text-sm">
@@ -470,27 +472,25 @@ export default function WhatsappTemplateManager({
 
                   <label className="space-y-2 text-sm">
                     <span className="text-muted-foreground">Language</span>
-                    <select
-                      value={language}
-                      onChange={(event) => setLanguage(event.target.value)}
-                      className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
-                    >
+                    <Select value={language} onValueChange={setLanguage}>
+                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
                       {LANGUAGE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
+                        <SelectItem key={option.value} value={option.value}>
                           {option.label}
-                        </option>
+                        </SelectItem>
                       ))}
-                    </select>
+                      </SelectContent>
+                    </Select>
                   </label>
                 </div>
 
                 <label className="space-y-2 text-sm">
                   <span className="text-muted-foreground">Template name</span>
-                  <input
+                  <Input
                     value={templateName}
                     onChange={(event) => setTemplateName(event.target.value)}
                     placeholder="promo_launch_april"
-                    className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                   />
                   <p className="text-xs text-muted-foreground">
                     Use lowercase letters, numbers, and underscores only.
@@ -499,22 +499,20 @@ export default function WhatsappTemplateManager({
 
                 <label className="space-y-2 text-sm">
                   <span className="text-muted-foreground">Header (optional)</span>
-                  <input
+                  <Input
                     value={header}
                     onChange={(event) => setHeader(event.target.value)}
                     placeholder="KasiTek Update"
-                    className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                   />
                 </label>
 
                 <label className="space-y-2 text-sm">
                   <span className="text-muted-foreground">Body</span>
-                  <textarea
+                  <Textarea
                     value={body}
                     onChange={(event) => setBody(event.target.value)}
                     rows={6}
                     placeholder="Hi {{1}}, your next offer is ready. Reply STOP to opt out."
-                    className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                   />
                   <p className="text-xs text-muted-foreground">
                     Use placeholders like {"{{1}}"} when the template needs variables.
@@ -528,11 +526,10 @@ export default function WhatsappTemplateManager({
 
                 <label className="space-y-2 text-sm">
                   <span className="text-muted-foreground">Footer (optional)</span>
-                  <input
+                  <Input
                     value={footer}
                     onChange={(event) => setFooter(event.target.value)}
                     placeholder="Reply STOP to unsubscribe"
-                    className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-foreground"
                   />
                 </label>
 
