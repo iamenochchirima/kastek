@@ -9,6 +9,7 @@ import type { IconType } from "react-icons";
 import { SiDiscord, SiInstagram, SiMessenger, SiModelcontextprotocol, SiSlack, SiTelegram, SiWhatsapp, SiWordpress } from "react-icons/si";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { Card, CardContent } from "@/components/ui/card";
 import { AgentWorkflowEditor, type WorkflowGraphValue } from "./agent-workflow-editor";
 import { AgentRuntimeLimits, defaultAgentRuntimeLimits, parseAgentRuntimeLimits, type AgentRuntimeLimitsValue } from "./agent-runtime-limits";
@@ -534,6 +535,7 @@ function InstallationCredentials({ installationId }: { installationId: string })
   const [creating, setCreating] = useState(false);
   const [rotating, setRotating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { confirm } = useConfirmationDialog();
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -574,7 +576,7 @@ function InstallationCredentials({ installationId }: { installationId: string })
   };
 
   const revoke = async (credential: AgentInstallationCredential) => {
-    if (!window.confirm(`Revoke ${credential.label}? Existing tokens will stop working.`)) return;
+    if (!await confirm({ title: `Revoke ${credential.label}?`, description: "Existing tokens will stop working.", confirmLabel: "Revoke", variant: "destructive" })) return;
     try {
       await revokeAgentInstallationCredential(installationId, credential.id);
       setCredentials((current) => current.map((entry) => entry.id === credential.id ? { ...entry, status: "revoked" } : entry));
@@ -584,7 +586,7 @@ function InstallationCredentials({ installationId }: { installationId: string })
   };
 
   const rotate = async (credential: AgentInstallationCredential) => {
-    if (rotating || !window.confirm(`Rotate ${credential.label}? Existing tokens will stop working immediately.`)) return;
+    if (rotating || !await confirm({ title: `Rotate ${credential.label}?`, description: "Existing tokens will stop working immediately.", confirmLabel: "Rotate", variant: "destructive" })) return;
     setRotating(credential.id);
     setError(null);
     try {
@@ -1022,6 +1024,7 @@ function InstallationKnowledge({ agentId, installationId }: { agentId: string; i
   const [openSourceId, setOpenSourceId] = useState<string | null>(null);
   const [sourceDraft, setSourceDraft] = useState("");
   const [saveConfirmation, setSaveConfirmation] = useState<{ name: string; revision: number } | null>(null);
+  const { confirm } = useConfirmationDialog();
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -1111,7 +1114,7 @@ function InstallationKnowledge({ agentId, installationId }: { agentId: string; i
   };
 
   const removeSource = async (source: AgentKnowledgeSource) => {
-    if (busy || !window.confirm(`Remove ${source.name}? Its indexed chunks will no longer be retrieved.`)) return;
+    if (busy || !await confirm({ title: `Remove ${source.name}?`, description: "Its indexed chunks will no longer be retrieved.", confirmLabel: "Remove", variant: "destructive" })) return;
     setBusy(`source:${source.id}`);
     try {
       await deleteAgentKnowledgeSource(source.id, agentId, installationId);
@@ -1124,7 +1127,7 @@ function InstallationKnowledge({ agentId, installationId }: { agentId: string; i
   };
 
   const removeMemory = async (memory: AgentMemory) => {
-    if (busy || !window.confirm("Delete this memory? This is recorded as a deletion request.")) return;
+    if (busy || !await confirm({ title: "Delete memory?", description: "This is recorded as a deletion request.", confirmLabel: "Delete", variant: "destructive" })) return;
     setBusy(`memory:${memory.id}`);
     try {
       await deleteAgentMemory(memory.id, agentId, installationId);
@@ -1294,6 +1297,7 @@ function InstallationIntegrations({ agentId, installationId, personal, agentName
   const [error, setError] = useState<string | null>(null);
   const [websiteChatOpen, setWebsiteChatOpen] = useState(false);
   const [websiteDeployments, setWebsiteDeployments] = useState<AgentWebsiteDeployment[]>([]);
+  const { confirm } = useConfirmationDialog();
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -1395,7 +1399,7 @@ function InstallationIntegrations({ agentId, installationId, personal, agentName
   };
 
   const removeWhatsApp = async (connection: WorkspaceConnection, channel: AgentChannelConnection | undefined) => {
-    if (!channel || busy || !window.confirm(personal ? `Disconnect ${connection.displayName} from KasiAI?` : `Stop routing ${connection.displayName} to this agent?`)) return;
+    if (!channel || busy || !await confirm({ title: personal ? `Disconnect ${connection.displayName}?` : `Stop routing ${connection.displayName}?`, description: personal ? "This disconnects the account from KasiAI." : "This stops routing the account to this agent.", confirmLabel: "Disconnect", variant: "destructive" })) return;
     setBusy(connection.id);
     setError(null);
     try {
@@ -1480,6 +1484,7 @@ function WebsiteChatDeployments({ agentId, installationId, agentName, onClose }:
   const [saving, setSaving] = useState(false);
   const [changingStatus, setChangingStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { confirm } = useConfirmationDialog();
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -1547,7 +1552,7 @@ function WebsiteChatDeployments({ agentId, installationId, agentName, onClose }:
   };
 
   const changeStatus = async (deployment: AgentWebsiteDeployment, status: "ACTIVE" | "PAUSED" | "REVOKED") => {
-    if (changingStatus || (status === "REVOKED" && !window.confirm("Revoke this Website Chat deployment? Existing visitors will no longer be able to start a chat."))) return;
+    if (changingStatus || (status === "REVOKED" && !await confirm({ title: "Revoke Website Chat?", description: "Existing visitors will no longer be able to start a chat.", confirmLabel: "Revoke", variant: "destructive" }))) return;
     setChangingStatus(deployment.id);
     setError(null);
     try {
@@ -1595,6 +1600,7 @@ function InstallationChannels({ installationId, personal }: { installationId: st
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { confirm } = useConfirmationDialog();
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -1648,7 +1654,7 @@ function InstallationChannels({ installationId, personal }: { installationId: st
   };
 
   const disconnect = async (binding: AgentChannelBinding) => {
-    if (busy || !window.confirm(`Disconnect ${binding.external_identity}?`)) return;
+    if (busy || !await confirm({ title: `Disconnect ${binding.external_identity}?`, confirmLabel: "Disconnect", variant: "destructive" })) return;
     setBusy(binding.id);
     try {
       await disconnectKasiAiChannel(binding.id);

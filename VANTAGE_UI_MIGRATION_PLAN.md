@@ -222,6 +222,7 @@ The following rules apply to every shared primitive, page pattern, and route:
   - [x] Table, tabs, scroll area, and skeleton ported from the reference implementation.
 - [ ] Dropdown menus, tooltips, sheets, dialogs, and popovers.
   - [x] Sheet, dialog, and destructive confirmation dialog ported from the reference implementation.
+  - [x] Replaced all `window.confirm()` and `window.prompt()` calls in the client source with the shared confirmation/input-dialog provider.
 - [ ] A single application-wide toast provider and toast API for success, error,
   warning, information, loading, and optional action/undo feedback.
   - [x] Mounted one Vantage-styled Sonner provider at the application root; feature migrations must now replace browser-native feedback with its shared API.
@@ -281,7 +282,7 @@ interactive states have been checked where applicable.
 | Area | Surface group | Status | Evidence / notes |
 | --- | --- | --- | --- |
 | Foundation | tokens and global styles | Implemented | Exact Vantage light/dark tokens, radius scale, shadows, base density, focus, transitions, scrollbars, and Tailwind 4 mappings are in `globals.css`. Lint and Webpack build passed; visual QA follows primitive work. |
-| Foundation | shared UI primitives | In progress | Button, card, input, badge, checkbox, progress, skeleton, table, tabs, scroll area, sheet, dialog, destructive confirmation dialog, and global Sonner toaster are centralized. Reference styles and Radix behavior are used where the reference does. Lint and Webpack build passed; remaining form/overlay primitives, removal of native dialogs, and visual QA are pending. |
+| Foundation | shared UI primitives | In progress | Button, card, input, badge, checkbox, progress, skeleton, table, tabs, scroll area, sheet, dialog, destructive confirmation dialog, and global Sonner toaster are centralized. All native browser confirm/prompt calls have been replaced by the shared provider. Reference styles and Radix behavior are used where the reference does. Lint and Webpack build passed; remaining form/overlay primitives and visual QA are pending. |
 | Shell | sidebar, top bar, mobile drawer, global overlays | In progress | Desktop top bar and command palette now use the reference layout and interactions: route-aware breadcrumbs, Ctrl+K / ⌘K navigation, theme action, notifications route, and account menu. Sidebar and mobile drawer remain to be migrated and visually verified. |
 | Workspace | all workspace routes | Not started | |
 | Customer | inbox, calls, contacts, bookings | Not started | |
@@ -322,6 +323,7 @@ interactive states have been checked where applicable.
 | Desktop top bar | Add breadcrumbs, a functional command/search entry point, notifications, theme control, and account menu. Sidebar retains workspace context and primary navigation. | KasiTek team | Decided |
 | Toasts | Introduce one global Vantage-styled toast provider and shared API. Use it for concise transient feedback across auth and dashboard surfaces; do not use native browser dialogs. | KasiTek team | Decided |
 | Toast theme bridge | Read the existing `data-theme` attribute instead of adding a second theme provider. This preserves the current no-flash theme contract while rendering the reference Sonner styles exactly. | KasiTek team | Decided |
+| Confirmation bridge | Use one application confirmation/input-dialog provider backed by the Vantage dialog primitives. It replaces native browser dialogs without duplicating confirmation logic across routes. | KasiTek team | Decided |
 | Responsive design | Every UI element must have intentional approved desktop, tablet, and mobile behavior and density before it is complete. | KasiTek team | Decided |
 | Cross-cutting UX | Accessibility, data visualization, motion, layering, errors, performance, and visual regression are migration contracts, not later polish. | KasiTek team | Decided |
 | Design review | Every migrated surface must be reassessed around the user's primary task, hierarchy, disclosure, actions, responsive behavior, shared patterns, and non-happy-path states. | KasiTek team | Decided |
@@ -342,3 +344,4 @@ interactive states have been checked where applicable.
 | 2026-08-21 | Ported the exact Vantage token foundation to Tailwind 4 while retaining Geist; lint and Webpack build passed. |
 | 2026-08-21 | Ported the first shared primitive wave and installed the global Vantage-styled toast, dialog, and destructive confirmation foundations; lint and Webpack build passed. |
 | 2026-08-21 | Added the first shell milestone: functional command palette and desktop Vantage top bar; lint and Webpack build passed. |
+| 2026-08-21 | Replaced every native browser confirmation and prompt in the client with a shared Vantage-styled confirmation/input-dialog provider; lint and Webpack build passed. |

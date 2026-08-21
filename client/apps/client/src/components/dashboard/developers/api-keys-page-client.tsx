@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import type { CreatedDeveloperApiKey, DeveloperApiKey } from "@/lib/developers";
 import { createDeveloperApiKey, revokeDeveloperApiKey, rotateDeveloperApiKey } from "@/lib/developers";
 import { useDevelopersData } from "./developers-data";
@@ -32,6 +33,7 @@ export function ApiKeysPageClient() {
   const [newCredential, setNewCredential] = useState<CreatedDeveloperApiKey | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const { confirm } = useConfirmationDialog();
   const activeKeys = useMemo(() => keys.filter((key) => key.status === "ACTIVE"), [keys]);
 
   async function createKey() {
@@ -66,7 +68,7 @@ export function ApiKeysPageClient() {
   }
 
   async function revokeKey(key: DeveloperApiKey) {
-    if (busy || !window.confirm(`Revoke ${key.name}? Existing requests using it will stop working.`)) return;
+    if (busy || !await confirm({ title: `Revoke ${key.name}?`, description: "Existing requests using it will stop working.", confirmLabel: "Revoke", variant: "destructive" })) return;
     setBusy(`revoke:${key.id}`);
     setError("");
     try {

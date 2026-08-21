@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Ban, PlayCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { cancelAgentRun, signalAgentRunExternalEvent } from "@/lib/agent-platform";
 
 const terminalStatuses = new Set(["completed", "failed", "cancelled", "expired"]);
@@ -12,11 +13,12 @@ export function AgentRunActions({ runId, status, waitingFor }: { runId: string; 
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { confirm, prompt } = useConfirmationDialog();
 
   if (terminalStatuses.has(status) && !error) return null;
 
   const cancel = async () => {
-    if (busy || !window.confirm("Cancel this run? The durable run will be marked cancelled.")) return;
+    if (busy || !await confirm({ title: "Cancel run?", description: "The durable run will be marked cancelled.", confirmLabel: "Cancel run", variant: "destructive" })) return;
     setBusy(true);
     setError(null);
     try {
@@ -31,9 +33,9 @@ export function AgentRunActions({ runId, status, waitingFor }: { runId: string; 
 
   const signalExternalEvent = async () => {
     if (busy) return;
-    const key = window.prompt(status === "awaiting_human" ? "Handoff resolution key" : "Event key", waitingFor || (status === "awaiting_human" ? "handoff.resolved" : "external.event"));
+    const key = await prompt({ title: status === "awaiting_human" ? "Resolve handoff" : "Send event", label: status === "awaiting_human" ? "Handoff resolution key" : "Event key", defaultValue: waitingFor || (status === "awaiting_human" ? "handoff.resolved" : "external.event"), confirmLabel: "Continue" });
     if (!key?.trim()) return;
-    const payloadText = window.prompt("Event payload JSON", "{}");
+    const payloadText = await prompt({ title: "Event payload", label: "Payload JSON", defaultValue: "{}", confirmLabel: "Send event", multiline: true });
     if (payloadText === null) return;
     let payload: Record<string, unknown>;
     try {

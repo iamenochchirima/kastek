@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -171,6 +172,7 @@ async function waitForRunTerminal(runId: string, signal: AbortSignal): Promise<A
 
 export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boolean; onOpenChange: (open: boolean) => void; leftOffset?: number }) {
   const pathname = usePathname() ?? "";
+  const { confirm, prompt } = useConfirmationDialog();
   const [installation, setInstallation] = useState<AgentInstallation | null>(null);
   const [home, setHome] = useState<KasiAiHome | null>(null);
   const [conversation, setConversation] = useState<AgentConversation | null>(null);
@@ -502,11 +504,11 @@ export function KasiAiChat({ open, onOpenChange, leftOffset = 0 }: { open: boole
   };
   const loadOlder = async () => { if (!conversation || !hasMore || !nextBefore) return; const result = await getPlatformConversation(conversation.id, { limit: 50, before: nextBefore }); setMessages((items) => sorted([...result.messages, ...items.filter((item) => !result.messages.some((older) => older.id === item.id))])); setHasMore(Boolean(result.hasMore)); setNextBefore(result.nextBefore ?? null); };
   const updatePreference = async (change: Parameters<typeof updateKasiAiPreferences>[1]) => { if (!installation) return; try { const response = await updateKasiAiPreferences(installation.id, change); setPreferences(response.preferences); await refreshHome(installation.id); } catch (cause) { setError(formatError(cause, "Unable to save KasiAi settings")); } };
-  const editTitle = async (item: AgentConversation) => { const title = window.prompt("Rename conversation", item.title ?? ""); if (!title?.trim()) return; const updated = await updateKasiAiConversation(item.id, { title: title.trim() }); if (conversation?.id === item.id) setConversation(updated); await refreshHome(installation!.id); };
-  const archiveConversation = async (item: AgentConversation) => { if (!window.confirm(`Archive “${item.title ?? "this conversation"}”?`)) return; await setKasiAiConversationStatus(item.id, "archived"); if (conversation?.id === item.id) newChat(); await refreshHome(installation!.id); };
-  const deleteConversation = async (item: AgentConversation) => { if (!window.confirm(`Delete “${item.title ?? "this conversation"}”? This cannot be undone.`)) return; await setKasiAiConversationStatus(item.id, "deleted"); if (conversation?.id === item.id) newChat(); await refreshHome(installation!.id); };
+  const editTitle = async (item: AgentConversation) => { const title = await prompt({ title: "Rename conversation", label: "Title", defaultValue: item.title ?? "", confirmLabel: "Save" }); if (!title?.trim()) return; const updated = await updateKasiAiConversation(item.id, { title: title.trim() }); if (conversation?.id === item.id) setConversation(updated); await refreshHome(installation!.id); };
+  const archiveConversation = async (item: AgentConversation) => { if (!await confirm({ title: `Archive “${item.title ?? "this conversation"}”?`, confirmLabel: "Archive" })) return; await setKasiAiConversationStatus(item.id, "archived"); if (conversation?.id === item.id) newChat(); await refreshHome(installation!.id); };
+  const deleteConversation = async (item: AgentConversation) => { if (!await confirm({ title: `Delete “${item.title ?? "this conversation"}”?`, description: "This cannot be undone.", confirmLabel: "Delete", variant: "destructive" })) return; await setKasiAiConversationStatus(item.id, "deleted"); if (conversation?.id === item.id) newChat(); await refreshHome(installation!.id); };
   const connectWhatsapp = async () => { if (!selectedWhatsapp) return; try { const response = await issueKasiAiWhatsappPairing(selectedWhatsapp); setPairing({ token: response.pairing.token, expiresAt: response.pairing.expires_at }); } catch (cause) { setError(formatError(cause, "Unable to create pairing code")); } };
-  const disconnect = async (binding: AgentChannelBinding) => { if (!window.confirm(`Disconnect ${channelLabel(binding.channel_type)}? Existing history will remain.`)) return; await disconnectKasiAiChannel(binding.id); await refreshHome(installation!.id); };
+  const disconnect = async (binding: AgentChannelBinding) => { if (!await confirm({ title: `Disconnect ${channelLabel(binding.channel_type)}?`, description: "Existing history will remain.", confirmLabel: "Disconnect", variant: "destructive" })) return; await disconnectKasiAiChannel(binding.id); await refreshHome(installation!.id); };
   const visibleMessages = channelFilter === "all" ? messages : messages.filter((message) => messageChannel(message) === channelFilter);
   const availableChannels = Array.from(new Set(messages.map(messageChannel).filter((channel) => channel !== "platform"))).sort();
   const suggestions = pathname.includes("campaign") ? ["Help me create a campaign", "What should I check before sending?", "Explain this page", "Show my recent campaign activity"] : ["What needs my attention?", "Show me around this page", "Check my connected accounts", "Help me get started"];

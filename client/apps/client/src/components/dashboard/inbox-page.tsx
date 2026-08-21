@@ -49,6 +49,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -649,6 +650,7 @@ export default function InboxPageClient({
   metaConnections: MetaConnections;
 }) {
   const searchParams = useSearchParams();
+  const { confirm } = useConfirmationDialog();
   const [liveConversations, setLiveConversations] = useState(conversations);
   const [selectedChannel, setSelectedChannel] = useState<
     "all" | "agents" | "whatsapp" | "email" | "sms" | "instagram" | "facebook"
@@ -2254,7 +2256,7 @@ export default function InboxPageClient({
 
   async function deleteSelectedConversation() {
     if (!selectedConversationId || !selectedConversation) return;
-    if (!window.confirm(`Delete the conversation with ${selectedConversation.name}?`)) return;
+    if (!await confirm({ title: `Delete conversation with ${selectedConversation.name}?`, confirmLabel: "Delete", variant: "destructive" })) return;
 
     const deletedConversationId = selectedConversationId;
     const response = await fetch(apiUrl(`/api/whatsapp/inbox/${deletedConversationId}`), {

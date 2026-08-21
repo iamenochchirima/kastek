@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { createAgentKillSwitch, disableAgentKillSwitch, type AgentKillSwitch } from "@/lib/agent-platform";
 
 export function AgentKillSwitchControls({ initial }: { initial: AgentKillSwitch[] }) {
@@ -13,6 +14,7 @@ export function AgentKillSwitchControls({ initial }: { initial: AgentKillSwitch[
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { confirm } = useConfirmationDialog();
 
   const create = async () => {
     if (busy || !scopeId.trim() || !reason.trim()) return;
@@ -28,7 +30,7 @@ export function AgentKillSwitchControls({ initial }: { initial: AgentKillSwitch[
   };
 
   const disable = async (entry: AgentKillSwitch) => {
-    if (busy || !window.confirm(`Disable the ${entry.scope_type} kill switch?`)) return;
+    if (busy || !await confirm({ title: `Disable ${entry.scope_type} kill switch?`, confirmLabel: "Disable", variant: "destructive" })) return;
     setBusy(true); setError(null);
     try {
       await disableAgentKillSwitch(entry.id);
