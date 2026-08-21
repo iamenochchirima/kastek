@@ -1,6 +1,8 @@
 "use client";
 
 import type { Org } from "@/lib/orgs";
+import type { BillingSummary, AvailablePlan } from "@/lib/billing";
+import type { DevelopersBootstrap } from "@/lib/developers";
 import { apiUrl } from "@/lib/server-api";
 import { cn } from "@/lib/utils";
 import { Bell, CreditCard, KeyRound, Palette, SlidersHorizontal } from "lucide-react";
@@ -10,27 +12,40 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { AppearancePanel } from "@/components/dashboard/settings/appearance-panel";
+import { WorkspaceNotificationsPanel } from "@/components/dashboard/settings/workspace-notifications-panel";
+import { ApiKeysPageClient } from "@/components/dashboard/developers/api-keys-page-client";
+import { BillingPanel } from "@/components/dashboard/billing/billing-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { VANTAGE_EXPO, VANTAGE_MOTION, VANTAGE_SELECTION_SPRING } from "@/lib/motion";
 import { useAppearance } from "@/lib/appearance";
 
-type LocalSettingsTab = "general" | "appearance";
+export type LocalSettingsTab = "general" | "appearance" | "notifications" | "api-keys" | "billing";
 
 const SETTINGS_LINKS = [
-  { label: "Notifications", href: "/workspace/notifications", icon: Bell },
-  { label: "API Keys", href: "/developers/api-keys", icon: KeyRound },
-  { label: "Billing", href: "/billing", icon: CreditCard },
+  { id: "general", label: "General", icon: SlidersHorizontal },
+  { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "api-keys", label: "API Keys", icon: KeyRound },
+  { id: "billing", label: "Billing", icon: CreditCard },
 ] as const;
 
 export function WorkspaceSettingsClient({
   org,
   canManage,
   initialTab,
+  developers,
+  billingSummary,
+  billingPlans,
+  billingQuery,
 }: {
   org: Org;
   canManage: boolean;
   initialTab: LocalSettingsTab;
+  developers: DevelopersBootstrap;
+  billingSummary: BillingSummary | null;
+  billingPlans: { plans: AvailablePlan[] };
+  billingQuery: { payment?: string; reference?: string; trxref?: string };
 }) {
   const router = useRouter();
   const appearance = useAppearance();
@@ -39,6 +54,12 @@ export function WorkspaceSettingsClient({
   const [logo, setLogo] = useState(org.logo || "");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+
+  function selectTab(nextTab: LocalSettingsTab) {
+    setTab(nextTab);
+    const query = nextTab === "general" ? "" : `?section=${nextTab}`;
+    router.push(`/workspace/settings${query}`, { scroll: false });
+  }
 
   useEffect(() => {
     setTab(initialTab);
@@ -76,28 +97,28 @@ export function WorkspaceSettingsClient({
 
         <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-start">
           <nav aria-label="Settings sections" className="-mx-4 flex shrink-0 gap-1 overflow-x-auto px-4 pb-1 md:mx-0 md:w-[200px] md:flex-col md:overflow-visible md:px-0 md:pb-0">
-            <Link href="/workspace/settings" aria-current={tab === "general" ? "page" : undefined} className={cn("relative flex h-10 shrink-0 items-center gap-2.5 whitespace-nowrap rounded-md px-3 text-[13px] font-medium transition-colors", tab === "general" ? "text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground")}>
-              {tab === "general" ? <motion.span layoutId="settings-tab-active" transition={VANTAGE_SELECTION_SPRING} className="absolute inset-0 rounded-md bg-primary/10" /> : null}
-              <SlidersHorizontal className="relative z-10" size={16} />
-              <span className="relative z-10">General</span>
-            </Link>
-            <Link href="/workspace/settings?section=appearance" aria-current={tab === "appearance" ? "page" : undefined} className={cn("relative flex h-10 shrink-0 items-center gap-2.5 whitespace-nowrap rounded-md px-3 text-[13px] font-medium transition-colors", tab === "appearance" ? "text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground")}>
-              {tab === "appearance" ? <motion.span layoutId="settings-tab-active" transition={VANTAGE_SELECTION_SPRING} className="absolute inset-0 rounded-md bg-primary/10" /> : null}
-              <Palette className="relative z-10" size={16} />
-              <span className="relative z-10">Appearance</span>
-            </Link>
-            {SETTINGS_LINKS.map(({ label, href, icon: Icon }) => (
-              <Link key={href} href={href} className="flex h-10 shrink-0 items-center gap-2.5 whitespace-nowrap rounded-md px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
-                <Icon size={16} />
-                <span>{label}</span>
-              </Link>
-            ))}
+            {SETTINGS_LINKS.map(({ id, label, icon: Icon }) => {
+              const active = tab === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => selectTab(id)}
+                  aria-current={active ? "page" : undefined}
+                  className={cn("relative flex h-10 shrink-0 items-center gap-2.5 whitespace-nowrap rounded-md px-3 text-left text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", active ? "text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground")}
+                >
+                  {active ? <motion.span layoutId="settings-tab-active" transition={VANTAGE_SELECTION_SPRING} className="absolute inset-0 rounded-md bg-primary/10" /> : null}
+                  <Icon className="relative z-10" size={16} />
+                  <span className="relative z-10">{label}</span>
+                </button>
+              );
+            })}
           </nav>
 
           <div className="min-w-0 w-full max-w-[760px] flex-1">
             <AnimatePresence initial={false} mode="wait">
             <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: VANTAGE_MOTION.shell / 1000, ease: VANTAGE_EXPO }}>
-            {tab === "appearance" ? <AppearancePanel /> : (
+            {tab === "appearance" ? <AppearancePanel /> : tab === "notifications" ? <WorkspaceNotificationsPanel /> : tab === "api-keys" ? <ApiKeysPageClient embedded initial={developers} /> : tab === "billing" ? <BillingPanel embedded summary={billingSummary} planResponse={billingPlans} query={billingQuery} /> : (
               <div className="flex flex-col gap-5">
                 <section className="v-settings-card rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
                   <h2 className="text-base font-semibold text-foreground">Business identity</h2>

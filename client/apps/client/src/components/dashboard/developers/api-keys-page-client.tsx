@@ -9,9 +9,9 @@ import { Input } from "@/components/ui/input";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { MotionReveal } from "@/components/ui/motion-reveal";
-import type { CreatedDeveloperApiKey, DeveloperApiKey } from "@/lib/developers";
+import type { CreatedDeveloperApiKey, DeveloperApiKey, DevelopersBootstrap } from "@/lib/developers";
 import { createDeveloperApiKey, revokeDeveloperApiKey, rotateDeveloperApiKey } from "@/lib/developers";
-import { useDevelopersData } from "./developers-data";
+import { DevelopersDataProvider, useDevelopersData } from "./developers-data";
 
 function copy(value: string) {
   void navigator.clipboard?.writeText(value);
@@ -28,7 +28,7 @@ function statusLabel(status: string) {
   return "Revoked";
 }
 
-export function ApiKeysPageClient() {
+function ApiKeysPageContent({ embedded }: { embedded: boolean }) {
   const { apiKeys: initialKeys, config } = useDevelopersData();
   const [keys, setKeys] = useState(initialKeys);
   const [keyName, setKeyName] = useState("");
@@ -87,9 +87,9 @@ export function ApiKeysPageClient() {
   -H "Authorization: Bearer <developer-api-key>"`;
 
   return (
-    <div className="min-h-[100dvh] p-4 sm:p-6">
-      <div className="mx-auto max-w-[1440px] space-y-6">
-        <PageHeader><PageHeaderContent><PageHeaderTitle>API keys</PageHeaderTitle><PageHeaderDescription>Workspace API credentials.</PageHeaderDescription></PageHeaderContent></PageHeader>
+    <div className={embedded ? "space-y-5" : "min-h-[100dvh] p-4 sm:p-6"}>
+      <div className={embedded ? "space-y-5" : "mx-auto max-w-[1440px] space-y-6"}>
+        {!embedded ? <PageHeader><PageHeaderContent><PageHeaderTitle>API keys</PageHeaderTitle><PageHeaderDescription>Workspace API credentials.</PageHeaderDescription></PageHeaderContent></PageHeader> : null}
 
         {error ? <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p> : null}
 
@@ -162,4 +162,21 @@ export function ApiKeysPageClient() {
       </div>
     </div>
   );
+}
+
+export function ApiKeysPageClient({
+  embedded = false,
+  initial,
+}: {
+  embedded?: boolean;
+  initial?: DevelopersBootstrap;
+} = {}) {
+  if (initial) {
+    return (
+      <DevelopersDataProvider value={initial}>
+        <ApiKeysPageContent embedded={embedded} />
+      </DevelopersDataProvider>
+    );
+  }
+  return <ApiKeysPageContent embedded={embedded} />;
 }

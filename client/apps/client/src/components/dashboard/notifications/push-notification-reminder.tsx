@@ -70,7 +70,7 @@ export default function PushNotificationReminder() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button asChild><Link href="/workspace/notifications">Enable</Link></Button>
+          <Button asChild><Link href="/workspace/settings?section=notifications">Enable</Link></Button>
           <Button
             type="button"
             variant="outline"

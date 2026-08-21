@@ -54,6 +54,7 @@ import {
   WhatsappRealtimeProvider,
 } from "@/components/dashboard/whatsapp-realtime-provider";
 import PushNotificationReminder from "@/components/dashboard/notifications/push-notification-reminder";
+import { NotificationPopover } from "@/components/dashboard/notifications/notification-popover";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import type { BillingSummary, CapabilityKey } from "@/lib/billing";
 import type { Org } from "@/lib/orgs";
@@ -234,9 +235,7 @@ function DesktopTopbar({
       </div>
 
       <div className="flex items-center gap-2">
-        <Link href="/workspace/notifications" aria-label="Notifications" className="relative grid size-9 place-items-center rounded-md border border-line bg-surface text-ink-2 transition-colors duration-150 hover:bg-surface-2 hover:text-ink-1">
-          <Bell className="size-4" />
-        </Link>
+        <NotificationPopover />
         <ThemeToggleSimple iconOnly className="size-9 px-0" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -309,13 +308,7 @@ function MobileTopbar({
       <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={onOpenCommand} aria-label="Search">
         <Search className="h-4 w-4" />
       </Button>
-      <Link
-        href="/workspace/notifications"
-        aria-label="Notifications"
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-      >
-        <Bell className="h-4 w-4" />
-      </Link>
+      <NotificationPopover buttonClassName="border-0 bg-transparent text-muted-foreground hover:bg-secondary hover:text-foreground" />
       <ThemeToggleSimple iconOnly className="h-9 w-9 shrink-0 px-0" />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -564,14 +557,14 @@ function SidebarContent({
         </DropdownMenu>
 
         <Link
-          href="/workspace/notifications"
+          href="/workspace/settings?section=notifications"
           onClick={onNavigate}
-          aria-current={pathname === "/workspace/notifications" ? "page" : undefined}
+          aria-current={pathname === "/workspace/settings" ? "page" : undefined}
           aria-label={collapsed ? "Notifications" : undefined}
           title={collapsed ? "Notifications" : undefined}
           className={cn(
             "flex min-h-9 items-center rounded-md text-[13px] font-normal leading-5 no-underline transition-colors hover:bg-secondary hover:text-foreground",
-            pathname === "/workspace/notifications" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground",
+            pathname === "/workspace/settings" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground",
             collapsed ? "justify-center px-2 py-2" : "gap-2 px-2.5 py-2",
           )}
         >

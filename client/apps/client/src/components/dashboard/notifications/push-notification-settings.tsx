@@ -10,7 +10,7 @@ import {
   urlBase64ToUint8Array,
 } from "@/components/dashboard/notifications/push-notification-client";
 
-export default function PushNotificationSettings() {
+export default function PushNotificationSettings({ embedded = false }: { embedded?: boolean }) {
   const support = useMemo(() => getLocalPushSupport(), []);
   const [status, setStatus] = useState<PushStatusResponse | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -175,16 +175,15 @@ export default function PushNotificationSettings() {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-xl border border-border bg-card p-5">
+    <div className={embedded ? "space-y-3" : "space-y-6"}>
+      <section className={embedded ? "rounded-lg border border-border bg-secondary/20 p-4" : "rounded-xl border border-border bg-card p-5"}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl space-y-2">
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            <h2 className={embedded ? "text-sm font-semibold text-foreground" : "text-2xl font-semibold tracking-tight text-foreground"}>
               Mobile notifications
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Enable web push so new WhatsApp inbox messages can appear as normal mobile
-              notifications on supported devices.
+            </h2>
+            <p className="text-xs leading-5 text-muted-foreground">
+              {embedded ? "Web push for new inbox messages." : "Enable web push so new WhatsApp inbox messages can appear as normal mobile notifications on supported devices."}
             </p>
           </div>
           <div className="rounded-full border border-border bg-secondary/50 px-3 py-1 text-xs font-medium text-muted-foreground">
@@ -219,13 +218,13 @@ export default function PushNotificationSettings() {
         {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
       </section>
 
-      <section className="rounded-xl border border-border bg-card p-5">
+      {!embedded ? <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="text-lg font-semibold text-foreground">What to expect</h2>
         <div className="mt-3 space-y-2 text-sm text-muted-foreground">
           <p>Android: enable notifications and you are done.</p>
           <p>iPhone/iPad: install the app first, then enable notifications.</p>
         </div>
-      </section>
+      </section> : null}
     </div>
   );
 }

@@ -89,7 +89,7 @@ switches listed in scope.
 | Root application | Resolve preferences once at `<html>` before hydration, then update the same root state at runtime. | Decided |
 | Token consumption | Pages and primitives consume semantic tokens only; they must not branch on theme, accent, or density themselves. | Decided |
 | Settings route | Retain `/workspace/settings` and its real General behavior; replace its layout with the Vantage Settings composition. | Decided |
-| Existing settings panels | Keep Notifications, API Keys, and Billing on their existing functional routes for this wave; expose them from the Vantage Settings navigation until their panels are migrated deliberately. | Decided |
+| Existing settings panels | Keep the real Notifications, API Keys, and Billing behavior, but render those panels in the `/workspace/settings` tab composition. Legacy routes remain available for compatibility. | Decided |
 | Future customizations | Add a customisation only through a typed preference, root application rule, semantic-token contract, Settings control, and verification case. | Decided |
 | Glass sidebar | Defer until after this plan. It is a KasiTek-specific extension, not a Vantage behavior. | Deferred |
 | Reference implementation | Vantage is the canonical source for responsive measurements, breakpoints, motion timing, easing, and interaction patterns. Copy its implementation pattern first; document a KasiTek adaptation before diverging. | Decided |
@@ -169,6 +169,12 @@ soft. Its rendered values must match the Vantage presets.
   and persists automatically.
 - [x] Decide and record how existing real Notifications, API Keys, and Billing
   surfaces enter the Settings composition before implementing those sections.
+- [x] Render Notifications, API Keys, and Billing in-place under the Settings
+  tabs while preserving their existing server actions and permission checks.
+- [x] Add a Vantage-style notification category panel with persisted channel
+  toggles, plus the existing real push and desktop inbox controls.
+- [x] Replace the shell notification links with a live, responsive recent-event
+  popover backed by the WhatsApp realtime feed and unread count.
 - [x] Keep settings navigation accessible: semantic navigation, active state,
   keyboard operation, focus-visible treatment, and intentional mobile scroll
   behavior.
@@ -429,6 +435,13 @@ all implementation and verification items above are complete:
 - KasiAi settings now use a horizontal navigation rail below 480px and stack
   WhatsApp pairing controls on phone widths; desktop retains the Vantage side
   rail. The selected settings section exposes semantic active state.
+- Workspace Settings now keeps General, Appearance, Notifications, API Keys,
+  and Billing in one tab composition. Notifications use a Vantage-style
+  category/channel panel backed by browser-local personal preferences while
+  retaining the real push and desktop inbox controls; API-key and billing tabs
+  reuse their existing server actions. The top-bar bell is a responsive live
+  popover backed by the WhatsApp realtime feed and unread count. The legacy
+  routes remain available for direct links and compatibility.
 - The main KasiAi conversation rail is now desktop-only on phones; mobile uses
   a header-triggered overlay drawer with backdrop/Escape dismissal and focus
   return, keeping the message composer and chat content full width.
