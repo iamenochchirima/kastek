@@ -366,7 +366,7 @@ function NavigationSection({
         <button
           type="button"
           onClick={() => setIsOpen((open) => !open)}
-          className="flex w-full items-center justify-between px-2.5 pb-1 pt-2.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
+          className="flex w-full items-center justify-between px-2.5 pb-1.5 pt-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/70 transition-colors hover:text-sidebar-foreground"
           aria-expanded={isOpen}
           aria-controls={`sidebar-section-${group.label.toLowerCase()}`}
         >
