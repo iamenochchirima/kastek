@@ -5,6 +5,12 @@ import { SubscriptionActionButton } from "@/components/dashboard/billing/subscri
 import { fetchBillingPlans, fetchBillingSummary, type ProductAccess } from "@/lib/billing";
 import { getRustSession } from "@/lib/rust-auth";
 import { redirect } from "next/navigation";
+import {
+  PageHeader,
+  PageHeaderContent,
+  PageHeaderDescription,
+  PageHeaderTitle,
+} from "@/components/ui/page-header";
 
 export const metadata = {
   title: "Billing and Usage | KasiTek",
@@ -45,14 +51,14 @@ export default async function BillingPage({
   ]);
 
   return (
-    <div className="min-h-screen p-6 lg:p-8">
-      <div className="mx-auto max-w-[1200px] space-y-8">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Billing and usage</h1>
-          <p className="mt-2 max-w-2xl text-muted-foreground">
-            Review your workspace plan, included features, usage limits, and payment history.
-          </p>
-        </div>
+    <div className="min-h-screen p-4 sm:p-6">
+      <div className="mx-auto max-w-[1440px] space-y-6">
+        <PageHeader>
+          <PageHeaderContent>
+            <PageHeaderTitle>Billing and usage</PageHeaderTitle>
+            <PageHeaderDescription>Plan, usage, and payments.</PageHeaderDescription>
+          </PageHeaderContent>
+        </PageHeader>
 
         {query.payment === "complete" && (query.reference || query.trxref) ? (
           <PaymentReturnStatus reference={query.reference || query.trxref || ""} />
