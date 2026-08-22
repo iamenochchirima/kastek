@@ -36,6 +36,30 @@
       "privacy_class": "aggregate"
     },
     {
+      "identity": "agent.tool_invocation.lifecycle@1",
+      "schema": "events/agent/tool_invocation_lifecycle/v1.schema.json",
+      "examples": ["examples/agent/tool_invocation_lifecycle.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.approval.lifecycle@1",
+      "schema": "events/agent/approval_lifecycle/v1.schema.json",
+      "examples": ["examples/agent/approval_lifecycle.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.effect.lifecycle@1",
+      "schema": "events/agent/effect_lifecycle/v1.schema.json",
+      "examples": ["examples/agent/effect_lifecycle.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
       "identity": "agent.handoff.lifecycle@1",
       "schema": "events/agent/handoff_lifecycle/v1.schema.json",
       "examples": ["examples/agent/handoff_lifecycle.json"],

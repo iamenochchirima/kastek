@@ -5,6 +5,7 @@ import { RunRepository } from "../src/db/repositories/run-repository";
 import { RunStepRepository } from "../src/db/repositories/run-step-repository";
 import { WorkflowStateRepository } from "../src/db/repositories/workflow-state-repository";
 import { ModelCallRepository } from "../src/db/repositories/model-call-repository";
+import { ToolInvocationRepository } from "../src/db/repositories/tool-invocation-repository";
 import { ApprovalRepository } from "../src/db/repositories/approval-repository";
 import { EffectReceiptRepository } from "../src/db/repositories/effect-receipt-repository";
 import { KillSwitchRepository } from "../src/db/repositories/kill-switch-repository";
@@ -20,6 +21,7 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
   const steps = new RunStepRepository(pool);
   const workflowState = new WorkflowStateRepository(pool);
   const modelCalls = new ModelCallRepository(pool);
+  const toolInvocations = new ToolInvocationRepository(pool);
   const approvals = new ApprovalRepository(pool);
   const effectReceipts = new EffectReceiptRepository(pool);
   const killSwitches = new KillSwitchRepository(pool);
@@ -167,6 +169,41 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
     expect(JSON.stringify(modelAnalytics.rows)).not.toContain("credential-should-not-be-exported");
     expect(JSON.stringify(modelAnalytics.rows)).not.toContain("private response");
     expect(JSON.stringify(modelAnalytics.rows)).not.toContain("private provider detail");
+    const toolCallId = `analytics-tool-${randomUUID()}`;
+    await toolInvocations.recordProposal({
+      organizationId,
+      runId: completedAnalyticsRun.id,
+      providerToolCallId: toolCallId,
+      sequenceNumber: 1,
+      toolName: "analytics.read",
+      toolVersion: "1.0.0",
+      riskClass: "read",
+      argumentsHash: "a".repeat(64),
+      arguments: { private: "arguments must stay operational-only" },
+      requiresApproval: false,
+    });
+    await toolInvocations.recordCompleted({
+      runId: completedAnalyticsRun.id,
+      providerToolCallId: toolCallId,
+      output: { private: "tool output must stay operational-only" },
+      latencyMs: 45,
+    });
+    const toolAnalytics = await pool.query<{ type: string; data: Record<string, unknown> }>(
+      `SELECT envelope->>'type' AS type, envelope->'data' AS data
+       FROM analytics_outbox
+       WHERE envelope->'data'->>'run_id' = $1
+         AND envelope->>'type' = 'agent.tool_invocation.lifecycle@1'
+       ORDER BY envelope->'data'->>'occurred_at'`,
+      [completedAnalyticsRun.id],
+    );
+    expect(toolAnalytics.rows.map((row) => row.data.action)).toEqual(["proposed", "completed"]);
+    expect(toolAnalytics.rows[1]?.data).toMatchObject({
+      tool_name: "analytics.read",
+      status: "completed",
+      latency_ms: 45,
+    });
+    expect(JSON.stringify(toolAnalytics.rows)).not.toContain("arguments must stay operational-only");
+    expect(JSON.stringify(toolAnalytics.rows)).not.toContain("tool output must stay operational-only");
     await pool.query("INSERT INTO model_calls (organization_id, run_id, provider, model, funding_source, total_tokens, estimated_cost_usd, status) VALUES ($1, $2, 'openai', 'test', 'kasitek', 10, 0.25, 'completed')", [organizationId, runId]);
     await expect(modelCalls.assertRunBudget({ organizationId, runId, maxRequests: 1 })).rejects.toThrow("REQUEST_BUDGET");
     const decisionCallId = "idempotent-decision-call";
@@ -358,6 +395,20 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
       reconciliation_required: false,
       provider_receipt: { providerReceiptId: "provider-success-1" },
     });
+    const lifecycleFacts = await pool.query<{ type: string; action: string; data: Record<string, unknown> }>(
+      `SELECT envelope->>'type' AS type, envelope->'data'->>'action' AS action, envelope->'data' AS data
+       FROM analytics_outbox
+       WHERE envelope->'data'->>'run_id' = $1
+         AND envelope->>'type' IN ('agent.approval.lifecycle@1', 'agent.effect.lifecycle@1')
+       ORDER BY envelope->'data'->>'occurred_at'`,
+      [runId],
+    );
+    const approvalActions = lifecycleFacts.rows.filter((row) => row.type === "agent.approval.lifecycle@1").map((row) => row.action);
+    expect(approvalActions).toEqual(expect.arrayContaining(["requested", "approved", "consumed", "expired", "denied"]));
+    const effectActions = lifecycleFacts.rows.filter((row) => row.type === "agent.effect.lifecycle@1").map((row) => row.action);
+    expect(effectActions).toEqual(expect.arrayContaining(["reserved", "executing", "unknown", "reconciled", "succeeded", "failed"]));
+    expect(JSON.stringify(lifecycleFacts.rows)).not.toContain("provider-success-1");
+    expect(JSON.stringify(lifecycleFacts.rows)).not.toContain("PROVIDER_OUTCOME_UNKNOWN");
   });
 
   it("re-authorizes approved external effects and records post-start failures as unknown", async () => {

@@ -202,7 +202,7 @@ executables before running the recovery scripts.
 
 ## Agent runtime collection
 
-A-13 slices 1–2 connect Agent Platform terminal run and model-call mutations to the existing transactional outbox.
+A-13 slices 1–3 connect Agent Platform terminal run, model-call, tool, approval, and effect mutations to the existing transactional outbox.
 Completed and failed runs publish the registered `agent.run.completed@1` and `agent.run.failed@1`
 contracts in the same transaction as the run and attempt state change. Facts include stable agent
 references, organization scope, trigger, execution mode, creation profile, audience, deployment
@@ -214,6 +214,12 @@ Completed and failed model calls publish `agent.model_call.completed@1` and
 provider, model, funding source, token counts, estimated cost, latency, finish reason, and bounded
 failure class; credentials, prompts, responses, and raw error messages remain operational-only.
 
+Tool invocation, approval, and external-effect lifecycle facts use separate versioned contracts.
+They include safe agent, run, capability, action, status, risk, reconciliation, and bounded failure
+references. Tool arguments, outputs, approval resource snapshots, provider receipts, and raw errors
+remain operational-only. Lifecycle facts are written in the same transaction as their authoritative
+repository mutation, including the atomic approval-consumption/effect-start boundary.
+
 The common path applies to personal, customer-service, system-hosted, hosted, and
 external-connected runs. Customer handoff is a separate conditional lifecycle contract and is
 not inferred for ordinary Agents. Tool, approval/effect, schedule, readiness, and conditional
@@ -224,6 +230,6 @@ conversation facts remain separate A-13 slices.
 A-01 through A-12 provide the service, dedicated storage, registries, scope authorization, immutable
 facts, source controls, quarantine, authenticated ingestion, source cursors, reconciliation
 summaries, projection metadata, reporting, caching, and the audited rollout boundary. A-13 has
-started with transactional Agent terminal run and model-call facts; the remaining M1 slices, complete
+started with transactional Agent terminal run, model-call, tool, approval, and effect facts; the remaining M1 slices, complete
 mutation-to-reporting E2E, rollout control-management UI, source publisher clients, and customer
 dashboards belong to later execution packages.

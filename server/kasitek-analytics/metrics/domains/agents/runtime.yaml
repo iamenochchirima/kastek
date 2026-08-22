@@ -230,3 +230,102 @@ definitions:
     effective_from: "2026-08-22T00:00:00Z"
     applicability: pricing is available for the selected provider and model
     dependencies: []
+
+  - key: agent.tools.lifecycle_events
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Tool invocation lifecycle facts emitted by Agent Platform.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.tool_invocation.lifecycle@1
+    formula: count(agent.tool_invocation.lifecycle@1)
+    eligible_population: persisted tool invocation lifecycle facts
+    exclusions: []
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, tool_name, tool_risk_class, lifecycle_action, status, failure_class]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.tool_invocation.lifecycle@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: an Agent invocation reaches a persisted proposal or terminal outcome
+    dependencies: []
+
+  - key: agent.approvals.lifecycle_events
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Approval lifecycle facts for Agent actions.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.approval.lifecycle@1
+    formula: count(agent.approval.lifecycle@1)
+    eligible_population: persisted Agent approval lifecycle facts
+    exclusions: []
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, capability, lifecycle_action, status, approval_actor_type]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.approval.lifecycle@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: an Agent action requires or records an approval decision
+    dependencies: []
+
+  - key: agent.effects.lifecycle_events
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: External-effect reservation, execution, outcome, and reconciliation facts.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.effect.lifecycle@1
+    formula: count(agent.effect.lifecycle@1)
+    eligible_population: persisted external-effect lifecycle facts
+    exclusions: []
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, capability, lifecycle_action, status, failure_class, effect_reconciliation]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.effect.lifecycle@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: an external effect is reserved, executed, completed, failed, or reconciled
+    dependencies: []

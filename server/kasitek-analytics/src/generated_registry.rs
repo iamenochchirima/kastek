@@ -2,14 +2,17 @@
 
 pub const REGISTRY_VERSION: &str = "20260822.1";
 pub const REGISTRY_SHA256: &str =
-    "c41ac713a1f341421471f176aac2ca5e5a6f23301f3e8126231899cfdf3ee060";
+    "2e7d5d2da5f112a3ea7410e412a9614072ea331731f56b027e5e8d4358636b27";
 
 pub const CONTRACT_KEYS: &[&str] = &[
+    "agent.approval.lifecycle@1",
+    "agent.effect.lifecycle@1",
     "agent.handoff.lifecycle@1",
     "agent.model_call.completed@1",
     "agent.model_call.failed@1",
     "agent.run.completed@1",
     "agent.run.failed@1",
+    "agent.tool_invocation.lifecycle@1",
     "campaign.recipient.delivered@1",
     "campaign.recipient.sent@1",
     "conversation.message.received@1",
@@ -17,13 +20,16 @@ pub const CONTRACT_KEYS: &[&str] = &[
 ];
 
 pub const METRIC_KEYS: &[&str] = &[
+    "agent.approvals.lifecycle_events@1",
     "agent.cost.usd@1",
+    "agent.effects.lifecycle_events@1",
     "agent.model_calls.completed@1",
     "agent.model_calls.failed@1",
     "agent.runs.completed@1",
     "agent.runs.failed@1",
     "agent.tokens.input@1",
     "agent.tokens.output@1",
+    "agent.tools.lifecycle_events@1",
     "campaign.delivery_rate@1",
     "campaign.recipients.delivered@1",
     "campaign.recipients.sent@1",
@@ -35,29 +41,38 @@ pub const DIMENSION_KEYS: &[&str] = &[
     "agent_definition",
     "agent_installation",
     "agent_version",
+    "approval_actor_type",
     "campaign",
+    "capability",
     "channel",
     "conversation_channel",
+    "effect_reconciliation",
     "failure_class",
     "funding_source",
+    "lifecycle_action",
     "model",
     "model_provider",
     "outcome",
     "provider",
     "responder_type",
     "status",
+    "tool_name",
+    "tool_risk_class",
 ];
 
 pub const METRIC_SET_KEYS: &[&str] = &["agent.performance@1", "overview.summary@1"];
 
 pub mod metric_keys {
+    pub const AGENT_APPROVALS_LIFECYCLE_EVENTS_1: &str = "agent.approvals.lifecycle_events@1";
     pub const AGENT_COST_USD_1: &str = "agent.cost.usd@1";
+    pub const AGENT_EFFECTS_LIFECYCLE_EVENTS_1: &str = "agent.effects.lifecycle_events@1";
     pub const AGENT_MODEL_CALLS_COMPLETED_1: &str = "agent.model_calls.completed@1";
     pub const AGENT_MODEL_CALLS_FAILED_1: &str = "agent.model_calls.failed@1";
     pub const AGENT_RUNS_COMPLETED_1: &str = "agent.runs.completed@1";
     pub const AGENT_RUNS_FAILED_1: &str = "agent.runs.failed@1";
     pub const AGENT_TOKENS_INPUT_1: &str = "agent.tokens.input@1";
     pub const AGENT_TOKENS_OUTPUT_1: &str = "agent.tokens.output@1";
+    pub const AGENT_TOOLS_LIFECYCLE_EVENTS_1: &str = "agent.tools.lifecycle_events@1";
     pub const CAMPAIGN_DELIVERY_RATE_1: &str = "campaign.delivery_rate@1";
     pub const CAMPAIGN_RECIPIENTS_DELIVERED_1: &str = "campaign.recipients.delivered@1";
     pub const CAMPAIGN_RECIPIENTS_SENT_1: &str = "campaign.recipients.sent@1";

@@ -2,10 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import {
   AnalyticsIngestionClient,
   AnalyticsProducerValidationError,
+  buildApprovalLifecycleEvent,
   buildCompletedAgentRunEvent,
   buildCompletedModelCallEvent,
+  buildEffectLifecycleEvent,
   buildFailedAgentRunEvent,
   buildFailedModelCallEvent,
+  buildToolInvocationLifecycleEvent,
   buildEvent,
   buildObservation,
   buildScopeDefinition,
@@ -171,6 +174,75 @@ describe("Agent analytics producer", () => {
       dataschema: "https://kasitek.co.za/analytics/contracts/events/agent/run_completed/v1.schema.json",
     });
     expect(record.payloadHash).toBe(canonicalJsonSha256({ a: 1, b: 2 }));
+  });
+
+  it("builds tool, approval, and effect lifecycle facts without operational payloads", () => {
+    const common = {
+      organizationId: "org-1",
+      runId: "run-1",
+      agentDefinitionId: "agent-1",
+      agentVersionId: "version-1",
+      installationId: "installation-1",
+      correlationId: "correlation-1",
+    };
+    const tool = buildToolInvocationLifecycleEvent({
+      ...common,
+      toolInvocationId: "tool-1",
+      providerToolCallId: "provider-call-1",
+      toolName: "content.publish",
+      toolVersion: "1.0.0",
+      riskClass: "external-effect",
+      action: "failed",
+      status: "failed",
+      sequenceNumber: 2,
+      requiresApproval: true,
+      latencyMs: 100,
+      effectId: "effect-1",
+      failureClass: "provider",
+      occurredAt: "2026-08-22T10:00:00.000Z",
+    });
+    expect(tool.envelope.data).toMatchObject({
+      action: "failed",
+      status: "failed",
+      tool_name: "content.publish",
+      risk_class: "external-effect",
+      failure_class: "provider",
+    });
+    expect(JSON.stringify(tool.envelope)).not.toContain("arguments");
+    expect(JSON.stringify(tool.envelope)).not.toContain("output");
+
+    const approval = buildApprovalLifecycleEvent({
+      ...common,
+      approvalId: "approval-1",
+      providerToolCallId: "provider-call-1",
+      capability: "content.publish",
+      capabilityVersion: "1.0.0",
+      action: "approved",
+      status: "approved",
+      actorType: "human",
+      actorRef: "member-1",
+      expiresAt: "2026-08-22T10:30:00.000Z",
+      occurredAt: "2026-08-22T10:01:00.000Z",
+    });
+    expect(approval.envelope.data).toMatchObject({ action: "approved", status: "approved", actor_type: "human" });
+    expect(JSON.stringify(approval.envelope)).not.toContain("resource_snapshot");
+
+    const effect = buildEffectLifecycleEvent({
+      ...common,
+      effectId: "effect-1",
+      providerToolCallId: "provider-call-1",
+      capability: "content.publish",
+      capabilityVersion: "1.0.0",
+      action: "unknown",
+      status: "unknown",
+      reconciliationRequired: true,
+      failureClass: "provider",
+      occurredAt: "2026-08-22T10:02:00.000Z",
+      completedAt: null,
+    });
+    expect(effect.envelope.data).toMatchObject({ action: "unknown", status: "unknown", reconciliation_required: true });
+    expect(JSON.stringify(effect.envelope)).not.toContain("provider_receipt");
+    expect(JSON.stringify(effect.envelope)).not.toContain("PROVIDER_OUTCOME_UNKNOWN");
   });
 
   it("registers the handoff lifecycle contract without carrying transcript content", () => {

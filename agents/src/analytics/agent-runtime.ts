@@ -49,6 +49,57 @@ export interface ModelCallAnalyticsInput {
   correlationId?: string | null;
 }
 
+export interface AgentRuntimeFactInput {
+  organizationId: string;
+  runId: string;
+  agentDefinitionId: string;
+  agentVersionId: string;
+  installationId: string;
+  correlationId?: string | null;
+}
+
+export interface ToolInvocationAnalyticsInput extends AgentRuntimeFactInput {
+  toolInvocationId: string;
+  providerToolCallId: string;
+  toolName: string;
+  toolVersion: string;
+  riskClass: "read" | "draft" | "controlled-write" | "external-effect" | "privileged";
+  action: "proposed" | "completed" | "failed";
+  status: "proposed" | "awaiting_approval" | "approved" | "rejected" | "executing" | "completed" | "failed";
+  sequenceNumber: number;
+  requiresApproval: boolean;
+  latencyMs?: number | null;
+  effectId?: string | null;
+  failureClass?: ReturnType<typeof classifyAgentFailure> | null;
+  occurredAt: Date | string;
+}
+
+export interface ApprovalAnalyticsInput extends AgentRuntimeFactInput {
+  approvalId: string;
+  providerToolCallId: string;
+  capability: string;
+  capabilityVersion: string;
+  action: "requested" | "approved" | "denied" | "cancelled" | "expired" | "consumed";
+  status: "pending" | "approved" | "denied" | "expired" | "consumed" | "cancelled";
+  actorType: "human" | "system";
+  actorRef?: string | null;
+  expiresAt?: Date | string | null;
+  occurredAt: Date | string;
+}
+
+export interface EffectAnalyticsInput extends AgentRuntimeFactInput {
+  effectId: string;
+  providerToolCallId: string;
+  capability: string;
+  capabilityVersion: string;
+  action: "reserved" | "executing" | "succeeded" | "failed" | "unknown" | "reconciled";
+  status: "reserved" | "executing" | "succeeded" | "failed" | "unknown";
+  reconciliationRequired: boolean;
+  failureClass?: ReturnType<typeof classifyAgentFailure> | null;
+  occurredAt: Date | string;
+  completedAt?: Date | string | null;
+}
+
 export function buildCompletedAgentRunEvent(input: CompletedAgentRunInput): AnalyticsOutboxRecord {
   const attributes: JsonObject = {
     run_id: input.runId,
@@ -122,6 +173,108 @@ export function buildFailedModelCallEvent(
   return buildModelCallEvent(input, "agent.model_call.failed@1", "failed", attributes);
 }
 
+export function buildToolInvocationLifecycleEvent(input: ToolInvocationAnalyticsInput): AnalyticsOutboxRecord {
+  const attributes: JsonObject = {
+    tool_invocation_id: input.toolInvocationId,
+    run_id: input.runId,
+    agent_definition_id: input.agentDefinitionId,
+    agent_version_id: input.agentVersionId,
+    installation_id: input.installationId,
+    provider_tool_call_id: input.providerToolCallId,
+    tool_name: input.toolName,
+    tool_version: input.toolVersion,
+    risk_class: input.riskClass,
+    action: input.action,
+    status: input.status,
+    sequence_number: input.sequenceNumber,
+    requires_approval: input.requiresApproval,
+    latency_ms: input.latencyMs ?? null,
+    effect_id: input.effectId ?? null,
+    failure_class: input.failureClass ?? null,
+    occurred_at: timestampAttribute(input.occurredAt),
+  };
+  return buildEvent({
+    recordId: `tool-invocation:${input.toolInvocationId}:${input.action}`,
+    sourceDomain: "agents",
+    sourceStreamKey: `organization:${input.organizationId}:tool-invocations`,
+    contractName: "agent.tool_invocation.lifecycle@1",
+    schemaVersion: 1,
+    scopeKind: "core_organization",
+    scopeExternalId: input.organizationId,
+    subject: `tool-invocation:${input.toolInvocationId}`,
+    occurredAt: input.occurredAt,
+    attributes,
+    correlationId: input.correlationId ?? undefined,
+    idempotencyKey: `agent-platform:tool-invocation:${input.toolInvocationId}:${input.action}`,
+  });
+}
+
+export function buildApprovalLifecycleEvent(input: ApprovalAnalyticsInput): AnalyticsOutboxRecord {
+  const attributes: JsonObject = {
+    approval_id: input.approvalId,
+    run_id: input.runId,
+    agent_definition_id: input.agentDefinitionId,
+    agent_version_id: input.agentVersionId,
+    installation_id: input.installationId,
+    provider_tool_call_id: input.providerToolCallId,
+    capability: input.capability,
+    capability_version: input.capabilityVersion,
+    action: input.action,
+    status: input.status,
+    actor_type: input.actorType,
+    actor_ref: input.actorRef ?? null,
+    expires_at: input.expiresAt == null ? null : timestampAttribute(input.expiresAt),
+    occurred_at: timestampAttribute(input.occurredAt),
+  };
+  return buildEvent({
+    recordId: `approval:${input.approvalId}:${input.action}`,
+    sourceDomain: "agents",
+    sourceStreamKey: `organization:${input.organizationId}:approvals`,
+    contractName: "agent.approval.lifecycle@1",
+    schemaVersion: 1,
+    scopeKind: "core_organization",
+    scopeExternalId: input.organizationId,
+    subject: `approval:${input.approvalId}`,
+    occurredAt: input.occurredAt,
+    attributes,
+    correlationId: input.correlationId ?? undefined,
+    idempotencyKey: `agent-platform:approval:${input.approvalId}:${input.action}`,
+  });
+}
+
+export function buildEffectLifecycleEvent(input: EffectAnalyticsInput): AnalyticsOutboxRecord {
+  const attributes: JsonObject = {
+    effect_id: input.effectId,
+    run_id: input.runId,
+    agent_definition_id: input.agentDefinitionId,
+    agent_version_id: input.agentVersionId,
+    installation_id: input.installationId,
+    provider_tool_call_id: input.providerToolCallId,
+    capability: input.capability,
+    capability_version: input.capabilityVersion,
+    action: input.action,
+    status: input.status,
+    reconciliation_required: input.reconciliationRequired,
+    failure_class: input.failureClass ?? null,
+    occurred_at: timestampAttribute(input.occurredAt),
+    completed_at: input.completedAt == null ? null : timestampAttribute(input.completedAt),
+  };
+  return buildEvent({
+    recordId: `effect:${input.effectId}:${input.action}`,
+    sourceDomain: "agents",
+    sourceStreamKey: `organization:${input.organizationId}:effects`,
+    contractName: "agent.effect.lifecycle@1",
+    schemaVersion: 1,
+    scopeKind: "core_organization",
+    scopeExternalId: input.organizationId,
+    subject: `effect:${input.effectId}`,
+    occurredAt: input.occurredAt,
+    attributes,
+    correlationId: input.correlationId ?? undefined,
+    idempotencyKey: `agent-platform:effect:${input.effectId}:${input.action}`,
+  });
+}
+
 function buildTerminalEvent(
   input: AgentRunTerminalInput,
   contractName: "agent.run.completed@1" | "agent.run.failed@1",
@@ -185,6 +338,10 @@ export function classifyAgentFailure(error: Record<string, unknown>): "validatio
 
 function nonNegativeInteger(value: number | undefined): number {
   return Number.isSafeInteger(value) && value !== undefined && value >= 0 ? value : 0;
+}
+
+function timestampAttribute(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : value;
 }
 
 function deploymentSurface(input: AgentRunTerminalInput): AgentDeploymentSurface {
