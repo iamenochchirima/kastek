@@ -222,7 +222,7 @@ checklist records implementation evidence for the current package only.
   and promotes it only after all generation-tagged work completes.
 - [x] Keep the active checkpoint generation stable while a rebuild is incomplete or failed; new
   work remains retryable and derived rows never become immutable source data.
-- [ ] Add domain-specific typed projection builders, ancestor contribution rollups, timezone
+- [x] Add domain-specific typed projection builders, ancestor contribution rollups, timezone
   calendar buckets, reconciliation-driven repairs, and full parity/coverage validation.
 
 ## Verification evidence
@@ -324,6 +324,16 @@ checklist records implementation evidence for the current package only.
   worker claim, generation promotion, contribution/rollup materialization, and shadow rebuild flow.
 - A-10: `cargo check -p kasitek-analytics` and package formatting passed after the projection worker
   and ingestion transaction changes.
+- A-10: migration `20260822070000_analytics_projection_builder_controls.sql` applied successfully;
+  it adds typed builder/deduplication metadata, repair reasons, and removes the invalid ratio
+  component constraint that prevented numerator-only or denominator-only contributions.
+- A-10: `cargo test -p kasitek-analytics --test projections_postgres -- --nocapture` passed agent
+  ancestor fan-out, timezone-aware buckets, daily rollups, campaign distinct-deduplication, and
+  ratio numerator/denominator contribution coverage.
+- A-10: `cargo test -p kasitek-analytics --test maintenance_postgres -- --nocapture` passed
+  reconciliation mismatch repair-window requeue coverage.
+- A-10: full `cargo test -p kasitek-analytics` (31 unit tests plus ingestion, maintenance, and
+  projection PostgreSQL suites) and strict package Clippy passed.
 
 ## Explicitly deferred
 

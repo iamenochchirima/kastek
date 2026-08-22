@@ -11,7 +11,8 @@ pub const MIGRATION_LOCK_KEY: i64 = 7_482_031_945;
 pub const FOUNDATION_MIGRATION_VERSION: i64 = 20260822000000;
 
 // The embedded migrator is rebuilt whenever the analytics migration set changes, including
-// generation lifecycle, shadow-pointer compatibility, and maintenance orchestration migrations.
+// generation lifecycle, shadow-pointer compatibility, maintenance orchestration, and projection
+// builder control migrations.
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
 pub async fn run(pool: &PgPool) -> Result<(), AnalyticsError> {

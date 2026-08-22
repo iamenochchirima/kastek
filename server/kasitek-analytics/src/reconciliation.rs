@@ -11,6 +11,7 @@ use sqlx::{PgPool, Postgres, Row, Transaction};
 
 use crate::{
     ingestion::{resolve_scope, AuthenticatedProducer, IngestionAuthenticator},
+    projections,
     records::validate_sha256_hex,
 };
 
@@ -295,6 +296,19 @@ pub async fn reconcile_stream(
         .commit()
         .await
         .map_err(|_| ReconciliationError::Unavailable)?;
+    if reconciliation_status == "mismatch" {
+        if let Some(binding) = binding.as_ref() {
+            projections::enqueue_reconciliation_repair(
+                pool,
+                &request.producer_id,
+                &request.source_stream_key,
+                binding.reporting_scope_id,
+                binding.root_scope_id,
+            )
+            .await
+            .map_err(|_| ReconciliationError::Unavailable)?;
+        }
+    }
     Ok(ReconciliationResponse {
         reconciliation_run_id: request.reconciliation_run_id,
         reconciliation_work_id: request.reconciliation_work_id,

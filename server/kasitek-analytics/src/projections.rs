@@ -109,6 +109,100 @@ pub async fn enqueue_fact(
     Ok(())
 }
 
+/// Requeues all durable fact windows for a source stream after reconciliation reports a mismatch.
+/// The repair marker is operational metadata only; immutable facts remain the rebuild input.
+pub async fn enqueue_reconciliation_repair(
+    pool: &PgPool,
+    producer_id: &str,
+    source_stream_key: &str,
+    reporting_scope_id: i64,
+    root_scope_id: i64,
+) -> Result<u64, sqlx::Error> {
+    let mut transaction = pool.begin().await?;
+    let windows = sqlx::query(
+        r#"SELECT 'event' AS fact_kind,
+                  date_trunc('hour', occurred_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS window_start,
+                  (date_trunc('hour', occurred_at AT TIME ZONE 'UTC') + INTERVAL '1 hour') AT TIME ZONE 'UTC' AS window_end,
+                  MIN(storage_id) AS min_storage_id, MAX(storage_id) AS max_storage_id
+           FROM analytics.analytics_event
+           WHERE producer_id = $1 AND source_stream_key = $2 AND reporting_scope_id = $3
+           GROUP BY 1, 2, 3
+           UNION ALL
+           SELECT 'observation' AS fact_kind, reporting_window_start, reporting_window_end,
+                  MIN(storage_id), MAX(storage_id)
+           FROM analytics.analytics_metric_observation
+           WHERE producer_id = $1 AND source_stream_key = $2 AND reporting_scope_id = $3
+           GROUP BY 1, 2, 3
+           ORDER BY window_start"#,
+    )
+    .bind(producer_id)
+    .bind(source_stream_key)
+    .bind(reporting_scope_id)
+    .fetch_all(&mut *transaction)
+    .await?;
+
+    let mut enqueued = 0;
+    for window in windows {
+        let result = sqlx::query(
+            r#"INSERT INTO analytics.analytics_projection_work (
+                 projection_name, projection_version, fact_kind, reporting_scope_id, root_scope_id,
+                 source_window_start, source_window_end, min_source_storage_id, max_source_storage_id,
+                 priority, repair_reason, work_status
+               ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,25,'reconciliation_mismatch','pending')
+               ON CONFLICT (
+                 projection_name, projection_version, fact_kind, reporting_scope_id,
+                 source_window_start, source_window_end
+               ) WHERE generation_id IS NULL
+               DO UPDATE SET
+                 min_source_storage_id = LEAST(analytics.analytics_projection_work.min_source_storage_id, EXCLUDED.min_source_storage_id),
+                 max_source_storage_id = GREATEST(analytics.analytics_projection_work.max_source_storage_id, EXCLUDED.max_source_storage_id),
+                 priority = LEAST(analytics.analytics_projection_work.priority, EXCLUDED.priority),
+                 repair_reason = 'reconciliation_mismatch',
+                 work_status = CASE
+                   WHEN analytics.analytics_projection_work.work_status IN ('completed', 'failed', 'cancelled')
+                     THEN 'pending'
+                   ELSE analytics.analytics_projection_work.work_status
+                 END,
+                 available_at = LEAST(analytics.analytics_projection_work.available_at, EXCLUDED.available_at),
+                 completed_at = CASE
+                   WHEN analytics.analytics_projection_work.work_status IN ('completed', 'failed', 'cancelled')
+                     THEN NULL
+                   ELSE analytics.analytics_projection_work.completed_at
+                 END"#,
+        )
+        .bind(PROJECTION_NAME)
+        .bind(PROJECTION_VERSION)
+        .bind(window.try_get::<String, _>("fact_kind")?)
+        .bind(reporting_scope_id)
+        .bind(root_scope_id)
+        .bind(window.try_get::<DateTime<Utc>, _>("window_start")?)
+        .bind(window.try_get::<DateTime<Utc>, _>("window_end")?)
+        .bind(window.try_get::<i64, _>("min_storage_id")?)
+        .bind(window.try_get::<i64, _>("max_storage_id")?)
+        .execute(&mut *transaction)
+        .await?;
+        enqueued += result.rows_affected();
+    }
+
+    sqlx::query(
+        r#"INSERT INTO analytics.analytics_projection_checkpoint (
+             projection_name, projection_version, reporting_scope_id, root_scope_id,
+             shard_key, processing_status
+           ) VALUES ($1,$2,$3,$4,$5,'idle')
+           ON CONFLICT (projection_name, projection_version, reporting_scope_id, shard_key)
+           DO UPDATE SET root_scope_id = EXCLUDED.root_scope_id"#,
+    )
+    .bind(PROJECTION_NAME)
+    .bind(PROJECTION_VERSION)
+    .bind(reporting_scope_id)
+    .bind(root_scope_id)
+    .bind(DEFAULT_SHARD_KEY)
+    .execute(&mut *transaction)
+    .await?;
+    transaction.commit().await?;
+    Ok(enqueued)
+}
+
 /// Requests a deterministic shadow rebuild for one reporting scope.
 ///
 /// The current checkpoint generation is left untouched while all existing source windows are
@@ -379,6 +473,7 @@ async fn promote_empty_generation(
 #[derive(Clone, Debug)]
 struct ClaimedWork {
     work_id: i64,
+    fact_kind: FactKind,
     reporting_scope_id: i64,
     root_scope_id: i64,
     source_window_start: DateTime<Utc>,
@@ -399,13 +494,20 @@ struct ProjectionFact {
     fact_kind: FactKind,
     source_storage_id: i64,
     metric: MetricIdentity,
-    reporting_scope_id: i64,
+    target_scope_id: i64,
     source_scope_id: i64,
     root_scope_id: i64,
     bucket_start: DateTime<Utc>,
     bucket_end: DateTime<Utc>,
+    timezone_name: String,
+    timezone_revision: i32,
     dimensions: Value,
     value: f64,
+    numerator: Option<f64>,
+    denominator: Option<f64>,
+    deduplication_key: Option<String>,
+    builder_name: &'static str,
+    coverage: Value,
 }
 
 #[derive(Clone, Debug)]
@@ -419,6 +521,34 @@ impl MetricIdentity {
         Self {
             key: metric.key.clone(),
             version: metric.version as i32,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DomainBuilder {
+    Agents,
+    Campaigns,
+    Inbox,
+}
+
+impl DomainBuilder {
+    fn for_metric(metric: &MetricDefinition) -> Result<Self, sqlx::Error> {
+        match metric.domain.as_str() {
+            "agents" => Ok(Self::Agents),
+            "campaigns" => Ok(Self::Campaigns),
+            "inbox" => Ok(Self::Inbox),
+            domain => Err(sqlx::Error::Protocol(format!(
+                "no typed projection builder for domain {domain}"
+            ))),
+        }
+    }
+
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Agents => "agents.v1",
+            Self::Campaigns => "campaigns.v1",
+            Self::Inbox => "inbox.v1",
         }
     }
 }
@@ -564,6 +694,11 @@ fn parse_claimed_work(row: PgRow) -> Result<ClaimedWork, sqlx::Error> {
     }
     Ok(ClaimedWork {
         work_id: row.try_get("work_id")?,
+        fact_kind: if fact_kind == "event" {
+            FactKind::Event
+        } else {
+            FactKind::Observation
+        },
         reporting_scope_id: row.try_get("reporting_scope_id")?,
         root_scope_id: row.try_get("root_scope_id")?,
         source_window_start: row.try_get("source_window_start")?,
@@ -828,8 +963,11 @@ async fn rebuild_window(
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
         r#"DELETE FROM analytics.analytics_projection_contribution
-           WHERE generation_id = $1 AND target_scope_id = $2
-             AND bucket_start >= $3 AND bucket_start < $4"#,
+           WHERE generation_id = $1 AND source_scope_id = $2 AND source_kind = 'event'
+             AND source_storage_id IN (
+               SELECT storage_id FROM analytics.analytics_event
+               WHERE reporting_scope_id = $2 AND occurred_at >= $3 AND occurred_at < $4
+             )"#,
     )
     .bind(generation_id)
     .bind(work.reporting_scope_id)
@@ -838,9 +976,13 @@ async fn rebuild_window(
     .execute(&mut **transaction)
     .await?;
     sqlx::query(
-        r#"DELETE FROM analytics.analytics_projection_rollup
-           WHERE generation_id = $1 AND target_scope_id = $2
-             AND bucket_start >= $3 AND bucket_start < $4"#,
+        r#"DELETE FROM analytics.analytics_projection_contribution
+           WHERE generation_id = $1 AND source_scope_id = $2 AND source_kind = 'observation'
+             AND source_storage_id IN (
+               SELECT storage_id FROM analytics.analytics_metric_observation
+               WHERE reporting_scope_id = $2
+                 AND reporting_window_start >= $3 AND reporting_window_start < $4
+             )"#,
     )
     .bind(generation_id)
     .bind(work.reporting_scope_id)
@@ -851,12 +993,23 @@ async fn rebuild_window(
 
     let mut facts = Vec::new();
     let event_rows = sqlx::query(
-        r#"SELECT storage_id, event_type, reporting_scope_id, root_scope_id,
-                  subject_type, subject_id, occurred_at, attributes
-           FROM analytics.analytics_event
-           WHERE reporting_scope_id = $1
-             AND occurred_at >= $2 AND occurred_at < $3
-           ORDER BY storage_id"#,
+        r#"SELECT e.storage_id, e.event_type, e.reporting_scope_id AS source_scope_id,
+                  e.subject_type, e.subject_id, e.occurred_at, e.attributes,
+                  target.scope_id AS target_scope_id, target.root_scope_id AS target_root_scope_id,
+                  target.scope_kind AS target_scope_kind, target.reporting_timezone AS timezone_name,
+                  target.source_version AS timezone_revision,
+                  date_trunc('hour', e.occurred_at AT TIME ZONE target.reporting_timezone)
+                    AT TIME ZONE target.reporting_timezone AS bucket_start,
+                  (date_trunc('hour', e.occurred_at AT TIME ZONE target.reporting_timezone)
+                    + INTERVAL '1 hour') AT TIME ZONE target.reporting_timezone AS bucket_end
+           FROM analytics.analytics_event e
+           JOIN analytics.scope_ancestor hierarchy
+             ON hierarchy.descendant_scope_id = e.reporting_scope_id
+           JOIN analytics.reporting_scope target
+             ON target.scope_id = hierarchy.ancestor_scope_id
+           WHERE e.reporting_scope_id = $1
+             AND e.occurred_at >= $2 AND e.occurred_at < $3
+           ORDER BY e.storage_id, target.scope_id"#,
     )
     .bind(work.reporting_scope_id)
     .bind(work.source_window_start)
@@ -868,35 +1021,75 @@ async fn rebuild_window(
         let attributes: Value = row.try_get("attributes")?;
         let subject_type: String = row.try_get("subject_type")?;
         let subject_id: String = row.try_get("subject_id")?;
-        let occurred_at: DateTime<Utc> = row.try_get("occurred_at")?;
+        let target_scope_kind: String = row.try_get("target_scope_kind")?;
+        let timezone_name: String = row.try_get("timezone_name")?;
+        let timezone_revision: i64 = row.try_get("timezone_revision")?;
+        let bucket_start: DateTime<Utc> = row.try_get("bucket_start")?;
+        let bucket_end: DateTime<Utc> = row.try_get("bucket_end")?;
         for metric in registry
             .metrics
             .iter()
             .filter(|metric| metric.sources.iter().any(|source| source == &event_type))
         {
+            if !metric
+                .scope_kinds
+                .iter()
+                .any(|kind| kind == &target_scope_kind)
+            {
+                continue;
+            }
+            let builder = DomainBuilder::for_metric(metric)?;
+            let dimensions =
+                typed_event_dimensions(builder, metric, &attributes, &subject_type, &subject_id)?;
+            let (numerator, denominator) = ratio_component(metric, &event_type, registry);
+            if metric.default_aggregation == "ratio_of_sums"
+                && numerator.is_none()
+                && denominator.is_none()
+            {
+                continue;
+            }
             facts.push(ProjectionFact {
                 fact_kind: FactKind::Event,
                 source_storage_id: row.try_get("storage_id")?,
                 metric: MetricIdentity::from_definition(metric),
-                reporting_scope_id: work.reporting_scope_id,
-                source_scope_id: work.reporting_scope_id,
-                root_scope_id: row.try_get("root_scope_id")?,
-                bucket_start: utc_hour(occurred_at),
-                bucket_end: utc_hour(occurred_at) + ChronoDuration::hours(1),
-                dimensions: event_dimensions(metric, &attributes, &subject_type, &subject_id),
+                target_scope_id: row.try_get("target_scope_id")?,
+                source_scope_id: row.try_get("source_scope_id")?,
+                root_scope_id: row.try_get("target_root_scope_id")?,
+                bucket_start,
+                bucket_end,
+                timezone_name: timezone_name.clone(),
+                timezone_revision: i32::try_from(timezone_revision).map_err(|_| {
+                    sqlx::Error::Protocol("reporting timezone revision is out of range".into())
+                })?,
+                dimensions,
                 value: 1.0,
+                numerator,
+                denominator,
+                deduplication_key: deduplication_key(metric, &attributes),
+                builder_name: builder.name(),
+                coverage: typed_coverage(metric, builder, FactKind::Event),
             });
         }
     }
 
     let observation_rows = sqlx::query(
-        r#"SELECT storage_id, metric_key, numeric_value::DOUBLE PRECISION AS numeric_value,
-                  reporting_scope_id, root_scope_id,
-                  reporting_window_start, reporting_window_end, dimensions
-           FROM analytics.analytics_metric_observation
-           WHERE reporting_scope_id = $1
-             AND reporting_window_start >= $2 AND reporting_window_start < $3
-           ORDER BY storage_id"#,
+        r#"SELECT o.storage_id, o.metric_key, o.numeric_value::DOUBLE PRECISION AS numeric_value,
+                  o.reporting_scope_id AS source_scope_id, o.reporting_window_start, o.dimensions,
+                  target.scope_id AS target_scope_id, target.root_scope_id AS target_root_scope_id,
+                  target.scope_kind AS target_scope_kind, target.reporting_timezone AS timezone_name,
+                  target.source_version AS timezone_revision,
+                  date_trunc('hour', o.reporting_window_start AT TIME ZONE target.reporting_timezone)
+                    AT TIME ZONE target.reporting_timezone AS bucket_start,
+                  (date_trunc('hour', o.reporting_window_start AT TIME ZONE target.reporting_timezone)
+                    + INTERVAL '1 hour') AT TIME ZONE target.reporting_timezone AS bucket_end
+           FROM analytics.analytics_metric_observation o
+           JOIN analytics.scope_ancestor hierarchy
+             ON hierarchy.descendant_scope_id = o.reporting_scope_id
+           JOIN analytics.reporting_scope target
+             ON target.scope_id = hierarchy.ancestor_scope_id
+           WHERE o.reporting_scope_id = $1
+             AND o.reporting_window_start >= $2 AND o.reporting_window_start < $3
+           ORDER BY o.storage_id, target.scope_id"#,
     )
     .bind(work.reporting_scope_id)
     .bind(work.source_window_start)
@@ -912,21 +1105,37 @@ async fn rebuild_window(
         else {
             continue;
         };
+        let target_scope_kind: String = row.try_get("target_scope_kind")?;
+        if !metric
+            .scope_kinds
+            .iter()
+            .any(|kind| kind == &target_scope_kind)
+        {
+            continue;
+        }
+        let builder = DomainBuilder::for_metric(metric)?;
         let dimensions: Value = row.try_get("dimensions")?;
-        let bucket_start: DateTime<Utc> = row.try_get("reporting_window_start")?;
-        let bucket_end: DateTime<Utc> = row.try_get("reporting_window_end")?;
         let value: f64 = row.try_get("numeric_value")?;
         facts.push(ProjectionFact {
             fact_kind: FactKind::Observation,
             source_storage_id: row.try_get("storage_id")?,
             metric: MetricIdentity::from_definition(metric),
-            reporting_scope_id: work.reporting_scope_id,
-            source_scope_id: work.reporting_scope_id,
-            root_scope_id: row.try_get("root_scope_id")?,
-            bucket_start,
-            bucket_end,
+            target_scope_id: row.try_get("target_scope_id")?,
+            source_scope_id: row.try_get("source_scope_id")?,
+            root_scope_id: row.try_get("target_root_scope_id")?,
+            bucket_start: row.try_get("bucket_start")?,
+            bucket_end: row.try_get("bucket_end")?,
+            timezone_name: row.try_get("timezone_name")?,
+            timezone_revision: i32::try_from(row.try_get::<i64, _>("timezone_revision")?).map_err(
+                |_| sqlx::Error::Protocol("reporting timezone revision is out of range".into()),
+            )?,
             dimensions: observation_dimensions(metric, &dimensions),
             value,
+            numerator: None,
+            denominator: None,
+            deduplication_key: None,
+            builder_name: builder.name(),
+            coverage: typed_coverage(metric, builder, FactKind::Observation),
         });
     }
 
@@ -935,9 +1144,10 @@ async fn rebuild_window(
             r#"INSERT INTO analytics.analytics_projection_contribution (
                  generation_id, projection_name, projection_version, metric_key, metric_version,
                  source_kind, source_storage_id, target_scope_id, source_scope_id, root_scope_id,
-                 bucket_start, bucket_end, dimensions, value_count, value_sum, value_min, value_max,
-                 source_high_watermark, coverage
-               ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,1,$14,$14,$14,$7,$15)
+                 bucket_start, bucket_end, timezone_name, timezone_revision, dimensions,
+                 deduplication_key, builder_name, value_count, value_sum, value_min, value_max,
+                 numerator, denominator, source_high_watermark, coverage
+               ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,1,$18,$18,$18,$19,$20,$7,$21)
                ON CONFLICT DO NOTHING"#,
         )
         .bind(generation_id)
@@ -947,52 +1157,299 @@ async fn rebuild_window(
         .bind(fact.metric.version)
         .bind(fact.fact_kind.as_str())
         .bind(fact.source_storage_id)
-        .bind(fact.reporting_scope_id)
+        .bind(fact.target_scope_id)
         .bind(fact.source_scope_id)
         .bind(fact.root_scope_id)
         .bind(fact.bucket_start)
         .bind(fact.bucket_end)
+        .bind(&fact.timezone_name)
+        .bind(fact.timezone_revision)
         .bind(fact.dimensions)
+        .bind(fact.deduplication_key)
+        .bind(fact.builder_name)
         .bind(fact.value)
-        .bind(serde_json::json!({"source_kind": fact.fact_kind.as_str()}))
+        .bind(fact.numerator)
+        .bind(fact.denominator)
+        .bind(fact.coverage)
         .execute(&mut **transaction)
         .await?;
     }
 
+    rebuild_rollups(transaction, registry, generation_id, work).await
+}
+
+async fn rebuild_rollups(
+    transaction: &mut Transaction<'_, Postgres>,
+    registry: &RegistrySnapshot,
+    generation_id: i64,
+    work: &ClaimedWork,
+) -> Result<(), sqlx::Error> {
+    let rollup_start = work.source_window_start - ChronoDuration::days(31);
+    let rollup_end = work.source_window_end + ChronoDuration::days(31);
     sqlx::query(
-        r#"INSERT INTO analytics.analytics_projection_rollup (
-             generation_id, projection_name, projection_version, metric_key, metric_version,
-             target_scope_id, source_scope_id, root_scope_id, interval, bucket_start, bucket_end,
-             dimensions, value_count, value_sum, value_min, value_max, source_high_watermark, coverage
-           )
-           SELECT generation_id, projection_name, projection_version, metric_key, metric_version,
-                  target_scope_id, source_scope_id, root_scope_id, 'hour', bucket_start, bucket_end,
-                  dimensions, SUM(value_count), SUM(value_sum), MIN(value_min), MAX(value_max),
-                  MAX(source_high_watermark), jsonb_build_object('source_fact_count', COUNT(*))
-           FROM analytics.analytics_projection_contribution
-           WHERE generation_id = $1 AND target_scope_id = $2
-             AND bucket_start >= $3 AND bucket_start < $4
-           GROUP BY generation_id, projection_name, projection_version, metric_key, metric_version,
-                    target_scope_id, source_scope_id, root_scope_id, bucket_start, bucket_end, dimensions
-           ON CONFLICT (
-             generation_id, metric_key, metric_version, target_scope_id, source_scope_id,
-             interval, bucket_start, bucket_end, dimensions
-           ) DO UPDATE SET
-             value_count = EXCLUDED.value_count,
-             value_sum = EXCLUDED.value_sum,
-             value_min = EXCLUDED.value_min,
-             value_max = EXCLUDED.value_max,
-             source_high_watermark = EXCLUDED.source_high_watermark,
-             coverage = EXCLUDED.coverage"#,
+        r#"DELETE FROM analytics.analytics_projection_rollup
+           WHERE generation_id = $1 AND source_scope_id = $2
+             AND bucket_end > $3 AND bucket_start < $4"#,
     )
     .bind(generation_id)
     .bind(work.reporting_scope_id)
-    .bind(work.source_window_start)
-    .bind(work.source_window_end)
+    .bind(rollup_start)
+    .bind(rollup_end)
     .execute(&mut **transaction)
     .await?;
 
+    for metric in &registry.metrics {
+        for interval in ["hour", "day", "month"] {
+            if !metric
+                .supported_intervals
+                .iter()
+                .any(|value| value == interval)
+            {
+                continue;
+            }
+            let bucket_expression = match interval {
+                "hour" => "bucket_start",
+                "day" => "date_trunc('day', bucket_start AT TIME ZONE timezone_name) AT TIME ZONE timezone_name",
+                "month" => "date_trunc('month', bucket_start AT TIME ZONE timezone_name) AT TIME ZONE timezone_name",
+                _ => unreachable!(),
+            };
+            let end_expression = match interval {
+                "hour" => "bucket_end",
+                "day" => "(date_trunc('day', bucket_start AT TIME ZONE timezone_name) + INTERVAL '1 day') AT TIME ZONE timezone_name",
+                "month" => "(date_trunc('month', bucket_start AT TIME ZONE timezone_name) + INTERVAL '1 month') AT TIME ZONE timezone_name",
+                _ => unreachable!(),
+            };
+            let value_count_expression = if metric.default_aggregation == "distinct_count" {
+                "COUNT(DISTINCT deduplication_key)"
+            } else {
+                "COALESCE(SUM(value_count), 0)"
+            };
+            let value_sum_expression = if metric.default_aggregation == "ratio_of_sums" {
+                "COALESCE(COALESCE(SUM(numerator), 0) / NULLIF(SUM(denominator), 0), 0)"
+            } else {
+                "COALESCE(SUM(value_sum), 0)"
+            };
+            let numerator_expression = if metric.default_aggregation == "ratio_of_sums" {
+                "SUM(numerator)"
+            } else {
+                "NULL"
+            };
+            let denominator_expression = if metric.default_aggregation == "ratio_of_sums" {
+                "SUM(denominator)"
+            } else {
+                "NULL"
+            };
+            let statement = format!(
+                r#"INSERT INTO analytics.analytics_projection_rollup (
+                     generation_id, projection_name, projection_version, metric_key, metric_version,
+                     target_scope_id, source_scope_id, root_scope_id, interval, bucket_start, bucket_end,
+                     timezone_name, timezone_revision, dimensions, value_count, value_sum, value_min,
+                     value_max, numerator, denominator, source_high_watermark, coverage
+                   )
+                   SELECT generation_id, projection_name, projection_version, metric_key, metric_version,
+                          target_scope_id, source_scope_id, root_scope_id, $4, {bucket}, {end},
+                          timezone_name, timezone_revision, dimensions, {value_count}, {value_sum},
+                          MIN(value_min), MAX(value_max), {numerator}, {denominator},
+                          MAX(source_high_watermark),
+                          jsonb_build_object(
+                            'interval', $4,
+                            'source_fact_count', COUNT(*),
+                            'builder_names', jsonb_agg(DISTINCT builder_name)
+                          )
+                   FROM analytics.analytics_projection_contribution
+                   WHERE generation_id = $1 AND source_scope_id = $2
+                     AND metric_key = $5 AND metric_version = $6
+                     AND bucket_end > $7 AND bucket_start < $8
+                   GROUP BY generation_id, projection_name, projection_version, metric_key, metric_version,
+                            target_scope_id, source_scope_id, root_scope_id, timezone_name,
+                            timezone_revision, dimensions, {bucket}, {end}
+                   ON CONFLICT (
+                     generation_id, metric_key, metric_version, target_scope_id, source_scope_id,
+                     interval, bucket_start, bucket_end, dimensions
+                   ) DO UPDATE SET
+                     timezone_name = EXCLUDED.timezone_name,
+                     timezone_revision = EXCLUDED.timezone_revision,
+                     value_count = EXCLUDED.value_count,
+                     value_sum = EXCLUDED.value_sum,
+                     value_min = EXCLUDED.value_min,
+                     value_max = EXCLUDED.value_max,
+                     numerator = EXCLUDED.numerator,
+                     denominator = EXCLUDED.denominator,
+                     source_high_watermark = EXCLUDED.source_high_watermark,
+                     coverage = EXCLUDED.coverage"#,
+                bucket = bucket_expression,
+                end = end_expression,
+                value_count = value_count_expression,
+                value_sum = value_sum_expression,
+                numerator = numerator_expression,
+                denominator = denominator_expression,
+            );
+            sqlx::query(&statement)
+                .bind(generation_id)
+                .bind(work.reporting_scope_id)
+                .bind(work.root_scope_id)
+                .bind(interval)
+                .bind(&metric.key)
+                .bind(metric.version as i32)
+                .bind(rollup_start)
+                .bind(rollup_end)
+                .execute(&mut **transaction)
+                .await?;
+        }
+    }
     Ok(())
+}
+
+async fn validate_projection_window(
+    transaction: &mut Transaction<'_, Postgres>,
+    registry: &RegistrySnapshot,
+    generation_id: i64,
+    work: &ClaimedWork,
+) -> Result<Value, sqlx::Error> {
+    let target_scopes = sqlx::query(
+        r#"SELECT hierarchy.ancestor_scope_id AS scope_id, target.scope_kind
+           FROM analytics.scope_ancestor hierarchy
+           JOIN analytics.reporting_scope target
+             ON target.scope_id = hierarchy.ancestor_scope_id
+           WHERE hierarchy.descendant_scope_id = $1
+           ORDER BY hierarchy.depth DESC"#,
+    )
+    .bind(work.reporting_scope_id)
+    .fetch_all(&mut **transaction)
+    .await?;
+
+    let mut metrics_checked = 0_i64;
+    let mut expected_source_facts = 0_i64;
+    let mut contribution_rows = 0_i64;
+    for metric in &registry.metrics {
+        let builder = DomainBuilder::for_metric(metric)?;
+        if !metric.scope_kinds.iter().any(|kind| {
+            target_scopes
+                .iter()
+                .any(|scope| scope.try_get::<String, _>("scope_kind").ok().as_deref() == Some(kind))
+        }) {
+            continue;
+        }
+        let (expected, source_kind) = match work.fact_kind {
+            FactKind::Event => (
+                sqlx::query_scalar::<_, i64>(
+                    r#"SELECT COUNT(*) FROM analytics.analytics_event
+                       WHERE reporting_scope_id = $1 AND occurred_at >= $2 AND occurred_at < $3
+                         AND event_type = ANY($4)"#,
+                )
+                .bind(work.reporting_scope_id)
+                .bind(work.source_window_start)
+                .bind(work.source_window_end)
+                .bind(&metric.sources)
+                .fetch_one(&mut **transaction)
+                .await?,
+                FactKind::Event,
+            ),
+            FactKind::Observation => (
+                sqlx::query_scalar::<_, i64>(
+                    r#"SELECT COUNT(*) FROM analytics.analytics_metric_observation
+                       WHERE reporting_scope_id = $1
+                         AND reporting_window_start >= $2 AND reporting_window_start < $3
+                         AND metric_key = $4"#,
+                )
+                .bind(work.reporting_scope_id)
+                .bind(work.source_window_start)
+                .bind(work.source_window_end)
+                .bind(&metric.key)
+                .fetch_one(&mut **transaction)
+                .await?,
+                FactKind::Observation,
+            ),
+        };
+        for scope in &target_scopes {
+            let target_scope_id: i64 = scope.try_get("scope_id")?;
+            let target_scope_kind: String = scope.try_get("scope_kind")?;
+            if !metric
+                .scope_kinds
+                .iter()
+                .any(|kind| kind == &target_scope_kind)
+            {
+                continue;
+            }
+            let actual: i64 = match source_kind {
+                FactKind::Event => {
+                    sqlx::query_scalar(
+                        r#"SELECT COUNT(DISTINCT contribution.source_storage_id)
+                       FROM analytics.analytics_projection_contribution contribution
+                       WHERE contribution.generation_id = $1
+                         AND contribution.source_kind = 'event'
+                         AND contribution.source_scope_id = $2
+                         AND contribution.target_scope_id = $3
+                         AND contribution.metric_key = $4
+                         AND contribution.metric_version = $5
+                         AND contribution.source_storage_id IN (
+                           SELECT storage_id FROM analytics.analytics_event
+                           WHERE reporting_scope_id = $2
+                             AND occurred_at >= $6 AND occurred_at < $7
+                             AND event_type = ANY($8)
+                         )"#,
+                    )
+                    .bind(generation_id)
+                    .bind(work.reporting_scope_id)
+                    .bind(target_scope_id)
+                    .bind(&metric.key)
+                    .bind(metric.version as i32)
+                    .bind(work.source_window_start)
+                    .bind(work.source_window_end)
+                    .bind(&metric.sources)
+                    .fetch_one(&mut **transaction)
+                    .await?
+                }
+                FactKind::Observation => {
+                    sqlx::query_scalar(
+                        r#"SELECT COUNT(DISTINCT contribution.source_storage_id)
+                       FROM analytics.analytics_projection_contribution contribution
+                       WHERE contribution.generation_id = $1
+                         AND contribution.source_kind = 'observation'
+                         AND contribution.source_scope_id = $2
+                         AND contribution.target_scope_id = $3
+                         AND contribution.metric_key = $4
+                         AND contribution.metric_version = $5
+                         AND contribution.source_storage_id IN (
+                           SELECT storage_id FROM analytics.analytics_metric_observation
+                           WHERE reporting_scope_id = $2
+                             AND reporting_window_start >= $6 AND reporting_window_start < $7
+                             AND metric_key = $4
+                         )"#,
+                    )
+                    .bind(generation_id)
+                    .bind(work.reporting_scope_id)
+                    .bind(target_scope_id)
+                    .bind(&metric.key)
+                    .bind(metric.version as i32)
+                    .bind(work.source_window_start)
+                    .bind(work.source_window_end)
+                    .fetch_one(&mut **transaction)
+                    .await?
+                }
+            };
+            if actual != expected {
+                return Err(sqlx::Error::Protocol(
+                    format!(
+                        "projection parity failed metric={} target_scope={} expected={} actual={} builder={}",
+                        metric.key, target_scope_id, expected, actual, builder.name()
+                    ),
+                ));
+            }
+            expected_source_facts += expected;
+            contribution_rows += actual;
+            metrics_checked += 1;
+        }
+    }
+    Ok(serde_json::json!({
+        "status": "passed",
+        "builder_count": 3,
+        "metrics_checked": metrics_checked,
+        "expected_source_facts": expected_source_facts,
+        "contribution_rows": contribution_rows,
+        "scope_id": work.reporting_scope_id,
+        "work_id": work.work_id,
+    }))
 }
 
 async fn finish_generation(
@@ -1010,19 +1467,21 @@ async fn finish_generation(
     .await?;
 
     if generation_status == "building" || generation_status == "validated" {
+        let validation_summary =
+            validate_projection_window(transaction, registry, generation_id, work).await?;
         sqlx::query(
             r#"UPDATE analytics.analytics_projection_generation
                SET generation_status = 'validated',
                    source_high_watermark = GREATEST(COALESCE(source_high_watermark, 0), $2),
                    metric_registry_sha256 = $3,
-                   validation_summary = jsonb_build_object('status', 'passed', 'work_id', $4),
+                   validation_summary = $4,
                    validated_at = NOW()
                WHERE generation_id = $1"#,
         )
         .bind(generation_id)
         .bind(work.max_source_storage_id)
         .bind(&registry.sha256)
-        .bind(work.work_id)
+        .bind(validation_summary)
         .execute(&mut **transaction)
         .await?;
 
@@ -1102,6 +1561,98 @@ async fn mark_failed(
     .execute(pool)
     .await?;
     Ok(())
+}
+
+fn typed_event_dimensions(
+    builder: DomainBuilder,
+    metric: &MetricDefinition,
+    attributes: &Value,
+    subject_type: &str,
+    subject_id: &str,
+) -> Result<Value, sqlx::Error> {
+    match builder {
+        DomainBuilder::Agents => {
+            required_text(attributes, "installation_id")?;
+            required_text(attributes, "status")?;
+        }
+        DomainBuilder::Campaigns => {
+            required_text(attributes, "campaign_id")?;
+            required_text(attributes, "recipient_id")?;
+            required_text(attributes, "channel")?;
+            required_text(attributes, "status")?;
+        }
+        DomainBuilder::Inbox => {
+            required_text(attributes, "conversation_id")?;
+            required_text(attributes, "channel")?;
+            required_text(attributes, "responder_type")?;
+        }
+    }
+    Ok(event_dimensions(
+        metric,
+        attributes,
+        subject_type,
+        subject_id,
+    ))
+}
+
+fn required_text(attributes: &Value, key: &str) -> Result<String, sqlx::Error> {
+    attributes
+        .get(key)
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| sqlx::Error::Protocol(format!("typed projection builder missing {key}")))
+}
+
+fn deduplication_key(metric: &MetricDefinition, attributes: &Value) -> Option<String> {
+    let key = match metric.deduplication.as_str() {
+        "recipient" => "recipient_id",
+        "conversation" => "conversation_id",
+        "source_entity" => "source_entity_id",
+        _ => return None,
+    };
+    attributes
+        .get(key)
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn ratio_component(
+    metric: &MetricDefinition,
+    event_type: &str,
+    registry: &RegistrySnapshot,
+) -> (Option<f64>, Option<f64>) {
+    if metric.default_aggregation != "ratio_of_sums" {
+        return (None, None);
+    }
+    let numerator = metric.numerator.as_deref().and_then(|identity| {
+        registry
+            .metrics
+            .iter()
+            .find(|candidate| format!("{}@{}", candidate.key, candidate.version) == identity)
+            .filter(|candidate| candidate.sources.iter().any(|source| source == event_type))
+            .map(|_| 1.0)
+    });
+    let denominator = metric.denominator.as_deref().and_then(|identity| {
+        registry
+            .metrics
+            .iter()
+            .find(|candidate| format!("{}@{}", candidate.key, candidate.version) == identity)
+            .filter(|candidate| candidate.sources.iter().any(|source| source == event_type))
+            .map(|_| 1.0)
+    });
+    (numerator, denominator)
+}
+
+fn typed_coverage(metric: &MetricDefinition, builder: DomainBuilder, fact_kind: FactKind) -> Value {
+    serde_json::json!({
+        "builder": builder.name(),
+        "source_kind": fact_kind.as_str(),
+        "coverage_state": "observed",
+        "required_sources": metric.coverage.required_sources,
+        "exactness": metric.exactness,
+    })
 }
 
 fn event_dimensions(

@@ -256,6 +256,40 @@ async fn schedules_claims_and_completes_maintenance_work() {
     );
     assert_eq!(release_state.get::<String, _>("work_status"), "released");
 
+    let mismatch = reconcile_stream(
+        &pool,
+        &authenticated,
+        ReconciliationRequest {
+            reconciliation_run_id: format!("maintenance-mismatch-{suffix}"),
+            reconciliation_work_id: None,
+            producer_id: authenticated.producer_id.clone(),
+            source_domain: "campaigns".to_string(),
+            source_stream_key: repair_stream.clone(),
+            scope_kind: Some("core_organization".to_string()),
+            scope_external_id: Some(scope_external_id.clone()),
+            source_highest_outbox_sequence: Some(7),
+            source_highest_delivered_sequence: Some(7),
+            authoritative_count: Some(0),
+            authoritative_checksum: None,
+        },
+    )
+    .await
+    .expect("mismatch reconciliation");
+    assert_eq!(mismatch.reconciliation_status, "mismatch");
+    let repair_reason: String = sqlx::query_scalar(
+        r#"SELECT repair_reason
+           FROM analytics.analytics_projection_work
+           WHERE reporting_scope_id = $1 AND fact_kind = 'event'
+             AND repair_reason = 'reconciliation_mismatch'
+           ORDER BY work_id DESC
+           LIMIT 1"#,
+    )
+    .bind(scope_id)
+    .fetch_one(&pool)
+    .await
+    .expect("reconciliation projection repair");
+    assert_eq!(repair_reason, "reconciliation_mismatch");
+
     let backfill_scope_id: i64 = sqlx::query_scalar(
         r#"INSERT INTO analytics.reporting_scope (
              scope_kind, owning_source_service, external_source_id, status, reporting_timezone
