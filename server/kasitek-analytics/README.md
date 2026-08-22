@@ -141,6 +141,14 @@ producer database. Scope definitions update the current reporting-scope read mod
 immutable source receipts. Replays keep the original producer, stream, sequence, identity, and
 payload hash; approved backfill jobs are required when a batch carries `backfill_job_id`.
 
+Core and Tenant publishers periodically send bounded summaries for their own outbox streams. A
+summary contains only the source domain, stream and scope binding, highest source sequence,
+highest delivered sequence, and authoritative outbox count. The publisher never sends envelopes or
+payloads during reconciliation. `ANALYTICS_RECONCILIATION_INTERVAL_MS` controls the interval
+(default 60 seconds), and `ANALYTICS_RECONCILIATION_MAX_STREAMS` bounds streams per pass (default
+100, maximum 500). A mismatch is recorded by Analytics and can enqueue its existing repair work;
+the source publisher remains responsible only for reporting the summary.
+
 ## Source publishers
 
 Core, Tenant Platform, and Agent Platform publish from their own operational databases. Each
@@ -159,6 +167,8 @@ Set `ANALYTICS_INGESTION_URL` to the Analytics origin and configure
 bounded leased batch, posts it to the private ingestion endpoint, marks accepted and identical
 duplicate records delivered, retries transport and transient acknowledgements with capped jitter,
 and quarantines permanent record or batch rejections. Expired leases are reclaimed automatically.
+The same publisher process periodically submits the bounded reconciliation summaries described
+above; reconciliation failure does not mutate or delete source outbox facts.
 
 Run the bounded local foundation E2E against a disposable loopback database:
 

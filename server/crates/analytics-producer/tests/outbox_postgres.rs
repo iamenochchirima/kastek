@@ -1,8 +1,9 @@
 use std::env;
 
 use analytics_producer::{
-    apply_delivery_outcome, build_event, claim_outbox_batch, enqueue_outbox, DeliveryOutcome,
-    EnqueueResult, EventInput, ProducerConfig, ScopeKind,
+    apply_delivery_outcome, build_event, claim_outbox_batch, enqueue_outbox,
+    list_outbox_reconciliation_summaries, DeliveryOutcome, EnqueueResult, EventInput,
+    ProducerConfig, ReconciliationCursor, ScopeKind,
 };
 use chrono::{Duration, Utc};
 use serde_json::json;
@@ -87,6 +88,31 @@ async fn enqueue_claim_retry_and_conflict_are_transactional() {
         EnqueueResult::Conflict { .. }
     ));
     transaction.rollback().await.unwrap();
+
+    let summaries = list_outbox_reconciliation_summaries(&pool, "core", None, 10)
+        .await
+        .unwrap();
+    assert_eq!(summaries.len(), 1);
+    assert_eq!(summaries[0].source_domain, "campaigns");
+    assert_eq!(summaries[0].source_stream_key, "core:test-org");
+    assert_eq!(summaries[0].scope_kind, "core_organization");
+    assert_eq!(summaries[0].scope_external_id, "a07-test-org");
+    assert_eq!(summaries[0].authoritative_count, 1);
+    assert!(summaries[0].source_highest_delivered_sequence.is_none());
+    let wrapped = list_outbox_reconciliation_summaries(
+        &pool,
+        "core",
+        Some(&ReconciliationCursor {
+            source_stream_key: "zzzz".to_string(),
+            source_domain: "zzzz".to_string(),
+            scope_kind: "zzzz".to_string(),
+            scope_external_id: "zzzz".to_string(),
+        }),
+        10,
+    )
+    .await
+    .unwrap();
+    assert_eq!(wrapped, summaries);
 
     let now = Utc::now();
     let claimed = claim_outbox_batch(

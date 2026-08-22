@@ -11,8 +11,9 @@ use chrono::{DateTime, Utc};
 use reqwest::{header, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use thiserror::Error;
+use uuid::Uuid;
 
 use crate::{
     apply_delivery_outcome, claim_outbox_batch, release_expired_leases, DeliveryOutcome, OutboxRow,
@@ -20,6 +21,8 @@ use crate::{
 };
 
 const INGESTION_PATH: &str = "/internal/ingest/v1/batch";
+const RECONCILIATION_PATH: &str = "/internal/reconciliation/v1/summary";
+pub const MAX_RECONCILIATION_STREAMS: i64 = 500;
 
 #[derive(Clone)]
 pub struct AnalyticsPublisherSettings {
@@ -120,6 +123,36 @@ impl AnalyticsIngestionClient {
             .await
             .map_err(|_| TransportError::Retryable("analytics.invalid_response"))
     }
+
+    async fn send_reconciliation(
+        &self,
+        request: &ReconciliationRequest,
+    ) -> Result<ReconciliationResponse, PublisherError> {
+        let response = self
+            .client
+            .post(format!("{}{}", self.endpoint, RECONCILIATION_PATH))
+            .header(header::AUTHORIZATION, format!("Bearer {}", self.token))
+            .json(request)
+            .send()
+            .await
+            .map_err(|_| {
+                PublisherError::Reconciliation("analytics.transport_unavailable".to_string())
+            })?;
+
+        let status = response.status();
+        if !status.is_success() {
+            return Err(PublisherError::Reconciliation(
+                match classify_http_status(status) {
+                    TransportError::Retryable(code) => code.to_string(),
+                    TransportError::Permanent(code) => code,
+                },
+            ));
+        }
+        response
+            .json::<ReconciliationResponse>()
+            .await
+            .map_err(|_| PublisherError::Reconciliation("analytics.invalid_response".to_string()))
+    }
 }
 
 #[derive(Debug, Error)]
@@ -128,8 +161,62 @@ pub enum PublisherError {
     InvalidConfiguration,
     #[error("analytics HTTP client could not be built")]
     ClientBuild,
+    #[error("analytics reconciliation request failed: {0}")]
+    Reconciliation(String),
     #[error(transparent)]
     Producer(#[from] ProducerError),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReconciliationCursor {
+    pub source_stream_key: String,
+    pub source_domain: String,
+    pub scope_kind: String,
+    pub scope_external_id: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OutboxReconciliationSummary {
+    pub cursor: ReconciliationCursor,
+    pub source_domain: String,
+    pub source_stream_key: String,
+    pub scope_kind: String,
+    pub scope_external_id: String,
+    pub source_highest_outbox_sequence: i64,
+    pub source_highest_delivered_sequence: Option<i64>,
+    pub authoritative_count: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ReconciliationRequest {
+    pub reconciliation_run_id: String,
+    pub producer_id: String,
+    pub source_domain: String,
+    pub source_stream_key: String,
+    pub scope_kind: String,
+    pub scope_external_id: String,
+    pub source_highest_outbox_sequence: i64,
+    pub source_highest_delivered_sequence: Option<i64>,
+    pub authoritative_count: i64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub struct ReconciliationResponse {
+    pub reconciliation_run_id: String,
+    pub reconciliation_status: String,
+    pub analytics_highest_received_sequence: i64,
+    pub analytics_highest_contiguous_sequence: i64,
+    pub missing_sequence_ranges: Value,
+    pub unresolved_quarantine_count: i64,
+    pub analytics_count: i64,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ReconciliationStats {
+    pub attempted: usize,
+    pub complete: usize,
+    pub mismatched: usize,
+    pub next_cursor: Option<ReconciliationCursor>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -232,6 +319,118 @@ pub async fn publish_outbox_once(
         apply_delivery_outcome(pool, &row.outbox_id, &settings.publisher_id, outcome).await?;
     }
     Ok(stats)
+}
+
+/// Reconcile a bounded set of source streams without transferring envelopes or payloads.
+///
+/// The source outbox is authoritative for transport counts and sequence watermarks. Analytics
+/// owns the comparison and repair decision; producers only publish the summary for each stream.
+pub async fn reconcile_outbox_once(
+    pool: &PgPool,
+    client: &AnalyticsIngestionClient,
+    producer_id: &str,
+    source_service: &str,
+    after: Option<&ReconciliationCursor>,
+    max_streams: i64,
+) -> Result<ReconciliationStats, PublisherError> {
+    if producer_id.trim().is_empty()
+        || source_service.trim().is_empty()
+        || !(1..=MAX_RECONCILIATION_STREAMS).contains(&max_streams)
+    {
+        return Err(PublisherError::InvalidConfiguration);
+    }
+
+    let summaries =
+        list_outbox_reconciliation_summaries(pool, source_service, after, max_streams).await?;
+    let mut stats = ReconciliationStats::default();
+    for summary in summaries {
+        let request = ReconciliationRequest {
+            reconciliation_run_id: Uuid::new_v4().to_string(),
+            producer_id: producer_id.to_string(),
+            source_domain: summary.source_domain,
+            source_stream_key: summary.source_stream_key,
+            scope_kind: summary.scope_kind,
+            scope_external_id: summary.scope_external_id,
+            source_highest_outbox_sequence: summary.source_highest_outbox_sequence,
+            source_highest_delivered_sequence: summary.source_highest_delivered_sequence,
+            authoritative_count: summary.authoritative_count,
+        };
+        let response = client.send_reconciliation(&request).await?;
+        stats.attempted += 1;
+        if response.reconciliation_status == "mismatch" {
+            stats.mismatched += 1;
+        } else {
+            stats.complete += 1;
+        }
+        stats.next_cursor = Some(summary.cursor);
+    }
+    Ok(stats)
+}
+
+pub async fn list_outbox_reconciliation_summaries(
+    pool: &PgPool,
+    source_service: &str,
+    after: Option<&ReconciliationCursor>,
+    max_streams: i64,
+) -> Result<Vec<OutboxReconciliationSummary>, PublisherError> {
+    if source_service.trim().is_empty() || !(1..=MAX_RECONCILIATION_STREAMS).contains(&max_streams)
+    {
+        return Err(PublisherError::InvalidConfiguration);
+    }
+    let rows = sqlx::query(
+        r#"SELECT source_domain,
+                  source_stream_key,
+                  scope_kind,
+                  scope_external_id,
+                  MAX(source_sequence) AS source_highest_outbox_sequence,
+                  MAX(source_sequence) FILTER (WHERE delivery_status = 'delivered')
+                    AS source_highest_delivered_sequence,
+                  COUNT(*)::bigint AS authoritative_count
+           FROM analytics_outbox
+           WHERE source_service = $1
+           GROUP BY source_domain, source_stream_key, scope_kind, scope_external_id
+           ORDER BY (
+               $2::text IS NULL OR
+               (source_stream_key, source_domain, scope_kind, scope_external_id) >
+               ($2::text, $3::text, $4::text, $5::text)
+           ) DESC,
+           source_stream_key, source_domain, scope_kind, scope_external_id
+           LIMIT $6"#,
+    )
+    .bind(source_service)
+    .bind(after.map(|cursor| cursor.source_stream_key.as_str()))
+    .bind(after.map(|cursor| cursor.source_domain.as_str()))
+    .bind(after.map(|cursor| cursor.scope_kind.as_str()))
+    .bind(after.map(|cursor| cursor.scope_external_id.as_str()))
+    .bind(max_streams)
+    .fetch_all(pool)
+    .await
+    .map_err(|error| PublisherError::Producer(error.into()))?;
+
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let source_stream_key: String = row.get("source_stream_key");
+            let source_domain: String = row.get("source_domain");
+            let scope_kind: String = row.get("scope_kind");
+            let scope_external_id: String = row.get("scope_external_id");
+            OutboxReconciliationSummary {
+                cursor: ReconciliationCursor {
+                    source_stream_key: source_stream_key.clone(),
+                    source_domain: source_domain.clone(),
+                    scope_kind: scope_kind.clone(),
+                    scope_external_id: scope_external_id.clone(),
+                },
+                source_domain,
+                source_stream_key,
+                scope_kind,
+                scope_external_id,
+                source_highest_outbox_sequence: row.get("source_highest_outbox_sequence"),
+                source_highest_delivered_sequence: row.get("source_highest_delivered_sequence"),
+                authoritative_count: row.get("authoritative_count"),
+            }
+        })
+        .collect())
 }
 
 fn response_outcomes(
@@ -497,6 +696,83 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.acknowledgements.len(), 1);
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn client_posts_the_authenticated_reconciliation_wire_contract() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            let mut buffer = [0_u8; 4096];
+            let (body_start, content_length) = loop {
+                let read = socket.read(&mut buffer).await.unwrap();
+                request.extend_from_slice(&buffer[..read]);
+                if let Some(index) = request.windows(4).position(|window| window == b"\r\n\r\n") {
+                    let body_start = index + 4;
+                    let headers = String::from_utf8_lossy(&request[..index]);
+                    let content_length = headers
+                        .lines()
+                        .find_map(|line| {
+                            line.to_ascii_lowercase()
+                                .strip_prefix("content-length: ")
+                                .map(str::to_string)
+                        })
+                        .unwrap()
+                        .parse::<usize>()
+                        .unwrap();
+                    if request.len() >= body_start + content_length {
+                        break (body_start, content_length);
+                    }
+                }
+            };
+            let headers = String::from_utf8_lossy(&request[..body_start]);
+            assert!(headers.starts_with("POST /internal/reconciliation/v1/summary HTTP/1.1"));
+            assert!(headers
+                .lines()
+                .any(|line| line.eq_ignore_ascii_case("authorization: bearer test-token")));
+            let body: Value =
+                serde_json::from_slice(&request[body_start..body_start + content_length]).unwrap();
+            assert_eq!(body["producer_id"], "core-customer-analytics");
+            assert_eq!(body["source_domain"], "inbox");
+            assert_eq!(body["source_stream_key"], "organization:org-1:inbox");
+            assert_eq!(body["scope_kind"], "core_organization");
+            assert_eq!(body["scope_external_id"], "org-1");
+            assert_eq!(body["source_highest_outbox_sequence"], 12);
+            assert_eq!(body["authoritative_count"], 4);
+            let response_body = r#"{"reconciliation_run_id":"run-1","reconciliation_status":"complete","analytics_highest_received_sequence":12,"analytics_highest_contiguous_sequence":12,"missing_sequence_ranges":[],"unresolved_quarantine_count":0,"analytics_count":4}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                response_body.len(),
+                response_body
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+
+        let client = AnalyticsIngestionClient::new(
+            format!("http://{}", address),
+            "test-token",
+            Duration::from_secs(2),
+        )
+        .unwrap();
+        let response = client
+            .send_reconciliation(&ReconciliationRequest {
+                reconciliation_run_id: "run-1".to_string(),
+                producer_id: "core-customer-analytics".to_string(),
+                source_domain: "inbox".to_string(),
+                source_stream_key: "organization:org-1:inbox".to_string(),
+                scope_kind: "core_organization".to_string(),
+                scope_external_id: "org-1".to_string(),
+                source_highest_outbox_sequence: 12,
+                source_highest_delivered_sequence: Some(12),
+                authoritative_count: 4,
+            })
+            .await
+            .unwrap();
+        assert_eq!(response.reconciliation_status, "complete");
+        assert_eq!(response.analytics_count, 4);
         server.await.unwrap();
     }
 }

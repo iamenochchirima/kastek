@@ -1586,6 +1586,19 @@ timezone, resolve nullable organization ownership for analytics-eligible records
 scope-bound pseudonymous customer references, and add Core's outbox, publisher, source manifests,
 and reconciliation endpoint. Unowned legacy records cannot appear as valid customer analytics.
 
+#### Execution slice 4 — Source reconciliation summaries
+
+- [x] Add a shared Rust producer query that reports bounded source-stream summaries without
+  reading or transmitting envelopes, content, customer identifiers, or provider payloads.
+- [x] Post authenticated reconciliation summaries to the existing Analytics endpoint with the
+  producer-derived identity, explicit scope binding, source watermarks, and authoritative count.
+- [x] Run reconciliation from both Core and Tenant publishers with configurable interval and
+  stream bounds; keep source outbox facts unchanged when Analytics is unavailable.
+- [x] Cover the authenticated reconciliation wire contract and preserve the existing source
+  outbox lease/delivery path.
+- [ ] Add source-manifest heartbeats and domain-specific checksums after the corresponding source
+  manifests and authoritative domain counters exist.
+
 ### Core lane: Connections foundation
 
 Connections owns created, connected, disconnected, revoked, and needs-attention transitions;

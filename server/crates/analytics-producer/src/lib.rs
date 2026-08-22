@@ -18,8 +18,10 @@ use uuid::Uuid;
 mod publisher;
 
 pub use publisher::{
-    publish_outbox_once, AnalyticsIngestionClient, AnalyticsPublisherSettings, PublishStats,
-    PublisherError,
+    list_outbox_reconciliation_summaries, publish_outbox_once, reconcile_outbox_once,
+    AnalyticsIngestionClient, AnalyticsPublisherSettings, OutboxReconciliationSummary,
+    PublishStats, PublisherError, ReconciliationCursor, ReconciliationRequest,
+    ReconciliationResponse, ReconciliationStats, MAX_RECONCILIATION_STREAMS,
 };
 
 pub const CORE_SOURCE_SERVICE: &str = "core";

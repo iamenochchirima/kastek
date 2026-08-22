@@ -1,7 +1,12 @@
-use std::{env, time::Duration};
+use std::{
+    env,
+    time::{Duration, Instant},
+};
 
 use analytics_producer::{
-    publish_outbox_once, AnalyticsIngestionClient, AnalyticsPublisherSettings, RetryPolicy,
+    publish_outbox_once, reconcile_outbox_once, AnalyticsIngestionClient,
+    AnalyticsPublisherSettings, ReconciliationCursor, RetryPolicy, CORE_SOURCE_SERVICE,
+    MAX_RECONCILIATION_STREAMS,
 };
 use chrono::Utc;
 use sqlx::PgPool;
@@ -34,6 +39,10 @@ pub async fn run(pool: PgPool) {
         settings.endpoint,
         settings.batch_size
     );
+    let reconciliation_every = reconciliation_interval();
+    let reconciliation_stream_limit = reconciliation_stream_limit();
+    let mut next_reconciliation = Instant::now();
+    let mut reconciliation_cursor: Option<ReconciliationCursor> = None;
     loop {
         match publish_outbox_once(&pool, &client, &settings, Utc::now()).await {
             Ok(stats) if stats.claimed > 0 || stats.leases_released > 0 => log::info!(
@@ -46,6 +55,32 @@ pub async fn run(pool: PgPool) {
             ),
             Ok(_) => {}
             Err(error) => log::error!("[analytics-publisher] iteration failed: {error}"),
+        }
+        if Instant::now() >= next_reconciliation {
+            match reconcile_outbox_once(
+                &pool,
+                &client,
+                &settings.producer_id,
+                CORE_SOURCE_SERVICE,
+                reconciliation_cursor.as_ref(),
+                reconciliation_stream_limit,
+            )
+            .await
+            {
+                Ok(stats) => {
+                    reconciliation_cursor = stats.next_cursor;
+                    if stats.attempted > 0 || stats.mismatched > 0 {
+                        log::info!(
+                            "[analytics-publisher] reconciled={} complete={} mismatched={}",
+                            stats.attempted,
+                            stats.complete,
+                            stats.mismatched
+                        );
+                    }
+                }
+                Err(error) => log::error!("[analytics-publisher] reconciliation failed: {error}"),
+            }
+            next_reconciliation = Instant::now() + reconciliation_every;
         }
         tokio::time::sleep(poll_interval()).await;
     }
@@ -90,6 +125,14 @@ fn settings_from_env() -> Option<AnalyticsPublisherSettings> {
 
 fn poll_interval() -> Duration {
     Duration::from_millis(env_u64("ANALYTICS_PUBLISHER_POLL_INTERVAL_MS", 1_000))
+}
+
+fn reconciliation_interval() -> Duration {
+    Duration::from_millis(env_u64("ANALYTICS_RECONCILIATION_INTERVAL_MS", 60_000))
+}
+
+fn reconciliation_stream_limit() -> i64 {
+    env_i64("ANALYTICS_RECONCILIATION_MAX_STREAMS", 100).clamp(1, MAX_RECONCILIATION_STREAMS)
 }
 
 fn env_string(name: &str, default: &str) -> String {
