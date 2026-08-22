@@ -1700,8 +1700,18 @@ those transitions.
 - [x] Measure response time only for outbound human or Agent messages following a customer message.
 - [x] Preserve Agent-vs-human attribution for Core's direct Agent delivery path and workspace Inbox
   queue path without treating every Core `bot` row as an Agent response.
-- [ ] Add equivalent Meta Inbox collection, deletion/retry facts, historical coverage, source
-  reconciliation, projection/reporting evidence, and end-to-end mutation-to-reporting tests.
+
+#### Execution slice 2 — Meta Inbox conversation and message facts
+
+- [x] Add Meta Inbox conversation-open and inbound customer message facts from the webhook
+  insertion paths, using the same bounded Core contracts and organization scope.
+- [x] Add Meta human outbound creation, provider send success/failure, retry, delivery, read, and
+  delivery-backfill facts from the authoritative Core mutations and webhook receipt paths.
+- [x] Preserve Meta channel and message-type dimensions while keeping content, customer
+  identifiers, provider IDs, credentials, and raw provider payloads out of analytics attributes.
+- [ ] Add Core-owned Meta deletion facts when a Meta conversation/message deletion mutation exists,
+  historical backfill coverage, source reconciliation, projection/reporting evidence, and
+  end-to-end mutation-to-reporting tests.
 
 - [ ] Complete the remaining Core Inbox-owned conversation and message facts; do not make Agent
   Platform the owner of Core Inbox conversations.

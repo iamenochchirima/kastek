@@ -3,9 +3,10 @@ use chrono::Utc;
 use hmac::{Hmac, Mac};
 use serde_json::{json, Value};
 use sha2::Sha256;
-use sqlx::{FromRow, PgPool};
+use sqlx::{FromRow, PgPool, Postgres, Transaction};
 use std::collections::HashSet;
 
+use crate::analytics;
 use crate::config::AppConfig;
 use crate::db::models::{ConversationRow, WhatsappSendMessageRequest};
 use crate::error::AppError;
@@ -55,6 +56,21 @@ struct InboxMessageRow {
     error_code: Option<String>,
     #[sqlx(rename = "error_message")]
     error_message: Option<String>,
+}
+
+#[derive(Debug, FromRow)]
+struct MetaMessageAnalyticsRow {
+    id: String,
+    #[sqlx(rename = "conversation_id")]
+    conversation_id: String,
+    channel: String,
+    sender: String,
+    #[sqlx(rename = "message_type")]
+    message_type: Option<String>,
+    #[sqlx(rename = "provider_metadata")]
+    provider_metadata: Option<Value>,
+    #[sqlx(rename = "org_id")]
+    org_id: Option<String>,
 }
 
 #[derive(Debug, FromRow)]
@@ -765,13 +781,15 @@ pub async fn send_conversation_message(
         ));
     }
     let message_id = cuid2::create_id();
+    let occurred_at = Utc::now();
+    let mut transaction = pool.begin().await?;
     sqlx::query(
         r#"
         INSERT INTO "Message" (
             id, "conversationId", sender, content, "contentType",
             "providerStatus", "providerMetadata", timestamp
         )
-        VALUES ($1, $2, 'bot', $3, 'TEXT', 'PROCESSING', $4, NOW())
+        VALUES ($1, $2, 'bot', $3, 'TEXT', 'PROCESSING', $4, $5)
         "#,
     )
     .bind(&message_id)
@@ -781,9 +799,36 @@ pub async fn send_conversation_message(
         "provider": meta_scope.channel,
         "channelConnectionId": meta_scope.channel_connection_id,
         "replyToMessageId": input.reply_to_message_id,
+        "_kasitek_inbox_responder_type": "human",
     }))
-    .execute(pool)
+    .bind(occurred_at)
+    .execute(&mut *transaction)
     .await?;
+    let response_time_ms = analytics::inbox::preceding_customer_response_time_ms(
+        &mut transaction,
+        &meta_scope.id,
+        occurred_at,
+    )
+    .await?;
+    analytics::inbox::enqueue_message_lifecycle(
+        &mut transaction,
+        org_id,
+        &message_id,
+        &meta_scope.id,
+        &meta_scope.channel,
+        "created",
+        "outbound",
+        "human",
+        "text",
+        Some("processing"),
+        response_time_ms,
+        occurred_at,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+    })?;
+    transaction.commit().await?;
     if let Some(target) = reply_target.as_ref() {
         message_domain::create_reference(
             pool,
@@ -799,6 +844,7 @@ pub async fn send_conversation_message(
     deliver_meta_text_message(
         pool,
         user_id,
+        org_id,
         &meta_scope,
         &message_id,
         text,
@@ -826,6 +872,7 @@ pub async fn retry_conversation_message(
     let meta_scope = scoped_meta_conversation(pool, org_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
+    let mut transaction = pool.begin().await?;
     let message = sqlx::query_as::<_, InboxMessageRow>(
         r#"
         UPDATE "Message"
@@ -849,11 +896,31 @@ pub async fn retry_conversation_message(
     )
     .bind(message_id)
     .bind(&meta_scope.id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *transaction)
     .await?
     .ok_or_else(|| {
         AppError::Conflict("Only failed outgoing text messages can be retried".to_string())
     })?;
+    let occurred_at = Utc::now();
+    analytics::inbox::enqueue_message_lifecycle(
+        &mut transaction,
+        org_id,
+        &message.id,
+        &meta_scope.id,
+        &meta_scope.channel,
+        "retried",
+        "outbound",
+        "human",
+        "text",
+        Some("processing"),
+        None,
+        occurred_at,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+    })?;
+    transaction.commit().await?;
     let reply_to_provider_message_id = sqlx::query_scalar::<_, Option<String>>(
         r#"
         SELECT "referencedProviderMessageId"
@@ -871,6 +938,7 @@ pub async fn retry_conversation_message(
     deliver_meta_text_message(
         pool,
         user_id,
+        org_id,
         &meta_scope,
         &message.id,
         &message.content,
@@ -882,6 +950,7 @@ pub async fn retry_conversation_message(
 async fn deliver_meta_text_message(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     meta_scope: &MetaConversationScopeRow,
     message_id: &str,
     text: &str,
@@ -890,6 +959,7 @@ async fn deliver_meta_text_message(
     let result = try_deliver_meta_text_message(
         pool,
         user_id,
+        org_id,
         meta_scope,
         message_id,
         text,
@@ -898,6 +968,8 @@ async fn deliver_meta_text_message(
     .await;
 
     if let Err(error) = &result {
+        let occurred_at = Utc::now();
+        let mut transaction = pool.begin().await?;
         sqlx::query(
             r#"
             UPDATE "Message"
@@ -909,8 +981,29 @@ async fn deliver_meta_text_message(
         )
         .bind(error.to_string())
         .bind(message_id)
-        .execute(pool)
+        .execute(&mut *transaction)
         .await?;
+        analytics::inbox::enqueue_message_lifecycle(
+            &mut transaction,
+            org_id,
+            message_id,
+            &meta_scope.id,
+            &meta_scope.channel,
+            "delivery_updated",
+            "outbound",
+            "human",
+            "text",
+            Some("failed"),
+            None,
+            occurred_at,
+        )
+        .await
+        .map_err(|analytics_error| {
+            AppError::Internal(format!(
+                "Failed to queue Inbox analytics fact: {analytics_error}"
+            ))
+        })?;
+        transaction.commit().await?;
         publish_message_updated(pool, message_id).await?;
     }
 
@@ -920,6 +1013,7 @@ async fn deliver_meta_text_message(
 async fn try_deliver_meta_text_message(
     pool: &PgPool,
     user_id: &str,
+    org_id: &str,
     meta_scope: &MetaConversationScopeRow,
     message_id: &str,
     text: &str,
@@ -982,6 +1076,8 @@ async fn try_deliver_meta_text_message(
     )
     .await?;
 
+    let occurred_at = Utc::now();
+    let mut transaction = pool.begin().await?;
     sqlx::query(
         r#"
         WITH updated_message AS (
@@ -1002,8 +1098,27 @@ async fn try_deliver_meta_text_message(
     .bind(response.message_id.as_deref())
     .bind(message_id)
     .bind(&meta_scope.id)
-    .execute(pool)
+    .execute(&mut *transaction)
     .await?;
+    analytics::inbox::enqueue_message_lifecycle(
+        &mut transaction,
+        org_id,
+        message_id,
+        &meta_scope.id,
+        &meta_scope.channel,
+        "delivery_updated",
+        "outbound",
+        "human",
+        "text",
+        Some("sent"),
+        None,
+        occurred_at,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+    })?;
+    transaction.commit().await?;
 
     // The HTTP response is the sender's immediate acknowledgement. Realtime
     // fan-out performs several read queries and must not hold that response
@@ -1264,7 +1379,7 @@ pub async fn process_meta_webhook_payload(
                 .map(str::to_string);
 
             let customer_name = resolve_meta_customer_name(pool, &channel, customer_id).await?;
-            let (conversation_id, _) = find_or_create_meta_conversation(
+            let (conversation_id, _, _) = find_or_create_meta_conversation(
                 pool,
                 &channel,
                 customer_id,
@@ -1305,13 +1420,15 @@ pub async fn process_meta_webhook_payload(
             let message_id = cuid2::create_id();
             let message_sender = if is_echo { "bot" } else { "customer" };
             let provider_status = if is_echo { "SENT" } else { "RECEIVED" };
+            let occurred_at = Utc::now();
+            let mut transaction = pool.begin().await?;
             let inserted = sqlx::query_scalar::<_, String>(
                 r#"
                 INSERT INTO "Message" (
                     id, "conversationId", sender, content, "contentType",
                     "providerMessageId", "providerStatus", "providerMetadata", timestamp
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 ON CONFLICT ("conversationId", "providerMessageId") DO NOTHING
                 RETURNING id
                 "#,
@@ -1332,13 +1449,57 @@ pub async fn process_meta_webhook_payload(
                 "object": object,
                 "isEcho": is_echo,
                 "event": event,
+                "_kasitek_inbox_responder_type": if is_echo { "human" } else { "customer" },
             }))
-            .fetch_optional(pool)
+            .bind(occurred_at)
+            .fetch_optional(&mut *transaction)
             .await?;
 
             if inserted.is_none() {
+                transaction.rollback().await?;
                 continue;
             }
+            analytics::inbox::enqueue_message_lifecycle(
+                &mut transaction,
+                channel.org_id.as_deref().unwrap_or_default(),
+                &message_id,
+                &conversation_id,
+                if channel.platform == "INSTAGRAM" {
+                    "instagram"
+                } else {
+                    "facebook"
+                },
+                "created",
+                if is_echo { "outbound" } else { "inbound" },
+                if is_echo { "human" } else { "customer" },
+                if attachments.is_empty() {
+                    "text"
+                } else {
+                    "media"
+                },
+                Some(&provider_status.to_ascii_lowercase()),
+                None,
+                occurred_at,
+            )
+            .await
+            .map_err(|error| {
+                AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+            })?;
+            sqlx::query(
+                r#"
+                UPDATE "Conversation"
+                SET "lastMessageAt" = $1,
+                    status = 'active',
+                    "unreadCount" = "unreadCount" + $2, "updatedAt" = NOW()
+                WHERE id = $3
+                "#,
+            )
+            .bind(occurred_at)
+            .bind(if is_echo { 0 } else { 1 })
+            .bind(&conversation_id)
+            .execute(&mut *transaction)
+            .await?;
+            transaction.commit().await?;
             for attachment in &attachments {
                 message_domain::create_attachment(
                     pool,
@@ -1363,20 +1524,6 @@ pub async fn process_meta_webhook_payload(
                 )
                 .await?;
             }
-
-            sqlx::query(
-                r#"
-                UPDATE "Conversation"
-                SET "lastMessageAt" = NOW(),
-                    status = 'active',
-                    "unreadCount" = "unreadCount" + $2, "updatedAt" = NOW()
-                WHERE id = $1
-                "#,
-            )
-            .bind(&conversation_id)
-            .bind(if is_echo { 0 } else { 1 })
-            .execute(pool)
-            .await?;
 
             publish_message_created(pool, &channel.user_id, &message_id).await?;
             publish_conversation_updated(pool, &channel.user_id, &conversation_id).await?;
@@ -1592,7 +1739,7 @@ async fn find_or_create_meta_conversation(
     channel: &MetaChannelRow,
     customer_id: &str,
     customer_name: Option<&str>,
-) -> Result<(String, i32), AppError> {
+) -> Result<(String, i32, bool), AppError> {
     let channel_name = if channel.platform == "INSTAGRAM" {
         "instagram"
     } else {
@@ -1615,7 +1762,8 @@ async fn find_or_create_meta_conversation(
     };
 
     let id = cuid2::create_id();
-    sqlx::query_as::<_, (String, i32)>(
+    let mut transaction = pool.begin().await?;
+    let (conversation_id, unread_count, created) = sqlx::query_as::<_, (String, i32, bool)>(
         r#"
         INSERT INTO "Conversation" (
             id, channel, "customerIdentifier", "customerName", status,
@@ -1636,7 +1784,7 @@ async fn find_or_create_meta_conversation(
             ),
             "updatedAt" = NOW()
         WHERE "Conversation"."orgId" = EXCLUDED."orgId"
-        RETURNING id, "unreadCount"
+        RETURNING id, "unreadCount", (xmax = 0) AS created
         "#,
     )
     .bind(&id)
@@ -1647,9 +1795,26 @@ async fn find_or_create_meta_conversation(
     .bind(channel.org_id.as_deref())
     .bind(&channel.external_connection_id)
     .bind(canonical_customer_id.as_deref())
-    .fetch_one(pool)
-    .await
-    .map_err(AppError::from)
+    .fetch_one(&mut *transaction)
+    .await?;
+    if created {
+        analytics::inbox::enqueue_conversation_lifecycle(
+            &mut transaction,
+            channel.org_id.as_deref().unwrap_or_default(),
+            &conversation_id,
+            channel_name,
+            "opened",
+            "active",
+            "customer",
+            Utc::now(),
+        )
+        .await
+        .map_err(|error| {
+            AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+        })?;
+    }
+    transaction.commit().await?;
+    Ok((conversation_id, unread_count, created))
 }
 
 async fn resolve_meta_customer_name(
@@ -1761,6 +1926,101 @@ async fn resolve_meta_customer_name(
     Ok(meta_profile_display_name(&profile))
 }
 
+async fn load_meta_message_analytics_rows(
+    transaction: &mut Transaction<'_, Postgres>,
+    message_ids: &HashSet<String>,
+) -> Result<Vec<MetaMessageAnalyticsRow>, AppError> {
+    if message_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let ids = message_ids.iter().cloned().collect::<Vec<_>>();
+    sqlx::query_as::<_, MetaMessageAnalyticsRow>(
+        r#"
+        SELECT message.id,
+               message."conversationId" AS conversation_id,
+               conversation.channel,
+               message.sender,
+               message."contentType"::text AS message_type,
+               message."providerMetadata" AS provider_metadata,
+               conversation."orgId" AS org_id
+        FROM "Message" message
+        JOIN "Conversation" conversation ON conversation.id = message."conversationId"
+        WHERE message.id = ANY($1)
+        "#,
+    )
+    .bind(&ids)
+    .fetch_all(&mut **transaction)
+    .await
+    .map_err(AppError::from)
+}
+
+fn meta_message_responder_type(message: &MetaMessageAnalyticsRow) -> &'static str {
+    if message.sender == "customer" {
+        "customer"
+    } else if message
+        .provider_metadata
+        .as_ref()
+        .and_then(|value| value.get("_kasitek_agent_idempotency_key"))
+        .and_then(Value::as_str)
+        .is_some_and(|value| !value.is_empty())
+    {
+        "agent"
+    } else if message
+        .provider_metadata
+        .as_ref()
+        .and_then(|value| value.get("_kasitek_inbox_message_kind"))
+        .and_then(Value::as_str)
+        == Some("template")
+    {
+        "system"
+    } else {
+        "human"
+    }
+}
+
+async fn enqueue_meta_message_lifecycle(
+    transaction: &mut Transaction<'_, Postgres>,
+    message_ids: &HashSet<String>,
+    action: &str,
+    delivery_status: Option<&str>,
+    occurred_at: chrono::DateTime<Utc>,
+) -> Result<(), AppError> {
+    for message in load_meta_message_analytics_rows(transaction, message_ids).await? {
+        let Some(org_id) = message.org_id.as_deref() else {
+            continue;
+        };
+        let direction = if message.sender == "customer" {
+            "inbound"
+        } else {
+            "outbound"
+        };
+        let message_type = message
+            .message_type
+            .as_deref()
+            .unwrap_or("TEXT")
+            .to_ascii_lowercase();
+        analytics::inbox::enqueue_message_lifecycle(
+            transaction,
+            org_id,
+            &message.id,
+            &message.conversation_id,
+            &message.channel,
+            action,
+            direction,
+            meta_message_responder_type(&message),
+            &message_type,
+            delivery_status,
+            None,
+            occurred_at,
+        )
+        .await
+        .map_err(|error| {
+            AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+        })?;
+    }
+    Ok(())
+}
+
 fn meta_customer_profile_query(
     uses_instagram_login: bool,
     platform: &str,
@@ -1791,7 +2051,8 @@ async fn apply_meta_delivery_event(
         return Ok(());
     }
 
-    let mut updated_ids = std::collections::HashSet::new();
+    let mut transaction = pool.begin().await?;
+    let mut updated_ids = HashSet::new();
     if !message_ids.is_empty() {
         updated_ids.extend(
             sqlx::query_scalar::<_, String>(
@@ -1810,7 +2071,7 @@ async fn apply_meta_delivery_event(
             .bind(org_id)
             .bind(&channel.external_connection_id)
             .bind(&message_ids)
-            .fetch_all(pool)
+            .fetch_all(&mut *transaction)
             .await?,
         );
     }
@@ -1844,10 +2105,20 @@ async fn apply_meta_delivery_event(
             .bind(channel_name)
             .bind(identifier)
             .bind(watermark)
-            .fetch_all(pool)
+            .fetch_all(&mut *transaction)
             .await?,
         );
     }
+
+    enqueue_meta_message_lifecycle(
+        &mut transaction,
+        &updated_ids,
+        "delivery_updated",
+        Some("delivered"),
+        Utc::now(),
+    )
+    .await?;
+    transaction.commit().await?;
 
     for message_id in updated_ids {
         publish_message_updated(pool, &message_id).await?;
@@ -1931,7 +2202,7 @@ async fn sync_missing_meta_outbound_message(
     }
     let customer_name = meta_graph_message_recipient_name(&graph_message, customer_id)
         .or(resolve_meta_customer_name(pool, channel, customer_id).await?);
-    let (conversation_id, _) =
+    let (conversation_id, _, _) =
         find_or_create_meta_conversation(pool, channel, customer_id, customer_name.as_deref())
             .await?;
     let timestamp = graph_message
@@ -1942,6 +2213,7 @@ async fn sync_missing_meta_outbound_message(
         .unwrap_or_else(Utc::now);
 
     let message_id = cuid2::create_id();
+    let mut transaction = pool.begin().await?;
     let inserted = sqlx::query_scalar::<_, String>(
         r#"
         INSERT INTO "Message" (
@@ -1963,16 +2235,58 @@ async fn sync_missing_meta_outbound_message(
     })
     .bind(provider_message_id)
     .bind(json!({
-        "provider": "facebook",
+        "provider": channel.platform.to_lowercase(),
         "source": "delivery_backfill",
+        "_kasitek_inbox_responder_type": "human",
         "graphMessage": graph_message,
     }))
     .bind(timestamp)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *transaction)
     .await?;
     let Some(message_id) = inserted else {
+        transaction.rollback().await?;
         return Ok(());
     };
+    analytics::inbox::enqueue_message_lifecycle(
+        &mut transaction,
+        channel.org_id.as_deref().unwrap_or_default(),
+        &message_id,
+        &conversation_id,
+        if channel.platform == "INSTAGRAM" {
+            "instagram"
+        } else {
+            "facebook"
+        },
+        "created",
+        "outbound",
+        "human",
+        if attachments.is_empty() {
+            "text"
+        } else {
+            "media"
+        },
+        Some("delivered"),
+        None,
+        timestamp,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+    })?;
+    sqlx::query(
+        r#"
+        UPDATE "Conversation"
+        SET "lastMessageAt" = GREATEST("lastMessageAt", $2),
+            status = 'active',
+            "updatedAt" = NOW()
+        WHERE id = $1
+        "#,
+    )
+    .bind(&conversation_id)
+    .bind(timestamp)
+    .execute(&mut *transaction)
+    .await?;
+    transaction.commit().await?;
     for attachment in &attachments {
         message_domain::create_attachment(
             pool,
@@ -1987,19 +2301,6 @@ async fn sync_missing_meta_outbound_message(
         .await?;
     }
 
-    sqlx::query(
-        r#"
-        UPDATE "Conversation"
-        SET "lastMessageAt" = GREATEST("lastMessageAt", $2),
-            status = 'active',
-            "updatedAt" = NOW()
-        WHERE id = $1
-        "#,
-    )
-    .bind(&conversation_id)
-    .bind(timestamp)
-    .execute(pool)
-    .await?;
     publish_message_created(pool, &channel.user_id, &message_id).await?;
     publish_conversation_updated(pool, &channel.user_id, &conversation_id).await?;
     Ok(())
@@ -2020,7 +2321,8 @@ async fn apply_meta_read_event(
         return Ok(());
     }
 
-    let mut updated_ids = std::collections::HashSet::new();
+    let mut transaction = pool.begin().await?;
+    let mut updated_ids = HashSet::new();
     if !message_ids.is_empty() {
         updated_ids.extend(
             sqlx::query_scalar::<_, String>(
@@ -2052,7 +2354,7 @@ async fn apply_meta_read_event(
             .bind(org_id)
             .bind(&channel.external_connection_id)
             .bind(&message_ids)
-            .fetch_all(pool)
+            .fetch_all(&mut *transaction)
             .await?,
         );
     }
@@ -2086,10 +2388,20 @@ async fn apply_meta_read_event(
             .bind(channel_name)
             .bind(identifier)
             .bind(watermark)
-            .fetch_all(pool)
+            .fetch_all(&mut *transaction)
             .await?,
         );
     }
+
+    enqueue_meta_message_lifecycle(
+        &mut transaction,
+        &updated_ids,
+        "delivery_updated",
+        Some("read"),
+        Utc::now(),
+    )
+    .await?;
+    transaction.commit().await?;
 
     if updated_ids.is_empty() {
         log::warn!(
@@ -2968,14 +3280,52 @@ mod tests {
         build_meta_conversation_identifier, meta_customer_profile_query, meta_delivery_message_ids,
         meta_graph_message_attachments, meta_graph_message_content,
         meta_graph_message_recipient_name, meta_mark_seen_payload, meta_message_attachments,
-        meta_message_is_echo, meta_message_sender_asset_id, meta_profile_display_name,
-        meta_read_message_ids, meta_receipt_watermark, meta_reply_to_mid,
-        normalize_attachment_kind, parse_meta_conversation_identifier,
+        meta_message_is_echo, meta_message_responder_type, meta_message_sender_asset_id,
+        meta_profile_display_name, meta_read_message_ids, meta_receipt_watermark,
+        meta_reply_to_mid, normalize_attachment_kind, parse_meta_conversation_identifier,
         sanitize_attachment_filename, scoped_conversation, select_meta_attachment_url,
-        verify_meta_signature, HmacSha256,
+        verify_meta_signature, HmacSha256, MetaMessageAnalyticsRow,
     };
     use hmac::Mac;
-    use serde_json::json;
+    use serde_json::{json, Value};
+
+    fn analytics_message(sender: &str, metadata: Value) -> MetaMessageAnalyticsRow {
+        MetaMessageAnalyticsRow {
+            id: "message-1".to_string(),
+            conversation_id: "conversation-1".to_string(),
+            channel: "facebook".to_string(),
+            sender: sender.to_string(),
+            message_type: Some("TEXT".to_string()),
+            provider_metadata: Some(metadata),
+            org_id: Some("org-1".to_string()),
+        }
+    }
+
+    #[test]
+    fn meta_analytics_attribution_keeps_customer_human_agent_and_system_distinct() {
+        assert_eq!(
+            meta_message_responder_type(&analytics_message("customer", json!({}))),
+            "customer"
+        );
+        assert_eq!(
+            meta_message_responder_type(&analytics_message(
+                "bot",
+                json!({ "_kasitek_agent_idempotency_key": "run-1" })
+            )),
+            "agent"
+        );
+        assert_eq!(
+            meta_message_responder_type(&analytics_message(
+                "bot",
+                json!({ "_kasitek_inbox_message_kind": "template" })
+            )),
+            "system"
+        );
+        assert_eq!(
+            meta_message_responder_type(&analytics_message("bot", json!({}))),
+            "human"
+        );
+    }
 
     #[test]
     fn meta_webhook_signature_must_match_the_raw_body() {

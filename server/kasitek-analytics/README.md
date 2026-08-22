@@ -238,14 +238,15 @@ provider message identifiers remain operational-only. Personal, test, customer, 
 conversation kinds stay distinct, and customer handoff remains a separate conditional contract
 for customer-service agents.
 
-Core Inbox collection has started with the existing WhatsApp path. Core emits bounded conversation
-open facts and message creation/delivery lifecycle facts from the transactional WhatsApp mutations,
-including inbound customer messages, workspace human replies, direct Agent delivery, queue worker
-outcomes, and provider sent/delivered/read/failed transitions. Response timing is measured only for
-an outbound human or Agent message following a customer message. The contracts exclude message
-content, customer identifiers, provider message IDs, credentials, and raw provider payloads. Meta
-Inbox, assignment, resolution, deletion/retry coverage, reconciliation, projections, reporting,
-and end-to-end mutation-to-reporting evidence remain pending Core Inbox slices.
+Core Inbox collection covers the existing WhatsApp path and the main Meta Inbox paths. Core emits
+bounded conversation-open and message lifecycle facts from transactional WhatsApp, Facebook, and
+Instagram mutations, including inbound customer messages, workspace human replies, direct Agent
+delivery where Core has explicit attribution, retries, delivery/read/failure transitions, and Meta
+delivery backfills. Response timing is measured only for an outbound human or Agent message
+following a customer message. The contracts exclude message content, customer identifiers,
+provider message IDs, credentials, and raw provider payloads. Core-owned assignment/resolution,
+Meta deletion mutations, historical coverage, reconciliation, projections, reporting, and
+end-to-end mutation-to-reporting evidence remain pending Core Inbox slices.
 
 The common path applies to personal, customer-service, system-hosted, hosted, and
 external-connected runs. Customer handoff is a separate conditional lifecycle contract already
