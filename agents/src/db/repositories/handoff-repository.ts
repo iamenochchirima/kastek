@@ -539,6 +539,56 @@ export class HandoffRepository {
     });
   }
 
+  /**
+   * Cancels the pending handoff created by a run when that run is stopped
+   * while waiting for a human. Claimed conversations remain human-owned and
+   * are intentionally left for the operator to resolve.
+   */
+  public async cancelForRun(input: { organizationId: string; runId: string; actorId: string; reason?: string }): Promise<boolean> {
+    return withTransaction(this.pool, async (client) => {
+      const currentResult = await client.query<HandoffRequestRecord & { conversation: ConversationRecord }>(
+        `SELECT h.*, row_to_json(c) AS conversation
+         FROM agent_handoff_requests h
+         JOIN conversations c ON c.id = h.conversation_id AND c.organization_id = h.organization_id
+         WHERE h.organization_id = $1 AND h.run_id = $2 AND h.status = 'pending'
+           AND c.handoff_state = 'handoff_requested'
+         ORDER BY h.created_at DESC, h.id DESC
+         LIMIT 1
+         FOR UPDATE OF h, c`,
+        [input.organizationId, input.runId],
+      );
+      const current = currentResult.rows[0];
+      if (!current) return false;
+      const resolution = (input.reason?.trim() || "cancelled_by_run").slice(0, 2_000);
+      const handoff = await client.query<HandoffRequestRecord>(
+        `UPDATE agent_handoff_requests
+         SET status = 'cancelled', resolved_by = $3, resolved_at = now(),
+             resolution = $4, updated_at = now()
+         WHERE organization_id = $1 AND id = $2 AND status = 'pending'
+         RETURNING *`,
+        [input.organizationId, current.id, input.actorId, resolution],
+      );
+      const conversation = await client.query<ConversationRecord>(
+        `UPDATE conversations
+         SET handoff_state = 'cancelled', assigned_actor_id = NULL,
+             handoff_revision = handoff_revision + 1, handoff_resolved_at = now(), updated_at = now()
+         WHERE organization_id = $1 AND id = $2 AND handoff_state = 'handoff_requested'
+         RETURNING *`,
+        [input.organizationId, current.conversation_id],
+      );
+      if (!handoff.rows[0] || !conversation.rows[0]) throw handoffError("Handoff cancellation could not be committed", "handoff_cancel_conflict");
+      await this.appendLifecycleEvent(client, {
+        eventType: "conversation.handoff.cancelled",
+        handoff: handoff.rows[0],
+        conversation: conversation.rows[0],
+        actorType: input.actorId.startsWith("agent:") ? "agent" : input.actorId.startsWith("system:") ? "system" : "user",
+        actorId: input.actorId,
+        payload: { status: "cancelled", resolution, resolutionCode: "run_cancelled" },
+      });
+      return true;
+    });
+  }
+
   public async continueWithAgent(input: { organizationId: string; handoffId: string; actorId: string; resolution?: string }): Promise<HandoffMutationResult> {
     return this.closeClaim(input, "agent_active", "continued_with_agent", input.resolution);
   }
@@ -788,7 +838,9 @@ export class HandoffRepository {
                 ? "released"
                 : input.eventType === "conversation.handoff.expired"
                   ? "expired"
-                  : undefined;
+                  : input.eventType === "conversation.handoff.cancelled"
+                    ? "cancelled"
+                    : undefined;
     if (!action) throw new Error(`Unsupported handoff lifecycle event ${input.eventType}`);
     const occurredAt = new Date().toISOString();
     const analyticsAttributes: Record<string, unknown> = {

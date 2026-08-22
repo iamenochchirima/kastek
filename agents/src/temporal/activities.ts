@@ -1050,6 +1050,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const coreClient = options.coreClient ?? (options.config ? new KasitekCoreReadClient(options.config) : undefined);
   const telegramClient = options.telegramClient ?? (options.config ? new TelegramBotClient({ apiBaseUrl: options.config.TELEGRAM_API_BASE_URL, timeoutMs: options.config.TELEGRAM_API_TIMEOUT_MS }) : undefined);
   const conversationActions = options.conversationActions ?? new ConversationActionService(new HandoffRepository(pool));
+  const handoffs = new HandoffRepository(pool);
   const tools = options.tools ?? createDefaultTools(coreClient, conversationActions);
   return {
     async transitionRun(input) {
@@ -1094,6 +1095,16 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         installationId: run.installation_id,
         eventType: input.outcome === "expired" ? "agent.approval.expired" : "agent.approval.cancelled",
         payload: { providerToolCallId: input.providerToolCallId },
+      });
+    },
+    async cancelHandoff(input) {
+      const run = await runs.getRunById(input.runId);
+      if (!run) throw new Error("Run not found");
+      await handoffs.cancelForRun({
+        organizationId: run.organization_id,
+        runId: run.id,
+        actorId: run.created_by,
+        reason: input.reason,
       });
     },
     async completeRun(input) {

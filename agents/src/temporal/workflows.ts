@@ -83,6 +83,9 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
       // cancellation received while a model/tool activity was in flight durable
       // before the workflow can accept another step or publish a completion.
       if (cancellation) {
+        if (result.status === "awaiting_human") {
+          await activities.cancelHandoff({ runId: input.runId, reason: (cancellation as CancellationSignal).reason });
+        }
         await transition("running", "cancelled");
         return;
       }
@@ -171,7 +174,11 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         await activities.pauseRun({ runId: input.runId, status: "awaiting_human", output: { status: result.status, waitingFor: result.waitingFor, usage: result.usage, iterations: result.iterations, toolCalls: result.toolCalls, provenance: result.provenance ?? {} } });
         status = "awaiting_human";
         await condition(() => externalEvent !== undefined || cancellation !== undefined || expiration !== undefined);
-        if (cancellation) { await transition("awaiting_human", "cancelled"); return; }
+        if (cancellation) {
+          await activities.cancelHandoff({ runId: input.runId, reason: (cancellation as CancellationSignal).reason });
+          await transition("awaiting_human", "cancelled");
+          return;
+        }
         if (expiration) { await transition("awaiting_human", "expired"); return; }
         const event = externalEvent;
         externalEvent = undefined;
