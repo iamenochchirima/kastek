@@ -65,3 +65,168 @@ definitions:
     effective_from: "2026-08-22T00:00:00Z"
     applicability: agent installation emits failed-run facts
     dependencies: []
+
+  - key: agent.model_calls.completed
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Completed model calls made by Agent Platform.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.model_call.completed@1
+    formula: count(agent.model_call.completed@1)
+    eligible_population: model calls with a committed completed response
+    exclusions: []
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, model_provider, model, funding_source, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.model_call.completed@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: Agent Platform records completed model-call facts
+    dependencies: []
+
+  - key: agent.model_calls.failed
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Failed model calls made by Agent Platform.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.model_call.failed@1
+    formula: count(agent.model_call.failed@1)
+    eligible_population: model calls with a committed failure outcome
+    exclusions: []
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, model_provider, model, funding_source, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.model_call.failed@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: Agent Platform records failed model-call facts
+    dependencies: []
+
+  - key: agent.tokens.input
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Input tokens consumed by completed model calls.
+    value_type: integer
+    unit: tokens
+    precision: 0
+    sources:
+      - agent.model_call.completed@1
+    formula: sum(agent.model_call.completed@1, input_tokens)
+    eligible_population: completed model calls with token usage
+    exclusions: [provider calls without usage data]
+    time_semantics: event_time
+    default_aggregation: sum
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, model_provider, model, funding_source]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.model_call.completed@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: completed model calls include provider token usage
+    dependencies: []
+
+  - key: agent.tokens.output
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Output tokens produced by completed model calls.
+    value_type: integer
+    unit: tokens
+    precision: 0
+    sources:
+      - agent.model_call.completed@1
+    formula: sum(agent.model_call.completed@1, output_tokens)
+    eligible_population: completed model calls with token usage
+    exclusions: [provider calls without usage data]
+    time_semantics: event_time
+    default_aggregation: sum
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, model_provider, model, funding_source]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.model_call.completed@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: completed model calls include provider token usage
+    dependencies: []
+
+  - key: agent.cost.usd
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Estimated USD cost of completed model calls.
+    value_type: currency
+    unit: USD
+    precision: 8
+    sources:
+      - agent.model_call.completed@1
+    formula: sum(agent.model_call.completed@1, estimated_cost_usd)
+    eligible_population: completed model calls with an estimated USD cost
+    exclusions: [provider calls without pricing data]
+    time_semantics: event_time
+    default_aggregation: sum
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, model_provider, model, funding_source]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: estimated
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.model_call.completed@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: pricing is available for the selected provider and model
+    dependencies: []

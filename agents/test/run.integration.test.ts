@@ -96,6 +96,77 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
       },
     });
     expect(JSON.stringify(completedAnalytics.rows[0]?.envelope)).not.toContain("hello");
+    await modelCalls.recordCompleted({
+      organizationId,
+      runId: completedAnalyticsRun.id,
+      provider: "openai",
+      model: "gpt-test",
+      fundingSource: "kasitek",
+      credentialReference: "credential-should-not-be-exported",
+      correlationId: "model-correlation-1",
+      response: {
+        provider: "openai",
+        model: "gpt-test",
+        message: { role: "assistant", content: "private response" },
+        toolCalls: [],
+        finishReason: "stop",
+        usage: { inputTokens: 3, outputTokens: 5, totalTokens: 8, estimatedCostUsd: 0.0025 },
+        latencyMs: 120,
+      },
+    });
+    await modelCalls.recordFailed({
+      organizationId,
+      runId: completedAnalyticsRun.id,
+      provider: "openai",
+      model: "gpt-test",
+      fundingSource: "kasitek",
+      error: { code: "PROVIDER_RATE_LIMITED", message: "private provider detail" },
+      correlationId: "model-correlation-2",
+    });
+    const modelAnalytics = await pool.query<{
+      status: string;
+      record_id: string;
+      envelope: { type: string; correlation_id?: string; data: Record<string, unknown> };
+    }>(
+      `SELECT mc.status, ao.record_id, ao.envelope
+       FROM model_calls mc
+       JOIN analytics_outbox ao ON ao.record_id = 'model-call:' || mc.id || ':' || CASE WHEN mc.status = 'completed' THEN 'completed' ELSE 'failed' END
+       WHERE mc.organization_id = $1 AND mc.run_id = $2
+       ORDER BY mc.created_at`,
+      [organizationId, completedAnalyticsRun.id],
+    );
+    expect(modelAnalytics.rows).toHaveLength(2);
+    expect(modelAnalytics.rows[0]).toMatchObject({
+      status: "completed",
+      envelope: {
+        type: "agent.model_call.completed@1",
+        correlation_id: "model-correlation-1",
+        data: {
+          provider: "openai",
+          model: "gpt-test",
+          input_tokens: 3,
+          output_tokens: 5,
+          total_tokens: 8,
+          status: "completed",
+        },
+      },
+    });
+    expect(modelAnalytics.rows[1]).toMatchObject({
+      status: "failed",
+      envelope: {
+        type: "agent.model_call.failed@1",
+        correlation_id: "model-correlation-2",
+        data: {
+          provider: "openai",
+          model: "gpt-test",
+          failure_class: "provider",
+          status: "failed",
+        },
+      },
+    });
+    expect(JSON.stringify(modelAnalytics.rows)).not.toContain("credential-should-not-be-exported");
+    expect(JSON.stringify(modelAnalytics.rows)).not.toContain("private response");
+    expect(JSON.stringify(modelAnalytics.rows)).not.toContain("private provider detail");
     await pool.query("INSERT INTO model_calls (organization_id, run_id, provider, model, funding_source, total_tokens, estimated_cost_usd, status) VALUES ($1, $2, 'openai', 'test', 'kasitek', 10, 0.25, 'completed')", [organizationId, runId]);
     await expect(modelCalls.assertRunBudget({ organizationId, runId, maxRequests: 1 })).rejects.toThrow("REQUEST_BUDGET");
     const decisionCallId = "idempotent-decision-call";

@@ -2,10 +2,12 @@
 
 pub const REGISTRY_VERSION: &str = "20260822.1";
 pub const REGISTRY_SHA256: &str =
-    "0ca22976042faa2078eb50ec05c6ad63a49723756a346ecd5157c3cf831a04eb";
+    "c41ac713a1f341421471f176aac2ca5e5a6f23301f3e8126231899cfdf3ee060";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.handoff.lifecycle@1",
+    "agent.model_call.completed@1",
+    "agent.model_call.failed@1",
     "agent.run.completed@1",
     "agent.run.failed@1",
     "campaign.recipient.delivered@1",
@@ -15,8 +17,13 @@ pub const CONTRACT_KEYS: &[&str] = &[
 ];
 
 pub const METRIC_KEYS: &[&str] = &[
+    "agent.cost.usd@1",
+    "agent.model_calls.completed@1",
+    "agent.model_calls.failed@1",
     "agent.runs.completed@1",
     "agent.runs.failed@1",
+    "agent.tokens.input@1",
+    "agent.tokens.output@1",
     "campaign.delivery_rate@1",
     "campaign.recipients.delivered@1",
     "campaign.recipients.sent@1",
@@ -32,6 +39,9 @@ pub const DIMENSION_KEYS: &[&str] = &[
     "channel",
     "conversation_channel",
     "failure_class",
+    "funding_source",
+    "model",
+    "model_provider",
     "outcome",
     "provider",
     "responder_type",
@@ -41,8 +51,13 @@ pub const DIMENSION_KEYS: &[&str] = &[
 pub const METRIC_SET_KEYS: &[&str] = &["agent.performance@1", "overview.summary@1"];
 
 pub mod metric_keys {
+    pub const AGENT_COST_USD_1: &str = "agent.cost.usd@1";
+    pub const AGENT_MODEL_CALLS_COMPLETED_1: &str = "agent.model_calls.completed@1";
+    pub const AGENT_MODEL_CALLS_FAILED_1: &str = "agent.model_calls.failed@1";
     pub const AGENT_RUNS_COMPLETED_1: &str = "agent.runs.completed@1";
     pub const AGENT_RUNS_FAILED_1: &str = "agent.runs.failed@1";
+    pub const AGENT_TOKENS_INPUT_1: &str = "agent.tokens.input@1";
+    pub const AGENT_TOKENS_OUTPUT_1: &str = "agent.tokens.output@1";
     pub const CAMPAIGN_DELIVERY_RATE_1: &str = "campaign.delivery_rate@1";
     pub const CAMPAIGN_RECIPIENTS_DELIVERED_1: &str = "campaign.recipients.delivered@1";
     pub const CAMPAIGN_RECIPIENTS_SENT_1: &str = "campaign.recipients.sent@1";

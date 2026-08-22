@@ -32,6 +32,23 @@ export interface FailedAgentRunInput extends AgentRunTerminalInput {
   error: Record<string, unknown>;
 }
 
+export interface ModelCallAnalyticsInput {
+  modelCallId: string;
+  organizationId: string;
+  runId: string | null;
+  provider: string;
+  model: string;
+  fundingSource: "kasitek" | "user";
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  estimatedCostUsd?: number | null;
+  latencyMs?: number | null;
+  finishReason?: string | null;
+  occurredAt: Date | string;
+  correlationId?: string | null;
+}
+
 export function buildCompletedAgentRunEvent(input: CompletedAgentRunInput): AnalyticsOutboxRecord {
   const attributes: JsonObject = {
     run_id: input.runId,
@@ -58,7 +75,7 @@ export function buildFailedAgentRunEvent(input: FailedAgentRunInput): AnalyticsO
     agent_definition_id: input.agentDefinitionId,
     agent_version_id: input.agentVersionId,
     status: "failed",
-    failure_class: failureClass(input.error),
+    failure_class: classifyAgentFailure(input.error),
     occurred_at: input.finishedAt instanceof Date ? input.finishedAt.toISOString() : input.finishedAt,
     duration_ms: durationMilliseconds(input.startedAt, input.finishedAt, input.createdAt),
     trigger_type: input.triggerType,
@@ -68,6 +85,41 @@ export function buildFailedAgentRunEvent(input: FailedAgentRunInput): AnalyticsO
     deployment_surface: deploymentSurface(input),
   };
   return buildTerminalEvent(input, "agent.run.failed@1", "failed", attributes);
+}
+
+export function buildCompletedModelCallEvent(input: ModelCallAnalyticsInput): AnalyticsOutboxRecord {
+  const attributes: JsonObject = {
+    model_call_id: input.modelCallId,
+    run_id: input.runId,
+    provider: input.provider,
+    model: input.model,
+    funding_source: input.fundingSource,
+    input_tokens: nonNegativeInteger(input.inputTokens),
+    output_tokens: nonNegativeInteger(input.outputTokens),
+    total_tokens: nonNegativeInteger(input.totalTokens),
+    estimated_cost_usd: input.estimatedCostUsd ?? null,
+    latency_ms: input.latencyMs ?? null,
+    finish_reason: input.finishReason ?? null,
+    status: "completed",
+    occurred_at: input.occurredAt instanceof Date ? input.occurredAt.toISOString() : input.occurredAt,
+  };
+  return buildModelCallEvent(input, "agent.model_call.completed@1", "completed", attributes);
+}
+
+export function buildFailedModelCallEvent(
+  input: ModelCallAnalyticsInput & { error: Record<string, unknown> },
+): AnalyticsOutboxRecord {
+  const attributes: JsonObject = {
+    model_call_id: input.modelCallId,
+    run_id: input.runId,
+    provider: input.provider,
+    model: input.model,
+    funding_source: input.fundingSource,
+    failure_class: classifyAgentFailure(input.error),
+    status: "failed",
+    occurred_at: input.occurredAt instanceof Date ? input.occurredAt.toISOString() : input.occurredAt,
+  };
+  return buildModelCallEvent(input, "agent.model_call.failed@1", "failed", attributes);
 }
 
 function buildTerminalEvent(
@@ -93,13 +145,35 @@ function buildTerminalEvent(
   });
 }
 
+function buildModelCallEvent(
+  input: ModelCallAnalyticsInput,
+  contractName: "agent.model_call.completed@1" | "agent.model_call.failed@1",
+  terminalStatus: "completed" | "failed",
+  attributes: JsonObject,
+): AnalyticsOutboxRecord {
+  return buildEvent({
+    recordId: `model-call:${input.modelCallId}:${terminalStatus}`,
+    sourceDomain: "agents",
+    sourceStreamKey: `organization:${input.organizationId}:model-calls`,
+    contractName,
+    schemaVersion: 1,
+    scopeKind: "core_organization",
+    scopeExternalId: input.organizationId,
+    subject: `model-call:${input.modelCallId}`,
+    occurredAt: input.occurredAt,
+    attributes,
+    correlationId: input.correlationId ?? undefined,
+    idempotencyKey: `agent-platform:model-call:${input.modelCallId}:${terminalStatus}`,
+  });
+}
+
 function completedOutcome(output: Record<string, unknown>): "success" | "partial" | "no_effect" {
   return output.outcome === "partial" || output.outcome === "no_effect" || output.outcome === "success"
     ? output.outcome
     : "success";
 }
 
-function failureClass(error: Record<string, unknown>): "validation" | "provider" | "tool" | "timeout" | "policy" | "unknown" {
+export function classifyAgentFailure(error: Record<string, unknown>): "validation" | "provider" | "tool" | "timeout" | "policy" | "unknown" {
   const code = typeof error.code === "string" ? error.code.toUpperCase() : "";
   if (/TIMEOUT|DEADLINE|TTL|EXPIRED/.test(code)) return "timeout";
   if (/PROVIDER|MODEL|CREDENTIAL/.test(code)) return "provider";
@@ -107,6 +181,10 @@ function failureClass(error: Record<string, unknown>): "validation" | "provider"
   if (/POLICY|APPROVAL|PERMISSION|AUTH|CONCURRENCY|HOLD/.test(code)) return "policy";
   if (/VALID|INPUT|SCHEMA|ARGUMENT/.test(code)) return "validation";
   return "unknown";
+}
+
+function nonNegativeInteger(value: number | undefined): number {
+  return Number.isSafeInteger(value) && value !== undefined && value >= 0 ? value : 0;
 }
 
 function deploymentSurface(input: AgentRunTerminalInput): AgentDeploymentSurface {

@@ -284,7 +284,7 @@ checklist records implementation evidence for the current package only.
 - [ ] Add control-management UI in a later slice; expired entries fail closed during evaluation
   even before maintenance runs.
 
-## A-13 — M1 reference vertical slices (slice 1: Agent runtime)
+## A-13 — M1 reference vertical slices (slices 1–2: Agent runtime)
 
 - [x] Reuse the existing Agent Platform transactional Analytics outbox and registered terminal
   run contracts instead of reconstructing runtime facts from polling or operational summaries.
@@ -299,8 +299,16 @@ checklist records implementation evidence for the current package only.
   on the same common runtime path; handoff remains a separate conditional contract.
 - [x] Add producer unit coverage and a database-backed run-to-outbox integration fixture using an
   isolated temporary outbox table.
-- [ ] Add model-call, tool, approval/effect, schedule, readiness, and conditional conversation
-  facts in subsequent Agent runtime slices.
+- [x] Add versioned completed/failed model-call contracts with provider, model, funding-source,
+  token, cost, latency, finish-reason, and bounded failure fields; register corresponding metrics,
+  dimensions, and the Agent performance metric set.
+- [x] Emit model-call facts in the same transaction as the authoritative `model_calls` row, preserve
+  correlation IDs, use stable record identities, and keep credentials, prompts, responses, and raw
+  error messages out of Analytics payloads.
+- [x] Add model-call producer unit coverage and a database-backed model-call-to-outbox integration
+  fixture using the isolated temporary outbox table.
+- [ ] Add tool, approval/effect, schedule, readiness, and conditional conversation facts in
+  subsequent Agent runtime slices.
 
 ## Verification evidence
 
@@ -452,6 +460,9 @@ checklist records implementation evidence for the current package only.
   fixture passed with completed and failed terminal mutations writing isolated outbox facts.
 - A-13 slice 1: Analytics registry bindings were regenerated and checked after extending the
   version-one terminal run schemas with safe runtime-context fields; Analytics unit tests passed.
+- A-13 slice 2: model-call contracts, metrics, dimensions, and metric-set bindings were regenerated;
+  Agent producer and database-backed model-call outbox coverage passed without exporting provider
+  credentials, prompts, responses, or raw error messages.
 
 ## Explicitly deferred
 
@@ -461,7 +472,7 @@ checklist records implementation evidence for the current package only.
   tested recovery drills
 - A-12 control-management UI remains deferred; evaluation is database-authoritative and expired
   entries fail closed before or after maintenance closure.
-- A-13 model/tool/effect, schedule, readiness, conditional conversation, campaign, and Tenant M1
+- A-13 tool/effect, schedule, readiness, conditional conversation, campaign, and Tenant M1
   slices remain deferred until their authoritative mutations are instrumented.
 - A-04 historical compatibility fixtures until a second major contract or metric version exists
 - Complete product mutation-to-reporting E2E until the source-domain vertical slices exist

@@ -2038,6 +2038,7 @@ async function executeLoopForRun(
         fundingSource: attemptCredentials.fundingSource,
         credentialReference: attemptCredentials.credentialReference,
         response,
+        correlationId: run.correlation_id,
       });
       const step = await runSteps.startStep({ runId: run.id, organizationId: run.organization_id, stepType: "model", input: { provider: response.provider, model: response.model } });
       await runSteps.finishStep({ stepId: step.id, status: "completed", output: { totalTokens: response.usage.totalTokens, finishReason: response.finishReason, latencyMs: response.latencyMs } });
@@ -2052,6 +2053,7 @@ async function executeLoopForRun(
         model: attemptModel.model,
         fundingSource: attemptCredentials.fundingSource,
         error,
+        correlationId: run.correlation_id,
       });
       const step = await runSteps.startStep({ runId: run.id, organizationId: run.organization_id, stepType: "model", input: { provider: attemptModel.provider, model: attemptModel.model } });
       await runSteps.finishStep({ stepId: step.id, status: "failed", error });
@@ -2229,7 +2231,7 @@ async function executeConfiguredWorkflow(input: {
         temperature: typeof config.temperature === "number" ? config.temperature : undefined,
       }, input.modelCredentials);
       lastModelResponse = response;
-      await input.modelCalls.recordCompleted({ organizationId: input.run.organization_id, runId: input.run.id, provider: response.provider, model: response.model, fundingSource: input.modelCredentials.fundingSource, credentialReference: input.modelCredentials.credentialReference, response });
+      await input.modelCalls.recordCompleted({ organizationId: input.run.organization_id, runId: input.run.id, provider: response.provider, model: response.model, fundingSource: input.modelCredentials.fundingSource, credentialReference: input.modelCredentials.credentialReference, response, correlationId: input.run.correlation_id });
       const step = await input.runSteps.startStep({ runId: input.run.id, organizationId: input.run.organization_id, stepType: "model", input: { provider: response.provider, model: response.model, nodeId } });
       await input.runSteps.finishStep({ stepId: step.id, status: "completed", output: { totalTokens: response.usage.totalTokens, latencyMs: response.latencyMs } });
       return { output: response.message.content, text: response.message.content };

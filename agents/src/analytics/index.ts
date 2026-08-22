@@ -22,7 +22,10 @@ export {
 } from "./producer";
 export {
   buildCompletedAgentRunEvent,
+  buildCompletedModelCallEvent,
   buildFailedAgentRunEvent,
+  buildFailedModelCallEvent,
+  classifyAgentFailure,
   type AgentAudience,
   type AgentCreationProfile,
   type AgentDeploymentSurface,
@@ -30,6 +33,7 @@ export {
   type AgentRunTerminalInput,
   type CompletedAgentRunInput,
   type FailedAgentRunInput,
+  type ModelCallAnalyticsInput,
 } from "./agent-runtime";
 export {
   AnalyticsIngestionClient,

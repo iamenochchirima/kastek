@@ -20,6 +20,22 @@
       "privacy_class": "aggregate"
     },
     {
+      "identity": "agent.model_call.completed@1",
+      "schema": "events/agent/model_call_completed/v1.schema.json",
+      "examples": ["examples/agent/model_call_completed.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.model_call.failed@1",
+      "schema": "events/agent/model_call_failed/v1.schema.json",
+      "examples": ["examples/agent/model_call_failed.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
       "identity": "agent.handoff.lifecycle@1",
       "schema": "events/agent/handoff_lifecycle/v1.schema.json",
       "examples": ["examples/agent/handoff_lifecycle.json"],

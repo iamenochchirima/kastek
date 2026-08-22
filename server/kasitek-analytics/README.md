@@ -202,23 +202,28 @@ executables before running the recovery scripts.
 
 ## Agent runtime collection
 
-A-13 slice 1 connects Agent Platform terminal run mutations to the existing transactional outbox.
+A-13 slices 1–2 connect Agent Platform terminal run and model-call mutations to the existing transactional outbox.
 Completed and failed runs publish the registered `agent.run.completed@1` and `agent.run.failed@1`
 contracts in the same transaction as the run and attempt state change. Facts include stable agent
 references, organization scope, trigger, execution mode, creation profile, audience, deployment
 surface, duration, outcome, or bounded failure class. Prompts, responses, raw errors, credentials,
 and other prohibited content remain in the Agent operational store and are not copied to Analytics.
 
+Completed and failed model calls publish `agent.model_call.completed@1` and
+`agent.model_call.failed@1` in the same transaction as the `model_calls` row. These facts contain
+provider, model, funding source, token counts, estimated cost, latency, finish reason, and bounded
+failure class; credentials, prompts, responses, and raw error messages remain operational-only.
+
 The common path applies to personal, customer-service, system-hosted, hosted, and
 external-connected runs. Customer handoff is a separate conditional lifecycle contract and is
-not inferred for ordinary Agents. Model-call, tool, approval/effect, schedule, readiness, and
-conditional conversation facts remain separate A-13 slices.
+not inferred for ordinary Agents. Tool, approval/effect, schedule, readiness, and conditional
+conversation facts remain separate A-13 slices.
 
 ## Current boundary
 
 A-01 through A-12 provide the service, dedicated storage, registries, scope authorization, immutable
 facts, source controls, quarantine, authenticated ingestion, source cursors, reconciliation
 summaries, projection metadata, reporting, caching, and the audited rollout boundary. A-13 has
-started with transactional Agent terminal run facts; the remaining M1 slices, complete
+started with transactional Agent terminal run and model-call facts; the remaining M1 slices, complete
 mutation-to-reporting E2E, rollout control-management UI, source publisher clients, and customer
 dashboards belong to later execution packages.

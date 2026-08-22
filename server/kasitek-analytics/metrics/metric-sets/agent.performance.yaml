@@ -8,6 +8,11 @@ definitions:
     metrics:
       - agent.runs.completed@1
       - agent.runs.failed@1
+      - agent.model_calls.completed@1
+      - agent.model_calls.failed@1
+      - agent.tokens.input@1
+      - agent.tokens.output@1
+      - agent.cost.usd@1
     default_interval: day
     scope_kinds: [core_organization, tenant_workspace, tenant_client]
     permissions: [analytics:read:agent]

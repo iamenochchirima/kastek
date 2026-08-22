@@ -3,7 +3,9 @@ import {
   AnalyticsIngestionClient,
   AnalyticsProducerValidationError,
   buildCompletedAgentRunEvent,
+  buildCompletedModelCallEvent,
   buildFailedAgentRunEvent,
+  buildFailedModelCallEvent,
   buildEvent,
   buildObservation,
   buildScopeDefinition,
@@ -96,6 +98,66 @@ describe("Agent analytics producer", () => {
       duration_ms: 2_000,
     });
     expect(JSON.stringify(failed.envelope.data)).not.toContain("private provider detail");
+  });
+
+  it("builds model-call facts with usage dimensions and no provider payload", () => {
+    const completed = buildCompletedModelCallEvent({
+      modelCallId: "model-call-completed",
+      organizationId: "org-1",
+      runId: "run-1",
+      provider: "openai",
+      model: "gpt-test",
+      fundingSource: "kasitek",
+      inputTokens: 12,
+      outputTokens: 8,
+      totalTokens: 20,
+      estimatedCostUsd: 0.0042,
+      latencyMs: 275,
+      finishReason: "stop",
+      occurredAt: "2026-08-22T10:00:00.000Z",
+      correlationId: "correlation-1",
+    });
+    expect(completed.envelope.data).toMatchObject({
+      model_call_id: "model-call-completed",
+      run_id: "run-1",
+      provider: "openai",
+      model: "gpt-test",
+      funding_source: "kasitek",
+      input_tokens: 12,
+      output_tokens: 8,
+      total_tokens: 20,
+      estimated_cost_usd: 0.0042,
+      latency_ms: 275,
+      finish_reason: "stop",
+      status: "completed",
+    });
+    expect(completed.envelope).toMatchObject({
+      type: "agent.model_call.completed@1",
+      subject: "model-call:model-call-completed",
+      correlation_id: "correlation-1",
+    });
+    expect(JSON.stringify(completed.envelope)).not.toContain("credential");
+    expect(JSON.stringify(completed.envelope)).not.toContain("prompt");
+
+    const failed = buildFailedModelCallEvent({
+      modelCallId: "model-call-failed",
+      organizationId: "org-1",
+      runId: "run-1",
+      provider: "anthropic",
+      model: "claude-test",
+      fundingSource: "user",
+      occurredAt: "2026-08-22T10:01:00.000Z",
+      error: { code: "PROVIDER_RATE_LIMITED", message: "private provider response" },
+    });
+    expect(failed.envelope.data).toMatchObject({
+      model_call_id: "model-call-failed",
+      provider: "anthropic",
+      model: "claude-test",
+      funding_source: "user",
+      failure_class: "provider",
+      status: "failed",
+    });
+    expect(JSON.stringify(failed.envelope)).not.toContain("private provider response");
   });
 
   it("builds a registered envelope and hashes canonical payload JSON", () => {
