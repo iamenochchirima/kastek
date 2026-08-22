@@ -1,4 +1,23 @@
-export type ModelProvider = "openrouter" | "openai" | "anthropic" | "gemini";
+/** Provider ids are persisted in policies, conversations, and the credential vault. */
+export const MODEL_PROVIDERS = [
+  "openrouter",
+  "openai",
+  "anthropic",
+  "gemini",
+  "deepseek",
+  "glm",
+  "kimi",
+  "minimax",
+  "xai",
+  "opencode_go",
+  "opencode_zen",
+] as const;
+
+export type ModelProvider = typeof MODEL_PROVIDERS[number];
+
+export function isModelProvider(value: unknown): value is ModelProvider {
+  return typeof value === "string" && (MODEL_PROVIDERS as readonly string[]).includes(value);
+}
 export type MessageRole = "system" | "user" | "assistant" | "tool";
 
 export interface ModelMessage {

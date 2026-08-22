@@ -86,6 +86,11 @@ describe("foundation migration", () => {
     expect(workspaceSql).toContain("title_source");
     expect(workspaceSql).toContain("kasiai_user_preferences");
     expect(workspaceSql).toContain("resolved_model_provider");
+    const kasiaiCredentialSql = await readFile(new URL("../migrations/066_kasiai_provider_credentials.sql", import.meta.url), "utf8");
+    expect(kasiaiCredentialSql).toContain("default_credential_reference");
+    const providerCatalogSql = await readFile(new URL("../migrations/068_model_provider_catalog.sql", import.meta.url), "utf8");
+    expect(providerCatalogSql).toContain("opencode_zen");
+    expect(providerCatalogSql).toContain("DROP CONSTRAINT IF EXISTS credential_vault_provider_check");
     const effectsSql = await readFile(new URL("../migrations/028_effect_receipts.sql", import.meta.url), "utf8");
     expect(effectsSql).toContain("agent_effect_receipts");
     expect(effectsSql).toContain("reconciliation_required");

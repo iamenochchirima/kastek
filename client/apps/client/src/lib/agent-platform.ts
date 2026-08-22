@@ -78,7 +78,7 @@ export type AgentConversation = {
   pinned?: boolean;
   last_opened_at?: string | null;
   last_read_at?: string | null;
-  model_provider?: "openrouter" | "openai" | "anthropic" | "gemini" | null;
+  model_provider?: AgentModelProvider | null;
   model?: string | null;
   conversation_kind?: "personal" | "customer" | "test" | "external";
   assigned_actor_id?: string | null;
@@ -490,7 +490,61 @@ export function createAgent(input: { name: string; slug?: string; description?: 
   return request("/api/agents", { method: "POST", body: JSON.stringify({ ...input, protected: false }) });
 }
 
-export type AgentModelProvider = "openrouter" | "openai" | "anthropic" | "gemini";
+export const AGENT_MODEL_PROVIDERS = [
+  "openrouter",
+  "openai",
+  "anthropic",
+  "gemini",
+  "deepseek",
+  "glm",
+  "kimi",
+  "minimax",
+  "xai",
+  "opencode_go",
+  "opencode_zen",
+] as const;
+
+export type AgentModelProvider = typeof AGENT_MODEL_PROVIDERS[number];
+
+export const AGENT_MODEL_PROVIDER_LABELS: Record<AgentModelProvider, string> = {
+  openrouter: "OpenRouter",
+  openai: "OpenAI",
+  anthropic: "Claude",
+  gemini: "Gemini",
+  deepseek: "DeepSeek",
+  glm: "GLM",
+  kimi: "Kimi",
+  minimax: "MiniMax",
+  xai: "xAI",
+  opencode_go: "OpenCode Go",
+  opencode_zen: "OpenCode Zen",
+};
+
+export type AgentModel = {
+  provider: AgentModelProvider;
+  model: string;
+  label: string;
+  description: string;
+  tier: "fast" | "balanced" | "advanced";
+  isWorkspaceDefault?: boolean;
+  isFree?: boolean;
+  supportsTools?: boolean;
+  supportsReasoning?: boolean;
+  contextWindow?: number;
+  inputUsdPerMillion?: number;
+  outputUsdPerMillion?: number;
+};
+
+export type AgentModelCatalog = {
+  models: AgentModel[];
+  source: "live" | "fallback";
+  fetchedAt: string;
+  error?: string;
+};
+
+export function getAgentModelCatalog(): Promise<AgentModelCatalog> {
+  return request("/api/agents/models/catalog");
+}
 
 export type AgentCredentialVerification = {
   provider: AgentModelProvider;
@@ -504,6 +558,19 @@ export function verifyAgentProviderCredential(input: { provider: AgentModelProvi
 
 export function createAgentProviderCredential(input: { provider: AgentModelProvider; apiKey: string; label?: string }): Promise<{ id: string; provider: AgentModelProvider; label: string; status: string }> {
   return request("/api/agents/credentials", { method: "POST", body: JSON.stringify(input) });
+}
+
+export type AgentProviderCredential = {
+  id: string;
+  provider: AgentModelProvider;
+  label: string;
+  funding_source: "user";
+  status: "active" | "revoked";
+  created_at: string;
+};
+
+export function listAgentProviderCredentials(): Promise<{ credentials: AgentProviderCredential[] }> {
+  return request("/api/agents/credentials");
 }
 
 export function updateAgent(agentId: string, input: { name?: string; slug?: string; description?: string | null }): Promise<AgentDefinition> {
@@ -897,7 +964,7 @@ export type AgentInstallationSettings = {
 };
 
 export type KasiAiModel = {
-  provider: "openrouter" | "openai" | "anthropic" | "gemini";
+  provider: AgentModelProvider;
   model: string;
   label: string;
   description: string;
@@ -918,8 +985,9 @@ export type KasiAiPreferences = {
   notifications_enabled?: boolean;
   use_saved_preferences?: boolean;
   reference_previous_chats?: boolean;
-  default_model_provider?: "openrouter" | "openai" | "anthropic" | "gemini" | null;
+  default_model_provider?: AgentModelProvider | null;
   default_model?: string | null;
+  default_credential_reference?: string | null;
 };
 
 export type KasiAiHome = {
@@ -1015,6 +1083,7 @@ export function updateKasiAiPreferences(installationId: string, preferences: {
   referencePreviousChats?: boolean;
   defaultModelProvider?: KasiAiModel["provider"];
   defaultModel?: string;
+  defaultCredentialReference?: string | null;
 }): Promise<{ preferences: KasiAiPreferences }> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/kasiai/preferences`, {
     method: "PATCH",

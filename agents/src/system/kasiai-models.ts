@@ -1,5 +1,6 @@
 import type { AppConfig } from "../config";
 import type { ModelProvider } from "../model/types";
+import { MODEL_PROVIDER_DEFINITIONS, modelProviderEnvironmentKey } from "../model/providers";
 
 const OPENROUTER_CATALOG_URL = "https://openrouter.ai/api/v1/models?output_modalities=text";
 const CACHE_TTL_MS = 5 * 60_000;
@@ -44,9 +45,16 @@ interface CachedCatalog {
 const cache = new Map<string, CachedCatalog>();
 
 const directModels: KasiAiModelOption[] = [
-  { provider: "openai", model: "gpt-4o-mini", label: "GPT-4o mini (OpenAI)", description: "Direct OpenAI connection.", tier: "balanced", supportsTools: true },
-  { provider: "anthropic", model: "claude-3-5-haiku-latest", label: "Claude Haiku", description: "Direct Anthropic connection.", tier: "fast", supportsTools: true },
-  { provider: "gemini", model: "gemini-2.0-flash", label: "Gemini Flash", description: "Direct Gemini connection.", tier: "fast", supportsTools: true },
+  { provider: "openai", model: MODEL_PROVIDER_DEFINITIONS.openai.defaultModel, label: "OpenAI", description: "Direct OpenAI connection.", tier: "advanced", supportsTools: true },
+  { provider: "anthropic", model: MODEL_PROVIDER_DEFINITIONS.anthropic.defaultModel, label: "Claude", description: "Direct Anthropic connection.", tier: "advanced", supportsTools: true },
+  { provider: "gemini", model: MODEL_PROVIDER_DEFINITIONS.gemini.defaultModel, label: "Gemini", description: "Direct Gemini connection.", tier: "fast", supportsTools: true },
+  { provider: "deepseek", model: MODEL_PROVIDER_DEFINITIONS.deepseek.defaultModel, label: "DeepSeek", description: "Direct DeepSeek connection.", tier: "advanced", supportsTools: true },
+  { provider: "glm", model: MODEL_PROVIDER_DEFINITIONS.glm.defaultModel, label: "GLM", description: "Direct GLM connection.", tier: "advanced", supportsTools: true },
+  { provider: "kimi", model: MODEL_PROVIDER_DEFINITIONS.kimi.defaultModel, label: "Kimi", description: "Direct Kimi connection.", tier: "advanced", supportsTools: true },
+  { provider: "minimax", model: MODEL_PROVIDER_DEFINITIONS.minimax.defaultModel, label: "MiniMax", description: "Direct MiniMax connection.", tier: "advanced", supportsTools: true },
+  { provider: "xai", model: MODEL_PROVIDER_DEFINITIONS.xai.defaultModel, label: "Grok", description: "Direct xAI connection.", tier: "advanced", supportsTools: true },
+  { provider: "opencode_go", model: MODEL_PROVIDER_DEFINITIONS.opencode_go.defaultModel, label: "OpenCode Go", description: "OpenCode Go connection.", tier: "balanced", supportsTools: true },
+  { provider: "opencode_zen", model: MODEL_PROVIDER_DEFINITIONS.opencode_zen.defaultModel, label: "OpenCode Zen", description: "OpenCode Zen connection.", tier: "fast", isFree: true, supportsTools: true },
 ];
 
 const openRouterFallback: KasiAiModelOption[] = [
@@ -56,12 +64,8 @@ const openRouterFallback: KasiAiModelOption[] = [
 ];
 
 function hasProviderCredential(provider: ModelProvider): boolean {
-  return Boolean(process.env[{
-    openrouter: "OPENROUTER_API_KEY",
-    openai: "OPENAI_API_KEY",
-    anthropic: "ANTHROPIC_API_KEY",
-    gemini: "GEMINI_API_KEY",
-  }[provider]]?.trim());
+  const key = modelProviderEnvironmentKey(provider);
+  return Boolean(key && process.env[key]?.trim());
 }
 
 function pricePerMillion(value?: string): number | undefined {
@@ -152,7 +156,7 @@ export async function getKasiAiModelCatalog(config: AppConfig): Promise<KasiAiMo
   const openRouter = hasProviderCredential("openrouter") ? await listOpenRouterModels() : null;
   const models = [
     ...(openRouter?.models ?? []),
-    ...directModels.filter((model) => hasProviderCredential(model.provider)),
+    ...directModels,
   ];
   const defaultModel = configuredDefault(config, models);
   const deduplicated = [defaultModel, ...models.filter((model) => !(model.provider === defaultModel.provider && model.model === defaultModel.model))];

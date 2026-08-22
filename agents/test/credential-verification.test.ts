@@ -11,6 +11,13 @@ describe("provider credential verification", () => {
     ["openai", "https://api.openai.com/v1/models", "authorization"],
     ["anthropic", "https://api.anthropic.com/v1/models", "x-api-key"],
     ["gemini", "https://generativelanguage.googleapis.com/v1beta/models?key=secret-key", undefined],
+    ["deepseek", "https://api.deepseek.com/models", "authorization"],
+    ["glm", "https://api.z.ai/api/paas/v4/models", "authorization"],
+    ["kimi", "https://api.moonshot.ai/v1/models", "x-api-key"],
+    ["minimax", "https://api.minimaxi.com/anthropic/v1/models", "x-api-key"],
+    ["xai", "https://api.x.ai/v1/models", "authorization"],
+    ["opencode_go", "https://opencode.ai/zen/go/v1/models", "authorization"],
+    ["opencode_zen", "https://opencode.ai/zen/v1/models", "authorization"],
   ] as const)("uses the read-only %s verification endpoint", async (provider, expectedUrl, secretHeader) => {
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe(expectedUrl);

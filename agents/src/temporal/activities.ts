@@ -7,7 +7,7 @@ import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
 import type { AgentRunActivities } from "./contracts";
 import { ModelGateway } from "../model/gateway";
 import { EnvironmentCredentialResolver, VaultCredentialResolver, type CredentialResolver } from "../model/credentials";
-import type { ModelPricing } from "../model/types";
+import type { ModelPricing, ModelProvider } from "../model/types";
 import { runBoundedAgentLoop, type AgentLoopResult } from "../runtime/loop";
 import { buildAgentContext } from "../runtime/context";
 import { retrievalGate } from "../runtime/context";
@@ -1136,9 +1136,20 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         if (!candidate || candidate.title_locked || candidate.title_source !== "fallback" || !candidate.first_message) return;
         const configuration = run.configuration;
         const target = resolveModelTarget(configuration, run.policy);
+        const isKasiAiInstallation = run.execution_mode === "system_hosted"
+          && run.agent_owner_type === "system"
+          && run.agent_protected === true
+          && run.agent_slug === "kasiai";
+        const preference = isKasiAiInstallation
+          ? await kasiaiPreferences.get(run.organization_id, run.installation_id, run.created_by)
+          : null;
         const provider = (run.resolved_model_provider ?? target.provider) as typeof target.provider;
         const model = run.resolved_model ?? target.model;
-        const credentialReference = typeof configuration.credentialReference === "string" ? configuration.credentialReference : undefined;
+        const credentialReference = isKasiAiInstallation && typeof preference?.default_credential_reference === "string"
+          ? preference.default_credential_reference
+          : typeof configuration.credentialReference === "string"
+          ? configuration.credentialReference
+          : target.credentialReference;
         const modelCredentials = await credentials.resolve(provider, credentialReference, run.organization_id);
         const response = await gateway.complete({
           provider,
@@ -1524,8 +1535,23 @@ async function executeLoopForRun(
   const configuration = run.configuration;
   const installationSettings = run.installation_settings ?? {};
   const modelTarget = resolveModelTarget(configuration, run.policy);
-  const provider = (run.resolved_model_provider ?? modelTarget.provider) as typeof modelTarget.provider;
-  const model = run.resolved_model ?? modelTarget.model;
+  const isKasiAiInstallation = run.execution_mode === "system_hosted"
+    && run.agent_owner_type === "system"
+    && run.agent_protected === true
+    && run.agent_slug === "kasiai";
+  const preference = isKasiAiInstallation
+    ? await kasiaiPreferences.get(run.organization_id, run.installation_id, run.created_by)
+    : null;
+  const channelUsesKasiAiPreference = isKasiAiInstallation
+    && Boolean(run.reply_channel_type && run.reply_channel_type !== "platform");
+  const provider = ((channelUsesKasiAiPreference ? preference?.default_model_provider : run.resolved_model_provider)
+    ?? preference?.default_model_provider
+    ?? run.resolved_model_provider
+    ?? modelTarget.provider) as typeof modelTarget.provider;
+  const model = (channelUsesKasiAiPreference ? preference?.default_model : run.resolved_model)
+    ?? preference?.default_model
+    ?? run.resolved_model
+    ?? modelTarget.model;
   const policyTools = new Set(
     Array.isArray(run.policy.allowedTools) ? run.policy.allowedTools.filter((value): value is string => typeof value === "string") : [],
   );
@@ -1536,7 +1562,11 @@ async function executeLoopForRun(
   }
   if (!(await controls.isFeatureEnabled(run.organization_id, "agent_execution_enabled", run.installation_id))) throw new Error("AGENT_EXECUTION_FLAG_DISABLED");
   if (await controls.isHeld({ organizationId: run.organization_id, installationId: run.installation_id, runId: run.id, holdType: "execution" })) throw new Error("AGENT_EXECUTION_HOLD_ACTIVE");
-  const credentialReference = typeof configuration.credentialReference === "string" ? configuration.credentialReference : undefined;
+  const credentialReference = isKasiAiInstallation && typeof preference?.default_credential_reference === "string"
+    ? preference.default_credential_reference
+    : typeof configuration.credentialReference === "string"
+      ? configuration.credentialReference
+      : modelTarget.credentialReference;
   const modelCredentials = await credentials.resolve(provider, credentialReference, run.organization_id);
   const fallbackModels = [] as Array<{
     model: { provider: typeof provider; model: string; temperature?: number };
@@ -1569,10 +1599,6 @@ async function executeLoopForRun(
     }
     : undefined;
   const conversation = run.conversation_id ? await conversations.getConversation(run.organization_id, run.conversation_id) : null;
-  const isKasiAiInstallation = run.execution_mode === "system_hosted"
-    && run.agent_owner_type === "system"
-    && run.agent_protected === true
-    && run.agent_slug === "kasiai";
   const userAgentIdentityInstruction = run.execution_mode === "kasitek_hosted" && !isKasiAiInstallation
     ? [
       `Identity boundary (authoritative): You are the user-created agent "${run.agent_name?.trim() || "this agent"}".`,
@@ -1583,9 +1609,6 @@ async function executeLoopForRun(
       "Keep internal capabilities and grounding markers out of the user-facing response.",
     ].filter((value): value is string => Boolean(value)).join("\n")
     : "";
-  const preference = isKasiAiInstallation
-    ? await kasiaiPreferences.get(run.organization_id, run.installation_id, run.created_by)
-    : null;
   const preferenceInstruction = preference?.use_saved_preferences
     ? [
       preference.language ? `Reply in ${preference.language} unless the user asks for another language.` : null,
@@ -1957,7 +1980,7 @@ async function executeConfiguredWorkflow(input: {
   graphInput: unknown;
   inputState: Record<string, unknown>;
   context: ReturnType<typeof buildAgentContext>;
-  modelProvider: "openrouter" | "openai" | "anthropic" | "gemini";
+  modelProvider: ModelProvider;
   model: string;
   modelCredentials: ModelCredentials;
   gateway: ModelGateway;

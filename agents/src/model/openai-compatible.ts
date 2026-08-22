@@ -24,7 +24,7 @@ interface OpenAICompatibleResponse {
 }
 
 export interface OpenAICompatibleAdapterOptions {
-  provider: Extract<ModelProvider, "openrouter" | "openai">;
+  provider: ModelProvider;
   baseUrl: string;
   extraHeaders?: Record<string, string>;
 }
@@ -59,7 +59,7 @@ function toolNameMaps(tools: ModelRequest["tools"]): {
 }
 
 export class OpenAICompatibleAdapter implements ModelAdapter {
-  public readonly provider: Extract<ModelProvider, "openrouter" | "openai">;
+  public readonly provider: ModelProvider;
   public readonly capabilities = { toolCalling: true, structuredOutput: true, streaming: true, vision: true } as const;
 
   public constructor(private readonly options: OpenAICompatibleAdapterOptions) {
@@ -246,4 +246,8 @@ export function createOpenRouterAdapter(): OpenAICompatibleAdapter {
 
 export function createOpenAIAdapter(): OpenAICompatibleAdapter {
   return new OpenAICompatibleAdapter({ provider: "openai", baseUrl: "https://api.openai.com/v1" });
+}
+
+export function createOpenAICompatibleAdapter(provider: ModelProvider, baseUrl: string): OpenAICompatibleAdapter {
+  return new OpenAICompatibleAdapter({ provider, baseUrl });
 }

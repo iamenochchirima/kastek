@@ -96,6 +96,18 @@ pub async fn list_agents(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn get_model_catalog(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .get_model_catalog(&organization_id, &user.id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn create_agent(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
@@ -203,6 +215,18 @@ pub async fn create_provider_credential(
         .create_provider_credential(&organization_id, &user.id, body.into_inner())
         .await?;
     Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn list_provider_credentials(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_provider_credentials(&organization_id, &user.id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
 }
 
 pub async fn create_external_agent(
@@ -2381,7 +2405,20 @@ fn sanitize_message_body(body: Value) -> Result<Value, AppError> {
         ));
     }
     if let (Some(provider), Some(model)) = (model_provider, model) {
-        if !matches!(provider, "openrouter" | "openai" | "anthropic" | "gemini")
+        if !matches!(
+            provider,
+            "openrouter"
+                | "openai"
+                | "anthropic"
+                | "gemini"
+                | "deepseek"
+                | "glm"
+                | "kimi"
+                | "minimax"
+                | "xai"
+                | "opencode_go"
+                | "opencode_zen"
+        )
             || model.trim().is_empty()
             || model.len() > 240
         {
@@ -2425,8 +2462,8 @@ mod tests {
             "message": "  hello  ",
             "idempotencyKey": "message-123",
             "createNew": true,
-            "modelProvider": "openrouter",
-            "model": "openai/gpt-oss-20b:free",
+            "modelProvider": "deepseek",
+            "model": "deepseek-v4-pro",
             "context": {
                 "route": "/agents",
                 "pageTitle": "Agents",
@@ -2436,8 +2473,8 @@ mod tests {
         .unwrap();
         assert_eq!(value["message"], "hello");
         assert_eq!(value["createNew"], true);
-        assert_eq!(value["modelProvider"], "openrouter");
-        assert_eq!(value["model"], "openai/gpt-oss-20b:free");
+        assert_eq!(value["modelProvider"], "deepseek");
+        assert_eq!(value["model"], "deepseek-v4-pro");
         assert_eq!(value["context"]["route"], "/agents");
         assert!(value["context"].get("resourceId").is_none());
     }

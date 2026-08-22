@@ -13,6 +13,7 @@ export interface KasiAiPreferenceRecord {
   reference_previous_chats: boolean;
   default_model_provider: string | null;
   default_model: string | null;
+  default_credential_reference: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -41,8 +42,8 @@ export class KasiAiPreferenceRepository {
       `INSERT INTO kasiai_user_preferences
         (organization_id, installation_id, owner_actor_id, language, tone, response_detail,
          notifications_enabled, use_saved_preferences, reference_previous_chats,
-         default_model_provider, default_model)
-       VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, TRUE), COALESCE($8, TRUE), COALESCE($9, FALSE), $10, $11)
+         default_model_provider, default_model, default_credential_reference)
+       VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, TRUE), COALESCE($8, TRUE), COALESCE($9, FALSE), $10, $11, $12)
        ON CONFLICT (organization_id, installation_id, owner_actor_id) DO UPDATE SET
          language = COALESCE(EXCLUDED.language, kasiai_user_preferences.language),
          tone = COALESCE(EXCLUDED.tone, kasiai_user_preferences.tone),
@@ -52,6 +53,7 @@ export class KasiAiPreferenceRepository {
          reference_previous_chats = COALESCE($9, kasiai_user_preferences.reference_previous_chats),
          default_model_provider = COALESCE(EXCLUDED.default_model_provider, kasiai_user_preferences.default_model_provider),
          default_model = COALESCE(EXCLUDED.default_model, kasiai_user_preferences.default_model),
+         default_credential_reference = CASE WHEN $13::boolean THEN EXCLUDED.default_credential_reference ELSE kasiai_user_preferences.default_credential_reference END,
          updated_at = now()
        RETURNING *`,
       [
@@ -59,6 +61,7 @@ export class KasiAiPreferenceRepository {
         input.language ?? null, input.tone ?? null, input.response_detail ?? null,
         input.notifications_enabled ?? null, input.use_saved_preferences ?? null,
         input.reference_previous_chats ?? null, input.default_model_provider ?? null, input.default_model ?? null,
+        input.default_credential_reference ?? null, input.default_credential_reference !== undefined,
       ],
     );
     return result.rows[0]!;

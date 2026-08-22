@@ -1,6 +1,6 @@
 import { AnthropicAdapter } from "./anthropic";
 import Ajv from "ajv";
-import { createOpenAIAdapter, createOpenRouterAdapter } from "./openai-compatible";
+import { createOpenAIAdapter, createOpenAICompatibleAdapter, createOpenRouterAdapter } from "./openai-compatible";
 import { GeminiAdapter } from "./gemini";
 import { ModelProviderError, type ModelAdapter, type ModelCapabilities, type ModelCredentials, type ModelPricing, type ModelProvider, type ModelRequest, type ModelResponse, type ModelStreamDelta, type ModelStreamResult } from "./types";
 
@@ -14,7 +14,17 @@ export class ModelGateway {
   private readonly circuits = new Map<string, { failures: number; openedAt?: number }>();
 
   public constructor(adapters: ModelAdapter[] = [
-    createOpenRouterAdapter(), createOpenAIAdapter(), new AnthropicAdapter(), new GeminiAdapter(),
+    createOpenRouterAdapter(),
+    createOpenAIAdapter(),
+    new AnthropicAdapter(),
+    new GeminiAdapter(),
+    createOpenAICompatibleAdapter("deepseek", "https://api.deepseek.com"),
+    createOpenAICompatibleAdapter("xai", "https://api.x.ai/v1"),
+    createOpenAICompatibleAdapter("opencode_go", "https://opencode.ai/zen/go/v1"),
+    createOpenAICompatibleAdapter("opencode_zen", "https://opencode.ai/zen/v1"),
+    new AnthropicAdapter({ provider: "glm", baseUrl: "https://api.z.ai/api/anthropic/v1", authHeader: "bearer" }),
+    new AnthropicAdapter({ provider: "kimi", baseUrl: "https://api.moonshot.ai/anthropic/v1" }),
+    new AnthropicAdapter({ provider: "minimax", baseUrl: "https://api.minimaxi.com/anthropic/v1" }),
   ], options: { retryBaseDelayMs?: number; pricing?: Record<string, ModelPricing>; circuitFailureThreshold?: number; circuitCooldownMs?: number } = {}) {
     this.adapters = new Map(adapters.map((adapter) => [adapter.provider, adapter]));
     this.retryBaseDelayMs = options.retryBaseDelayMs ?? 250;

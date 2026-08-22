@@ -102,6 +102,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         web::scope("/api/agents")
             .route("", web::get().to(agent_platform::list_agents))
             .route("", web::post().to(agent_platform::create_agent))
+            .route(
+                "/models/catalog",
+                web::get().to(agent_platform::get_model_catalog),
+            )
             .route("/{agentId}", web::patch().to(agent_platform::update_agent))
             .route("/{agentId}", web::delete().to(agent_platform::delete_agent))
             .route(
@@ -169,6 +173,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route(
                 "/credentials",
                 web::post().to(agent_platform::create_provider_credential),
+            )
+            .route(
+                "/credentials",
+                web::get().to(agent_platform::list_provider_credentials),
             )
             .route(
                 "/templates/{templateKey}/install",

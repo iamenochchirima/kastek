@@ -117,6 +117,22 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn get_model_catalog(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/models/catalog",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
     pub async fn create_agent(
         &self,
         organization_id: &str,
@@ -199,6 +215,22 @@ impl AgentPlatformClient {
             actor_id,
             &["agents:write"],
             Some(body),
+        )
+        .await
+    }
+
+    pub async fn list_provider_credentials(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/credentials",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
         )
         .await
     }
@@ -2583,22 +2615,41 @@ mod tests {
 
     #[tokio::test]
     async fn provider_credential_routes_use_the_scoped_agent_boundary() {
-        let (base_url, server) = mock_agent_server(vec![(200, r#"{"verification":{"status":"verified"}}"#), (201, r#"{"id":"credential-1"}"#)]).await;
+        let (base_url, server) = mock_agent_server(vec![
+            (200, r#"{"verification":{"status":"verified"}}"#),
+            (201, r#"{"id":"credential-1"}"#),
+            (200, r#"{"credentials":[]}"#),
+        ])
+        .await;
         let client = test_client(&base_url);
         client
-            .verify_provider_credential("org-1", "actor-1", json!({"provider":"openai","apiKey":"secret-key"}))
+            .verify_provider_credential(
+                "org-1",
+                "actor-1",
+                json!({"provider":"openai","apiKey":"secret-key"}),
+            )
             .await
             .unwrap();
         client
-            .create_provider_credential("org-1", "actor-1", json!({"provider":"openai","apiKey":"secret-key","label":"primary"}))
+            .create_provider_credential(
+                "org-1",
+                "actor-1",
+                json!({"provider":"openai","apiKey":"secret-key","label":"primary"}),
+            )
+            .await
+            .unwrap();
+        client
+            .list_provider_credentials("org-1", "actor-1")
             .await
             .unwrap();
         let requests = server.await.unwrap();
-        assert_eq!(requests.len(), 2);
+        assert_eq!(requests.len(), 3);
         assert!(requests[0].starts_with("POST /v1/credentials/verify HTTP/1.1"));
         assert!(requests[1].starts_with("POST /v1/credentials HTTP/1.1"));
+        assert!(requests[2].starts_with("GET /v1/credentials HTTP/1.1"));
         assert_scoped_request(&requests[0], "agents:write");
         assert_scoped_request(&requests[1], "agents:write");
+        assert_scoped_request(&requests[2], "agents:read");
         assert!(request_body(&requests[0]).contains("secret-key"));
         assert!(request_body(&requests[1]).contains("secret-key"));
     }
@@ -2816,7 +2867,7 @@ mod tests {
 
     #[tokio::test]
     async fn every_non_operator_adapter_uses_the_scoped_agent_boundary() {
-        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 78]).await;
+        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 79]).await;
         let client = test_client(&base_url);
         let body = json!({"value": "test"});
 
@@ -2825,6 +2876,7 @@ mod tests {
             .await
             .unwrap();
         client.list_agents("org-1", "actor-1").await.unwrap();
+        client.get_model_catalog("org-1", "actor-1").await.unwrap();
         client
             .create_agent("org-1", "actor-1", body.clone())
             .await
@@ -3139,10 +3191,11 @@ mod tests {
             .unwrap();
 
         let requests = server.await.unwrap();
-        assert_eq!(requests.len(), 78);
+        assert_eq!(requests.len(), 79);
         let expected_paths = [
             "POST /v1/system-agents/kasiai/installation HTTP/1.1",
             "GET /v1/agents HTTP/1.1",
+            "GET /v1/models/catalog HTTP/1.1",
             "POST /v1/agents HTTP/1.1",
             "PATCH /v1/agents/agent-1 HTTP/1.1",
             "DELETE /v1/agents/agent-1 HTTP/1.1",
@@ -3228,84 +3281,85 @@ mod tests {
             );
         }
         let expected_scopes = [
-            "kasiai:write",   // ensure_kasiai
-            "agents:read",    // list_agents
-            "agents:write",   // create_agent
-            "agents:write",   // update_agent
-            "agents:write",   // delete_agent
-            "agents:write",   // create_agent_version
-            "agents:read",    // operations_summary
-            "agents:read",    // operations_runs
-            "agents:read",    // operations_health
-            "agents:read",    // operations_effects_reconciliation
-            "agents:write",   // reconcile_effect
-            "agents:read",    // list_kill_switches
-            "agents:write",   // create_kill_switch
-            "agents:write",   // disable_kill_switch
-            "agents:read",    // list_audit
-            "agents:read",    // list_templates
-            "agents:write",   // install_template
-            "agents:write",   // set_installation_status
-            "agents:write",   // set_installation_settings
-            "agents:read",    // list_installation_credentials
-            "agents:write",   // create_installation_credential
-            "agents:write",   // revoke_installation_credential
-            "agents:write",   // rotate_installation_credential
-            "agents:read",    // list_installation_capabilities
-            "agents:read",    // get_installation_readiness
-            "agents:write",   // grant_installation_tool
-            "agents:read",    // list_installation_grants
-            "agents:write",   // grant_installation_resource
-            "agents:read",    // list_connectors
-            "agents:read",    // list_installation_connectors
-            "agents:write",   // grant_installation_connector
-            "agents:read",    // list_installation_runs
-            "agents:read",    // list_installation_schedules
-            "agents:write",   // create_installation_schedule
-            "agents:write",   // set_schedule_status
-            "agents:read",    // list_knowledge_sources
-            "agents:write",   // create_knowledge_source
-            "agents:read",    // get_knowledge_source
-            "agents:write",   // ingest_knowledge_source_url
-            "agents:write",   // ingest_knowledge_source_text
-            "agents:write",   // ingest_knowledge_source_file
-            "agents:write",   // delete_knowledge_source
-            "agents:read",    // list_memory
-            "agents:write",   // delete_memory
-            "agents:write",   // revalidate_memory
-            "agents:read",    // list_agent_versions
-            "agents:write",   // publish_agent_version
-            "agents:write",   // create_installation
-            "agents:write",   // rollback_agent_version
-            "agents:write",   // retire_agent_version
-            "agents:write",   // archive_agent
-            "chat:read",      // resolve_platform_conversation
-            "chat:write",     // create_platform_conversation
-            "chat:write",     // clear_platform_conversations
-            "chat:read",      // list_conversations
-            "kasiai:read",    // kasiai_home
-            "kasiai:read",    // kasiai_preferences
-            "kasiai:write",   // update_kasiai_preferences
-            "chat:write",     // update_conversation
-            "chat:write",     // set_channel_default_conversation
-            "chat:write",     // set_conversation_status
-            "chat:write",     // restore_conversation
-            "chat:write",     // send_platform_message
+            "kasiai:write",    // ensure_kasiai
+            "agents:read",     // list_agents
+            "agents:read",     // get_model_catalog
+            "agents:write",    // create_agent
+            "agents:write",    // update_agent
+            "agents:write",    // delete_agent
+            "agents:write",    // create_agent_version
+            "agents:read",     // operations_summary
+            "agents:read",     // operations_runs
+            "agents:read",     // operations_health
+            "agents:read",     // operations_effects_reconciliation
+            "agents:write",    // reconcile_effect
+            "agents:read",     // list_kill_switches
+            "agents:write",    // create_kill_switch
+            "agents:write",    // disable_kill_switch
+            "agents:read",     // list_audit
+            "agents:read",     // list_templates
+            "agents:write",    // install_template
+            "agents:write",    // set_installation_status
+            "agents:write",    // set_installation_settings
+            "agents:read",     // list_installation_credentials
+            "agents:write",    // create_installation_credential
+            "agents:write",    // revoke_installation_credential
+            "agents:write",    // rotate_installation_credential
+            "agents:read",     // list_installation_capabilities
+            "agents:read",     // get_installation_readiness
+            "agents:write",    // grant_installation_tool
+            "agents:read",     // list_installation_grants
+            "agents:write",    // grant_installation_resource
+            "agents:read",     // list_connectors
+            "agents:read",     // list_installation_connectors
+            "agents:write",    // grant_installation_connector
+            "agents:read",     // list_installation_runs
+            "agents:read",     // list_installation_schedules
+            "agents:write",    // create_installation_schedule
+            "agents:write",    // set_schedule_status
+            "agents:read",     // list_knowledge_sources
+            "agents:write",    // create_knowledge_source
+            "agents:read",     // get_knowledge_source
+            "agents:write",    // ingest_knowledge_source_url
+            "agents:write",    // ingest_knowledge_source_text
+            "agents:write",    // ingest_knowledge_source_file
+            "agents:write",    // delete_knowledge_source
+            "agents:read",     // list_memory
+            "agents:write",    // delete_memory
+            "agents:write",    // revalidate_memory
+            "agents:read",     // list_agent_versions
+            "agents:write",    // publish_agent_version
+            "agents:write",    // create_installation
+            "agents:write",    // rollback_agent_version
+            "agents:write",    // retire_agent_version
+            "agents:write",    // archive_agent
+            "chat:read",       // resolve_platform_conversation
+            "chat:write",      // create_platform_conversation
+            "chat:write",      // clear_platform_conversations
+            "chat:read",       // list_conversations
+            "kasiai:read",     // kasiai_home
+            "kasiai:read",     // kasiai_preferences
+            "kasiai:write",    // update_kasiai_preferences
+            "chat:write",      // update_conversation
+            "chat:write",      // set_channel_default_conversation
+            "chat:write",      // set_conversation_status
+            "chat:write",      // restore_conversation
+            "chat:write",      // send_platform_message
             "channels:ingest", // ingest_channel_message
             "channels:ingest", // update_channel_delivery_status
             "channels:ingest", // consume_channel_pairing
-            "channels:read",  // list_installation_channels
-            "channels:write", // ensure_channel_connection
-            "channels:write", // issue_channel_pairing
-            "channels:write", // revoke_channel_binding
-            "chat:read",      // get_conversation
-            "runs:read",      // get_run
-            "runs:read",      // get_run_timeline
-            "runs:cancel",    // cancel_run
-            "chat:write",     // retry_run
-            "runs:write",     // signal_external_event
-            "runs:approve",   // approve_run
-            "runs:read",      // stream_run_events
+            "channels:read",   // list_installation_channels
+            "channels:write",  // ensure_channel_connection
+            "channels:write",  // issue_channel_pairing
+            "channels:write",  // revoke_channel_binding
+            "chat:read",       // get_conversation
+            "runs:read",       // get_run
+            "runs:read",       // get_run_timeline
+            "runs:cancel",     // cancel_run
+            "chat:write",      // retry_run
+            "runs:write",      // signal_external_event
+            "runs:approve",    // approve_run
+            "runs:read",       // stream_run_events
         ];
         assert_eq!(expected_scopes.len(), requests.len());
         for (request, expected_scope) in requests.iter().zip(expected_scopes) {

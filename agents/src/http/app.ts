@@ -47,6 +47,8 @@ import { listAgentTemplates, parseTemplateSettings } from "../system/templates";
 import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference-repository";
 import { availableKasiAiModels, getKasiAiModelCatalog, isAllowedKasiAiModel } from "../system/kasiai-models";
 import { verifyProviderCredential, type CredentialVerificationResult, type CredentialVerificationInput } from "../model/credential-verification";
+import { MODEL_PROVIDERS } from "../model/types";
+import { modelProviderEnvironmentKey } from "../model/providers";
 import { installationTokenJwks, issueInstallationToken, readClientAssertionSubject, verifyClientAssertion, verifyInstallationToken } from "../auth/installation-token";
 import { createPublicKey } from "node:crypto";
 import { createDefaultTools } from "../temporal/activities";
@@ -738,14 +740,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     try {
       await dependencies.pool.query("SELECT 1");
       const provider = dependencies.config.KASIAI_MODEL_PROVIDER ?? "openrouter";
-      const credentialKey = { openrouter: "OPENROUTER_API_KEY", openai: "OPENAI_API_KEY", anthropic: "ANTHROPIC_API_KEY", gemini: "GEMINI_API_KEY" }[provider];
+      const credentialKey = modelProviderEnvironmentKey(provider);
       return {
         scope: "platform",
         status: "ready",
         checkedAt,
         database: { status: "ready", latencyMs: Date.now() - startedAt },
         temporal: { enabled: dependencies.config.TEMPORAL_ENABLED, mode: dependencies.config.TEMPORAL_MODE, address: dependencies.config.TEMPORAL_ADDRESS, namespace: dependencies.config.TEMPORAL_NAMESPACE, taskQueue: dependencies.config.TEMPORAL_TASK_QUEUE },
-        model: { provider, model: dependencies.config.KASIAI_MODEL, credentialConfigured: Boolean(process.env[credentialKey]?.trim()) },
+        model: { provider, model: dependencies.config.KASIAI_MODEL, credentialConfigured: Boolean(credentialKey && process.env[credentialKey]?.trim()) },
       };
     } catch (error) {
       app.log.error(error);
@@ -1484,6 +1486,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     };
   });
 
+  app.get("/v1/models/catalog", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    return getKasiAiModelCatalog(dependencies.config);
+  });
+
   app.get<{ Params: { installationId: string } }>("/v1/external-agents/:installationId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
@@ -1771,10 +1779,15 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const modelPolicy = policy.modelPolicy && typeof policy.modelPolicy === "object" && !Array.isArray(policy.modelPolicy)
       ? policy.modelPolicy as Record<string, unknown>
       : {};
-    const providerValue = modelPolicy.provider ?? (modelPolicy.primary && typeof modelPolicy.primary === "object" && !Array.isArray(modelPolicy.primary) ? (modelPolicy.primary as Record<string, unknown>).provider : configuration.provider);
+    const kasiaiPreference = agent.slug === "kasiai"
+      ? await kasiaiPreferences.get(auth.organizationId, installation.id, auth.actorId)
+      : null;
+    const providerValue = kasiaiPreference?.default_model_provider
+      ?? modelPolicy.provider
+      ?? (modelPolicy.primary && typeof modelPolicy.primary === "object" && !Array.isArray(modelPolicy.primary) ? (modelPolicy.primary as Record<string, unknown>).provider : configuration.provider);
     const provider = typeof providerValue === "string" ? providerValue : undefined;
-    const credentialReference = configuration.credentialReference ?? modelPolicy.credentialReference;
-    const credentialKey = provider && ({ openrouter: "OPENROUTER_API_KEY", openai: "OPENAI_API_KEY", anthropic: "ANTHROPIC_API_KEY", gemini: "GEMINI_API_KEY" } as Record<string, string>)[provider];
+    const credentialReference = configuration.credentialReference ?? modelPolicy.credentialReference ?? kasiaiPreference?.default_credential_reference;
+    const credentialKey = modelProviderEnvironmentKey(provider);
     const credentialConfigured = (typeof credentialReference === "string" && credentialReference.trim().length > 0) || Boolean(credentialKey && process.env[credentialKey]?.trim());
     const readiness = buildAgentReadiness({
       executionMode: installation.execution_mode,
@@ -2003,8 +2016,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         notificationsEnabled: z.boolean().optional(),
         useSavedPreferences: z.boolean().optional(),
         referencePreviousChats: z.boolean().optional(),
-        defaultModelProvider: z.enum(["openrouter", "openai", "anthropic", "gemini"]).optional(),
+        defaultModelProvider: z.enum([...MODEL_PROVIDERS]).optional(),
         defaultModel: z.string().trim().min(1).max(240).optional(),
+        defaultCredentialReference: z.string().trim().max(240).nullable().optional(),
       }).strict().parse(request.body ?? {});
       if (!Object.keys(input).length) throw Object.assign(new Error("At least one preference is required"), { statusCode: 400 });
       if (Boolean(input.defaultModelProvider) !== Boolean(input.defaultModel)) {
@@ -2022,6 +2036,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         reference_previous_chats: input.referencePreviousChats,
         default_model_provider: input.defaultModelProvider,
         default_model: input.defaultModel,
+        default_credential_reference: input.defaultCredentialReference,
       });
       return { preferences };
     },
@@ -2142,7 +2157,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const input = z.object({
       title: z.string().trim().min(1).max(120).optional(),
       pinned: z.boolean().optional(),
-      modelProvider: z.enum(["openrouter", "openai", "anthropic", "gemini"]).nullable().optional(),
+      modelProvider: z.enum([...MODEL_PROVIDERS]).nullable().optional(),
       model: z.string().trim().min(1).max(240).nullable().optional(),
       clearModel: z.boolean().optional(),
     }).strict().parse(request.body ?? {});
@@ -2448,7 +2463,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         idempotencyKey: z.string().trim().min(8).max(240),
         conversationId: z.string().uuid().optional(),
         createNew: z.boolean().optional(),
-        modelProvider: z.enum(["openrouter", "openai", "anthropic", "gemini"]).optional(),
+        modelProvider: z.enum([...MODEL_PROVIDERS]).optional(),
         model: z.string().trim().min(1).max(240).optional(),
         context: z.object({
           route: z.string().trim().max(500).optional(),
@@ -3018,12 +3033,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       await dependencies.pool.query("SELECT 1");
       const provider = dependencies.config.KASIAI_MODEL_PROVIDER ?? "openrouter";
       const model = dependencies.config.KASIAI_MODEL ?? "openai/gpt-4o-mini";
-      const credentialKey = {
-        openrouter: "OPENROUTER_API_KEY",
-        openai: "OPENAI_API_KEY",
-        anthropic: "ANTHROPIC_API_KEY",
-        gemini: "GEMINI_API_KEY",
-      }[provider];
+      const credentialKey = modelProviderEnvironmentKey(provider);
       return {
         status: "ready",
         checkedAt,
@@ -3038,7 +3048,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         model: {
           provider,
           model,
-          credentialConfigured: Boolean(process.env[credentialKey]?.trim()),
+          credentialConfigured: Boolean(credentialKey && process.env[credentialKey]?.trim()),
         },
       };
     } catch (error) {
@@ -3090,7 +3100,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post("/v1/credentials/verify", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
-    const input = z.object({ provider: z.enum(["openrouter", "openai", "anthropic", "gemini"]), apiKey: z.string().min(1).max(10_000) }).parse(request.body);
+    const input = z.object({ provider: z.enum([...MODEL_PROVIDERS]), apiKey: z.string().min(1).max(10_000) }).parse(request.body);
     // Verification is deliberately separate from persistence so clients can
     // provide an explicit “Test credential” step. The create route repeats
     // the check server-side and cannot be bypassed by skipping this endpoint.
@@ -3100,7 +3110,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post("/v1/credentials", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
-    const input = z.object({ provider: z.enum(["openrouter", "openai", "anthropic", "gemini"]), apiKey: z.string().min(1).max(10_000), label: z.string().trim().max(160).optional() }).parse(request.body);
+    const input = z.object({ provider: z.enum([...MODEL_PROVIDERS]), apiKey: z.string().min(1).max(10_000), label: z.string().trim().max(160).optional() }).parse(request.body);
     // Never persist a provider secret before a successful, bounded preflight.
     await verifyCredential({ provider: input.provider, apiKey: input.apiKey });
     const credential = await credentials.store({ organizationId: auth.organizationId, actorId: auth.actorId, ...input });

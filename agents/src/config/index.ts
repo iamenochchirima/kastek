@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { existsSync } from "node:fs";
+import { MODEL_PROVIDERS } from "../model/types";
+import { modelProviderEnvironmentKey } from "../model/providers";
 
 // Local development uses agents/.env. Production environments inject variables directly.
 // Node 22.12+ provides this built-in loader, so no dotenv dependency is required.
@@ -25,7 +27,7 @@ const envSchema = z.object({
   // retained during the migration window.
   MCP_STATELESS_ENABLED: z.enum(["true", "false"]).optional().transform((value) => value === undefined ? undefined : value === "true"),
   TEMPORAL_API_KEY: z.string().optional(),
-  KASIAI_MODEL_PROVIDER: z.enum(["openrouter", "openai", "anthropic", "gemini"]).default("openrouter"),
+  KASIAI_MODEL_PROVIDER: z.enum([...MODEL_PROVIDERS]).default("openrouter"),
   KASIAI_MODEL: z.string().trim().min(1).default("openai/gpt-4o-mini"),
   INTERNAL_AUTH_AUDIENCE: z.string().default("kasitek-agents"),
   AUTH_MODE: z.enum(["headers", "hmac"]).default("headers"),
@@ -85,12 +87,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     throw new Error("KASITEK_CORE_INTERNAL_TOKEN or KASITEK_CORE_DELEGATION_PRIVATE_KEY is required when KASITEK_CORE_URL is configured");
   }
   if (config.NODE_ENV === "production") {
-    const credentialKey = {
-      openrouter: "OPENROUTER_API_KEY",
-      openai: "OPENAI_API_KEY",
-      anthropic: "ANTHROPIC_API_KEY",
-      gemini: "GEMINI_API_KEY",
-    }[config.KASIAI_MODEL_PROVIDER];
+    const credentialKey = modelProviderEnvironmentKey(config.KASIAI_MODEL_PROVIDER)!;
     if (!env[credentialKey]?.trim()) {
       throw new Error(`${credentialKey} is required for the configured KasiAi model provider`);
     }

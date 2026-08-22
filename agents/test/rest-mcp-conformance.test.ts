@@ -136,8 +136,8 @@ describe("Agent REST and MCP conformance matrices", () => {
   it("guards every mounted /v1 route before parsing input or touching dependencies", async () => {
     const routes = await mountedAgentRoutes();
     const protectedRoutes = routes.filter(({ path }) => path.startsWith("/v1/") && path !== "/v1/installation-tokens/exchange");
-    expect(routes).toHaveLength(149);
-    expect(protectedRoutes).toHaveLength(143);
+    expect(routes).toHaveLength(150);
+    expect(protectedRoutes).toHaveLength(144);
 
     const app = buildApp({ config, pool: fakePool });
     try {
@@ -159,7 +159,7 @@ describe("Agent REST and MCP conformance matrices", () => {
       && !isProviderWebhook(route)
       && !isPublicApiTransport(route),
     );
-    expect(directRoutes).toHaveLength(136);
+    expect(directRoutes).toHaveLength(138);
 
     const app = buildApp({ config: hmacConfig, pool: fakePool });
     try {

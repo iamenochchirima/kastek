@@ -1,11 +1,12 @@
 import { z } from "zod";
-import type { ModelProvider } from "./types";
+import { isModelProvider, MODEL_PROVIDERS, type ModelProvider } from "./types";
 
-const modelTargetSchema = z.object({ provider: z.enum(["openrouter", "openai", "anthropic", "gemini"]), model: z.string().trim().min(1).max(240) });
+const modelTargetSchema = z.object({ provider: z.enum([...MODEL_PROVIDERS]), model: z.string().trim().min(1).max(240) });
 
 export const modelPolicySchema = z.object({
   version: z.string().trim().min(1).max(80),
   primary: modelTargetSchema,
+  credentialReference: z.string().trim().min(1).max(240).optional(),
   fallback: z.array(modelTargetSchema).max(3).default([]),
   fast: modelTargetSchema.optional(),
   allowUserFundedFallbackToKasiTek: z.boolean().default(false),
@@ -44,6 +45,7 @@ export function normalizeModelPolicy(policy: Record<string, unknown>): Record<st
 export interface ResolvedModelTarget {
   provider: ModelProvider;
   model: string;
+  credentialReference?: string;
   policyVersion?: string;
   fallback: Array<{ provider: ModelProvider; model: string }>;
   maxTokensPerRun?: number;
@@ -58,6 +60,7 @@ export function resolveModelTarget(configuration: Record<string, unknown>, polic
     return {
       provider: parsed.primary.provider,
       model: parsed.primary.model,
+      credentialReference: parsed.credentialReference,
       policyVersion: parsed.version,
       fallback: parsed.fallback,
       maxTokensPerRun: parsed.maxTokensPerRun,
@@ -68,6 +71,6 @@ export function resolveModelTarget(configuration: Record<string, unknown>, polic
   const provider = (configuration.provider ?? configuration.modelProvider ?? "openrouter");
   const model = configuration.model;
   if (typeof model !== "string" || !model) throw new Error("Published agent version has no model configured");
-  if (provider !== "openrouter" && provider !== "openai" && provider !== "anthropic" && provider !== "gemini") throw new Error("Unsupported model provider");
+  if (!isModelProvider(provider)) throw new Error("Unsupported model provider");
   return { provider, model, fallback: [], allowUserFundedFallbackToKasiTek: false };
 }

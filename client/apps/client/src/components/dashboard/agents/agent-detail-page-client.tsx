@@ -25,6 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { AgentWorkflowEditor, type WorkflowGraphValue } from "./agent-workflow-editor";
 import { AgentChatPanel } from "./agent-chat-panel";
+import { AgentModelPicker } from "./agent-model-picker";
 import { AgentRuntimeLimits, defaultAgentRuntimeLimits, parseAgentRuntimeLimits, type AgentRuntimeLimitsValue } from "./agent-runtime-limits";
 import { listWorkspaceConnections, type WorkspaceConnection } from "@/lib/connections";
 import { apiUrl } from "@/lib/server-api";
@@ -34,12 +35,19 @@ import {
   archiveExternalAgent,
   updateAgent,
   getExternalAgentHealth,
+  getAgentModelCatalog,
+  listAgentProviderCredentials,
+  verifyAgentProviderCredential,
+  createAgentProviderCredential,
+  getKasiAiHome,
   setAgentInstallationStatus,
   publishAgentVersion,
   createAgentVersion,
   rollbackAgentVersion,
   retireAgentVersion,
   updateAgentInstallationSettings,
+  updateKasiAiConversation,
+  updateKasiAiPreferences,
   getPlatformConversation,
   listAgentConversations,
   sendPlatformMessage,
@@ -91,10 +99,17 @@ import {
   type AgentChannelConnection,
   type AgentChannelBinding,
   type AgentDefinition,
+  type AgentModel,
+  type AgentModelCatalog,
+  type AgentModelProvider,
+  type AgentProviderCredential,
+  type KasiAiHome,
   type AgentVersion,
   type AgentMessage,
   type AgentConversation,
   type AgentWebsiteDeployment,
+  AGENT_MODEL_PROVIDERS,
+  AGENT_MODEL_PROVIDER_LABELS,
 } from "@/lib/agent-platform";
 
 function versionStatusClass(status: string) {
@@ -103,9 +118,236 @@ function versionStatusClass(status: string) {
   return "border-border bg-secondary text-muted-foreground";
 }
 
+const EMPTY_KASIAI_MODELS: AgentModel[] = [];
+const MODEL_PROVIDERS: AgentModelProvider[] = [...AGENT_MODEL_PROVIDERS];
+
+function providerLabel(provider?: AgentModelProvider) {
+  return provider ? AGENT_MODEL_PROVIDER_LABELS[provider] : "provider";
+}
+
+function ProviderTabs({ value, onChange, configuredProviders }: { value: AgentModelProvider; onChange: (provider: AgentModelProvider) => void; configuredProviders: AgentModelProvider[] }) {
+  return <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="tablist" aria-label="API key providers">
+    {MODEL_PROVIDERS.map((provider) => {
+      const configured = configuredProviders.includes(provider);
+      const selected = value === provider;
+      return <button key={provider} type="button" role="tab" aria-selected={selected} onClick={() => onChange(provider)} className={`rounded-lg border p-3 text-left transition-colors ${selected ? "border-primary bg-primary/10" : "border-border bg-background hover:border-primary/50"}`}>
+        <span className="flex items-center justify-between gap-2"><span className="font-medium text-foreground">{providerLabel(provider)}</span>{selected ? <Badge className="border-primary/30 bg-primary/10 text-primary">Selected</Badge> : null}</span>
+        <span className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground"><span className={`h-1.5 w-1.5 rounded-full ${configured ? "bg-status-success" : "bg-muted-foreground/50"}`} />{configured ? "Configured" : "Not configured"}</span>
+      </button>;
+    })}
+  </div>;
+}
+
 function capabilityGroup(capability: AgentCapability) {
   const scope = capability.permission?.scope || capability.name.split(".")[2] || "platform";
   return scope.split(".")[0] || "platform";
+}
+
+function KasiAiBehaviour({ installationId }: { installationId: string }) {
+  const [home, setHome] = useState<KasiAiHome | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [credentialMode, setCredentialMode] = useState<"platform" | "user">("platform");
+  const [credentialProvider, setCredentialProvider] = useState<AgentModelProvider>("openrouter");
+  const [credentialReference, setCredentialReference] = useState("");
+  const [providerCredentials, setProviderCredentials] = useState<AgentProviderCredential[]>([]);
+  const [credentialKey, setCredentialKey] = useState("");
+  const [credentialLabel, setCredentialLabel] = useState("");
+  const [credentialSaving, setCredentialSaving] = useState(false);
+  const [credentialError, setCredentialError] = useState<string | null>(null);
+  const [credentialSaved, setCredentialSaved] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    void getKasiAiHome(installationId)
+      .then((response) => {
+        if (!cancelled) {
+          const savedReference = response.preferences?.default_credential_reference ?? "";
+          setHome(response);
+          setCredentialReference(savedReference);
+          setCredentialMode(savedReference ? "user" : "platform");
+          setCredentialProvider(response.preferences?.default_model_provider ?? "openrouter");
+        }
+      })
+      .catch((cause) => {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : "Unable to load KasiAi settings");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [installationId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void listAgentProviderCredentials()
+      .then((response) => {
+        if (!cancelled) setProviderCredentials(response.credentials);
+      })
+      .catch((cause) => {
+        if (!cancelled) setCredentialError(cause instanceof Error ? cause.message : "Unable to load saved API keys");
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const models = home?.models ?? EMPTY_KASIAI_MODELS;
+  const configuredProvider = home?.preferences?.default_model_provider;
+  const configuredModel = home?.preferences?.default_model;
+  const fallbackModel = models.find((model) => model.isWorkspaceDefault) ?? models[0];
+  const selectedProvider = configuredProvider ?? fallbackModel?.provider;
+  const selectedModelId = configuredModel ?? fallbackModel?.model;
+  const selectedAvailable = models.some((model) => model.provider === selectedProvider && model.model === selectedModelId);
+  const pickerModels = useMemo<AgentModel[]>(() => {
+    if (!selectedProvider || !selectedModelId || selectedAvailable) return models;
+    return [{ provider: selectedProvider, model: selectedModelId, label: selectedModelId, description: "Saved model is not in the current catalog.", tier: "balanced" }, ...models];
+  }, [models, selectedAvailable, selectedModelId, selectedProvider]);
+  const selected = pickerModels.find((model) => model.provider === selectedProvider && model.model === selectedModelId);
+  const activeProviderCredentials = providerCredentials.filter((credential) => credential.provider === credentialProvider && credential.status === "active");
+
+  const selectModel = async (model: string, provider: AgentModelProvider) => {
+    setSaving(true);
+    setError(null);
+    try {
+      const savedCredentialReference = credentialReference || home?.preferences?.default_credential_reference || "";
+      const credentialBelongsToPreviousProvider = Boolean(savedCredentialReference && home?.preferences?.default_model_provider && home.preferences.default_model_provider !== provider);
+      const response = await updateKasiAiPreferences(installationId, { defaultModelProvider: provider, defaultModel: model, ...(credentialBelongsToPreviousProvider ? { defaultCredentialReference: null } : {}) });
+      if (home?.channelDefaultConversationId) {
+        await updateKasiAiConversation(home.channelDefaultConversationId, { modelProvider: provider, model });
+      }
+      setHome((current) => current ? { ...current, preferences: response.preferences } : current);
+      if (credentialBelongsToPreviousProvider) {
+        setCredentialReference("");
+        setCredentialMode("platform");
+      }
+      setCredentialProvider(provider);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to change the KasiAi model");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const selectProviderCredential = async (reference: string) => {
+    if (reference === "new" || !selectedProvider || saving) {
+      setCredentialReference("");
+      setCredentialMode("user");
+      setCredentialSaved(false);
+      return;
+    }
+    if (!reference) {
+      const savedCredentialReference = credentialReference || home?.preferences?.default_credential_reference || "";
+      if (!savedCredentialReference) {
+        setCredentialMode("platform");
+        return;
+      }
+      setSaving(true);
+      setCredentialError(null);
+      try {
+        const response = await updateKasiAiPreferences(installationId, { defaultCredentialReference: null });
+        setHome((current) => current ? { ...current, preferences: response.preferences } : current);
+        setCredentialReference("");
+        setCredentialMode("platform");
+      } catch (cause) {
+        setCredentialError(cause instanceof Error ? cause.message : "Unable to use the platform API key");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+    if (credentialProvider !== selectedProvider) {
+      setCredentialError(`Select ${providerLabel(credentialProvider)} as the model provider before using this key.`);
+      return;
+    }
+    setSaving(true);
+    setCredentialError(null);
+    try {
+      const response = await updateKasiAiPreferences(installationId, { defaultCredentialReference: reference });
+      setHome((current) => current ? { ...current, preferences: response.preferences } : current);
+      setCredentialReference(reference);
+      setCredentialMode("user");
+      setCredentialSaved(true);
+    } catch (cause) {
+      setCredentialError(cause instanceof Error ? cause.message : "Unable to select this API key");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveProviderCredential = async () => {
+    if (!credentialProvider || !credentialKey.trim() || credentialSaving) return;
+    setCredentialSaving(true);
+    setCredentialError(null);
+    setCredentialSaved(false);
+    try {
+      await verifyAgentProviderCredential({ provider: credentialProvider, apiKey: credentialKey.trim() });
+      const created = await createAgentProviderCredential({ provider: credentialProvider, apiKey: credentialKey.trim(), label: credentialLabel.trim() || undefined });
+      const response = credentialProvider === selectedProvider
+        ? await updateKasiAiPreferences(installationId, { defaultCredentialReference: created.id })
+        : null;
+      const metadata: AgentProviderCredential = { ...created, funding_source: "user", status: "active", created_at: new Date().toISOString() };
+      setProviderCredentials((current) => [metadata, ...current.filter((credential) => credential.id !== created.id)]);
+      if (response) {
+        setHome((current) => current ? { ...current, preferences: response.preferences } : current);
+        setCredentialReference(created.id);
+      } else {
+        setCredentialReference("");
+      }
+      setCredentialMode("user");
+      setCredentialKey("");
+      setCredentialLabel("");
+      setCredentialSaved(true);
+    } catch (cause) {
+      setCredentialError(cause instanceof Error ? cause.message : "Unable to save this API key");
+    } finally {
+      setCredentialSaving(false);
+    }
+  };
+
+  return <Card><CardContent className="space-y-4 p-6">
+    <div><h2 className="text-lg font-semibold text-foreground">Agent behaviour</h2><p className="mt-1 text-sm text-muted-foreground">Choose the default model for KasiAi.</p></div>
+    <div className="rounded-xl border border-border bg-secondary/20 p-4">
+      <h3 className="text-sm font-semibold text-foreground">Default model</h3>
+      <div className="mt-3 max-w-xl">
+        <AgentModelPicker model={selected} models={pickerModels} disabled={loading || saving || !pickerModels.length} pickerTitle="Choose a model for KasiAi" ariaLabel="Choose KasiAi's model" onSelect={(model, provider) => void selectModel(model, provider)} />
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">Used for new chats and connected channels.</p>
+      {loading ? <p className="mt-2 text-xs text-muted-foreground">Loading available models…</p> : null}
+      {home?.modelCatalog?.error ? <p className="mt-2 text-xs text-status-attention">Showing fallback models while the live catalog is unavailable.</p> : null}
+      {error ? <p className="mt-2 text-xs text-destructive" role="alert">{error}</p> : null}
+    </div>
+    <div className="rounded-xl border border-border bg-secondary/20 p-4">
+      <h3 className="text-sm font-semibold text-foreground">API key</h3>
+      <div className="mt-3 max-w-xl">
+        <span className="text-xs font-medium text-foreground">Key source</span>
+        <div className="mt-1 inline-flex rounded-lg border border-border bg-background p-1">
+          <Button type="button" size="sm" variant={credentialMode === "platform" ? "default" : "ghost"} onClick={() => { setCredentialMode("platform"); setCredentialSaved(false); setCredentialError(null); void selectProviderCredential(""); }}>Platform key</Button>
+          <Button type="button" size="sm" variant={credentialMode === "user" ? "default" : "ghost"} onClick={() => { setCredentialMode("user"); setCredentialSaved(false); setCredentialError(null); }}>Use my own API key</Button>
+        </div>
+      </div>
+      {credentialMode === "user" ? <div className="mt-3 space-y-3">
+        <div>
+          <span className="text-xs font-medium text-foreground">Provider</span>
+          <div className="mt-1"><ProviderTabs value={credentialProvider} configuredProviders={providerCredentials.filter((credential) => credential.status === "active").map((credential) => credential.provider)} onChange={(provider) => { setCredentialProvider(provider); setCredentialReference(""); setCredentialSaved(false); setCredentialError(null); }} /></div>
+        </div>
+        {activeProviderCredentials.length ? <label className="block text-xs font-medium text-foreground">Saved {providerLabel(credentialProvider)} key
+          <Select value={credentialReference || "new"} onValueChange={(value) => void selectProviderCredential(value)}>
+            <SelectTrigger className="mt-1"><SelectValue placeholder="Choose a saved key" /></SelectTrigger>
+            <SelectContent><SelectItem value="new">Enter a new API key</SelectItem>{activeProviderCredentials.map((credential) => <SelectItem key={credential.id} value={credential.id}>{credential.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </label> : null}
+        <div className="grid gap-3 sm:grid-cols-[1fr_0.7fr_auto] sm:items-end">
+          <label className="text-xs font-medium text-foreground">API key<Input type="password" value={credentialKey} onChange={(event) => setCredentialKey(event.target.value)} autoComplete="new-password" className="mt-1" placeholder={`Your ${providerLabel(credentialProvider)} key`} /></label>
+          <label className="text-xs font-medium text-foreground">Label<Input value={credentialLabel} onChange={(event) => setCredentialLabel(event.target.value)} className="mt-1" placeholder="Primary key" /></label>
+          <Button type="button" variant="outline" disabled={!credentialKey.trim() || credentialSaving || !selectedProvider} onClick={() => void saveProviderCredential()}>{credentialSaving ? "Saving…" : "Verify & save"}</Button>
+        </div>
+        {credentialSaved ? <p className="text-xs text-status-success" role="status">API key saved.</p> : null}
+        {credentialError ? <p className="text-xs text-destructive" role="alert">{credentialError}</p> : null}
+      </div> : <p className="mt-2 text-xs text-muted-foreground">Uses the configured KasiTek provider key.</p>}
+    </div>
+  </CardContent></Card>;
 }
 
 function availabilityLabel(availability: string) {
@@ -225,9 +467,23 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const baseConfiguration = baseVersion?.configuration ?? {};
   const basePolicy = baseVersion?.policy?.modelPolicy && typeof baseVersion.policy.modelPolicy === "object" ? baseVersion.policy.modelPolicy as Record<string, unknown> : {};
   const basePrimary = basePolicy.primary && typeof basePolicy.primary === "object" ? basePolicy.primary as Record<string, unknown> : {};
+  const initialCredentialReference = String(baseConfiguration.credentialReference ?? basePolicy.credentialReference ?? "");
   const [instructions, setInstructions] = useState(baseVersion?.instructions ?? "");
-  const [modelProvider, setModelProvider] = useState(String(basePrimary.provider ?? baseConfiguration.provider ?? "openrouter"));
+  const [modelProvider, setModelProvider] = useState<AgentModelProvider>(String(basePrimary.provider ?? baseConfiguration.provider ?? "openrouter") as AgentModelProvider);
   const [model, setModel] = useState(String(basePrimary.model ?? baseConfiguration.model ?? "openai/gpt-oss-20b:free"));
+  const [credentialMode, setCredentialMode] = useState<"platform" | "user">(initialCredentialReference ? "user" : "platform");
+  const [credentialProvider, setCredentialProvider] = useState<AgentModelProvider>(String(basePrimary.provider ?? baseConfiguration.provider ?? "openrouter") as AgentModelProvider);
+  const [credentialReference, setCredentialReference] = useState(initialCredentialReference);
+  const [providerCredentials, setProviderCredentials] = useState<AgentProviderCredential[]>([]);
+  const [credentialsLoading, setCredentialsLoading] = useState(false);
+  const [credentialKey, setCredentialKey] = useState("");
+  const [credentialLabel, setCredentialLabel] = useState("");
+  const [credentialSaving, setCredentialSaving] = useState(false);
+  const [credentialError, setCredentialError] = useState<string | null>(null);
+  const [credentialSaved, setCredentialSaved] = useState(false);
+  const [modelCatalog, setModelCatalog] = useState<AgentModelCatalog | null>(null);
+  const [modelCatalogLoading, setModelCatalogLoading] = useState(false);
+  const [modelCatalogLoadError, setModelCatalogLoadError] = useState<string | null>(null);
   const [runtimeLimits, setRuntimeLimits] = useState<AgentRuntimeLimitsValue>({
     ...defaultAgentRuntimeLimits,
     maxIterations: String(baseConfiguration.maxIterations ?? defaultAgentRuntimeLimits.maxIterations),
@@ -253,7 +509,98 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const customHostedAgent = kasitekHostedAgent && agent.creation_profile === "custom";
   const deletableAgent = !protectedAgent && agent.owner_type === "organization";
   const requestedSection = searchParams.get("section");
-  const activeSection: DetailSection = isDetailSection(requestedSection) ? requestedSection : "overview";
+  const requestedDetailSection: DetailSection = isDetailSection(requestedSection) ? requestedSection : "overview";
+  // Keep old deep links working while presenting one Settings destination.
+  const activeSection: DetailSection = requestedDetailSection === "advanced" ? "settings" : requestedDetailSection;
+
+  useEffect(() => {
+    if (!kasitekHostedAgent || activeSection !== "behavior") return;
+    let cancelled = false;
+    setModelCatalogLoading(true);
+    setModelCatalogLoadError(null);
+    void getAgentModelCatalog()
+      .then((catalog) => {
+        if (!cancelled) setModelCatalog(catalog);
+      })
+      .catch((cause) => {
+        if (!cancelled) {
+          setModelCatalog(null);
+          setModelCatalogLoadError(cause instanceof Error ? cause.message : "Unable to load available models");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setModelCatalogLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [activeSection, kasitekHostedAgent]);
+
+  useEffect(() => {
+    if (!kasitekHostedAgent || activeSection !== "behavior") return;
+    let cancelled = false;
+    setCredentialsLoading(true);
+    void listAgentProviderCredentials()
+      .then((response) => {
+        if (!cancelled) setProviderCredentials(response.credentials);
+      })
+      .catch((cause) => {
+        if (!cancelled) setCredentialError(cause instanceof Error ? cause.message : "Unable to load saved API keys");
+      })
+      .finally(() => {
+        if (!cancelled) setCredentialsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [activeSection, kasitekHostedAgent]);
+
+  const providerOptions = MODEL_PROVIDERS;
+
+  const providerModels = useMemo(() => modelCatalog?.models.filter((entry) => entry.provider === modelProvider) ?? [], [modelCatalog, modelProvider]);
+  const activeProviderCredentials = useMemo(
+    () => providerCredentials.filter((credential) => credential.provider === credentialProvider && credential.status === "active"),
+    [credentialProvider, providerCredentials],
+  );
+  const selectedModelAvailable = providerModels.some((entry) => entry.model === model);
+  const pickerModels = useMemo<AgentModel[]>(() => {
+    if (!model || selectedModelAvailable) return providerModels;
+    return [{ provider: modelProvider, model, label: model, description: "Saved model is not in the current catalog.", tier: "balanced" }, ...providerModels];
+  }, [model, modelProvider, providerModels, selectedModelAvailable]);
+
+  const changeModelProvider = (provider: AgentModelProvider) => {
+    setModelProvider(provider);
+    setCredentialProvider(provider);
+    setCredentialReference("");
+    setCredentialSaved(false);
+    setCredentialError(null);
+    const firstModel = modelCatalog?.models.find((entry) => entry.provider === provider);
+    if (firstModel) setModel(firstModel.model);
+    else if (modelCatalog) setModel("");
+  };
+
+  const saveProviderCredential = async () => {
+    const apiKey = credentialKey.trim();
+    if (!apiKey || credentialSaving) return;
+    setCredentialSaving(true);
+    setCredentialError(null);
+    setCredentialSaved(false);
+    try {
+      await verifyAgentProviderCredential({ provider: credentialProvider, apiKey });
+      const created = await createAgentProviderCredential({ provider: credentialProvider, apiKey, label: credentialLabel.trim() || undefined });
+      const metadata: AgentProviderCredential = {
+        ...created,
+        funding_source: "user",
+        status: "active",
+        created_at: new Date().toISOString(),
+      };
+      setProviderCredentials((current) => [metadata, ...current.filter((credential) => credential.id !== created.id)]);
+      setCredentialReference(credentialProvider === modelProvider ? created.id : "");
+      setCredentialKey("");
+      setCredentialLabel("");
+      setCredentialSaved(true);
+    } catch (cause) {
+      setCredentialError(cause instanceof Error ? cause.message : "Unable to save this API key");
+    } finally {
+      setCredentialSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!hostedAgent || protectedAgent || !agent.installation_id) {
@@ -295,7 +642,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
     if (hostedAgent) {
       groups.push(
         { label: "Training data", items: [{ section: "knowledge", label: "Knowledge", description: "Files, text, and Q&A", icon: BookOpen }] },
-        { label: "Behaviour", items: [{ section: "behavior", label: "Tune agent", description: "Tone, tools, and workflow", icon: SlidersHorizontal }] },
+        { label: "Behaviour", items: [{ section: "behavior", label: "Tune agent", description: "Model, instructions, and workflow", icon: SlidersHorizontal }] },
         {
           label: "Deployment",
           items: [
@@ -312,12 +659,11 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
       groups.push({
         label: "Settings",
         items: [
-          { section: "settings", label: "Agent settings", description: "Edit the agent name, description, and slug", icon: Settings2 },
-          { section: "advanced", label: "Advanced settings", description: hostedAgent ? "Versions, scopes, and schedules" : "Scopes and audit", icon: Settings2 },
+          { section: "settings", label: "Settings", description: hostedAgent ? "Identity, preferences, access, and versions" : "Identity, credentials, and access", icon: Settings2 },
         ],
       });
     } else {
-      groups.push({ label: "Settings", items: [{ section: "advanced", label: "Advanced settings", description: hostedAgent ? "Versions, scopes, and schedules" : "Scopes and audit", icon: Settings2 }] });
+      groups.push({ label: "Settings", items: [{ section: "settings", label: "Settings", description: "Access and platform settings", icon: Settings2 }] });
     }
     return groups;
   }, [externalAgent, hostedAgent, kasitekHostedAgent, protectedAgent, websiteChatConfigured]);
@@ -442,14 +788,22 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 
   const createVersion = async () => {
     if (!instructions.trim() || creatingVersion || protectedAgent) return;
+    if (credentialMode === "user" && !credentialReference) {
+      setError("Select a saved API key or save a new one before creating the version.");
+      return;
+    }
+    if (credentialMode === "user" && credentialProvider !== modelProvider) {
+      setError(`The saved ${providerLabel(credentialProvider)} key must match the ${providerLabel(modelProvider)} model provider.`);
+      return;
+    }
     setCreatingVersion(true);
     setError(null);
     try {
       const parsedLimits = parseAgentRuntimeLimits(runtimeLimits);
       const created = await createAgentVersion(agent.id, {
         instructions: instructions.trim(),
-        configuration: { provider: modelProvider, model: model.trim(), ...parsedLimits, ...(workflow ? { workflow } : {}) },
-        policy: { modelPolicy: { version: "hosted-agent-v1", primary: { provider: modelProvider, model: model.trim() }, fallback: [], allowUserFundedFallbackToKasiTek: false, maxTokensPerRun: parsedLimits.maxTotalTokens }, runLimits: parsedLimits },
+        configuration: { provider: modelProvider, model: model.trim(), ...parsedLimits, ...(credentialMode === "user" && credentialReference ? { credentialReference } : {}), ...(workflow ? { workflow } : {}) },
+        policy: { modelPolicy: { version: "hosted-agent-v1", primary: { provider: modelProvider, model: model.trim() }, ...(credentialMode === "user" && credentialReference ? { credentialReference } : {}), fallback: [], allowUserFundedFallbackToKasiTek: false, maxTokensPerRun: parsedLimits.maxTotalTokens }, runLimits: parsedLimits },
       });
       setVersions((current) => [created, ...current]);
     } catch (cause) {
@@ -492,11 +846,11 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
             </CardContent></Card>
           </aside>
           <main className="min-w-0 space-y-6">
-        {activeSection === "overview" ? <Card><CardContent className="space-y-5 p-6"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Overview</p><h2 className="mt-1 text-xl font-semibold text-foreground">Manage {agentName}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Use the sections on the left to update knowledge, behaviour, deployment, access, and activity without searching through one long page.</p></div><div className="grid gap-3 sm:grid-cols-3"><button type="button" onClick={() => selectSection(hostedAgent ? "knowledge" : "connection")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><BookOpen className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Add knowledge" : "Connect runtime"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Upload files or paste information." : "Manage credentials and connection health."}</p></button><button type="button" onClick={() => selectSection(hostedAgent ? "behavior" : "advanced")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><SlidersHorizontal className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Tune behaviour" : "Review access"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Adjust response settings and capabilities." : "Review scopes and audit information."}</p></button><button type="button" onClick={() => selectSection(hostedAgent ? "activity" : externalAgent ? "operations" : "activity")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><MessageSquare className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Test chat" : externalAgent ? "View operations" : "Private chat"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Try a conversation with this agent." : externalAgent ? "Review calls, outcomes, and usage." : "Test this private platform agent."}</p></button></div></CardContent></Card> : null}
+        {activeSection === "overview" ? <Card><CardContent className="space-y-5 p-6"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Overview</p><h2 className="mt-1 text-xl font-semibold text-foreground">Manage {agentName}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Use the sections on the left to update knowledge, behaviour, deployment, access, and activity without searching through one long page.</p></div><div className="grid gap-3 sm:grid-cols-3"><button type="button" onClick={() => selectSection(hostedAgent ? "knowledge" : "connection")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><BookOpen className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Add knowledge" : "Connect runtime"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Upload files or paste information." : "Manage credentials and connection health."}</p></button><button type="button" onClick={() => selectSection(hostedAgent ? "behavior" : "settings")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><SlidersHorizontal className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Tune behaviour" : "Review access"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Adjust response settings and capabilities." : "Review scopes and audit information."}</p></button><button type="button" onClick={() => selectSection(hostedAgent ? "activity" : externalAgent ? "operations" : "activity")} className="rounded-xl border border-border bg-secondary/20 p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"><MessageSquare className="h-5 w-5 text-primary" /><p className="mt-3 text-sm font-semibold text-foreground">{hostedAgent ? "Test chat" : externalAgent ? "View operations" : "Private chat"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{hostedAgent ? "Try a conversation with this agent." : externalAgent ? "Review calls, outcomes, and usage." : "Test this private platform agent."}</p></button></div></CardContent></Card> : null}
 
         {activeSection === "settings" && !protectedAgent ? <Card><CardContent className="space-y-4 p-6"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Settings</p><h2 className="mt-1 text-xl font-semibold text-foreground">Agent identity</h2><p className="mt-2 text-sm text-muted-foreground">Change the name, description, or public slug for this agent.</p></div><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium text-foreground">Name<Input value={agentName} onChange={(event) => { const next = event.target.value; setAgentName(next); if (!slugEdited) setAgentSlug(slugifyAgentName(next)); }} maxLength={160} className="mt-2" /></label><label className="text-sm font-medium text-foreground">Slug<Input value={agentSlug} onChange={(event) => { setSlugEdited(true); setAgentSlug(sanitizeAgentSlug(event.target.value)); }} maxLength={80} className="mt-2" /><span className="mt-1 block text-xs text-muted-foreground">Updates automatically from the name until you edit it.</span></label></div><label className="text-sm font-medium text-foreground">Description<Textarea value={agentDescription} onChange={(event) => setAgentDescription(event.target.value)} rows={4} maxLength={2000} className="mt-2 resize-y" /></label><div className="flex items-center justify-between gap-3"><button type="button" className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" onClick={() => { setSlugEdited(false); setAgentSlug(slugifyAgentName(agentName)); }}>Reset slug from name</button><Button type="button" onClick={() => void saveIdentity()} disabled={savingIdentity || !agentName.trim() || !agentSlug.trim()}>{savingIdentity ? "Saving…" : "Save details"}</Button></div></CardContent></Card> : null}
 
-        {activeSection === "behavior" && hostedAgent ? <Card>
+        {activeSection === "settings" && hostedAgent ? <Card>
           <CardContent className="space-y-4 p-6">
             <div><h2 className="text-lg font-semibold text-foreground">Workspace preferences</h2><p className="mt-1 text-sm text-muted-foreground">These settings affect this workspace installation only. Protected instructions and tool policy remain unchanged.</p></div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -514,7 +868,15 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 
         {activeSection === "knowledge" && hostedAgent && agent.installation_id ? <InstallationKnowledge agentId={agent.id} installationId={agent.installation_id} /> : null}
 
-        {activeSection === "advanced" && hostedAgent && agent.installation_id ? <InstallationSchedules installationId={agent.installation_id} /> : null}
+        {activeSection === "settings" && agent.installation_id ? <section className="space-y-3" aria-labelledby="additional-settings-title">
+          <div><h2 id="additional-settings-title" className="text-lg font-semibold text-foreground">Additional settings</h2><p className="text-sm text-muted-foreground">Access, schedules, and activation controls.</p></div>
+          {kasitekHostedAgent ? <details className="group rounded-xl border border-border bg-card">
+            <summary className="cursor-pointer list-none p-5 [&::-webkit-details-marker]:hidden"><div className="flex items-center justify-between gap-3"><div><h3 className="font-semibold text-foreground">Schedules</h3><p className="mt-1 text-sm text-muted-foreground">Run this agent on a recurring schedule.</p></div><span className="text-xs font-medium text-primary group-open:hidden">Open</span><span className="hidden text-xs font-medium text-primary group-open:inline">Close</span></div></summary>
+            <div className="border-t border-border p-5"><InstallationSchedules installationId={agent.installation_id} /></div>
+          </details> : null}
+          <InstallationCapabilities installationId={agent.installation_id} protectedAgent={protectedAgent} />
+          <InstallationAccessScope installationId={agent.installation_id} />
+        </section> : null}
 
         {activeSection === "operations" && kasitekHostedAgent && agent.installation_id ? <InstallationRuns installationId={agent.installation_id} /> : null}
 
@@ -528,18 +890,85 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 
         {activeSection === "deployment" && agent.installation_id ? <InstallationReadiness installationId={agent.installation_id} /> : null}
 
-        {((activeSection === "behavior" && hostedAgent) || (activeSection === "advanced" && externalAgent)) && agent.installation_id ? <InstallationCapabilities installationId={agent.installation_id} protectedAgent={protectedAgent} /> : null}
-
-        {activeSection === "advanced" && agent.installation_id ? <InstallationAccessScope installationId={agent.installation_id} /> : null}
-
-        {activeSection === "activity" && agent.installation_id && hostedAgent ? <AgentChatPanel installationId={agent.installation_id} active={installationStatus === "active"} /> : null}
+        {activeSection === "activity" && agent.installation_id && hostedAgent ? <AgentChatPanel installationId={agent.installation_id} active={installationStatus === "active"} initialModelProvider={modelProvider} initialModel={model} /> : null}
 
         {activeSection === "behavior" && kasitekHostedAgent ? <AgentWorkflowEditor configuration={baseConfiguration} onChange={handleWorkflowChange} onValidityChange={handleWorkflowValidity} onTestRun={agent.installation_id && installationStatus === "active" ? runWorkflowTest : undefined} /> : null}
 
-        {activeSection === "behavior" && kasitekHostedAgent ? <Card><CardContent className="space-y-4 p-6"><div><h2 className="text-lg font-semibold text-foreground">Create a draft version</h2><p className="mt-1 text-sm text-muted-foreground">Drafts are immutable after creation. Publish the new version from Advanced settings once you are ready.</p></div><div className="rounded-xl border border-border bg-secondary/20 p-4"><h3 className="text-sm font-semibold text-foreground">Model policy</h3><div className="mt-3 grid gap-3 sm:grid-cols-[0.65fr_1.35fr_0.7fr]"><label className="text-xs font-medium text-foreground">Provider<Select value={modelProvider} onValueChange={setModelProvider}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="openrouter">OpenRouter</SelectItem><SelectItem value="openai">OpenAI</SelectItem><SelectItem value="anthropic">Anthropic</SelectItem><SelectItem value="gemini">Gemini</SelectItem></SelectContent></Select></label><label className="text-xs font-medium text-foreground">Model<Input value={model} onChange={(event) => setModel(event.target.value)} className="mt-1" /></label><label className="text-xs font-medium text-foreground">Max tokens<Input value={runtimeLimits.maxTotalTokens} onChange={(event) => setRuntimeLimits((current) => ({ ...current, maxTotalTokens: event.target.value }))} inputMode="numeric" className="mt-1" /></label></div></div><AgentRuntimeLimits value={runtimeLimits} onChange={setRuntimeLimits} /><Textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={8} maxLength={200000} className="resize-y font-mono leading-6" aria-label="Agent instructions" /><div className="flex items-center justify-between gap-3"><p className="text-xs text-muted-foreground">The draft will include the current workflow graph, model policy, and runtime limits.</p><Button type="button" disabled={creatingVersion || !instructions.trim() || !model.trim() || !workflowReady || !workflowValid || !workflow} onClick={() => void createVersion()}>{creatingVersion ? "Creating draft…" : "Create draft version"}</Button></div></CardContent></Card> : null}
+        {activeSection === "behavior" && executionMode === "system_hosted" && agent.installation_id ? <KasiAiBehaviour installationId={agent.installation_id} /> : null}
 
-        {activeSection === "advanced" ? <section className="space-y-3" aria-labelledby="agent-versions-title">
-          <div><h2 id="agent-versions-title" className="text-lg font-semibold text-foreground">Version history</h2><p className="text-sm text-muted-foreground">Published versions are immutable. Drafts can be published; retired versions can be rolled back.</p></div>
+        {activeSection === "behavior" && kasitekHostedAgent ? (
+          <Card>
+            <CardContent className="space-y-4 p-6">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Agent behaviour</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Set the model, instructions, runtime limits, and workflow for this agent.</p>
+              </div>
+              <div className="rounded-xl border border-border bg-secondary/20 p-4">
+                <h3 className="text-sm font-semibold text-foreground">Model policy</h3>
+                <div className="mt-3 grid gap-3 sm:grid-cols-[0.65fr_1.35fr_0.7fr]">
+                  <label className="text-xs font-medium text-foreground">Provider
+                    <Select value={modelProvider} onValueChange={(value) => changeModelProvider(value as AgentModelProvider)}>
+                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>{providerOptions.map((provider) => <SelectItem key={provider} value={provider}>{providerLabel(provider)}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </label>
+                  <div className="min-w-0 text-xs font-medium text-foreground">
+                    <span>Model</span>
+                    {modelCatalog && providerModels.length ? <div className="mt-1"><AgentModelPicker model={pickerModels.find((entry) => entry.provider === modelProvider && entry.model === model)} models={pickerModels} disabled={modelCatalogLoading} onSelect={(value) => setModel(value)} /></div> : <Input value={model} onChange={(event) => setModel(event.target.value)} className="mt-1" disabled={modelCatalogLoading} />}
+                    {modelCatalogLoading ? <p className="mt-1 text-[11px] font-normal text-muted-foreground">Loading available models…</p> : null}
+                    {modelCatalogLoadError ? <p className="mt-1 text-[11px] font-normal text-status-attention">Model list unavailable. Enter a model ID manually.</p> : null}
+                    {modelCatalog?.error ? <p className="mt-1 text-[11px] font-normal text-status-attention">Showing fallback models while the live catalog is unavailable.</p> : null}
+                    {modelCatalog && providerModels.length && model.trim() && !selectedModelAvailable ? <p className="mt-1 text-[11px] font-normal text-destructive">The saved model is unavailable. Choose another model before saving.</p> : null}
+                  </div>
+                  <label className="text-xs font-medium text-foreground">Max tokens<Input value={runtimeLimits.maxTotalTokens} onChange={(event) => setRuntimeLimits((current) => ({ ...current, maxTotalTokens: event.target.value }))} inputMode="numeric" className="mt-1" /></label>
+                </div>
+              </div>
+              <div className="rounded-xl border border-border bg-secondary/20 p-4">
+                <h3 className="text-sm font-semibold text-foreground">API key</h3>
+                <div className="mt-3 max-w-xl">
+                  <span className="text-xs font-medium text-foreground">Key source</span>
+                  <div className="mt-1 inline-flex max-w-full flex-wrap rounded-lg border border-border bg-background p-1">
+                    <Button type="button" size="sm" variant={credentialMode === "platform" ? "default" : "ghost"} onClick={() => { setCredentialMode("platform"); setCredentialSaved(false); setCredentialError(null); setCredentialReference(""); }}>Platform key</Button>
+                    <Button type="button" size="sm" variant={credentialMode === "user" ? "default" : "ghost"} onClick={() => { setCredentialMode("user"); setCredentialSaved(false); setCredentialError(null); }}>Use my own API key</Button>
+                  </div>
+                </div>
+                {credentialMode === "user" ? <div className="mt-3 space-y-3">
+                  <div>
+                    <span className="text-xs font-medium text-foreground">Provider</span>
+                    <div className="mt-1"><ProviderTabs value={credentialProvider} configuredProviders={providerCredentials.filter((credential) => credential.status === "active").map((credential) => credential.provider)} onChange={(provider) => { setCredentialProvider(provider); setCredentialReference(""); setCredentialSaved(false); setCredentialError(null); }} /></div>
+                  </div>
+                  {activeProviderCredentials.length ? <label className="block text-xs font-medium text-foreground">Saved {providerLabel(credentialProvider)} key
+                    <Select value={credentialReference || "new"} onValueChange={(value) => { setCredentialReference(value === "new" ? "" : value); setCredentialSaved(false); }}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder={credentialsLoading ? "Loading saved keys…" : "Choose a saved key"} /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="new">Enter a new API key</SelectItem>
+                        {credentialReference && !activeProviderCredentials.some((credential) => credential.id === credentialReference) ? <SelectItem value={credentialReference}>Current saved key</SelectItem> : null}
+                        {activeProviderCredentials.map((credential) => <SelectItem key={credential.id} value={credential.id}>{credential.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </label> : null}
+                  <div className="grid gap-3 sm:grid-cols-[1fr_0.7fr_auto] sm:items-end">
+                    <label className="text-xs font-medium text-foreground">API key<Input type="password" value={credentialKey} onChange={(event) => setCredentialKey(event.target.value)} autoComplete="new-password" className="mt-1" placeholder={`Your ${providerLabel(credentialProvider)} key`} /></label>
+                    <label className="text-xs font-medium text-foreground">Label<Input value={credentialLabel} onChange={(event) => setCredentialLabel(event.target.value)} className="mt-1" placeholder="Primary key" /></label>
+                    <Button type="button" variant="outline" disabled={!credentialKey.trim() || credentialSaving} onClick={() => void saveProviderCredential()}>{credentialSaving ? "Saving…" : "Verify & save"}</Button>
+                  </div>
+                  {credentialSaved ? <p className="text-xs text-status-success" role="status">API key saved{credentialProvider !== modelProvider ? `. Select ${providerLabel(credentialProvider)} as the model provider to use it` : ""}.</p> : null}
+                  {credentialError ? <p className="text-xs text-destructive" role="alert">{credentialError}</p> : null}
+                </div> : <p className="mt-2 text-xs text-muted-foreground">Uses the configured KasiTek provider key.</p>}
+              </div>
+              <AgentRuntimeLimits value={runtimeLimits} onChange={setRuntimeLimits} />
+              <Textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={8} maxLength={200000} className="resize-y font-mono leading-6" aria-label="Agent instructions" />
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-muted-foreground">Changes are saved as a new version. Publish it from Settings when you are ready.</p>
+                <Button type="button" disabled={creatingVersion || !instructions.trim() || !model.trim() || Boolean(modelCatalog && providerModels.length && !selectedModelAvailable) || !workflowReady || !workflowValid || !workflow || (credentialMode === "user" && (!credentialReference || credentialProvider !== modelProvider))} onClick={() => void createVersion()}>{creatingVersion ? "Saving…" : "Save version"}</Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {activeSection === "settings" ? <details className="group rounded-xl border border-border bg-card" aria-labelledby="agent-versions-title">
+          <summary className="cursor-pointer list-none p-5 [&::-webkit-details-marker]:hidden"><div className="flex items-center justify-between gap-3"><div><h2 id="agent-versions-title" className="font-semibold text-foreground">Version history</h2><p className="mt-1 text-sm text-muted-foreground">Publish, retire, or roll back agent versions.</p></div><span className="text-xs font-medium text-primary group-open:hidden">Open</span><span className="hidden text-xs font-medium text-primary group-open:inline">Close</span></div></summary>
+          <div className="space-y-3 border-t border-border p-5">
           {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
           {!versions.length ? <Card><CardContent className="p-6 text-sm text-muted-foreground">No versions are available for this agent.</CardContent></Card> : versions.map((version) => (
             <Card key={version.id}><CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -551,7 +980,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
               </div> : null}
             </CardContent></Card>
           ))}
-        </section> : null}
+          </div>
+        </details> : null}
           </main>
         </div>
         <Dialog open={deleteConfirmationOpen} onOpenChange={(open) => {
@@ -1509,7 +1939,7 @@ function InstallationIntegrations({ agentId, installationId, personal, agentName
     <Card>
       <CardContent className="space-y-4 p-6"><div><h3 className="text-sm font-semibold text-foreground">Available integrations</h3><p className="mt-1 text-sm text-muted-foreground">More ways to deploy this agent.</p></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{upcomingIntegrations.map((integration) => { const Icon = integration.icon; const isWebsite = integration.action === "website"; const isChannelSetup = integration.action === "channels"; const isActionable = isWebsite || isChannelSetup; const openIntegration = isWebsite ? openWebsiteChat : isChannelSetup ? () => setTelegramSetupOpen(true) : undefined; return <div key={integration.label} role={isActionable ? "button" : undefined} tabIndex={isActionable ? 0 : undefined} onClick={openIntegration} onKeyDown={isActionable ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openIntegration?.(); } } : undefined} className={`rounded-xl border border-border p-4${isActionable ? " cursor-pointer transition-colors hover:border-primary/60 hover:bg-secondary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" : ""}`}><div className="flex items-start justify-between gap-3"><div className="rounded-lg border border-border bg-secondary p-2"><Icon className={`h-5 w-5 ${integration.iconClass}`} /></div><Badge className={`border-border bg-secondary text-muted-foreground${isChannelSetup && integration.status !== "Checking…" ? " border-status-success/30 bg-status-success-soft text-status-success" : ""}`}>{integration.status}</Badge></div><p className="mt-3 font-medium text-foreground">{integration.label}</p><p className="mt-1 text-sm text-muted-foreground">{integration.description}</p>{isWebsite ? <span className="mt-3 inline-flex text-xs font-medium text-foreground">{websiteConfigured ? "Manage Website Chat" : "Configure Website Chat"} <span aria-hidden="true" className="ml-1">→</span></span> : isChannelSetup ? <span className="mt-3 inline-flex text-xs font-medium text-foreground">{telegramConnected ? "Manage Telegram" : "Connect Telegram"} <span aria-hidden="true" className="ml-1">→</span></span> : integration.status === "Developer setup" ? <Link href="/developers" className="mt-3 inline-flex text-xs font-medium text-foreground underline-offset-4 hover:underline">Open Developers</Link> : null}</div>; })}</div></CardContent>
     </Card>
-    <TelegramSetupDialog open={telegramSetupOpen} onOpenChange={setTelegramSetupOpen} installationId={installationId} personal={personal} existingConnection={telegramConnection} onConnected={() => void refresh()} />
+    <TelegramSetupDialog open={telegramSetupOpen} onOpenChange={setTelegramSetupOpen} installationId={installationId} personal={personal} existingConnection={telegramConnection} onConnected={() => void refresh()} onDisconnected={() => void refresh()} />
     {!personal && websiteChatOpen ? <WebsiteChatDeployments agentId={agentId} installationId={installationId} agentName={agentName} onClose={() => { setWebsiteChatOpen(false); void refreshWebsiteDeployments(); }} /> : null}
   </div>;
 }
@@ -1668,13 +2098,14 @@ function WebsiteChatDeployments({ agentId, installationId, agentName, onClose }:
   </Dialog>;
 }
 
-function TelegramSetupDialog({ open, onOpenChange, installationId, personal, existingConnection, onConnected }: { open: boolean; onOpenChange: (open: boolean) => void; installationId: string; personal: boolean; existingConnection?: AgentChannelConnection; onConnected?: () => void }) {
+function TelegramSetupDialog({ open, onOpenChange, installationId, personal, existingConnection, onConnected, onDisconnected }: { open: boolean; onOpenChange: (open: boolean) => void; installationId: string; personal: boolean; existingConnection?: AgentChannelConnection; onConnected?: () => void; onDisconnected?: () => void }) {
   const [botToken, setBotToken] = useState("");
   const [connection, setConnection] = useState<AgentChannelConnection | null>(null);
   const [pairing, setPairing] = useState<{ token: string; expires_at: string; username?: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [pairingLoading, setPairingLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { confirm } = useConfirmationDialog();
 
   const reset = () => {
     setBotToken("");
@@ -1735,6 +2166,21 @@ function TelegramSetupDialog({ open, onOpenChange, installationId, personal, exi
     }
   };
 
+  const disconnect = async () => {
+    if (!connection || busy || !await confirm({ title: "Disconnect Telegram?", description: "This removes the bot webhook and channel route.", confirmLabel: "Disconnect", variant: "destructive" })) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await revokeAgentChannelConnection(installationId, connection.id);
+      onDisconnected?.();
+      handleOpenChange(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to disconnect Telegram");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const botUsername = connection?.metadata?.telegram && typeof connection.metadata.telegram === "object" && typeof (connection.metadata.telegram as Record<string, unknown>).username === "string"
     ? (connection.metadata.telegram as Record<string, unknown>).username as string
     : undefined;
@@ -1763,7 +2209,7 @@ function TelegramSetupDialog({ open, onOpenChange, installationId, personal, exi
           <DialogDescription>{botUsername ? `@${botUsername} is connected to this agent.` : "Your Telegram bot is connected to this agent."}</DialogDescription>
         </DialogHeader>
         {personal ? pairing ? <div className="mt-5 space-y-3"><div><p className="text-sm font-medium text-foreground">Pair your Telegram account</p><p className="mt-1 text-sm text-muted-foreground">Choose one of these options. Expires {new Date(pairing.expires_at).toLocaleString()}.</p></div><TelegramPairingActions username={pairing.username} token={pairing.token} /></div> : <div className="mt-5 space-y-3"><p className="text-sm text-muted-foreground">{pairingLoading ? "Preparing your pairing link…" : "Your bot is connected. Pairing could not be prepared yet."}</p>{error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}{!pairingLoading ? <Button type="button" variant="outline" onClick={() => void issuePairing(connection)}>Try pairing again</Button> : null}</div> : <div className="mt-5 rounded-lg border border-status-success/30 bg-status-success-soft/40 p-3 text-sm text-muted-foreground">Customer messages sent to this bot will be routed to this agent.</div>}
-        <DialogFooter className="mt-6"><Button type="button" onClick={() => handleOpenChange(false)}>{personal && pairing ? "Done" : "Close"}</Button></DialogFooter>
+        <DialogFooter className="mt-6"><Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>{personal && pairing ? "Done" : "Close"}</Button><Button type="button" variant="destructive" disabled={busy} onClick={() => void disconnect()}>{busy ? "Disconnecting…" : "Disconnect"}</Button></DialogFooter>
       </>}
     </DialogContent>
   </Dialog>;

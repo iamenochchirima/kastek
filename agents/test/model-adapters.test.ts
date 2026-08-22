@@ -3,15 +3,20 @@ import { AnthropicAdapter } from "../src/model/anthropic";
 import { GeminiAdapter } from "../src/model/gemini";
 import { OpenAICompatibleAdapter } from "../src/model/openai-compatible";
 import { ModelGateway } from "../src/model/gateway";
-import { ModelProviderError, type ModelAdapter } from "../src/model/types";
+import { MODEL_PROVIDERS, ModelProviderError, type ModelAdapter } from "../src/model/types";
 import { normalizeModelPolicy, resolveModelTarget } from "../src/model/policy";
 
 const credentials = { apiKey: "secret", fundingSource: "kasitek" as const };
 
 describe("provider adapters", () => {
+  it("registers every provider in the Waku-compatible catalog", () => {
+    const gateway = new ModelGateway();
+    for (const provider of MODEL_PROVIDERS) expect(gateway.capabilities(provider)).toBeDefined();
+  });
+
   it("resolves a versioned primary, fast, and bounded fallback model policy", () => {
-    const target = resolveModelTarget({}, { modelPolicy: { version: "v1", primary: { provider: "openrouter", model: "primary" }, fast: { provider: "openai", model: "fast" }, fallback: [{ provider: "gemini", model: "fallback" }], maxTokensPerRun: 1000 } });
-    expect(target).toMatchObject({ provider: "openrouter", model: "primary", policyVersion: "v1", maxTokensPerRun: 1000, fallback: [{ provider: "gemini", model: "fallback" }] });
+    const target = resolveModelTarget({}, { modelPolicy: { version: "v1", primary: { provider: "openrouter", model: "primary" }, credentialReference: "credential-1", fast: { provider: "openai", model: "fast" }, fallback: [{ provider: "gemini", model: "fallback" }], maxTokensPerRun: 1000 } });
+    expect(target).toMatchObject({ provider: "openrouter", model: "primary", credentialReference: "credential-1", policyVersion: "v1", maxTokensPerRun: 1000, fallback: [{ provider: "gemini", model: "fallback" }] });
   });
   it("runs published versions that used the legacy primary.name field", () => {
     const policy = { modelPolicy: { version: "legacy-v1", primary: { provider: "openrouter", name: "openai/gpt-oss-20b:free" }, fallback: [] } };
@@ -174,6 +179,20 @@ describe("provider adapters", () => {
     const result = await new AnthropicAdapter().complete({ provider: "anthropic", model: "test", messages: [{ role: "user", content: "hi" }] }, credentials);
     expect(result.message.content).toBe("checking");
     expect(result.toolCalls[0]).toMatchObject({ name: "echo", arguments: { value: "ok" } });
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    ["glm", "https://api.z.ai/api/anthropic/v1", "bearer"],
+    ["kimi", "https://api.moonshot.ai/anthropic/v1", "x-api-key"],
+    ["minimax", "https://api.minimaxi.com/anthropic/v1", "x-api-key"],
+  ] as const)("uses the documented Anthropic-compatible path for %s", async (provider, baseUrl, authHeader) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ content: [{ type: "text", text: "ok" }] }), { status: 200 })));
+    const result = await new AnthropicAdapter({ provider, baseUrl, authHeader }).complete({ provider, model: "test", messages: [{ role: "user", content: "hi" }] }, credentials);
+    expect(result.provider).toBe(provider);
+    const [url, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${baseUrl}/messages`);
+    expect(new Headers(init.headers).has(authHeader === "bearer" ? "authorization" : authHeader)).toBe(true);
     vi.unstubAllGlobals();
   });
 

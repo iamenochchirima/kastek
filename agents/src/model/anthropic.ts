@@ -1,4 +1,4 @@
-import type { ModelAdapter, ModelCredentials, ModelRequest, ModelResponse } from "./types";
+import type { ModelAdapter, ModelCredentials, ModelProvider, ModelRequest, ModelResponse } from "./types";
 import { ModelProviderError } from "./types";
 
 interface AnthropicResponse {
@@ -9,8 +9,17 @@ interface AnthropicResponse {
 }
 
 export class AnthropicAdapter implements ModelAdapter {
-  public readonly provider = "anthropic" as const;
+  public readonly provider: ModelProvider;
   public readonly capabilities = { toolCalling: true, structuredOutput: false, streaming: false, vision: true } as const;
+
+  private readonly baseUrl: string;
+  private readonly authHeader: "x-api-key" | "bearer";
+
+  public constructor(options: { provider?: ModelProvider; baseUrl?: string; authHeader?: "x-api-key" | "bearer" } = {}) {
+    this.provider = options.provider ?? "anthropic";
+    this.baseUrl = (options.baseUrl ?? "https://api.anthropic.com/v1").replace(/\/$/, "");
+    this.authHeader = options.authHeader ?? "x-api-key";
+  }
 
   public async complete(request: ModelRequest, credentials: ModelCredentials): Promise<ModelResponse> {
     const startedAt = Date.now();
@@ -35,12 +44,12 @@ export class AnthropicAdapter implements ModelAdapter {
         }
         return { role: message.role, content: message.content };
       });
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch(`${this.baseUrl}/messages`, {
       method: "POST",
       signal: request.signal,
       headers: {
         "content-type": "application/json",
-        "x-api-key": credentials.apiKey,
+        [this.authHeader === "bearer" ? "authorization" : "x-api-key"]: this.authHeader === "bearer" ? `Bearer ${credentials.apiKey}` : credentials.apiKey,
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({

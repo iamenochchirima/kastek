@@ -1,16 +1,10 @@
 import type { ModelCredentials, ModelProvider } from "./types";
 import type { CredentialVaultRepository } from "../db/repositories/credential-vault-repository";
+import { MODEL_PROVIDER_DEFINITIONS } from "./providers";
 
 export interface CredentialResolver {
   resolve(provider: ModelProvider, credentialReference?: string, organizationId?: string): Promise<ModelCredentials>;
 }
-
-const environmentKeys: Record<ModelProvider, string> = {
-  openrouter: "OPENROUTER_API_KEY",
-  openai: "OPENAI_API_KEY",
-  anthropic: "ANTHROPIC_API_KEY",
-  gemini: "GEMINI_API_KEY",
-};
 
 /**
  * Local/Poc resolver. Production will replace this with a core-owned secret-manager adapter;
@@ -18,7 +12,7 @@ const environmentKeys: Record<ModelProvider, string> = {
  */
 export class EnvironmentCredentialResolver implements CredentialResolver {
   public async resolve(provider: ModelProvider, credentialReference?: string): Promise<ModelCredentials> {
-    const apiKey = process.env[environmentKeys[provider]];
+    const apiKey = process.env[MODEL_PROVIDER_DEFINITIONS[provider].apiKeyEnv];
     if (!apiKey) throw new Error(`No ${provider} credential configured for reference ${credentialReference ?? "default"}`);
     return { apiKey, fundingSource: "kasitek", credentialReference };
   }

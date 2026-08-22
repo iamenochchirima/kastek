@@ -1,4 +1,5 @@
 import type { ModelProvider } from "./types";
+import { MODEL_PROVIDER_DEFINITIONS } from "./providers";
 
 export type CredentialVerificationCode = "credential_rejected" | "verification_unavailable";
 
@@ -29,30 +30,19 @@ export type CredentialVerificationFetcher = (input: RequestInfo | URL, init?: Re
 const VERIFICATION_TIMEOUT_MS = 10_000;
 
 function verificationRequest(provider: ModelProvider, apiKey: string): { url: string; init: RequestInit } {
-  switch (provider) {
-    case "openrouter":
-      return {
-        url: "https://openrouter.ai/api/v1/models",
-        init: { headers: { authorization: `Bearer ${apiKey}` } },
-      };
-    case "openai":
-      return {
-        url: "https://api.openai.com/v1/models",
-        init: { headers: { authorization: `Bearer ${apiKey}` } },
-      };
-    case "anthropic":
-      return {
-        url: "https://api.anthropic.com/v1/models",
-        init: { headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01" } },
-      };
-    case "gemini":
-      return {
-        // Gemini's API-key contract requires the key in the query string. Do
-        // not include this URL in logs or error messages.
-        url: `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`,
-        init: {},
-      };
+  const definition = MODEL_PROVIDER_DEFINITIONS[provider];
+  if (definition.verificationAuth === "bearer") {
+    return { url: definition.verificationUrl, init: { headers: { authorization: `Bearer ${apiKey}` } } };
   }
+  if (definition.verificationAuth === "gemini-query") {
+    // Gemini's API-key contract requires the key in the query string. Do not
+    // include this URL in logs or error messages.
+    return { url: `${definition.verificationUrl}?key=${encodeURIComponent(apiKey)}`, init: {} };
+  }
+  return {
+    url: definition.verificationUrl,
+    init: { headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01" } },
+  };
 }
 
 function rejected(provider: ModelProvider): CredentialVerificationError {

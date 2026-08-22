@@ -2065,14 +2065,27 @@ function ComposerModelPicker({
   onSelect: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const selected = model ? `${model.provider}:${model.model}` : "";
   const visible = open && !disabled;
+  const normalizedSearch = search.trim().toLowerCase();
+  const matchingModels = models.filter(
+    (item) =>
+      !normalizedSearch ||
+      `${item.label} ${item.model} ${item.provider}`
+        .toLowerCase()
+        .includes(normalizedSearch),
+  );
+  const displayedModels = matchingModels.slice(0, normalizedSearch ? 100 : 30);
   return (
     <div className="relative min-w-0">
       <button
         type="button"
         disabled={disabled}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          setOpen((value) => !value);
+          setSearch("");
+        }}
         className="flex max-w-[14rem] items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[11px] text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
         aria-haspopup="listbox"
         aria-expanded={visible}
@@ -2085,7 +2098,10 @@ function ComposerModelPicker({
           <button
             type="button"
             className="fixed inset-0 z-10 cursor-default"
-            onClick={() => setOpen(false)}
+            onClick={() => {
+              setOpen(false);
+              setSearch("");
+            }}
             aria-label="Close model picker"
           />
           <div
@@ -2096,8 +2112,18 @@ function ComposerModelPicker({
             <div className="border-b border-border px-3 py-2 text-[10px] text-muted-foreground">
               Choose a model for this chat
             </div>
+            <label className="flex items-center gap-2 border-b border-border px-3 py-2">
+              <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <input
+                autoFocus
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search models or IDs…"
+                className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
+              />
+            </label>
             <div className="max-h-64 overflow-y-auto p-1">
-              {models.map((item) => {
+              {displayedModels.map((item) => {
                 const value = `${item.provider}:${item.model}`;
                 const active = value === selected;
                 return (
@@ -2109,6 +2135,7 @@ function ComposerModelPicker({
                     onClick={() => {
                       onSelect(value);
                       setOpen(false);
+                      setSearch("");
                     }}
                     className={cn(
                       "w-full rounded-md px-2.5 py-2 text-left transition-colors",
@@ -2123,12 +2150,19 @@ function ComposerModelPicker({
                         {item.isFree ? "free" : item.tier}
                       </span>
                     </div>
-                    <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
-                      {item.provider} · {item.model}
-                    </p>
                   </button>
                 );
               })}
+              {!matchingModels.length ? (
+                <p className="px-2.5 py-4 text-xs text-muted-foreground">
+                  No models match that search.
+                </p>
+              ) : null}
+              {matchingModels.length > displayedModels.length ? (
+                <p className="px-2.5 py-2 text-[10px] text-muted-foreground">
+                  Showing first {displayedModels.length} results. Search to narrow the list.
+                </p>
+              ) : null}
             </div>
           </div>
         </>
@@ -2944,9 +2978,6 @@ function ModelCard({
           {model.isFree ? "free" : model.tier}
         </span>
       </div>
-      <p className="mt-1 truncate text-[11px] text-muted-foreground">
-        {model.provider} · {model.model}
-      </p>
       <div className="mt-2 flex flex-wrap gap-1 text-[10px] text-muted-foreground">
         {model.isWorkspaceDefault ? (
           <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">

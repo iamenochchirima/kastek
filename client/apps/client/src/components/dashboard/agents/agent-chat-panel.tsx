@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Activity, Bot, LoaderCircle, MessageSquare, Plus, Send, Square, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,13 +19,19 @@ import {
   clearPlatformConversations,
   createNewPlatformConversation,
   getAgentRun,
+  getAgentModelCatalog,
   getPlatformConversation,
   resolvePlatformConversation,
   sendPlatformMessage,
   streamAgentRun,
+  updateKasiAiConversation,
+  type AgentModel,
+  type AgentModelCatalog,
+  type AgentModelProvider,
   type AgentConversation,
   type AgentMessage,
 } from "@/lib/agent-platform";
+import { AgentModelPicker } from "./agent-model-picker";
 
 const testChatActiveRunStatuses = new Set(["received", "queued", "running", "awaiting_approval", "awaiting_human", "awaiting_external_event"]);
 const testChatTerminalRunStatuses = new Set(["completed", "failed", "cancelled", "expired"]);
@@ -71,7 +77,7 @@ async function waitForTestChatRunTerminal(runId: string, signal: AbortSignal) {
   return null;
 }
 
-export function AgentChatPanel({ installationId, active, agentName, modal = false }: { installationId: string; active: boolean; agentName?: string; modal?: boolean }) {
+export function AgentChatPanel({ installationId, active, agentName, modal = false, initialModelProvider, initialModel }: { installationId: string; active: boolean; agentName?: string; modal?: boolean; initialModelProvider?: AgentModelProvider; initialModel?: string }) {
   const [conversation, setConversation] = useState<AgentConversation | null>(null);
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -84,6 +90,10 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
   const [lastRunId, setLastRunId] = useState<string | null>(null);
   const [runProgress, setRunProgress] = useState("Preparing request…");
   const [runEvents, setRunEvents] = useState<Array<{ event: string; label: string }>>([]);
+  const [modelCatalog, setModelCatalog] = useState<AgentModelCatalog | null>(null);
+  const [modelCatalogLoading, setModelCatalogLoading] = useState(false);
+  const [selectedModelProvider, setSelectedModelProvider] = useState<AgentModelProvider | null>(initialModelProvider ?? null);
+  const [selectedModel, setSelectedModel] = useState(initialModel ?? "");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamAbort = useRef<AbortController | null>(null);
   const sendLocked = useRef(false);
@@ -132,6 +142,10 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
   const refresh = useCallback(async (conversationId?: string) => {
     const response = conversationId ? await getPlatformConversation(conversationId) : await resolvePlatformConversation(installationId);
     setConversation(response.conversation);
+    if (response.conversation.model_provider && response.conversation.model) {
+      setSelectedModelProvider(response.conversation.model_provider as AgentModelProvider);
+      setSelectedModel(response.conversation.model);
+    }
     setMessages([...response.messages].sort((left, right) => Number(left.sequence_number) - Number(right.sequence_number)));
     const activeRun = response.activeRuns?.find((run) => testChatActiveRunStatuses.has(run.status));
     if (activeRun && watchedRun.current !== activeRun.id) {
@@ -162,6 +176,29 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
   }, [active, refresh]);
 
   useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    setModelCatalogLoading(true);
+    void getAgentModelCatalog()
+      .then((catalog) => {
+        if (cancelled) return;
+        setModelCatalog(catalog);
+        const fallback = catalog.models.find((item) => item.isWorkspaceDefault) ?? catalog.models[0];
+        if (fallback) {
+          setSelectedModelProvider((current) => current ?? fallback.provider);
+          setSelectedModel((current) => current || fallback.model);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setModelCatalog(null);
+      })
+      .finally(() => {
+        if (!cancelled) setModelCatalogLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [active]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages, sending]);
 
@@ -170,6 +207,31 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
     streamAbort.current = null;
     watchedRun.current = null;
   }, []);
+
+  const pickerModels = useMemo<AgentModel[]>(() => {
+    const models = modelCatalog?.models ?? [];
+    if (!selectedModel || !selectedModelProvider || models.some((item) => item.provider === selectedModelProvider && item.model === selectedModel)) return models;
+    return [{ provider: selectedModelProvider, model: selectedModel, label: selectedModel, description: "Saved model is not in the current catalog.", tier: "balanced" }, ...models];
+  }, [modelCatalog, selectedModel, selectedModelProvider]);
+
+  const selectedModelEntry = pickerModels.find((item) => item.provider === selectedModelProvider && item.model === selectedModel);
+
+  const changeModel = async (value: string, provider: AgentModelProvider) => {
+    const previousModel = selectedModel;
+    const previousProvider = selectedModelProvider;
+    setSelectedModel(value);
+    setSelectedModelProvider(provider);
+    setError(null);
+    if (!conversation) return;
+    try {
+      const updated = await updateKasiAiConversation(conversation.id, { modelProvider: provider, model: value });
+      setConversation(updated);
+    } catch (cause) {
+      setSelectedModel(previousModel);
+      setSelectedModelProvider(previousProvider);
+      setError(cause instanceof Error ? cause.message : "Unable to change this chat's model");
+    }
+  };
 
   const send = async () => {
     const message = draft.trim();
@@ -186,7 +248,12 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
     setMessages((current) => [...current, optimistic]);
     let acceptedRunId: string | null = null;
     try {
-      const accepted = await sendPlatformMessage(installationId, { message, idempotencyKey: crypto.randomUUID(), conversationId: conversation.id, context: { route: window.location.pathname, pageTitle: document.title } });
+      let targetConversation = conversation;
+      if (selectedModelProvider && selectedModel.trim() && (conversation.model_provider !== selectedModelProvider || conversation.model !== selectedModel.trim())) {
+        targetConversation = await updateKasiAiConversation(conversation.id, { modelProvider: selectedModelProvider, model: selectedModel.trim() });
+        setConversation(targetConversation);
+      }
+      const accepted = await sendPlatformMessage(installationId, { message, idempotencyKey: crypto.randomUUID(), conversationId: targetConversation.id, context: { route: window.location.pathname, pageTitle: document.title } });
       acceptedRunId = accepted.runId;
       setMessages((current) => [...current.filter((entry) => entry.id !== optimisticId), accepted.message]);
       setConversation(accepted.conversation);
@@ -303,11 +370,16 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
 
       {error ? <div className="shrink-0 border-t border-destructive/20 bg-destructive/10 px-5 py-3 text-sm text-destructive" role="alert">{error}</div> : null}
       <form className="shrink-0 border-t border-border bg-card p-4 sm:p-5" onSubmit={(event) => { event.preventDefault(); void send(); }}>
-        <div className="mx-auto flex max-w-3xl items-end gap-3 rounded-2xl border border-border bg-background p-2 shadow-sm focus-within:border-primary/50">
+        <div className="mx-auto max-w-3xl">
+          <div className="flex items-end gap-3 rounded-2xl border border-border bg-background p-2 shadow-sm focus-within:border-primary/50">
           <textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} disabled={!active || sending || loading || !conversation} rows={2} placeholder="Message this agent…" aria-label="Message this agent" className="min-h-[52px] min-w-0 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed" />
           {sending && activeRunId ? <Button type="button" variant="outline" size="icon" aria-label="Stop agent run" title="Stop agent run" onClick={() => void stop()}><Square className="h-4 w-4" /></Button> : <Button type="submit" size="icon" aria-label="Send message" disabled={!active || loading || !conversation || !draft.trim()}><Send className="h-4 w-4" /></Button>}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-2">
+            <AgentModelPicker model={selectedModelEntry} models={pickerModels} disabled={modelCatalogLoading || !pickerModels.length || sending || loading || !active} compact menuPlacement="above" ariaLabel="Choose this test chat's model" onSelect={(value, provider) => { void changeModel(value, provider); }} />
+            <p className="text-[11px] text-muted-foreground">Press Enter to send · Shift+Enter for a new line</p>
+          </div>
         </div>
-        <p className="mx-auto mt-2 max-w-3xl px-2 text-[11px] text-muted-foreground">Press Enter to send · Shift+Enter for a new line</p>
       </form>
       <Dialog open={clearConfirmation} onOpenChange={setClearConfirmation}><DialogContent className="max-w-md"><DialogHeader><div className="flex h-11 w-11 items-center justify-center rounded-full bg-destructive/10 text-destructive"><Trash2 className="h-5 w-5" aria-hidden="true" /></div><DialogTitle>Clear test chats?</DialogTitle><DialogDescription>This clears this agent’s private chats and starts a new one. Customer and inbox conversations are not affected.</DialogDescription></DialogHeader><DialogFooter><Button type="button" variant="outline" onClick={() => setClearConfirmation(false)}>Cancel</Button><Button type="button" variant="destructive" onClick={() => void clearChats()}>Clear chats</Button></DialogFooter></DialogContent></Dialog>
     </div>
