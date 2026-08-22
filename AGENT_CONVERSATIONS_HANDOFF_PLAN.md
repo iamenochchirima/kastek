@@ -98,7 +98,7 @@ This plan covers the split between personal and customer-service agents, custome
 - [x] Emit request created, shown, claimed, first human response, human message, released, resolved, expired, and cancelled events.
 - [x] Include organization, agent definition/version/installation, conversation, channel, connection, run, actor, reason, timestamps, and idempotency key.
 - [ ] Keep rollups, dimensions, and dashboards in the analytics plan.
-- [ ] Add organization and installation isolation tests.
+- [x] Add organization and installation isolation tests.
 
 ## 10. Permissions, audit, and safety
 
