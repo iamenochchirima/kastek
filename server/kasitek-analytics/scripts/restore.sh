@@ -2,8 +2,9 @@
 
 set -euo pipefail
 
-command -v pg_restore >/dev/null 2>&1 || {
-  echo "pg_restore is required for Analytics restoration" >&2
+pg_restore_bin="${ANALYTICS_PG_RESTORE_BIN:-pg_restore}"
+command -v "$pg_restore_bin" >/dev/null 2>&1 || {
+  echo "Analytics restore client not found: $pg_restore_bin" >&2
   exit 1
 }
 : "${ANALYTICS_DATABASE_URL:?Set ANALYTICS_DATABASE_URL for the restore target}"
@@ -26,7 +27,7 @@ if [[ -f "$ANALYTICS_BACKUP_FILE.sha256" ]]; then
   (cd "$(dirname "$ANALYTICS_BACKUP_FILE")" && sha256sum --check "$(basename "$ANALYTICS_BACKUP_FILE.sha256")")
 fi
 
-pg_restore \
+"$pg_restore_bin" \
   --dbname "$ANALYTICS_DATABASE_URL" \
   --format custom \
   --clean \

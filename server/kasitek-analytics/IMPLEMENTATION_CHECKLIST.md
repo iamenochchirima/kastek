@@ -42,7 +42,8 @@ checklist records implementation evidence for the current package only.
 - [x] Add native local migration support and keep Docker storage as an explicit integration option.
 - [x] Keep the default local stack on the Analytics API only; worker and migration are explicit.
 - [x] Run package tests, Clippy, workspace check, shell syntax, Compose config, and diff checks.
-- [ ] Run PostgreSQL/Redis container integration, migration, backup, and restore drill.
+- [x] Run native PostgreSQL migration, backup, and restore against isolated Analytics databases.
+- [ ] Run Redis integration; native Redis is not installed here and cache remains non-authoritative.
 
 ## Verification evidence
 
@@ -60,9 +61,12 @@ checklist records implementation evidence for the current package only.
 - A-02: `docker compose -f server/kasitek-analytics/compose.yaml config --quiet` — passed.
 - A-02: migration release against an unavailable endpoint failed fast with `DatabaseConnectTimeout`.
 - A-02: container runtime integration is pending because the local Docker daemon is unavailable.
+- A-02: native `kasitek_analytics` migration completed on local PostgreSQL 18.
+- A-02: native backup and restore completed into isolated `kasitek_analytics_restore_e2e`;
+  checksum, schema, and successful migration verification passed.
 
 ## Explicitly deferred
 
-- A-03 CI, local full-stack E2E, OpenTelemetry exporters, alerts, and runbooks
-- A-04 contracts registry and generated producer bindings
+- A-02 native Redis integration until a native Redis server is available; Redis is not yet used by
+  the foundation runtime.
 - Source outboxes, ingestion, authentication, projections, reporting, and UI

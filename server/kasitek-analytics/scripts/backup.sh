@@ -3,8 +3,9 @@
 set -euo pipefail
 umask 077
 
-command -v pg_dump >/dev/null 2>&1 || {
-  echo "pg_dump is required for Analytics backups" >&2
+pg_dump_bin="${ANALYTICS_PG_DUMP_BIN:-pg_dump}"
+command -v "$pg_dump_bin" >/dev/null 2>&1 || {
+  echo "Analytics backup client not found: $pg_dump_bin" >&2
   exit 1
 }
 : "${ANALYTICS_DATABASE_URL:?Set ANALYTICS_DATABASE_URL before creating a backup}"
@@ -17,7 +18,7 @@ backup_file="$backup_dir/analytics-$timestamp.dump"
 metadata_file="$backup_file.metadata"
 
 mkdir -p "$backup_dir"
-pg_dump \
+"$pg_dump_bin" \
   --dbname "$ANALYTICS_DATABASE_URL" \
   --format custom \
   --no-owner \

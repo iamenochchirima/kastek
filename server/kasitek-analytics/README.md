@@ -57,6 +57,10 @@ the A-02 process configuration; cache behavior is implemented later. The worker 
 and waits for shutdown; projection, ingestion, and reconciliation loops belong to later execution
 packages.
 
+If the local PostgreSQL client is older than the server, set
+`ANALYTICS_PG_DUMP_BIN` and `ANALYTICS_PG_RESTORE_BIN` to matching `pg_dump` and `pg_restore`
+executables before running the recovery scripts.
+
 ## A-01 boundary
 
 This package does not yet create analytics facts, event schemas, source outboxes, ingestion routes,
