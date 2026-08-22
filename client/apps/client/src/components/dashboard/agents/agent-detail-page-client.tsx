@@ -122,7 +122,7 @@ function versionStatusClass(status: string) {
 const EMPTY_KASIAI_MODELS: AgentModel[] = [];
 const MODEL_PROVIDERS: AgentModelProvider[] = [...AGENT_MODEL_PROVIDERS];
 
-function providerLabel(provider?: AgentModelProvider) {
+function providerLabel(provider?: AgentModelProvider | null) {
   return provider ? AGENT_MODEL_PROVIDER_LABELS[provider] : "provider";
 }
 
@@ -133,7 +133,7 @@ function ProviderLogo({ provider, compact = false }: { provider: AgentModelProvi
   </span>;
 }
 
-function ProviderTabs({ value, onChange, configuredProviders }: { value: AgentModelProvider; onChange: (provider: AgentModelProvider) => void; configuredProviders: AgentModelProvider[] }) {
+function ProviderTabs({ value, onChange, configuredProviders }: { value: AgentModelProvider | null; onChange: (provider: AgentModelProvider) => void; configuredProviders: AgentModelProvider[] }) {
   return <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="tablist" aria-label="API key providers">
     {MODEL_PROVIDERS.map((provider) => {
       const configured = configuredProviders.includes(provider);
@@ -152,8 +152,6 @@ type ApiKeyConfigurationDialogProps = {
   provider: AgentModelProvider;
   credentialKey: string;
   onCredentialKeyChange: (value: string) => void;
-  credentialLabel: string;
-  onCredentialLabelChange: (value: string) => void;
   credentialSaving: boolean;
   credentialError: string | null;
   credentialSaved: boolean;
@@ -166,8 +164,6 @@ function ApiKeyConfigurationDialog({
   provider,
   credentialKey,
   onCredentialKeyChange,
-  credentialLabel,
-  onCredentialLabelChange,
   credentialSaving,
   credentialError,
   credentialSaved,
@@ -180,10 +176,7 @@ function ApiKeyConfigurationDialog({
         <DialogDescription>API key</DialogDescription>
       </DialogHeader>
       <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-[1fr_0.7fr]">
-          <label className="text-xs font-medium text-foreground">API key<Input type="password" value={credentialKey} onChange={(event) => onCredentialKeyChange(event.target.value)} autoComplete="new-password" className="mt-1" placeholder={`Your ${providerLabel(provider)} key`} /></label>
-          <label className="text-xs font-medium text-foreground">Label<Input value={credentialLabel} onChange={(event) => onCredentialLabelChange(event.target.value)} className="mt-1" placeholder="Primary key" /></label>
-        </div>
+        <label className="text-xs font-medium text-foreground">API key<Input type="password" value={credentialKey} onChange={(event) => onCredentialKeyChange(event.target.value)} autoComplete="new-password" className="mt-1" placeholder={`Your ${providerLabel(provider)} key`} /></label>
         {credentialSaved ? <p className="text-xs text-status-success" role="status">API key saved.</p> : null}
         {credentialError ? <p className="text-xs text-destructive" role="alert">{credentialError}</p> : null}
       </div>
@@ -206,11 +199,10 @@ function KasiAiModels({ installationId }: { installationId: string }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [credentialMode, setCredentialMode] = useState<"platform" | "user">("platform");
-  const [credentialProvider, setCredentialProvider] = useState<AgentModelProvider>("openrouter");
+  const [credentialProvider, setCredentialProvider] = useState<AgentModelProvider | null>(null);
   const [credentialReference, setCredentialReference] = useState("");
   const [providerCredentials, setProviderCredentials] = useState<AgentProviderCredential[]>([]);
   const [credentialKey, setCredentialKey] = useState("");
-  const [credentialLabel, setCredentialLabel] = useState("");
   const [credentialSaving, setCredentialSaving] = useState(false);
   const [credentialError, setCredentialError] = useState<string | null>(null);
   const [credentialSaved, setCredentialSaved] = useState(false);
@@ -227,7 +219,6 @@ function KasiAiModels({ installationId }: { installationId: string }) {
           setHome(response);
           setCredentialReference(savedReference);
           setCredentialMode(savedReference ? "user" : "platform");
-          setCredentialProvider(response.preferences?.default_model_provider ?? "openrouter");
         }
       })
       .catch((cause) => {
@@ -280,7 +271,6 @@ function KasiAiModels({ installationId }: { installationId: string }) {
         setCredentialReference("");
         setCredentialMode("platform");
       }
-      setCredentialProvider(provider);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to change the KasiAi model");
     } finally {
@@ -343,7 +333,7 @@ function KasiAiModels({ installationId }: { installationId: string }) {
     setCredentialSaved(false);
     try {
       await verifyAgentProviderCredential({ provider: credentialProvider, apiKey: credentialKey.trim() });
-      const created = await createAgentProviderCredential({ provider: credentialProvider, apiKey: credentialKey.trim(), label: credentialLabel.trim() || undefined });
+      const created = await createAgentProviderCredential({ provider: credentialProvider, apiKey: credentialKey.trim() });
       const response = credentialProvider === selectedProvider
         ? await updateKasiAiPreferences(installationId, { defaultCredentialReference: created.id })
         : null;
@@ -357,7 +347,6 @@ function KasiAiModels({ installationId }: { installationId: string }) {
       }
       setCredentialMode("user");
       setCredentialKey("");
-      setCredentialLabel("");
       setCredentialSaved(true);
       setApiKeyDialogOpen(false);
     } catch (cause) {
@@ -405,7 +394,7 @@ function KasiAiModels({ installationId }: { installationId: string }) {
       {credentialError ? <p className="text-xs text-destructive" role="alert">{credentialError}</p> : null}
     </div>
     </CardContent></Card>
-    <ApiKeyConfigurationDialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen} provider={credentialProvider} credentialKey={credentialKey} onCredentialKeyChange={setCredentialKey} credentialLabel={credentialLabel} onCredentialLabelChange={setCredentialLabel} credentialSaving={credentialSaving || saving} credentialError={credentialError} credentialSaved={credentialSaved} onSave={() => void saveProviderCredential()} />
+    {apiKeyDialogOpen && credentialProvider ? <ApiKeyConfigurationDialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen} provider={credentialProvider} credentialKey={credentialKey} onCredentialKeyChange={setCredentialKey} credentialSaving={credentialSaving || saving} credentialError={credentialError} credentialSaved={credentialSaved} onSave={() => void saveProviderCredential()} /> : null}
   </>;
 }
 
@@ -531,12 +520,11 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const [modelProvider, setModelProvider] = useState<AgentModelProvider>(String(basePrimary.provider ?? baseConfiguration.provider ?? "openrouter") as AgentModelProvider);
   const [model, setModel] = useState(String(basePrimary.model ?? baseConfiguration.model ?? "openai/gpt-oss-20b:free"));
   const [credentialMode, setCredentialMode] = useState<"platform" | "user">(initialCredentialReference ? "user" : "platform");
-  const [credentialProvider, setCredentialProvider] = useState<AgentModelProvider>(String(basePrimary.provider ?? baseConfiguration.provider ?? "openrouter") as AgentModelProvider);
+  const [credentialProvider, setCredentialProvider] = useState<AgentModelProvider | null>(null);
   const [credentialReference, setCredentialReference] = useState(initialCredentialReference);
   const [providerCredentials, setProviderCredentials] = useState<AgentProviderCredential[]>([]);
   const [credentialsLoading, setCredentialsLoading] = useState(false);
   const [credentialKey, setCredentialKey] = useState("");
-  const [credentialLabel, setCredentialLabel] = useState("");
   const [credentialSaving, setCredentialSaving] = useState(false);
   const [credentialError, setCredentialError] = useState<string | null>(null);
   const [credentialSaved, setCredentialSaved] = useState(false);
@@ -648,13 +636,13 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 
   const saveProviderCredential = async () => {
     const apiKey = credentialKey.trim();
-    if (!apiKey || credentialSaving) return;
+    if (!credentialProvider || !apiKey || credentialSaving) return;
     setCredentialSaving(true);
     setCredentialError(null);
     setCredentialSaved(false);
     try {
       await verifyAgentProviderCredential({ provider: credentialProvider, apiKey });
-      const created = await createAgentProviderCredential({ provider: credentialProvider, apiKey, label: credentialLabel.trim() || undefined });
+      const created = await createAgentProviderCredential({ provider: credentialProvider, apiKey });
       const metadata: AgentProviderCredential = {
         ...created,
         funding_source: "user",
@@ -664,7 +652,6 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
       setProviderCredentials((current) => [metadata, ...current.filter((credential) => credential.id !== created.id)]);
       setCredentialReference(credentialProvider === modelProvider ? created.id : "");
       setCredentialKey("");
-      setCredentialLabel("");
       setCredentialSaved(true);
       setApiKeyDialogOpen(false);
     } catch (cause) {
@@ -1030,7 +1017,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
               </div>
             </CardContent>
           </Card>
-          <ApiKeyConfigurationDialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen} provider={credentialProvider} credentialKey={credentialKey} onCredentialKeyChange={setCredentialKey} credentialLabel={credentialLabel} onCredentialLabelChange={setCredentialLabel} credentialSaving={credentialSaving} credentialError={credentialError} credentialSaved={credentialSaved} onSave={() => void saveProviderCredential()} />
+          {apiKeyDialogOpen && credentialProvider ? <ApiKeyConfigurationDialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen} provider={credentialProvider} credentialKey={credentialKey} onCredentialKeyChange={setCredentialKey} credentialSaving={credentialSaving} credentialError={credentialError} credentialSaved={credentialSaved} onSave={() => void saveProviderCredential()} /> : null}
           </>
         ) : null}
 
