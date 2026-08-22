@@ -12,6 +12,7 @@ pub struct AnalyticsConfig {
     pub database_url: String,
     pub redis_url: Option<String>,
     pub metrics_token: Option<String>,
+    pub rollout_admin_producers: Vec<String>,
     pub reporting_public_key: Option<String>,
     pub reporting_public_keys_json: Option<String>,
     pub reporting_issuers: Vec<String>,
@@ -69,6 +70,7 @@ impl AnalyticsConfig {
         let database_url = required(get("ANALYTICS_DATABASE_URL"), "ANALYTICS_DATABASE_URL")?;
         let redis_url = optional(get("ANALYTICS_REDIS_URL"));
         let metrics_token = optional(get("ANALYTICS_METRICS_TOKEN"));
+        let rollout_admin_producers = parse_csv(get("ANALYTICS_ROLLOUT_ADMIN_PRODUCERS"), &[]);
         let reporting_public_key = optional(get("ANALYTICS_REPORTING_PUBLIC_KEY"));
         let reporting_public_keys_json = optional(get("ANALYTICS_REPORTING_PUBLIC_KEYS_JSON"));
         let reporting_issuers = parse_csv(
@@ -112,6 +114,7 @@ impl AnalyticsConfig {
             database_url,
             redis_url,
             metrics_token,
+            rollout_admin_producers,
             reporting_public_key,
             reporting_public_keys_json,
             reporting_issuers,
@@ -285,6 +288,7 @@ mod tests {
         assert_eq!(config.api_port, 4300);
         assert_eq!(config.redis_url, None);
         assert_eq!(config.metrics_token, None);
+        assert!(config.rollout_admin_producers.is_empty());
         assert_eq!(config.reporting_public_key, None);
         assert_eq!(config.reporting_public_keys_json, None);
         assert_eq!(
@@ -329,6 +333,21 @@ mod tests {
             ("ANALYTICS_METRICS_TOKEN", "local-metrics-token"),
         ]);
         assert_eq!(config.metrics_token.as_deref(), Some("local-metrics-token"));
+    }
+
+    #[test]
+    fn parses_the_explicit_rollout_admin_producer_allowlist() {
+        let config = config(&[
+            ("ANALYTICS_DATABASE_URL", "postgres://localhost/analytics"),
+            (
+                "ANALYTICS_ROLLOUT_ADMIN_PRODUCERS",
+                "core-customer-analytics, tenant-admin",
+            ),
+        ]);
+        assert_eq!(
+            config.rollout_admin_producers,
+            vec!["core-customer-analytics", "tenant-admin"]
+        );
     }
 
     #[test]

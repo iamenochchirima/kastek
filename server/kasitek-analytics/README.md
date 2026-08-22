@@ -178,14 +178,23 @@ worker currently starts
 and waits for shutdown; projection, replay scheduling, and quality loops belong to later execution
 packages.
 
+## Rollout controls
+
+A-12 adds the internal, server-side rollout boundary at `/internal/rollouts/v1/controls` and
+`/internal/rollouts/v1/evaluate`. Both endpoints require an ingestion credential whose producer ID
+is listed in `ANALYTICS_ROLLOUT_ADMIN_PRODUCERS`; an empty list denies every caller. The registry
+supports scoped rules and separate operational kill switches. Customer-facing controls default to
+denied, and every mutation is recorded in the immutable Analytics audit chain.
+
 If the local PostgreSQL client is older than the server, set
 `ANALYTICS_PG_DUMP_BIN` and `ANALYTICS_PG_RESTORE_BIN` to matching `pg_dump` and `pg_restore`
 executables before running the recovery scripts.
 
 ## Current boundary
 
-A-01 through A-09 provide the service, dedicated storage, registries, scope authorization, immutable
+A-01 through A-12 provide the service, dedicated storage, registries, scope authorization, immutable
 facts, source controls, quarantine, authenticated ingestion, source cursors, reconciliation
-summaries, scope-definition receipts, backfill admission checks, projection metadata, and audit
-foundation. Projection workers and reporting APIs now include the A-10/A-11 foundation; source
-publisher clients and customer dashboards belong to later execution packages.
+summaries, projection metadata, reporting, caching, and the audited rollout boundary. Authoritative
+product mutation instrumentation and the complete mutation-to-reporting E2E remain owned by the
+later A-13 vertical slices; source publisher clients and customer dashboards belong to later
+execution packages.

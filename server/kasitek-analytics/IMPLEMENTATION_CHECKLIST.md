@@ -56,7 +56,8 @@ checklist records implementation evidence for the current package only.
 - [x] Add shared request logging to the Analytics API.
 - [x] Add versioned runbook skeletons for service availability, database recovery, pipeline backlog,
   Redis degradation, and isolation incidents.
-- [ ] Implement the complete product mutation-to-reporting `--full` E2E after A-04 through A-11.
+- [ ] Implement the complete product mutation-to-reporting `--full` E2E after A-04 through A-12;
+  authoritative domain mutation instrumentation is owned by A-13 vertical slices.
 - [ ] Add domain pipeline metrics, OpenTelemetry exporters, alert rules, and tested recovery drills
   after their owning data paths exist.
 
@@ -252,6 +253,26 @@ checklist records implementation evidence for the current package only.
   values; the fixture rolls back after the test.
 - [ ] Add the complete product mutation-to-reporting E2E.
 
+## A-12 — audited rollout registry and operational controls (slice 1)
+
+- [x] Add the Analytics-owned current rollout registry with forward-only migration, explicit
+  control keys, rollout/kill-switch separation, expiry, removal, revision, and audit metadata.
+- [x] Support global, producer-service, domain, reporting-scope, and stable percentage-cohort
+  targets with deterministic specificity precedence.
+- [x] Default customer reporting, UI, exports, alerts, schedules, and agent-readable access to
+  denied; keep operational controls available unless an explicit kill switch is active.
+- [x] Add server-side evaluation and mutation endpoints; browser state is never an authorization
+  source.
+- [x] Require an authenticated, explicitly allowlisted producer identity for internal rollout
+  operations; an empty allowlist denies the endpoints.
+- [x] Append every mutation to the existing immutable audit chain with actor, previous value,
+  reason, issue reference, target, revision, expiry, removal, and request hash.
+- [x] Add unit and native PostgreSQL coverage for normalization, default policy, precedence,
+  stable cohort assignment, expiry, authentication, revisioning, rollback, and audit continuity.
+- [ ] Add bounded decision caching and revision invalidation in the next A-12 slice.
+- [ ] Add expiry-closure maintenance, operational rollout metrics, and control-management UI in
+  later slices; expired entries already fail closed during evaluation.
+
 ## Verification evidence
 
 - `cargo fmt --manifest-path server/kasitek-analytics/Cargo.toml -- --check`
@@ -378,6 +399,14 @@ checklist records implementation evidence for the current package only.
 - A-11 slice 2: strict package Clippy, package formatting, `cargo check --workspace`, and
   `git diff --check` passed. Native Redis was not available for a live integration run; the cache
   failure and expiry paths are covered by deterministic backend tests.
+- A-12 slice 1: migration `20260822090000_analytics_rollout_controls.sql` applied through the
+  Analytics migration release binary against native PostgreSQL.
+- A-12 slice 1: rollout unit tests passed, including customer default-deny, operational default-
+  allow, kill-switch separation, target precedence, stable cohort hashing, request validation, and
+  allowlisted producer authentication.
+- A-12 slice 1: `cargo test -p kasitek-analytics --test rollout_postgres -- --nocapture` passed;
+  the fixture covered global and reporting-scope overrides, expiry fallback, revisioning, audit
+  hash-chain continuity, and rolled back all fixture rows.
 
 ## Explicitly deferred
 
@@ -385,6 +414,8 @@ checklist records implementation evidence for the current package only.
   the foundation runtime.
 - A-03 complete product mutation-to-reporting E2E, domain OpenTelemetry exporters, alert rules, and
   tested recovery drills
+- A-12 decision caching, expiry-closure maintenance, operational rollout metrics, and management
+  UI remain later slices; evaluation is database-authoritative and expired entries fail closed.
 - A-04 historical compatibility fixtures until a second major contract or metric version exists
 - Complete product mutation-to-reporting E2E until the source-domain vertical slices exist
 - A-06 signed audit checkpoint production/verification until the controlled signing boundary exists
