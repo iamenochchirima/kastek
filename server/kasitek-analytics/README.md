@@ -180,13 +180,21 @@ packages.
 
 ## Rollout controls
 
-A-12 adds the internal, server-side rollout boundary at `/internal/rollouts/v1/controls` and
-`/internal/rollouts/v1/evaluate`. Both endpoints require an ingestion credential whose producer ID
-is listed in `ANALYTICS_ROLLOUT_ADMIN_PRODUCERS`; an empty list denies every caller. The registry
+A-12 adds the internal, server-side rollout boundary at `/internal/rollouts/v1/controls`,
+`/internal/rollouts/v1/evaluate`, and the authenticated maintenance endpoint
+`/internal/rollouts/v1/expire`. All endpoints require an ingestion credential whose producer ID is
+listed in `ANALYTICS_ROLLOUT_ADMIN_PRODUCERS`; an empty list denies every caller. The registry
 supports scoped rules and separate operational kill switches. Customer-facing controls default to
-denied, and every mutation is recorded in the immutable Analytics audit chain. Evaluation may use
-an optional bounded Redis cache, but PostgreSQL remains authoritative through the monotonic
-registry revision and control expiry checks.
+denied, and every mutation or automatic expiry closure is recorded in the immutable Analytics
+audit chain. Expiry closure is transactional and idempotent, and advances the same monotonic
+registry revision used by decision-cache invalidation. Evaluation may use an optional bounded Redis
+cache, but PostgreSQL remains authoritative through the registry revision and control expiry
+checks.
+
+Rollout process metrics are exposed through `/internal/metrics` with the existing bearer
+protection. They report evaluation, default/denied decisions, cache outcomes, and expiry closures
+using only fixed service/process labels; customer, tenant, scope, control-key, and cohort values
+are not metric labels.
 
 If the local PostgreSQL client is older than the server, set
 `ANALYTICS_PG_DUMP_BIN` and `ANALYTICS_PG_RESTORE_BIN` to matching `pg_dump` and `pg_restore`
@@ -198,5 +206,5 @@ A-01 through A-12 provide the service, dedicated storage, registries, scope auth
 facts, source controls, quarantine, authenticated ingestion, source cursors, reconciliation
 summaries, projection metadata, reporting, caching, and the audited rollout boundary. Authoritative
 product mutation instrumentation and the complete mutation-to-reporting E2E remain owned by the
-later A-13 vertical slices; source publisher clients and customer dashboards belong to later
-execution packages.
+later A-13 vertical slices; rollout control-management UI, source publisher clients, and customer
+dashboards belong to later execution packages.

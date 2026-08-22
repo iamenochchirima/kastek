@@ -4,8 +4,8 @@ use chrono::{Duration, Utc};
 use kasitek_analytics::{
     ingestion::AuthenticatedProducer,
     rollout::{
-        evaluate_transaction, upsert_transaction, EvaluationContext, RolloutControlKind,
-        RolloutMutationRequest, RolloutTarget, TargetKind,
+        close_expired_transaction, evaluate_transaction, upsert_transaction, EvaluationContext,
+        RolloutControlKind, RolloutMutationRequest, RolloutTarget, TargetKind,
     },
 };
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
@@ -185,17 +185,36 @@ async fn rollout_registry_is_revisioned_audited_and_fail_closed() {
         initial_registry_revision + 3
     );
 
+    let closure = close_expired_transaction(
+        &mut transaction,
+        &actor,
+        now + Duration::seconds(2),
+        Some("a12-expiry"),
+    )
+    .await
+    .expect("expired control closure");
+    assert_eq!(closure.closed_count, 1);
+    assert_eq!(
+        closure.registry_revision,
+        Some(initial_registry_revision + 4)
+    );
+    let second_closure =
+        close_expired_transaction(&mut transaction, &actor, now + Duration::seconds(3), None)
+            .await
+            .expect("idempotent expired control closure");
+    assert_eq!(second_closure.closed_count, 0);
+
     let audit_rows = sqlx::query(
         r#"SELECT chain_sequence, previous_record_hash, record_hash
            FROM analytics.analytics_audit_record
            WHERE chain_name = 'analytics.rollout_controls'
            ORDER BY chain_sequence DESC
-           LIMIT 3"#,
+           LIMIT 4"#,
     )
     .fetch_all(&mut *transaction)
     .await
     .expect("audit rows");
-    assert_eq!(audit_rows.len(), 3);
+    assert_eq!(audit_rows.len(), 4);
     assert!(audit_rows[0].get::<String, _>("record_hash").len() == 64);
     assert_eq!(
         audit_rows[0].get::<Option<String>, _>("previous_record_hash"),

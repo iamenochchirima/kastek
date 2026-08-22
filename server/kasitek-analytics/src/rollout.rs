@@ -20,10 +20,12 @@ use thiserror::Error;
 use crate::{
     config::{hex_sha256, AnalyticsConfig},
     ingestion::{AuthenticatedProducer, IngestionAuthenticator},
+    metrics::{ProcessMetrics, RolloutCacheMetric},
 };
 
 pub const CONTROLS_PATH: &str = "/internal/rollouts/v1/controls";
 pub const EVALUATE_PATH: &str = "/internal/rollouts/v1/evaluate";
+pub const EXPIRE_PATH: &str = "/internal/rollouts/v1/expire";
 const AUDIT_CHAIN: &str = "analytics.rollout_controls";
 const AUDIT_POLICY_VERSION: &str = "analytics-rollout/v1";
 const DECISION_CACHE_TTL_SECONDS: u64 = 15;
@@ -170,6 +172,13 @@ pub struct RolloutMutationResponse {
     pub registry_revision: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ExpiryClosureResponse {
+    pub closed_count: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub registry_revision: Option<i64>,
 }
 
 #[derive(Debug, Error)]
@@ -771,6 +780,91 @@ async fn current_registry_revision(
     .map_err(RolloutError::Database)
 }
 
+async fn bump_registry_revision(
+    transaction: &mut Transaction<'_, Postgres>,
+) -> Result<i64, RolloutError> {
+    sqlx::query_scalar::<_, i64>(
+        r#"INSERT INTO analytics.analytics_rollout_registry (registry_name, revision)
+           VALUES ('default', 1)
+           ON CONFLICT (registry_name)
+           DO UPDATE SET revision = analytics.analytics_rollout_registry.revision + 1
+           RETURNING revision"#,
+    )
+    .fetch_one(&mut **transaction)
+    .await
+    .map_err(RolloutError::Database)
+}
+
+struct RolloutAuditInput<'a> {
+    principal_id: &'a str,
+    reporting_scope_id: Option<i64>,
+    operation: &'a str,
+    request_hash: String,
+    correlation_id: Option<&'a str>,
+    policy_version: &'a str,
+    safe_metadata: Value,
+    occurred_at: DateTime<Utc>,
+}
+
+async fn append_rollout_audit(
+    transaction: &mut Transaction<'_, Postgres>,
+    input: RolloutAuditInput<'_>,
+) -> Result<(), RolloutError> {
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+        .bind(AUDIT_CHAIN)
+        .execute(&mut **transaction)
+        .await?;
+    let previous_record_hash = sqlx::query_scalar::<_, String>(
+        "SELECT record_hash FROM analytics.analytics_audit_record WHERE chain_name = $1 ORDER BY chain_sequence DESC LIMIT 1",
+    )
+    .bind(AUDIT_CHAIN)
+    .fetch_optional(&mut **transaction)
+    .await?;
+    let audit_hash_payload = json!({
+        "chain_name": AUDIT_CHAIN,
+        "previous_record_hash": previous_record_hash,
+        "principal_type": "service",
+        "principal_id": input.principal_id,
+        "reporting_scope_id": input.reporting_scope_id,
+        "permission": Value::Null,
+        "operation": input.operation,
+        "metric_keys": [],
+        "request_hash": input.request_hash,
+        "filter_hash": Value::Null,
+        "outcome": "accepted",
+        "correlation_id": input.correlation_id,
+        "policy_version": input.policy_version,
+        "safe_metadata": input.safe_metadata,
+        "occurred_at": input.occurred_at,
+        "created_at": input.occurred_at,
+    });
+    let record_hash = hex_sha256(
+        &serde_json::to_vec(&audit_hash_payload).expect("audit hash payload is serializable"),
+    );
+    sqlx::query(
+        r#"INSERT INTO analytics.analytics_audit_record (
+             chain_name, previous_record_hash, record_hash, principal_type, principal_id,
+             reporting_scope_id, operation, request_hash, outcome, correlation_id,
+             policy_version, safe_metadata, occurred_at, created_at
+           ) VALUES ($1,$2,$3,'service',$4,$5,$6,$7,'accepted',$8,$9,$10,$11,$12)"#,
+    )
+    .bind(AUDIT_CHAIN)
+    .bind(previous_record_hash)
+    .bind(record_hash)
+    .bind(input.principal_id)
+    .bind(input.reporting_scope_id)
+    .bind(input.operation)
+    .bind(input.request_hash)
+    .bind(input.correlation_id)
+    .bind(input.policy_version)
+    .bind(input.safe_metadata)
+    .bind(input.occurred_at)
+    .bind(input.occurred_at)
+    .execute(&mut **transaction)
+    .await?;
+    Ok(())
+}
+
 pub async fn evaluate_transaction(
     transaction: &mut Transaction<'_, Postgres>,
     control_key: &str,
@@ -877,15 +971,7 @@ pub async fn upsert_transaction(
         .await?
     };
 
-    let registry_revision = sqlx::query_scalar::<_, i64>(
-        r#"INSERT INTO analytics.analytics_rollout_registry (registry_name, revision)
-           VALUES ('default', 1)
-           ON CONFLICT (registry_name)
-           DO UPDATE SET revision = analytics.analytics_rollout_registry.revision + 1
-           RETURNING revision"#,
-    )
-    .fetch_one(&mut **transaction)
-    .await?;
+    let registry_revision = bump_registry_revision(transaction).await?;
 
     sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
         .bind(AUDIT_CHAIN)
@@ -982,9 +1068,98 @@ pub async fn upsert_transaction(
     })
 }
 
+pub async fn close_expired_transaction(
+    transaction: &mut Transaction<'_, Postgres>,
+    actor: &AuthenticatedProducer,
+    now: DateTime<Utc>,
+    correlation_id: Option<&str>,
+) -> Result<ExpiryClosureResponse, RolloutError> {
+    let rows = sqlx::query(
+        r#"SELECT control_id, control_key, control_kind, target_kind, target_key, enabled,
+                  percentage_basis_points, revision, expires_at, removed_at
+           FROM analytics.analytics_rollout_control
+           WHERE removed_at IS NULL AND expires_at IS NOT NULL AND expires_at <= $1
+           ORDER BY control_id
+           FOR UPDATE SKIP LOCKED"#,
+    )
+    .bind(now)
+    .fetch_all(&mut **transaction)
+    .await?;
+    let mut closed_count = 0_u64;
+    let mut registry_revision = None;
+    for row in rows {
+        let control = StoredControl::from_row(&row)?;
+        let reporting_scope_id = (control.target_kind == TargetKind::ReportingScope).then(|| {
+            control
+                .target_key
+                .parse::<i64>()
+                .expect("normalized scope key")
+        });
+        sqlx::query(
+            r#"UPDATE analytics.analytics_rollout_control
+               SET enabled = FALSE, actor_type = 'service', actor_id = $1,
+                   reason = 'expired automatically', issue_ref = NULL, removed_at = $2
+               WHERE control_id = $3"#,
+        )
+        .bind(&actor.producer_id)
+        .bind(now)
+        .bind(control.control_id)
+        .execute(&mut **transaction)
+        .await?;
+        let next_registry_revision = bump_registry_revision(transaction).await?;
+        let safe_metadata = json!({
+            "source_service": actor.source_service,
+            "control_id": control.control_id,
+            "registry_revision": next_registry_revision,
+            "control_key": control.control_key,
+            "control_kind": control.control_kind,
+            "target": {
+                "kind": control.target_kind,
+                "key": control.target_key,
+            },
+            "enabled": false,
+            "remove": true,
+            "reason": "expired automatically",
+            "expires_at": control.expires_at,
+            "removed_at": now,
+            "previous_value": control.value(),
+        });
+        let request_hash = hex_sha256(
+            &serde_json::to_vec(&json!({
+                "operation": "rollout_control.expire",
+                "control_id": control.control_id,
+                "removed_at": now,
+            }))
+            .expect("expiry request is serializable"),
+        );
+        let principal_id = format!("{}:{}", actor.source_service, actor.producer_id);
+        append_rollout_audit(
+            transaction,
+            RolloutAuditInput {
+                principal_id: &principal_id,
+                reporting_scope_id,
+                operation: "rollout_control.expire",
+                request_hash,
+                correlation_id,
+                policy_version: AUDIT_POLICY_VERSION,
+                safe_metadata,
+                occurred_at: now,
+            },
+        )
+        .await?;
+        closed_count += 1;
+        registry_revision = Some(next_registry_revision);
+    }
+    Ok(ExpiryClosureResponse {
+        closed_count,
+        registry_revision,
+    })
+}
+
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(web::resource(CONTROLS_PATH).route(web::post().to(upsert_handler)));
     cfg.service(web::resource(EVALUATE_PATH).route(web::get().to(evaluate_handler)));
+    cfg.service(web::resource(EXPIRE_PATH).route(web::post().to(expire_handler)));
 }
 
 async fn upsert_handler(
@@ -1025,12 +1200,46 @@ async fn upsert_handler(
     HttpResponse::Ok().json(response)
 }
 
+async fn expire_handler(
+    request: HttpRequest,
+    pool: web::Data<sqlx::PgPool>,
+    access: web::Data<RolloutAuthenticator>,
+    metrics: web::Data<ProcessMetrics>,
+) -> impl Responder {
+    let actor = match access.authenticate(&request) {
+        Ok(actor) => actor,
+        Err(error) => return error_response(error),
+    };
+    let correlation_id = request
+        .headers()
+        .get("X-Correlation-ID")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && value.len() <= 512);
+    let now = Utc::now();
+    let mut transaction = match pool.begin().await {
+        Ok(transaction) => transaction,
+        Err(error) => return error_response(RolloutError::Database(error)),
+    };
+    let response =
+        match close_expired_transaction(&mut transaction, &actor, now, correlation_id).await {
+            Ok(response) => response,
+            Err(error) => return error_response(error),
+        };
+    if let Err(error) = transaction.commit().await {
+        return error_response(RolloutError::Database(error));
+    }
+    metrics.record_expired_controls_closed(response.closed_count);
+    HttpResponse::Ok().json(response)
+}
+
 async fn evaluate_handler(
     request: HttpRequest,
     query: web::Query<RolloutEvaluationQuery>,
     pool: web::Data<sqlx::PgPool>,
     access: web::Data<RolloutAuthenticator>,
     cache: web::Data<RolloutDecisionCache>,
+    metrics: web::Data<ProcessMetrics>,
 ) -> impl Responder {
     if let Err(error) = access.authenticate(&request) {
         return error_response(error);
@@ -1061,13 +1270,22 @@ async fn evaluate_handler(
         &context,
         registry_revision,
     );
-    if let DecisionCacheRead::Hit(decision) = cache.read(&cache_key, now).await {
-        if decision.registry_revision == registry_revision {
+    match cache.read(&cache_key, now).await {
+        DecisionCacheRead::Hit(decision) if decision.registry_revision == registry_revision => {
+            metrics.record_rollout_cache(RolloutCacheMetric::Hit);
+            metrics.record_rollout_evaluation(decision.allowed, decision.defaulted);
             if let Err(error) = transaction.commit().await {
                 return error_response(RolloutError::Database(error));
             }
             return HttpResponse::Ok().json(decision);
         }
+        DecisionCacheRead::Hit(_) => metrics.record_rollout_cache(RolloutCacheMetric::Stale),
+        DecisionCacheRead::Miss => metrics.record_rollout_cache(RolloutCacheMetric::Miss),
+        DecisionCacheRead::Stale => metrics.record_rollout_cache(RolloutCacheMetric::Stale),
+        DecisionCacheRead::Unavailable => {
+            metrics.record_rollout_cache(RolloutCacheMetric::Unavailable)
+        }
+        DecisionCacheRead::Disabled => metrics.record_rollout_cache(RolloutCacheMetric::Disabled),
     }
     let decision = match evaluate_transaction(
         &mut transaction,
@@ -1081,6 +1299,7 @@ async fn evaluate_handler(
         Ok(decision) => decision,
         Err(error) => return error_response(error),
     };
+    metrics.record_rollout_evaluation(decision.allowed, decision.defaulted);
     if let Err(error) = transaction.commit().await {
         return error_response(RolloutError::Database(error));
     }

@@ -16,6 +16,24 @@ pub struct ProcessMetrics {
     readiness_failures_total: AtomicU64,
     metrics_scrapes_total: AtomicU64,
     metrics_denied_total: AtomicU64,
+    rollout_evaluations_total: AtomicU64,
+    rollout_evaluations_defaulted_total: AtomicU64,
+    rollout_evaluations_denied_total: AtomicU64,
+    rollout_cache_hits_total: AtomicU64,
+    rollout_cache_misses_total: AtomicU64,
+    rollout_cache_stale_total: AtomicU64,
+    rollout_cache_unavailable_total: AtomicU64,
+    rollout_cache_disabled_total: AtomicU64,
+    rollout_expired_controls_closed_total: AtomicU64,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum RolloutCacheMetric {
+    Hit,
+    Miss,
+    Stale,
+    Unavailable,
+    Disabled,
 }
 
 impl ProcessMetrics {
@@ -36,6 +54,35 @@ impl ProcessMetrics {
         if !authorized {
             self.metrics_denied_total.fetch_add(1, Ordering::Relaxed);
         }
+    }
+
+    pub fn record_rollout_evaluation(&self, allowed: bool, defaulted: bool) {
+        self.rollout_evaluations_total
+            .fetch_add(1, Ordering::Relaxed);
+        if defaulted {
+            self.rollout_evaluations_defaulted_total
+                .fetch_add(1, Ordering::Relaxed);
+        }
+        if !allowed {
+            self.rollout_evaluations_denied_total
+                .fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    pub fn record_rollout_cache(&self, outcome: RolloutCacheMetric) {
+        let counter = match outcome {
+            RolloutCacheMetric::Hit => &self.rollout_cache_hits_total,
+            RolloutCacheMetric::Miss => &self.rollout_cache_misses_total,
+            RolloutCacheMetric::Stale => &self.rollout_cache_stale_total,
+            RolloutCacheMetric::Unavailable => &self.rollout_cache_unavailable_total,
+            RolloutCacheMetric::Disabled => &self.rollout_cache_disabled_total,
+        };
+        counter.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_expired_controls_closed(&self, count: u64) {
+        self.rollout_expired_controls_closed_total
+            .fetch_add(count, Ordering::Relaxed);
     }
 
     fn render(&self, process: ProcessKind) -> String {
@@ -61,12 +108,51 @@ kasitek_analytics_readiness_failures_total{{{labels}}} {}\n\
 kasitek_analytics_metrics_scrapes_total{{{labels}}} {}\n\
 # HELP kasitek_analytics_metrics_denied_total Metrics endpoint requests rejected by authentication.\n\
 # TYPE kasitek_analytics_metrics_denied_total counter\n\
-kasitek_analytics_metrics_denied_total{{{labels}}} {}\n",
+kasitek_analytics_metrics_denied_total{{{labels}}} {}\n\
+# HELP kasitek_analytics_rollout_evaluations_total Rollout decisions evaluated by the server.\n\
+# TYPE kasitek_analytics_rollout_evaluations_total counter\n\
+kasitek_analytics_rollout_evaluations_total{{{labels}}} {}\n\
+# HELP kasitek_analytics_rollout_evaluations_defaulted_total Rollout decisions using a default policy.\n\
+# TYPE kasitek_analytics_rollout_evaluations_defaulted_total counter\n\
+kasitek_analytics_rollout_evaluations_defaulted_total{{{labels}}} {}\n\
+# HELP kasitek_analytics_rollout_evaluations_denied_total Rollout decisions that denied access or rollout.\n\
+# TYPE kasitek_analytics_rollout_evaluations_denied_total counter\n\
+kasitek_analytics_rollout_evaluations_denied_total{{{labels}}} {}\n\
+# HELP kasitek_analytics_rollout_cache_hits_total Rollout decisions served from the cache.\n\
+# TYPE kasitek_analytics_rollout_cache_hits_total counter\n\
+kasitek_analytics_rollout_cache_hits_total{{{labels}}} {}\n\
+# HELP kasitek_analytics_rollout_cache_misses_total Rollout decision cache misses.\n\
+# TYPE kasitek_analytics_rollout_cache_misses_total counter\n\
+kasitek_analytics_rollout_cache_misses_total{{{labels}}} {}\n\
+# HELP kasitek_analytics_rollout_cache_stale_total Stale rollout decision cache entries rejected.\n\
+# TYPE kasitek_analytics_rollout_cache_stale_total counter\n\
+kasitek_analytics_rollout_cache_stale_total{{{labels}}} {}\n\
+# HELP kasitek_analytics_rollout_cache_unavailable_total Rollout cache operations that failed and fell back.\n\
+# TYPE kasitek_analytics_rollout_cache_unavailable_total counter\n\
+kasitek_analytics_rollout_cache_unavailable_total{{{labels}}} {}\n\
+# HELP kasitek_analytics_rollout_cache_disabled_total Rollout evaluations with cache disabled.\n\
+# TYPE kasitek_analytics_rollout_cache_disabled_total counter\n\
+kasitek_analytics_rollout_cache_disabled_total{{{labels}}} {}\n\
+# HELP kasitek_analytics_rollout_expired_controls_closed_total Expired rollout controls closed by maintenance.\n\
+# TYPE kasitek_analytics_rollout_expired_controls_closed_total counter\n\
+kasitek_analytics_rollout_expired_controls_closed_total{{{labels}}} {}\n",
             self.liveness_checks_total.load(Ordering::Relaxed),
             self.readiness_checks_total.load(Ordering::Relaxed),
             self.readiness_failures_total.load(Ordering::Relaxed),
             self.metrics_scrapes_total.load(Ordering::Relaxed),
             self.metrics_denied_total.load(Ordering::Relaxed),
+            self.rollout_evaluations_total.load(Ordering::Relaxed),
+            self.rollout_evaluations_defaulted_total
+                .load(Ordering::Relaxed),
+            self.rollout_evaluations_denied_total.load(Ordering::Relaxed),
+            self.rollout_cache_hits_total.load(Ordering::Relaxed),
+            self.rollout_cache_misses_total.load(Ordering::Relaxed),
+            self.rollout_cache_stale_total.load(Ordering::Relaxed),
+            self.rollout_cache_unavailable_total
+                .load(Ordering::Relaxed),
+            self.rollout_cache_disabled_total.load(Ordering::Relaxed),
+            self.rollout_expired_controls_closed_total
+                .load(Ordering::Relaxed),
         )
     }
 }
@@ -119,7 +205,7 @@ pub async fn endpoint(
 mod tests {
     use actix_web::test as actix_test;
 
-    use super::{MetricsAccess, ProcessMetrics};
+    use super::{MetricsAccess, ProcessMetrics, RolloutCacheMetric};
     use crate::{config::AnalyticsConfig, contracts::ProcessKind};
 
     fn config(token: Option<&str>) -> AnalyticsConfig {
@@ -154,9 +240,14 @@ mod tests {
         let metrics = ProcessMetrics::default();
         metrics.record_liveness();
         metrics.record_readiness(false);
+        metrics.record_rollout_evaluation(false, true);
+        metrics.record_rollout_cache(RolloutCacheMetric::Hit);
+        metrics.record_expired_controls_closed(2);
         let output = metrics.render(ProcessKind::Api);
         assert!(output.contains("kasitek_analytics_process_info{service=\"kasitek-analytics\",process=\"analytics-api\"} 1"));
         assert!(output.contains("kasitek_analytics_readiness_failures_total"));
+        assert!(output.contains("kasitek_analytics_rollout_cache_hits_total"));
+        assert!(output.contains("kasitek_analytics_rollout_expired_controls_closed_total"));
         assert!(!output.contains("organization_id"));
     }
 }

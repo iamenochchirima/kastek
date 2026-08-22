@@ -253,7 +253,7 @@ checklist records implementation evidence for the current package only.
   values; the fixture rolls back after the test.
 - [ ] Add the complete product mutation-to-reporting E2E.
 
-## A-12 — audited rollout registry and operational controls (slices 1–2)
+## A-12 — audited rollout registry and operational controls (slices 1–3)
 
 - [x] Add the Analytics-owned current rollout registry with forward-only migration, explicit
   control keys, rollout/kill-switch separation, expiry, removal, revision, and audit metadata.
@@ -277,8 +277,12 @@ checklist records implementation evidence for the current package only.
   Redis never authorizes a caller or becomes the source of truth.
 - [x] Add deterministic cache tests for hits, revision separation, control expiry, and disabled
   cache behavior.
-- [ ] Add expiry-closure maintenance, operational rollout metrics, and control-management UI in
-  later slices; expired entries already fail closed during evaluation.
+- [x] Add transactional, idempotent expiry-closure maintenance that marks expired controls removed,
+  advances the registry revision, and appends an audit record for every closed control.
+- [x] Add fixed-cardinality process metrics for rollout decisions, defaulted/denied decisions,
+  cache outcomes, and expired-control closures; metrics contain no customer or tenant labels.
+- [ ] Add control-management UI in a later slice; expired entries fail closed during evaluation
+  even before maintenance runs.
 
 ## Verification evidence
 
@@ -421,6 +425,11 @@ checklist records implementation evidence for the current package only.
   key separation, decision expiry, disabled-cache fallback, policy behavior, and authentication.
 - A-12 slice 2: native PostgreSQL rollout integration passed with registry revision assertions and
   all fixture rows rolled back; strict Analytics Clippy passed.
+- A-12 slice 3: expiry closure is covered by the native PostgreSQL rollout fixture, including
+  audit continuity, registry revision advancement, and idempotent repeated maintenance.
+- A-12 slice 3: process metrics cover rollout evaluation, cache outcome, and expiry-closure
+  counters with fixed service/process labels only; 51 Analytics unit tests and strict package
+  Clippy passed.
 
 ## Explicitly deferred
 
@@ -428,8 +437,8 @@ checklist records implementation evidence for the current package only.
   the foundation runtime.
 - A-03 complete product mutation-to-reporting E2E, domain OpenTelemetry exporters, alert rules, and
   tested recovery drills
-- A-12 expiry-closure maintenance, operational rollout metrics, and management UI remain later
-  slices; evaluation is database-authoritative and expired entries fail closed.
+- A-12 control-management UI remains deferred; evaluation is database-authoritative and expired
+  entries fail closed before or after maintenance closure.
 - A-04 historical compatibility fixtures until a second major contract or metric version exists
 - Complete product mutation-to-reporting E2E until the source-domain vertical slices exist
 - A-06 signed audit checkpoint production/verification until the controlled signing boundary exists
