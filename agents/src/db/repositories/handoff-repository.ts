@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import { query, withTransaction } from "../pool";
 import type { ConversationRecord, MessageRecord } from "./conversation-repository";
+import { createAgentEvent } from "../../events/envelope";
 
 export type HandoffReason = "customer_requested" | "agent_uncertain" | "policy_required" | "high_value" | "configured_workflow" | "other";
 export type HandoffPriority = "normal" | "high" | "urgent";
@@ -340,6 +341,19 @@ export class HandoffRepository {
         [input.organizationId, input.conversationId],
       );
       if (!updatedConversation.rows[0]) throw new Error("Conversation handoff update failed");
+      await this.appendLifecycleEvent(client, {
+        eventType: "conversation.handoff.requested",
+        handoff: requestResult.rows[0]!,
+        conversation: updatedConversation.rows[0],
+        actorType: "agent",
+        actorId: input.actorId ?? `agent:${input.agentId}`,
+        payload: {
+          status: "pending",
+          reason: input.reason,
+          priority: input.priority,
+          runId: input.runId ?? null,
+        },
+      });
       return { handoff: requestResult.rows[0]!, conversation: updatedConversation.rows[0], created: true };
     });
   }
@@ -368,6 +382,14 @@ export class HandoffRepository {
         [input.organizationId, current.conversation.id, input.actorId],
       );
       if (!handoff.rows[0] || !conversation.rows[0]) throw handoffError("Handoff claim could not be committed", "handoff_claim_conflict");
+      await this.appendLifecycleEvent(client, {
+        eventType: "conversation.handoff.claimed",
+        handoff: handoff.rows[0],
+        conversation: conversation.rows[0],
+        actorType: "user",
+        actorId: input.actorId,
+        payload: { status: "claimed" },
+      });
       return { handoff: handoff.rows[0], conversation: conversation.rows[0], changed: true };
     });
   }
@@ -487,6 +509,19 @@ export class HandoffRepository {
         [input.organizationId, current.conversation.id, text],
       );
       if (!updatedConversation.rows[0]) throw new Error("Conversation update failed after human message");
+      await this.appendLifecycleEvent(client, {
+        eventType: "conversation.human_message.sent",
+        handoff: current.handoff,
+        conversation: updatedConversation.rows[0],
+        actorType: "user",
+        actorId: input.actorId,
+        payload: {
+          status: "sent",
+          messageId: message.rows[0].id,
+          deliveryStatus,
+          deliveryAttemptId,
+        },
+      });
       return {
         handoff: current.handoff,
         conversation: updatedConversation.rows[0],
@@ -528,8 +563,72 @@ export class HandoffRepository {
         [input.organizationId, current.conversation.id, conversationState],
       );
       if (!handoff.rows[0] || !conversation.rows[0]) throw handoffError("Handoff close could not be committed", "handoff_close_conflict");
+      await this.appendLifecycleEvent(client, {
+        eventType: conversationState === "agent_active" ? "conversation.handoff.continued" : "conversation.handoff.resolved",
+        handoff: handoff.rows[0],
+        conversation: conversation.rows[0],
+        actorType: "user",
+        actorId: input.actorId,
+        payload: {
+          status: "resolved",
+          resolution: defaultResolution,
+          conversationState,
+        },
+      });
       return { handoff: handoff.rows[0], conversation: conversation.rows[0], changed: true };
     });
+  }
+
+  /**
+   * Writes the handoff lifecycle event in the same transaction as the state
+   * transition. Consumers can therefore treat agent_events as the durable
+   * source for analytics and future realtime fan-out without reconstructing
+   * changes from polling responses.
+   */
+  private async appendLifecycleEvent(
+    client: PoolClient,
+    input: {
+      eventType: string;
+      handoff: HandoffRequestRecord;
+      conversation: ConversationRecord;
+      actorType: "agent" | "user" | "system";
+      actorId: string;
+      payload: Record<string, unknown>;
+    },
+  ): Promise<void> {
+    const envelope = createAgentEvent({
+      type: input.eventType,
+      subject: `conversation:${input.conversation.id}`,
+      data: {
+        handoffId: input.handoff.id,
+        conversationId: input.conversation.id,
+        installationId: input.handoff.installation_id,
+        agentDefinitionId: input.handoff.agent_definition_id,
+        agentVersionId: input.handoff.agent_version_id,
+        runId: input.handoff.run_id,
+        channelType: input.handoff.channel_type,
+        ...input.payload,
+      },
+    });
+    await client.query(
+      `INSERT INTO agent_events
+        (organization_id, run_id, installation_id, event_type, payload, spec_version,
+         source, subject, data_content_type, actor_type, actor_id)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11)`,
+      [
+        input.handoff.organization_id,
+        input.handoff.run_id,
+        input.handoff.installation_id,
+        input.eventType,
+        JSON.stringify(envelope.data),
+        envelope.specversion,
+        envelope.source,
+        envelope.subject,
+        envelope.datacontenttype,
+        input.actorType,
+        input.actorId,
+      ],
+    );
   }
 
   private async lockMutationTarget(client: PoolClient, organizationId: string, handoffId: string): Promise<HandoffQueueItem> {

@@ -70,6 +70,7 @@ This plan covers the split between personal and customer-service agents, custome
 - [ ] Add release and expiry operations.
 - [ ] Apply organization scope, permissions, idempotency keys, and optimistic concurrency.
 - [x] Apply organization scoping and read/write scopes to the operator API; keep handoff creation idempotent and claims transactionally race-safe.
+- [x] Emit transactional handoff lifecycle events to `agent_events` for request, claim, human message, continue, and resolve transitions.
 - [ ] Emit lifecycle events compatible with the analytics handoff contract.
 - [x] Add polling refresh for live and handoff views; realtime updates remain pending.
 
@@ -131,5 +132,5 @@ This plan covers the split between personal and customer-service agents, custome
 - Internal field: `agent_audience: personal | customer_service`.
 - Live route: `/agents/conversations`.
 - Initial channel scope: Agent Platform-hosted customer channels; legacy WhatsApp/Meta bridging follows the stable ownership contract.
-- Continue-with-agent starts a new run from the latest transcript.
+- Continue-with-agent resumes the paused workflow when one exists; a fresh-run mode remains a later extension.
 - Initial claim permission: authorized workspace members; team routing can follow.
