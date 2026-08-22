@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { CreateVersionInput } from "../domain/types";
+import { CUSTOMER_SERVICE_HANDOFF_TOOL } from "./hosted-agent-defaults";
 
 export interface AgentTemplateDefinition {
   key: string;
@@ -49,7 +50,7 @@ const templates: AgentTemplateDefinition[] = [
     policy: { allowedTools: ["platform.current_time"], maxIterations: 2, maxToolCalls: 2 },
     configuration: { maxContextMessages: 20, maxContextTokens: 4_000, maxModelCalls: 2, maxTotalTokens: 1_000, workflow: starterWorkflow("Answer the website support question using the available context.") },
     requiredConnections: ["website"],
-    requiredCapabilities: ["platform.current_time"],
+    requiredCapabilities: ["platform.current_time", CUSTOMER_SERVICE_HANDOFF_TOOL],
     setupSteps: ["Review support instructions", "Add website knowledge", "Test responses"],
     configurableFields: [{ key: "tone", type: "select", description: "Response tone: concise, balanced, or detailed." }],
     channelCompatibility: ["platform"],
@@ -66,7 +67,7 @@ const templates: AgentTemplateDefinition[] = [
     policy: { allowedTools: ["platform.current_time"], maxIterations: 2, maxToolCalls: 2 },
     configuration: { maxContextMessages: 24, maxContextTokens: 5_000, maxModelCalls: 2, maxTotalTokens: 1_200, workflow: starterWorkflow("Answer from the connected FAQ and knowledge context; state when it does not support an answer.") },
     requiredConnections: [],
-    requiredCapabilities: ["platform.current_time"],
+    requiredCapabilities: ["platform.current_time", CUSTOMER_SERVICE_HANDOFF_TOOL],
     setupSteps: ["Add FAQ or website knowledge", "Review answer behavior", "Test responses"],
     configurableFields: [{ key: "tone", type: "select", description: "Response tone: concise, balanced, or detailed." }],
     channelCompatibility: ["platform"],
@@ -83,7 +84,7 @@ const templates: AgentTemplateDefinition[] = [
     policy: { allowedTools: ["platform.current_time"], maxIterations: 2, maxToolCalls: 2 },
     configuration: { maxContextMessages: 20, maxContextTokens: 4_000, maxModelCalls: 2, maxTotalTokens: 1_000, workflow: starterWorkflow("Collect the minimum lead details, summarize them, and prepare a human handoff.") },
     requiredConnections: [],
-    requiredCapabilities: ["platform.current_time"],
+    requiredCapabilities: ["platform.current_time", CUSTOMER_SERVICE_HANDOFF_TOOL],
     setupSteps: ["Define intake questions", "Review handoff behavior", "Test a lead conversation"],
     configurableFields: [{ key: "tone", type: "select", description: "Response tone: concise, balanced, or detailed." }],
     channelCompatibility: ["platform"],
@@ -100,7 +101,7 @@ const templates: AgentTemplateDefinition[] = [
     policy: { allowedTools: ["platform.current_time"], maxIterations: 2, maxToolCalls: 2 },
     configuration: { maxContextMessages: 20, maxContextTokens: 4_000, maxModelCalls: 2, maxTotalTokens: 1_000, workflow: starterWorkflow("Collect the booking request details, summarize them, and explain that confirmation is still required.") },
     requiredConnections: [],
-    requiredCapabilities: ["platform.current_time"],
+    requiredCapabilities: ["platform.current_time", CUSTOMER_SERVICE_HANDOFF_TOOL],
     setupSteps: ["Define booking questions", "Connect booking services later", "Test a request"],
     configurableFields: [{ key: "tone", type: "select", description: "Response tone: concise, balanced, or detailed." }],
     channelCompatibility: ["platform"],

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { listAgentTemplates, parseTemplateSettings, templateVersionInput } from "../src/system/templates";
+import { CUSTOMER_SERVICE_HANDOFF_TOOL } from "../src/system/hosted-agent-defaults";
 
 describe("agent templates", () => {
   it("publishes a bounded, versioned catalog", () => {
@@ -35,6 +36,8 @@ describe("agent templates", () => {
     expect(personal.every((template) => template.audience === "personal")).toBe(true);
     expect(customerService.every((template) => template.audience === "customer_service")).toBe(true);
     expect(personal.some((template) => template.key === "private-research")).toBe(true);
+    expect(customerService.every((template) => template.requiredCapabilities.includes(CUSTOMER_SERVICE_HANDOFF_TOOL))).toBe(true);
+    expect(personal.every((template) => !template.requiredCapabilities.includes(CUSTOMER_SERVICE_HANDOFF_TOOL))).toBe(true);
   });
 
   it("normalizes the supported setting and rejects unknown settings", () => {
