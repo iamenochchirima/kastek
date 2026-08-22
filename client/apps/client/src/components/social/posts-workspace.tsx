@@ -479,11 +479,35 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   }, []);
 
   useEffect(() => {
-    const editPostId = new URLSearchParams(window.location.search).get("edit");
-    if (view !== "posts" || !editPostId || loading) return;
-    const post = posts.find((candidate) => candidate.id === editPostId);
-    if (!post) return;
-    openEditComposer(post);
+    if (view !== "posts" || loading) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const editPostId = params.get("edit");
+    const scheduleDate = params.get("scheduleDate");
+
+    if (editPostId) {
+      const post = posts.find((candidate) => candidate.id === editPostId);
+      if (!post) return;
+      openEditComposer(post);
+      window.history.replaceState(null, "", "/content");
+      return;
+    }
+
+    if (!scheduleDate || !/^\d{4}-\d{2}-\d{2}$/.test(scheduleDate)) return;
+    const [year, month, day] = scheduleDate.split("-").map(Number);
+    const scheduledDate = new Date(year, month - 1, day);
+    if (
+      scheduledDate.getFullYear() !== year ||
+      scheduledDate.getMonth() !== month - 1 ||
+      scheduledDate.getDate() !== day
+    ) {
+      return;
+    }
+
+    setComposer({ ...emptyComposer, scheduledFor: `${scheduleDate}T09:00` });
+    setActiveVariantPlatform("FACEBOOK");
+    setComposerStep(1);
+    setIsComposerOpen(true);
     window.history.replaceState(null, "", "/content");
   }, [loading, openEditComposer, posts, view]);
 

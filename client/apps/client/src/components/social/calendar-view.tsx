@@ -1,8 +1,9 @@
 "use client";
 
 import { apiUrl } from "@/lib/server-api";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -43,7 +44,14 @@ function calendarEventLabel(post: SocialPost) {
   return content ? content.slice(0, 48) : "Untitled post";
 }
 
+function calendarDateInputValue(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 export function CalendarView() {
+  const router = useRouter();
   const { interface: interfacePreferences } = useAppearance();
   const weekStartsMonday = interfacePreferences.weekStartsMonday;
   const week = weekStartsMonday ? MONDAY_WEEK : SUNDAY_WEEK;
@@ -120,6 +128,14 @@ export function CalendarView() {
         scheduledDate.getDate() === date.getDate()
       );
     });
+  }
+
+  function openNewPostForDate(date: Date) {
+    router.push(`/content?scheduleDate=${calendarDateInputValue(date)}`);
+  }
+
+  function openPost(post: SocialPost) {
+    router.push(`/content?edit=${encodeURIComponent(post.id)}`);
   }
 
   return (
@@ -238,7 +254,17 @@ export function CalendarView() {
                           return (
                             <div
                               key={date.toISOString()}
-                              className={`min-h-[112px] border-b border-r border-primary/20 p-2.5 transition-colors sm:p-3 ${
+                              role="button"
+                              tabIndex={0}
+                              aria-label={`Schedule a post for ${date.toLocaleDateString("en-ZA", { weekday: "long", month: "long", day: "numeric" })}`}
+                              onClick={() => openNewPostForDate(date)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault();
+                                  openNewPostForDate(date);
+                                }
+                              }}
+                              className={`group min-h-[112px] border-b border-r border-primary/20 p-2.5 transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:p-3 ${
                                 inMonth ? "bg-background/[0.08] hover:bg-background/[0.14]" : "bg-background/[0.03]"
                               }`}
                             >
@@ -260,14 +286,32 @@ export function CalendarView() {
                               </div>
                               <div className="mt-2 space-y-1.5">
                                 {items.slice(0, 3).map((post, itemIndex) => (
-                                  <div
+                                  <button
+                                    type="button"
                                     key={post.id}
                                     title={`${calendarEventLabel(post)} · ${getPostStatusMeta(post.status).label}`}
-                                    className={`truncate rounded-md border px-2 py-1.5 text-[11px] font-medium leading-tight transition-transform hover:-translate-y-px ${calendarEventTone(post.status, itemIndex)}`}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      openPost(post);
+                                    }}
+                                    className={`block w-full truncate rounded-md border px-2 py-1.5 text-left text-[11px] font-medium leading-tight transition-transform hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 ${calendarEventTone(post.status, itemIndex)}`}
                                   >
                                     {calendarEventLabel(post)}
-                                  </div>
+                                  </button>
                                 ))}
+                                {items.length === 0 && inMonth ? (
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      openNewPostForDate(date);
+                                    }}
+                                    className="flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-primary/25 px-2 py-1.5 text-[10px] font-medium text-muted-foreground/80 transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                    Open slot
+                                  </button>
+                                ) : null}
                               </div>
                             </div>
                           );
