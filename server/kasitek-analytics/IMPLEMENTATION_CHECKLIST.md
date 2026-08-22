@@ -198,8 +198,25 @@ checklist records implementation evidence for the current package only.
 - [x] Connect Core, Agent Platform, and Tenant Platform lease publishers to the authenticated HTTP
   endpoint and process accepted, duplicate, retryable, and rejected acknowledgements in their
   source outboxes.
-- [ ] Add worker-scheduled reconciliation, quarantine release, replay orchestration, and projection
-  consumers after the producer transport and reporting vertical slices are implemented.
+- [ ] Add worker-scheduled reconciliation, quarantine release, and replay orchestration.
+
+## A-10 — projection queue, contributions, rollups, generations, and rebuilds
+
+- [x] Add a PostgreSQL-backed, coalescing dirty-window queue written in the same transaction as
+  accepted immutable events and provider observations.
+- [x] Add bounded `FOR UPDATE SKIP LOCKED` projection leasing with ownership, expiry, attempts,
+  retry backoff, stale-lease recovery, priority, and safe error fields.
+- [x] Add generation-scoped mergeable contributions and hourly rollups with scope, source scope,
+  dimensions, coverage, and source high-watermark metadata.
+- [x] Add a worker projection consumer that maps registered event sources and observations into
+  deterministic contribution rows and recomputes each affected window before committing its
+  checkpoint and rollup rows.
+- [x] Add a rebuild request boundary that captures existing source windows into a shadow generation
+  and promotes it only after all generation-tagged work completes.
+- [x] Keep the active checkpoint generation stable while a rebuild is incomplete or failed; new
+  work remains retryable and derived rows never become immutable source data.
+- [ ] Add domain-specific typed projection builders, ancestor contribution rollups, timezone
+  calendar buckets, reconciliation-driven repairs, and full parity/coverage validation.
 
 ## Verification evidence
 
@@ -285,6 +302,15 @@ checklist records implementation evidence for the current package only.
   the authenticated TypeScript batch request contract.
 - Publisher workers: Core, Tenant Platform, and Agent Platform now expose independent local worker
   commands; source outboxes remain durable and unaffected when the Analytics API is unavailable.
+- A-10: migrations `20260822050000_analytics_projection_runtime.sql`,
+  `20260822051000_analytics_projection_scope_trigger.sql`,
+  `20260822052000_analytics_projection_generation_lifecycle.sql`, and
+  `20260822053000_analytics_projection_shadow_pointer.sql` applied successfully to the local
+  native Analytics PostgreSQL database.
+- A-10: `cargo test -p kasitek-analytics --test projections_postgres -- --nocapture` passed the
+  worker claim, generation promotion, contribution/rollup materialization, and shadow rebuild flow.
+- A-10: `cargo check -p kasitek-analytics` and package formatting passed after the projection worker
+  and ingestion transaction changes.
 
 ## Explicitly deferred
 
@@ -297,4 +323,5 @@ checklist records implementation evidence for the current package only.
 - A-06 signed audit checkpoint production/verification until the controlled signing boundary exists
 - A-07/A-08 authoritative domain mutation instrumentation until the applicable reference vertical
   slices exist
-- Scheduled reconciliation/replay workers; projections, reporting, and UI
+- Scheduled reconciliation/replay workers; domain-specific ancestor projections, reporting APIs,
+  query planning, caching, and UI

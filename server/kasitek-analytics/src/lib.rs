@@ -14,6 +14,7 @@ pub mod health;
 pub mod ingestion;
 pub mod metrics;
 pub mod migrations;
+pub mod projections;
 pub mod reconciliation;
 pub mod records;
 pub mod registry;

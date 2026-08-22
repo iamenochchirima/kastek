@@ -18,5 +18,7 @@ async fn main() -> Result<(), AnalyticsError> {
         registry.metrics_registry_version
     );
     let pool = create_pool(&config)?;
-    worker::run(pool).await.map_err(AnalyticsError::Bind)
+    worker::run(pool, registry)
+        .await
+        .map_err(AnalyticsError::Bind)
 }

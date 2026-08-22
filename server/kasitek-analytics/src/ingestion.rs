@@ -12,6 +12,7 @@ use sqlx::{types::Json, PgPool, Postgres, Row, Transaction};
 
 use crate::{
     config::{hex_sha256, AnalyticsConfig, IngestionCredential},
+    projections::{enqueue_fact, hourly_window, FactKind, FactWindow},
     records::{canonical_payload_sha256, validate_sha256_hex, RecordCategory, ScopeBinding},
     registry::{validate_envelope, validate_registered_contract},
 };
@@ -498,38 +499,38 @@ async fn ingest_record(
             subject_type,
             subject_id,
             attributes,
-        } => {
-            sqlx::query(
-                r#"INSERT INTO analytics.analytics_event (
+        } => sqlx::query(
+            r#"INSERT INTO analytics.analytics_event (
                     producer_id, source_service, source_domain, source_stream_key, source_sequence,
                     event_id, event_type, schema_version, reporting_scope_id, root_scope_id,
                     subject_type, subject_id, occurred_at, origin, source_record_id, correlation_id,
                     causation_id, idempotency_key, attributes, payload_hash, backfilled
-                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$6,$15,$16,$17,$18,$19,$20)"#,
-            )
-            .bind(&record.producer_id)
-            .bind(&authenticated.source_service)
-            .bind(record_source_domain(&record))
-            .bind(&record.source_stream_key)
-            .bind(record.source_sequence)
-            .bind(&record.record_id)
-            .bind(event_type)
-            .bind(record.schema_version)
-            .bind(resolution.binding.reporting_scope_id)
-            .bind(resolution.binding.root_scope_id)
-            .bind(subject_type)
-            .bind(subject_id)
-            .bind(validated.occurred_at)
-            .bind(&validated.origin)
-            .bind(&validated.correlation_id)
-            .bind(&validated.causation_id)
-            .bind(&validated.idempotency_key)
-            .bind(attributes)
-            .bind(&record.payload_hash)
-            .bind(backfill_job_id.is_some())
-            .execute(&mut *transaction)
-            .await
-        }
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$6,$15,$16,$17,$18,$19,$20)
+                RETURNING storage_id"#,
+        )
+        .bind(&record.producer_id)
+        .bind(&authenticated.source_service)
+        .bind(record_source_domain(&record))
+        .bind(&record.source_stream_key)
+        .bind(record.source_sequence)
+        .bind(&record.record_id)
+        .bind(event_type)
+        .bind(record.schema_version)
+        .bind(resolution.binding.reporting_scope_id)
+        .bind(resolution.binding.root_scope_id)
+        .bind(subject_type)
+        .bind(subject_id)
+        .bind(validated.occurred_at)
+        .bind(&validated.origin)
+        .bind(&validated.correlation_id)
+        .bind(&validated.causation_id)
+        .bind(&validated.idempotency_key)
+        .bind(attributes)
+        .bind(&record.payload_hash)
+        .bind(backfill_job_id.is_some())
+        .fetch_one(&mut *transaction)
+        .await
+        .map(|row| row.get::<i64, _>("storage_id")),
         ValidatedPayload::Observation {
             provider,
             provider_account_ref,
@@ -551,7 +552,8 @@ async fn ingest_record(
                     provider_account_ref, connection_ref, metric_key, numeric_value, unit,
                     reporting_window_start, reporting_window_end, observed_at, synchronization_run_id,
                     subject_type, subject_id, dimensions, source_evidence, payload_hash, backfilled
-                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NULL,NULL,$20,$21,$22,$23)"#,
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NULL,NULL,$20,$21,$22,$23)
+                RETURNING storage_id"#,
             )
             .bind(&record.producer_id)
             .bind(&authenticated.source_service)
@@ -576,7 +578,7 @@ async fn ingest_record(
             .bind(source_evidence)
             .bind(&record.payload_hash)
             .bind(backfill_job_id.is_some())
-            .execute(&mut *transaction)
+            .fetch_one(&mut *transaction)
             .await;
             if result.is_ok()
                 && update_observation_state(
@@ -596,12 +598,43 @@ async fn ingest_record(
             {
                 return retryable(record_id, source_sequence, "analytics_unavailable");
             }
-            result
+            result.map(|row| row.get::<i64, _>("storage_id"))
         }
         ValidatedPayload::ScopeDefinition { .. } => unreachable!("scope definitions return above"),
     };
 
-    if result.is_err() {
+    let storage_id = match result {
+        Ok(storage_id) => storage_id,
+        Err(_) => return retryable(record_id, source_sequence, "analytics_unavailable"),
+    };
+    let (source_window_start, source_window_end) = match &validated.payload {
+        ValidatedPayload::Event { .. } => hourly_window(validated.occurred_at),
+        ValidatedPayload::Observation {
+            reporting_window_start,
+            reporting_window_end,
+            ..
+        } => (*reporting_window_start, *reporting_window_end),
+        ValidatedPayload::ScopeDefinition { .. } => unreachable!("scope definitions return above"),
+    };
+    let fact_kind = match &validated.payload {
+        ValidatedPayload::Event { .. } => FactKind::Event,
+        ValidatedPayload::Observation { .. } => FactKind::Observation,
+        ValidatedPayload::ScopeDefinition { .. } => unreachable!("scope definitions return above"),
+    };
+    if enqueue_fact(
+        &mut transaction,
+        FactWindow {
+            fact_kind,
+            reporting_scope_id: resolution.binding.reporting_scope_id,
+            root_scope_id: resolution.binding.root_scope_id,
+            source_storage_id: storage_id,
+            source_window_start,
+            source_window_end,
+        },
+    )
+    .await
+    .is_err()
+    {
         return retryable(record_id, source_sequence, "analytics_unavailable");
     }
     if update_cursor(&mut transaction, authenticated, &record)

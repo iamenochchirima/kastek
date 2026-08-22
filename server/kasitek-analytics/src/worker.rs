@@ -1,18 +1,12 @@
 use sqlx::PgPool;
 
-use crate::contracts::SERVICE_NAME;
+use crate::{contracts::SERVICE_NAME, registry::RegistrySnapshot};
 
-/// Keeps the worker process alive until its projection and reconciliation
-/// loops are added by later execution packages.
-pub async fn run(_pool: PgPool) -> Result<(), std::io::Error> {
+/// Runs the analytics worker's durable projection loop.
+pub async fn run(pool: PgPool, registry: RegistrySnapshot) -> Result<(), std::io::Error> {
     log::info!(
-        "service={} process=analytics-worker status=started projection_workers=disabled",
+        "service={} process=analytics-worker status=starting projection_workers=enabled",
         SERVICE_NAME
     );
-    tokio::signal::ctrl_c().await?;
-    log::info!(
-        "service={} process=analytics-worker status=stopping",
-        SERVICE_NAME
-    );
-    Ok(())
+    crate::projections::run(pool, registry).await
 }

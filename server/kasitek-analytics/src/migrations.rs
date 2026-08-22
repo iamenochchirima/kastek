@@ -10,6 +10,8 @@ use crate::{contracts::SERVICE_NAME, error::AnalyticsError};
 pub const MIGRATION_LOCK_KEY: i64 = 7_482_031_945;
 pub const FOUNDATION_MIGRATION_VERSION: i64 = 20260822000000;
 
+// The embedded migrator is rebuilt whenever the analytics migration set changes, including
+// generation lifecycle and shadow-pointer compatibility migrations.
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
 pub async fn run(pool: &PgPool) -> Result<(), AnalyticsError> {
