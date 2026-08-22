@@ -207,7 +207,7 @@ function CreateAgentDialog({
 }) {
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl sm:p-8">
         <div className="flex items-start justify-between gap-4">
           <DialogHeader>
             <DialogTitle>Create an agent</DialogTitle>
@@ -231,19 +231,19 @@ function CreateAgentDialog({
             </button>
           </div>
         ) : step === "type" ? (
-          <div className="mt-6 grid items-stretch gap-4 sm:grid-cols-2">
-            <div className="flex min-h-[284px] flex-col rounded-xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35">
+          <div className="mt-8 grid items-stretch gap-5 sm:grid-cols-2">
+            <div className="flex min-h-[320px] flex-col rounded-xl border border-border bg-card p-8 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35">
               <h3 className="text-base font-semibold text-foreground">General-purpose agent</h3>
-              <p className="mx-auto mt-3 max-w-xs text-sm leading-5 text-muted-foreground">A complete assistant for a common job. Give it a name, purpose, and a few preferences.</p>
-              <div className="mt-5 flex flex-wrap justify-center gap-1.5" aria-label="Common general-purpose use cases">
+              <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-muted-foreground">A complete assistant for a common job. Give it a name, purpose, and a few preferences.</p>
+              <div className="mt-6 flex flex-wrap justify-center gap-2" aria-label="Common general-purpose use cases">
                 {['Customer support', 'Lead qualification', 'Booking assistant', 'Internal helpdesk'].map((useCase) => <span key={useCase} className="rounded-full border border-border bg-secondary px-2 py-1 text-[11px] text-muted-foreground">{useCase}</span>)}
               </div>
-              <Button type="button" className="mx-auto mt-auto w-full max-w-[210px]" onClick={onChooseGeneral}>Choose general-purpose</Button>
+              <Button type="button" className="mx-auto mt-auto w-full max-w-[240px]" onClick={onChooseGeneral}>Choose general-purpose</Button>
             </div>
-            <div className="flex min-h-[284px] flex-col rounded-xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35">
+            <div className="flex min-h-[320px] flex-col rounded-xl border border-border bg-card p-8 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35">
               <h3 className="text-base font-semibold text-foreground">Custom agent</h3>
-              <p className="mx-auto mt-3 max-w-xs text-sm leading-5 text-muted-foreground">Build a workflow from a canvas. Connect tools, knowledge, channels, and services when you need them.</p>
-              <Button type="button" variant="outline" className="mx-auto mt-auto w-full max-w-[210px]" onClick={onChooseCustom}>Choose custom</Button>
+              <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-muted-foreground">Build a workflow from a canvas. Connect tools, knowledge, channels, and services when you need them.</p>
+              <Button type="button" variant="outline" className="mx-auto mt-auto w-full max-w-[240px]" onClick={onChooseCustom}>Choose custom</Button>
             </div>
           </div>
         ) : (
