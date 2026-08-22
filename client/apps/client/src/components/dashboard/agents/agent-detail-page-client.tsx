@@ -146,6 +146,55 @@ function ProviderTabs({ value, onChange, configuredProviders }: { value: AgentMo
   </div>;
 }
 
+type ApiKeyConfigurationDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  provider: AgentModelProvider;
+  credentialKey: string;
+  onCredentialKeyChange: (value: string) => void;
+  credentialLabel: string;
+  onCredentialLabelChange: (value: string) => void;
+  credentialSaving: boolean;
+  credentialError: string | null;
+  credentialSaved: boolean;
+  onSave: () => void;
+};
+
+function ApiKeyConfigurationDialog({
+  open,
+  onOpenChange,
+  provider,
+  credentialKey,
+  onCredentialKeyChange,
+  credentialLabel,
+  onCredentialLabelChange,
+  credentialSaving,
+  credentialError,
+  credentialSaved,
+  onSave,
+}: ApiKeyConfigurationDialogProps) {
+  return <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="max-w-xl">
+      <DialogHeader>
+        <DialogTitle>{providerLabel(provider)} API key</DialogTitle>
+        <DialogDescription>API key</DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-[1fr_0.7fr]">
+          <label className="text-xs font-medium text-foreground">API key<Input type="password" value={credentialKey} onChange={(event) => onCredentialKeyChange(event.target.value)} autoComplete="new-password" className="mt-1" placeholder={`Your ${providerLabel(provider)} key`} /></label>
+          <label className="text-xs font-medium text-foreground">Label<Input value={credentialLabel} onChange={(event) => onCredentialLabelChange(event.target.value)} className="mt-1" placeholder="Primary key" /></label>
+        </div>
+        {credentialSaved ? <p className="text-xs text-status-success" role="status">API key saved.</p> : null}
+        {credentialError ? <p className="text-xs text-destructive" role="alert">{credentialError}</p> : null}
+      </div>
+      <DialogFooter className="mt-2">
+        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+        <Button type="button" disabled={!credentialKey.trim() || credentialSaving} onClick={onSave}>{credentialSaving ? "Saving…" : "Verify & save"}</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>;
+}
+
 function capabilityGroup(capability: AgentCapability) {
   const scope = capability.permission?.scope || capability.name.split(".")[2] || "platform";
   return scope.split(".")[0] || "platform";
@@ -165,6 +214,7 @@ function KasiAiModels({ installationId }: { installationId: string }) {
   const [credentialSaving, setCredentialSaving] = useState(false);
   const [credentialError, setCredentialError] = useState<string | null>(null);
   const [credentialSaved, setCredentialSaved] = useState(false);
+  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -243,6 +293,7 @@ function KasiAiModels({ installationId }: { installationId: string }) {
       setCredentialReference("");
       setCredentialMode("user");
       setCredentialSaved(false);
+      if (reference === "new") setApiKeyDialogOpen(true);
       return;
     }
     if (!reference) {
@@ -277,6 +328,7 @@ function KasiAiModels({ installationId }: { installationId: string }) {
       setCredentialReference(reference);
       setCredentialMode("user");
       setCredentialSaved(true);
+      setApiKeyDialogOpen(false);
     } catch (cause) {
       setCredentialError(cause instanceof Error ? cause.message : "Unable to select this API key");
     } finally {
@@ -307,6 +359,7 @@ function KasiAiModels({ installationId }: { installationId: string }) {
       setCredentialKey("");
       setCredentialLabel("");
       setCredentialSaved(true);
+      setApiKeyDialogOpen(false);
     } catch (cause) {
       setCredentialError(cause instanceof Error ? cause.message : "Unable to save this API key");
     } finally {
@@ -314,7 +367,8 @@ function KasiAiModels({ installationId }: { installationId: string }) {
     }
   };
 
-  return <Card><CardContent className="space-y-4 p-6">
+  return <>
+    <Card><CardContent className="space-y-4 p-6">
     <div><h2 className="text-lg font-semibold text-foreground">Models</h2><p className="mt-1 text-sm text-muted-foreground">Choose the default model and API key.</p></div>
     <div className="rounded-xl border border-border bg-secondary/20 p-4">
       <h3 className="text-sm font-semibold text-foreground">Default model</h3>
@@ -330,9 +384,9 @@ function KasiAiModels({ installationId }: { installationId: string }) {
       <h3 className="text-sm font-semibold text-foreground">API key</h3>
       <div className="mt-3 max-w-xl">
         <span className="text-xs font-medium text-foreground">Key source</span>
-        <div className="mt-1 inline-flex rounded-lg border border-border bg-background p-1">
-          <Button type="button" size="sm" variant={credentialMode === "platform" ? "default" : "ghost"} onClick={() => { setCredentialMode("platform"); setCredentialSaved(false); setCredentialError(null); void selectProviderCredential(""); }}>Platform key</Button>
-          <Button type="button" size="sm" variant={credentialMode === "user" ? "default" : "ghost"} onClick={() => { setCredentialMode("user"); setCredentialSaved(false); setCredentialError(null); }}>Use my own API key</Button>
+        <div className="mt-1 inline-flex max-w-full flex-wrap rounded-lg border border-border bg-background p-1">
+          <Button type="button" size="sm" variant={credentialMode === "platform" ? "default" : "ghost"} onClick={() => { setCredentialMode("platform"); setCredentialSaved(false); setCredentialError(null); setApiKeyDialogOpen(false); void selectProviderCredential(""); }}>Platform key</Button>
+          <Button type="button" size="sm" variant={credentialMode === "user" ? "default" : "ghost"} onClick={() => { setCredentialMode("user"); setCredentialSaved(false); setCredentialError(null); setApiKeyDialogOpen(false); }}>Use my own API key</Button>
         </div>
       </div>
       {credentialMode === "user" ? <div className="mt-3 space-y-3">
@@ -346,16 +400,14 @@ function KasiAiModels({ installationId }: { installationId: string }) {
             <SelectContent><SelectItem value="new">Enter a new API key</SelectItem>{activeProviderCredentials.map((credential) => <SelectItem key={credential.id} value={credential.id}>{credential.label}</SelectItem>)}</SelectContent>
           </Select>
         </label> : null}
-        <div className="grid gap-3 sm:grid-cols-[1fr_0.7fr_auto] sm:items-end">
-          <label className="text-xs font-medium text-foreground">API key<Input type="password" value={credentialKey} onChange={(event) => setCredentialKey(event.target.value)} autoComplete="new-password" className="mt-1" placeholder={`Your ${providerLabel(credentialProvider)} key`} /></label>
-          <label className="text-xs font-medium text-foreground">Label<Input value={credentialLabel} onChange={(event) => setCredentialLabel(event.target.value)} className="mt-1" placeholder="Primary key" /></label>
-          <Button type="button" variant="outline" disabled={!credentialKey.trim() || credentialSaving || !selectedProvider} onClick={() => void saveProviderCredential()}>{credentialSaving ? "Saving…" : "Verify & save"}</Button>
-        </div>
-        {credentialSaved ? <p className="text-xs text-status-success" role="status">API key saved.</p> : null}
-        {credentialError ? <p className="text-xs text-destructive" role="alert">{credentialError}</p> : null}
+        <Button type="button" variant="outline" onClick={() => setApiKeyDialogOpen(true)}>Add API key</Button>
       </div> : <p className="mt-2 text-xs text-muted-foreground">Uses the configured KasiTek provider key.</p>}
+      {credentialSaved ? <p className="text-xs text-status-success" role="status">API key saved.</p> : null}
+      {credentialError ? <p className="text-xs text-destructive" role="alert">{credentialError}</p> : null}
     </div>
-  </CardContent></Card>;
+    </CardContent></Card>
+    <ApiKeyConfigurationDialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen} provider={credentialProvider} credentialKey={credentialKey} onCredentialKeyChange={setCredentialKey} credentialLabel={credentialLabel} onCredentialLabelChange={setCredentialLabel} credentialSaving={credentialSaving || saving} credentialError={credentialError} credentialSaved={credentialSaved} onSave={() => void saveProviderCredential()} />
+  </>;
 }
 
 function availabilityLabel(availability: string) {
@@ -489,6 +541,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const [credentialSaving, setCredentialSaving] = useState(false);
   const [credentialError, setCredentialError] = useState<string | null>(null);
   const [credentialSaved, setCredentialSaved] = useState(false);
+  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
   const [modelCatalog, setModelCatalog] = useState<AgentModelCatalog | null>(null);
   const [modelCatalogLoading, setModelCatalogLoading] = useState(false);
   const [modelCatalogLoadError, setModelCatalogLoadError] = useState<string | null>(null);
@@ -614,6 +667,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
       setCredentialKey("");
       setCredentialLabel("");
       setCredentialSaved(true);
+      setApiKeyDialogOpen(false);
     } catch (cause) {
       setCredentialError(cause instanceof Error ? cause.message : "Unable to save this API key");
     } finally {
@@ -917,6 +971,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         {activeSection === "models" && executionMode === "system_hosted" && agent.installation_id ? <KasiAiModels installationId={agent.installation_id} /> : null}
 
         {activeSection === "models" && kasitekHostedAgent ? (
+          <>
           <Card>
             <CardContent className="space-y-4 p-6">
               <div>
@@ -947,8 +1002,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
                 <div className="mt-3 max-w-xl">
                   <span className="text-xs font-medium text-foreground">Key source</span>
                   <div className="mt-1 inline-flex max-w-full flex-wrap rounded-lg border border-border bg-background p-1">
-                    <Button type="button" size="sm" variant={credentialMode === "platform" ? "default" : "ghost"} onClick={() => { setCredentialMode("platform"); setCredentialSaved(false); setCredentialError(null); setCredentialReference(""); }}>Platform key</Button>
-                    <Button type="button" size="sm" variant={credentialMode === "user" ? "default" : "ghost"} onClick={() => { setCredentialMode("user"); setCredentialSaved(false); setCredentialError(null); }}>Use my own API key</Button>
+                    <Button type="button" size="sm" variant={credentialMode === "platform" ? "default" : "ghost"} onClick={() => { setCredentialMode("platform"); setCredentialSaved(false); setCredentialError(null); setCredentialReference(""); setApiKeyDialogOpen(false); }}>Platform key</Button>
+                    <Button type="button" size="sm" variant={credentialMode === "user" ? "default" : "ghost"} onClick={() => { setCredentialMode("user"); setCredentialSaved(false); setCredentialError(null); setApiKeyDialogOpen(false); }}>Use my own API key</Button>
                   </div>
                 </div>
                 {credentialMode === "user" ? <div className="mt-3 space-y-3">
@@ -957,7 +1012,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
                     <div className="mt-1"><ProviderTabs value={credentialProvider} configuredProviders={providerCredentials.filter((credential) => credential.status === "active").map((credential) => credential.provider)} onChange={(provider) => { setCredentialProvider(provider); setCredentialReference(""); setCredentialSaved(false); setCredentialError(null); }} /></div>
                   </div>
                   {activeProviderCredentials.length ? <label className="block text-xs font-medium text-foreground">Saved {providerLabel(credentialProvider)} key
-                    <Select value={credentialReference || "new"} onValueChange={(value) => { setCredentialReference(value === "new" ? "" : value); setCredentialSaved(false); }}>
+                    <Select value={credentialReference || "new"} onValueChange={(value) => { setCredentialReference(value === "new" ? "" : value); setCredentialSaved(false); if (value === "new") setApiKeyDialogOpen(true); }}>
                       <SelectTrigger className="mt-1"><SelectValue placeholder={credentialsLoading ? "Loading saved keys…" : "Choose a saved key"} /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="new">Enter a new API key</SelectItem>
@@ -966,14 +1021,10 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
                       </SelectContent>
                     </Select>
                   </label> : null}
-                  <div className="grid gap-3 sm:grid-cols-[1fr_0.7fr_auto] sm:items-end">
-                    <label className="text-xs font-medium text-foreground">API key<Input type="password" value={credentialKey} onChange={(event) => setCredentialKey(event.target.value)} autoComplete="new-password" className="mt-1" placeholder={`Your ${providerLabel(credentialProvider)} key`} /></label>
-                    <label className="text-xs font-medium text-foreground">Label<Input value={credentialLabel} onChange={(event) => setCredentialLabel(event.target.value)} className="mt-1" placeholder="Primary key" /></label>
-                    <Button type="button" variant="outline" disabled={!credentialKey.trim() || credentialSaving} onClick={() => void saveProviderCredential()}>{credentialSaving ? "Saving…" : "Verify & save"}</Button>
-                  </div>
-                  {credentialSaved ? <p className="text-xs text-status-success" role="status">API key saved{credentialProvider !== modelProvider ? `. Select ${providerLabel(credentialProvider)} as the model provider to use it` : ""}.</p> : null}
-                {credentialError ? <p className="text-xs text-destructive" role="alert">{credentialError}</p> : null}
+                  <Button type="button" variant="outline" onClick={() => setApiKeyDialogOpen(true)}>Add API key</Button>
                 </div> : <p className="mt-2 text-xs text-muted-foreground">Uses the configured KasiTek provider key.</p>}
+                {credentialSaved ? <p className="text-xs text-status-success" role="status">API key saved{credentialProvider !== modelProvider ? `. Select ${providerLabel(credentialProvider)} as the model provider to use it` : ""}.</p> : null}
+                {credentialError ? <p className="text-xs text-destructive" role="alert">{credentialError}</p> : null}
               </div>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-muted-foreground">Changes are saved as a new version. Publish it from Settings when you are ready.</p>
@@ -981,6 +1032,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
               </div>
             </CardContent>
           </Card>
+          <ApiKeyConfigurationDialog open={apiKeyDialogOpen} onOpenChange={setApiKeyDialogOpen} provider={credentialProvider} credentialKey={credentialKey} onCredentialKeyChange={setCredentialKey} credentialLabel={credentialLabel} onCredentialLabelChange={setCredentialLabel} credentialSaving={credentialSaving} credentialError={credentialError} credentialSaved={credentialSaved} onSave={() => void saveProviderCredential()} />
+          </>
         ) : null}
 
         {activeSection === "behavior" && kasitekHostedAgent ? (
