@@ -148,6 +148,22 @@
       "privacy_class": "aggregate"
     },
     {
+      "identity": "conversation.lifecycle@1",
+      "schema": "events/inbox/conversation_lifecycle/v1.schema.json",
+      "examples": ["examples/inbox/conversation_lifecycle.json"],
+      "owner": "core-inbox",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "conversation.message.lifecycle@1",
+      "schema": "events/inbox/conversation_message_lifecycle/v1.schema.json",
+      "examples": ["examples/inbox/conversation_message_lifecycle.json"],
+      "owner": "core-inbox",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
       "identity": "conversation.response.recorded@1",
       "schema": "events/inbox/response_recorded/v1.schema.json",
       "examples": ["examples/inbox/response_recorded.json"],

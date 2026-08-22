@@ -124,7 +124,7 @@ definitions:
   - key: conversation_channel
     type: enum
     source: envelope.data.channel
-    compatible_metrics: [conversation.messages.received@1, conversation.responses.recorded@1]
+    compatible_metrics: [conversation.lifecycle_events@1, conversation.message.lifecycle_events@1, conversation.response_time_ms@1, conversation.messages.received@1, conversation.responses.recorded@1]
     filterable: true
     groupable: true
     cardinality: low
@@ -168,7 +168,7 @@ definitions:
   - key: message_action
     type: enum
     source: envelope.data.action
-    compatible_metrics: [agent.conversation_messages.lifecycle_events@1]
+    compatible_metrics: [agent.conversation_messages.lifecycle_events@1, conversation.message.lifecycle_events@1]
     filterable: true
     groupable: true
     cardinality: low
@@ -179,7 +179,7 @@ definitions:
   - key: message_direction
     type: enum
     source: envelope.data.direction
-    compatible_metrics: [agent.conversation_messages.lifecycle_events@1]
+    compatible_metrics: [agent.conversation_messages.lifecycle_events@1, conversation.message.lifecycle_events@1]
     filterable: true
     groupable: true
     cardinality: low
@@ -201,7 +201,7 @@ definitions:
   - key: message_type
     type: string
     source: envelope.data.message_type
-    compatible_metrics: [agent.conversation_messages.lifecycle_events@1]
+    compatible_metrics: [agent.conversation_messages.lifecycle_events@1, conversation.message.lifecycle_events@1]
     filterable: true
     groupable: true
     cardinality: medium
@@ -212,7 +212,7 @@ definitions:
   - key: message_delivery_status
     type: enum
     source: envelope.data.delivery_status
-    compatible_metrics: [agent.conversation_messages.lifecycle_events@1]
+    compatible_metrics: [agent.conversation_messages.lifecycle_events@1, conversation.message.lifecycle_events@1]
     filterable: true
     groupable: true
     cardinality: low
@@ -223,7 +223,7 @@ definitions:
   - key: responder_type
     type: enum
     source: envelope.data.responder_type
-    compatible_metrics: [conversation.messages.received@1, conversation.responses.recorded@1]
+    compatible_metrics: [conversation.message.lifecycle_events@1, conversation.response_time_ms@1, conversation.messages.received@1, conversation.responses.recorded@1]
     filterable: true
     groupable: true
     cardinality: low
@@ -256,7 +256,7 @@ definitions:
   - key: status
     type: enum
     source: envelope.data.status
-    compatible_metrics: [agent.runs.completed@1, agent.runs.failed@1, agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.versions.lifecycle_events@1, agent.definitions.lifecycle_events@1, agent.readiness.evaluations@1, agent.conversations.lifecycle_events@1, campaign.recipients.sent@1, campaign.recipients.delivered@1, conversation.messages.received@1, conversation.responses.recorded@1]
+    compatible_metrics: [agent.runs.completed@1, agent.runs.failed@1, agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.versions.lifecycle_events@1, agent.definitions.lifecycle_events@1, agent.readiness.evaluations@1, agent.conversations.lifecycle_events@1, campaign.recipients.sent@1, campaign.recipients.delivered@1, conversation.lifecycle_events@1, conversation.messages.received@1, conversation.responses.recorded@1]
     filterable: true
     groupable: true
     cardinality: low
@@ -289,7 +289,7 @@ definitions:
   - key: lifecycle_action
     type: enum
     source: envelope.data.action
-    compatible_metrics: [agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.installations.lifecycle_events@1, agent.versions.lifecycle_events@1, agent.definitions.lifecycle_events@1, agent.conversations.lifecycle_events@1]
+    compatible_metrics: [agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.installations.lifecycle_events@1, agent.versions.lifecycle_events@1, agent.definitions.lifecycle_events@1, agent.conversations.lifecycle_events@1, conversation.lifecycle_events@1]
     filterable: true
     groupable: true
     cardinality: low

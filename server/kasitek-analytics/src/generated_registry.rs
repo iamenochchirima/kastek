@@ -2,7 +2,7 @@
 
 pub const REGISTRY_VERSION: &str = "20260822.1";
 pub const REGISTRY_SHA256: &str =
-    "d4a478b6229711ec076a14b2a7090cd1eddc3932f6038acdd7b289615e51a55c";
+    "898c84a70f100e1d428163e8fb8b90aed6f5d0d92b2bf52b70a611633608c6b5";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",
@@ -22,6 +22,8 @@ pub const CONTRACT_KEYS: &[&str] = &[
     "agent.version.lifecycle@1",
     "campaign.recipient.delivered@1",
     "campaign.recipient.sent@1",
+    "conversation.lifecycle@1",
+    "conversation.message.lifecycle@1",
     "conversation.message.received@1",
     "conversation.response.recorded@1",
 ];
@@ -48,7 +50,10 @@ pub const METRIC_KEYS: &[&str] = &[
     "campaign.delivery_rate@1",
     "campaign.recipients.delivered@1",
     "campaign.recipients.sent@1",
+    "conversation.lifecycle_events@1",
+    "conversation.message.lifecycle_events@1",
     "conversation.messages.received@1",
+    "conversation.response_time_ms@1",
     "conversation.responses.recorded@1",
 ];
 
@@ -118,6 +123,10 @@ pub mod metric_keys {
     pub const CAMPAIGN_DELIVERY_RATE_1: &str = "campaign.delivery_rate@1";
     pub const CAMPAIGN_RECIPIENTS_DELIVERED_1: &str = "campaign.recipients.delivered@1";
     pub const CAMPAIGN_RECIPIENTS_SENT_1: &str = "campaign.recipients.sent@1";
+    pub const CONVERSATION_LIFECYCLE_EVENTS_1: &str = "conversation.lifecycle_events@1";
+    pub const CONVERSATION_MESSAGE_LIFECYCLE_EVENTS_1: &str =
+        "conversation.message.lifecycle_events@1";
     pub const CONVERSATION_MESSAGES_RECEIVED_1: &str = "conversation.messages.received@1";
+    pub const CONVERSATION_RESPONSE_TIME_MS_1: &str = "conversation.response_time_ms@1";
     pub const CONVERSATION_RESPONSES_RECORDED_1: &str = "conversation.responses.recorded@1";
 }

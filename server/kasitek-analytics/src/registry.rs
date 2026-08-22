@@ -291,6 +291,34 @@ const CONTRACT_SOURCES: &[ContractSource] = &[
         )],
     },
     ContractSource {
+        path: "events/inbox/conversation_lifecycle/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/inbox/conversation_lifecycle/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/inbox/conversation_lifecycle.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/inbox/conversation_lifecycle.json"
+            )),
+        )],
+    },
+    ContractSource {
+        path: "events/inbox/conversation_message_lifecycle/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/inbox/conversation_message_lifecycle/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/inbox/conversation_message_lifecycle.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/inbox/conversation_message_lifecycle.json"
+            )),
+        )],
+    },
+    ContractSource {
         path: "events/inbox/response_recorded/v1.schema.json",
         schema: include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -1221,11 +1249,11 @@ mod tests {
     #[test]
     fn repository_registry_is_valid_and_deterministic() {
         let registry = load_registry().expect("repository registry should validate");
-        assert_eq!(registry.contracts.len(), 19);
-        assert_eq!(registry.metrics.len(), 23);
+        assert_eq!(registry.contracts.len(), 21);
+        assert_eq!(registry.metrics.len(), 26);
         assert_eq!(registry.dimensions.len(), 36);
         assert_eq!(registry.metric_sets.len(), 2);
-        assert_eq!(registry.metric_keys().len(), 23);
+        assert_eq!(registry.metric_keys().len(), 26);
         assert!(!registry.sha256.is_empty());
     }
 

@@ -4,6 +4,7 @@ use sqlx::PgPool;
 use std::collections::HashMap;
 use std::time::Duration as StdDuration;
 
+use crate::analytics;
 use crate::db::models::{
     ConversationRow, MessageRow, WhatsappAudienceFilterRequest, WhatsappContactRow,
     WhatsappListContactRow,
@@ -76,7 +77,9 @@ pub(crate) struct GraphTemplateComponent {
 pub(crate) struct PendingInboxMessageRow {
     pub id: String,
     pub conversation_id: String,
+    pub org_id: String,
     pub user_id: String,
+    pub responder_type: String,
     pub customer_identifier: String,
     pub phone_number_id: String,
     pub access_token_encrypted: String,
@@ -440,6 +443,7 @@ pub(crate) async fn find_or_create_conversation(
     let identifier = build_conversation_identifier(connection_id, phone);
     let customer_id =
         customers::ensure_whatsapp_customer(pool, org_id, phone, customer_name, None).await?;
+    let mut tx = pool.begin().await?;
     let existing = sqlx::query_as::<_, (String, i32, chrono::DateTime<Utc>)>(
         r#"
         SELECT
@@ -453,7 +457,7 @@ pub(crate) async fn find_or_create_conversation(
     )
     .bind(org_id)
     .bind(&identifier)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *tx)
     .await?;
     if let Some((id, unread_count, last_message_at)) = existing {
         sqlx::query(
@@ -476,8 +480,9 @@ pub(crate) async fn find_or_create_conversation(
         .bind(&id)
         .bind(connection_id)
         .bind(&customer_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         return Ok((id, unread_count, last_message_at, customer_id));
     }
     let id = cuid2::create_id();
@@ -505,8 +510,16 @@ pub(crate) async fn find_or_create_conversation(
     .bind(now)
     .bind(connection_id)
     .bind(&customer_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    analytics::inbox::enqueue_conversation_lifecycle(
+        &mut tx, org_id, &id, "whatsapp", "opened", "active", "customer", now,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+    })?;
+    tx.commit().await?;
     Ok((id, 0, now, customer_id))
 }
 

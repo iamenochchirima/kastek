@@ -1677,7 +1677,33 @@ test, customer, and externally connected conversations remain distinct categorie
 - [x] Keep personal, test, customer, and external conversation kinds distinct in every fact.
 - [x] Measure response time only for outbound Agent or human messages following a customer message.
 - [x] Verify producer privacy and organization isolation with unit and live database tests.
-- [ ] Add Core Inbox-owned conversation and message facts in the next M2 slice; do not make Agent
+
+### Core Inbox lane
+
+Core Inbox remains the owner of customer conversations stored in Core. It must not reuse Agent
+Platform conversation contracts or infer handoff from an ordinary message. Assignment, resolution,
+and customer takeover facts remain pending until Core has authoritative commands and history for
+those transitions.
+
+#### Execution slice 1 — WhatsApp conversation and message facts
+
+- [x] Register Core-owned conversation lifecycle and message lifecycle contracts with internal
+  conversation/message references only; exclude content, customer identifiers, provider IDs,
+  credentials, and unrestricted provider payloads.
+- [x] Register lifecycle, direction, responder, channel, delivery-state, and response-time metrics
+  with the existing scope-compatible dimensions.
+- [x] Emit new WhatsApp conversation facts when Core creates an Inbox conversation.
+- [x] Emit inbound customer message acceptance and outbound human/Agent message creation facts in
+  the same transaction as the Core message and conversation mutations.
+- [x] Emit queued, sent, delivered, read, and failed WhatsApp delivery transitions transactionally
+  with the authoritative message status update where the current Core code has that transition.
+- [x] Measure response time only for outbound human or Agent messages following a customer message.
+- [x] Preserve Agent-vs-human attribution for Core's direct Agent delivery path and workspace Inbox
+  queue path without treating every Core `bot` row as an Agent response.
+- [ ] Add equivalent Meta Inbox collection, deletion/retry facts, historical coverage, source
+  reconciliation, projection/reporting evidence, and end-to-end mutation-to-reporting tests.
+
+- [ ] Complete the remaining Core Inbox-owned conversation and message facts; do not make Agent
   Platform the owner of Core Inbox conversations.
 
 ### Agent Platform lane: customer handoff

@@ -11,6 +11,7 @@ use serde_json::{json, Value};
 use sqlx::{PgPool, Row};
 use std::collections::HashSet;
 
+use crate::analytics;
 use crate::db::models::{
     ConversationUpdateRequest, InboxConversationListRow, MessageRow, WhatsappReactionRequest,
     WhatsappSendMessageRequest, WhatsappStartConversationRequest, WhatsappTemplateRow,
@@ -80,25 +81,53 @@ pub async fn deliver_agent_message(
         .ok_or_else(|| AppError::NotFound("WhatsApp connection not found".to_string()))?;
     let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
     let message_id = cuid2::create_id();
+    let occurred_at = Utc::now();
+    let mut tx = pool.begin().await?;
     sqlx::query(
         r#"
         INSERT INTO "Message" (id, "conversationId", sender, content, "contentType", "whatsappStatus", "providerMetadata", timestamp)
-        VALUES ($1, $2, 'bot', $3, 'TEXT', 'SENDING', $4::jsonb, NOW())
+        VALUES ($1, $2, 'bot', $3, 'TEXT', 'SENDING', $4::jsonb, $5)
         "#,
     )
     .bind(&message_id)
     .bind(&conversation.id)
     .bind(text)
     .bind(json!({ "_kasitek_agent_idempotency_key": idempotency_key }))
-    .execute(pool)
+    .bind(occurred_at)
+    .execute(&mut *tx)
     .await?;
     sqlx::query(
         r#"UPDATE "Conversation" SET "lastMessageAt" = NOW(), status = 'active', "updatedAt" = NOW() WHERE id = $1 AND "orgId" = $2"#,
     )
     .bind(&conversation.id)
     .bind(org_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    let response_time_ms = analytics::inbox::preceding_customer_response_time_ms(
+        &mut tx,
+        &conversation.id,
+        occurred_at,
+    )
+    .await?;
+    analytics::inbox::enqueue_message_lifecycle(
+        &mut tx,
+        org_id,
+        &message_id,
+        &conversation.id,
+        "whatsapp",
+        "created",
+        "outbound",
+        "agent",
+        "text",
+        Some("sending"),
+        response_time_ms,
+        occurred_at,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+    })?;
+    tx.commit().await?;
     let send_result = if buttons.is_empty() {
         send_text_message(
             &connection.phone_number_id,
@@ -121,14 +150,34 @@ pub async fn deliver_agent_message(
     };
     match send_result {
         Ok((provider_message_id, _)) => {
+            let mut tx = pool.begin().await?;
             sqlx::query(
                 r#"UPDATE "Message" SET "whatsappMessageId" = $1, "providerMessageId" = $1, "providerStatus" = 'sent', "whatsappStatus" = 'SENT' WHERE id = $2 AND "conversationId" = $3"#,
             )
             .bind(&provider_message_id)
             .bind(&message_id)
             .bind(&conversation.id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
+            analytics::inbox::enqueue_message_lifecycle(
+                &mut tx,
+                org_id,
+                &message_id,
+                &conversation.id,
+                "whatsapp",
+                "delivery_updated",
+                "outbound",
+                "agent",
+                "text",
+                Some("sent"),
+                None,
+                Utc::now(),
+            )
+            .await
+            .map_err(|error| {
+                AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+            })?;
+            tx.commit().await?;
             Ok(json!({
                 "providerMessageId": provider_message_id,
                 "status": "sent",
@@ -142,6 +191,7 @@ pub async fn deliver_agent_message(
             } else {
                 "AGENT_DELIVERY_FAILED"
             };
+            let mut tx = pool.begin().await?;
             sqlx::query(
                 r#"UPDATE "Message" SET "providerStatus" = 'failed', "whatsappStatus" = 'FAILED', "errorCode" = $1, "errorMessage" = $2 WHERE id = $3 AND "conversationId" = $4"#,
             )
@@ -149,8 +199,29 @@ pub async fn deliver_agent_message(
             .bind(&error_message)
             .bind(&message_id)
             .bind(&conversation.id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
+            analytics::inbox::enqueue_message_lifecycle(
+                &mut tx,
+                org_id,
+                &message_id,
+                &conversation.id,
+                "whatsapp",
+                "delivery_updated",
+                "outbound",
+                "agent",
+                "text",
+                Some("failed"),
+                None,
+                Utc::now(),
+            )
+            .await
+            .map_err(|analytics_error| {
+                AppError::Internal(format!(
+                    "Failed to queue Inbox analytics fact: {analytics_error}"
+                ))
+            })?;
+            tx.commit().await?;
             if authentication_failed {
                 if let Err(health_error) = connections::record_source_health(
                     pool,
@@ -356,7 +427,9 @@ async fn claim_queued_inbox_message(
             SELECT
                 m.id,
                 m."conversationId" AS conversation_id,
+                c."orgId" AS org_id,
                 wc."userId" AS user_id,
+                CASE WHEN COALESCE(m."providerMetadata"->>'_kasitek_agent_idempotency_key', '') <> '' THEN 'agent' ELSE 'human' END AS responder_type,
                 c."customerIdentifier" AS customer_identifier,
                 wc."phoneNumberId" AS phone_number_id,
                 wc."accessTokenEncrypted" AS access_token_encrypted,
@@ -382,7 +455,9 @@ async fn claim_queued_inbox_message(
             SELECT
                 m.id,
                 m."conversationId" AS conversation_id,
+                c."orgId" AS org_id,
                 wc."userId" AS user_id,
+                CASE WHEN COALESCE(m."providerMetadata"->>'_kasitek_agent_idempotency_key', '') <> '' THEN 'agent' ELSE 'human' END AS responder_type,
                 c."customerIdentifier" AS customer_identifier,
                 wc."phoneNumberId" AS phone_number_id,
                 wc."accessTokenEncrypted" AS access_token_encrypted,
@@ -475,6 +550,25 @@ async fn process_claimed_inbox_message(
     .execute(&mut **tx)
     .await?;
 
+    analytics::inbox::enqueue_message_lifecycle(
+        tx,
+        &job.org_id,
+        &job.id,
+        &job.conversation_id,
+        "whatsapp",
+        "delivery_updated",
+        "outbound",
+        &job.responder_type,
+        "text",
+        Some("sent"),
+        None,
+        Utc::now(),
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+    })?;
+
     Ok((
         job.user_id,
         job.conversation_id,
@@ -517,6 +611,8 @@ async fn process_single_queued_inbox_message(
 
     let message_id = job.id.clone();
     let conversation_id = job.conversation_id.clone();
+    let org_id = job.org_id.clone();
+    let responder_type = job.responder_type.clone();
     let user_id = job.user_id.clone();
     let text = display_text(&job.content);
     log::info!(
@@ -549,6 +645,26 @@ async fn process_single_queued_inbox_message(
         }
         Err(error) => {
             fail_claimed_inbox_message(&mut tx, &message_id, &error).await?;
+            analytics::inbox::enqueue_message_lifecycle(
+                &mut tx,
+                &org_id,
+                &message_id,
+                &conversation_id,
+                "whatsapp",
+                "delivery_updated",
+                "outbound",
+                &responder_type,
+                "text",
+                Some("failed"),
+                None,
+                Utc::now(),
+            )
+            .await
+            .map_err(|analytics_error| {
+                AppError::Internal(format!(
+                    "Failed to queue Inbox analytics fact: {analytics_error}"
+                ))
+            })?;
             tx.commit().await?;
             log::error!(
                 "[whatsapp-inbox-worker] failed queued message message_id={} conversation_id={} error={}",
@@ -936,23 +1052,48 @@ pub async fn start_inbox_conversation(
         .body
         .clone()
         .unwrap_or_else(|| "Template message sent.".to_string());
+    let stored_message_id = cuid2::create_id();
+    let occurred_at = Utc::now();
+    let mut tx = pool.begin().await?;
     sqlx::query(
         r#"
-        INSERT INTO "Message" (id, "conversationId", sender, content, "whatsappMessageId", timestamp)
-        VALUES ($1, $2, 'bot', $3, $4, NOW())
+        INSERT INTO "Message" (id, "conversationId", sender, content, "whatsappMessageId", "providerMetadata", timestamp)
+        VALUES ($1, $2, 'bot', $3, $4, $5::jsonb, $6)
         "#
     )
-    .bind(cuid2::create_id())
+    .bind(&stored_message_id)
     .bind(&conversation_id)
     .bind(rendered)
     .bind(&message_id)
-    .execute(pool)
+    .bind(json!({ "_kasitek_inbox_message_kind": "template" }))
+    .bind(occurred_at)
+    .execute(&mut *tx)
     .await?;
-    sqlx::query(r#"UPDATE "Conversation" SET "lastMessageAt" = NOW(), status = 'active', "customerName" = COALESCE($1, "customerName"), "updatedAt" = NOW() WHERE id = $2"#)
+    sqlx::query(r#"UPDATE "Conversation" SET "lastMessageAt" = $1, status = 'active', "customerName" = COALESCE($2, "customerName"), "updatedAt" = NOW() WHERE id = $3"#)
+        .bind(occurred_at)
         .bind(input.customer_name.as_deref())
         .bind(&conversation_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+    analytics::inbox::enqueue_message_lifecycle(
+        &mut tx,
+        org_id,
+        &stored_message_id,
+        &conversation_id,
+        "whatsapp",
+        "created",
+        "outbound",
+        "system",
+        "template",
+        Some("sent"),
+        None,
+        occurred_at,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+    })?;
+    tx.commit().await?;
     publish_message_created(pool, user_id, &message_id).await?;
     publish_conversation_updated(pool, user_id, &conversation_id).await?;
     Ok(json!({
@@ -1038,6 +1179,7 @@ pub async fn send_conversation_message(
         None
     };
     let created_message_id = cuid2::create_id();
+    let occurred_at = Utc::now();
     log::info!(
         "[whatsapp-inbox-api] queueing message message_id={} conversation_id={} user_id={} has_reply={}",
         created_message_id,
@@ -1045,6 +1187,7 @@ pub async fn send_conversation_message(
         user_id,
         input.reply_to_message_id.as_deref().is_some_and(|value| !value.trim().is_empty())
     );
+    let mut tx = pool.begin().await?;
     sqlx::query(
         r#"
         INSERT INTO "Message" (id, "conversationId", sender, content, "contentType", "whatsappStatus", timestamp)
@@ -1054,8 +1197,38 @@ pub async fn send_conversation_message(
     .bind(&created_message_id)
     .bind(&conversation.id)
     .bind(text)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    sqlx::query(r#"UPDATE "Conversation" SET "lastMessageAt" = $1, status = 'active', "updatedAt" = NOW() WHERE id = $2"#)
+        .bind(occurred_at)
+        .bind(&conversation.id)
+        .execute(&mut *tx)
+        .await?;
+    let response_time_ms = analytics::inbox::preceding_customer_response_time_ms(
+        &mut tx,
+        &conversation.id,
+        occurred_at,
+    )
+    .await?;
+    analytics::inbox::enqueue_message_lifecycle(
+        &mut tx,
+        org_id,
+        &created_message_id,
+        &conversation.id,
+        "whatsapp",
+        "created",
+        "outbound",
+        "human",
+        "text",
+        Some("queued"),
+        response_time_ms,
+        occurred_at,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+    })?;
+    tx.commit().await?;
     if let Some((target, target_wa_id)) = reply_target {
         message_domain::create_reference(
             pool,
@@ -1067,10 +1240,6 @@ pub async fn send_conversation_message(
         )
         .await?;
     }
-    sqlx::query(r#"UPDATE "Conversation" SET "lastMessageAt" = NOW(), status = 'active', "updatedAt" = NOW() WHERE id = $1"#)
-        .bind(&conversation.id)
-        .execute(pool)
-        .await?;
     publish_message_created(pool, user_id, &created_message_id).await?;
     publish_conversation_updated(pool, user_id, &conversation.id).await?;
     if let Err(error) = realtime::enqueue_whatsapp_inbox_message(&created_message_id).await {
@@ -1218,18 +1387,53 @@ pub async fn send_conversation_media(
     .await?;
 
     let message_id = cuid2::create_id();
+    let occurred_at = Utc::now();
+    let mut tx = pool.begin().await?;
     sqlx::query(
         r#"
         INSERT INTO "Message" (id, "conversationId", sender, content, "contentType", "whatsappMessageId", "whatsappStatus", timestamp)
-        VALUES ($1, $2, 'bot', $3, 'MEDIA', $4, 'SENT', NOW())
+        VALUES ($1, $2, 'bot', $3, 'MEDIA', $4, 'SENT', $5)
         "#,
     )
     .bind(&message_id)
     .bind(&conversation.id)
     .bind(caption.as_deref().unwrap_or_default())
     .bind(&whatsapp_message_id)
-    .execute(pool)
+    .bind(occurred_at)
+    .execute(&mut *tx)
     .await?;
+    sqlx::query(
+        r#"UPDATE "Conversation" SET "lastMessageAt" = $1, status = 'active', "updatedAt" = NOW() WHERE id = $2"#,
+    )
+    .bind(occurred_at)
+    .bind(&conversation.id)
+    .execute(&mut *tx)
+    .await?;
+    let response_time_ms = analytics::inbox::preceding_customer_response_time_ms(
+        &mut tx,
+        &conversation.id,
+        occurred_at,
+    )
+    .await?;
+    analytics::inbox::enqueue_message_lifecycle(
+        &mut tx,
+        org_id,
+        &message_id,
+        &conversation.id,
+        "whatsapp",
+        "created",
+        "outbound",
+        "human",
+        "media",
+        Some("sent"),
+        response_time_ms,
+        occurred_at,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+    })?;
+    tx.commit().await?;
     message_domain::create_attachment(
         pool,
         &message_id,
@@ -1252,12 +1456,6 @@ pub async fn send_conversation_media(
         )
         .await?;
     }
-    sqlx::query(
-        r#"UPDATE "Conversation" SET "lastMessageAt" = NOW(), status = 'active', "updatedAt" = NOW() WHERE id = $1"#,
-    )
-    .bind(&conversation.id)
-    .execute(pool)
-    .await?;
     publish_message_created(pool, user_id, &message_id).await?;
     publish_conversation_updated(pool, user_id, &conversation.id).await?;
 

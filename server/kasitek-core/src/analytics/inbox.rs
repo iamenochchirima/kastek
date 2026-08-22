@@ -1,0 +1,231 @@
+//! Core Inbox analytics facts.
+//!
+//! These builders contain only stable, aggregate-safe references. They must be called with the
+//! same transaction that persists the Inbox mutation; publication is deliberately left to the
+//! Core analytics publisher.
+
+use chrono::{DateTime, Utc};
+use serde_json::json;
+use sqlx::{Postgres, Row, Transaction};
+
+use analytics_producer::{EnqueueResult, EventInput, ScopeKind};
+
+use super::enqueue_event;
+
+const SOURCE_DOMAIN: &str = "inbox";
+
+#[allow(clippy::too_many_arguments)]
+pub async fn enqueue_conversation_lifecycle(
+    transaction: &mut Transaction<'_, Postgres>,
+    organization_id: &str,
+    conversation_id: &str,
+    channel: &str,
+    action: &str,
+    status: &str,
+    actor_type: &str,
+    occurred_at: DateTime<Utc>,
+) -> Result<EnqueueResult, analytics_producer::ProducerError> {
+    let record_id = format!(
+        "conversation:{conversation_id}:{action}:{}",
+        occurred_at.timestamp_millis()
+    );
+    enqueue_event(
+        transaction,
+        EventInput {
+            record_id: record_id.clone(),
+            source_domain: SOURCE_DOMAIN.to_string(),
+            source_stream_key: stream_key(organization_id),
+            contract_name: "conversation.lifecycle@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::CoreOrganization,
+            scope_external_id: organization_id.to_string(),
+            subject_type: "conversation".to_string(),
+            subject_id: conversation_id.to_string(),
+            occurred_at,
+            attributes: conversation_attributes(
+                conversation_id,
+                channel,
+                action,
+                status,
+                actor_type,
+                occurred_at,
+            ),
+            correlation_id: None,
+            causation_id: None,
+            idempotency_key: Some(record_id),
+        },
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn enqueue_message_lifecycle(
+    transaction: &mut Transaction<'_, Postgres>,
+    organization_id: &str,
+    message_id: &str,
+    conversation_id: &str,
+    channel: &str,
+    action: &str,
+    direction: &str,
+    responder_type: &str,
+    message_type: &str,
+    delivery_status: Option<&str>,
+    response_time_ms: Option<i64>,
+    occurred_at: DateTime<Utc>,
+) -> Result<EnqueueResult, analytics_producer::ProducerError> {
+    let record_id = format!(
+        "message:{message_id}:{action}:{}",
+        occurred_at.timestamp_millis()
+    );
+    enqueue_event(
+        transaction,
+        EventInput {
+            record_id: record_id.clone(),
+            source_domain: SOURCE_DOMAIN.to_string(),
+            source_stream_key: stream_key(organization_id),
+            contract_name: "conversation.message.lifecycle@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::CoreOrganization,
+            scope_external_id: organization_id.to_string(),
+            subject_type: "message".to_string(),
+            subject_id: message_id.to_string(),
+            occurred_at,
+            attributes: message_attributes(
+                message_id,
+                conversation_id,
+                channel,
+                action,
+                direction,
+                responder_type,
+                message_type,
+                delivery_status,
+                response_time_ms,
+                occurred_at,
+            ),
+            correlation_id: None,
+            causation_id: None,
+            idempotency_key: Some(record_id),
+        },
+    )
+    .await
+}
+
+pub async fn preceding_customer_response_time_ms(
+    transaction: &mut Transaction<'_, Postgres>,
+    conversation_id: &str,
+    occurred_at: DateTime<Utc>,
+) -> Result<Option<i64>, sqlx::Error> {
+    let value = sqlx::query(
+        r#"
+        SELECT GREATEST(
+            0,
+            ROUND(EXTRACT(EPOCH FROM (($2::timestamptz - timestamp) * 1000)))
+        )::bigint AS response_time_ms
+        FROM "Message"
+        WHERE "conversationId" = $1
+          AND sender = 'customer'
+          AND timestamp <= $2
+        ORDER BY timestamp DESC
+        LIMIT 1
+        "#,
+    )
+    .bind(conversation_id)
+    .bind(occurred_at)
+    .fetch_optional(&mut **transaction)
+    .await?;
+    Ok(value.and_then(|row| {
+        row.try_get::<Option<i64>, _>("response_time_ms")
+            .ok()
+            .flatten()
+    }))
+}
+
+fn stream_key(organization_id: &str) -> String {
+    format!("organization:{organization_id}:inbox")
+}
+
+fn conversation_attributes(
+    conversation_id: &str,
+    channel: &str,
+    action: &str,
+    status: &str,
+    actor_type: &str,
+    occurred_at: DateTime<Utc>,
+) -> serde_json::Value {
+    json!({
+        "conversation_id": conversation_id,
+        "channel": channel,
+        "action": action,
+        "status": status,
+        "actor_type": actor_type,
+        "occurred_at": occurred_at,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn message_attributes(
+    message_id: &str,
+    conversation_id: &str,
+    channel: &str,
+    action: &str,
+    direction: &str,
+    responder_type: &str,
+    message_type: &str,
+    delivery_status: Option<&str>,
+    response_time_ms: Option<i64>,
+    occurred_at: DateTime<Utc>,
+) -> serde_json::Value {
+    json!({
+        "message_id": message_id,
+        "conversation_id": conversation_id,
+        "channel": channel,
+        "action": action,
+        "direction": direction,
+        "responder_type": responder_type,
+        "message_type": message_type,
+        "delivery_status": delivery_status,
+        "response_time_ms": response_time_ms,
+        "occurred_at": occurred_at,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::TimeZone;
+
+    #[test]
+    fn stream_key_is_scoped_without_customer_data() {
+        assert_eq!(super::stream_key("org-123"), "organization:org-123:inbox");
+        assert!(!super::stream_key("org-123").contains("phone"));
+    }
+
+    #[test]
+    fn message_attributes_are_bounded_and_transcript_free() {
+        let attributes = super::message_attributes(
+            "message-123",
+            "conversation-123",
+            "whatsapp",
+            "created",
+            "inbound",
+            "customer",
+            "text",
+            None,
+            None,
+            chrono::Utc.with_ymd_and_hms(2026, 8, 22, 10, 0, 0).unwrap(),
+        );
+        let object = attributes.as_object().unwrap();
+        assert_eq!(object.len(), 10);
+        for prohibited in [
+            "content",
+            "message_body",
+            "customer_identifier",
+            "phone_number",
+            "email",
+            "provider_message_id",
+            "credential",
+            "token",
+        ] {
+            assert!(!object.contains_key(prohibited), "unexpected {prohibited}");
+        }
+    }
+}

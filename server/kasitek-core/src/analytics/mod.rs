@@ -4,6 +4,8 @@
 //! perform network I/O; the source outbox is the durability boundary and a later publisher sends
 //! leased rows to the private Analytics ingestion API.
 
+pub mod inbox;
+
 use analytics_producer::{
     build_event, build_observation, build_scope_definition, enqueue_outbox, AnalyticsOutboxRecord,
     EnqueueResult, EventInput, ObservationInput, ProducerConfig, ProducerError,

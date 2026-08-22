@@ -11,6 +11,9 @@ definitions:
       - campaign.recipients.sent@1
       - campaign.recipients.delivered@1
       - campaign.delivery_rate@1
+      - conversation.lifecycle_events@1
+      - conversation.message.lifecycle_events@1
+      - conversation.response_time_ms@1
       - conversation.messages.received@1
       - conversation.responses.recorded@1
     default_interval: day
