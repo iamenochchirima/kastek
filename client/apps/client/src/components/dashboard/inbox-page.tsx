@@ -10,7 +10,6 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft,
   Archive,
-  Bot,
   Check,
   ChevronDown,
   Clock,
@@ -70,7 +69,6 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { resolveTheme, useAppearance } from "@/lib/appearance";
-import { listAgentConversations, listAgents, type AgentConversation, type AgentDefinition } from "@/lib/agent-platform";
 
 function inboxPlatformKey(channel: string) {
   return channel.toLowerCase() === "facebook" ? "MESSENGER" : channel.toUpperCase();
@@ -119,11 +117,6 @@ type InboxConversationPayload = {
   starred: boolean;
   connectionId: string | null;
   connectionLabel: string | null;
-};
-
-type AgentInboxConversation = AgentConversation & {
-  agentId: string;
-  agentName: string;
 };
 
 function mapInboxConversation(conversation: InboxConversationPayload): InboxConversation {
@@ -665,7 +658,7 @@ export default function InboxPageClient({
   const emojiTheme = resolveTheme(appearance.theme);
   const [liveConversations, setLiveConversations] = useState(conversations);
   const [selectedChannel, setSelectedChannel] = useState<
-    "all" | "agents" | "whatsapp" | "email" | "sms" | "instagram" | "facebook"
+    "all" | "whatsapp" | "email" | "sms" | "instagram" | "facebook"
   >("all");
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -774,17 +767,6 @@ export default function InboxPageClient({
         bgColor: "bg-foreground/10",
         count: liveConversations.length,
         unreadCount: liveConversations.filter((conversation) => conversation.unread).length,
-        disabled: false,
-        connected: true,
-      },
-      {
-        id: "agents" as const,
-        name: "Agent conversations",
-        icon: Bot,
-        color: "text-violet-500",
-        bgColor: "bg-violet-500/10",
-        count: 0,
-        unreadCount: 0,
         disabled: false,
         connected: true,
       },
@@ -965,9 +947,7 @@ export default function InboxPageClient({
   const selectedChannelConnected =
     selectedChannel === "all"
       ? true
-      : selectedChannel === "agents"
-        ? true
-        : selectedChannel === "email" || selectedChannel === "sms"
+      : selectedChannel === "email" || selectedChannel === "sms"
         ? false
         : channelCounts[selectedChannel].connected;
   const emptyConversationCopy =
@@ -2548,7 +2528,7 @@ export default function InboxPageClient({
           </div>
         </header>
 
-        {selectedChannel === "agents" ? <AgentConversationsPanel /> : <div className="min-h-0 flex flex-1 overflow-hidden">
+        <div className="min-h-0 flex flex-1 overflow-hidden">
 
         <div
           className={cn(
@@ -3488,61 +3468,11 @@ export default function InboxPageClient({
           </div>
           ) : null}
         </div>
-        </div>}
+        </div>
         <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
       </div>
     </TooltipProvider>
   );
-}
-
-function AgentConversationsPanel() {
-  const [items, setItems] = useState<AgentInboxConversation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const result = await listAgents();
-        const hostedAgents = result.agents.filter((agent: AgentDefinition) =>
-          agent.execution_mode === "kasitek_hosted" && Boolean(agent.installation_id) && !agent.protected,
-        );
-        const conversations = await Promise.all(hostedAgents.map(async (agent) => {
-          const response = await listAgentConversations(agent.installation_id!, { kind: "customer" });
-          return response.conversations.map((conversation) => ({
-            ...conversation,
-            agentId: agent.id,
-            agentName: agent.name,
-          }));
-        }));
-        if (cancelled) return;
-        setItems(conversations.flat().sort((left, right) =>
-          new Date(right.last_message_at || right.updated_at).getTime() - new Date(left.last_message_at || left.updated_at).getTime(),
-        ));
-        setError(null);
-      } catch (cause) {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : "Unable to load agent conversations");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    void load();
-    const refresh = window.setInterval(() => void load(), 15_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(refresh);
-    };
-  }, []);
-
-  return <div className="min-h-0 flex-1 overflow-y-auto bg-background p-4 sm:p-6">
-    <div className="mx-auto max-w-5xl space-y-5">
-      <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Automation</p><h2 className="mt-1 text-xl font-semibold text-foreground">Agent conversations</h2><p className="mt-1 text-sm text-muted-foreground">Customer conversations handled by your hosted agents. Protected personal KasiAi chats stay in the agent workspace.</p></div>
-      {error ? <p className="rounded-lg border border-destructive/30 bg-status-danger-soft px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-      {loading ? <div className="rounded-xl border border-border p-6 text-sm text-muted-foreground">Loading agent conversations…</div> : items.length === 0 ? <div className="rounded-xl border border-dashed border-border p-8 text-center"><Bot className="mx-auto h-8 w-8 text-muted-foreground" /><p className="mt-3 text-sm font-medium text-foreground">No agent conversations yet</p><p className="mt-1 text-sm text-muted-foreground">Website Chat and other public hosted-agent conversations will appear here.</p></div> : <div className="grid gap-3 lg:grid-cols-2">{items.map((conversation) => <Link key={`${conversation.agentId}:${conversation.id}`} href={`/agents/conversations?view=all&agentId=${encodeURIComponent(conversation.agentId)}&installationId=${encodeURIComponent(conversation.installation_id ?? "")}&search=${encodeURIComponent(conversation.participant_display_name || conversation.title || "")}`} className="rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/50 hover:bg-secondary/30"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2"><Bot className="h-4 w-4 shrink-0 text-violet-500" /><p className="truncate text-sm font-semibold text-foreground">{conversation.participant_display_name || conversation.title || "Website visitor"}</p></div><p className="mt-1 text-xs text-muted-foreground">{conversation.agentName} · {conversation.channel_type}</p></div>{conversation.unread_count ? <Badge className="border-violet-500/20 bg-violet-500/10 text-violet-600">{conversation.unread_count} unread</Badge> : null}</div><p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{conversation.last_message_preview || "No messages yet"}</p><div className="mt-3 flex items-center justify-between text-xs text-muted-foreground"><span>{conversation.assigned_actor_id ? "Human handoff" : "Handled by agent"}</span><span>{conversation.last_message_at ? new Date(conversation.last_message_at).toLocaleString() : ""}</span></div></Link>)}</div>}
-    </div>
-  </div>;
 }
 
 function selectedCallMediaStateLabel(

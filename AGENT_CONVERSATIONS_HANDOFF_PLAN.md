@@ -88,9 +88,9 @@ This plan covers the split between personal and customer-service agents, custome
 
 - [x] Replace links-only agent conversation cards with live queue links/actions.
 - [x] Keep personal agent chats in the private/test surface; customer history, website chat, customer channels, and live-queue navigation are audience-gated, with KasiAi's private system channels preserved.
-- [ ] Keep Agent Platform customer transcripts distinct from legacy Inbox ownership.
+- [x] Keep Agent Platform customer transcripts distinct from legacy Inbox ownership; legacy Inbox remains the channel-owned surface and Agent Conversations owns hosted-agent customer transcripts.
 - [x] Add Agent Conversations to the Automation navigation group.
-- [ ] Avoid duplicating handoff controls across surfaces.
+- [x] Avoid duplicating handoff controls across surfaces; Inbox no longer mounts a second agent transcript projection or operator action set.
 
 ## 9. Analytics integration
 
