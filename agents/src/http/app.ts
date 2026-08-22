@@ -2190,7 +2190,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     },
   );
 
-  app.get<{ Querystring: { installationId?: string; agentId?: string; status?: string; priority?: string; search?: string; limit?: string; before?: string } }>(
+  app.get<{ Querystring: { installationId?: string; agentId?: string; channelType?: string; reason?: string; status?: string; priority?: string; search?: string; limit?: string; cursor?: string; before?: string } }>(
     "/v1/conversations/handoffs",
     async (request) => {
       const auth = requireAuth(request, dependencies.config);
@@ -2198,10 +2198,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const queryInput = z.object({
         installationId: z.string().uuid().optional(),
         agentId: z.string().uuid().optional(),
+        channelType: z.string().trim().min(1).max(80).optional(),
+        reason: z.enum(["customer_requested", "agent_uncertain", "policy_required", "high_value", "configured_workflow", "other"]).optional(),
         status: z.string().optional(),
         priority: z.enum(["normal", "high", "urgent"]).optional(),
         search: z.string().trim().max(240).optional(),
         limit: z.coerce.number().int().min(1).max(100).optional(),
+        cursor: z.string().trim().max(512).optional(),
         before: z.string().datetime().optional(),
       }).parse(request.query);
       const statuses = queryInput.status
@@ -2230,6 +2233,61 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     },
   );
 
+  app.get<{ Params: { conversationId: string }; Querystring: { after?: string } }>(
+    "/v1/conversations/:conversationId/events/stream",
+    async (request, reply) => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "agents:read");
+      const conversationId = z.string().uuid().parse(request.params.conversationId);
+      if (!await handoffs.conversationExists(auth.organizationId, conversationId)) {
+        return reply.code(404).send({ error: "conversation_not_found" });
+      }
+      const parsedAfter = request.query.after === undefined ? 0 : Number(request.query.after);
+      if (!Number.isSafeInteger(parsedAfter) || parsedAfter < 0) return reply.code(400).send({ error: "invalid_after_cursor" });
+      reply.hijack();
+      const response = reply.raw;
+      response.writeHead(200, {
+        "content-type": "text/event-stream",
+        "cache-control": "no-cache, no-transform",
+        connection: "keep-alive",
+        "x-accel-buffering": "no",
+      });
+      let cursor = parsedAfter;
+      let closed = false;
+      let polling = false;
+      const close = (): void => {
+        if (closed) return;
+        closed = true;
+        clearInterval(timer);
+        response.end();
+      };
+      const poll = async (): Promise<void> => {
+        if (closed || polling) return;
+        polling = true;
+        try {
+          const events = await handoffs.listConversationEventsAfter(auth.organizationId, conversationId, cursor);
+          for (const event of events) response.write(formatSseEvent(event));
+          cursor = advanceSseCursor(cursor, events);
+          if (!events.length) response.write(formatSseComment("keep-alive"));
+        } catch {
+          if (!closed) {
+            response.write(`event: agent.stream_error\ndata: ${JSON.stringify({ error: "stream_poll_failed" })}\n\n`);
+            close();
+          }
+        } finally {
+          polling = false;
+        }
+      };
+      request.raw.on("close", close);
+      request.raw.on("aborted", close);
+      request.raw.socket?.on("close", close);
+      response.on("close", close);
+      response.on("error", close);
+      const timer = setInterval(() => void poll(), 1000);
+      await poll();
+    },
+  );
+
   app.get<{ Params: { handoffId: string } }>("/v1/conversations/handoffs/:handoffId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
@@ -2244,6 +2302,21 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const handoffId = z.string().uuid().parse(request.params.handoffId);
     return conversationControls.claim({ organizationId: auth.organizationId, handoffId, actorId: auth.actorId });
+  });
+
+  app.post<{ Params: { handoffId: string } }>("/v1/conversations/handoffs/:handoffId/release", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const handoffId = z.string().uuid().parse(request.params.handoffId);
+    const input = z.object({ reason: z.string().trim().max(2_000).optional() }).parse(request.body ?? {});
+    return conversationControls.release({ organizationId: auth.organizationId, handoffId, actorId: auth.actorId, reason: input.reason });
+  });
+
+  app.post<{ Params: { handoffId: string } }>("/v1/conversations/handoffs/:handoffId/expire", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const handoffId = z.string().uuid().parse(request.params.handoffId);
+    return conversationControls.expire({ organizationId: auth.organizationId, handoffId, actorId: auth.actorId });
   });
 
   app.post<{ Params: { handoffId: string } }>("/v1/conversations/handoffs/:handoffId/continue", async (request) => {

@@ -2147,6 +2147,8 @@ describe("Agent Platform HTTP foundation", () => {
       listLive: vi.fn(async () => ({ items: [{ conversation: { id: "22222222-2222-4222-8222-222222222222" }, run: { id: "44444444-4444-4444-8444-444444444444", status: "running" } }] })),
       getHandoff: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111" }, conversation: { id: "22222222-2222-4222-8222-222222222222" } })),
       claim: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111", status: "claimed" }, conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "human_owned" }, changed: true })),
+      release: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111", status: "pending" }, conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "handoff_requested" }, changed: true })),
+      expire: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111", status: "expired" }, conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "expired" }, changed: true })),
       continueWithAgent: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111", run_id: "44444444-4444-4444-8444-444444444444", metadata: { handoffKey: "support-handoff" }, status: "resolved" }, conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "agent_active" }, changed: true })),
       resolve: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111", status: "resolved" }, conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "resolved" }, changed: true })),
       sendHumanMessage: vi.fn(async () => ({
@@ -2164,6 +2166,8 @@ describe("Agent Platform HTTP foundation", () => {
     const live = await app.inject({ method: "GET", url: "/v1/conversations/live?search=acme&limit=10", headers });
     const detail = await app.inject({ method: "GET", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111", headers });
     const claimed = await app.inject({ method: "POST", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/claim", headers });
+    const released = await app.inject({ method: "POST", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/release", headers, payload: { reason: "coverage change" } });
+    const expired = await app.inject({ method: "POST", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/expire", headers });
     const continued = await app.inject({ method: "POST", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/continue", headers, payload: { resolution: "customer chose automation" } });
     const resolved = await app.inject({ method: "POST", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/resolve", headers, payload: { resolution: "completed" } });
     const message = await app.inject({ method: "POST", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/messages", headers: { ...headers, "idempotency-key": "human-message-1" }, payload: { text: "I can help." } });
@@ -2173,6 +2177,8 @@ describe("Agent Platform HTTP foundation", () => {
     expect(queue.json()).toMatchObject({ items: [{ handoff: { status: "pending" } }], nextBefore: null });
     expect(detail.statusCode).toBe(200);
     expect(claimed.json()).toMatchObject({ changed: true, conversation: { handoff_state: "human_owned" } });
+    expect(released.json()).toMatchObject({ changed: true, conversation: { handoff_state: "handoff_requested" } });
+    expect(expired.json()).toMatchObject({ changed: true, conversation: { handoff_state: "expired" } });
     expect(continued.json()).toMatchObject({ conversation: { handoff_state: "agent_active" } });
     expect(signalExternalEvent).toHaveBeenCalledWith("44444444-4444-4444-8444-444444444444", {
       key: "support-handoff",

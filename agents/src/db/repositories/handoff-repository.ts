@@ -30,6 +30,7 @@ export interface HandoffRequestRecord {
   resolution: string | null;
   metadata: Record<string, unknown>;
   idempotency_key: string;
+  expires_at: string;
   created_at: string;
   updated_at: string;
 }
@@ -59,10 +60,13 @@ export interface RequestedHandoff {
 export interface HandoffQueueFilters {
   installationId?: string;
   agentId?: string;
+  channelType?: string;
+  reason?: HandoffReason;
   status?: HandoffStatus | HandoffStatus[];
   priority?: HandoffPriority;
   search?: string;
   limit?: number;
+  cursor?: string;
   before?: string;
 }
 
@@ -73,6 +77,7 @@ export interface HandoffQueueItem {
 
 export interface HandoffQueuePage {
   items: HandoffQueueItem[];
+  nextCursor: string | null;
   nextBefore: string | null;
 }
 
@@ -110,10 +115,29 @@ function handoffError(message: string, code: string, statusCode = 409): Error {
   return Object.assign(new Error(message), { code, statusCode });
 }
 
+type HandoffCursor = { createdAt: string; id: string };
+
+function encodeCursor(value: HandoffCursor): string {
+  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+}
+
+function decodeCursor(value: string): HandoffCursor {
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as Partial<HandoffCursor>;
+    if (typeof parsed.createdAt !== "string" || Number.isNaN(Date.parse(parsed.createdAt)) || typeof parsed.id !== "string") {
+      throw new Error("invalid cursor");
+    }
+    return { createdAt: parsed.createdAt, id: parsed.id };
+  } catch {
+    throw handoffError("The handoff cursor is invalid", "handoff_cursor_invalid", 400);
+  }
+}
+
 export class HandoffRepository {
   public constructor(private readonly pool: Pool) {}
 
   public async listQueue(organizationId: string, filters: HandoffQueueFilters = {}): Promise<HandoffQueuePage> {
+    await this.expirePending(organizationId, 100);
     const where = ["h.organization_id = $1"];
     const values: unknown[] = [organizationId];
     const add = (sql: string, value: unknown): void => {
@@ -122,6 +146,8 @@ export class HandoffRepository {
     };
     if (filters.installationId) add("h.installation_id = $VALUE", filters.installationId);
     if (filters.agentId) add("h.agent_definition_id = $VALUE", filters.agentId);
+    if (filters.channelType) add("h.channel_type = $VALUE", filters.channelType);
+    if (filters.reason) add("h.reason = $VALUE", filters.reason);
     if (filters.priority) add("h.priority = $VALUE", filters.priority);
     if (filters.status) {
       const statuses = Array.isArray(filters.status) ? filters.status : [filters.status];
@@ -132,7 +158,11 @@ export class HandoffRepository {
       values.push(`%${filters.search.trim().replace(/[%_]/g, "\\$&")}%`);
       where.push(`(h.summary ILIKE $${values.length} ESCAPE '\\' OR h.customer_message ILIKE $${values.length} ESCAPE '\\')`);
     }
-    if (filters.before) {
+    if (filters.cursor) {
+      const cursor = decodeCursor(filters.cursor);
+      values.push(cursor.createdAt, cursor.id);
+      where.push(`(h.created_at, h.id) < ($${values.length - 1}::timestamptz, $${values.length})`);
+    } else if (filters.before) {
       values.push(filters.before);
       where.push(`h.created_at < $${values.length}::timestamptz`);
     }
@@ -149,9 +179,11 @@ export class HandoffRepository {
       values,
     );
     const rows = result.rows.slice(0, limit);
+    const last = rows.at(-1);
     return {
       items: rows.map((row) => ({ handoff: row, conversation: row.conversation })),
-      nextBefore: result.rows.length > limit ? rows.at(-1)?.created_at ?? null : null,
+      nextCursor: result.rows.length > limit && last ? encodeCursor({ createdAt: last.created_at, id: last.id }) : null,
+      nextBefore: result.rows.length > limit ? last?.created_at ?? null : null,
     };
   }
 
@@ -238,6 +270,32 @@ export class HandoffRepository {
         },
       })),
     };
+  }
+
+  public async conversationExists(organizationId: string, conversationId: string): Promise<boolean> {
+    const result = await query<{ exists: boolean }>(
+      this.pool,
+      "SELECT EXISTS (SELECT 1 FROM conversations WHERE organization_id = $1 AND id = $2 AND status <> 'deleted') AS exists",
+      [organizationId, conversationId],
+    );
+    return result.rows[0]?.exists === true;
+  }
+
+  public async listConversationEventsAfter(
+    organizationId: string,
+    conversationId: string,
+    afterSequence = 0,
+  ): Promise<Array<Record<string, unknown>>> {
+    const result = await query(
+      this.pool,
+      `SELECT sequence_number, event_type, payload, created_at
+       FROM agent_events
+       WHERE organization_id = $1 AND subject = $2 AND sequence_number > $3
+       ORDER BY sequence_number ASC
+       LIMIT 200`,
+      [organizationId, `conversation:${conversationId}`, afterSequence],
+    );
+    return result.rows as Array<Record<string, unknown>>;
   }
 
   public async requestHuman(input: RequestHumanInput): Promise<RequestedHandoff> {
@@ -392,6 +450,92 @@ export class HandoffRepository {
         payload: { status: "claimed" },
       });
       return { handoff: handoff.rows[0], conversation: conversation.rows[0], changed: true };
+    });
+  }
+
+  /** Return an assigned conversation to the pending operator queue. */
+  public async release(input: { organizationId: string; handoffId: string; actorId: string; reason?: string }): Promise<HandoffMutationResult> {
+    return withTransaction(this.pool, async (client) => {
+      const current = await this.lockMutationTarget(client, input.organizationId, input.handoffId);
+      if (current.handoff.status === "pending" && current.conversation.handoff_state === "handoff_requested") {
+        return { ...current, changed: false };
+      }
+      if (current.handoff.status !== "claimed" || current.conversation.handoff_state !== "human_owned") {
+        throw handoffError("Only a claimed human-owned handoff can be released", "handoff_not_claimed");
+      }
+      if (current.handoff.claimed_by !== input.actorId) {
+        throw handoffError("Only the assigned operator can release this handoff", "handoff_not_assigned", 403);
+      }
+      const resolution = (input.reason?.trim() || "released_by_operator").slice(0, 2_000);
+      const handoff = await client.query<HandoffRequestRecord>(
+        `UPDATE agent_handoff_requests
+         SET status = 'pending', claimed_by = NULL, claimed_at = NULL,
+             resolution = NULL, updated_at = now()
+         WHERE organization_id = $1 AND id = $2 AND status = 'claimed' AND claimed_by = $3
+         RETURNING *`,
+        [input.organizationId, input.handoffId, input.actorId],
+      );
+      const conversation = await client.query<ConversationRecord>(
+        `UPDATE conversations
+         SET handoff_state = 'handoff_requested', assigned_actor_id = NULL,
+             handoff_revision = handoff_revision + 1, updated_at = now()
+         WHERE organization_id = $1 AND id = $2 AND handoff_state = 'human_owned'
+         RETURNING *`,
+        [input.organizationId, current.conversation.id],
+      );
+      if (!handoff.rows[0] || !conversation.rows[0]) throw handoffError("Handoff release could not be committed", "handoff_release_conflict");
+      await this.appendLifecycleEvent(client, {
+        eventType: "conversation.handoff.released",
+        handoff: handoff.rows[0],
+        conversation: conversation.rows[0],
+        actorType: "user",
+        actorId: input.actorId,
+        payload: { status: "pending", resolution: "released", resolutionCode: resolution },
+      });
+      return { handoff: handoff.rows[0], conversation: conversation.rows[0], changed: true };
+    });
+  }
+
+  /** Expire one pending request. Used by operators and the queue sweeper. */
+  public async expire(input: { organizationId: string; handoffId: string; actorId?: string }): Promise<HandoffMutationResult> {
+    return withTransaction(this.pool, async (client) => {
+      const current = await this.lockMutationTarget(client, input.organizationId, input.handoffId);
+      if (current.handoff.status === "expired" && current.conversation.handoff_state === "expired") {
+        return { ...current, changed: false };
+      }
+      if (current.handoff.status !== "pending" || current.conversation.handoff_state !== "handoff_requested") {
+        throw handoffError("Only a pending handoff can expire", "handoff_not_pending");
+      }
+      return this.expireLocked(client, current, input.actorId ?? "system:handoff-expiry");
+    });
+  }
+
+  /** Claim and expire a bounded batch without holding locks across batches. */
+  public async expirePending(organizationId?: string, limit = 100): Promise<number> {
+    return withTransaction(this.pool, async (client) => {
+      const values: unknown[] = [];
+      const where = ["status = 'pending'", "expires_at <= now()"];
+      if (organizationId) {
+        values.push(organizationId);
+        where.push(`organization_id = $${values.length}`);
+      }
+      values.push(Math.max(1, Math.min(limit, 500)));
+      const expired = await client.query<{ id: string; organization_id: string }>(
+        `SELECT id, organization_id FROM agent_handoff_requests
+         WHERE ${where.join(" AND ")}
+         ORDER BY expires_at ASC, id ASC
+         FOR UPDATE SKIP LOCKED
+         LIMIT $${values.length}`,
+        values,
+      );
+      let count = 0;
+      for (const row of expired.rows) {
+        const current = await this.lockMutationTarget(client, row.organization_id, row.id);
+        if (current.handoff.status !== "pending" || current.conversation.handoff_state !== "handoff_requested") continue;
+        await this.expireLocked(client, current, "system:handoff-expiry");
+        count += 1;
+      }
+      return count;
     });
   }
 
@@ -640,7 +784,11 @@ export class HandoffRepository {
             ? "continued"
             : input.eventType === "conversation.handoff.resolved"
               ? "resolved"
-              : undefined;
+              : input.eventType === "conversation.handoff.released"
+                ? "released"
+                : input.eventType === "conversation.handoff.expired"
+                  ? "expired"
+                  : undefined;
     if (!action) throw new Error(`Unsupported handoff lifecycle event ${input.eventType}`);
     const occurredAt = new Date().toISOString();
     const analyticsAttributes: Record<string, unknown> = {
@@ -663,7 +811,8 @@ export class HandoffRepository {
     };
     if (typeof input.payload.messageId === "string") analyticsAttributes.message_id = input.payload.messageId;
     if (typeof input.payload.deliveryStatus === "string") analyticsAttributes.delivery_status = input.payload.deliveryStatus;
-    if (typeof input.payload.resolution === "string") analyticsAttributes.resolution_code = input.payload.resolution;
+    if (typeof input.payload.resolutionCode === "string") analyticsAttributes.resolution_code = input.payload.resolutionCode;
+    else if (typeof input.payload.resolution === "string") analyticsAttributes.resolution_code = input.payload.resolution;
     const recordSuffix = typeof input.payload.messageId === "string"
       ? `${action}:${input.payload.messageId}`
       : action;
@@ -681,6 +830,34 @@ export class HandoffRepository {
       correlationId: input.handoff.run_id ?? undefined,
       idempotencyKey: `agent-platform:handoff:${input.handoff.id}:${recordSuffix}`,
     }));
+  }
+
+  private async expireLocked(client: PoolClient, current: HandoffQueueItem, actorId: string): Promise<HandoffMutationResult> {
+    const handoff = await client.query<HandoffRequestRecord>(
+      `UPDATE agent_handoff_requests
+       SET status = 'expired', resolved_by = $3, resolved_at = now(), resolution = 'expired', updated_at = now()
+       WHERE organization_id = $1 AND id = $2 AND status = 'pending'
+       RETURNING *`,
+      [current.handoff.organization_id, current.handoff.id, actorId],
+    );
+    const conversation = await client.query<ConversationRecord>(
+      `UPDATE conversations
+       SET handoff_state = 'expired', assigned_actor_id = NULL,
+           handoff_revision = handoff_revision + 1, handoff_resolved_at = now(), updated_at = now()
+       WHERE organization_id = $1 AND id = $2 AND handoff_state = 'handoff_requested'
+       RETURNING *`,
+      [current.conversation.organization_id, current.conversation.id],
+    );
+    if (!handoff.rows[0] || !conversation.rows[0]) throw handoffError("Handoff expiry could not be committed", "handoff_expiry_conflict");
+    await this.appendLifecycleEvent(client, {
+      eventType: "conversation.handoff.expired",
+      handoff: handoff.rows[0],
+      conversation: conversation.rows[0],
+      actorType: actorId.startsWith("system:") ? "system" : "user",
+      actorId,
+      payload: { status: "expired", resolution: "expired", resolutionCode: "deadline" },
+    });
+    return { handoff: handoff.rows[0], conversation: conversation.rows[0], changed: true };
   }
 
   private async lockMutationTarget(client: PoolClient, organizationId: string, handoffId: string): Promise<HandoffQueueItem> {

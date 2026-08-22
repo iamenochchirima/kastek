@@ -344,6 +344,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::post().to(agent_platform::claim_handoff),
             )
             .route(
+                "/conversations/handoffs/{handoffId}/release",
+                web::post().to(agent_platform::release_handoff),
+            )
+            .route(
+                "/conversations/handoffs/{handoffId}/expire",
+                web::post().to(agent_platform::expire_handoff),
+            )
+            .route(
                 "/conversations/handoffs/{handoffId}/continue",
                 web::post().to(agent_platform::continue_handoff),
             )
@@ -434,6 +442,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route(
                 "/conversations/live",
                 web::get().to(agent_platform::list_live_conversations),
+            )
+            .route(
+                "/conversations/{conversationId}/events/stream",
+                web::get().to(agent_platform::stream_conversation),
             )
             .route("/runs/{runId}", web::get().to(agent_platform::get_run))
             .route(

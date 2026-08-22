@@ -43,7 +43,7 @@ This plan covers the split between personal and customer-service agents, custome
 - [x] Support an explicit customer request for a human through the standard `conversation.request_human` capability.
 - [x] Route the configured workflow handoff node through the same handoff action service.
 - [x] Record reason code, triggering message, triggering run, agent/version/installation, channel, and timestamps.
-- [ ] Define queue, timeout/expiry, eligible claimers, and fallback behavior.
+- [x] Define a 24-hour pending deadline, transactional expiry, operator release, and system-expiry fallback behavior.
 - [ ] Leave confidence, sentiment, business-hours, and advanced routing for a later extension.
 
 ## 5. Conversation ownership and state machine
@@ -67,18 +67,18 @@ This plan covers the split between personal and customer-service agents, custome
 - [x] List live conversations with organization-scoped installation, agent, search, and bounded-limit filters; cursor pagination remains pending.
 - [ ] Get transcript, participants, active runs, ownership, and handoff history.
 - [x] Add atomic claim, pause/stop, resume, human-message, and resolve operations.
-- [ ] Add release and expiry operations.
+- [x] Add release and expiry operations with organization-scoped operator APIs.
 - [ ] Apply organization scope, permissions, idempotency keys, and optimistic concurrency.
 - [x] Apply organization scoping and read/write scopes to the operator API; keep handoff creation idempotent and claims transactionally race-safe.
 - [x] Emit transactional handoff lifecycle events to `agent_events` for request, claim, human message, continue, and resolve transitions.
-- [ ] Emit lifecycle events compatible with the analytics handoff contract.
-- [x] Add polling refresh for live and handoff views; realtime updates remain pending.
+- [x] Emit lifecycle events compatible with the analytics handoff contract.
+- [x] Add polling refresh and authenticated conversation SSE updates; polling remains the reconnect fallback.
 
 ## 7. Agent Conversations live interface
 
 - [x] Add `/agents/conversations`.
 - [x] Add Handoff requests, Human owned, and All views; Agent live remains tied to active-run data.
-- [ ] Add agent, channel, status, reason, priority, and search filters.
+- [x] Add channel, status, reason, priority, search, and cursor filters to the handoff queue API.
 - [x] Build responsive list/detail navigation for desktop, tablet, and mobile.
 - [ ] Show customer, agent, human, and system attribution.
 - [x] Add Take over, Continue with agent, Resolve, Stop response, and Send as human controls.

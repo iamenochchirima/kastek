@@ -36,6 +36,14 @@ export class ConversationControlService {
     return this.handoffs.resolve(input);
   }
 
+  public release(input: { organizationId: string; handoffId: string; actorId: string; reason?: string }): Promise<HandoffMutationResult> {
+    return this.handoffs.release(input);
+  }
+
+  public expire(input: { organizationId: string; handoffId: string; actorId?: string }): Promise<HandoffMutationResult> {
+    return this.handoffs.expire(input);
+  }
+
   public sendHumanMessage(input: {
     organizationId: string;
     handoffId: string;

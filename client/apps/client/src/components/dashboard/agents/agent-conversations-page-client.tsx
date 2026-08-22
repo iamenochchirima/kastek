@@ -28,6 +28,7 @@ import {
   listAgentHandoffs,
   resolveAgentHandoff,
   sendAgentHumanMessage,
+  streamAgentConversation,
   type AgentMessage,
   type AgentHandoffQueue,
   type AgentHandoffQueueItem,
@@ -156,6 +157,23 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
       cancelled = true;
     };
   }, [activeConversationId]);
+
+  useEffect(() => {
+    if (!activeConversationId) return;
+    const controller = new AbortController();
+    const refreshConversation = () => {
+      void getPlatformConversation(activeConversationId, { limit: 100 })
+        .then((result) => {
+          if (controller.signal.aborted) return;
+          setMessages(result.messages ?? []);
+          setActiveRuns((result.activeRuns ?? []).map((run) => ({ id: run.id, status: run.status })));
+        })
+        .catch(() => undefined);
+      void loadQueue(view, true);
+    };
+    void streamAgentConversation(activeConversationId, refreshConversation, controller.signal).catch(() => undefined);
+    return () => controller.abort();
+  }, [activeConversationId, loadQueue, view]);
 
   async function mutate(id: string, action: "claim" | "continue" | "resolve") {
     setBusy(`${action}:${id}`);

@@ -1517,19 +1517,25 @@ impl AgentPlatformClient {
         actor_id: &str,
         installation_id: Option<&str>,
         agent_id: Option<&str>,
+        channel_type: Option<&str>,
+        reason: Option<&str>,
         status: Option<&str>,
         priority: Option<&str>,
         search: Option<&str>,
         limit: Option<u32>,
+        cursor: Option<&str>,
         before: Option<&str>,
     ) -> Result<Value, AppError> {
         let mut query = Vec::new();
         for (key, value) in [
             ("installationId", installation_id),
             ("agentId", agent_id),
+            ("channelType", channel_type),
+            ("reason", reason),
             ("status", status),
             ("priority", priority),
             ("search", search),
+            ("cursor", cursor),
             ("before", before),
         ] {
             if let Some(value) = value.filter(|value| !value.trim().is_empty()) {
@@ -1593,6 +1599,44 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn stream_conversation_events(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        conversation_id: &str,
+        after: Option<u64>,
+    ) -> Result<Response, AppError> {
+        let mut url = format!(
+            "{}/v1/conversations/{conversation_id}/events/stream",
+            self.base_url
+        );
+        if let Some(after) = after {
+            url.push_str(&format!("?after={after}"));
+        }
+        let correlation_id = new_correlation_id();
+        let response = self
+            .client
+            .get(url)
+            .header("accept", "text/event-stream")
+            .header(
+                "Authorization",
+                format!(
+                    "Bearer {}",
+                    self.token(organization_id, actor_id, &["agents:read"], &correlation_id)?
+                ),
+            )
+            .header("x-organization-id", organization_id)
+            .header("x-actor-id", actor_id)
+            .header("x-correlation-id", &correlation_id)
+            .send()
+            .await
+            .map_err(|error| self.map_request_error(error))?;
+        if response.status().is_success() {
+            return Ok(response);
+        }
+        Err(self.map_status(response).await)
+    }
+
     pub async fn get_handoff(
         &self,
         organization_id: &str,
@@ -1619,6 +1663,41 @@ impl AgentPlatformClient {
         self.request_json(
             Method::POST,
             &format!("/v1/conversations/handoffs/{handoff_id}/claim"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(json!({})),
+        )
+        .await
+    }
+
+    pub async fn release_handoff(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        handoff_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/conversations/handoffs/{handoff_id}/release"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn expire_handoff(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        handoff_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/conversations/handoffs/{handoff_id}/expire"),
             organization_id,
             actor_id,
             &["agents:write"],

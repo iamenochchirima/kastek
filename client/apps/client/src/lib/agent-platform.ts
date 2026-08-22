@@ -116,6 +116,7 @@ export type AgentHandoffRequest = {
   resolution?: string | null;
   metadata?: Record<string, unknown>;
   idempotency_key?: string;
+  expires_at?: string;
   created_at: string;
   updated_at: string;
 };
@@ -127,6 +128,7 @@ export type AgentHandoffQueueItem = {
 
 export type AgentHandoffQueue = {
   items: AgentHandoffQueueItem[];
+  nextCursor?: string | null;
   nextBefore: string | null;
 };
 
@@ -149,8 +151,11 @@ export function listAgentHandoffs(filters: {
   agentId?: string;
   status?: AgentHandoffStatus[];
   priority?: AgentHandoffPriority;
+  channelType?: string;
+  reason?: string;
   search?: string;
   limit?: number;
+  cursor?: string;
   before?: string;
 } = {}): Promise<AgentHandoffQueue> {
   const query = new URLSearchParams();
@@ -158,8 +163,11 @@ export function listAgentHandoffs(filters: {
   if (filters.agentId) query.set("agentId", filters.agentId);
   if (filters.status?.length) query.set("status", filters.status.join(","));
   if (filters.priority) query.set("priority", filters.priority);
+  if (filters.channelType) query.set("channelType", filters.channelType);
+  if (filters.reason) query.set("reason", filters.reason);
   if (filters.search) query.set("search", filters.search);
   if (filters.limit) query.set("limit", String(filters.limit));
+  if (filters.cursor) query.set("cursor", filters.cursor);
   if (filters.before) query.set("before", filters.before);
   const suffix = query.toString() ? `?${query.toString()}` : "";
   return request<AgentHandoffQueue>(`/api/agents/conversations/handoffs${suffix}`);
@@ -194,6 +202,20 @@ export function resolveAgentHandoff(handoffId: string, resolution?: string): Pro
   return request(`/api/agents/conversations/handoffs/${encodeURIComponent(handoffId)}/resolve`, {
     method: "POST",
     body: JSON.stringify(resolution ? { resolution } : {}),
+  });
+}
+
+export function releaseAgentHandoff(handoffId: string, reason?: string): Promise<AgentHandoffMutation> {
+  return request(`/api/agents/conversations/handoffs/${encodeURIComponent(handoffId)}/release`, {
+    method: "POST",
+    body: JSON.stringify(reason ? { reason } : {}),
+  });
+}
+
+export function expireAgentHandoff(handoffId: string): Promise<AgentHandoffMutation> {
+  return request(`/api/agents/conversations/handoffs/${encodeURIComponent(handoffId)}/expire`, {
+    method: "POST",
+    body: JSON.stringify({}),
   });
 }
 
@@ -1211,6 +1233,58 @@ export async function streamAgentRun(
       if (buffer.trim()) dataLines.push(buffer.trim());
       flush();
       return { lastSequence, terminal };
+    }
+  }
+}
+
+export async function streamAgentConversation(
+  conversationId: string,
+  onEvent: (event: AgentStreamEvent) => void,
+  signal: AbortSignal,
+  after = 0,
+): Promise<number> {
+  const query = after > 0 ? `?after=${after}` : "";
+  const response = await fetch(apiUrl(`/api/agents/conversations/${encodeURIComponent(conversationId)}/events/stream${query}`), {
+    credentials: "include",
+    signal,
+    headers: { Accept: "text/event-stream" },
+  });
+  if (!response.ok || !response.body) {
+    throw new AgentRequestError(`Conversation stream failed (${response.status})`, response.status);
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let eventName = "message";
+  let lastSequence = after;
+  let dataLines: string[] = [];
+  const flush = () => {
+    if (!dataLines.length) return;
+    try {
+      const data = JSON.parse(dataLines.join("\n")) as Record<string, unknown>;
+      const sequence = Number(data.sequence_number);
+      if (Number.isSafeInteger(sequence) && sequence > lastSequence) lastSequence = sequence;
+      onEvent({ event: eventName, data });
+    } catch {
+      // Ignore keep-alives and malformed intermediary chunks.
+    }
+    eventName = "message";
+    dataLines = [];
+  };
+  while (true) {
+    const chunk = await reader.read();
+    buffer += decoder.decode(chunk.value ?? new Uint8Array(), { stream: !chunk.done });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const rawLine of lines) {
+      const line = rawLine.replace(/\r$/, "");
+      if (line === "") flush();
+      else if (line.startsWith("event:")) eventName = line.slice(6).trim();
+      else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+    }
+    if (chunk.done) {
+      flush();
+      return lastSequence;
     }
   }
 }
