@@ -25,8 +25,8 @@ use super::whatsapp::{
     media_kind_from_upload, normalize_phone, org_connection_ids, parse_conversation_identifier,
     preview_text, publish_conversation_updated, publish_message_created,
     publish_message_send_failed, publish_message_updated, sanitize_filename, scoped_conversation,
-    send_marketing_template, send_text_message, whatsapp_http_client, PendingInboxMessageRow,
-    GRAPH_BASE,
+    send_marketing_template, send_reply_button_message, send_text_message, whatsapp_http_client,
+    PendingInboxMessageRow, WhatsappReplyButton, GRAPH_BASE,
 };
 pub async fn deliver_agent_message(
     pool: &PgPool,
@@ -34,6 +34,7 @@ pub async fn deliver_agent_message(
     conversation_id: &str,
     text: &str,
     idempotency_key: &str,
+    buttons: &[WhatsappReplyButton],
 ) -> Result<Value, AppError> {
     let idempotency_key = validate_agent_delivery_idempotency_key(idempotency_key)?;
     let conversation = scoped_conversation(pool, org_id, conversation_id)
@@ -98,14 +99,26 @@ pub async fn deliver_agent_message(
     .bind(org_id)
     .execute(pool)
     .await?;
-    let send_result = send_text_message(
-        &connection.phone_number_id,
-        &access_token,
-        &phone,
-        text,
-        None,
-    )
-    .await;
+    let send_result = if buttons.is_empty() {
+        send_text_message(
+            &connection.phone_number_id,
+            &access_token,
+            &phone,
+            text,
+            None,
+        )
+        .await
+    } else {
+        send_reply_button_message(
+            &connection.phone_number_id,
+            &access_token,
+            &phone,
+            text,
+            buttons,
+            None,
+        )
+        .await
+    };
     match send_result {
         Ok((provider_message_id, _)) => {
             sqlx::query(

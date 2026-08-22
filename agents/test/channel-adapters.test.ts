@@ -16,6 +16,24 @@ describe("thin external channel adapters", () => {
     expect(photo.message.content).not.toHaveProperty("url");
   });
 
+  it("normalizes Telegram approval callback queries without creating a text message", () => {
+    const event = new TelegramChannelAdapter().normalizeInbound({
+      update_id: 11,
+      callback_query: {
+        id: "callback-1",
+        data: "ka_approval_action",
+        from: { id: 10, first_name: "Ada" },
+        message: { message_id: 12, chat: { id: 11, type: "private" } },
+      },
+    });
+    expect(event).toMatchObject({
+      externalIdentity: "10",
+      externalConversationId: "11",
+      approvalAction: { token: "ka_approval_action", callbackQueryId: "callback-1" },
+      message: { messageType: "command", content: { name: "agent_approval" } },
+    });
+  });
+
   it("rejects Telegram updates without stable routing identifiers", () => {
     expect(() => new TelegramChannelAdapter().normalizeInbound({ update_id: 12, message: { message_id: 13, chat: { id: 14 } } })).toThrow("Invalid Telegram update");
   });

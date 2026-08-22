@@ -50,6 +50,7 @@ describe.skipIf(!runIntegration)("Temporal workflow recovery (integration)", () 
         };
       },
       pauseRun: async () => { calls.push("pause"); },
+      deliverApprovalPrompt: async () => { calls.push("approval-prompt"); },
       cancelPendingApproval: async () => { calls.push("cancel"); },
       cancelHandoff: async () => { calls.push("cancel-handoff"); },
       completeRun: async () => { calls.push("complete"); },
@@ -116,6 +117,7 @@ describe.skipIf(!runIntegration)("Temporal workflow recovery (integration)", () 
         toolCalls: 1,
       }),
       pauseRun: async () => { calls.push("pause"); },
+      deliverApprovalPrompt: async () => { calls.push("approval-prompt"); },
       cancelPendingApproval: async () => { calls.push("cancel-approval"); },
       cancelHandoff: async () => { calls.push("cancel-handoff"); },
       completeRun: async () => { calls.push("complete"); },

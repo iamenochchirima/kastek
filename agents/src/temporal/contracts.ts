@@ -47,6 +47,7 @@ export interface AgentRunActivities {
   transitionRun(input: TransitionRunActivityInput): Promise<void>;
   executeLoop(input: DurableRunInput): Promise<AgentLoopResult>;
   pauseRun(input: { runId: string; status: "awaiting_approval" | "awaiting_human" | "awaiting_external_event"; output: Record<string, unknown> }): Promise<void>;
+  deliverApprovalPrompt(input: { runId: string }): Promise<void>;
   cancelPendingApproval(input: { runId: string; providerToolCallId: string; reason?: string; outcome?: "cancelled" | "expired" }): Promise<void>;
   cancelHandoff(input: { runId: string; reason?: string }): Promise<void>;
   completeRun(input: { runId: string; output: Record<string, unknown> }): Promise<void>;

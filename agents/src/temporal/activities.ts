@@ -42,6 +42,7 @@ import { buildDomainApprovalSnapshot, projectBookingApprovalResource, projectCam
 import { ConversationActionService } from "../actions/conversation-actions";
 import type { RequestHumanArguments } from "../actions/conversation-actions";
 import { HandoffRepository } from "../db/repositories/handoff-repository";
+import { createChannelApprovalActionToken } from "../approval/channel-action";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -1080,6 +1081,99 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     },
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
+    },
+    async deliverApprovalPrompt(input) {
+      const run = await runs.getRuntimeRunById(input.runId);
+      if (!run) throw new Error("Run not found");
+      const target = await channels.getApprovalPromptTarget(run.id);
+      if (!target) {
+        await runs.appendEvent({
+          organizationId: run.organization_id,
+          runId: run.id,
+          installationId: run.installation_id,
+          eventType: "agent.approval.prompt_skipped",
+          payload: { reason: "no_owner_channel" },
+        });
+        return;
+      }
+      const approval = await approvals.getForRun(run.organization_id, run.id);
+      const secret = options.config?.INTERNAL_AUTH_SECRET?.trim();
+      if (!approval || approval.status !== "pending" || !secret) {
+        await runs.appendEvent({
+          organizationId: run.organization_id,
+          runId: run.id,
+          installationId: run.installation_id,
+          eventType: "agent.approval.prompt_skipped",
+          payload: { reason: !secret ? "approval_signing_not_configured" : "approval_not_pending" },
+        });
+        return;
+      }
+      const approve = createChannelApprovalActionToken({
+        approvalId: approval.id,
+        organizationId: target.organization_id,
+        installationId: target.installation_id,
+        runId: target.run_id,
+        providerToolCallId: approval.provider_tool_call_id,
+        argumentsHash: approval.arguments_hash,
+        bindingId: target.binding_id,
+        channelType: target.channel_type,
+        externalIdentity: target.external_identity,
+        externalConversationId: target.external_conversation_id,
+        decision: "approved",
+        expiresAt: approval.expires_at,
+      }, secret);
+      const reject = createChannelApprovalActionToken({
+        approvalId: approval.id,
+        organizationId: target.organization_id,
+        installationId: target.installation_id,
+        runId: target.run_id,
+        providerToolCallId: approval.provider_tool_call_id,
+        argumentsHash: approval.arguments_hash,
+        bindingId: target.binding_id,
+        channelType: target.channel_type,
+        externalIdentity: target.external_identity,
+        externalConversationId: target.external_conversation_id,
+        decision: "rejected",
+        expiresAt: approval.expires_at,
+      }, secret);
+      const prompt = `Approval required: ${approval.capability}`;
+      try {
+        if (target.channel_type === "telegram") {
+          if (!channelCredentials || !telegramClient || !target.credential_reference) throw new Error("Telegram approval prompt is not configured");
+          const token = await channelCredentials.resolve(target.organization_id, target.credential_reference, "telegram");
+          await telegramClient.sendApprovalPrompt(token, target.external_conversation_id, prompt, { approve, reject });
+        } else if (target.channel_type === "whatsapp") {
+          if (!coreClient) throw new Error("WhatsApp approval prompt boundary is not configured");
+          await coreClient.deliverChannelMessage({
+            organizationId: target.organization_id,
+            installationId: target.installation_id,
+            actorId: target.owner_actor_id,
+            runId: target.run_id,
+            correlationId: run.correlation_id,
+            channelType: "whatsapp",
+            externalConversationId: target.external_conversation_id,
+            text: prompt,
+            buttons: [{ id: approve, title: "Approve" }, { id: reject, title: "Deny" }],
+          });
+        } else {
+          throw new Error(`Unsupported approval prompt channel: ${target.channel_type}`);
+        }
+        await runs.appendEvent({
+          organizationId: run.organization_id,
+          runId: run.id,
+          installationId: run.installation_id,
+          eventType: "agent.approval.prompt_delivered",
+          payload: { channelType: target.channel_type, bindingId: target.binding_id },
+        });
+      } catch (error) {
+        await runs.appendEvent({
+          organizationId: run.organization_id,
+          runId: run.id,
+          installationId: run.installation_id,
+          eventType: "agent.approval.prompt_failed",
+          payload: { channelType: target.channel_type, error: error instanceof Error ? error.message : "approval_prompt_failed" },
+        });
+      }
     },
     async cancelPendingApproval(input) {
       const run = await runs.getRuntimeRunById(input.runId);

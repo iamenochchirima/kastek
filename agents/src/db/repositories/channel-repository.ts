@@ -69,6 +69,19 @@ export interface RunReplyDeliveryRecord {
   credential_reference: string | null;
 }
 
+export interface ApprovalPromptTargetRecord {
+  organization_id: string;
+  run_id: string;
+  installation_id: string;
+  binding_id: string;
+  channel_connection_id: string;
+  channel_type: string;
+  external_identity: string;
+  external_conversation_id: string;
+  credential_reference: string | null;
+  owner_actor_id: string;
+}
+
 export interface ChannelPairingResult {
   id: string;
   organization_id: string;
@@ -390,6 +403,50 @@ export class ChannelRepository {
        ORDER BY da.attempt_number DESC
        LIMIT 1`,
       [runId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  public async getApprovalPromptTarget(runId: string): Promise<ApprovalPromptTargetRecord | null> {
+    const result = await query<ApprovalPromptTargetRecord>(
+      this.pool,
+      `SELECT ar.organization_id, ar.id AS run_id, ar.installation_id,
+              cb.id AS binding_id, cb.channel_connection_id, cb.channel_type, cb.external_identity,
+              inbound.external_conversation_id, cc.credential_reference,
+              cb.owner_actor_id
+       FROM agent_runs ar
+       JOIN channel_bindings cb ON cb.id = ar.reply_binding_id
+       JOIN channel_connections cc ON cc.id = cb.channel_connection_id
+       JOIN LATERAL (
+         SELECT m.external_conversation_id
+         FROM messages m
+         WHERE m.run_id = ar.id AND m.direction = 'inbound'
+           AND m.external_conversation_id IS NOT NULL
+         ORDER BY m.sequence_number ASC
+         LIMIT 1
+       ) inbound ON true
+       WHERE ar.id = $1
+         AND ar.reply_channel_type IN ('telegram', 'whatsapp')
+         AND cb.status = 'active' AND cc.status = 'active'
+         AND cb.owner_actor_id IS NOT NULL
+       LIMIT 1`,
+      [runId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  public async getActiveBindingForIdentity(input: { organizationId: string; channelType: string; externalIdentity: string }): Promise<ChannelBindingRecord | null> {
+    const result = await query<ChannelBindingRecord>(
+      this.pool,
+      `SELECT cb.*
+       FROM channel_bindings cb
+       JOIN channel_connections cc ON cc.id = cb.channel_connection_id
+       JOIN agent_installations ai ON ai.id = cb.installation_id
+       WHERE cb.organization_id = $1 AND cb.channel_type = $2
+         AND cb.external_identity = $3 AND cb.status = 'active'
+         AND cc.status = 'active' AND ai.status = 'active'
+       LIMIT 1`,
+      [input.organizationId, input.channelType, input.externalIdentity],
     );
     return result.rows[0] ?? null;
   }

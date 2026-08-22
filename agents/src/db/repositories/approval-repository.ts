@@ -31,6 +31,15 @@ export interface ApprovalDecisionResult {
 export class ApprovalRepository {
   public constructor(private readonly pool: Pool) {}
 
+  public async getById(organizationId: string, approvalId: string): Promise<ApprovalRecord | null> {
+    const result = await query<ApprovalRecord>(
+      this.pool,
+      `SELECT * FROM agent_approval_records WHERE organization_id = $1 AND id = $2 LIMIT 1`,
+      [organizationId, approvalId],
+    );
+    return result.rows[0] ?? null;
+  }
+
   public async getForRun(organizationId: string, runId: string): Promise<ApprovalRecord | null> {
     const result = await query<ApprovalRecord>(
       this.pool,

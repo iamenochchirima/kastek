@@ -10,6 +10,37 @@ export class TelegramChannelAdapter implements ChannelAdapter {
 
   public normalizeInbound(payload: unknown): CanonicalChannelEvent {
     const update = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+    const callbackQuery = update.callback_query && typeof update.callback_query === "object" ? update.callback_query as Record<string, unknown> : undefined;
+    if (callbackQuery) {
+      const from = callbackQuery.from && typeof callbackQuery.from === "object" ? callbackQuery.from as Record<string, unknown> : {};
+      const message = callbackQuery.message && typeof callbackQuery.message === "object" ? callbackQuery.message as Record<string, unknown> : {};
+      const chat = message.chat && typeof message.chat === "object" ? message.chat as Record<string, unknown> : {};
+      const updateId = update.update_id;
+      const callbackId = callbackQuery.id;
+      const senderId = from.id;
+      const conversationId = chat.id;
+      const callbackData = callbackQuery.data;
+      const messageId = message.message_id;
+      if (![updateId, callbackId, senderId, conversationId, callbackData].every((value) => typeof value === "number" || typeof value === "string")) throw new Error("Invalid Telegram callback query");
+      return {
+        provider: "telegram",
+        providerEventId: String(updateId),
+        channelType: this.channelType,
+        externalIdentity: String(senderId),
+        externalConversationId: String(conversationId),
+        message: {
+          direction: "inbound",
+          messageType: "command",
+          content: { name: "agent_approval", arguments: { token: String(callbackData) } },
+          ...(typeof messageId === "number" || typeof messageId === "string" ? { providerMessageId: String(messageId) } : {}),
+        },
+        approvalAction: { token: String(callbackData), callbackQueryId: String(callbackId) },
+        metadata: {
+          senderDisplayName: [from.first_name, from.last_name].filter((value): value is string => typeof value === "string").join(" ") || undefined,
+          chatType: chat.type,
+        },
+      };
+    }
     const message = update.message && typeof update.message === "object" ? update.message as Record<string, unknown> : {};
     const from = message.from && typeof message.from === "object" ? message.from as Record<string, unknown> : {};
     const chat = message.chat && typeof message.chat === "object" ? message.chat as Record<string, unknown> : {};

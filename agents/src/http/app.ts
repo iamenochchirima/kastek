@@ -96,6 +96,7 @@ import { acknowledgeOperatorNotification, getOperatorProjection, listOperatorNot
 import { ConversationActionService } from "../actions/conversation-actions";
 import { ConversationControlService } from "../actions/conversation-controls";
 import { HandoffRepository } from "../db/repositories/handoff-repository";
+import { verifyChannelApprovalActionToken, type ChannelApprovalDecision } from "../approval/channel-action";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -461,6 +462,108 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }),
   });
 
+  const decideApproval = async (input: {
+    organizationId: string;
+    runId: string;
+    providerToolCallId: string;
+    argumentsHash: string;
+    decision: ChannelApprovalDecision;
+    approvedBy: string;
+    rateLimitKey: string;
+  }) => {
+    const run = await runs.getRun(input.organizationId, input.runId);
+    if (!run) throw Object.assign(new Error("run_not_found"), { statusCode: 404, code: "run_not_found" });
+    const approvalRecord = await approvals.getForRun(input.organizationId, input.runId);
+    const recordedDecision = input.decision === "approved" ? ["approved", "consumed"] : ["denied"];
+    if (approvalRecord
+      && approvalRecord.provider_tool_call_id === input.providerToolCallId
+      && approvalRecord.arguments_hash === input.argumentsHash
+      && approvalRecord.installation_id === run.installation_id
+      && recordedDecision.includes(approvalRecord.status)
+      && approvalRecord.approved_by === input.approvedBy) {
+      return { accepted: false, approval: approvalRecord };
+    }
+    if (run.status !== "awaiting_approval") {
+      throw Object.assign(new Error("run_not_awaiting_approval"), { statusCode: 409, code: "run_not_awaiting_approval" });
+    }
+    if (!dependencies.signalApproval) {
+      throw Object.assign(new Error("temporal_not_configured"), { statusCode: 503, code: "temporal_not_configured" });
+    }
+    if (!approvalRecord || approvalRecord.provider_tool_call_id !== input.providerToolCallId || approvalRecord.arguments_hash !== input.argumentsHash || approvalRecord.installation_id !== run.installation_id) {
+      throw Object.assign(new Error("approval_not_found"), { statusCode: 404, code: "approval_not_found" });
+    }
+    const installation = await agents.getInstallation(input.organizationId, run.installation_id);
+    if (!installation || installation.status !== "active") {
+      throw Object.assign(new Error("installation_not_active"), { statusCode: 403, code: "installation_not_active" });
+    }
+    const proposal = await toolInvocations.getProposal(input.organizationId, input.runId, input.providerToolCallId);
+    if (!proposal || proposal.toolName !== approvalRecord.capability || proposal.toolVersion !== approvalRecord.capability_version || proposal.argumentsHash !== input.argumentsHash) {
+      throw Object.assign(new Error("approval_proposal_mismatch"), { statusCode: 409, code: "approval_proposal_mismatch" });
+    }
+    const grantedTools = await toolGrants.effectiveTools(input.organizationId, installation.agent_version_id, installation.id);
+    try {
+      await authorizeInstallationCapability({
+        organizationId: input.organizationId,
+        installationId: installation.id,
+        name: approvalRecord.capability,
+        argumentsValue: proposal.arguments,
+        grantedTools,
+        tools: toolRegistry,
+        installationGrants,
+        approved: false,
+        enforceApproval: false,
+      });
+    } catch (error) {
+      throw Object.assign(new Error("approval_policy_changed"), {
+        statusCode: 403,
+        code: "approval_policy_changed",
+        detail: error instanceof Error ? error.message : "CAPABILITY_NOT_GRANTED",
+      });
+    }
+    const rateLimit = approvalDecisionRateLimiter.consume(input.rateLimitKey);
+    if (!rateLimit.allowed) {
+      throw Object.assign(new Error("approval_rate_limited"), {
+        statusCode: 429,
+        code: "approval_rate_limited",
+        retryAfterSeconds: rateLimit.retryAfterSeconds,
+      });
+    }
+    let decision;
+    try {
+      decision = await approvals.decide({
+        decision: input.decision,
+        providerToolCallId: input.providerToolCallId,
+        argumentsHash: input.argumentsHash,
+        organizationId: input.organizationId,
+        runId: input.runId,
+        approvedBy: input.approvedBy,
+      });
+    } catch (error) {
+      throw Object.assign(new Error("approval_not_pending"), {
+        statusCode: 409,
+        code: "approval_not_pending",
+        detail: error instanceof Error ? error.message : undefined,
+      });
+    }
+    const approval = decision.approval;
+    if (!decision.accepted) return { accepted: false, approval };
+    if (input.decision === "rejected") {
+      await effectReceipts.markNotExecuted(input.organizationId, input.runId, input.providerToolCallId, {
+        code: "APPROVAL_REJECTED",
+        message: "The requested effect was denied before execution",
+      });
+    }
+    await dependencies.signalApproval(input.runId, {
+      decision: input.decision,
+      providerToolCallId: input.providerToolCallId,
+      argumentsHash: input.argumentsHash,
+      approvedBy: input.approvedBy,
+      expiresAt: approval.expires_at,
+      resourceSnapshot: approval.resource_snapshot,
+    });
+    return { accepted: true, approval };
+  };
+
   /**
    * Build the one capability projection consumed by browser, REST, and MCP
    * surfaces. The source is intentionally injected: the Agent Platform owns
@@ -543,11 +646,48 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       return reply.code(401).send({ error: "Unauthorized" });
     }
     const update = request.body && typeof request.body === "object" ? request.body as Record<string, unknown> : {};
-    if (!update.message || typeof update.message !== "object") return reply.code(200).send({ ok: true, ignored: true });
+    if ((!update.message || typeof update.message !== "object") && (!update.callback_query || typeof update.callback_query !== "object")) {
+      return reply.code(200).send({ ok: true, ignored: true });
+    }
 
     const adapter = new TelegramChannelAdapter();
     const event = adapter.normalizeInbound(update);
     const messageText = typeof event.message.content.text === "string" ? event.message.content.text.trim() : "";
+    if (event.approvalAction) {
+      let result: { accepted: boolean } | undefined;
+      let decision: ChannelApprovalDecision | undefined;
+      try {
+        const claims = verifyChannelApprovalActionToken(event.approvalAction.token, dependencies.config.INTERNAL_AUTH_SECRET ?? "");
+        decision = claims.decision;
+        const approval = await approvals.getById(connection.organization_id, claims.approvalId);
+        const target = approval ? await channels.getApprovalPromptTarget(approval.run_id) : null;
+        if (!approval || !target || target.channel_type !== "telegram" || target.external_identity !== event.externalIdentity || target.external_conversation_id !== event.externalConversationId || target.channel_connection_id !== connection.id || target.owner_actor_id === null || target.owner_actor_id === undefined) {
+          throw new Error("channel_approval_not_authorized");
+        }
+        result = await decideApproval({
+          organizationId: connection.organization_id,
+          runId: approval.run_id,
+          providerToolCallId: approval.provider_tool_call_id,
+          argumentsHash: approval.arguments_hash,
+          decision: claims.decision,
+          approvedBy: target.owner_actor_id,
+          rateLimitKey: `${connection.organization_id}:channel:${target.owner_actor_id}`,
+        });
+      } catch (error) {
+        request.log.warn({ error: error instanceof Error ? error.message : "channel approval failed" }, "Telegram channel approval failed");
+      }
+      if (connection.credential_reference && event.approvalAction.callbackQueryId && telegramClient) {
+        const token = await channelCredentials.resolve(connection.organization_id, connection.credential_reference, "telegram").catch(() => undefined);
+        if (token) {
+          const acknowledgement = result
+            ? (result.accepted ? (decision === "approved" ? "Approved" : "Denied") : "Already decided")
+            : "Approval unavailable";
+          await telegramClient.answerCallbackQuery(token, event.approvalAction.callbackQueryId, acknowledgement).catch(() => undefined);
+          await telegramClient.sendMessage(token, event.externalConversationId, acknowledgement).catch(() => undefined);
+        }
+      }
+      return reply.code(200).send({ ok: true, approval: result ? "processed" : "unavailable" });
+    }
     if (connection.execution_mode === "system_hosted") {
       const pairingMatch = messageText.match(/^(?:\/start(?:@[A-Za-z0-9_]+)?\s+)?(kasiai_pair_[A-Za-z0-9_-]+)$/i);
       if (pairingMatch) {
@@ -3421,71 +3561,82 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post<{ Params: { runId: string } }>("/v1/runs/:runId/approval", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "runs:approve");
-    const run = await runs.getRun(auth.organizationId, request.params.runId);
-    if (!run) return reply.code(404).send({ error: "run_not_found" });
-    if (run.status !== "awaiting_approval") return reply.code(409).send({ error: "run_not_awaiting_approval" });
-    if (!dependencies.signalApproval) return reply.code(503).send({ error: "temporal_not_configured" });
     const input = z.object({ decision: z.enum(["approved", "rejected"]), providerToolCallId: z.string().trim().min(1).max(240), argumentsHash: z.string().length(64) }).parse(request.body);
-    const approvalRecord = await approvals.getForRun(auth.organizationId, request.params.runId);
-    if (!approvalRecord || approvalRecord.provider_tool_call_id !== input.providerToolCallId || approvalRecord.arguments_hash !== input.argumentsHash || approvalRecord.installation_id !== run.installation_id) {
-      return reply.code(404).send({ error: "approval_not_found" });
-    }
-    const installation = await agents.getInstallation(auth.organizationId, run.installation_id);
-    if (!installation || installation.status !== "active") return reply.code(403).send({ error: "installation_not_active" });
-    const proposal = await toolInvocations.getProposal(auth.organizationId, request.params.runId, input.providerToolCallId);
-    if (!proposal || proposal.toolName !== approvalRecord.capability || proposal.toolVersion !== approvalRecord.capability_version || proposal.argumentsHash !== input.argumentsHash) {
-      return reply.code(409).send({ error: "approval_proposal_mismatch" });
-    }
-    const grantedTools = await toolGrants.effectiveTools(auth.organizationId, installation.agent_version_id, installation.id);
     try {
-      await authorizeInstallationCapability({
+      const result = await decideApproval({
         organizationId: auth.organizationId,
-        installationId: installation.id,
-        name: approvalRecord.capability,
-        argumentsValue: proposal.arguments,
-        grantedTools,
-        tools: toolRegistry,
-        installationGrants,
-        approved: false,
-        enforceApproval: false,
-      });
-    } catch (error) {
-      return reply.code(403).send({ error: "approval_policy_changed", code: error instanceof Error ? error.message : "CAPABILITY_NOT_GRANTED" });
-    }
-    const rateLimit = approvalDecisionRateLimiter.consume(`${auth.organizationId}:${request.params.runId}:${auth.actorId}`);
-    if (!rateLimit.allowed) {
-      reply.header("retry-after", String(rateLimit.retryAfterSeconds));
-      return reply.code(429).send({ error: "approval_rate_limited", retryAfterSeconds: rateLimit.retryAfterSeconds });
-    }
-    let decision;
-    try {
-      decision = await approvals.decide({ ...input, organizationId: auth.organizationId, runId: request.params.runId, approvedBy: auth.actorId });
-    } catch (error) {
-      return reply.code(409).send({ error: "approval_not_pending", detail: error instanceof Error ? error.message : undefined });
-    }
-    const approval = decision.approval;
-    if (!decision.accepted) {
-      return reply.code(200).send({
         runId: request.params.runId,
-        status: "approval_already_signalled",
-        decision: input.decision,
-        approvedBy: approval.approved_by,
-        expiresAt: approval.expires_at,
+        ...input,
+        approvedBy: auth.actorId,
+        rateLimitKey: `${auth.organizationId}:${request.params.runId}:${auth.actorId}`,
+      });
+      if (!result.accepted) {
+        return reply.code(200).send({
+          runId: request.params.runId,
+          status: "approval_already_signalled",
+          decision: input.decision,
+          approvedBy: result.approval.approved_by,
+          expiresAt: result.approval.expires_at,
+        });
+      }
+      return reply.code(202).send({ runId: request.params.runId, status: "approval_signalled" });
+    } catch (error) {
+      const typed = error as { statusCode?: number; code?: string; detail?: string; retryAfterSeconds?: number };
+      if (typed.code === "approval_rate_limited" && typed.retryAfterSeconds) reply.header("retry-after", String(typed.retryAfterSeconds));
+      return reply.code(typed.statusCode ?? 500).send({
+        error: typed.code ?? "internal_error",
+        ...(typed.detail ? { detail: typed.detail } : {}),
+        ...(typed.retryAfterSeconds ? { retryAfterSeconds: typed.retryAfterSeconds } : {}),
       });
     }
-    if (input.decision === "rejected") {
-      await effectReceipts.markNotExecuted(auth.organizationId, request.params.runId, input.providerToolCallId, {
-        code: "APPROVAL_REJECTED",
-        message: "The requested effect was denied before execution",
+  });
+
+  app.post("/v1/channel-approvals/decide", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "channels:ingest");
+    const input = z.object({
+      token: z.string().trim().min(32).max(4096),
+      channelType: z.enum(["telegram", "whatsapp"]),
+      externalIdentity: z.string().trim().min(1).max(240),
+      externalConversationId: z.string().trim().min(1).max(240).optional(),
+      channelConnectionId: z.string().uuid().optional(),
+    }).parse(request.body ?? {});
+    let claims;
+    try {
+      claims = verifyChannelApprovalActionToken(input.token, dependencies.config.INTERNAL_AUTH_SECRET ?? "", {
+      });
+    } catch {
+      return reply.code(401).send({ error: "invalid_channel_approval" });
+    }
+    const approval = await approvals.getById(auth.organizationId, claims.approvalId);
+    const target = approval ? await channels.getApprovalPromptTarget(approval.run_id) : null;
+    if (!approval || !target || target.channel_type !== input.channelType || target.external_identity !== input.externalIdentity || (input.externalConversationId && target.external_conversation_id !== input.externalConversationId) || (input.channelConnectionId && target.channel_connection_id !== input.channelConnectionId) || target.owner_actor_id !== auth.actorId) {
+      return reply.code(403).send({ error: "channel_approval_not_authorized" });
+    }
+    try {
+      const result = await decideApproval({
+        organizationId: auth.organizationId,
+        runId: approval.run_id,
+        providerToolCallId: approval.provider_tool_call_id,
+        argumentsHash: approval.arguments_hash,
+        decision: claims.decision,
+        approvedBy: target.owner_actor_id,
+        rateLimitKey: `${auth.organizationId}:channel:${target.owner_actor_id}`,
+      });
+      return reply.code(result.accepted ? 202 : 200).send({
+        runId: approval.run_id,
+        decision: claims.decision,
+        status: result.accepted ? "approval_signalled" : "approval_already_signalled",
+      });
+    } catch (error) {
+      const typed = error as { statusCode?: number; code?: string; detail?: string; retryAfterSeconds?: number };
+      if (typed.code === "approval_rate_limited" && typed.retryAfterSeconds) reply.header("retry-after", String(typed.retryAfterSeconds));
+      return reply.code(typed.statusCode ?? 500).send({
+        error: typed.code ?? "internal_error",
+        ...(typed.detail ? { detail: typed.detail } : {}),
+        ...(typed.retryAfterSeconds ? { retryAfterSeconds: typed.retryAfterSeconds } : {}),
       });
     }
-    await dependencies.signalApproval(request.params.runId, {
-      ...input,
-      approvedBy: auth.actorId,
-      expiresAt: approval.expires_at,
-      resourceSnapshot: approval.resource_snapshot,
-    });
-    return reply.code(202).send({ runId: request.params.runId, status: "approval_signalled" });
   });
 
   app.post<{ Params: { runId: string } }>("/v1/runs/:runId/cancel", async (request, reply) => {

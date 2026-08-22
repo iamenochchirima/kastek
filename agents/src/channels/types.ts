@@ -1,5 +1,10 @@
 export type ChannelMessageType = "text" | "attachment" | "reaction" | "status" | "command" | "system";
 
+export interface ChannelApprovalAction {
+  token: string;
+  callbackQueryId?: string;
+}
+
 export interface CanonicalChannelEvent {
   provider: string;
   providerEventId: string;
@@ -13,6 +18,7 @@ export interface CanonicalChannelEvent {
     providerMessageId?: string;
     occurredAt?: string;
   };
+  approvalAction?: ChannelApprovalAction;
   metadata: Record<string, unknown>;
 }
 

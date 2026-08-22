@@ -106,6 +106,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
             provenance: result.provenance ?? {},
           },
         });
+        await activities.deliverApprovalPrompt({ runId: input.runId });
         status = "awaiting_approval";
         await condition(() => approval !== undefined || cancellation !== undefined || expiration !== undefined);
         const pending = result.pendingToolCalls?.[0];

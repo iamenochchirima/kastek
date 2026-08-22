@@ -2253,6 +2253,23 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn decide_channel_approval(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            "/v1/channel-approvals/decide",
+            organization_id,
+            actor_id,
+            &["channels:ingest"],
+            Some(body),
+        )
+        .await
+    }
+
     pub async fn stream_run_events(
         &self,
         organization_id: &str,

@@ -11,6 +11,11 @@ export interface TelegramSendResult {
   status: "sent" | "unknown";
 }
 
+export interface TelegramInlineButton {
+  text: string;
+  callbackData: string;
+}
+
 type TelegramApiResponse<T> = {
   ok: boolean;
   result?: T;
@@ -54,7 +59,7 @@ export class TelegramBotClient {
     await this.call(token, "setWebhook", {
       url,
       secret_token: secretToken,
-      allowed_updates: ["message"],
+      allowed_updates: ["message", "callback_query"],
       drop_pending_updates: false,
     });
   }
@@ -63,9 +68,33 @@ export class TelegramBotClient {
     await this.call(token, "deleteWebhook", { drop_pending_updates: false });
   }
 
-  public async sendMessage(token: string, chatId: string, text: string): Promise<TelegramSendResult> {
-    const result = await this.call<{ message_id: number }>(token, "sendMessage", { chat_id: chatId, text });
+  public async sendMessage(token: string, chatId: string, text: string, options: { inlineButtons?: TelegramInlineButton[][] } = {}): Promise<TelegramSendResult> {
+    const result = await this.call<{ message_id: number }>(token, "sendMessage", {
+      chat_id: chatId,
+      text,
+      ...(options.inlineButtons?.length ? {
+        reply_markup: {
+          inline_keyboard: options.inlineButtons.map((row) => row.map((button) => ({ text: button.text, callback_data: button.callbackData }))),
+        },
+      } : {}),
+    });
     return { providerMessageId: String(result.message_id), status: "sent" };
+  }
+
+  public async sendApprovalPrompt(token: string, chatId: string, text: string, actions: { approve: string; reject: string }): Promise<TelegramSendResult> {
+    return this.sendMessage(token, chatId, text, {
+      inlineButtons: [[
+        { text: "Approve", callbackData: actions.approve },
+        { text: "Deny", callbackData: actions.reject },
+      ]],
+    });
+  }
+
+  public async answerCallbackQuery(token: string, callbackQueryId: string, text?: string): Promise<void> {
+    await this.call(token, "answerCallbackQuery", {
+      callback_query_id: callbackQueryId,
+      ...(text ? { text: text.slice(0, 200) } : {}),
+    });
   }
 
   private async call<T>(token: string, method: string, body?: Record<string, unknown>): Promise<T> {

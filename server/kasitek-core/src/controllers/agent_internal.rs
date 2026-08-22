@@ -20,6 +20,7 @@ use crate::db::models::{
 use crate::error::AppError;
 use crate::identity::internal_delegation;
 use crate::identity::request_context::RequestContext;
+use crate::services::whatsapp::WhatsappReplyButton;
 use crate::services::{customers, website, whatsapp};
 
 async fn require_internal_agent(
@@ -724,6 +725,8 @@ pub struct AgentChannelDeliveryRequest {
     pub channel_type: String,
     pub external_conversation_id: String,
     pub text: String,
+    #[serde(default)]
+    pub buttons: Vec<WhatsappReplyButton>,
 }
 
 /// Write-capable transport boundary for a reply that has already been
@@ -758,6 +761,7 @@ pub async fn deliver_channel_message(
                 body.external_conversation_id.trim(),
                 text,
                 idempotency_key,
+                &body.buttons,
             )
             .await?
         }

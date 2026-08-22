@@ -39,6 +39,15 @@ fn get_inbound_text(message: &Value) -> Option<String> {
         })
 }
 
+fn get_inbound_approval_token(message: &Value) -> Option<&str> {
+    message
+        .get("interactive")
+        .and_then(|value| value.get("button_reply"))
+        .and_then(|value| value.get("id"))
+        .and_then(Value::as_str)
+        .filter(|value| value.starts_with("ka_approval_"))
+}
+
 fn is_opt_out_message(text: Option<&str>) -> bool {
     text.map(|value| {
         ["stop", "unsubscribe", "cancel", "end", "optout", "opt-out"]
@@ -440,6 +449,44 @@ async fn handle_incoming_messages(
         let text = get_inbound_text(&message);
         let media = get_incoming_media(&message);
 
+        if let Some(approval_token) = get_inbound_approval_token(&message) {
+            let approved = if let Ok(agent_client) = AgentPlatformClient::from_config(config) {
+                agent_client
+                    .decide_channel_approval(
+                        org_id,
+                        &connection.user_id,
+                        json!({
+                            "token": approval_token,
+                            "channelType": "whatsapp",
+                            "externalIdentity": normalized_phone,
+                            "channelConnectionId": connection.id,
+                        }),
+                    )
+                    .await
+                    .is_ok()
+            } else {
+                false
+            };
+            let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
+            let acknowledgement = if approved {
+                "Approval recorded."
+            } else {
+                "This approval is no longer valid."
+            };
+            if let Err(error) = send_text_message(
+                &connection.phone_number_id,
+                &access_token,
+                &normalized_phone,
+                acknowledgement,
+                message.get("id").and_then(Value::as_str),
+            )
+            .await
+            {
+                log::warn!("WhatsApp approval acknowledgement failed: {}", error);
+            }
+            continue;
+        }
+
         // Pairing must be checked before the known-contact filter. A new external
         // identity is expected to be absent from the provider contact list until
         // the one-time pairing code has been consumed.
@@ -701,7 +748,9 @@ async fn handle_incoming_messages(
 
 #[cfg(test)]
 mod tests {
-    use super::{external_connection_routing_key, is_opt_out_message};
+    use serde_json::json;
+
+    use super::{external_connection_routing_key, get_inbound_approval_token, is_opt_out_message};
 
     #[test]
     fn uses_workspace_external_connection_id_for_agent_routing() {
@@ -741,6 +790,23 @@ mod tests {
         assert!(!is_opt_out_message(None));
         assert!(!is_opt_out_message(Some("stop please")));
         assert!(!is_opt_out_message(Some("hello")));
+    }
+
+    #[test]
+    fn extracts_only_approval_shaped_button_ids() {
+        let token = "ka_approval_compact-token";
+        assert_eq!(
+            get_inbound_approval_token(&json!({
+                "interactive": { "button_reply": { "id": token, "title": "Approve" } }
+            })),
+            Some(token)
+        );
+        assert_eq!(
+            get_inbound_approval_token(&json!({
+                "button": { "text": "Approve", "payload": "approve" }
+            })),
+            None
+        );
     }
 }
 

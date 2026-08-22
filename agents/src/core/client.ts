@@ -171,6 +171,11 @@ export interface CoreChannelDeliveryResult {
   status: "sent" | "unknown";
 }
 
+export interface CoreChannelReplyButton {
+  id: string;
+  title: string;
+}
+
 type CoreRequestContext = Pick<ToolInvocationContext, "organizationId" | "actorId" | "installationId" | "runId" | "correlationId">;
 
 export class CoreToolError extends Error {
@@ -440,6 +445,7 @@ export class KasitekCoreReadClient {
     channelType: string;
     externalConversationId: string;
     text: string;
+    buttons?: CoreChannelReplyButton[];
   }): Promise<CoreChannelDeliveryResult> {
     return this.requestJson<CoreChannelDeliveryResult>(
       {
@@ -457,6 +463,7 @@ export class KasitekCoreReadClient {
           channelType: input.channelType,
           externalConversationId: input.externalConversationId,
           text: input.text,
+          ...(input.buttons?.length ? { buttons: input.buttons } : {}),
         }),
       },
     );

@@ -1095,3 +1095,79 @@ pub(crate) async fn send_text_message(
         })?;
     Ok((message_id.to_string(), raw))
 }
+
+#[derive(Debug, serde::Deserialize)]
+pub struct WhatsappReplyButton {
+    pub id: String,
+    pub title: String,
+}
+
+pub(crate) async fn send_reply_button_message(
+    phone_number_id: &str,
+    access_token: &str,
+    recipient_phone: &str,
+    text: &str,
+    buttons: &[WhatsappReplyButton],
+    context_message_id: Option<&str>,
+) -> Result<(String, Value), AppError> {
+    if buttons.is_empty() || buttons.len() > 3 {
+        return Err(AppError::BadRequest(
+            "WhatsApp approval prompts require one to three buttons".to_string(),
+        ));
+    }
+    if buttons.iter().any(|button| {
+        button.id.trim().is_empty()
+            || button.title.trim().is_empty()
+            || button.title.chars().count() > 20
+    }) {
+        return Err(AppError::BadRequest(
+            "WhatsApp approval button labels are invalid".to_string(),
+        ));
+    }
+    let url = format!("{GRAPH_BASE}/{phone_number_id}/messages");
+    let payload = json!({
+        "messaging_product": "whatsapp",
+        "to": recipient_phone,
+        "type": "interactive",
+        "interactive": {
+            "type": "button",
+            "body": { "text": text },
+            "action": {
+                "buttons": buttons.iter().map(|button| json!({
+                    "type": "reply",
+                    "reply": { "id": button.id, "title": button.title },
+                })).collect::<Vec<_>>(),
+            },
+        },
+        "context": context_message_id.map(|id| json!({"message_id": id}))
+    });
+    let response = whatsapp_http_client()?
+        .post(&url)
+        .bearer_auth(access_token)
+        .json(&payload)
+        .send()
+        .await?;
+    let status = response.status();
+    let raw: Value = response.json().await.unwrap_or(Value::Null);
+    if !status.is_success() {
+        return Err(AppError::BadRequest(format!(
+            "WhatsApp Cloud API interactive send failed ({}): {}",
+            status,
+            raw.get("error")
+                .and_then(|value| value.get("message"))
+                .and_then(Value::as_str)
+                .unwrap_or("Unknown error"),
+        )));
+    }
+    let message_id = raw
+        .get("messages")
+        .and_then(|value| value.get(0))
+        .and_then(|value| value.get("id"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            AppError::Internal(
+                "WhatsApp Cloud API interactive send did not return a message id".to_string(),
+            )
+        })?;
+    Ok((message_id.to_string(), raw))
+}
