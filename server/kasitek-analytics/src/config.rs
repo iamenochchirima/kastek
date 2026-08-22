@@ -1,0 +1,191 @@
+use std::env;
+
+use thiserror::Error;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AnalyticsConfig {
+    pub environment: String,
+    pub api_host: String,
+    pub api_port: u16,
+    pub database_url: String,
+    pub database_max_connections: u32,
+    pub database_acquire_timeout_ms: u64,
+    pub log_filter: String,
+}
+
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum ConfigError {
+    #[error("missing environment variable: {0}")]
+    Missing(&'static str),
+    #[error("invalid value for {variable}: {value}")]
+    Invalid {
+        variable: &'static str,
+        value: String,
+    },
+}
+
+impl AnalyticsConfig {
+    pub fn from_env() -> Result<Self, ConfigError> {
+        Self::from_lookup(|name| env::var(name).ok())
+    }
+
+    fn from_lookup<F>(get: F) -> Result<Self, ConfigError>
+    where
+        F: Fn(&str) -> Option<String>,
+    {
+        let environment = non_empty_or(get("ANALYTICS_ENVIRONMENT"), "development");
+        let api_host = non_empty_or(get("ANALYTICS_API_HOST"), "0.0.0.0");
+        let api_port = parse_u16(
+            "ANALYTICS_API_PORT",
+            get("ANALYTICS_API_PORT").or_else(|| get("PORT")),
+            4300,
+        )?;
+        let database_url = required(get("ANALYTICS_DATABASE_URL"), "ANALYTICS_DATABASE_URL")?;
+        let database_max_connections = parse_u32(
+            "ANALYTICS_DATABASE_MAX_CONNECTIONS",
+            get("ANALYTICS_DATABASE_MAX_CONNECTIONS"),
+            10,
+        )?;
+        let database_acquire_timeout_ms = parse_u64(
+            "ANALYTICS_DATABASE_ACQUIRE_TIMEOUT_MS",
+            get("ANALYTICS_DATABASE_ACQUIRE_TIMEOUT_MS"),
+            5_000,
+        )?;
+        let log_filter = non_empty_or(
+            get("ANALYTICS_LOG_FILTER").or_else(|| get("RUST_LOG")),
+            "info",
+        );
+
+        Ok(Self {
+            environment,
+            api_host,
+            api_port,
+            database_url,
+            database_max_connections,
+            database_acquire_timeout_ms,
+            log_filter,
+        })
+    }
+}
+
+fn required(value: Option<String>, name: &'static str) -> Result<String, ConfigError> {
+    value
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .ok_or(ConfigError::Missing(name))
+}
+
+fn non_empty_or(value: Option<String>, default: &str) -> String {
+    value
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| default.to_string())
+}
+
+fn parse_u16(
+    variable: &'static str,
+    value: Option<String>,
+    default: u16,
+) -> Result<u16, ConfigError> {
+    let Some(value) = value.filter(|value| !value.trim().is_empty()) else {
+        return Ok(default);
+    };
+    value
+        .parse::<u16>()
+        .ok()
+        .filter(|value| *value > 0)
+        .ok_or(ConfigError::Invalid { variable, value })
+}
+
+fn parse_u32(
+    variable: &'static str,
+    value: Option<String>,
+    default: u32,
+) -> Result<u32, ConfigError> {
+    let Some(value) = value.filter(|value| !value.trim().is_empty()) else {
+        return Ok(default);
+    };
+    value
+        .parse::<u32>()
+        .ok()
+        .filter(|value| *value > 0)
+        .ok_or(ConfigError::Invalid { variable, value })
+}
+
+fn parse_u64(
+    variable: &'static str,
+    value: Option<String>,
+    default: u64,
+) -> Result<u64, ConfigError> {
+    let Some(value) = value.filter(|value| !value.trim().is_empty()) else {
+        return Ok(default);
+    };
+    value
+        .parse::<u64>()
+        .ok()
+        .filter(|value| *value > 0)
+        .ok_or(ConfigError::Invalid { variable, value })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AnalyticsConfig;
+    use std::collections::HashMap;
+
+    fn config(values: &[(&str, &str)]) -> AnalyticsConfig {
+        let values = values
+            .iter()
+            .map(|(key, value)| ((*key).to_string(), (*value).to_string()))
+            .collect::<HashMap<_, _>>();
+        AnalyticsConfig::from_lookup(|name| values.get(name).cloned()).unwrap()
+    }
+
+    #[test]
+    fn requires_the_dedicated_analytics_database_url() {
+        let error = AnalyticsConfig::from_lookup(|_| None).unwrap_err();
+        assert_eq!(error, super::ConfigError::Missing("ANALYTICS_DATABASE_URL"));
+    }
+
+    #[test]
+    fn uses_analytics_defaults_without_reusing_database_url() {
+        let config = config(&[("ANALYTICS_DATABASE_URL", "postgres://localhost/analytics")]);
+        assert_eq!(config.environment, "development");
+        assert_eq!(config.api_host, "0.0.0.0");
+        assert_eq!(config.api_port, 4300);
+        assert_eq!(config.database_max_connections, 10);
+        assert_eq!(config.database_acquire_timeout_ms, 5_000);
+        assert_eq!(config.log_filter, "info");
+    }
+
+    #[test]
+    fn analytics_port_takes_precedence_over_generic_port() {
+        let config = config(&[
+            ("ANALYTICS_DATABASE_URL", "postgres://localhost/analytics"),
+            ("PORT", "4999"),
+            ("ANALYTICS_API_PORT", "4301"),
+        ]);
+        assert_eq!(config.api_port, 4301);
+    }
+
+    #[test]
+    fn rejects_non_positive_pool_configuration() {
+        let values = HashMap::from([
+            (
+                "ANALYTICS_DATABASE_URL".to_string(),
+                "postgres://localhost/analytics".to_string(),
+            ),
+            (
+                "ANALYTICS_DATABASE_MAX_CONNECTIONS".to_string(),
+                "0".to_string(),
+            ),
+        ]);
+        let error = AnalyticsConfig::from_lookup(|name| values.get(name).cloned()).unwrap_err();
+        assert_eq!(
+            error,
+            super::ConfigError::Invalid {
+                variable: "ANALYTICS_DATABASE_MAX_CONNECTIONS",
+                value: "0".to_string(),
+            }
+        );
+    }
+}

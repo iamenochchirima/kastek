@@ -2222,6 +2222,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "kasitek-analytics"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "chrono",
+ "dotenv",
+ "log",
+ "observability",
+ "serde",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "kasitek-core"
 version = "0.1.0"
 dependencies = [

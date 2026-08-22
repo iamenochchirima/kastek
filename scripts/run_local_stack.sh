@@ -18,6 +18,7 @@ else
 fi
 
 AGENT_ENV_SETUP="if [[ -f '$ROOT_DIR/agents/.env' ]]; then set -a; source '$ROOT_DIR/agents/.env'; set +a; fi"
+ANALYTICS_ENV_SETUP="if [[ -f '$ROOT_DIR/server/kasitek-analytics/.env' ]]; then set -a; source '$ROOT_DIR/server/kasitek-analytics/.env'; set +a; fi"
 
 # The local Agent Platform -> Core boundary uses the development bearer-token
 # compatibility path. Keep one value on both processes so read and draft tools
@@ -65,6 +66,8 @@ declare -A services
 # Define all available services
 services["core"]="$ROOT_DIR/server/kasitek-core|LOG_COLOR=always KASITEK_AGENTS_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' cargo run"
 services["tenants"]="$ROOT_DIR/server/kasitek-tenants|LOG_COLOR=always cargo run"
+services["analytics-api"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ANALYTICS_API_PORT=\"\${ANALYTICS_API_PORT:-4300}\" LOG_COLOR=always cargo run --bin analytics-api"
+services["analytics-worker"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; LOG_COLOR=always cargo run --bin analytics-worker"
 services["agents-api"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; KASITEK_CORE_URL='$LOCAL_CORE_URL' KASITEK_CORE_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' $AGENT_TEMPORAL_ENV pnpm run dev:api"
 services["agents-worker"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; KASITEK_CORE_URL='$LOCAL_CORE_URL' KASITEK_CORE_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' $AGENT_TEMPORAL_ENV pnpm run dev:worker"
 services["agent-gateway"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; pnpm run dev:gateway"
@@ -80,6 +83,7 @@ service_port() {
   case "$1" in
     core) echo 4000 ;;
     tenants) echo 8090 ;;
+    analytics-api) echo 4300 ;;
     agents-api) echo 4100 ;;
     agent-gateway) echo 4200 ;;
     client) echo 3000 ;;
@@ -178,7 +182,7 @@ show_usage() {
 # Parse command line arguments
 if [[ $# -eq 0 ]]; then
   # No arguments - run all services
-  services_to_start=(core tenants agents-api agents-worker agent-gateway client admin labs)
+  services_to_start=(core tenants analytics-api analytics-worker agents-api agents-worker agent-gateway client admin labs)
   if [[ "$TEMPORAL_MODE" == "local" ]]; then
     services_to_start+=(temporal)
   fi

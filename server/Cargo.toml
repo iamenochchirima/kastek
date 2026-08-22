@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "kasitek-core",
+    "kasitek-analytics",
     "kasitek-tenants",
     "crates/config",
     "crates/crypto-utils",
