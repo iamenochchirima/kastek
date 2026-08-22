@@ -2219,6 +2219,82 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("starts a fresh continuation workflow when the paused run is no longer resumable", async () => {
+    const handoffId = "11111111-1111-4111-8111-111111111111";
+    const controls = {
+      continueWithAgent: vi.fn(async () => ({
+        handoff: { id: handoffId, status: "resolved", run_id: null },
+        conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "agent_active" },
+        changed: true,
+        continuationRunId: "fresh-run-1",
+        continuationRunCreated: true,
+      })),
+    } as never;
+    const startWorkflow = vi.fn(async () => undefined);
+    const app = buildApp({
+      config: { ...config, TEMPORAL_ENABLED: true },
+      pool: fakePool,
+      conversationControls: controls,
+      startWorkflow,
+      runs: { failRun: vi.fn(async () => undefined) } as never,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/v1/conversations/handoffs/${handoffId}/continue`,
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { resolution: "resume automation" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ continuationRunId: "fresh-run-1", continuationRunCreated: true });
+    expect(startWorkflow).toHaveBeenCalledWith("fresh-run-1");
+    expect(controls.continueWithAgent).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      handoffId,
+      actorId: "user-1",
+      resolution: "resume automation",
+    });
+    await app.close();
+  });
+
+  it("marks a fresh continuation run failed when workflow start fails", async () => {
+    const handoffId = "11111111-1111-4111-8111-111111111111";
+    const controls = {
+      continueWithAgent: vi.fn(async () => ({
+        handoff: { id: handoffId, status: "resolved", run_id: null },
+        conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "agent_active" },
+        changed: true,
+        continuationRunId: "fresh-run-2",
+        continuationRunCreated: true,
+      })),
+    } as never;
+    const startWorkflow = vi.fn(async () => {
+      throw new Error("Temporal unavailable");
+    });
+    const failRun = vi.fn(async () => undefined);
+    const app = buildApp({
+      config: { ...config, TEMPORAL_ENABLED: true },
+      pool: fakePool,
+      conversationControls: controls,
+      startWorkflow,
+      runs: { failRun } as never,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/v1/conversations/handoffs/${handoffId}/continue`,
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(failRun).toHaveBeenCalledWith("fresh-run-2", {
+      code: "WORKFLOW_START_FAILED",
+      message: "Temporal unavailable",
+    });
+    await app.close();
+  });
+
   it("clears only the hosted installation's private test chats", async () => {
     const clearPrivateConversations = vi.fn(async () => ({
       conversation: { id: "fresh-conversation", installation_id: "install-1", status: "active" },

@@ -56,7 +56,7 @@ This plan covers the split between personal and customer-service agents, custome
 - [x] Block agent replies while handoff is pending or human-owned.
 - [x] Support Stop response without claiming the conversation.
 - [x] Support Take over, Continue with agent, Resolve, and cancellation transitions; expiry remains pending.
-- [ ] Continue with agent starts a fresh run from the latest transcript.
+- [x] Continue with agent resumes a live paused run or creates an idempotent fresh run from the latest transcript.
 
 ## 6. Runtime and API contract
 
@@ -82,11 +82,11 @@ This plan covers the split between personal and customer-service agents, custome
 - [x] Build responsive list/detail navigation for desktop, tablet, and mobile.
 - [x] Show customer, agent, human, and system attribution.
 - [x] Add Take over, Continue with agent, Resolve, Stop response, and Send as human controls.
-- [ ] Deep-link to filtered conversations from agent details and Inbox projections.
+- [x] Deep-link to filtered conversations from agent details and Inbox projections.
 
 ## 8. Existing surfaces and navigation
 
-- [ ] Replace links-only agent conversation cards with live queue links/actions.
+- [x] Replace links-only agent conversation cards with live queue links/actions.
 - [ ] Keep personal agent chats in the private/test surface.
 - [ ] Keep Agent Platform customer transcripts distinct from legacy Inbox ownership.
 - [x] Add Agent Conversations to the Automation navigation group.
@@ -133,5 +133,5 @@ This plan covers the split between personal and customer-service agents, custome
 - Internal field: `agent_audience: personal | customer_service`.
 - Live route: `/agents/conversations`.
 - Initial channel scope: Agent Platform-hosted customer channels; legacy WhatsApp/Meta bridging follows the stable ownership contract.
-- Continue-with-agent resumes the paused workflow when one exists; a fresh-run mode remains a later extension.
+- Continue-with-agent resumes the paused workflow when one exists; otherwise it creates an idempotent transcript-backed run and starts it through the normal workflow boundary.
 - Initial claim permission: authorized workspace members; team routing can follow.

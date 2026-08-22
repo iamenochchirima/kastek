@@ -2346,7 +2346,17 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const handoffId = z.string().uuid().parse(request.params.handoffId);
     const input = z.object({ resolution: z.string().trim().max(2_000).optional() }).parse(request.body ?? {});
     const result = await conversationControls.continueWithAgent({ organizationId: auth.organizationId, handoffId, actorId: auth.actorId, resolution: input.resolution });
-    if (result.handoff.run_id && dependencies.signalExternalEvent) {
+    if (result.continuationRunId && result.continuationRunCreated && dependencies.config.TEMPORAL_ENABLED && dependencies.startWorkflow) {
+      try {
+        await dependencies.startWorkflow(result.continuationRunId);
+      } catch (error) {
+        await runs.failRun(result.continuationRunId, {
+          code: "WORKFLOW_START_FAILED",
+          message: error instanceof Error ? error.message : "Unable to start continuation workflow",
+        });
+        throw error;
+      }
+    } else if (!result.continuationRunId && result.handoff.run_id && dependencies.signalExternalEvent) {
       const handoffKey = typeof result.handoff.metadata?.handoffKey === "string" && result.handoff.metadata.handoffKey.trim()
         ? result.handoff.metadata.handoffKey.trim()
         : result.handoff.id;

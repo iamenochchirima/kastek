@@ -112,6 +112,9 @@ export interface HandoffMutationResult {
   handoff: HandoffRequestRecord;
   conversation: ConversationRecord;
   changed: boolean;
+  /** Set when Continue with agent had to create a new durable run. */
+  continuationRunId?: string | null;
+  continuationRunCreated?: boolean;
 }
 
 export interface HumanMessageResult {
@@ -820,6 +823,13 @@ export class HandoffRepository {
         [input.organizationId, current.conversation.id, conversationState],
       );
       if (!handoff.rows[0] || !conversation.rows[0]) throw handoffError("Handoff close could not be committed", "handoff_close_conflict");
+      const continuation = conversationState === "agent_active"
+        ? await this.ensureContinuationRun(client, {
+          handoff: handoff.rows[0],
+          conversation: conversation.rows[0],
+          actorId: input.actorId,
+        })
+        : { id: null, created: false };
       await this.appendLifecycleEvent(client, {
         eventType: conversationState === "agent_active" ? "conversation.handoff.continued" : "conversation.handoff.resolved",
         handoff: handoff.rows[0],
@@ -830,10 +840,142 @@ export class HandoffRepository {
           status: "resolved",
           resolution: defaultResolution,
           conversationState,
+          ...(continuation.id ? { continuationRunId: continuation.id, continuationRunCreated: continuation.created } : {}),
         },
       });
-      return { handoff: handoff.rows[0], conversation: conversation.rows[0], changed: true };
+      return {
+        handoff: handoff.rows[0],
+        conversation: conversation.rows[0],
+        changed: true,
+        continuationRunId: continuation.id,
+        continuationRunCreated: continuation.created,
+      };
     });
+  }
+
+  /**
+   * Continue a handoff using the paused workflow when possible. If the
+   * original run is terminal (or missing), create one idempotent run from the
+   * latest inbound transcript while the conversation lock is still held.
+   */
+  private async ensureContinuationRun(
+    client: PoolClient,
+    input: { handoff: HandoffRequestRecord; conversation: ConversationRecord; actorId: string },
+  ): Promise<{ id: string | null; created: boolean }> {
+    const activeStatuses = ["received", "queued", "running", "awaiting_approval", "awaiting_human", "awaiting_external_event"];
+    const sourceResult = input.handoff.run_id
+      ? await client.query<{
+        id: string;
+        status: string;
+        reply_channel_type: string | null;
+        reply_binding_id: string | null;
+        resolved_model_provider: string | null;
+        resolved_model: string | null;
+      }>(
+        `SELECT id, status, reply_channel_type, reply_binding_id,
+                resolved_model_provider, resolved_model
+         FROM agent_runs
+         WHERE organization_id = $1 AND id = $2
+         FOR UPDATE`,
+        [input.handoff.organization_id, input.handoff.run_id],
+      )
+      : { rows: [] };
+    const source = sourceResult.rows[0];
+    if (source && activeStatuses.includes(source.status)) return { id: null, created: false };
+
+    const activeConversationRun = await client.query<{ id: string }>(
+      `SELECT id
+       FROM agent_runs
+       WHERE organization_id = $1 AND conversation_id = $2
+         AND status = ANY($3::text[])
+       ORDER BY created_at DESC
+       LIMIT 1
+       FOR UPDATE`,
+      [input.handoff.organization_id, input.conversation.id, activeStatuses],
+    );
+    if (activeConversationRun.rows[0]) return { id: null, created: false };
+
+    const latestInbound = await client.query<{ content: Record<string, unknown>; source_channel: string | null; source_binding_id: string | null }>(
+      `SELECT content, source_channel, source_binding_id
+       FROM messages
+       WHERE organization_id = $1 AND conversation_id = $2 AND direction = 'inbound'
+       ORDER BY sequence_number DESC, created_at DESC
+       LIMIT 1`,
+      [input.handoff.organization_id, input.conversation.id],
+    );
+    const content = latestInbound.rows[0]?.content;
+    const message = typeof content?.text === "string" && content.text.trim()
+      ? content.text.trim()
+      : input.handoff.customer_message?.trim() || input.handoff.summary;
+    const channelType = source?.reply_channel_type ?? latestInbound.rows[0]?.source_channel ?? input.conversation.channel_type;
+    const bindingId = source?.reply_binding_id ?? latestInbound.rows[0]?.source_binding_id ?? null;
+    const idempotencyKey = `handoff-continue:${input.handoff.id}`;
+    const created = await client.query<{ id: string; correlation_id: string }>(
+      `INSERT INTO agent_runs
+        (organization_id, agent_definition_id, agent_version_id, installation_id,
+         conversation_id, trigger_type, status, input, correlation_id, created_by,
+         idempotency_key, reply_channel_type, reply_binding_id,
+         resolved_model_provider, resolved_model)
+       VALUES ($1, $2, $3, $4, $5, 'message', 'received', $6::jsonb,
+               gen_random_uuid(), $7, $8, $9, $10, $11, $12)
+       ON CONFLICT (organization_id, idempotency_key)
+       WHERE idempotency_key IS NOT NULL
+       DO NOTHING
+       RETURNING id, correlation_id`,
+      [
+        input.handoff.organization_id,
+        input.handoff.agent_definition_id,
+        input.handoff.agent_version_id,
+        input.handoff.installation_id,
+        input.conversation.id,
+        JSON.stringify({
+          message,
+          context: {
+            handoffContinuation: true,
+            handoffId: input.handoff.id,
+            previousRunId: input.handoff.run_id,
+          },
+        }),
+        input.actorId,
+        idempotencyKey,
+        channelType,
+        bindingId,
+        source?.resolved_model_provider ?? input.conversation.model_provider,
+        source?.resolved_model ?? input.conversation.model,
+      ],
+    );
+    if (!created.rows[0]) {
+      const existing = await client.query<{ id: string }>(
+        `SELECT id FROM agent_runs WHERE organization_id = $1 AND idempotency_key = $2 LIMIT 1`,
+        [input.handoff.organization_id, idempotencyKey],
+      );
+      return { id: existing.rows[0]?.id ?? null, created: false };
+    }
+    const run = created.rows[0];
+    await client.query(
+      `INSERT INTO run_attempts (run_id, organization_id, attempt_number, status, trigger)
+       VALUES ($1, $2, 1, 'started', 'workflow')`,
+      [run.id, input.handoff.organization_id],
+    );
+    await client.query(
+      `INSERT INTO run_workflow_state (run_id, organization_id, state, revision)
+       VALUES ($1, $2, '{}'::jsonb, 0)
+       ON CONFLICT (run_id) DO NOTHING`,
+      [run.id, input.handoff.organization_id],
+    );
+    await client.query(
+      `INSERT INTO agent_events (organization_id, run_id, installation_id, event_type, payload, actor_id, correlation_id)
+       VALUES ($1, $2, $3, 'run.received', $4::jsonb, $5, $6)`,
+      [
+        input.handoff.organization_id,
+        run.id,
+        input.handoff.installation_id,
+        JSON.stringify({ triggerType: "message", handoffContinuation: true, handoffId: input.handoff.id }),
+        input.actorId,
+        run.correlation_id,
+      ],
+    );
+    return { id: run.id, created: true };
   }
 
   /**
