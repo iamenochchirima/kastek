@@ -2148,6 +2148,13 @@ describe("Agent Platform HTTP foundation", () => {
       claim: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111", status: "claimed" }, conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "human_owned" }, changed: true })),
       continueWithAgent: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111", status: "resolved" }, conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "agent_active" }, changed: true })),
       resolve: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111", status: "resolved" }, conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "resolved" }, changed: true })),
+      sendHumanMessage: vi.fn(async () => ({
+        handoff: { id: "11111111-1111-4111-8111-111111111111", status: "claimed" },
+        conversation: { id: "22222222-2222-4222-8222-222222222222", channel_type: "platform" },
+        message: { id: "33333333-3333-4333-8333-333333333333", content: { text: "I can help." } },
+        deliveryAttemptId: null,
+        created: true,
+      })),
     } as never;
     const app = buildApp({ config, pool: fakePool, conversationControls: controls });
     const headers = { "x-organization-id": "org-1", "x-actor-id": "user-1" };
@@ -2156,14 +2163,18 @@ describe("Agent Platform HTTP foundation", () => {
     const claimed = await app.inject({ method: "POST", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/claim", headers });
     const continued = await app.inject({ method: "POST", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/continue", headers, payload: { resolution: "customer chose automation" } });
     const resolved = await app.inject({ method: "POST", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/resolve", headers, payload: { resolution: "completed" } });
+    const message = await app.inject({ method: "POST", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/messages", headers: { ...headers, "idempotency-key": "human-message-1" }, payload: { text: "I can help." } });
     expect(queue.statusCode).toBe(200);
     expect(queue.json()).toMatchObject({ items: [{ handoff: { status: "pending" } }], nextBefore: null });
     expect(detail.statusCode).toBe(200);
     expect(claimed.json()).toMatchObject({ changed: true, conversation: { handoff_state: "human_owned" } });
     expect(continued.json()).toMatchObject({ conversation: { handoff_state: "agent_active" } });
     expect(resolved.json()).toMatchObject({ conversation: { handoff_state: "resolved" } });
+    expect(message.statusCode).toBe(201);
+    expect(message.json()).toMatchObject({ message: { content: { text: "I can help." } }, created: true });
     expect(controls.listHandoffs).toHaveBeenCalledWith("org-1", expect.objectContaining({ status: ["pending", "claimed"], limit: 10 }));
     expect(controls.claim).toHaveBeenCalledWith({ organizationId: "org-1", handoffId: "11111111-1111-4111-8111-111111111111", actorId: "user-1" });
+    expect(controls.sendHumanMessage).toHaveBeenCalledWith({ organizationId: "org-1", handoffId: "11111111-1111-4111-8111-111111111111", actorId: "user-1", text: "I can help.", idempotencyKey: "human-message-1" });
     await app.close();
   });
 
