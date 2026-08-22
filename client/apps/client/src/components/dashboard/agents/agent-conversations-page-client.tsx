@@ -23,6 +23,7 @@ import {
   claimAgentHandoff,
   cancelAgentRun,
   continueAgentHandoff,
+  getAgentHandoff,
   getPlatformConversation,
   listAgentLiveConversations,
   listAgentHandoffs,
@@ -33,6 +34,7 @@ import {
   type AgentMessage,
   type AgentHandoffQueue,
   type AgentHandoffQueueItem,
+  type AgentHandoffHistoryEvent,
   type AgentHandoffPriority,
   type AgentHandoffReason,
   type AgentHandoffStatus,
@@ -88,6 +90,12 @@ function messageAttribution(message: AgentMessage) {
   return message.participant_display_name || "Agent";
 }
 
+function handoffEventLabel(event: AgentHandoffHistoryEvent) {
+  if (event.event_type === "conversation.human_message.sent") return "Human message";
+  const action = event.event_type.replace("conversation.handoff.", "").replaceAll("_", " ");
+  return action.charAt(0).toUpperCase() + action.slice(1);
+}
+
 function EmptyQueue({ view }: { view: QueueView }) {
   const label = view === "handoff" ? "No handoff requests" : view === "human" ? "No human-owned conversations" : "No handoff activity";
   return (
@@ -117,6 +125,7 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [activeRuns, setActiveRuns] = useState<Array<{ id: string; status: string }>>([]);
   const [transcriptLoading, setTranscriptLoading] = useState(false);
+  const [handoffHistory, setHandoffHistory] = useState<AgentHandoffHistoryEvent[]>([]);
 
   const loadQueue = useCallback(async (nextView: QueueView = view, silent = false) => {
     if (!silent) setRefreshing(true);
@@ -163,6 +172,7 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
     if (!activeConversationId) {
       setMessages([]);
       setActiveRuns([]);
+      setHandoffHistory([]);
       return;
     }
     let cancelled = false;
@@ -186,6 +196,24 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
       cancelled = true;
     };
   }, [activeConversationId]);
+
+  useEffect(() => {
+    if (view === "live" || !selectedId) {
+      setHandoffHistory([]);
+      return;
+    }
+    let cancelled = false;
+    void getAgentHandoff(selectedId)
+      .then((result) => {
+        if (!cancelled) setHandoffHistory(result.history ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setHandoffHistory([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, view]);
 
   useEffect(() => {
     if (!activeConversationId) return;
@@ -332,6 +360,7 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
                   <div className="mt-5 grid gap-4 sm:grid-cols-3"><div><p className="text-xs text-muted-foreground">Reason</p><p className="mt-1 text-sm font-medium capitalize text-foreground">{selected.handoff.reason.replaceAll("_", " ")}</p></div><div><p className="text-xs text-muted-foreground">Priority</p><p className={`mt-1 text-sm font-medium capitalize ${priorityClass(selected.handoff.priority)}`}>{selected.handoff.priority}</p></div><div><p className="text-xs text-muted-foreground">Agent</p><p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-foreground"><Bot className="h-4 w-4 text-muted-foreground" />{selected.conversation.installation_id.slice(0, 8)}</p></div></div>
                   {activeRuns.length ? <div className="mt-5 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-status-info/30 bg-status-info-soft px-3 py-2 text-sm text-status-info"><span className="flex items-center gap-2"><span className="h-2 w-2 animate-pulse rounded-full bg-current" />Agent run active · {activeRuns[0]?.status.replaceAll("_", " ")}</span><Button type="button" size="sm" variant="outline" className="h-7 border-status-info/30 bg-transparent text-status-info hover:bg-status-info/10" disabled={busy !== null} onClick={() => void stopAgentRun()}>{busy === `stop:${activeRuns[0]?.id}` ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Square className="mr-1.5 h-3.5 w-3.5" />}Stop agent</Button></div> : null}
                   <div className="mt-6 space-y-4"><div className="rounded-lg border border-border bg-secondary/35 p-4"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Handoff summary</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">{selected.handoff.summary}</p></div>{selected.handoff.customer_message ? <div className="rounded-lg border border-border p-4"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Customer message</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">{selected.handoff.customer_message}</p></div> : null}</div>
+                  {handoffHistory.length ? <div className="mt-6 rounded-lg border border-border p-4"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Handoff history</p><ol className="mt-4 space-y-3">{handoffHistory.map((event) => <li key={event.id} className="flex items-start justify-between gap-3 text-sm"><div className="min-w-0"><p className="font-medium text-foreground">{handoffEventLabel(event)}</p><p className="text-xs text-muted-foreground">{event.actor_id || event.actor_type}</p></div><time className="shrink-0 text-xs text-muted-foreground">{timeLabel(event.created_at)}</time></li>)}</ol></div> : null}
                   <div className="mt-6 rounded-lg border border-border p-4"><div className="flex items-center justify-between gap-3"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</p>{transcriptLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}</div>{messages.length ? <div className="mt-4 max-h-[32rem] space-y-3 overflow-y-auto pr-1">{messages.map((message) => { const text = typeof message.content?.text === "string" ? message.content.text : message.message_type; const isInbound = message.direction === "inbound"; return <div key={message.id} className={`flex ${isInbound ? "justify-start" : "justify-end"}`}><div className={`max-w-[86%] rounded-xl px-3 py-2 text-sm ${isInbound ? "bg-secondary text-foreground" : "bg-primary text-primary-foreground"}`}><p className="whitespace-pre-wrap leading-5">{text}</p><p className={`mt-1 text-[10px] ${isInbound ? "text-muted-foreground" : "text-primary-foreground/70"}`}>{messageAttribution(message)} · {timeLabel(message.created_at)}</p></div></div>; })}</div> : <p className="mt-4 text-sm text-muted-foreground">{transcriptLoading ? "Loading transcript…" : "No messages recorded."}</p>}</div>
                   {selected.handoff.status === "claimed" ? <div className="mt-4 rounded-lg border border-border bg-secondary/20 p-4"><label htmlFor="human-message" className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Message customer</label><Textarea id="human-message" value={messageDraft} onChange={(event) => setMessageDraft(event.target.value)} placeholder="Write a reply" className="mt-3 min-h-24 resize-y bg-background" disabled={busy !== null} /><div className="mt-3 flex justify-end"><Button type="button" disabled={busy !== null || !messageDraft.trim()} onClick={() => void sendMessage()}>{busy === `message:${selected.handoff.id}` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}Send message</Button></div></div> : null}
                   {selected.handoff.status === "claimed" ? <div className="mt-6"><label htmlFor="handoff-resolution" className="text-sm font-medium text-foreground">Resolution note</label><Textarea id="handoff-resolution" value={resolution} onChange={(event) => setResolution(event.target.value)} placeholder="Optional note" className="mt-2 min-h-24" /><div className="mt-3 flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={busy !== null} onClick={() => void mutate(selected.handoff.id, "release")}>{busy === `release:${selected.handoff.id}` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Release</Button><Button type="button" variant="outline" disabled={busy !== null} onClick={() => void mutate(selected.handoff.id, "continue")}>{busy === `continue:${selected.handoff.id}` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clock3 className="mr-2 h-4 w-4" />}Continue with agent</Button><Button type="button" disabled={busy !== null} onClick={() => void mutate(selected.handoff.id, "resolve")}>{busy === `resolve:${selected.handoff.id}` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}Resolve</Button></div></div> : null}

@@ -127,6 +127,17 @@ export type AgentHandoffRequest = {
 export type AgentHandoffQueueItem = {
   handoff: AgentHandoffRequest;
   conversation: AgentConversation;
+  history?: AgentHandoffHistoryEvent[];
+};
+
+export type AgentHandoffHistoryEvent = {
+  id: string;
+  event_type: string;
+  sequence_number: string | number;
+  payload: Record<string, unknown>;
+  actor_type: string;
+  actor_id?: string | null;
+  created_at: string;
 };
 
 export type AgentHandoffQueue = {

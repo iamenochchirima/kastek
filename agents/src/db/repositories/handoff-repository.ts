@@ -73,6 +73,17 @@ export interface HandoffQueueFilters {
 export interface HandoffQueueItem {
   handoff: HandoffRequestRecord;
   conversation: ConversationRecord;
+  history?: HandoffHistoryEvent[];
+}
+
+export interface HandoffHistoryEvent {
+  id: string;
+  event_type: string;
+  sequence_number: string | number;
+  payload: Record<string, unknown>;
+  actor_type: string;
+  actor_id: string | null;
+  created_at: string;
 }
 
 export interface HandoffQueuePage {
@@ -197,7 +208,31 @@ export class HandoffRepository {
       [organizationId, handoffId],
     );
     const row = result.rows[0];
-    return row ? { handoff: row, conversation: row.conversation } : null;
+    if (!row) return null;
+    return { handoff: row, conversation: row.conversation, history: await this.listHistory(organizationId, handoffId) };
+  }
+
+  public async listHistory(organizationId: string, handoffId: string): Promise<HandoffHistoryEvent[]> {
+    const result = await query<HandoffHistoryEvent>(
+      this.pool,
+      `SELECT id, event_type, sequence_number, payload, actor_type, actor_id, created_at
+       FROM agent_events
+       WHERE organization_id = $1
+         AND payload ->> 'handoffId' = $2
+         AND event_type IN (
+           'conversation.handoff.requested',
+           'conversation.handoff.claimed',
+           'conversation.handoff.released',
+           'conversation.handoff.continued',
+           'conversation.handoff.resolved',
+           'conversation.handoff.expired',
+           'conversation.handoff.cancelled',
+           'conversation.human_message.sent'
+         )
+       ORDER BY sequence_number ASC, created_at ASC`,
+      [organizationId, handoffId],
+    );
+    return result.rows;
   }
 
   public async listLive(organizationId: string, filters: { installationId?: string; agentId?: string; search?: string; limit?: number } = {}): Promise<{ items: LiveConversationItem[] }> {

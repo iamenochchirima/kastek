@@ -2145,7 +2145,11 @@ describe("Agent Platform HTTP foundation", () => {
         filters,
       })),
       listLive: vi.fn(async () => ({ items: [{ conversation: { id: "22222222-2222-4222-8222-222222222222" }, run: { id: "44444444-4444-4444-8444-444444444444", status: "running" } }] })),
-      getHandoff: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111" }, conversation: { id: "22222222-2222-4222-8222-222222222222" } })),
+      getHandoff: vi.fn(async () => ({
+        handoff: { id: "11111111-1111-4111-8111-111111111111" },
+        conversation: { id: "22222222-2222-4222-8222-222222222222" },
+        history: [{ id: "event-1", event_type: "conversation.handoff.requested", sequence_number: "1", payload: { handoffId: "11111111-1111-4111-8111-111111111111" }, actor_type: "agent", actor_id: "agent-1", created_at: "2026-08-22T00:00:00.000Z" }],
+      })),
       claim: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111", status: "claimed" }, conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "human_owned" }, changed: true })),
       release: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111", status: "pending" }, conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "handoff_requested" }, changed: true })),
       expire: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111", status: "expired" }, conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "expired" }, changed: true })),
@@ -2176,6 +2180,7 @@ describe("Agent Platform HTTP foundation", () => {
     expect(live.json()).toMatchObject({ items: [{ run: { status: "running" } }] });
     expect(queue.json()).toMatchObject({ items: [{ handoff: { status: "pending" } }], nextBefore: null });
     expect(detail.statusCode).toBe(200);
+    expect(detail.json()).toMatchObject({ history: [{ event_type: "conversation.handoff.requested", actor_type: "agent" }] });
     expect(claimed.json()).toMatchObject({ changed: true, conversation: { handoff_state: "human_owned" } });
     expect(released.json()).toMatchObject({ changed: true, conversation: { handoff_state: "handoff_requested" } });
     expect(expired.json()).toMatchObject({ changed: true, conversation: { handoff_state: "expired" } });

@@ -50,10 +50,10 @@ This plan covers the split between personal and customer-service agents, custome
 
 - [ ] Keep Agent Platform transcript ownership and distinguish customer handoff from generic workflow waits.
 - [x] Add states: `agent_active`, `handoff_requested`, `human_owned`, `resolved`, `expired`, and `cancelled`.
-- [ ] Add an append-only handoff request/history record.
+- [x] Add an append-only handoff request/history record.
 - [x] Add assignment revision/concurrency protection for atomic claims.
 - [x] Add atomic claim, continue-with-agent, and resolve transitions behind a shared operator control service.
-- [ ] Block agent replies while handoff is pending or human-owned.
+- [x] Block agent replies while handoff is pending or human-owned.
 - [x] Support Stop response without claiming the conversation.
 - [x] Support Take over, Continue with agent, Resolve, and cancellation transitions; expiry remains pending.
 - [ ] Continue with agent starts a fresh run from the latest transcript.
@@ -65,12 +65,12 @@ This plan covers the split between personal and customer-service agents, custome
 - [x] Define queue pagination/filter inputs and keep operator mutations on the same repository boundary.
 - [x] Expose an organization-scoped handoff queue/detail API with claim, continue-with-agent, and resolve transitions.
 - [x] List live conversations with organization-scoped installation, agent, search, and bounded-limit filters; cursor pagination remains pending.
-- [ ] Get transcript, participants, active runs, ownership, and handoff history.
+- [x] Get transcript, participants, active runs, ownership, and handoff history.
 - [x] Add atomic claim, pause/stop, resume, human-message, and resolve operations.
 - [x] Add release and expiry operations with organization-scoped operator APIs.
 - [ ] Apply organization scope, permissions, idempotency keys, and optimistic concurrency.
 - [x] Apply organization scoping and read/write scopes to the operator API; keep handoff creation idempotent and claims transactionally race-safe.
-- [x] Emit transactional handoff lifecycle events to `agent_events` for request, claim, human message, continue, and resolve transitions.
+- [x] Emit transactional handoff lifecycle events to `agent_events` for request, claim, human message, continue, release, resolve, expiry, and cancellation transitions.
 - [x] Emit lifecycle events compatible with the analytics handoff contract.
 - [x] Add polling refresh and authenticated conversation SSE updates; polling remains the reconnect fallback.
 
@@ -80,7 +80,7 @@ This plan covers the split between personal and customer-service agents, custome
 - [x] Add Handoff requests, Human owned, and All views; Agent live remains tied to active-run data.
 - [x] Add channel, status, reason, priority, search, and cursor filters to the handoff queue API.
 - [x] Build responsive list/detail navigation for desktop, tablet, and mobile.
-- [ ] Show customer, agent, human, and system attribution.
+- [x] Show customer, agent, human, and system attribution.
 - [x] Add Take over, Continue with agent, Resolve, Stop response, and Send as human controls.
 - [ ] Deep-link to filtered conversations from agent details and Inbox projections.
 
