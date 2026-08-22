@@ -1,5 +1,27 @@
 # Customer Analytics Execution Plan and Checklist
 
+> **Temporary handoff note — remove this block after reading.**
+>
+> Resume implementation from commit `ce0c093` (`feat(analytics): reconcile source outbox
+> streams`). The relevant analytics trail is `39817f6` (Agent conversation facts), `118ad3c`
+> (Core WhatsApp Inbox facts), `d420965` (Core Meta Inbox facts), `ef42026` (Core Inbox deletion
+> facts), then `ce0c093` (bounded, fair source-outbox reconciliation for Core and Tenant
+> publishers). Review those commits in order before changing the collection boundary.
+>
+> The next implementation slice is the unchecked item under **Execution slice 4 — Source
+> reconciliation summaries**: add source-manifest heartbeats and domain-specific checksums only
+> after the corresponding source manifests and authoritative domain counters exist. Do not infer
+> assignment, resolution, or customer handoff facts from Core tables that do not own those
+> mutations. Customer handoff analytics applies only to customer-service Agents with the approved
+> handoff capability; it is not a universal Agent metric.
+>
+> Verification at the stopping point: producer tests, Core/Tenant compilation, live PostgreSQL
+> outbox summary and cursor-wrap coverage, Analytics library tests, registry validation, and diff
+> checks passed. The broader Analytics integration suite still has an unrelated quarantine-fixture
+> failure in `maintenance_postgres`. The working tree contains unrelated uncommitted Agent, client,
+> and Core changes; preserve them and stage only the next slice. **After confirming this context,
+> delete this temporary handoff block and continue with the next slice.**
+
 **Related product plan:** [ANALYTICS_PLAN.md](ANALYTICS_PLAN.md)
 
 **Status:** E1–E10 and Product Sections 1–12 are approved. Planning is complete; implementation has
