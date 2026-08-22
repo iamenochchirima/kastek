@@ -5,6 +5,7 @@ import { AgentRepository } from "../src/db/repositories/agent-repository";
 import { InstallationGrantRepository } from "../src/db/repositories/installation-grant-repository";
 import { ScheduleRepository } from "../src/db/repositories/schedule-repository";
 import { RunRepository } from "../src/db/repositories/run-repository";
+import { ReadinessRepository } from "../src/db/repositories/readiness-repository";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
 const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRATION_TESTS === "true");
@@ -15,6 +16,7 @@ describe.skipIf(!runIntegration)("hosted agent lifecycle and isolation (integrat
   const grants = new InstallationGrantRepository(pool);
   const schedules = new ScheduleRepository(pool);
   const runs = new RunRepository(pool);
+  const readiness = new ReadinessRepository(pool);
   const organizationA = `hosted-boundary-a-${randomUUID()}`;
   const organizationB = `hosted-boundary-b-${randomUUID()}`;
   let agentId = "";
@@ -104,6 +106,44 @@ describe.skipIf(!runIntegration)("hosted agent lifecycle and isolation (integrat
     expect(scheduleFacts.rows).toEqual([
       { action: "created", status: "active", previous_status: null },
       { action: "paused", status: "paused", previous_status: "active" },
+    ]);
+    const readinessInput = {
+      organizationId: organizationA,
+      installationId,
+      agentDefinitionId: agentId,
+      agentVersionId: versionId,
+      executionMode: "kasitek_hosted" as const,
+      status: "ready" as const,
+      workflowStatus: "ready" as const,
+      credentialStatus: "ready" as const,
+      blockerCodes: [] as const,
+      requiredCapabilityCount: 1,
+      missingCapabilityCount: 0,
+      requiredConnectionCount: 0,
+      missingConnectionCount: 0,
+      evaluationSource: "readiness_route" as const,
+      correlationId: null,
+    };
+    expect(await readiness.recordSnapshot({ ...readinessInput, observedAt: "2026-08-22T10:05:00.000Z" })).toBe(true);
+    expect(await readiness.recordSnapshot({ ...readinessInput, observedAt: "2026-08-22T10:06:00.000Z" })).toBe(false);
+    expect(await readiness.recordSnapshot({
+      ...readinessInput,
+      status: "blocked",
+      blockerCodes: ["installation_inactive"],
+      requiredCapabilityCount: 1,
+      missingCapabilityCount: 1,
+      observedAt: "2026-08-22T10:07:00.000Z",
+    })).toBe(true);
+    const readinessFacts = await pool.query<{ status: string; blocker_set: string }>(
+      `SELECT envelope->'data'->>'status' AS status, envelope->'data'->>'blocker_set' AS blocker_set
+       FROM analytics_outbox
+       WHERE source_stream_key = $1 AND contract_name = 'agent.readiness.snapshot@1'
+       ORDER BY source_sequence`,
+      [`organization:${organizationA}:readiness`],
+    );
+    expect(readinessFacts.rows).toEqual([
+      { status: "ready", blocker_set: "none" },
+      { status: "blocked", blocker_set: "installation_inactive" },
     ]);
     await expect(schedules.setStatus(organizationB, schedule.id, "disabled", "owner-b")).rejects.toThrow("Schedule not found");
   });

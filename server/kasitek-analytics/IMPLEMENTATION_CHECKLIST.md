@@ -284,7 +284,7 @@ checklist records implementation evidence for the current package only.
 - [ ] Add control-management UI in a later slice; expired entries fail closed during evaluation
   even before maintenance runs.
 
-## A-13 — M1 reference vertical slices (slices 1–4: Agent runtime)
+## A-13 — M1 reference vertical slices (slices 1–5: Agent runtime)
 
 - [x] Reuse the existing Agent Platform transactional Analytics outbox and registered terminal
   run contracts instead of reconstructing runtime facts from polling or operational summaries.
@@ -321,8 +321,12 @@ checklist records implementation evidence for the current package only.
   organization and agent references, and avoid duplicate facts for unchanged status writes.
 - [x] Confirm the existing conditional handoff lifecycle contract remains customer-service scoped;
   ordinary personal and non-handoff Agents do not emit handoff facts.
-- [ ] Add historical readiness snapshots after an authoritative readiness transition or periodic
-  evaluation source exists; the current readiness route is an on-demand projection only.
+- [x] Add a versioned readiness snapshot contract and metric containing only bounded readiness
+  status, blocker codes, component statuses, and counts; exclude workflow details and credentials.
+- [x] Emit readiness snapshots as a failure-isolated sidecar after successful readiness-route
+  evaluation, coalescing unchanged state and recording state transitions in the Agent outbox.
+- [ ] Add periodic or mutation-driven readiness evaluation so coverage does not depend on a user
+  opening the readiness route.
 
 ## Verification evidence
 
@@ -483,6 +487,9 @@ checklist records implementation evidence for the current package only.
 - A-13 slice 4: schedule lifecycle contract, metric, dimensions, and registry bindings were
   regenerated; producer coverage and the live hosted-agent integration passed for creation, status
   transition, unchanged-status idempotency, and organization isolation.
+- A-13 slice 5: readiness snapshot contract, metric, dimensions, and registry bindings were
+  regenerated; producer coverage and the live hosted-agent integration passed for bounded payloads,
+  unchanged-state coalescing, and ready/blocked state transitions.
 
 ## Explicitly deferred
 
@@ -492,8 +499,8 @@ checklist records implementation evidence for the current package only.
   tested recovery drills
 - A-12 control-management UI remains deferred; evaluation is database-authoritative and expired
   entries fail closed before or after maintenance closure.
-- A-13 readiness snapshots, scheduler dispatch/missed-run facts, campaign, and Tenant M1 slices
-  remain deferred until their authoritative source mutations or evaluation workers exist.
+- A-13 periodic readiness coverage, scheduler dispatch/missed-run facts, campaign, and Tenant M1
+  slices remain deferred until their authoritative source mutations or evaluation workers exist.
 - A-04 historical compatibility fixtures until a second major contract or metric version exists
 - Complete product mutation-to-reporting E2E until the source-domain vertical slices exist
 - A-06 signed audit checkpoint production/verification until the controlled signing boundary exists

@@ -362,3 +362,36 @@ definitions:
     effective_from: "2026-08-22T00:00:00Z"
     applicability: a hosted agent schedule is created or changes status
     dependencies: []
+
+  - key: agent.readiness.evaluations
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Deduplicated Agent readiness state evaluations.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.readiness.snapshot@1
+    formula: count(agent.readiness.snapshot@1)
+    eligible_population: successful readiness evaluations that produce a new state snapshot
+    exclusions: [repeated reads of an unchanged readiness state, readiness detail, workflow errors, credentials, and raw capability configuration]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: source_entity
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, status, readiness_workflow_status, readiness_credential_status, readiness_blocker_set]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.readiness.snapshot@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: the readiness route successfully evaluates an Agent installation
+    dependencies: []

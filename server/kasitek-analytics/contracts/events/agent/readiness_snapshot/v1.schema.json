@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/agent/readiness_snapshot/v1.schema.json",
+  "title": "Agent readiness evaluation snapshot attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "installation_id",
+    "agent_definition_id",
+    "agent_version_id",
+    "execution_mode",
+    "status",
+    "workflow_status",
+    "credential_status",
+    "blocker_codes",
+    "blocker_set",
+    "blocker_count",
+    "required_capability_count",
+    "missing_capability_count",
+    "required_connection_count",
+    "missing_connection_count",
+    "evaluation_source",
+    "state_fingerprint",
+    "observed_at"
+  ],
+  "properties": {
+    "installation_id": { "type": "string", "minLength": 1 },
+    "agent_definition_id": { "type": "string", "minLength": 1 },
+    "agent_version_id": { "type": "string", "minLength": 1 },
+    "execution_mode": { "type": "string", "enum": ["system_hosted", "kasitek_hosted", "external_connected"] },
+    "status": { "type": "string", "enum": ["ready", "blocked"] },
+    "workflow_status": { "type": "string", "enum": ["ready", "blocked"] },
+    "credential_status": { "type": "string", "enum": ["ready", "blocked", "not_required"] },
+    "blocker_codes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "enum": ["installation_inactive", "workflow_invalid", "capability_not_available", "connection_not_configured", "model_credential_missing"] }
+    },
+    "blocker_set": { "type": "string", "minLength": 1 },
+    "blocker_count": { "type": "integer", "minimum": 0 },
+    "required_capability_count": { "type": "integer", "minimum": 0 },
+    "missing_capability_count": { "type": "integer", "minimum": 0 },
+    "required_connection_count": { "type": "integer", "minimum": 0 },
+    "missing_connection_count": { "type": "integer", "minimum": 0 },
+    "evaluation_source": { "type": "string", "enum": ["readiness_route"] },
+    "state_fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "observed_at": { "type": "string", "format": "date-time" }
+  },
+  "x-kasitek": {
+    "identity": "agent.readiness.snapshot@1",
+    "owner": "agent-platform",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["detail", "error", "error_message", "input", "prompt", "response", "content", "credential", "token", "phone_number", "email"]
+  }
+}

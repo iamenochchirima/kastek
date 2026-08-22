@@ -34,6 +34,7 @@ import { EvaluationRepository } from "../db/repositories/evaluation-repository";
 import { evaluateDeterministicAssertions, evaluationAssertionSchema } from "../evaluations/deterministic";
 import { AuditRepository } from "../db/repositories/audit-repository";
 import { ScheduleRepository } from "../db/repositories/schedule-repository";
+import { ReadinessRepository } from "../db/repositories/readiness-repository";
 import { KillSwitchRepository } from "../db/repositories/kill-switch-repository";
 import { OperatorControlRepository } from "../db/repositories/operator-control-repository";
 import { RetentionRepository } from "../db/repositories/retention-repository";
@@ -137,6 +138,7 @@ export interface AppDependencies {
   evaluations?: EvaluationRepository;
   audits?: AuditRepository;
   schedules?: ScheduleRepository;
+  readiness?: ReadinessRepository;
   killSwitches?: KillSwitchRepository;
   controls?: OperatorControlRepository;
   retention?: RetentionRepository;
@@ -437,6 +439,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const evaluations = dependencies.evaluations ?? new EvaluationRepository(dependencies.pool);
   const audits = dependencies.audits ?? new AuditRepository(dependencies.pool);
   const schedules = dependencies.schedules ?? new ScheduleRepository(dependencies.pool);
+  const readinessAnalytics = dependencies.readiness ?? new ReadinessRepository(dependencies.pool);
   const killSwitches = dependencies.killSwitches ?? new KillSwitchRepository(dependencies.pool);
   const retention = dependencies.retention ?? new RetentionRepository(dependencies.pool);
   const kasiaiPreferences = dependencies.kasiaiPreferences ?? new KasiAiPreferenceRepository(dependencies.pool);
@@ -1939,6 +1942,26 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       provider,
       credentialConfigured,
       workflowError,
+    });
+    await readinessAnalytics.recordSnapshot({
+      organizationId: auth.organizationId,
+      installationId: installation.id,
+      agentDefinitionId: agent.id,
+      agentVersionId: version.id,
+      executionMode: installation.execution_mode,
+      status: readiness.status,
+      workflowStatus: readiness.checks.workflow.status,
+      credentialStatus: readiness.checks.credentials.status,
+      blockerCodes: readiness.blockers.map((blocker) => blocker.code),
+      requiredCapabilityCount: readiness.checks.capabilities.required.length,
+      missingCapabilityCount: readiness.checks.capabilities.missing.length,
+      requiredConnectionCount: readiness.checks.connections.required.length,
+      missingConnectionCount: readiness.checks.connections.missing.length,
+      evaluationSource: "readiness_route",
+      observedAt: new Date(),
+      correlationId: auth.correlationId,
+    }).catch((error) => {
+      request.log.warn({ error: error instanceof Error ? error.message : "unknown error" }, "Readiness analytics snapshot unavailable");
     });
     return {
       installationId: installation.id,

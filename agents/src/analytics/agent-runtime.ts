@@ -1,4 +1,4 @@
-import { buildEvent, type AnalyticsOutboxRecord, type JsonObject } from "./producer";
+import { buildEvent, canonicalJsonSha256, type AnalyticsOutboxRecord, type JsonObject } from "./producer";
 
 export type AgentExecutionMode = "system_hosted" | "kasitek_hosted" | "external_connected";
 export type AgentCreationProfile = "general" | "custom" | "system";
@@ -113,6 +113,32 @@ export interface ScheduleAnalyticsInput {
   nextRunAt: Date | string | null;
   actorType: "human" | "system";
   occurredAt: Date | string;
+  correlationId?: string | null;
+}
+
+export type AgentReadinessBlockerCode =
+  | "installation_inactive"
+  | "workflow_invalid"
+  | "capability_not_available"
+  | "connection_not_configured"
+  | "model_credential_missing";
+
+export interface AgentReadinessAnalyticsInput {
+  organizationId: string;
+  installationId: string;
+  agentDefinitionId: string;
+  agentVersionId: string;
+  executionMode: AgentExecutionMode;
+  status: "ready" | "blocked";
+  workflowStatus: "ready" | "blocked";
+  credentialStatus: "ready" | "blocked" | "not_required";
+  blockerCodes: readonly AgentReadinessBlockerCode[];
+  requiredCapabilityCount: number;
+  missingCapabilityCount: number;
+  requiredConnectionCount: number;
+  missingConnectionCount: number;
+  evaluationSource: "readiness_route";
+  observedAt: Date | string;
   correlationId?: string | null;
 }
 
@@ -323,6 +349,51 @@ export function buildScheduleLifecycleEvent(input: ScheduleAnalyticsInput): Anal
   });
 }
 
+export function readinessStateFingerprint(input: AgentReadinessAnalyticsInput): string {
+  return canonicalStateFingerprint(input);
+}
+
+export function buildReadinessSnapshotEvent(input: AgentReadinessAnalyticsInput): AnalyticsOutboxRecord {
+  const observedAt = timestampAttribute(input.observedAt);
+  const blockerCodes = [...new Set(input.blockerCodes)].sort();
+  const blockerSet = blockerCodes.length ? blockerCodes.join("|") : "none";
+  const stateFingerprint = canonicalStateFingerprint(input);
+  const attributes: JsonObject = {
+    installation_id: input.installationId,
+    agent_definition_id: input.agentDefinitionId,
+    agent_version_id: input.agentVersionId,
+    execution_mode: input.executionMode,
+    status: input.status,
+    workflow_status: input.workflowStatus,
+    credential_status: input.credentialStatus,
+    blocker_codes: blockerCodes,
+    blocker_set: blockerSet,
+    blocker_count: blockerCodes.length,
+    required_capability_count: nonNegativeInteger(input.requiredCapabilityCount),
+    missing_capability_count: nonNegativeInteger(input.missingCapabilityCount),
+    required_connection_count: nonNegativeInteger(input.requiredConnectionCount),
+    missing_connection_count: nonNegativeInteger(input.missingConnectionCount),
+    evaluation_source: input.evaluationSource,
+    state_fingerprint: stateFingerprint,
+    observed_at: observedAt,
+  };
+  const identity = `readiness:${input.installationId}:${observedAt}:${stateFingerprint}`;
+  return buildEvent({
+    recordId: identity,
+    sourceDomain: "agents",
+    sourceStreamKey: `organization:${input.organizationId}:readiness`,
+    contractName: "agent.readiness.snapshot@1",
+    schemaVersion: 1,
+    scopeKind: "core_organization",
+    scopeExternalId: input.organizationId,
+    subject: `installation:${input.installationId}`,
+    occurredAt: input.observedAt,
+    attributes,
+    correlationId: input.correlationId ?? undefined,
+    idempotencyKey: `agent-platform:${identity}`,
+  });
+}
+
 function buildTerminalEvent(
   input: AgentRunTerminalInput,
   contractName: "agent.run.completed@1" | "agent.run.failed@1",
@@ -411,4 +482,23 @@ function durationMilliseconds(
   const finish = Date.parse(finishedAt instanceof Date ? finishedAt.toISOString() : finishedAt);
   if (!Number.isFinite(start) || !Number.isFinite(finish)) return 0;
   return Math.max(0, Math.round(finish - start));
+}
+
+function canonicalStateFingerprint(input: AgentReadinessAnalyticsInput): string {
+  const blockerCodes = [...new Set(input.blockerCodes)].sort();
+  return canonicalJsonSha256({
+    installation_id: input.installationId,
+    agent_definition_id: input.agentDefinitionId,
+    agent_version_id: input.agentVersionId,
+    execution_mode: input.executionMode,
+    status: input.status,
+    workflow_status: input.workflowStatus,
+    credential_status: input.credentialStatus,
+    blocker_codes: blockerCodes,
+    required_capability_count: nonNegativeInteger(input.requiredCapabilityCount),
+    missing_capability_count: nonNegativeInteger(input.missingCapabilityCount),
+    required_connection_count: nonNegativeInteger(input.requiredConnectionCount),
+    missing_connection_count: nonNegativeInteger(input.missingConnectionCount),
+    evaluation_source: input.evaluationSource,
+  });
 }

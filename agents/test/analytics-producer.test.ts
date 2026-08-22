@@ -8,6 +8,7 @@ import {
   buildEffectLifecycleEvent,
   buildFailedAgentRunEvent,
   buildFailedModelCallEvent,
+  buildReadinessSnapshotEvent,
   buildScheduleLifecycleEvent,
   buildToolInvocationLifecycleEvent,
   buildEvent,
@@ -302,6 +303,43 @@ describe("Agent analytics producer", () => {
     });
     expect(JSON.stringify(record.envelope)).not.toContain("prompt");
     expect(JSON.stringify(record.envelope)).not.toContain("expression");
+  });
+
+  it("builds readiness snapshots from bounded state fields", () => {
+    const record = buildReadinessSnapshotEvent({
+      organizationId: "org-1",
+      installationId: "installation-1",
+      agentDefinitionId: "agent-1",
+      agentVersionId: "version-1",
+      executionMode: "kasitek_hosted",
+      status: "blocked",
+      workflowStatus: "ready",
+      credentialStatus: "ready",
+      blockerCodes: ["connection_not_configured"],
+      requiredCapabilityCount: 3,
+      missingCapabilityCount: 0,
+      requiredConnectionCount: 1,
+      missingConnectionCount: 1,
+      evaluationSource: "readiness_route",
+      observedAt: "2026-08-22T10:04:00.000Z",
+    });
+    expect(record.envelope).toMatchObject({
+      type: "agent.readiness.snapshot@1",
+      subject: "installation:installation-1",
+      dataschema: "https://kasitek.co.za/analytics/contracts/events/agent/readiness_snapshot/v1.schema.json",
+    });
+    expect(record.envelope.data).toMatchObject({
+      status: "blocked",
+      workflow_status: "ready",
+      credential_status: "ready",
+      blocker_set: "connection_not_configured",
+      blocker_count: 1,
+      missing_connection_count: 1,
+      evaluation_source: "readiness_route",
+    });
+    expect(record.envelope.data.state_fingerprint).toMatch(/^[0-9a-f]{64}$/);
+    expect(JSON.stringify(record.envelope)).not.toContain("detail");
+    expect(JSON.stringify(record.envelope)).not.toContain("credential_reference");
   });
 
   it("rejects prohibited content before a database call", () => {

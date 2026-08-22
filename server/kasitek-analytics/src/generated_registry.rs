@@ -2,7 +2,7 @@
 
 pub const REGISTRY_VERSION: &str = "20260822.1";
 pub const REGISTRY_SHA256: &str =
-    "8f034632674eb99b078492cadb783405deb6a0e052d73f25e350d35258a862ba";
+    "2fe98a8fbe85c50f9ded3df6dbd0b1e980ad19c4f102d5cd6d8d88df817961e2";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",
@@ -10,6 +10,7 @@ pub const CONTRACT_KEYS: &[&str] = &[
     "agent.handoff.lifecycle@1",
     "agent.model_call.completed@1",
     "agent.model_call.failed@1",
+    "agent.readiness.snapshot@1",
     "agent.run.completed@1",
     "agent.run.failed@1",
     "agent.schedule.lifecycle@1",
@@ -26,6 +27,7 @@ pub const METRIC_KEYS: &[&str] = &[
     "agent.effects.lifecycle_events@1",
     "agent.model_calls.completed@1",
     "agent.model_calls.failed@1",
+    "agent.readiness.evaluations@1",
     "agent.runs.completed@1",
     "agent.runs.failed@1",
     "agent.schedules.lifecycle_events@1",
@@ -56,6 +58,9 @@ pub const DIMENSION_KEYS: &[&str] = &[
     "model_provider",
     "outcome",
     "provider",
+    "readiness_blocker_set",
+    "readiness_credential_status",
+    "readiness_workflow_status",
     "responder_type",
     "status",
     "tool_name",
@@ -70,6 +75,7 @@ pub mod metric_keys {
     pub const AGENT_EFFECTS_LIFECYCLE_EVENTS_1: &str = "agent.effects.lifecycle_events@1";
     pub const AGENT_MODEL_CALLS_COMPLETED_1: &str = "agent.model_calls.completed@1";
     pub const AGENT_MODEL_CALLS_FAILED_1: &str = "agent.model_calls.failed@1";
+    pub const AGENT_READINESS_EVALUATIONS_1: &str = "agent.readiness.evaluations@1";
     pub const AGENT_RUNS_COMPLETED_1: &str = "agent.runs.completed@1";
     pub const AGENT_RUNS_FAILED_1: &str = "agent.runs.failed@1";
     pub const AGENT_SCHEDULES_LIFECYCLE_EVENTS_1: &str = "agent.schedules.lifecycle_events@1";

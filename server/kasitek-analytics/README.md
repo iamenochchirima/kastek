@@ -202,7 +202,7 @@ executables before running the recovery scripts.
 
 ## Agent runtime collection
 
-A-13 slices 1–4 connect Agent Platform terminal run, model-call, tool, approval, effect, and schedule configuration mutations to the existing transactional outbox.
+A-13 slices 1–5 connect Agent Platform terminal run, model-call, tool, approval, effect, schedule configuration, and readiness evaluation facts to the existing transactional outbox.
 Completed and failed runs publish the registered `agent.run.completed@1` and `agent.run.failed@1`
 contracts in the same transaction as the run and attempt state change. Facts include stable agent
 references, organization scope, trigger, execution mode, creation profile, audience, deployment
@@ -229,14 +229,17 @@ not claimed by this contract.
 The common path applies to personal, customer-service, system-hosted, hosted, and
 external-connected runs. Customer handoff is a separate conditional lifecycle contract already
 emitted by the handoff repository and scoped to customer-service handoff-enabled agents; it is not
-inferred for ordinary Agents. Readiness is currently an on-demand projection from the readiness
-route, not a persisted transition stream, so historical readiness facts are not emitted yet.
+inferred for ordinary Agents. Readiness snapshots are emitted after a successful readiness-route
+evaluation, contain only bounded statuses, blocker codes, and counts, and are coalesced while the
+evaluated state is unchanged. The route remains operational when this best-effort sidecar cannot
+write the outbox. A periodic authoritative readiness evaluator is still needed for coverage when
+no one opens the readiness route.
 
 ## Current boundary
 
 A-01 through A-12 provide the service, dedicated storage, registries, scope authorization, immutable
 facts, source controls, quarantine, authenticated ingestion, source cursors, reconciliation
 summaries, projection metadata, reporting, caching, and the audited rollout boundary. A-13 has
-started with transactional Agent terminal run, model-call, tool, approval, effect, and schedule facts; the remaining M1 slices, complete
+started with transactional Agent terminal run, model-call, tool, approval, effect, schedule, and readiness facts; the remaining M1 slices, complete
 mutation-to-reporting E2E, rollout control-management UI, source publisher clients, and customer
 dashboards belong to later execution packages.

@@ -165,6 +165,20 @@ const CONTRACT_SOURCES: &[ContractSource] = &[
         )],
     },
     ContractSource {
+        path: "events/agent/readiness_snapshot/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/agent/readiness_snapshot/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/agent/readiness_snapshot.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/agent/readiness_snapshot.json"
+            )),
+        )],
+    },
+    ContractSource {
         path: "events/campaign/recipient_sent/v1.schema.json",
         schema: include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -1132,11 +1146,11 @@ mod tests {
     #[test]
     fn repository_registry_is_valid_and_deterministic() {
         let registry = load_registry().expect("repository registry should validate");
-        assert_eq!(registry.contracts.len(), 13);
-        assert_eq!(registry.metrics.len(), 16);
-        assert_eq!(registry.dimensions.len(), 20);
+        assert_eq!(registry.contracts.len(), 14);
+        assert_eq!(registry.metrics.len(), 17);
+        assert_eq!(registry.dimensions.len(), 23);
         assert_eq!(registry.metric_sets.len(), 2);
-        assert_eq!(registry.metric_keys().len(), 16);
+        assert_eq!(registry.metric_keys().len(), 17);
         assert!(!registry.sha256.is_empty());
     }
 
