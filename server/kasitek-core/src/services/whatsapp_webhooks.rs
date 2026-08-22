@@ -48,6 +48,20 @@ fn get_inbound_approval_token(message: &Value) -> Option<&str> {
         .filter(|value| value.starts_with("ka_approval_"))
 }
 
+fn approval_acknowledgement(response: &Value) -> &'static str {
+    match (
+        response.get("status").and_then(Value::as_str),
+        response.get("decision").and_then(Value::as_str),
+    ) {
+        (Some("approval_already_signalled"), _) => "Already decided.",
+        (Some("approval_signalled"), Some("rejected")) => "Denied.",
+        (Some("approval_signalled"), Some("approved")) => {
+            "Approval received. Processing…"
+        }
+        _ => "Approval received.",
+    }
+}
+
 fn is_opt_out_message(text: Option<&str>) -> bool {
     text.map(|value| {
         ["stop", "unsubscribe", "cancel", "end", "optout", "opt-out"]
@@ -450,8 +464,8 @@ async fn handle_incoming_messages(
         let media = get_incoming_media(&message);
 
         if let Some(approval_token) = get_inbound_approval_token(&message) {
-            let approved = if let Ok(agent_client) = AgentPlatformClient::from_config(config) {
-                agent_client
+            let decision_response = match AgentPlatformClient::from_config(config) {
+                Ok(agent_client) => match agent_client
                     .decide_channel_approval(
                         org_id,
                         &connection.user_id,
@@ -459,20 +473,26 @@ async fn handle_incoming_messages(
                             "token": approval_token,
                             "channelType": "whatsapp",
                             "externalIdentity": normalized_phone,
-                            "channelConnectionId": connection.id,
                         }),
                     )
                     .await
-                    .is_ok()
-            } else {
-                false
+                {
+                    Ok(response) => Some(response),
+                    Err(error) => {
+                        log::warn!("WhatsApp approval decision failed: {}", error);
+                        None
+                    }
+                },
+                Err(error) => {
+                    log::warn!("WhatsApp approval client is unavailable: {}", error);
+                    None
+                }
             };
             let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
-            let acknowledgement = if approved {
-                "Approval recorded."
-            } else {
-                "This approval is no longer valid."
-            };
+            let acknowledgement = decision_response
+                .as_ref()
+                .map(approval_acknowledgement)
+                .unwrap_or("Approval could not be processed. Try again.");
             if let Err(error) = send_text_message(
                 &connection.phone_number_id,
                 &access_token,
@@ -750,7 +770,10 @@ async fn handle_incoming_messages(
 mod tests {
     use serde_json::json;
 
-    use super::{external_connection_routing_key, get_inbound_approval_token, is_opt_out_message};
+    use super::{
+        approval_acknowledgement, external_connection_routing_key, get_inbound_approval_token,
+        is_opt_out_message,
+    };
 
     #[test]
     fn uses_workspace_external_connection_id_for_agent_routing() {
@@ -806,6 +829,28 @@ mod tests {
                 "button": { "text": "Approve", "payload": "approve" }
             })),
             None
+        );
+    }
+
+    #[test]
+    fn reports_approval_progress_without_claiming_success() {
+        assert_eq!(
+            approval_acknowledgement(&json!({
+                "status": "approval_signalled",
+                "decision": "approved"
+            })),
+            "Approval received. Processing…"
+        );
+        assert_eq!(
+            approval_acknowledgement(&json!({
+                "status": "approval_signalled",
+                "decision": "rejected"
+            })),
+            "Denied."
+        );
+        assert_eq!(
+            approval_acknowledgement(&json!({ "status": "approval_already_signalled" })),
+            "Already decided."
         );
     }
 }

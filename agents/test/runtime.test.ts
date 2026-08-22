@@ -82,6 +82,92 @@ describe("Tool Gateway and bounded runtime", () => {
     expect(effectIdForInvocation({ runId: "run" }, "platform.publish", hashToolArguments({ id: "post-1" }))).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it("completes an approved publish with a trusted reply without another model call", async () => {
+    const registry = new ToolRegistry();
+    registry.register({
+      name: "kasitek.core.content_post_publish",
+      version: "1.0.0",
+      description: "Publish content",
+      riskClass: "external-effect",
+      requiresApproval: true,
+      timeoutMs: 1000,
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object" },
+      handler: async () => ({
+        post: { title: "KasiTek Agents Teaser", channels: ["THREADS"], status: "PUBLISHED" },
+        result: { platform: "THREADS", status: "PUBLISHED" },
+      }),
+    });
+    let modelCalls = 0;
+    const adapter: ModelAdapter = {
+      provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+      complete: async () => {
+        modelCalls += 1;
+        return response([], "model reply");
+      },
+    };
+    const argumentsValue = { postId: "post-1", platform: "THREADS" };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "publish" }],
+      credentials,
+      gateway: new ModelGateway([adapter]),
+      tools: registry,
+      grantedTools: new Set(["kasitek.core.content_post_publish"]),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      resumeApprovedToolCall: {
+        id: "call-1",
+        name: "kasitek.core.content_post_publish",
+        arguments: argumentsValue,
+        approval: {
+          approvedBy: "user",
+          argumentsHash: hashToolArguments(argumentsValue),
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        },
+      },
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.completionMessage).toBe("Published “KasiTek Agents Teaser” to Threads.");
+    expect(result.messages.at(-1)).toMatchObject({ role: "assistant", content: result.completionMessage });
+    expect(modelCalls).toBe(0);
+  });
+
+  it("returns a useful channel-safe error when an approved Bluesky publish fails", async () => {
+    const registry = new ToolRegistry();
+    registry.register({
+      name: "kasitek.core.content_post_publish",
+      version: "1.0.0",
+      description: "Publish content",
+      riskClass: "external-effect",
+      requiresApproval: true,
+      timeoutMs: 1000,
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object" },
+      handler: async () => { throw new Error('Bluesky token refresh failed: {"error":"invalid_grant","error_description":"Invalid refresh token"}'); },
+    });
+    const argumentsValue = { postId: "post-1", platform: "BLUESKY" };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "publish" }],
+      credentials,
+      gateway: new ModelGateway([]),
+      tools: registry,
+      grantedTools: new Set(["kasitek.core.content_post_publish"]),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      resumeApprovedToolCall: {
+        id: "call-1",
+        name: "kasitek.core.content_post_publish",
+        arguments: argumentsValue,
+        approval: { approvedBy: "user", argumentsHash: hashToolArguments(argumentsValue), expiresAt: new Date(Date.now() + 60_000).toISOString() },
+      },
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.error?.userMessage).toBe("I couldn’t publish the post because the Bluesky connection has expired. Reconnect Bluesky, then try again.");
+  });
+
   it("runs the durable pre-effect boundary immediately before the provider handler", async () => {
     const registry = new ToolRegistry();
     const order: string[] = [];

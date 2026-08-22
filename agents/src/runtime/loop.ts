@@ -6,6 +6,7 @@ import { hashToolArguments, ToolRegistry } from "../tools/registry";
 import { classifyFailureCode } from "./failures";
 import { redactSensitiveValue } from "../tools/redaction";
 import type { GroundingProvenance } from "./provenance";
+import { buildApprovedToolCompletionMessage, buildApprovedToolFailureMessage } from "./approved-tool-completion";
 
 export interface AgentLoopLimits {
   maxIterations: number;
@@ -84,11 +85,12 @@ export interface AgentLoopResult {
   status: "completed" | "awaiting_approval" | "awaiting_human" | "awaiting_external_event" | "limited" | "failed";
   messages: ModelMessage[];
   response?: ModelResponse;
+  completionMessage?: string;
   pendingToolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown>; argumentsHash: string }>;
   usage: { inputTokens: number; outputTokens: number; totalTokens: number; estimatedCostUsd: number };
   iterations: number;
   toolCalls: number;
-  error?: { code: string; message: string; failureClass?: "retryable" | "terminal" };
+  error?: { code: string; message: string; failureClass?: "retryable" | "terminal"; userMessage?: string };
   waitingFor?: string;
   provenance?: GroundingProvenance;
 }
@@ -156,13 +158,21 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       toolCalls += 1;
       await input.onToolCompleted?.({ toolCallId: resumed.id, name: resumed.name, argumentsHash: hashToolArguments(resumed.arguments), output: safeOutput, latencyMs: result.latencyMs, effectId: result.effectId, approval: resumed.approval });
       await emit(input, { type: "tool.completed", iteration: 0, payload: { name: resumed.name, resumed: true, latencyMs: result.latencyMs } });
+      const completionMessage = buildApprovedToolCompletionMessage(resumed.name, resumed.arguments, safeOutput);
+      messages.push({ role: "assistant", content: completionMessage });
+      await emit(input, { type: "loop.completed", iteration: 0, payload: { toolCalls, totalTokens: usage.totalTokens, resumed: true } });
+      return { status: "completed", messages, completionMessage, usage, iterations: 0, toolCalls };
     } catch (error) {
       const normalized = error instanceof ToolPolicyError
         ? { code: error.code, message: error.message, failureClass: classifyFailureCode(error.code) }
         : { code: "APPROVED_TOOL_FAILED", message: error instanceof Error ? error.message : "Approved tool failed", failureClass: "terminal" as const };
-      await emit(input, { type: "loop.failed", iteration: 0, payload: normalized });
+      const failure = {
+        ...normalized,
+        userMessage: buildApprovedToolFailureMessage(input.resumeApprovedToolCall.name, error),
+      };
+      await emit(input, { type: "loop.failed", iteration: 0, payload: failure });
       await input.onToolFailed?.({ toolCallId: input.resumeApprovedToolCall.id, name: input.resumeApprovedToolCall.name, argumentsHash: hashToolArguments(input.resumeApprovedToolCall.arguments), error: normalized });
-      return { status: "failed", messages, usage, iterations: 0, toolCalls, error: normalized };
+      return { status: "failed", messages, usage, iterations: 0, toolCalls, error: failure };
     }
   }
 

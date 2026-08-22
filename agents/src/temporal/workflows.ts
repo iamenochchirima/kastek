@@ -191,6 +191,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
       if (result.status === "failed") {
         await activities.failRun({ runId: input.runId, error: result.error ?? { code: "AGENT_LOOP_FAILED", message: "Agent loop failed" } });
         status = "failed";
+        if (result.error?.userMessage) await activities.deliverRunReply({ runId: input.runId });
         return;
       }
       if (result.status === "limited") {
@@ -207,7 +208,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         status = "failed";
         return;
       }
-      const responseMessage = sanitizeAssistantResponse(result.response?.message.content ?? "");
+      const responseMessage = sanitizeAssistantResponse(result.completionMessage ?? result.response?.message.content ?? "");
       if (!responseMessage) {
         await activities.failRun({
           runId: input.runId,

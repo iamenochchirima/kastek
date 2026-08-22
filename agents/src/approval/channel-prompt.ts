@@ -1,0 +1,81 @@
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function text(value: unknown, maxLength = 100): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed.slice(0, maxLength) : undefined;
+}
+
+function platformLabel(value: unknown): string | undefined {
+  const platform = text(value, 40)?.toLowerCase();
+  if (!platform) return undefined;
+  if (platform === "x" || platform === "twitter") return "X";
+  return platform.charAt(0).toUpperCase() + platform.slice(1);
+}
+
+function postTarget(snapshot: Record<string, unknown> | null | undefined): {
+  title?: string;
+  platform?: string;
+} {
+  const resource = record(snapshot?.resource);
+  const request = record(snapshot?.request);
+  const operation = record(resource?.operation);
+  const channels = Array.isArray(resource?.channels) ? resource.channels : [];
+  return {
+    title: text(resource?.title, 80),
+    platform: platformLabel(operation?.platform ?? request?.platform ?? channels[0]),
+  };
+}
+
+function quotedPost(title?: string): string {
+  return title ? `“${title}”` : "this post";
+}
+
+/** Product-facing approval copy shared by every conversational channel. */
+export function buildChannelApprovalPrompt(
+  capability: string,
+  snapshot?: Record<string, unknown> | null,
+): string {
+  const { title, platform } = postTarget(snapshot);
+  const post = quotedPost(title);
+  const destination = platform ? ` to ${platform}` : "";
+
+  switch (capability) {
+    case "kasitek.core.content_post_publish":
+      return `Publish ${post}${destination}?`;
+    case "kasitek.core.content_post_schedule":
+      return `Schedule ${post}${destination}?`;
+    case "kasitek.core.content_post_unschedule":
+      return `Remove the schedule for ${post}?`;
+    case "kasitek.core.content_post_delete":
+      return `Delete ${post}?`;
+    case "kasitek.core.channel_deliver":
+      return "Send this message?";
+    case "kasitek.core.contact_update":
+      return "Update this contact?";
+    case "kasitek.core.inbox_conversation_mark_read":
+      return "Mark this conversation as read?";
+    case "kasitek.core.booking_create":
+      return "Create this booking?";
+    case "kasitek.core.booking_update":
+      return "Update this booking?";
+    case "kasitek.core.booking_cancel":
+      return "Cancel this booking?";
+    case "kasitek.core.campaign_launch":
+      return "Launch this campaign?";
+    case "kasitek.core.campaign_pause":
+      return "Pause this campaign?";
+    case "kasitek.core.campaign_resume":
+      return "Resume this campaign?";
+    case "kasitek.core.campaign_cancel":
+      return "Cancel this campaign?";
+    case "kasitek.core.campaign_delete":
+      return "Delete this campaign?";
+    default:
+      return "Approve this action?";
+  }
+}

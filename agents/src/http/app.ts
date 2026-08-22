@@ -791,7 +791,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         const token = await channelCredentials.resolve(connection.organization_id, connection.credential_reference, "telegram").catch(() => undefined);
         if (token) {
           const acknowledgement = result
-            ? (result.accepted ? (decision === "approved" ? "Approved" : "Denied") : "Already decided")
+            ? (result.accepted ? (decision === "approved" ? "Approval received. Processing…" : "Denied") : "Already decided")
             : "Approval unavailable";
           await telegramClient.answerCallbackQuery(token, event.approvalAction.callbackQueryId, acknowledgement).catch(() => undefined);
           await telegramClient.sendMessage(token, event.externalConversationId, acknowledgement).catch(() => undefined);

@@ -522,6 +522,61 @@ export class RunRepository {
       if (!run) throw new Error("Run not found");
       if (["failed", "completed", "cancelled", "expired"].includes(run.status)) return run;
       assertRunTransition(run.status, "failed");
+      const userMessage = typeof error.userMessage === "string" ? error.userMessage.trim() : "";
+      if (run.conversation_id && userMessage) {
+        const participant = await client.query<{ id: string }>(
+          `INSERT INTO participants
+            (conversation_id, organization_id, participant_type, external_id, display_name)
+           SELECT $1, $2, 'agent', $3, name
+           FROM agent_definitions WHERE id = $4
+           ON CONFLICT (conversation_id, participant_type, external_id)
+           DO UPDATE SET display_name = EXCLUDED.display_name
+           RETURNING id`,
+          [run.conversation_id, run.organization_id, run.agent_definition_id, run.agent_definition_id],
+        );
+        const nextSequence = await client.query<{ sequence_number: string }>(
+          `SELECT COALESCE(MAX(sequence_number), 0) + 1 AS sequence_number
+           FROM messages WHERE conversation_id = $1`,
+          [run.conversation_id],
+        );
+        const inboundRoute = await client.query<{ external_conversation_id: string | null }>(
+          `SELECT external_conversation_id FROM messages
+           WHERE run_id = $1 AND direction = 'inbound' LIMIT 1`,
+          [run.id],
+        );
+        const outbound = await client.query<{ id: string }>(
+          `INSERT INTO messages
+            (conversation_id, organization_id, participant_id, direction, message_type, content,
+             provider, provider_message_id, sequence_number, run_id, source_channel,
+             source_binding_id, external_conversation_id, occurred_at, delivery_status)
+           VALUES ($1, $2, $3, 'outbound', 'text', $4::jsonb, COALESCE($8, 'platform'), $5, $6, $7,
+                   COALESCE($8, 'platform'), $9, $10, now(),
+                   CASE WHEN COALESCE($8, 'platform') = 'platform' THEN 'local' ELSE 'queued' END)
+           ON CONFLICT (run_id, direction)
+           WHERE run_id IS NOT NULL AND direction IN ('inbound', 'outbound')
+           DO NOTHING
+           RETURNING id`,
+          [run.conversation_id, run.organization_id, participant.rows[0]!.id, JSON.stringify({ text: userMessage }), run.id, nextSequence.rows[0]!.sequence_number, run.id, run.reply_channel_type ?? "platform", run.reply_binding_id ?? null, inboundRoute.rows[0]?.external_conversation_id ?? null],
+        );
+        if (outbound.rows[0] && run.reply_channel_type && run.reply_channel_type !== "platform") {
+          await client.query(
+            `INSERT INTO delivery_attempts
+              (organization_id, conversation_id, message_id, channel_type, status, attempt_number)
+             VALUES ($1, $2, $3, $4, 'queued', 1)
+             ON CONFLICT (message_id, attempt_number) DO NOTHING`,
+            [run.organization_id, run.conversation_id, outbound.rows[0].id, run.reply_channel_type],
+          );
+        }
+        if (outbound.rows[0]) {
+          await client.query(
+            `UPDATE conversations
+             SET updated_at = now(), last_message_at = now(), last_message_direction = 'outbound',
+                 last_message_preview = LEFT($2, 500), message_count = message_count + 1
+             WHERE id = $1`,
+            [run.conversation_id, userMessage],
+          );
+        }
+      }
       const updated = await client.query<RunRecord>(
         `UPDATE agent_runs SET status = 'failed', error = $2::jsonb, finished_at = now(), updated_at = now()
          WHERE id = $1 RETURNING *`,

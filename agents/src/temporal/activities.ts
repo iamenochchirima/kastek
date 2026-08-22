@@ -43,6 +43,7 @@ import { ConversationActionService } from "../actions/conversation-actions";
 import type { RequestHumanArguments } from "../actions/conversation-actions";
 import { HandoffRepository } from "../db/repositories/handoff-repository";
 import { createChannelApprovalActionToken } from "../approval/channel-action";
+import { buildChannelApprovalPrompt } from "../approval/channel-prompt";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -1136,7 +1137,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         decision: "rejected",
         expiresAt: approval.expires_at,
       }, secret);
-      const prompt = `Approval required: ${approval.capability}`;
+      const prompt = buildChannelApprovalPrompt(approval.capability, approval.resource_snapshot);
       try {
         if (target.channel_type === "telegram") {
           if (!channelCredentials || !telegramClient || !target.credential_reference) throw new Error("Telegram approval prompt is not configured");

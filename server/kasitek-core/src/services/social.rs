@@ -2493,7 +2493,32 @@ pub async fn execute_social_publish_job(
             let authorization_server=metadata.get("authorizationServer").and_then(Value::as_str).ok_or_else(||AppError::BadRequest("Bluesky connection is missing its authorization server".to_string()))?;
             let dpop_private_key=decrypt_social_secret(metadata.get("dpopPrivateKey").and_then(Value::as_str).ok_or_else(||AppError::BadRequest("Bluesky connection is missing its DPoP key".to_string()))?)?;
             let auth_nonce=metadata.get("dpopAuthorizationNonce").and_then(Value::as_str);
-            let session = bluesky_oauth::refresh(&config,&refresh,authorization_server,&dpop_private_key,auth_nonce).await?;
+            let session = match bluesky_oauth::refresh(&config,&refresh,authorization_server,&dpop_private_key,auth_nonce).await {
+                Ok(session) => session,
+                Err(error) => {
+                    let invalid_grant = matches!(&error, AppError::BadRequest(message) if message.contains("invalid_grant") || message.contains("Invalid refresh token") || message.contains("Token was not issued to this client"));
+                    if invalid_grant {
+                        sqlx::query(
+                            r#"UPDATE "SocialChannelConnection"
+                               SET status='NEEDS_REAUTH'::"SocialChannelStatus",
+                                   metadata=COALESCE(metadata,'{}'::jsonb)||$1,
+                                   "updatedAt"=NOW()
+                               WHERE id=$2 AND "orgId"=$3"#,
+                        )
+                        .bind(json!({"reauthReason":"invalid_refresh_token","reauthRequiredAt":Utc::now().to_rfc3339()}))
+                        .bind(&channel.id)
+                        .bind(org_id)
+                        .execute(pool)
+                        .await?;
+                        connections::sync_org_connections(pool, org_id).await?;
+                        return Err(AppError::BadRequest(
+                            "Bluesky connection expired. Reconnect Bluesky before publishing"
+                                .to_string(),
+                        ));
+                    }
+                    return Err(error);
+                }
+            };
             save_rotated_tokens(
                 pool,
                 &channel.id,
