@@ -328,6 +328,10 @@ checklist records implementation evidence for the current package only.
 - [x] Add a bounded periodic readiness sweep in the existing Agent API process. PostgreSQL leases
   coordinate API replicas, evaluation state is durable and resumable, and the sweep reuses the
   same projection plus failure-isolated outbox sidecar without adding another service.
+- [x] Add a versioned installation lifecycle contract and metric with execution mode, creation
+  profile, audience, scope, and bounded status transitions; exclude settings and credentials.
+- [x] Emit installation creation, activation, pause, and disable facts transactionally across
+  direct status changes and archive paths, and avoid duplicate facts for unchanged status writes.
 
 ## Verification evidence
 
@@ -494,6 +498,9 @@ checklist records implementation evidence for the current package only.
 - A-13 slice 6: periodic readiness evaluation uses a durable due-state table, bounded PostgreSQL
   leases, replica-safe claims, retry release, and the same readiness projection as the route; sweep
   unit coverage and the live claim/lease integration passed.
+- A-13 slice 7: installation lifecycle contract, metric, dimensions, and registry bindings were
+  regenerated; producer coverage and the live hosted-agent integration passed for creation,
+  pause/resume transitions, unchanged-status idempotency, and organization isolation.
 
 ## Explicitly deferred
 

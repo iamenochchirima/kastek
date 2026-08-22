@@ -76,6 +76,14 @@
       "privacy_class": "aggregate"
     },
     {
+      "identity": "agent.installation.lifecycle@1",
+      "schema": "events/agent/installation_lifecycle/v1.schema.json",
+      "examples": ["examples/agent/installation_lifecycle.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
       "identity": "agent.readiness.snapshot@1",
       "schema": "events/agent/readiness_snapshot/v1.schema.json",
       "examples": ["examples/agent/readiness_snapshot.json"],

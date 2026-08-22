@@ -1,0 +1,14 @@
+{
+  "installation_id": "installation-123",
+  "agent_definition_id": "agent-123",
+  "agent_version_id": "version-4",
+  "execution_mode": "kasitek_hosted",
+  "creation_profile": "custom",
+  "agent_audience": "customer_service",
+  "scope_type": "organization",
+  "action": "paused",
+  "status": "paused",
+  "previous_status": "active",
+  "actor_type": "human",
+  "occurred_at": "2026-08-22T10:03:30Z"
+}

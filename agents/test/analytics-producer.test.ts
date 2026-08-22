@@ -8,6 +8,7 @@ import {
   buildEffectLifecycleEvent,
   buildFailedAgentRunEvent,
   buildFailedModelCallEvent,
+  buildInstallationLifecycleEvent,
   buildReadinessSnapshotEvent,
   buildScheduleLifecycleEvent,
   buildToolInvocationLifecycleEvent,
@@ -303,6 +304,39 @@ describe("Agent analytics producer", () => {
     });
     expect(JSON.stringify(record.envelope)).not.toContain("prompt");
     expect(JSON.stringify(record.envelope)).not.toContain("expression");
+  });
+
+  it("builds installation lifecycle facts with agent category boundaries", () => {
+    const record = buildInstallationLifecycleEvent({
+      installationId: "installation-1",
+      organizationId: "org-1",
+      agentDefinitionId: "agent-1",
+      agentVersionId: "version-1",
+      executionMode: "kasitek_hosted",
+      creationProfile: "custom",
+      agentAudience: "customer_service",
+      scopeType: "organization",
+      action: "paused",
+      status: "paused",
+      previousStatus: "active",
+      actorType: "human",
+      occurredAt: "2026-08-22T10:03:30.000Z",
+    });
+    expect(record.envelope).toMatchObject({
+      type: "agent.installation.lifecycle@1",
+      subject: "installation:installation-1",
+      dataschema: "https://kasitek.co.za/analytics/contracts/events/agent/installation_lifecycle/v1.schema.json",
+    });
+    expect(record.envelope.data).toMatchObject({
+      execution_mode: "kasitek_hosted",
+      creation_profile: "custom",
+      agent_audience: "customer_service",
+      scope_type: "organization",
+      action: "paused",
+      previous_status: "active",
+    });
+    expect(JSON.stringify(record.envelope)).not.toContain("settings");
+    expect(JSON.stringify(record.envelope)).not.toContain("prompt");
   });
 
   it("builds readiness snapshots from bounded state fields", () => {

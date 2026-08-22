@@ -67,6 +67,21 @@ describe.skipIf(!runIntegration)("hosted agent lifecycle and isolation (integrat
     });
     expect((await agents.setInstallationStatus(organizationA, installation.id, "paused", "owner-a")).status).toBe("paused");
     expect((await agents.setInstallationStatus(organizationA, installation.id, "active", "owner-a")).status).toBe("active");
+    const installationFacts = await pool.query<{ action: string; status: string; previous_status: string | null; agent_audience: string; execution_mode: string }>(
+      `SELECT envelope->'data'->>'action' AS action, envelope->'data'->>'status' AS status,
+              envelope->'data'->>'previous_status' AS previous_status,
+              envelope->'data'->>'agent_audience' AS agent_audience,
+              envelope->'data'->>'execution_mode' AS execution_mode
+       FROM analytics_outbox
+       WHERE source_stream_key = $1 AND contract_name = 'agent.installation.lifecycle@1'
+       ORDER BY source_sequence`,
+      [`organization:${organizationA}:installations`],
+    );
+    expect(installationFacts.rows).toEqual([
+      { action: "created", status: "active", previous_status: null, agent_audience: "personal", execution_mode: "kasitek_hosted" },
+      { action: "paused", status: "paused", previous_status: "active", agent_audience: "personal", execution_mode: "kasitek_hosted" },
+      { action: "activated", status: "active", previous_status: "paused", agent_audience: "personal", execution_mode: "kasitek_hosted" },
+    ]);
     await expect(agents.setInstallationStatus(organizationB, installation.id, "disabled", "owner-b")).rejects.toThrow("Installation not found");
   });
 

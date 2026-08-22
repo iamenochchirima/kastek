@@ -28,6 +28,7 @@ export {
   buildFailedAgentRunEvent,
   buildFailedModelCallEvent,
   buildReadinessSnapshotEvent,
+  buildInstallationLifecycleEvent,
   buildScheduleLifecycleEvent,
   buildToolInvocationLifecycleEvent,
   classifyAgentFailure,
@@ -45,6 +46,7 @@ export {
   type ModelCallAnalyticsInput,
   type AgentReadinessAnalyticsInput,
   type AgentReadinessBlockerCode,
+  type InstallationLifecycleAnalyticsInput,
   type ScheduleAnalyticsInput,
   readinessStateFingerprint,
 } from "./agent-runtime";

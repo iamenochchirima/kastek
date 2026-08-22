@@ -17,6 +17,7 @@ definitions:
       - agent.approvals.lifecycle_events@1
       - agent.effects.lifecycle_events@1
       - agent.schedules.lifecycle_events@1
+      - agent.installations.lifecycle_events@1
       - agent.readiness.evaluations@1
     default_interval: day
     scope_kinds: [core_organization, tenant_workspace, tenant_client]

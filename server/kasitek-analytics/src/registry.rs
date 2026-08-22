@@ -165,6 +165,20 @@ const CONTRACT_SOURCES: &[ContractSource] = &[
         )],
     },
     ContractSource {
+        path: "events/agent/installation_lifecycle/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/agent/installation_lifecycle/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/agent/installation_lifecycle.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/agent/installation_lifecycle.json"
+            )),
+        )],
+    },
+    ContractSource {
         path: "events/agent/readiness_snapshot/v1.schema.json",
         schema: include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -490,11 +504,16 @@ impl RegistrySnapshot {
         render_rust_slice(&mut output, "METRIC_SET_KEYS", &self.metric_set_keys());
         output.push_str("pub mod metric_keys {\n");
         for metric in &self.metrics {
-            output.push_str(&format!(
-                "    pub const {}: &str = {};\n",
-                rust_identifier(&metric_identity(metric)),
-                rust_string(&metric_identity(metric))
-            ));
+            let identifier = rust_identifier(&metric_identity(metric));
+            let value = rust_string(&metric_identity(metric));
+            let inline = format!("    pub const {identifier}: &str = {value};");
+            if inline.len() <= 100 {
+                output.push_str(&format!("{inline}\n"));
+            } else {
+                output.push_str(&format!(
+                    "    pub const {identifier}: &str =\n        {value};\n"
+                ));
+            }
         }
         output.push_str("}\n");
         output
@@ -1146,11 +1165,11 @@ mod tests {
     #[test]
     fn repository_registry_is_valid_and_deterministic() {
         let registry = load_registry().expect("repository registry should validate");
-        assert_eq!(registry.contracts.len(), 14);
-        assert_eq!(registry.metrics.len(), 17);
-        assert_eq!(registry.dimensions.len(), 23);
+        assert_eq!(registry.contracts.len(), 15);
+        assert_eq!(registry.metrics.len(), 18);
+        assert_eq!(registry.dimensions.len(), 27);
         assert_eq!(registry.metric_sets.len(), 2);
-        assert_eq!(registry.metric_keys().len(), 17);
+        assert_eq!(registry.metric_keys().len(), 18);
         assert!(!registry.sha256.is_empty());
     }
 

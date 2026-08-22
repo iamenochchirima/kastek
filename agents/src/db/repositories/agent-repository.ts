@@ -18,6 +18,7 @@ import { CUSTOMER_SERVICE_HANDOFF_TOOL, resolveHostedAgentAllowedTools } from ".
 import { KASIAI_KNOWLEDGE_CHUNKS, KASIAI_KNOWLEDGE_SOURCE_NAME, KASIAI_KNOWLEDGE_VERSION } from "../../system/kasiai-knowledge";
 import { KASIAI_EVALUATION_SCENARIOS, KASIAI_EVALUATION_VERSION } from "../../system/kasiai-evaluations";
 import { createInstallationCredentialInTransaction, type CreatedInstallationCredential } from "./installation-credential-repository";
+import { buildInstallationLifecycleEvent, enqueueOutbox, type InstallationLifecycleAnalyticsInput } from "../../analytics";
 
 type DbExecutor = Pool | PoolClient;
 
@@ -103,6 +104,11 @@ export interface ExternalAgentConnectionRecord {
   installation: InstallationRecord;
   created: boolean;
   credential?: CreatedInstallationCredential;
+}
+
+interface InstallationAnalyticsRow extends InstallationRecord {
+  creation_profile: HostedAgentCreationProfile | "system";
+  agent_audience: AgentAudience;
 }
 
 type CreateSystemAgentInput = Omit<CreateAgentInput, "creationProfile"> & { creationProfile?: HostedAgentCreationProfile };
@@ -287,6 +293,7 @@ export class AgentRepository {
         [agent.id, version.id, organizationId, JSON.stringify(settings), actorId],
       );
       const installation = installationResult.rows[0]!;
+      await this.enqueueInstallationLifecycle(client, installation, "created", null, "human", installation.created_at);
       await client.query(
         `INSERT INTO agent_principals (installation_id, organization_id) VALUES ($1, $2)`,
         [installation.id, organizationId],
@@ -439,6 +446,7 @@ export class AgentRepository {
           [agent.id, version.id, input.organizationId, JSON.stringify(settings), actorId],
         );
         const installation = installationResult.rows[0]!;
+        await this.enqueueInstallationLifecycle(client, installation, "created", null, "system", installation.created_at);
         await client.query(
           `INSERT INTO agent_principals (installation_id, organization_id) VALUES ($1, $2)`,
           [installation.id, input.organizationId],
@@ -559,16 +567,19 @@ export class AgentRepository {
           [input.organizationId, version.id, toolName.trim(), input.actorId],
         );
       }
-      const installationResult = await client.query<InstallationRecord>(
+      const installationResult = await client.query<InstallationRecord & { created_now: boolean }>(
         `INSERT INTO agent_installations
           (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, settings, created_by)
          VALUES ($1, $2, $3, 'organization', $3, 'kasitek_hosted', $4::jsonb, $5)
          ON CONFLICT (organization_id, agent_definition_id, scope_type, scope_id)
          DO UPDATE SET updated_at = agent_installations.updated_at
-         RETURNING *`,
+         RETURNING *, (xmax = 0) AS created_now`,
         [agent.id, version.id, input.organizationId, JSON.stringify({ ...settings, templateKey: template.key, templateVersion: template.version }), input.actorId],
       );
       const installation = installationResult.rows[0]!;
+      if (installation.created_now) {
+        await this.enqueueInstallationLifecycle(client, installation, "created", null, "human", installation.created_at);
+      }
       await client.query(
         `INSERT INTO agent_principals (installation_id, organization_id)
          VALUES ($1, $2) ON CONFLICT (installation_id) DO NOTHING`,
@@ -925,11 +936,15 @@ export class AgentRepository {
          WHERE organization_id = $1 AND installation_id = $2 AND status = 'active'`,
         [organizationId, installationId, actorId],
       );
-      await client.query(
+      const disabled = await client.query<InstallationRecord>(
         `UPDATE agent_installations SET status = 'disabled', updated_at = now()
-         WHERE id = $1 AND organization_id = $2`,
+         WHERE id = $1 AND organization_id = $2
+         RETURNING *`,
         [installationId, organizationId],
       );
+      if (installation.status !== "disabled" && disabled.rows[0]) {
+        await this.enqueueInstallationLifecycle(client, disabled.rows[0], "disabled", installation.status as InstallationLifecycleAnalyticsInput["previousStatus"], "human", disabled.rows[0].updated_at);
+      }
       await client.query(
         `UPDATE agent_definitions SET status = 'archived', archived_at = COALESCE(archived_at, now()), updated_at = now()
          WHERE id = $1 AND organization_id = $2 AND owner_type = 'organization' AND protected = FALSE`,
@@ -1152,11 +1167,25 @@ export class AgentRepository {
       );
       const agent = result.rows[0];
       if (!agent) throw new Error("Agent not found or protected");
-      await client.query(
-        `UPDATE agent_installations SET status = 'disabled', updated_at = now()
-         WHERE organization_id = $1 AND agent_definition_id = $2 AND status <> 'disabled'`,
+      const installations = await client.query<InstallationRecord>(
+        `SELECT * FROM agent_installations
+         WHERE organization_id = $1 AND agent_definition_id = $2 AND status <> 'disabled'
+         FOR UPDATE`,
         [organizationId, agentId],
       );
+      const disabled = await client.query<InstallationRecord>(
+        `UPDATE agent_installations SET status = 'disabled', updated_at = now()
+         WHERE organization_id = $1 AND agent_definition_id = $2 AND status <> 'disabled'
+         RETURNING *`,
+        [organizationId, agentId],
+      );
+      const previousById = new Map(installations.rows.map((installation) => [installation.id, installation.status]));
+      for (const installation of disabled.rows) {
+        const previousStatus = previousById.get(installation.id);
+        if (previousStatus) {
+          await this.enqueueInstallationLifecycle(client, installation, "disabled", previousStatus as InstallationLifecycleAnalyticsInput["previousStatus"], "human", installation.updated_at);
+        }
+      }
       await client.query(
         `INSERT INTO audit_records
           (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
@@ -1357,6 +1386,7 @@ export class AgentRepository {
         ],
       );
       const installation = created.rows[0]!;
+      await this.enqueueInstallationLifecycle(client, installation, "created", null, "human", installation.created_at);
       await client.query(
         `INSERT INTO agent_principals (installation_id, organization_id) VALUES ($1, $2)`,
         [installation.id, organizationId],
@@ -1410,6 +1440,9 @@ export class AgentRepository {
         ],
       );
       const installation = created.rows[0]!;
+      if (installation.created_now) {
+        await this.enqueueInstallationLifecycle(client, installation, "created", null, "system", installation.created_at);
+      }
       await client.query(
         `INSERT INTO agent_principals (installation_id, organization_id)
          VALUES ($1, $2)
@@ -1612,24 +1645,76 @@ export class AgentRepository {
     status: "active" | "paused" | "disabled",
     actorId: string,
   ): Promise<InstallationRecord> {
-    const result = await query<InstallationRecord>(
-      this.pool,
-      `UPDATE agent_installations
-       SET status = $3, updated_at = now()
-       WHERE organization_id = $1 AND id = $2
-       RETURNING *`,
-      [organizationId, installationId, status],
+    return withTransaction(this.pool, async (client) => {
+      const current = await client.query<InstallationRecord>(
+        `SELECT * FROM agent_installations
+         WHERE organization_id = $1 AND id = $2
+         FOR UPDATE`,
+        [organizationId, installationId],
+      );
+      const previous = current.rows[0];
+      if (!previous) throw new Error("Installation not found");
+      const result = await client.query<InstallationRecord>(
+        `UPDATE agent_installations
+         SET status = $3, updated_at = now()
+         WHERE organization_id = $1 AND id = $2
+         RETURNING *`,
+        [organizationId, installationId, status],
+      );
+      const installation = result.rows[0];
+      if (!installation) throw new Error("Installation not found");
+      await client.query(
+        `INSERT INTO audit_records
+          (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'human', $2, $3, 'agent_installation', $4, $5::jsonb)`,
+        [organizationId, actorId, `agent_installation.${status}`, installationId, JSON.stringify({ executionMode: installation.execution_mode })],
+      );
+      if (previous.status !== status) {
+        await this.enqueueInstallationLifecycle(
+          client,
+          installation,
+          status === "active" ? "activated" : status,
+          previous.status as InstallationLifecycleAnalyticsInput["previousStatus"],
+          "human",
+          installation.updated_at,
+        );
+      }
+      return installation;
+    });
+  }
+
+  private async enqueueInstallationLifecycle(
+    client: PoolClient,
+    installation: InstallationRecord,
+    action: InstallationLifecycleAnalyticsInput["action"],
+    previousStatus: InstallationLifecycleAnalyticsInput["previousStatus"],
+    actorType: InstallationLifecycleAnalyticsInput["actorType"],
+    occurredAt: Date | string,
+  ): Promise<void> {
+    const result = await client.query<InstallationAnalyticsRow>(
+      `SELECT ai.*, ad.creation_profile, ad.agent_audience
+       FROM agent_installations ai
+       JOIN agent_definitions ad ON ad.id = ai.agent_definition_id
+       WHERE ai.organization_id = $1 AND ai.id = $2`,
+      [installation.organization_id, installation.id],
     );
-    const installation = result.rows[0];
-    if (!installation) throw new Error("Installation not found");
-    await query(
-      this.pool,
-      `INSERT INTO audit_records
-        (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
-       VALUES ($1, 'human', $2, $3, 'agent_installation', $4, $5::jsonb)`,
-      [organizationId, actorId, `agent_installation.${status}`, installationId, JSON.stringify({ executionMode: installation.execution_mode })],
-    );
-    return installation;
+    const row = result.rows[0];
+    if (!row) throw new Error("Installation analytics context not found");
+    await enqueueOutbox(client, buildInstallationLifecycleEvent({
+      installationId: row.id,
+      organizationId: row.organization_id,
+      agentDefinitionId: row.agent_definition_id,
+      agentVersionId: row.agent_version_id,
+      executionMode: row.execution_mode,
+      creationProfile: row.creation_profile,
+      agentAudience: row.agent_audience,
+      scopeType: row.scope_type as InstallationLifecycleAnalyticsInput["scopeType"],
+      action,
+      status: row.status as InstallationLifecycleAnalyticsInput["status"],
+      previousStatus,
+      actorType,
+      occurredAt,
+    }));
   }
 
   public async setInstallationSettings(

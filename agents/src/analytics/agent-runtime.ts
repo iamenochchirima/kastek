@@ -116,6 +116,23 @@ export interface ScheduleAnalyticsInput {
   correlationId?: string | null;
 }
 
+export interface InstallationLifecycleAnalyticsInput {
+  installationId: string;
+  organizationId: string;
+  agentDefinitionId: string;
+  agentVersionId: string;
+  executionMode: AgentExecutionMode;
+  creationProfile: AgentCreationProfile;
+  agentAudience: AgentAudience;
+  scopeType: "organization" | "user" | "business";
+  action: "created" | "activated" | "paused" | "disabled";
+  status: "active" | "paused" | "disabled";
+  previousStatus: "active" | "paused" | "disabled" | null;
+  actorType: "human" | "system";
+  occurredAt: Date | string;
+  correlationId?: string | null;
+}
+
 export type AgentReadinessBlockerCode =
   | "installation_inactive"
   | "workflow_invalid"
@@ -342,6 +359,39 @@ export function buildScheduleLifecycleEvent(input: ScheduleAnalyticsInput): Anal
     scopeKind: "core_organization",
     scopeExternalId: input.organizationId,
     subject: `schedule:${input.scheduleId}`,
+    occurredAt: input.occurredAt,
+    attributes,
+    correlationId: input.correlationId ?? undefined,
+    idempotencyKey: `agent-platform:${identity}`,
+  });
+}
+
+export function buildInstallationLifecycleEvent(input: InstallationLifecycleAnalyticsInput): AnalyticsOutboxRecord {
+  const occurredAt = timestampAttribute(input.occurredAt);
+  const attributes: JsonObject = {
+    installation_id: input.installationId,
+    agent_definition_id: input.agentDefinitionId,
+    agent_version_id: input.agentVersionId,
+    execution_mode: input.executionMode,
+    creation_profile: input.creationProfile,
+    agent_audience: input.agentAudience,
+    scope_type: input.scopeType,
+    action: input.action,
+    status: input.status,
+    previous_status: input.previousStatus,
+    actor_type: input.actorType,
+    occurred_at: occurredAt,
+  };
+  const identity = `installation:${input.installationId}:${input.action}:${input.status}:${occurredAt}`;
+  return buildEvent({
+    recordId: identity,
+    sourceDomain: "agents",
+    sourceStreamKey: `organization:${input.organizationId}:installations`,
+    contractName: "agent.installation.lifecycle@1",
+    schemaVersion: 1,
+    scopeKind: "core_organization",
+    scopeExternalId: input.organizationId,
+    subject: `installation:${input.installationId}`,
     occurredAt: input.occurredAt,
     attributes,
     correlationId: input.correlationId ?? undefined,

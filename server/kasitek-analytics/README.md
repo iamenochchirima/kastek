@@ -202,7 +202,8 @@ executables before running the recovery scripts.
 
 ## Agent runtime collection
 
-A-13 slices 1–6 connect Agent Platform terminal run, model-call, tool, approval, effect, schedule configuration, and readiness evaluation facts to the existing transactional outbox. Readiness coverage is completed by a bounded periodic sweep in the Agent API process: due installations are claimed through PostgreSQL leases, evaluated with the same projection as the readiness route, and recorded through the same deduplicating sidecar.
+A-13 slices 1–7 connect Agent Platform installation lifecycle, terminal run, model-call, tool, approval, effect, schedule configuration, and readiness evaluation facts to the existing transactional outbox. Readiness coverage is completed by a bounded periodic sweep in the Agent API process: due installations are claimed through PostgreSQL leases, evaluated with the same projection as the readiness route, and recorded through the same deduplicating sidecar.
+Installation lifecycle facts cover creation and real active, paused, and disabled transitions, including execution mode, creation profile, audience, and installation scope. They are written with the installation mutation and are not emitted for unchanged status writes.
 Completed and failed runs publish the registered `agent.run.completed@1` and `agent.run.failed@1`
 contracts in the same transaction as the run and attempt state change. Facts include stable agent
 references, organization scope, trigger, execution mode, creation profile, audience, deployment
