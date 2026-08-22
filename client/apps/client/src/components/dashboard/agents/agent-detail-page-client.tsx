@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { Archive, ArrowLeft, BookOpen, Bot, CheckCircle2, Copy, Cpu, Globe2, History, KeyRound, LayoutDashboard, MessageSquare, PlugZap, RefreshCw, Rocket, RotateCcw, Settings2, SlidersHorizontal, Sparkles, Trash2, Upload, Workflow } from "lucide-react";
 import type { IconType } from "react-icons";
-import { SiAnthropic, SiDiscord, SiGooglegemini, SiInstagram, SiMessenger, SiModelcontextprotocol, SiOpenai, SiSlack, SiTelegram, SiWhatsapp, SiWordpress, SiX } from "react-icons/si";
+import { SiDiscord, SiInstagram, SiMessenger, SiModelcontextprotocol, SiSlack, SiTelegram, SiWhatsapp, SiWordpress } from "react-icons/si";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -125,31 +126,10 @@ function providerLabel(provider?: AgentModelProvider) {
   return provider ? AGENT_MODEL_PROVIDER_LABELS[provider] : "provider";
 }
 
-const PROVIDER_LOGOS: Partial<Record<AgentModelProvider, IconType>> = {
-  openai: SiOpenai,
-  anthropic: SiAnthropic,
-  gemini: SiGooglegemini,
-  xai: SiX,
-};
-
-const PROVIDER_MARKS: Record<AgentModelProvider, string> = {
-  openrouter: "OR",
-  openai: "AI",
-  anthropic: "A",
-  gemini: "G",
-  deepseek: "DS",
-  glm: "GLM",
-  kimi: "K",
-  minimax: "MM",
-  xai: "X",
-  opencode_go: "GO",
-  opencode_zen: "Z",
-};
-
 function ProviderLogo({ provider, compact = false }: { provider: AgentModelProvider; compact?: boolean }) {
-  const Logo = PROVIDER_LOGOS[provider];
-  return <span className={`grid shrink-0 place-items-center rounded-lg border border-primary/20 bg-primary/10 text-primary ${compact ? "h-6 w-6" : "h-9 w-9"}`} aria-hidden="true">
-    {Logo ? <Logo className={compact ? "h-3.5 w-3.5" : "h-5 w-5"} /> : <span className={compact ? "text-[8px] font-bold leading-none" : "text-[10px] font-bold leading-none"}>{PROVIDER_MARKS[provider]}</span>}
+  const size = compact ? 24 : 36;
+  return <span className={`grid shrink-0 place-items-center overflow-hidden rounded-lg ${compact ? "h-6 w-6" : "h-9 w-9"}`} aria-hidden="true">
+    <Image src={`/images/model-providers/${provider}.svg`} alt="" width={size} height={size} className="h-full w-full" />
   </span>;
 }
 
