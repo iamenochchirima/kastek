@@ -85,13 +85,22 @@ describe("conversation action contract", () => {
       claim: vi.fn(async (input: { organizationId: string; handoffId: string; actorId: string }) => ({ handoff: { id: input.handoffId }, conversation: { id: "conversation-1" }, changed: true })),
       continueWithAgent: vi.fn(async () => ({ handoff: { id: "handoff-1" }, conversation: { id: "conversation-1" }, changed: true })),
       resolve: vi.fn(async () => ({ handoff: { id: "handoff-1" }, conversation: { id: "conversation-1" }, changed: true })),
+      appendHumanMessage: vi.fn(async (input: { organizationId: string; handoffId: string; actorId: string; text: string; idempotencyKey: string }) => ({
+        handoff: { id: input.handoffId },
+        conversation: { id: "conversation-1" },
+        message: { id: "message-1" },
+        deliveryAttemptId: null,
+        created: true,
+      })),
     } as unknown as HandoffRepository;
     const controls = new ConversationControlService(handoffs);
     await controls.claim({ organizationId: "org-1", handoffId: "handoff-1", actorId: "operator-1" });
     await controls.continueWithAgent({ organizationId: "org-1", handoffId: "handoff-1", actorId: "operator-1" });
     await controls.resolve({ organizationId: "org-1", handoffId: "handoff-1", actorId: "operator-1", resolution: "done" });
+    await controls.sendHumanMessage({ organizationId: "org-1", handoffId: "handoff-1", actorId: "operator-1", text: "I can help.", idempotencyKey: "message-1" });
     expect(handoffs.claim).toHaveBeenCalledWith({ organizationId: "org-1", handoffId: "handoff-1", actorId: "operator-1" });
     expect(handoffs.continueWithAgent).toHaveBeenCalledWith({ organizationId: "org-1", handoffId: "handoff-1", actorId: "operator-1" });
     expect(handoffs.resolve).toHaveBeenCalledWith({ organizationId: "org-1", handoffId: "handoff-1", actorId: "operator-1", resolution: "done" });
+    expect(handoffs.appendHumanMessage).toHaveBeenCalledWith({ organizationId: "org-1", handoffId: "handoff-1", actorId: "operator-1", text: "I can help.", idempotencyKey: "message-1" });
   });
 });
