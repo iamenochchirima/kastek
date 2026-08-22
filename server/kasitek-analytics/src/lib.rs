@@ -19,6 +19,7 @@ pub mod projections;
 pub mod reconciliation;
 pub mod records;
 pub mod registry;
+pub mod reporting;
 pub mod scope;
 pub mod worker;
 

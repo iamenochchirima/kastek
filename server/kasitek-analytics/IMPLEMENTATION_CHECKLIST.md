@@ -97,8 +97,8 @@ checklist records implementation evidence for the current package only.
   scope-bearing A-05 control tables.
 - [x] Run the A-05 migration against isolated native PostgreSQL and verify trigger-created closure
   rows and RLS filtering with forced-RLS integration SQL.
-- [ ] Connect signed ES256 grant transport verification to the future reporting/ingestion HTTP
-  boundary; A-05 validates the claims and database context after that boundary supplies them.
+- [x] Connect signed ES256 grant transport verification to the reporting HTTP boundary; the
+  reporting API independently verifies the key, issuer, audience, lifetime, and persisted grant.
 
 ## A-06 — immutable facts, observations, quarantine, manifests, cursors, and audit
 
@@ -225,6 +225,25 @@ checklist records implementation evidence for the current package only.
 - [x] Add domain-specific typed projection builders, ancestor contribution rollups, timezone
   calendar buckets, reconciliation-driven repairs, and full parity/coverage validation.
 
+## A-11 — reporting boundary and query planner (slice 1)
+
+- [x] Add short-lived ES256 bearer-grant verification with legacy-key and key-ID rotation support.
+- [x] Bind each verified grant to the persisted grant row, service identity issuer, revocation
+  state, scope hierarchy, permission set, metric restrictions, and transaction-local RLS context.
+- [x] Add a security-definer descendant expansion function so `all` grants do not require the
+  Analytics application role to own the scope tables.
+- [x] Add the permission-filtered `GET /v1/metrics/catalog` route from the canonical registry.
+- [x] Add bounded `POST /v1/reports/query` request validation for scope, range, timezone, interval,
+  metrics, metric sets, dimensions, filters, descendant access, and result point limits.
+- [x] Read only promoted projection generations and registered rollups; distinct metrics deduplicate
+  generation-scoped contribution keys at the requested scope and breakdown.
+- [x] Return per-metric availability, coverage, freshness, registry, generation, and source-as-of
+  metadata instead of treating missing or stale data as zero.
+- [x] Add unit, route-authentication, and native PostgreSQL tests for signed reporting and query
+  isolation; the PostgreSQL fixture rolls back after the test.
+- [ ] Add previous-period comparison responses, non-authoritative Redis caching with authorization-
+  complete keys, and the complete product mutation-to-reporting E2E.
+
 ## Verification evidence
 
 - `cargo fmt --manifest-path server/kasitek-analytics/Cargo.toml -- --check`
@@ -334,6 +353,14 @@ checklist records implementation evidence for the current package only.
   reconciliation mismatch repair-window requeue coverage.
 - A-10: full `cargo test -p kasitek-analytics` (31 unit tests plus ingestion, maintenance, and
   projection PostgreSQL suites) and strict package Clippy passed.
+- A-11 slice 1: `cargo fmt -p kasitek-analytics`, strict package Clippy, and full
+  `cargo test -p kasitek-analytics` passed; the package now includes 36 unit tests and the
+  reporting PostgreSQL suite.
+- A-11 slice 1: native PostgreSQL reporting test passed with a signed ES256 grant, persisted grant
+  binding, transaction-local RLS context, promoted-generation rollup reads, and contribution-level
+  distinct deduplication; all fixture rows were rolled back.
+- A-11 slice 1: migration `20260822080000_analytics_reporting_scope_expansion.sql` applied through
+  the Analytics migration release binary.
 
 ## Explicitly deferred
 
@@ -342,10 +369,9 @@ checklist records implementation evidence for the current package only.
 - A-03 complete product mutation-to-reporting E2E, domain OpenTelemetry exporters, alert rules, and
   tested recovery drills
 - A-04 historical compatibility fixtures until a second major contract or metric version exists
-- A-05 signed ES256 transport verification until the reporting/ingestion HTTP grant boundary exists
+- Previous-period comparisons and non-authoritative reporting caching until their A-11 slices exist
 - A-06 signed audit checkpoint production/verification until the controlled signing boundary exists
 - A-07/A-08 authoritative domain mutation instrumentation until the applicable reference vertical
   slices exist
-- Domain-specific ancestor projections, reporting APIs, query planning, caching, and UI; source
-  reconstruction and provider-history backfill execution remains producer-owned behind the claim
-  boundary.
+- Reporting UI and full product mutation-to-reporting E2E remain deferred; source reconstruction
+  and provider-history backfill execution remains producer-owned behind the claim boundary.

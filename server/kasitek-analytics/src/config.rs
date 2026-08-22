@@ -12,6 +12,10 @@ pub struct AnalyticsConfig {
     pub database_url: String,
     pub redis_url: Option<String>,
     pub metrics_token: Option<String>,
+    pub reporting_public_key: Option<String>,
+    pub reporting_public_keys_json: Option<String>,
+    pub reporting_issuers: Vec<String>,
+    pub reporting_audience: String,
     pub ingestion_credentials: Vec<IngestionCredential>,
     pub database_max_connections: u32,
     pub database_acquire_timeout_ms: u64,
@@ -65,6 +69,20 @@ impl AnalyticsConfig {
         let database_url = required(get("ANALYTICS_DATABASE_URL"), "ANALYTICS_DATABASE_URL")?;
         let redis_url = optional(get("ANALYTICS_REDIS_URL"));
         let metrics_token = optional(get("ANALYTICS_METRICS_TOKEN"));
+        let reporting_public_key = optional(get("ANALYTICS_REPORTING_PUBLIC_KEY"));
+        let reporting_public_keys_json = optional(get("ANALYTICS_REPORTING_PUBLIC_KEYS_JSON"));
+        let reporting_issuers = parse_csv(
+            get("ANALYTICS_REPORTING_ISSUERS"),
+            &[
+                "kasitek-core",
+                "kasitek-agent-platform",
+                "kasitek-tenant-platform",
+            ],
+        );
+        let reporting_audience = non_empty_or(
+            get("ANALYTICS_REPORTING_AUDIENCE"),
+            "kasitek-analytics-reporting",
+        );
         let ingestion_credentials =
             parse_ingestion_credentials(optional(get("ANALYTICS_INGESTION_CREDENTIALS_JSON")))?;
         let database_max_connections = parse_u32(
@@ -94,6 +112,10 @@ impl AnalyticsConfig {
             database_url,
             redis_url,
             metrics_token,
+            reporting_public_key,
+            reporting_public_keys_json,
+            reporting_issuers,
+            reporting_audience,
             ingestion_credentials,
             database_max_connections,
             database_acquire_timeout_ms,
@@ -176,6 +198,21 @@ fn optional(value: Option<String>) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
+fn parse_csv(value: Option<String>, default: &[&str]) -> Vec<String> {
+    let values = value
+        .map(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .filter(|item| !item.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .filter(|values| !values.is_empty())
+        .unwrap_or_else(|| default.iter().map(|item| (*item).to_string()).collect());
+    values
+}
+
 fn parse_u16(
     variable: &'static str,
     value: Option<String>,
@@ -248,6 +285,17 @@ mod tests {
         assert_eq!(config.api_port, 4300);
         assert_eq!(config.redis_url, None);
         assert_eq!(config.metrics_token, None);
+        assert_eq!(config.reporting_public_key, None);
+        assert_eq!(config.reporting_public_keys_json, None);
+        assert_eq!(
+            config.reporting_issuers,
+            vec![
+                "kasitek-core",
+                "kasitek-agent-platform",
+                "kasitek-tenant-platform"
+            ]
+        );
+        assert_eq!(config.reporting_audience, "kasitek-analytics-reporting");
         assert!(config.ingestion_credentials.is_empty());
         assert_eq!(config.database_max_connections, 10);
         assert_eq!(config.database_acquire_timeout_ms, 5_000);
@@ -281,6 +329,27 @@ mod tests {
             ("ANALYTICS_METRICS_TOKEN", "local-metrics-token"),
         ]);
         assert_eq!(config.metrics_token.as_deref(), Some("local-metrics-token"));
+    }
+
+    #[test]
+    fn parses_reporting_key_rotation_boundaries_without_defaults_for_keys() {
+        let config = config(&[
+            ("ANALYTICS_DATABASE_URL", "postgres://localhost/analytics"),
+            ("ANALYTICS_REPORTING_PUBLIC_KEY", "public-key"),
+            (
+                "ANALYTICS_REPORTING_PUBLIC_KEYS_JSON",
+                r#"{"current":"pem"}"#,
+            ),
+            ("ANALYTICS_REPORTING_ISSUERS", "core, tenant-platform"),
+            ("ANALYTICS_REPORTING_AUDIENCE", "reports"),
+        ]);
+        assert_eq!(config.reporting_public_key.as_deref(), Some("public-key"));
+        assert_eq!(
+            config.reporting_public_keys_json.as_deref(),
+            Some(r#"{"current":"pem"}"#)
+        );
+        assert_eq!(config.reporting_issuers, vec!["core", "tenant-platform"]);
+        assert_eq!(config.reporting_audience, "reports");
     }
 
     #[test]

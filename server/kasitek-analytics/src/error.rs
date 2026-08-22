@@ -12,6 +12,8 @@ pub enum AnalyticsError {
     Migration(#[from] sqlx::migrate::MigrateError),
     #[error("analytics registry validation failed: {0}")]
     Registry(#[from] crate::registry::RegistryError),
+    #[error("analytics reporting authentication configuration failed: {0}")]
+    ReportingConfig(String),
     #[error("analytics API failed to bind: {0}")]
     Bind(#[from] std::io::Error),
 }

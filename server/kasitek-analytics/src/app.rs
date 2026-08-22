@@ -1,6 +1,6 @@
 use actix_web::web;
 
-use crate::{contracts::ProcessKind, health, ingestion, maintenance, reconciliation};
+use crate::{contracts::ProcessKind, health, ingestion, maintenance, reconciliation, reporting};
 
 pub fn configure(cfg: &mut web::ServiceConfig, process: ProcessKind) {
     health::configure(cfg, process);
@@ -25,5 +25,6 @@ pub fn configure(cfg: &mut web::ServiceConfig, process: ProcessKind) {
             web::resource(maintenance::BACKFILL_WORK_PATH)
                 .route(web::get().to(maintenance::backfill_work_handler)),
         );
+        reporting::configure(cfg);
     }
 }

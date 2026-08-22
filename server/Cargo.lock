@@ -2244,6 +2244,7 @@ dependencies = [
  "chrono",
  "dotenv",
  "jsonschema",
+ "jwt-simple",
  "log",
  "observability",
  "serde",

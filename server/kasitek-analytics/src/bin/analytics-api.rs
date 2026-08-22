@@ -7,6 +7,7 @@ use kasitek_analytics::{
     error::AnalyticsError,
     ingestion::IngestionAuthenticator,
     metrics::{MetricsAccess, ProcessMetrics},
+    reporting::ReportingAuthenticator,
 };
 
 fn load_dotenv() {
@@ -21,6 +22,7 @@ async fn main() -> Result<(), AnalyticsError> {
     let config = AnalyticsConfig::from_env()?;
     observability::init(&config.log_filter);
     let registry = kasitek_analytics::registry::load_registry()?;
+    let registry_access = web::Data::new(registry.clone());
     log::info!(
         "service=kasitek-analytics process=analytics-api status=registry_loaded registry_sha256={} metrics_registry_version={}",
         registry.sha256,
@@ -30,6 +32,9 @@ async fn main() -> Result<(), AnalyticsError> {
     let metrics = web::Data::new(ProcessMetrics::default());
     let metrics_access = web::Data::new(MetricsAccess::from_config(&config));
     let ingestion_access = web::Data::new(IngestionAuthenticator::from_config(&config));
+    let reporting_access = web::Data::new(
+        ReportingAuthenticator::from_config(&config).map_err(AnalyticsError::ReportingConfig)?,
+    );
     let bind_address = (config.api_host.clone(), config.api_port);
 
     log::info!(
@@ -44,6 +49,8 @@ async fn main() -> Result<(), AnalyticsError> {
             .app_data(metrics.clone())
             .app_data(metrics_access.clone())
             .app_data(ingestion_access.clone())
+            .app_data(reporting_access.clone())
+            .app_data(registry_access.clone())
             .app_data(
                 web::JsonConfig::default().limit(kasitek_analytics::ingestion::MAX_BATCH_BYTES),
             )
