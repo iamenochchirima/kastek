@@ -282,9 +282,36 @@ fn validate_agent_delivery_idempotency_key(value: &str) -> Result<&str, AppError
     Ok(value)
 }
 
+fn whatsapp_deleted_message_responder_type(
+    sender: &str,
+    provider_metadata: Option<&Value>,
+) -> &'static str {
+    if sender == "customer" {
+        "customer"
+    } else if provider_metadata
+        .and_then(|value| value.get("_kasitek_agent_idempotency_key"))
+        .and_then(Value::as_str)
+        .is_some_and(|value| !value.is_empty())
+    {
+        "agent"
+    } else if provider_metadata
+        .and_then(|value| value.get("_kasitek_inbox_message_kind"))
+        .and_then(Value::as_str)
+        == Some("template")
+    {
+        "system"
+    } else {
+        "human"
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{is_provider_authentication_failure, validate_agent_delivery_idempotency_key};
+    use super::{
+        is_provider_authentication_failure, validate_agent_delivery_idempotency_key,
+        whatsapp_deleted_message_responder_type,
+    };
+    use serde_json::json;
 
     #[test]
     fn agent_delivery_requires_a_bounded_idempotency_key() {
@@ -307,6 +334,32 @@ mod tests {
         assert!(!is_provider_authentication_failure(
             "WhatsApp Cloud API text send failed (400 Bad Request): Message undeliverable"
         ));
+    }
+
+    #[test]
+    fn deleted_message_attribution_preserves_customer_agent_system_and_human() {
+        assert_eq!(
+            whatsapp_deleted_message_responder_type("customer", None),
+            "customer"
+        );
+        assert_eq!(
+            whatsapp_deleted_message_responder_type(
+                "bot",
+                Some(&json!({ "_kasitek_agent_idempotency_key": "run-1" }))
+            ),
+            "agent"
+        );
+        assert_eq!(
+            whatsapp_deleted_message_responder_type(
+                "bot",
+                Some(&json!({ "_kasitek_inbox_message_kind": "template" }))
+            ),
+            "system"
+        );
+        assert_eq!(
+            whatsapp_deleted_message_responder_type("bot", None),
+            "human"
+        );
     }
 }
 
@@ -1508,14 +1561,34 @@ pub async fn delete_conversation(
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
 
+    let mut tx = pool.begin().await?;
     sqlx::query(r#"DELETE FROM "Message" WHERE "conversationId" = $1"#)
         .bind(&conversation.id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
-    sqlx::query(r#"DELETE FROM "Conversation" WHERE id = $1"#)
+    let deleted = sqlx::query(r#"DELETE FROM "Conversation" WHERE id = $1 AND "orgId" = $2"#)
         .bind(&conversation.id)
-        .execute(pool)
+        .bind(org_id)
+        .execute(&mut *tx)
         .await?;
+    if deleted.rows_affected() == 0 {
+        return Err(AppError::NotFound("Conversation not found".to_string()));
+    }
+    analytics::inbox::enqueue_conversation_lifecycle(
+        &mut tx,
+        org_id,
+        &conversation.id,
+        "whatsapp",
+        "deleted",
+        "deleted",
+        "human",
+        Utc::now(),
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+    })?;
+    tx.commit().await?;
 
     Ok(json!({
         "success": true,
@@ -1678,10 +1751,24 @@ pub async fn delete_conversation_message(
     let conversation = scoped_conversation(pool, org_id, conversation_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Conversation not found".to_string()))?;
+    let mut tx = pool.begin().await?;
+    let deleted_message = sqlx::query_as::<_, (String, Option<String>, Option<Value>)>(
+        r#"
+        SELECT sender, "contentType"::text, "providerMetadata"
+        FROM "Message"
+        WHERE id = $1 AND "conversationId" = $2
+        FOR UPDATE
+        "#,
+    )
+    .bind(message_id)
+    .bind(&conversation.id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Message not found".to_string()))?;
     let result = sqlx::query(r#"DELETE FROM "Message" WHERE id = $1 AND "conversationId" = $2"#)
         .bind(message_id)
         .bind(&conversation.id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound("Message not found".to_string()));

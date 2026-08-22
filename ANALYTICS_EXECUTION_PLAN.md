@@ -1709,9 +1709,19 @@ those transitions.
   delivery-backfill facts from the authoritative Core mutations and webhook receipt paths.
 - [x] Preserve Meta channel and message-type dimensions while keeping content, customer
   identifiers, provider IDs, credentials, and raw provider payloads out of analytics attributes.
-- [ ] Add Core-owned Meta deletion facts when a Meta conversation/message deletion mutation exists,
-  historical backfill coverage, source reconciliation, projection/reporting evidence, and
-  end-to-end mutation-to-reporting tests.
+- [ ] Add historical backfill coverage, source reconciliation, projection/reporting evidence, and
+  end-to-end mutation-to-reporting tests for Meta Inbox.
+
+#### Execution slice 3 — Core Inbox deletion facts
+
+- [x] Emit a bounded WhatsApp conversation deletion fact in the same transaction as the
+  organization-scoped conversation and message removal.
+- [x] Emit an explicit WhatsApp message deletion fact with direction, responder attribution, and
+  message type, without retaining content, customer identifiers, or provider IDs.
+- [x] Keep bulk message cleanup represented by the conversation deletion fact rather than creating
+  an unbounded per-message analytics fan-out.
+- [ ] Add Meta deletion facts if Core introduces an authoritative Meta conversation or message
+  deletion mutation; do not infer deletion from webhook absence or provider payloads.
 
 - [ ] Complete the remaining Core Inbox-owned conversation and message facts; do not make Agent
   Platform the owner of Core Inbox conversations.

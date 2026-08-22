@@ -246,7 +246,9 @@ delivery backfills. Response timing is measured only for an outbound human or Ag
 following a customer message. The contracts exclude message content, customer identifiers,
 provider message IDs, credentials, and raw provider payloads. Core-owned assignment/resolution,
 Meta deletion mutations, historical coverage, reconciliation, projections, reporting, and
-end-to-end mutation-to-reporting evidence remain pending Core Inbox slices.
+end-to-end mutation-to-reporting evidence remain pending Core Inbox slices. WhatsApp conversation
+and explicit message deletion now emit bounded lifecycle facts; bulk message cleanup is represented
+by the conversation deletion fact rather than an unbounded per-message fan-out.
 
 The common path applies to personal, customer-service, system-hosted, hosted, and
 external-connected runs. Customer handoff is a separate conditional lifecycle contract already
