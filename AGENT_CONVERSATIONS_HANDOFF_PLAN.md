@@ -94,6 +94,7 @@ This plan covers the split between personal and customer-service agents, custome
 
 ## 9. Analytics integration
 
+- [x] Register the versioned `agent.handoff.lifecycle@1` contract and enqueue request, claim, human-message, continue, and resolve transitions.
 - [ ] Emit request created, shown, claimed, first human response, human message, released, resolved, expired, and cancelled events.
 - [ ] Include organization, agent definition/version/installation, conversation, channel, connection, run, actor, reason, timestamps, and idempotency key.
 - [ ] Keep rollups, dimensions, and dashboards in the analytics plan.
