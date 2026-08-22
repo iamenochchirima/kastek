@@ -98,6 +98,29 @@ transaction-local context; RLS is defense in depth, not a replacement for grant 
 The Rust `scope` module contains the reusable hierarchy and grant rules. The `authorization`
 module encodes the validated scope set into the PostgreSQL context without storing bearer tokens.
 
+## Facts and collection controls
+
+A-06 adds the append-only `analytics_event` and `analytics_metric_observation` stores. Events keep
+business occurrence time separate from ingestion time; provider revisions append a newer
+observation rather than replacing the previous value. Source state and cursors are mutable
+summaries, while manifests, coverage checkpoints, reconciliation runs, projection generations,
+and audit records preserve historical evidence.
+
+Quarantine stores only record identity, hashes, safe error codes, and lifecycle metadata. It does
+not store message bodies, prompts, credentials, tokens, or unrestricted provider responses. Scope
+references and producer permissions are validated by database triggers, scope-bearing tables use
+the A-05 authorization context and RLS, immutable tables reject updates/deletes, and audit records
+are hash-chained with checkpoint metadata.
+
+Run the native A-06 verification against a disposable database after applying migrations:
+
+```bash
+psql "$ANALYTICS_DATABASE_URL" -f scripts/test-a06-native.sql
+```
+
+The script exercises every A-06 control table, immutable-record protection, audit-chain rejection,
+and forced-RLS sibling isolation, then rolls its fixture back.
+
 Run the bounded local foundation E2E against a disposable loopback database:
 
 ```bash
@@ -119,8 +142,9 @@ If the local PostgreSQL client is older than the server, set
 `ANALYTICS_PG_DUMP_BIN` and `ANALYTICS_PG_RESTORE_BIN` to matching `pg_dump` and `pg_restore`
 executables before running the recovery scripts.
 
-## A-01 boundary
+## Current boundary
 
-This package does not yet create analytics facts, event schemas, source outboxes, ingestion routes,
-scope registries, projections, Redis caches, reporting APIs, or customer dashboards. A-02 creates
-only the dedicated `analytics` PostgreSQL schema namespace; product tables belong to later packages.
+A-01 through A-06 provide the service, dedicated storage, registries, scope authorization, immutable
+facts, source controls, quarantine, projection metadata, and audit foundation. Source outboxes,
+authenticated ingestion routes, projections, reporting APIs, Redis caches, and customer dashboards
+belong to later execution packages.

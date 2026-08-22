@@ -100,6 +100,32 @@ checklist records implementation evidence for the current package only.
 - [ ] Connect signed ES256 grant transport verification to the future reporting/ingestion HTTP
   boundary; A-05 validates the claims and database context after that boundary supplies them.
 
+## A-06 — immutable facts, observations, quarantine, manifests, cursors, and audit
+
+- [x] Add append-only normalized analytics events with source identity, sequence, scope, timing,
+  subject, safe attributes, and canonical payload hash.
+- [x] Add append-only provider metric observations with reporting windows, revisions, dimensions,
+  source evidence, and provider synchronization identity.
+- [x] Keep current source availability state and durable received/contiguous/gap cursors separate
+  from immutable historical records.
+- [x] Add privacy-safe ingestion quarantine with identity/hash immutability and controlled release
+  metadata; raw payloads and credentials are excluded.
+- [x] Add historical source manifests with capabilities, cadence, reliable coverage, heartbeats,
+  checkpoints, and safe failure state.
+- [x] Add coverage checkpoints, reconciliation runs, quality issues, resumable backfill jobs, and
+  projection checkpoint/generation metadata.
+- [x] Validate producer identity, permitted scope kind, scope/root binding, source sequence, and
+  immutable record boundaries in PostgreSQL triggers.
+- [x] Add scope-aware RLS policies to A-06 customer-data and control read models.
+- [x] Add hash-chained privacy-safe audit records and checkpoint metadata without storing report
+  values, message content, prompts, credentials, tokens, or raw payloads.
+- [x] Add reusable Rust record identity, canonical JSON hashing, scope binding, and observation
+  window validation helpers.
+- [x] Run native A-06 migration and disposable SQL verification for every control table, immutable
+  mutation rejection, broken audit-chain rejection, and forced-RLS sibling isolation.
+- [ ] Connect the A-06 tables to authenticated batch ingestion, source outboxes, and producer
+  publishers in A-07 through A-09.
+
 ## Verification evidence
 
 - `cargo fmt --manifest-path server/kasitek-analytics/Cargo.toml -- --check`
@@ -141,6 +167,15 @@ checklist records implementation evidence for the current package only.
   objects.
 - A-05: forced-RLS SQL verification passed: a workspace plus one authorized client was visible,
   while the sibling client's closure row was hidden.
+- A-06: `cargo test --manifest-path server/kasitek-analytics/Cargo.toml` — 25 tests passed,
+  including canonical payload hashing, record identity, scope binding, and observation-window
+  validation.
+- A-06: native `analytics-migrate` completed against runtime and isolated E2E PostgreSQL databases;
+  migration `20260822020000` created facts, observations, source controls, quarantine, manifests,
+  coverage, reconciliation, quality, backfill, projection, and audit objects.
+- A-06: `scripts/test-a06-native.sql` passed in the isolated database; it exercised all A-06 control
+  tables, rejected an immutable event update and broken audit chain, and confirmed forced-RLS hides
+  the sibling client's event and audit row. The transaction rolled back its fixtures.
 
 ## Explicitly deferred
 
@@ -150,4 +185,5 @@ checklist records implementation evidence for the current package only.
   tested recovery drills
 - A-04 historical compatibility fixtures until a second major contract or metric version exists
 - A-05 signed ES256 transport verification until the reporting/ingestion HTTP grant boundary exists
+- A-06 signed audit checkpoint production/verification until the controlled signing boundary exists
 - Source outboxes, ingestion, authentication, projections, reporting, and UI
