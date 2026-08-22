@@ -89,8 +89,9 @@ export function AgentsPageClient({
   const [createOpen, setCreateOpen] = useState(Boolean(initialTemplateKey));
   const [createStep, setCreateStep] = useState<"type" | "custom">("type");
   const [chatAgent, setChatAgent] = useState<AgentDefinition | null>(null);
+  const [activeView, setActiveView] = useState<AgentView>(initialView);
   const templates: SelectableTemplate[] = initialTemplates.map((template) => ({ value: template.key, label: template.name, description: template.description, available: true }));
-  const visibleAgents = initialAgents.filter((agent) => initialView === "external" ? isExternalAgent(agent) : !isExternalAgent(agent));
+  const visibleAgents = initialAgents.filter((agent) => activeView === "external" ? isExternalAgent(agent) : !isExternalAgent(agent));
 
   const closeCreate = () => {
     setCreateOpen(false);
@@ -115,24 +116,28 @@ export function AgentsPageClient({
           </PageHeaderActions>
         </PageHeader>
 
-        {initialOperations && initialView === "agents" ? <OperationsSummary summary={initialOperations} /> : null}
+        {initialOperations ? <OperationsSummary summary={initialOperations} /> : null}
 
-        <nav aria-label="Agent views" className="flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-border bg-secondary/40 p-1">
-          <Link
-            href="/agents"
-            aria-current={initialView === "agents" ? "page" : undefined}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${initialView === "agents" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+        <div role="tablist" aria-label="Agent views" className="flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-border bg-secondary/40 p-1">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeView === "agents"}
+            onClick={() => setActiveView("agents")}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${activeView === "agents" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
           >
             Agents
-          </Link>
-          <Link
-            href="/agents?view=external"
-            aria-current={initialView === "external" ? "page" : undefined}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${initialView === "external" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeView === "external"}
+            onClick={() => setActiveView("external")}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${activeView === "external" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
           >
             External agents
-          </Link>
-        </nav>
+          </button>
+        </div>
 
         {agentsUnavailable ? (
           <Card><CardContent className="flex flex-col items-start gap-4 p-8"><Info className="h-7 w-7 text-status-attention" /><div><h2 className="text-xl font-semibold text-foreground">Agents are unavailable</h2><p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">The Agent Platform could not be reached. Your existing installations are unchanged; try refreshing in a moment.</p></div><Button type="button" variant="outline" onClick={() => router.refresh()}>Retry</Button></CardContent></Card>
@@ -145,10 +150,10 @@ export function AgentsPageClient({
             <CardContent className="flex flex-col items-start gap-4 p-8">
               <Sparkles className="h-7 w-7 text-primary" />
               <div>
-                <h2 className="text-xl font-semibold text-foreground">{initialView === "external" ? "No external agents yet" : "No installed agents yet"}</h2>
-                <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">{initialView === "external" ? "External connections will appear here." : "Install KasiAI or choose an available template to get started."}</p>
+                <h2 className="text-xl font-semibold text-foreground">{activeView === "external" ? "No external agents yet" : "No installed agents yet"}</h2>
+                <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">{activeView === "external" ? "External connections will appear here." : "Install KasiAI or choose an available template to get started."}</p>
               </div>
-              {initialView === "agents" ? <Button type="button" onClick={() => { setCreateStep("type"); setCreateOpen(true); }}>Create agent</Button> : null}
+              {activeView === "agents" ? <Button type="button" onClick={() => { setCreateStep("type"); setCreateOpen(true); }}>Create agent</Button> : null}
             </CardContent>
           </Card>
         )}
