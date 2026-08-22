@@ -39,7 +39,8 @@ checklist records implementation evidence for the current package only.
 - [x] Add one reusable image with API, worker, and migration-release commands.
 - [x] Add health-gated Compose deployment shape for PostgreSQL, Redis, migration, API, and worker.
 - [x] Add guarded custom-format backup, checksum, metadata, and restore scripts.
-- [x] Add local storage and migration helpers and wire them into the full local stack.
+- [x] Add native local migration support and keep Docker storage as an explicit integration option.
+- [x] Keep the default local stack on the Analytics API only; worker and migration are explicit.
 - [x] Run package tests, Clippy, workspace check, shell syntax, Compose config, and diff checks.
 - [ ] Run PostgreSQL/Redis container integration, migration, backup, and restore drill.
 

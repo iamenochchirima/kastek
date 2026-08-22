@@ -40,11 +40,6 @@ require_command cargo
 require_command pnpm
 require_command gnome-terminal
 require_command curl
-require_command docker
-if ! docker compose version >/dev/null 2>&1; then
-  echo "Required Docker Compose plugin not found" >&2
-  exit 1
-fi
 
 # Write a temp launcher script for each service to avoid gnome-terminal's
 # argument parsing bug where '--' stops processing subsequent '--tab' flags.
@@ -73,8 +68,8 @@ services["core"]="$ROOT_DIR/server/kasitek-core|LOG_COLOR=always KASITEK_AGENTS_
 services["tenants"]="$ROOT_DIR/server/kasitek-tenants|LOG_COLOR=always cargo run"
 services["analytics-storage"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ./scripts/local-storage.sh"
 services["analytics-migrate"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ./scripts/local-migrate.sh"
-services["analytics-api"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ANALYTICS_DATABASE_URL=\"\${ANALYTICS_DATABASE_URL:-postgres://analytics:analytics_dev_password@127.0.0.1:55432/kasitek_analytics}\" ANALYTICS_REDIS_URL=\"\${ANALYTICS_REDIS_URL:-redis://127.0.0.1:56379}\" ANALYTICS_API_PORT=\"\${ANALYTICS_API_PORT:-4300}\" LOG_COLOR=always cargo run --bin analytics-api"
-services["analytics-worker"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ANALYTICS_DATABASE_URL=\"\${ANALYTICS_DATABASE_URL:-postgres://analytics:analytics_dev_password@127.0.0.1:55432/kasitek_analytics}\" ANALYTICS_REDIS_URL=\"\${ANALYTICS_REDIS_URL:-redis://127.0.0.1:56379}\" LOG_COLOR=always cargo run --bin analytics-worker"
+services["analytics-api"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ANALYTICS_DATABASE_URL=\"\${ANALYTICS_DATABASE_URL:-postgres://analytics:analytics_dev_password@127.0.0.1:5432/kasitek_analytics}\" ANALYTICS_REDIS_URL=\"\${ANALYTICS_REDIS_URL:-redis://127.0.0.1:6379}\" ANALYTICS_API_PORT=\"\${ANALYTICS_API_PORT:-4300}\" LOG_COLOR=always cargo run --bin analytics-api"
+services["analytics-worker"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ANALYTICS_DATABASE_URL=\"\${ANALYTICS_DATABASE_URL:-postgres://analytics:analytics_dev_password@127.0.0.1:5432/kasitek_analytics}\" ANALYTICS_REDIS_URL=\"\${ANALYTICS_REDIS_URL:-redis://127.0.0.1:6379}\" LOG_COLOR=always cargo run --bin analytics-worker"
 services["agents-api"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; KASITEK_CORE_URL='$LOCAL_CORE_URL' KASITEK_CORE_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' $AGENT_TEMPORAL_ENV pnpm run dev:api"
 services["agents-worker"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; KASITEK_CORE_URL='$LOCAL_CORE_URL' KASITEK_CORE_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' $AGENT_TEMPORAL_ENV pnpm run dev:worker"
 services["agent-gateway"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; pnpm run dev:gateway"
@@ -181,6 +176,8 @@ show_usage() {
   echo "  $0                    # Run all services"
   echo "  $0 core               # Run the Core API, including Calls"
   echo "  $0 core client        # Run the Core API and client"
+  echo "  $0 analytics-migrate # Apply Analytics migrations once"
+  echo "  $0 analytics-worker  # Run the optional Analytics worker"
   echo "  $0 restart core       # Restart only the Core API"
   echo "  $0 restart client     # Restart only the direct client app"
   echo ""
@@ -189,7 +186,7 @@ show_usage() {
 # Parse command line arguments
 if [[ $# -eq 0 ]]; then
   # No arguments - run all services
-  services_to_start=(core tenants analytics-storage analytics-migrate analytics-api analytics-worker agents-api agents-worker agent-gateway client admin labs)
+  services_to_start=(core tenants analytics-api agents-api agents-worker agent-gateway client admin labs)
   if [[ "$TEMPORAL_MODE" == "local" ]]; then
     services_to_start+=(temporal)
   fi

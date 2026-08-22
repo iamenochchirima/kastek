@@ -14,17 +14,26 @@ database credentials.
 
 ## Local configuration
 
-Copy `.env.example` to `.env` for the local PostgreSQL and Redis ports. The service loads this file
-when started from the repository stack script or with Cargo.
+Normal local development uses native PostgreSQL and, when installed, native Redis. Create a
+dedicated `kasitek_analytics` database and `analytics` database role; never point this service at
+Core's `DATABASE_URL`. Redis is non-authoritative and can be omitted until cache code is enabled.
+Copy `.env.example` to `.env`; the service loads it from the repository stack script or Cargo.
 
 ```bash
 cp .env.example .env
-cargo run --bin analytics-api
-cargo run --bin analytics-worker
 cargo run --bin analytics-migrate
 ```
 
-For a clean local Analytics environment, use the health-gated Compose definition:
+Start the normal local stack with only the Analytics API. Run the worker explicitly when testing
+worker behavior:
+
+```bash
+./scripts/run_local_stack.sh analytics-api
+./scripts/run_local_stack.sh analytics-worker
+```
+
+The migration command is a one-time release job, not a long-running local service. The optional
+Docker Compose definition is retained for isolated integration and deployment-shape testing:
 
 ```bash
 docker compose -f compose.yaml up --build
