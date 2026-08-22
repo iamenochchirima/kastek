@@ -1,6 +1,11 @@
 use actix_web::{web, App, HttpServer};
 use kasitek_analytics::{
-    app, config::AnalyticsConfig, contracts::ProcessKind, create_pool, error::AnalyticsError,
+    app,
+    config::AnalyticsConfig,
+    contracts::ProcessKind,
+    create_pool,
+    error::AnalyticsError,
+    metrics::{MetricsAccess, ProcessMetrics},
 };
 
 fn load_dotenv() {
@@ -15,6 +20,8 @@ async fn main() -> Result<(), AnalyticsError> {
     let config = AnalyticsConfig::from_env()?;
     observability::init(&config.log_filter);
     let pool = create_pool(&config)?;
+    let metrics = web::Data::new(ProcessMetrics::default());
+    let metrics_access = web::Data::new(MetricsAccess::from_config(&config));
     let bind_address = (config.api_host.clone(), config.api_port);
 
     log::info!(
@@ -26,6 +33,9 @@ async fn main() -> Result<(), AnalyticsError> {
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(pool.clone()))
+            .app_data(metrics.clone())
+            .app_data(metrics_access.clone())
+            .wrap(observability::http_logger())
             .configure(|cfg| app::configure(cfg, ProcessKind::Api))
     })
     .bind(bind_address)?

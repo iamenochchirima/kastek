@@ -45,6 +45,21 @@ checklist records implementation evidence for the current package only.
 - [x] Run native PostgreSQL migration, backup, and restore against isolated Analytics databases.
 - [ ] Run Redis integration; native Redis is not installed here and cache remains non-authoritative.
 
+## A-03 — CI, E2E, observability, and runbooks
+
+- [x] Add a checked-in CI workflow for Analytics formatting, tests, Clippy, workspace compilation,
+  shell validation, and the optional Compose deployment shape.
+- [x] Add a bounded local/CI foundation E2E command using an explicitly supplied loopback database.
+- [x] Verify migration, liveness, migration-gated readiness, metrics authentication, and
+  process-only metric labels in the foundation E2E.
+- [x] Add authenticated internal Prometheus-compatible process metrics without customer labels.
+- [x] Add shared request logging to the Analytics API.
+- [x] Add versioned runbook skeletons for service availability, database recovery, pipeline backlog,
+  Redis degradation, and isolation incidents.
+- [ ] Implement the complete product mutation-to-reporting `--full` E2E after A-04 through A-11.
+- [ ] Add domain pipeline metrics, OpenTelemetry exporters, alert rules, and tested recovery drills
+  after their owning data paths exist.
+
 ## Verification evidence
 
 - `cargo fmt --manifest-path server/kasitek-analytics/Cargo.toml -- --check`
@@ -64,9 +79,19 @@ checklist records implementation evidence for the current package only.
 - A-02: native `kasitek_analytics` migration completed on local PostgreSQL 18.
 - A-02: native backup and restore completed into isolated `kasitek_analytics_restore_e2e`;
   checksum, schema, and successful migration verification passed.
+- A-03: `cargo test --manifest-path server/kasitek-analytics/Cargo.toml` — 10 tests passed.
+- A-03: `cargo fmt --manifest-path server/kasitek-analytics/Cargo.toml -- --check` — passed.
+- A-03: `bash -n scripts/run_local_stack.sh scripts/test-analytics-e2e.sh server/kasitek-analytics/scripts/*.sh` — passed.
+- A-03: `.github/workflows/analytics.yml` adds static and PostgreSQL/Redis service E2E jobs.
+- A-03: `scripts/test-analytics-e2e.sh` passed against isolated native
+  `kasitek_analytics_e2e` with correlation ID `analytics-e2e-20260822T123735Z-753418`.
+- A-03: `scripts/test-analytics-e2e.sh --full` is intentionally gated until the product analytics
+  contracts, facts, projections, and reporting packages exist.
 
 ## Explicitly deferred
 
 - A-02 native Redis integration until a native Redis server is available; Redis is not yet used by
   the foundation runtime.
+- A-03 complete product mutation-to-reporting E2E, domain OpenTelemetry exporters, alert rules, and
+  tested recovery drills
 - Source outboxes, ingestion, authentication, projections, reporting, and UI

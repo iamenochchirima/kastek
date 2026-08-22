@@ -6,4 +6,5 @@ use crate::{contracts::ProcessKind, health};
 /// absent until their approved execution packages are implemented.
 pub fn configure(cfg: &mut web::ServiceConfig, process: ProcessKind) {
     health::configure(cfg, process);
+    cfg.route("/internal/metrics", web::get().to(crate::metrics::endpoint));
 }

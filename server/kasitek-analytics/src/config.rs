@@ -9,6 +9,7 @@ pub struct AnalyticsConfig {
     pub api_port: u16,
     pub database_url: String,
     pub redis_url: Option<String>,
+    pub metrics_token: Option<String>,
     pub database_max_connections: u32,
     pub database_acquire_timeout_ms: u64,
     pub database_connect_timeout_ms: u64,
@@ -31,7 +32,7 @@ impl AnalyticsConfig {
         Self::from_lookup(|name| env::var(name).ok())
     }
 
-    fn from_lookup<F>(get: F) -> Result<Self, ConfigError>
+    pub(crate) fn from_lookup<F>(get: F) -> Result<Self, ConfigError>
     where
         F: Fn(&str) -> Option<String>,
     {
@@ -44,6 +45,7 @@ impl AnalyticsConfig {
         )?;
         let database_url = required(get("ANALYTICS_DATABASE_URL"), "ANALYTICS_DATABASE_URL")?;
         let redis_url = optional(get("ANALYTICS_REDIS_URL"));
+        let metrics_token = optional(get("ANALYTICS_METRICS_TOKEN"));
         let database_max_connections = parse_u32(
             "ANALYTICS_DATABASE_MAX_CONNECTIONS",
             get("ANALYTICS_DATABASE_MAX_CONNECTIONS"),
@@ -70,6 +72,7 @@ impl AnalyticsConfig {
             api_port,
             database_url,
             redis_url,
+            metrics_token,
             database_max_connections,
             database_acquire_timeout_ms,
             database_connect_timeout_ms,
@@ -169,6 +172,7 @@ mod tests {
         assert_eq!(config.api_host, "0.0.0.0");
         assert_eq!(config.api_port, 4300);
         assert_eq!(config.redis_url, None);
+        assert_eq!(config.metrics_token, None);
         assert_eq!(config.database_max_connections, 10);
         assert_eq!(config.database_acquire_timeout_ms, 5_000);
         assert_eq!(config.database_connect_timeout_ms, 5_000);
@@ -192,6 +196,15 @@ mod tests {
             ("ANALYTICS_REDIS_URL", "redis://localhost/6379"),
         ]);
         assert_eq!(config.redis_url.as_deref(), Some("redis://localhost/6379"));
+    }
+
+    #[test]
+    fn preserves_the_optional_metrics_token_boundary() {
+        let config = config(&[
+            ("ANALYTICS_DATABASE_URL", "postgres://localhost/analytics"),
+            ("ANALYTICS_METRICS_TOKEN", "local-metrics-token"),
+        ]);
+        assert_eq!(config.metrics_token.as_deref(), Some("local-metrics-token"));
     }
 
     #[test]

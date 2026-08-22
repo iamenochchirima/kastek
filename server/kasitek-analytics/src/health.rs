@@ -6,6 +6,7 @@ use crate::contracts::{
     DependencyStatus, LivenessResponse, ProcessKind, ReadinessDependencies, ReadinessResponse,
     SERVICE_NAME,
 };
+use crate::metrics::ProcessMetrics;
 use crate::migrations::FOUNDATION_MIGRATION_VERSION;
 
 pub fn configure(cfg: &mut web::ServiceConfig, process: ProcessKind) {
@@ -15,7 +16,11 @@ pub fn configure(cfg: &mut web::ServiceConfig, process: ProcessKind) {
         .route("/health/ready", web::get().to(readiness));
 }
 
-async fn liveness(process: web::Data<ProcessKind>) -> impl Responder {
+async fn liveness(
+    process: web::Data<ProcessKind>,
+    metrics: web::Data<ProcessMetrics>,
+) -> impl Responder {
+    metrics.record_liveness();
     HttpResponse::Ok().json(LivenessResponse {
         status: "ok",
         service: SERVICE_NAME,
@@ -24,7 +29,11 @@ async fn liveness(process: web::Data<ProcessKind>) -> impl Responder {
     })
 }
 
-async fn readiness(pool: web::Data<PgPool>, process: web::Data<ProcessKind>) -> impl Responder {
+async fn readiness(
+    pool: web::Data<PgPool>,
+    process: web::Data<ProcessKind>,
+    metrics: web::Data<ProcessMetrics>,
+) -> impl Responder {
     let postgres_ready = sqlx::query_scalar::<_, i32>("SELECT 1")
         .fetch_one(pool.get_ref())
         .await
@@ -52,7 +61,9 @@ async fn readiness(pool: web::Data<PgPool>, process: web::Data<ProcessKind>) -> 
     } else {
         false
     };
-    readiness_response(**process, postgres_ready, migrations_ready)
+    let response = readiness_response(**process, postgres_ready, migrations_ready);
+    metrics.record_readiness(response.status().is_success());
+    response
 }
 
 fn readiness_response(

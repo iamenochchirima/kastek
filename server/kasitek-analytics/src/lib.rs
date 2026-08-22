@@ -9,6 +9,7 @@ pub mod config;
 pub mod contracts;
 pub mod error;
 pub mod health;
+pub mod metrics;
 pub mod migrations;
 pub mod worker;
 

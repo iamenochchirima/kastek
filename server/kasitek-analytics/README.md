@@ -51,6 +51,26 @@ curl http://127.0.0.1:4300/health/live
 curl http://127.0.0.1:4300/health/ready
 ```
 
+Metrics are internal-only and require the `ANALYTICS_METRICS_TOKEN` bearer token. Scrape them from
+`/internal/metrics`; an unset token denies the endpoint. The metrics foundation contains only
+process and dependency counters, with no customer or tenant identifiers.
+
+```bash
+curl -H "Authorization: Bearer $ANALYTICS_METRICS_TOKEN" \
+  http://127.0.0.1:4300/internal/metrics
+```
+
+Run the bounded local foundation E2E against a disposable loopback database:
+
+```bash
+ANALYTICS_E2E_DATABASE_URL=postgres://analytics:analytics_dev_password@127.0.0.1:5432/kasitek_analytics_e2e \
+  ./scripts/test-analytics-e2e.sh
+```
+
+The command intentionally does not run against the normal development database. `--full` remains
+reserved for the product mutation-to-reporting suite that depends on later contract, fact,
+projection, and reporting packages.
+
 The API can start while PostgreSQL is unavailable because its pool is lazy. Readiness returns
 `503` until the database responds. Redis is a non-authoritative cache boundary and is optional to
 the A-02 process configuration; cache behavior is implemented later. The worker currently starts
