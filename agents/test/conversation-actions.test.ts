@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ConversationActionService, type RequestHumanResult } from "../src/actions/conversation-actions";
+import { ConversationControlService } from "../src/actions/conversation-controls";
 import { createDefaultTools } from "../src/temporal/activities";
 import type { HandoffRepository } from "../src/db/repositories/handoff-repository";
 
@@ -75,5 +76,22 @@ describe("conversation action contract", () => {
       reason: "agent_uncertain",
       summary: "No conversation context.",
     })).rejects.toMatchObject({ code: "conversation_target_required", statusCode: 400 });
+  });
+
+  it("keeps operator controls on the same handoff repository boundary", async () => {
+    const handoffs = {
+      listQueue: vi.fn(async () => ({ items: [], nextBefore: null })),
+      get: vi.fn(async () => null),
+      claim: vi.fn(async (input: { organizationId: string; handoffId: string; actorId: string }) => ({ handoff: { id: input.handoffId }, conversation: { id: "conversation-1" }, changed: true })),
+      continueWithAgent: vi.fn(async () => ({ handoff: { id: "handoff-1" }, conversation: { id: "conversation-1" }, changed: true })),
+      resolve: vi.fn(async () => ({ handoff: { id: "handoff-1" }, conversation: { id: "conversation-1" }, changed: true })),
+    } as unknown as HandoffRepository;
+    const controls = new ConversationControlService(handoffs);
+    await controls.claim({ organizationId: "org-1", handoffId: "handoff-1", actorId: "operator-1" });
+    await controls.continueWithAgent({ organizationId: "org-1", handoffId: "handoff-1", actorId: "operator-1" });
+    await controls.resolve({ organizationId: "org-1", handoffId: "handoff-1", actorId: "operator-1", resolution: "done" });
+    expect(handoffs.claim).toHaveBeenCalledWith({ organizationId: "org-1", handoffId: "handoff-1", actorId: "operator-1" });
+    expect(handoffs.continueWithAgent).toHaveBeenCalledWith({ organizationId: "org-1", handoffId: "handoff-1", actorId: "operator-1" });
+    expect(handoffs.resolve).toHaveBeenCalledWith({ organizationId: "org-1", handoffId: "handoff-1", actorId: "operator-1", resolution: "done" });
   });
 });
