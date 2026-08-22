@@ -227,6 +227,38 @@ fn has_attached_media(media: &Value) -> bool {
     media.as_array().is_some_and(|items| !items.is_empty())
 }
 
+async fn attached_publish_images(
+    pool: &PgPool,
+    config: &AppConfig,
+    org_id: &str,
+    media: &Value,
+) -> Result<Vec<PublishImage>, AppError> {
+    let mut images = Vec::new();
+    for item in media.as_array().into_iter().flatten() {
+        if item.get("kind").and_then(Value::as_str) != Some("IMAGE") {
+            return Err(AppError::BadRequest(
+                "This platform currently supports image attachments only".to_string(),
+            ));
+        }
+        let asset_id = item
+            .get("assetId")
+            .and_then(Value::as_str)
+            .ok_or_else(|| AppError::BadRequest("Attached image is invalid".to_string()))?;
+        let stored =
+            content_media::read_content_media_bytes(pool, config, org_id, asset_id).await?;
+        images.push(PublishImage {
+            bytes: stored.bytes,
+            mime_type: stored.mime_type,
+            alt_text: item
+                .get("altText")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
+        });
+    }
+    Ok(images)
+}
+
 pub fn is_valid_platform(value: &str) -> bool {
     SOCIAL_PLATFORMS.contains(&value)
 }
@@ -1808,7 +1840,7 @@ async fn resolve_connected_channel_for_platform(
 pub(crate) use super::social_publishing::{
     delete_post_from_provider, publish_post_to_facebook, publish_post_to_instagram,
     publish_post_to_linkedin, publish_post_to_threads, publish_post_to_tiktok, publish_post_to_x,
-    refresh_threads_token, refresh_tiktok_token, save_rotated_tokens,
+    refresh_threads_token, refresh_tiktok_token, save_rotated_tokens, PublishImage,
 };
 
 async fn resolve_channel_for_post_deletion(
@@ -2201,6 +2233,8 @@ async fn load_publish_job(pool: &PgPool, job_id: &str) -> Result<Option<PublishJ
                        'assetId', pm."assetId",
                        'kind', a.kind::text,
                        'mimeType', a."mimeType",
+                       'byteSize', a."byteSize",
+                       'altText', pm."altText",
                        'sortOrder', pm."sortOrder"
                    ) ORDER BY pm."sortOrder" ASC)
                    FROM "SocialPostMedia" pm
@@ -2287,9 +2321,9 @@ pub async fn execute_social_publish_job(
 
     let result = async {
         if job.platform == "FACEBOOK" {
-            if has_attached_media(&job.media) {
+            if job.media.as_array().is_some_and(|items| items.len() > 1) {
                 return Err(AppError::BadRequest(
-                    "Facebook media publishing is not enabled for this connection yet; remove the attachment or use a text-only version".to_string(),
+                    "The current Facebook adapter accepts one image per post".to_string(),
                 ));
             }
             let channel = resolve_connected_channel_for_platform(
@@ -2302,9 +2336,19 @@ pub async fn execute_social_publish_job(
             let access = channel.access_token.as_deref().ok_or_else(|| {
                 AppError::BadRequest("Connect a Facebook Page before publishing".to_string())
             })?;
-            let (external_post_id, published_text) =
-                publish_post_to_facebook(access, &channel.external_account_id, &publish_text)
-                    .await?;
+            let image_url = attached_media_url(&job.media, &config, Some("IMAGE"));
+            if has_attached_media(&job.media) && image_url.is_none() {
+                return Err(AppError::BadRequest(
+                    "Facebook posts currently support image attachments only".to_string(),
+                ));
+            }
+            let (external_post_id, published_text) = publish_post_to_facebook(
+                access,
+                &channel.external_account_id,
+                &publish_text,
+                image_url.as_deref(),
+            )
+            .await?;
             Ok((
                 channel.id,
                 Some(external_post_id),
@@ -2347,10 +2391,14 @@ pub async fn execute_social_publish_job(
                 published_text,
             ))
         } else if job.platform == "THREADS" {
-            if has_attached_media(&job.media) {
+            if job.media.as_array().is_some_and(|items| items.len() > 1) {
                 return Err(AppError::BadRequest(
-                    "Threads media publishing is not enabled for this connection yet; remove the attachment or use a text-only version".to_string(),
+                    "The current Threads adapter accepts one image per post".to_string(),
                 ));
+            }
+            let image_url = attached_media_url(&job.media, &config, Some("IMAGE"));
+            if has_attached_media(&job.media) && image_url.is_none() {
+                return Err(AppError::BadRequest("Threads posts currently support image attachments only".to_string()));
             }
             let channel = resolve_connected_channel_for_platform(
                 pool,
@@ -2387,7 +2435,7 @@ pub async fn execute_social_publish_job(
                 )
             })?;
             let (external_post_id, published_text) =
-                publish_post_to_threads(&publish_access, user_id, &publish_text).await?;
+                publish_post_to_threads(&publish_access, user_id, &publish_text, image_url.as_deref()).await?;
             Ok((
                 channel.id,
                 Some(external_post_id),
@@ -2467,9 +2515,9 @@ pub async fn execute_social_publish_job(
                 published_text,
             ))
         } else if job.platform == "BLUESKY" {
-            if has_attached_media(&job.media) {
+            if job.media.as_array().is_some_and(|items| items.len() > 4) {
                 return Err(AppError::BadRequest(
-                    "Bluesky media publishing is not enabled for this connection yet; remove the attachment or use a text-only version".to_string(),
+                    "Bluesky posts can include at most 4 images".to_string(),
                 ));
             }
             if publish_text.chars().count() > 300 {
@@ -2530,8 +2578,30 @@ pub async fn execute_social_publish_job(
             let did = channel.external_account_id.as_deref().ok_or_else(|| {
                 AppError::BadRequest("Bluesky connection is missing its DID".to_string())
             })?;
+            let mut images = Vec::new();
+            for item in job.media.as_array().into_iter().flatten() {
+                if item.get("kind").and_then(Value::as_str) != Some("IMAGE") {
+                    return Err(AppError::BadRequest(
+                        "Bluesky posts currently support image attachments only".to_string(),
+                    ));
+                }
+                let asset_id = item
+                    .get("assetId")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| AppError::BadRequest("Attached image is invalid".to_string()))?;
+                let stored = content_media::read_content_media_bytes(pool, &config, org_id, asset_id).await?;
+                images.push(bluesky_oauth::BlueskyPostImage {
+                    bytes: stored.bytes,
+                    mime_type: stored.mime_type,
+                    alt_text: item
+                        .get("altText")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string(),
+                });
+            }
             let resource_nonce=metadata.get("dpopResourceNonce").and_then(Value::as_str);
-            let (external_post_id,resource_nonce)=bluesky_oauth::create_post(pds,did,&publish_text,&session.access_token,&dpop_private_key,resource_nonce).await?;
+            let (external_post_id,resource_nonce)=bluesky_oauth::create_post(pds,did,&publish_text,images,&session.access_token,&dpop_private_key,resource_nonce).await?;
             sqlx::query(r#"UPDATE "SocialChannelConnection" SET metadata=COALESCE(metadata,'{}'::jsonb)||$1,"updatedAt"=NOW() WHERE id=$2"#)
                 .bind(json!({"dpopAuthorizationNonce":session.authorization_nonce,"dpopResourceNonce":resource_nonce})).bind(&channel.id).execute(pool).await?;
             Ok((
@@ -2541,9 +2611,9 @@ pub async fn execute_social_publish_job(
                 publish_text,
             ))
         } else if job.platform == "X" {
-            if has_attached_media(&job.media) {
+            if job.media.as_array().is_some_and(|items| items.len() > 4) {
                 return Err(AppError::BadRequest(
-                    "X media publishing is not enabled for this connection yet; remove the attachment or use a text-only version".to_string(),
+                    "X posts can include at most 4 images".to_string(),
                 ));
             }
             if publish_text.chars().count() > 280 {
@@ -2561,8 +2631,9 @@ pub async fn execute_social_publish_job(
             let access = channel.access_token.as_deref().ok_or_else(|| {
                 AppError::BadRequest("Connect an X account before publishing".to_string())
             })?;
+            let images = attached_publish_images(pool, &config, org_id, &job.media).await?;
             let (external_post_id, published_text) =
-                publish_post_to_x(access, &publish_text).await?;
+                publish_post_to_x(access, &publish_text, images).await?;
             Ok((
                 channel.id,
                 Some(external_post_id),
@@ -2570,9 +2641,9 @@ pub async fn execute_social_publish_job(
                 published_text,
             ))
         } else if job.platform == "LINKEDIN" {
-            if has_attached_media(&job.media) {
+            if job.media.as_array().is_some_and(|items| items.len() > 1) {
                 return Err(AppError::BadRequest(
-                    "LinkedIn media publishing is not enabled for this connection yet; remove the attachment or use a text-only version".to_string(),
+                    "The current LinkedIn adapter accepts one image per post".to_string(),
                 ));
             }
             if publish_text.chars().count() > 3000 {
@@ -2590,11 +2661,16 @@ pub async fn execute_social_publish_job(
             let access = channel.access_token.as_deref().ok_or_else(|| {
                 AppError::BadRequest("Connect a linkedin account before publishing".to_string())
             })?;
+            let image = attached_publish_images(pool, &config, org_id, &job.media)
+                .await?
+                .into_iter()
+                .next();
             let (external_post_id, published_text) = publish_post_to_linkedin(
                 access,
                 &channel.external_account_id,
                 &channel.metadata,
                 &publish_text,
+                image,
             )
             .await?;
             Ok((

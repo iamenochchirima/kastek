@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use chrono::{Duration, Utc};
 use serde_json::{json, Value};
 use sqlx::PgPool;
@@ -29,6 +30,12 @@ async fn send_provider_delete(
         detail.trim().to_string()
     };
     Err(AppError::BadRequest(format!("{fallback}: {detail}")))
+}
+
+pub(crate) struct PublishImage {
+    pub bytes: Vec<u8>,
+    pub mime_type: String,
+    pub alt_text: String,
 }
 
 pub(crate) async fn delete_post_from_provider(
@@ -133,14 +140,55 @@ pub(crate) async fn delete_post_from_provider(
 pub(crate) async fn publish_post_to_x(
     access_token_encrypted: &str,
     text: &str,
+    images: Vec<PublishImage>,
 ) -> Result<(String, String), AppError> {
     let access_token = decrypt_social_secret(access_token_encrypted)?;
+    if images.len() > 4 {
+        return Err(AppError::BadRequest(
+            "X posts can include at most 4 images".to_string(),
+        ));
+    }
+    let client = reqwest::Client::new();
+    let mut media_ids = Vec::new();
+    for image in images {
+        if !matches!(
+            image.mime_type.as_str(),
+            "image/jpeg" | "image/png" | "image/webp" | "image/bmp" | "image/pjpeg" | "image/tiff"
+        ) {
+            return Err(AppError::BadRequest(
+                "X does not support this image format".to_string(),
+            ));
+        }
+        let upload: Value = fetch_json(
+            client
+                .post("https://api.x.com/2/media/upload")
+                .bearer_auth(&access_token)
+                .json(&json!({
+                    "media": STANDARD.encode(image.bytes),
+                    "media_category": "tweet_image",
+                    "media_type": image.mime_type,
+                    "shared": false,
+                })),
+            "Failed to upload image to X",
+        )
+        .await?;
+        let media_id = upload
+            .get("data")
+            .and_then(|value| value.get("id"))
+            .and_then(Value::as_str)
+            .ok_or_else(|| AppError::BadRequest("X did not return a media id".to_string()))?;
+        media_ids.push(media_id.to_string());
+    }
+    let mut request_body = json!({ "text": text });
+    if !media_ids.is_empty() {
+        request_body["media"] = json!({ "media_ids": media_ids });
+    }
     let result: Value = fetch_json(
-        reqwest::Client::new()
+        client
             .post(X_POST_TWEET_URL)
-            .bearer_auth(access_token)
+            .bearer_auth(&access_token)
             .header("Content-Type", "application/json")
-            .json(&json!({ "text": text })),
+            .json(&request_body),
         "Failed to publish to X",
     )
     .await?;
@@ -163,6 +211,7 @@ pub(crate) async fn publish_post_to_linkedin(
     external_account_id: &Option<String>,
     metadata: &Option<Value>,
     text: &str,
+    image: Option<PublishImage>,
 ) -> Result<(Option<String>, String), AppError> {
     let access_token = decrypt_social_secret(access_token_encrypted)?;
     let actor_urn = metadata
@@ -178,6 +227,88 @@ pub(crate) async fn publish_post_to_linkedin(
         .ok_or_else(|| {
             AppError::BadRequest("LinkedIn connection is missing a member identifier".to_string())
         })?;
+
+    if let Some(image) = image {
+        let client = reqwest::Client::new();
+        let init: Value = fetch_json(
+            client
+                .post("https://api.linkedin.com/rest/images?action=initializeUpload")
+                .bearer_auth(&access_token)
+                .header("Content-Type", "application/json")
+                .header("Linkedin-Version", "202606")
+                .header("X-Restli-Protocol-Version", "2.0.0")
+                .json(&json!({ "initializeUploadRequest": { "owner": &actor_urn } })),
+            "Failed to initialize LinkedIn image upload",
+        )
+        .await?;
+        let upload_url = init
+            .pointer("/value/uploadUrl")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                AppError::BadRequest("LinkedIn did not return an image upload URL".to_string())
+            })?;
+        let image_urn = init
+            .pointer("/value/image")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                AppError::BadRequest("LinkedIn did not return an image identifier".to_string())
+            })?;
+        let parsed_upload_url = reqwest::Url::parse(upload_url).map_err(|_| {
+            AppError::BadRequest("LinkedIn image upload URL is invalid".to_string())
+        })?;
+        if parsed_upload_url.scheme() != "https"
+            || parsed_upload_url
+                .host_str()
+                .is_none_or(|host| host != "linkedin.com" && !host.ends_with(".linkedin.com"))
+        {
+            return Err(AppError::BadRequest(
+                "LinkedIn image upload URL is not trusted".to_string(),
+            ));
+        }
+        let upload_response = client
+            .put(parsed_upload_url)
+            .header("Content-Type", &image.mime_type)
+            .body(image.bytes)
+            .send()
+            .await?;
+        if !upload_response.status().is_success() {
+            return Err(AppError::BadRequest(
+                "Failed to upload image to LinkedIn".to_string(),
+            ));
+        }
+        let response = client
+            .post("https://api.linkedin.com/rest/posts")
+            .bearer_auth(&access_token)
+            .header("Content-Type", "application/json")
+            .header("Linkedin-Version", "202606")
+            .header("X-Restli-Protocol-Version", "2.0.0")
+            .json(&json!({
+                "author": &actor_urn,
+                "commentary": text,
+                "visibility": "PUBLIC",
+                "distribution": {
+                    "feedDistribution": "MAIN_FEED",
+                    "targetEntities": [],
+                    "thirdPartyDistributionChannels": []
+                },
+                "content": { "media": { "altText": image.alt_text, "id": image_urn } },
+                "lifecycleState": "PUBLISHED",
+                "isReshareDisabledByAuthor": false
+            }))
+            .send()
+            .await?;
+        let status = response.status();
+        let external_post_id = response
+            .headers()
+            .get("x-restli-id")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string);
+        let body = response.text().await?;
+        if !status.is_success() {
+            return Err(AppError::BadRequest(body));
+        }
+        return Ok((external_post_id, text.to_string()));
+    }
 
     let response = reqwest::Client::new()
         .post(LINKEDIN_UGC_POSTS_URL)
@@ -253,6 +384,7 @@ pub(crate) async fn publish_post_to_threads(
     access_token_encrypted: &str,
     user_id: &str,
     text: &str,
+    image_url: Option<&str>,
 ) -> Result<(String, String), AppError> {
     if text.chars().count() > 500 {
         return Err(AppError::BadRequest(
@@ -260,6 +392,20 @@ pub(crate) async fn publish_post_to_threads(
         ));
     }
     let access = decrypt_social_secret(access_token_encrypted)?;
+    let mut create_form = vec![("text", text.to_string())];
+    if let Some(image_url) = image_url {
+        let parsed = reqwest::Url::parse(image_url)
+            .map_err(|_| AppError::BadRequest("Threads image URL is invalid".to_string()))?;
+        if parsed.scheme() != "https" {
+            return Err(AppError::BadRequest(
+                "Threads requires a public HTTPS image URL".to_string(),
+            ));
+        }
+        create_form.push(("media_type", "IMAGE".to_string()));
+        create_form.push(("image_url", image_url.to_string()));
+    } else {
+        create_form.push(("media_type", "TEXT".to_string()));
+    }
     let create: Value = fetch_json(
         reqwest::Client::new()
             .post(format!(
@@ -268,7 +414,7 @@ pub(crate) async fn publish_post_to_threads(
                 format!("{user_id}/threads")
             ))
             .bearer_auth(&access)
-            .form(&[("media_type", "TEXT"), ("text", text)]),
+            .form(&create_form),
         "Failed to create Threads post",
     )
     .await?;
@@ -444,16 +590,39 @@ pub(crate) async fn publish_post_to_facebook(
     access_token_encrypted: &str,
     external_account_id: &Option<String>,
     text: &str,
+    image_url: Option<&str>,
 ) -> Result<(String, String), AppError> {
     let page_id = external_account_id.as_deref().ok_or_else(|| {
         AppError::BadRequest("Facebook connection is missing a Page identifier".to_string())
     })?;
     let access_token = decrypt_social_secret(access_token_encrypted)?;
+    let (endpoint, form) = match image_url {
+        Some(image_url) => {
+            let parsed = reqwest::Url::parse(image_url)
+                .map_err(|_| AppError::BadRequest("Facebook image URL is invalid".to_string()))?;
+            if parsed.scheme() != "https" {
+                return Err(AppError::BadRequest(
+                    "Facebook requires a public HTTPS image URL".to_string(),
+                ));
+            }
+            (
+                format!("{META_GRAPH_BASE}/{page_id}/photos"),
+                vec![
+                    ("url", image_url.to_string()),
+                    ("caption", text.to_string()),
+                ],
+            )
+        }
+        None => (
+            format!("{META_GRAPH_BASE}/{page_id}/feed"),
+            vec![("message", text.to_string())],
+        ),
+    };
     let result: Value = fetch_json(
         reqwest::Client::new()
-            .post(format!("{META_GRAPH_BASE}/{page_id}/feed"))
+            .post(endpoint)
             .bearer_auth(access_token)
-            .form(&[("message", text.to_string())]),
+            .form(&form),
         "Failed to publish to Facebook",
     )
     .await?;

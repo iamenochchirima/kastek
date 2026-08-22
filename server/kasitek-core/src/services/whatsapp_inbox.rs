@@ -880,7 +880,7 @@ async fn get_media_metadata(
     Ok((download_url.to_string(), mime_type))
 }
 
-async fn download_media_bytes(
+pub(crate) async fn download_media_bytes(
     access_token: &str,
     media_id: &str,
 ) -> Result<(Vec<u8>, String), AppError> {
@@ -1777,14 +1777,44 @@ pub async fn delete_conversation_message(
         r#"SELECT timestamp AT TIME ZONE 'UTC' FROM "Message" WHERE "conversationId" = $1 ORDER BY timestamp DESC LIMIT 1"#
     )
     .bind(&conversation.id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *tx)
     .await? {
         sqlx::query(r#"UPDATE "Conversation" SET "lastMessageAt" = $1, "updatedAt" = NOW() WHERE id = $2"#)
             .bind(last_timestamp)
             .bind(&conversation.id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
+    let (sender, message_type, provider_metadata) = deleted_message;
+    let direction = if sender == "customer" {
+        "inbound"
+    } else {
+        "outbound"
+    };
+    let responder_type =
+        whatsapp_deleted_message_responder_type(&sender, provider_metadata.as_ref());
+    let message_type = message_type
+        .unwrap_or_else(|| "TEXT".to_string())
+        .to_ascii_lowercase();
+    analytics::inbox::enqueue_message_lifecycle(
+        &mut tx,
+        org_id,
+        message_id,
+        &conversation.id,
+        "whatsapp",
+        "deleted",
+        direction,
+        responder_type,
+        &message_type,
+        None,
+        None,
+        Utc::now(),
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+    })?;
+    tx.commit().await?;
     Ok(json!({ "success": true }))
 }
 

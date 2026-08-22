@@ -15,7 +15,7 @@ use crate::error::AppError;
 use crate::services::agent_platform::AgentPlatformClient;
 use crate::services::push::{send_push_notification_to_user, PushNotificationPayload};
 use crate::services::social::decrypt_social_secret;
-use crate::services::{message_domain, whatsapp_calls};
+use crate::services::{content_media, message_domain, whatsapp_calls, whatsapp_inbox};
 
 use super::whatsapp::{
     find_or_create_conversation, load_conversation_by_id, normalize_phone,
@@ -724,7 +724,7 @@ async fn handle_incoming_messages(
             AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
         })?;
         tx.commit().await?;
-        if let Some(media) = media {
+        if let Some(media) = media.as_ref() {
             message_domain::create_attachment(
                 pool,
                 &message_id,
@@ -739,8 +739,78 @@ async fn handle_incoming_messages(
         }
         publish_message_created(pool, &connection.user_id, &message_id).await?;
         publish_conversation_updated(pool, &connection.user_id, &conversation_id).await?;
-        if let (Some(inbound_text), Some(provider_message_id)) = (text.as_deref(), wa_message_id) {
+        let mut agent_media = None;
+        if let (Some(media), Some(provider_message_id)) = (media.as_ref(), wa_message_id) {
+            if media.kind == "image" {
+                let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
+                match whatsapp_inbox::download_media_bytes(&access_token, &media.media_id).await {
+                    Ok((bytes, downloaded_mime_type)) => {
+                        let mime_type = downloaded_mime_type
+                            .split(';')
+                            .next()
+                            .map(str::trim)
+                            .filter(|value| value.starts_with("image/"))
+                            .or(media.mime_type.as_deref())
+                            .unwrap_or("image/jpeg")
+                            .to_string();
+                        match content_media::upload_content_media_bytes(
+                            pool,
+                            config,
+                            &connection.user_id,
+                            org_id,
+                            content_media::ContentMediaBytesUpload {
+                                file_name: media.filename.clone(),
+                                mime_type: mime_type.clone(),
+                                bytes,
+                                source: "whatsapp".to_string(),
+                                source_key: Some(format!(
+                                    "whatsapp:{}:{}:{}",
+                                    connection.id, provider_message_id, media.media_id
+                                )),
+                            },
+                        )
+                        .await
+                        {
+                            Ok(asset) => agent_media = Some((asset, mime_type)),
+                            Err(error) => {
+                                log::warn!("WhatsApp image storage failed: {}", error);
+                            }
+                        }
+                    }
+                    Err(error) => log::warn!("WhatsApp image download failed: {}", error),
+                }
+                if agent_media.is_none() {
+                    if let Err(error) = send_text_message(
+                        &connection.phone_number_id,
+                        &access_token,
+                        &normalized_phone,
+                        "I couldn't process that image. Please try sending it again.",
+                        Some(provider_message_id),
+                    )
+                    .await
+                    {
+                        log::warn!("WhatsApp image failure acknowledgement failed: {}", error);
+                    }
+                }
+            }
+        }
+        if let Some(provider_message_id) = wa_message_id {
             if let Ok(agent_client) = AgentPlatformClient::from_config(config) {
+                let (message_type, message_content) = match agent_media.as_ref() {
+                    Some((asset, mime_type)) => (
+                        "attachment",
+                        json!({
+                            "assetId": asset.id,
+                            "attachmentId": media.as_ref().map(|value| value.media_id.as_str()),
+                            "mimeType": mime_type,
+                            "fileName": media.as_ref().and_then(|value| value.filename.as_deref()),
+                            "mediaKind": asset.kind,
+                            "text": content,
+                        }),
+                    ),
+                    None if media.is_none() => ("text", json!({ "text": content })),
+                    None => continue,
+                };
                 let payload = json!({
                     "channelType": "whatsapp",
                     "channelKey": channel_key.clone(),
@@ -749,8 +819,8 @@ async fn handle_incoming_messages(
                     "providerMessageId": provider_message_id,
                     "externalIdentity": normalized_phone,
                     "externalConversationId": conversation_id,
-                    "messageType": "text",
-                    "content": { "text": inbound_text },
+                    "messageType": message_type,
+                    "content": message_content,
                     "displayName": profile_name,
                 });
                 log::info!(

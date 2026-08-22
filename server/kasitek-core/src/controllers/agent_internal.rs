@@ -7,6 +7,7 @@
 //! and the explicit channel-delivery transport are the only exposed actions.
 
 use actix_web::{web, HttpRequest, HttpResponse};
+use futures_util::StreamExt;
 use serde::Deserialize;
 use serde_json::json;
 use sqlx::{PgPool, Row};
@@ -21,7 +22,7 @@ use crate::error::AppError;
 use crate::identity::internal_delegation;
 use crate::identity::request_context::RequestContext;
 use crate::services::whatsapp::WhatsappReplyButton;
-use crate::services::{customers, website, whatsapp};
+use crate::services::{content_media, customers, website, whatsapp};
 
 async fn require_internal_agent(
     config: &AppConfig,
@@ -618,6 +619,115 @@ pub async fn create_content_draft(
     }
     let post = content_adapter::create_draft(pool.get_ref(), &context, &body).await?;
     Ok(HttpResponse::Created().json(json!({ "post": post })))
+}
+
+pub async fn upload_content_media(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    mut payload: web::Payload,
+) -> Result<HttpResponse, AppError> {
+    let context =
+        resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.content_media_upload")
+            .await?;
+    let mime_type = req
+        .headers()
+        .get("content-type")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .map(str::trim)
+        .filter(|value| value.starts_with("image/"))
+        .ok_or_else(|| AppError::BadRequest("An image MIME type is required".to_string()))?;
+    let file_name = req
+        .headers()
+        .get("x-media-file-name")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| urlencoding::decode(value).ok())
+        .map(|value| value.into_owned());
+    let source = req
+        .headers()
+        .get("x-media-source")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("agent_channel")
+        .to_string();
+    let source_key = req
+        .headers()
+        .get("x-media-source-key")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+
+    const MAX_CHANNEL_IMAGE_BYTES: usize = 20 * 1024 * 1024;
+    let mut bytes = Vec::new();
+    while let Some(chunk) = payload.next().await {
+        let chunk =
+            chunk.map_err(|_| AppError::BadRequest("Failed to read channel image".to_string()))?;
+        if bytes.len() + chunk.len() > MAX_CHANNEL_IMAGE_BYTES {
+            return Err(AppError::BadRequest(
+                "Images must be 20 MB or smaller".to_string(),
+            ));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    if bytes.is_empty() {
+        return Err(AppError::BadRequest("An image is required".to_string()));
+    }
+
+    let uploaded_by_id = context
+        .user_id
+        .as_deref()
+        .or(context.principal.subject_user_id.as_deref())
+        .map(str::to_string)
+        .or_else(|| {
+            req.headers()
+                .get("x-actor-id")
+                .and_then(|value| value.to_str().ok())
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+        });
+    let uploaded_by_id = match uploaded_by_id {
+        Some(actor_id) => sqlx::query_scalar::<_, String>(
+            r#"SELECT candidate.id
+               FROM "User" candidate
+               WHERE candidate.id = $1
+                 AND (
+                   EXISTS (SELECT 1 FROM "Organization" org WHERE org.id = $2 AND org."ownerId" = candidate.id)
+                   OR EXISTS (SELECT 1 FROM "OrganizationMember" member WHERE member."orgId" = $2 AND member."userId" = candidate.id)
+                 )
+               LIMIT 1"#,
+        )
+        .bind(&actor_id)
+        .bind(&context.organization_id)
+        .fetch_optional(pool.get_ref())
+        .await?,
+        None => None,
+    }
+    .or(sqlx::query_scalar::<_, String>(
+        r#"SELECT "ownerId" FROM "Organization" WHERE id = $1"#,
+    )
+    .bind(&context.organization_id)
+    .fetch_optional(pool.get_ref())
+    .await?)
+    .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
+    let asset = content_media::upload_content_media_bytes(
+        pool.get_ref(),
+        config.get_ref(),
+        &uploaded_by_id,
+        &context.organization_id,
+        content_media::ContentMediaBytesUpload {
+            file_name,
+            mime_type: mime_type.to_string(),
+            bytes,
+            source,
+            source_key,
+        },
+    )
+    .await?;
+    Ok(HttpResponse::Created().json(json!({ "asset": asset })))
 }
 
 #[derive(Debug, Deserialize)]

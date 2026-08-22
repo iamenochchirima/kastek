@@ -619,7 +619,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
   tools.register({
     name: "kasitek.core.content_post_update",
     version: "1.0.0",
-    description: "Update a workspace content draft without publishing it.",
+    description: "Update a workspace content draft without publishing it. Use media assetId values from attached workspace media to keep user-provided images on the draft.",
     riskClass: "draft",
     requiresApproval: false,
     timeoutMs: 15_000,
@@ -634,6 +634,20 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
         primaryChannelId: { type: "string", minLength: 1, maxLength: 160 },
         channelSelections: { type: "object", additionalProperties: { type: "string", minLength: 1, maxLength: 160 } },
         variants: { type: "array", items: { type: "object" }, maxItems: 20 },
+        media: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              assetId: { type: "string", minLength: 1, maxLength: 160 },
+              sortOrder: { type: "integer", minimum: 0, maximum: 9 },
+              altText: { type: "string", maxLength: 1_000 },
+            },
+            required: ["assetId"],
+            additionalProperties: false,
+          },
+          maxItems: 10,
+        },
         metadata: { type: "object" },
       },
       required: ["postId"],
@@ -651,6 +665,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
         primaryChannelId: typeof args.primaryChannelId === "string" ? args.primaryChannelId : undefined,
         channelSelections: args.channelSelections && typeof args.channelSelections === "object" ? args.channelSelections as Record<string, string> : undefined,
         variants: Array.isArray(args.variants) ? args.variants as Array<{ platform: string; content: string; status?: string; aiGenerated?: boolean; metadata?: Record<string, unknown> }> : undefined,
+        media: Array.isArray(args.media) ? args.media as Array<{ assetId: string; sortOrder?: number; altText?: string }> : undefined,
         metadata: args.metadata && typeof args.metadata === "object" ? args.metadata as Record<string, unknown> : undefined,
       });
     },
@@ -658,7 +673,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
   tools.register({
     name: "kasitek.core.content_post_draft",
     version: "1.0.0",
-    description: "Create a workspace content draft without publishing it to any provider.",
+    description: "Create a workspace content draft without publishing it to any provider. When the user supplied attached workspace media, include its assetId in media.",
     riskClass: "draft",
     requiresApproval: false,
     timeoutMs: 15_000,
@@ -672,6 +687,20 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
         primaryChannelId: { type: "string", minLength: 1, maxLength: 160 },
         channelSelections: { type: "object", additionalProperties: { type: "string", minLength: 1, maxLength: 160 } },
         variants: { type: "array", items: { type: "object" }, maxItems: 20 },
+        media: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              assetId: { type: "string", minLength: 1, maxLength: 160 },
+              sortOrder: { type: "integer", minimum: 0, maximum: 9 },
+              altText: { type: "string", maxLength: 1_000 },
+            },
+            required: ["assetId"],
+            additionalProperties: false,
+          },
+          maxItems: 10,
+        },
         metadata: { type: "object" },
       },
       required: ["content", "channels"],
@@ -689,6 +718,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
         primaryChannelId: typeof args.primaryChannelId === "string" ? args.primaryChannelId : undefined,
         channelSelections: args.channelSelections && typeof args.channelSelections === "object" ? args.channelSelections as Record<string, string> : undefined,
         variants: Array.isArray(args.variants) ? args.variants as Array<{ platform: string; content: string; status?: string; aiGenerated?: boolean; metadata?: Record<string, unknown> }> : undefined,
+        media: Array.isArray(args.media) ? args.media as Array<{ assetId: string; sortOrder?: number; altText?: string }> : undefined,
         metadata: args.metadata && typeof args.metadata === "object" ? args.metadata as Record<string, unknown> : undefined,
       });
     },
@@ -891,6 +921,7 @@ export function projectContentApprovalResource(post: CoreContentPost): Record<st
     ...(boundedPreviewString(post.scheduled_for, 64) ? { scheduledFor: boundedPreviewString(post.scheduled_for, 64) } : {}),
     ...(boundedPreviewString(post.published_at, 64) ? { publishedAt: boundedPreviewString(post.published_at, 64) } : {}),
     ...(variants.length ? { variants } : {}),
+    ...(Array.isArray(post.media) && post.media.length ? { mediaCount: post.media.length } : {}),
   };
 }
 
@@ -1676,7 +1707,23 @@ async function executeLoopForRun(
       credentials: fallbackCredentials,
     });
   }
-  const currentMessage = typeof run.input.message === "string" ? run.input.message : JSON.stringify(run.input);
+  const currentInputMessage = run.input.message;
+  const currentInputRecord = currentInputMessage && typeof currentInputMessage === "object" && !Array.isArray(currentInputMessage)
+    ? currentInputMessage as Record<string, unknown>
+    : undefined;
+  const currentMessage = typeof currentInputMessage === "string"
+    ? currentInputMessage
+    : currentInputRecord && typeof currentInputRecord.assetId === "string"
+      ? JSON.stringify({
+        text: currentInputRecord.text,
+        attachedWorkspaceMedia: {
+          assetId: currentInputRecord.assetId,
+          mimeType: currentInputRecord.mimeType,
+          fileName: currentInputRecord.fileName,
+          mediaKind: currentInputRecord.mediaKind,
+        },
+      })
+      : JSON.stringify(currentInputMessage ?? run.input);
   const rawDynamicContext = run.input.context && typeof run.input.context === "object" && !Array.isArray(run.input.context)
     ? run.input.context as Record<string, unknown>
     : undefined;

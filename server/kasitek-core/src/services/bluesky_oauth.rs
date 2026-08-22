@@ -679,10 +679,17 @@ async fn authorization_metadata_from_issuer(
     Ok(metadata)
 }
 
+pub struct BlueskyPostImage {
+    pub bytes: Vec<u8>,
+    pub mime_type: String,
+    pub alt_text: String,
+}
+
 pub async fn create_post(
     pds_url: &str,
     did: &str,
     text: &str,
+    images: Vec<BlueskyPostImage>,
     access_token: &str,
     dpop_private_key: &str,
     nonce: Option<&str>,
@@ -693,23 +700,108 @@ pub async fn create_post(
         pds_url.to_string().trim_end_matches('/')
     );
     let key = signing_key_from_encoded(dpop_private_key, "Bluesky DPoP key")?;
-    let body = json!({"repo":did,"collection":"app.bsky.feed.post","record":{"$type":"app.bsky.feed.post","text":text,"createdAt":Utc::now().to_rfc3339()}});
     let client = http_client()?;
+    if images.len() > 4 {
+        return Err(AppError::BadRequest(
+            "Bluesky posts can include at most 4 images".to_string(),
+        ));
+    }
+    let mut latest = nonce.map(str::to_string);
+    let mut image_embeds = Vec::new();
+    for image in images {
+        if image.bytes.len() > 1_000_000 {
+            return Err(AppError::BadRequest(
+                "Bluesky images must be 1 MB or smaller".to_string(),
+            ));
+        }
+        if !image.mime_type.starts_with("image/") {
+            return Err(AppError::BadRequest(
+                "Bluesky attachments must be images".to_string(),
+            ));
+        }
+        let upload_endpoint = format!(
+            "{}/xrpc/com.atproto.repo.uploadBlob",
+            pds_url.to_string().trim_end_matches('/')
+        );
+        let mut upload_response = client
+            .post(&upload_endpoint)
+            .header("Authorization", format!("DPoP {access_token}"))
+            .header(
+                "DPoP",
+                dpop_proof(
+                    &key,
+                    "POST",
+                    &upload_endpoint,
+                    latest.as_deref(),
+                    Some(access_token),
+                )?,
+            )
+            .header("Content-Type", &image.mime_type)
+            .body(image.bytes.clone())
+            .send()
+            .await
+            .map_err(|error| AppError::BadRequest(error.to_string()))?;
+        let upload_nonce = response_nonce(upload_response.headers());
+        if !upload_response.status().is_success()
+            && upload_nonce.is_some()
+            && upload_nonce.as_deref() != latest.as_deref()
+        {
+            latest = upload_nonce;
+            upload_response = client
+                .post(&upload_endpoint)
+                .header("Authorization", format!("DPoP {access_token}"))
+                .header(
+                    "DPoP",
+                    dpop_proof(
+                        &key,
+                        "POST",
+                        &upload_endpoint,
+                        latest.as_deref(),
+                        Some(access_token),
+                    )?,
+                )
+                .header("Content-Type", &image.mime_type)
+                .body(image.bytes)
+                .send()
+                .await
+                .map_err(|error| AppError::BadRequest(error.to_string()))?;
+        }
+        latest = response_nonce(upload_response.headers()).or(latest);
+        let upload: Value =
+            json_response(upload_response, "Failed to upload image to Bluesky").await?;
+        let blob = upload.get("blob").cloned().ok_or_else(|| {
+            AppError::BadRequest("Bluesky did not return an image blob".to_string())
+        })?;
+        image_embeds.push(json!({ "alt": image.alt_text, "image": blob }));
+    }
+    let mut record =
+        json!({"$type":"app.bsky.feed.post","text":text,"createdAt":Utc::now().to_rfc3339()});
+    if !image_embeds.is_empty() {
+        record["embed"] = json!({ "$type": "app.bsky.embed.images", "images": image_embeds });
+    }
+    let body = json!({"repo":did,"collection":"app.bsky.feed.post","record":record});
     let mut response = client
         .post(&endpoint)
         .header("Authorization", format!("DPoP {access_token}"))
         .header(
             "DPoP",
-            dpop_proof(&key, "POST", &endpoint, nonce, Some(access_token))?,
+            dpop_proof(
+                &key,
+                "POST",
+                &endpoint,
+                latest.as_deref(),
+                Some(access_token),
+            )?,
         )
         .json(&body)
         .send()
         .await
         .map_err(|e| AppError::BadRequest(e.to_string()))?;
-    let mut latest = response_nonce(response.headers()).or_else(|| nonce.map(str::to_string));
+    let request_nonce = latest.clone();
+    latest = response_nonce(response.headers()).or(latest);
     if !response.status().is_success()
         && response_nonce(response.headers()).is_some()
-        && response_nonce(response.headers()).as_deref() != nonce
+        && response_nonce(response.headers()).as_deref() != request_nonce.as_deref()
     {
         let retry_nonce = response_nonce(response.headers());
         response = client

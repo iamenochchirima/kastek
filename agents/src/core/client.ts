@@ -137,11 +137,29 @@ export interface CoreContentPost {
   published_at?: string | null;
   metadata?: Record<string, unknown> | null;
   variants?: unknown[];
+  media?: unknown[];
   publishJobs?: unknown[];
 }
 
 export interface CoreContentPosts {
   posts: CoreContentPost[];
+}
+
+export interface CoreContentMediaAsset {
+  id: string;
+  kind: "IMAGE" | "VIDEO";
+  mimeType: string;
+  fileName?: string | null;
+  byteSize: number;
+  processingStatus: string;
+  scanStatus: string;
+}
+
+export interface CoreContentMediaInput {
+  assetId: string;
+  sortOrder?: number;
+  altText?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CoreContentDraftInput {
@@ -152,6 +170,7 @@ export interface CoreContentDraftInput {
   primaryChannelId?: string;
   channelSelections?: Record<string, string>;
   variants?: Array<{ platform: string; content: string; status?: string; aiGenerated?: boolean; metadata?: Record<string, unknown> }>;
+  media?: CoreContentMediaInput[];
   metadata?: Record<string, unknown>;
 }
 
@@ -163,6 +182,7 @@ export interface CoreContentUpdateInput {
   primaryChannelId?: string;
   channelSelections?: Record<string, string>;
   variants?: Array<{ platform: string; content: string; status?: string; aiGenerated?: boolean; metadata?: Record<string, unknown> }>;
+  media?: CoreContentMediaInput[];
   metadata?: Record<string, unknown>;
 }
 
@@ -410,6 +430,27 @@ export class KasitekCoreReadClient {
     });
   }
 
+  public async uploadContentMedia(
+    context: CoreRequestContext,
+    input: { bytes: Uint8Array; mimeType: string; fileName?: string; source: string; sourceKey: string },
+  ): Promise<{ asset: CoreContentMediaAsset }> {
+    return this.requestJson<{ asset: CoreContentMediaAsset }>(
+      context,
+      "/api/internal/agents/v1/content/media",
+      "Content media",
+      {
+        method: "POST",
+        body: Buffer.from(input.bytes),
+        headers: {
+          "content-type": input.mimeType,
+          "x-media-source": input.source,
+          "x-media-source-key": input.sourceKey,
+          ...(input.fileName ? { "x-media-file-name": encodeURIComponent(input.fileName) } : {}),
+        },
+      },
+    );
+  }
+
   public async publishContentPost(context: ToolInvocationContext, postId: string, platform: string): Promise<{ post: CoreContentPost; result: unknown }> {
     return this.requestJson<{ post: CoreContentPost; result: unknown }>(context, `/api/internal/agents/v1/content/posts/${encodeURIComponent(postId)}/publish`, "Content publish", {
       method: "POST",
@@ -495,7 +536,7 @@ export class KasitekCoreReadClient {
           "x-correlation-id": context.correlationId,
           ...(this.idempotencyKeyFor(path, init.method, context, init.body) ? { "idempotency-key": this.idempotencyKeyFor(path, init.method, context, init.body)! } : {}),
           accept: "application/json",
-          ...(init.body ? { "content-type": "application/json" } : {}),
+          ...(init.body && !new Headers(init.headers).has("content-type") ? { "content-type": "application/json" } : {}),
           ...(init.headers ?? {}),
         },
         signal: controller.signal,
@@ -544,6 +585,7 @@ export class KasitekCoreReadClient {
     if (routePath.includes("/inbox/conversations")) return "kasitek.core.inbox_conversations_list";
     if (routePath.includes("/contacts")) return "kasitek.core.contacts_list";
     if (method === "POST" && routePath.endsWith("/content/posts")) return "kasitek.core.content_post_draft";
+    if (method === "POST" && routePath.endsWith("/content/media")) return "kasitek.core.content_media_upload";
     if (routePath.endsWith("/content/posts")) return "kasitek.core.content_posts_list";
     if (method === "PATCH" && routePath.includes("/content/posts/")) return "kasitek.core.content_post_update";
     if (routePath.includes("/content/posts/") && routePath.endsWith("/publish")) return "kasitek.core.content_post_publish";

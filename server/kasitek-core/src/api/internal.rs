@@ -70,6 +70,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::post().to(agent_internal::create_content_draft),
             )
             .route(
+                "/content/media",
+                web::post().to(agent_internal::upload_content_media),
+            )
+            .route(
                 "/content/posts/{id}",
                 web::get().to(agent_internal::get_content_post),
             )
@@ -285,6 +289,22 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route(
                 "/knowledge/sources/{sourceId}",
                 web::delete().to(agent_platform::delete_knowledge_source),
+            )
+            .route(
+                "/knowledge/websites/map",
+                web::post().to(agent_platform::map_agent_website),
+            )
+            .route(
+                "/knowledge/websites/crawl",
+                web::post().to(agent_platform::start_agent_website_crawl),
+            )
+            .route(
+                "/knowledge/websites/crawl/{sourceId}",
+                web::get().to(agent_platform::get_agent_website_crawl),
+            )
+            .route(
+                "/knowledge/websites/crawl/{sourceId}",
+                web::delete().to(agent_platform::cancel_agent_website_crawl),
             )
             .route("/memory", web::get().to(agent_platform::list_memory))
             .route(

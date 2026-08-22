@@ -20,6 +20,7 @@ function platformLabel(value: unknown): string | undefined {
 function postTarget(snapshot: Record<string, unknown> | null | undefined): {
   title?: string;
   platform?: string;
+  mediaCount?: number;
 } {
   const resource = record(snapshot?.resource);
   const request = record(snapshot?.request);
@@ -28,6 +29,9 @@ function postTarget(snapshot: Record<string, unknown> | null | undefined): {
   return {
     title: text(resource?.title, 80),
     platform: platformLabel(operation?.platform ?? request?.platform ?? channels[0]),
+    mediaCount: typeof resource?.mediaCount === "number" && resource.mediaCount > 0
+      ? Math.min(Math.floor(resource.mediaCount), 10)
+      : undefined,
   };
 }
 
@@ -40,13 +44,14 @@ export function buildChannelApprovalPrompt(
   capability: string,
   snapshot?: Record<string, unknown> | null,
 ): string {
-  const { title, platform } = postTarget(snapshot);
+  const { title, platform, mediaCount } = postTarget(snapshot);
   const post = quotedPost(title);
   const destination = platform ? ` to ${platform}` : "";
+  const media = mediaCount ? ` with ${mediaCount} ${mediaCount === 1 ? "image" : "images"}` : "";
 
   switch (capability) {
     case "kasitek.core.content_post_publish":
-      return `Publish ${post}${destination}?`;
+      return `Publish ${post}${media}${destination}?`;
     case "kasitek.core.content_post_schedule":
       return `Schedule ${post}${destination}?`;
     case "kasitek.core.content_post_unschedule":

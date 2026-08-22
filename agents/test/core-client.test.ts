@@ -303,6 +303,35 @@ describe("kasitek-core read boundary", () => {
     expect(JSON.parse(String(init.body))).toMatchObject({ content: "Draft", channels: ["threads"], status: "DRAFT" });
   });
 
+  it("uploads channel image bytes through the trusted media boundary", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      asset: { id: "asset-1", kind: "IMAGE", mimeType: "image/jpeg", byteSize: 4, processingStatus: "READY", scanStatus: "CLEAN" },
+    }), { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({
+      AGENTS_DATABASE_URL: "postgres://localhost/agents",
+      KASITEK_CORE_URL: "https://core.example.test",
+      KASITEK_CORE_INTERNAL_TOKEN: "internal-token",
+    });
+    await expect(new KasitekCoreReadClient(config).uploadContentMedia(context, {
+      bytes: new Uint8Array([0xff, 0xd8, 0xff, 0x00]),
+      mimeType: "image/jpeg",
+      fileName: "launch image.jpg",
+      source: "telegram",
+      sourceKey: "telegram:connection:message:file",
+    })).resolves.toMatchObject({ asset: { id: "asset-1" } });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://core.example.test/api/internal/agents/v1/content/media");
+    expect(init.method).toBe("POST");
+    expect(init.headers).toMatchObject({
+      "content-type": "image/jpeg",
+      "x-media-file-name": "launch%20image.jpg",
+      "x-media-source": "telegram",
+      "x-media-source-key": "telegram:connection:message:file",
+    });
+    expect(Buffer.from(init.body as ArrayBuffer).subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]));
+  });
+
   it("preserves Core validation details for failed content requests", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "At least one publishing channel is required", code: "bad_request" }), { status: 400 }));
     vi.stubGlobal("fetch", fetchMock);

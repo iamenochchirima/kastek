@@ -33,6 +33,20 @@ describe("Telegram bot client", () => {
     expect(JSON.parse(String(fetchImpl.mock.calls[1]?.[1]?.body))).toMatchObject({ callback_query_id: "callback-1", text: "Approval recorded" });
   });
 
+  it("resolves and downloads an inbound image", async () => {
+    const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0x00]);
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { file_path: "photos/image.jpg", file_size: bytes.length } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(bytes, { status: 200, headers: { "content-length": String(bytes.length) } }));
+    const client = new TelegramBotClient({ apiBaseUrl: "https://telegram.test", fetchImpl });
+
+    await expect(client.downloadFile("token", "file-1")).resolves.toMatchObject({
+      filePath: "photos/image.jpg",
+      bytes,
+    });
+    expect(fetchImpl).toHaveBeenNthCalledWith(2, "https://telegram.test/file/bottoken/photos/image.jpg", expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  });
+
   it("only accepts the exact webhook secret", () => {
     const hash = hashChannelSecret("webhook-secret");
     expect(channelSecretsEqual(hash, "webhook-secret")).toBe(true);

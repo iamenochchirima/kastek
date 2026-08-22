@@ -146,6 +146,8 @@ describe("content capability contract", () => {
     expect(registry.validateArguments("kasitek.core.content_post_get", { postId: "post-1" })).toBe(true);
     expect(registry.validateArguments("kasitek.core.content_post_get", {})).toBe(false);
     expect(registry.validateArguments("kasitek.core.content_post_draft", { content: "Draft", channels: ["threads"] })).toBe(true);
+    expect(registry.validateArguments("kasitek.core.content_post_draft", { content: "Draft", channels: ["threads"], media: [{ assetId: "asset-1", altText: "Launch artwork" }] })).toBe(true);
+    expect(registry.validateArguments("kasitek.core.content_post_draft", { content: "Draft", channels: ["threads"], media: [{ altText: "Missing asset" }] })).toBe(false);
     expect(registry.validateArguments("kasitek.core.content_post_draft", { content: "", channels: [] })).toBe(false);
     expect(registry.validateArguments("kasitek.core.content_post_publish", { postId: "post-1", platform: "threads" })).toBe(true);
     expect(registry.validateArguments("kasitek.core.content_post_publish", { postId: "post-1" })).toBe(false);

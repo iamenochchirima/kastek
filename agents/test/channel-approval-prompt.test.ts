@@ -13,6 +13,13 @@ describe("channel approval prompts", () => {
     })).toBe("Publish “KasiTek agents teaser” to Bluesky?");
   });
 
+  it("includes attached images in the publish prompt", () => {
+    expect(buildChannelApprovalPrompt("kasitek.core.content_post_publish", {
+      request: { platform: "THREADS" },
+      resource: { title: "Launch", mediaCount: 1 },
+    })).toBe("Publish “Launch” with 1 image to Threads?");
+  });
+
   it("uses concise labels for non-content effects", () => {
     expect(buildChannelApprovalPrompt("kasitek.core.contact_update")).toBe("Update this contact?");
     expect(buildChannelApprovalPrompt("kasitek.core.channel_deliver")).toBe("Send this message?");

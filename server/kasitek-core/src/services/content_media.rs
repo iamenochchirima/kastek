@@ -51,6 +51,21 @@ struct UploadFields {
     duration_ms: Option<i32>,
 }
 
+#[derive(Debug)]
+pub struct ContentMediaBytesUpload {
+    pub file_name: Option<String>,
+    pub mime_type: String,
+    pub bytes: Vec<u8>,
+    pub source: String,
+    pub source_key: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct StoredContentMedia {
+    pub bytes: Vec<u8>,
+    pub mime_type: String,
+}
+
 fn media_kind(mime_type: &str) -> Option<&'static str> {
     if mime_type.starts_with("image/") {
         Some("IMAGE")
@@ -298,6 +313,77 @@ pub async fn upload_content_media(
     payload: Multipart,
 ) -> Result<ContentMediaAssetView, AppError> {
     let upload = read_upload(payload).await?;
+    persist_content_media(
+        pool,
+        config,
+        user_id,
+        org_id,
+        upload,
+        json!({ "adapter": "local", "source": "content_upload" }),
+    )
+    .await
+}
+
+pub async fn upload_content_media_bytes(
+    pool: &PgPool,
+    config: &AppConfig,
+    user_id: &str,
+    org_id: &str,
+    upload: ContentMediaBytesUpload,
+) -> Result<ContentMediaAssetView, AppError> {
+    if let Some(source_key) = upload
+        .source_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        let existing_id = sqlx::query_scalar::<_, String>(
+            r#"SELECT id FROM "ContentMediaAsset"
+               WHERE "orgId" = $1 AND metadata->>'sourceKey' = $2
+               ORDER BY "createdAt" DESC LIMIT 1"#,
+        )
+        .bind(org_id)
+        .bind(source_key)
+        .fetch_optional(pool)
+        .await?;
+        if let Some(existing_id) = existing_id {
+            if let Some(asset) = asset_view(pool, org_id, &existing_id).await? {
+                return Ok(asset);
+            }
+        }
+    }
+
+    let metadata = json!({
+        "adapter": "local",
+        "source": upload.source,
+        "sourceKey": upload.source_key,
+    });
+    persist_content_media(
+        pool,
+        config,
+        user_id,
+        org_id,
+        UploadFields {
+            file_name: safe_file_name(upload.file_name.as_deref()),
+            mime_type: Some(upload.mime_type.trim().to_ascii_lowercase()),
+            bytes: upload.bytes,
+            width: None,
+            height: None,
+            duration_ms: None,
+        },
+        metadata,
+    )
+    .await
+}
+
+async fn persist_content_media(
+    pool: &PgPool,
+    config: &AppConfig,
+    user_id: &str,
+    org_id: &str,
+    upload: UploadFields,
+    metadata: serde_json::Value,
+) -> Result<ContentMediaAssetView, AppError> {
     let mime_type = upload.mime_type.as_deref().ok_or_else(|| {
         AppError::BadRequest("The media file must include a MIME type".to_string())
     })?;
@@ -382,7 +468,7 @@ pub async fn upload_content_media(
     .bind(upload.height)
     .bind(upload.duration_ms)
     .bind(&storage_key)
-    .bind(json!({ "adapter": "local", "source": "content_upload" }))
+    .bind(metadata)
     .execute(pool)
     .await;
 
@@ -431,6 +517,37 @@ pub async fn download_content_media(
         ));
     }
     Ok(response.body(bytes))
+}
+
+pub async fn read_content_media_bytes(
+    pool: &PgPool,
+    config: &AppConfig,
+    org_id: &str,
+    asset_id: &str,
+) -> Result<StoredContentMedia, AppError> {
+    let row = sqlx::query_as::<_, ContentMediaDownloadRow>(
+        r#"
+        SELECT "storageKey" AS storage_key, "mimeType" AS mime_type, "fileName" AS file_name,
+               "processingStatus"::text AS processing_status, "scanStatus"::text AS scan_status
+        FROM "ContentMediaAsset"
+        WHERE id = $1 AND "orgId" = $2
+        "#,
+    )
+    .bind(asset_id)
+    .bind(org_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Media asset not found".to_string()))?;
+    if row.processing_status != "READY" || row.scan_status != "CLEAN" {
+        return Err(AppError::BadRequest("Media asset is not ready".to_string()));
+    }
+    let bytes = tokio::fs::read(storage_path(config, &row.storage_key)?)
+        .await
+        .map_err(|_| AppError::NotFound("Media object not found".to_string()))?;
+    Ok(StoredContentMedia {
+        bytes,
+        mime_type: row.mime_type,
+    })
 }
 
 pub async fn download_public_content_media(

@@ -11,6 +11,11 @@ export interface TelegramSendResult {
   status: "sent" | "unknown";
 }
 
+export interface TelegramDownloadedFile {
+  bytes: Uint8Array;
+  filePath: string;
+}
+
 export interface TelegramInlineButton {
   text: string;
   callbackData: string;
@@ -95,6 +100,36 @@ export class TelegramBotClient {
       callback_query_id: callbackQueryId,
       ...(text ? { text: text.slice(0, 200) } : {}),
     });
+  }
+
+  public async downloadFile(token: string, fileId: string, maxBytes = 20 * 1024 * 1024): Promise<TelegramDownloadedFile> {
+    const file = await this.call<{ file_path?: string; file_size?: number }>(token, "getFile", { file_id: fileId });
+    if (!file.file_path) throw new Error("Telegram did not return a file path");
+    if (typeof file.file_size === "number" && file.file_size > maxBytes) {
+      throw Object.assign(new Error("Telegram image is larger than 20 MB"), { code: "telegram_file_too_large", statusCode: 400 });
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const response = await this.fetchImpl(`${this.apiBaseUrl}/file/bot${token}/${file.file_path}`, { signal: controller.signal });
+      if (!response.ok) {
+        throw Object.assign(new Error(`Telegram file download failed (${response.status})`), {
+          code: "telegram_file_download_failed",
+          statusCode: response.status >= 400 && response.status < 500 ? 400 : 502,
+        });
+      }
+      const length = Number(response.headers.get("content-length") ?? "0");
+      if (Number.isFinite(length) && length > maxBytes) {
+        throw Object.assign(new Error("Telegram image is larger than 20 MB"), { code: "telegram_file_too_large", statusCode: 400 });
+      }
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (bytes.byteLength > maxBytes) {
+        throw Object.assign(new Error("Telegram image is larger than 20 MB"), { code: "telegram_file_too_large", statusCode: 400 });
+      }
+      return { bytes, filePath: file.file_path };
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   private async call<T>(token: string, method: string, body?: Record<string, unknown>): Promise<T> {

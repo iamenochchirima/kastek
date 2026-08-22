@@ -59,6 +59,16 @@ export function retrievalGate(message: string, options: { always?: boolean } = {
 
 function contentText(content: Record<string, unknown>): string {
   const text = content.text;
+  const assetId = content.assetId;
+  if (typeof assetId === "string") {
+    const attachment = JSON.stringify({
+      assetId,
+      mimeType: content.mimeType,
+      fileName: content.fileName,
+      mediaKind: content.mediaKind,
+    });
+    return `${typeof text === "string" ? text : ""}\n[Attached workspace media: ${attachment}]`.trim();
+  }
   if (typeof text === "string") return text;
   return JSON.stringify(content);
 }

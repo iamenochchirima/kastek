@@ -594,7 +594,10 @@ export class PlatformChatRepository {
           installation.agent_version_id,
           route.installation_id,
           resolved.conversation.id,
-          JSON.stringify({ message: input.content.text ?? input.content, context: { sourceChannel: input.channelType } }),
+          JSON.stringify({
+            message: typeof input.content.assetId === "string" ? input.content : (input.content.text ?? input.content),
+            context: { sourceChannel: input.channelType },
+          }),
           input.correlationId ?? null,
           runActorId,
           idempotencyKey,

@@ -820,6 +820,38 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }
 
     try {
+      const correlationId = randomUUID();
+      let messageContent = parseCanonicalMessageContent(event.message.messageType, event.message.content);
+      const attachmentId = typeof messageContent.attachmentId === "string" ? messageContent.attachmentId : undefined;
+      const mimeType = typeof messageContent.mimeType === "string" ? messageContent.mimeType : undefined;
+      if (event.message.messageType === "attachment" && attachmentId && mimeType?.startsWith("image/")) {
+        if (!connection.credential_reference) throw new Error("Telegram channel media is not configured");
+        const token = await channelCredentials.resolve(connection.organization_id, connection.credential_reference, "telegram");
+        try {
+          const downloaded = await telegramClient.downloadFile(token, attachmentId);
+          const uploaded = await coreClient.uploadContentMedia(
+            {
+              organizationId: connection.organization_id,
+              installationId: connection.installation_id,
+              actorId: connection.created_by,
+              runId: randomUUID(),
+              correlationId,
+            },
+            {
+              bytes: downloaded.bytes,
+              mimeType,
+              fileName: typeof messageContent.fileName === "string" ? messageContent.fileName : downloaded.filePath.split("/").at(-1),
+              source: "telegram",
+              sourceKey: `telegram:${connection.id}:${event.message.providerMessageId}:${attachmentId}`,
+            },
+          );
+          messageContent = { ...messageContent, assetId: uploaded.asset.id, mediaKind: uploaded.asset.kind };
+        } catch (error) {
+          request.log.warn({ error: error instanceof Error ? error.message : "image ingestion failed" }, "Telegram image ingestion failed");
+          await telegramClient.sendMessage(token, event.externalConversationId, "I couldn't process that image. Please try sending it again.").catch(() => undefined);
+          return reply.code(200).send({ ok: true, media: "failed" });
+        }
+      }
       const accepted = await platformChat.acceptExternalMessage({
         organizationId: connection.organization_id,
         installationId: connection.installation_id,
@@ -831,10 +863,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         externalIdentity: event.externalIdentity,
         externalConversationId: event.externalConversationId,
         messageType: event.message.messageType,
-        content: parseCanonicalMessageContent(event.message.messageType, event.message.content),
+        content: messageContent,
         occurredAt: event.message.occurredAt,
         displayName: typeof event.metadata.senderDisplayName === "string" ? event.metadata.senderDisplayName : undefined,
-        correlationId: randomUUID(),
+        correlationId,
       });
       const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
       if (workflowEnabled && dependencies.startWorkflow && accepted.created && accepted.run.status === "received") {

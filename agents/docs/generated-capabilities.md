@@ -970,7 +970,7 @@ Read one workspace-owned content post and its safe publication status.
 ```
 ## kasitek.core.content_post_update (1.0.0)
 
-Update a workspace content draft without publishing it.
+Update a workspace content draft without publishing it. Use media assetId values from attached workspace media to keep user-provided images on the draft.
 
 - Owner: `kasitek-core`
 - Permission: `content.write` (Content Write permission)
@@ -1033,6 +1033,33 @@ Update a workspace content draft without publishing it.
       },
       "maxItems": 20
     },
+    "media": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "assetId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9
+          },
+          "altText": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "assetId"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 10
+    },
     "metadata": {
       "type": "object"
     }
@@ -1057,7 +1084,7 @@ Update a workspace content draft without publishing it.
 ```
 ## kasitek.core.content_post_draft (1.0.0)
 
-Create a workspace content draft without publishing it to any provider.
+Create a workspace content draft without publishing it to any provider. When the user supplied attached workspace media, include its assetId in media.
 
 - Owner: `kasitek-core`
 - Permission: `content.write` (Content Write permission)
@@ -1113,6 +1140,33 @@ Create a workspace content draft without publishing it to any provider.
         "type": "object"
       },
       "maxItems": 20
+    },
+    "media": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "assetId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9
+          },
+          "altText": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "assetId"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 10
     },
     "metadata": {
       "type": "object"
