@@ -2150,6 +2150,7 @@ async function executeConfiguredWorkflow(input: {
       }, {
         reason: "configured_workflow",
         summary: `Configured workflow requested human handoff${result.waitingFor ? ` (${result.waitingFor})` : ""}.`,
+        metadata: { handoffKey: result.waitingFor ?? result.pausedAt ?? "handoff", nodeId: result.pausedAt ?? null },
         idempotencyKey: `workflow-handoff:${input.run.id}:${result.waitingFor ?? result.pausedAt ?? "handoff"}`,
       })
       : null;

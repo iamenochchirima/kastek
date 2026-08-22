@@ -2251,7 +2251,21 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:write");
     const handoffId = z.string().uuid().parse(request.params.handoffId);
     const input = z.object({ resolution: z.string().trim().max(2_000).optional() }).parse(request.body ?? {});
-    return conversationControls.continueWithAgent({ organizationId: auth.organizationId, handoffId, actorId: auth.actorId, resolution: input.resolution });
+    const result = await conversationControls.continueWithAgent({ organizationId: auth.organizationId, handoffId, actorId: auth.actorId, resolution: input.resolution });
+    if (result.handoff.run_id && dependencies.signalExternalEvent) {
+      const handoffKey = typeof result.handoff.metadata?.handoffKey === "string" && result.handoff.metadata.handoffKey.trim()
+        ? result.handoff.metadata.handoffKey.trim()
+        : result.handoff.id;
+      await dependencies.signalExternalEvent(result.handoff.run_id, {
+        key: handoffKey,
+        payload: {
+          action: "continue_with_agent",
+          handoffId: result.handoff.id,
+          resolution: input.resolution ?? null,
+        },
+      });
+    }
+    return result;
   });
 
   app.post<{ Params: { handoffId: string } }>("/v1/conversations/handoffs/:handoffId/resolve", async (request) => {

@@ -2147,7 +2147,7 @@ describe("Agent Platform HTTP foundation", () => {
       listLive: vi.fn(async () => ({ items: [{ conversation: { id: "22222222-2222-4222-8222-222222222222" }, run: { id: "44444444-4444-4444-8444-444444444444", status: "running" } }] })),
       getHandoff: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111" }, conversation: { id: "22222222-2222-4222-8222-222222222222" } })),
       claim: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111", status: "claimed" }, conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "human_owned" }, changed: true })),
-      continueWithAgent: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111", status: "resolved" }, conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "agent_active" }, changed: true })),
+      continueWithAgent: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111", run_id: "44444444-4444-4444-8444-444444444444", metadata: { handoffKey: "support-handoff" }, status: "resolved" }, conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "agent_active" }, changed: true })),
       resolve: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111", status: "resolved" }, conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "resolved" }, changed: true })),
       sendHumanMessage: vi.fn(async () => ({
         handoff: { id: "11111111-1111-4111-8111-111111111111", status: "claimed" },
@@ -2157,7 +2157,8 @@ describe("Agent Platform HTTP foundation", () => {
         created: true,
       })),
     } as never;
-    const app = buildApp({ config, pool: fakePool, conversationControls: controls });
+    const signalExternalEvent = vi.fn(async () => undefined);
+    const app = buildApp({ config, pool: fakePool, conversationControls: controls, signalExternalEvent });
     const headers = { "x-organization-id": "org-1", "x-actor-id": "user-1" };
     const queue = await app.inject({ method: "GET", url: "/v1/conversations/handoffs?status=pending,claimed&limit=10", headers });
     const live = await app.inject({ method: "GET", url: "/v1/conversations/live?search=acme&limit=10", headers });
@@ -2173,6 +2174,10 @@ describe("Agent Platform HTTP foundation", () => {
     expect(detail.statusCode).toBe(200);
     expect(claimed.json()).toMatchObject({ changed: true, conversation: { handoff_state: "human_owned" } });
     expect(continued.json()).toMatchObject({ conversation: { handoff_state: "agent_active" } });
+    expect(signalExternalEvent).toHaveBeenCalledWith("44444444-4444-4444-8444-444444444444", {
+      key: "support-handoff",
+      payload: { action: "continue_with_agent", handoffId: "11111111-1111-4111-8111-111111111111", resolution: "customer chose automation" },
+    });
     expect(resolved.json()).toMatchObject({ conversation: { handoff_state: "resolved" } });
     expect(message.statusCode).toBe(201);
     expect(message.json()).toMatchObject({ message: { content: { text: "I can help." } }, created: true });
