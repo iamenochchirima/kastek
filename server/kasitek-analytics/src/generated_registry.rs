@@ -2,10 +2,12 @@
 
 pub const REGISTRY_VERSION: &str = "20260822.1";
 pub const REGISTRY_SHA256: &str =
-    "d0a794bccaedf059303818f6c83fcbef8e69cf1350481cb27ba202f6491a7eed";
+    "d4a478b6229711ec076a14b2a7090cd1eddc3932f6038acdd7b289615e51a55c";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",
+    "agent.conversation.lifecycle@1",
+    "agent.conversation.message@1",
     "agent.definition.lifecycle@1",
     "agent.effect.lifecycle@1",
     "agent.handoff.lifecycle@1",
@@ -26,6 +28,9 @@ pub const CONTRACT_KEYS: &[&str] = &[
 
 pub const METRIC_KEYS: &[&str] = &[
     "agent.approvals.lifecycle_events@1",
+    "agent.conversation.response_time_ms@1",
+    "agent.conversation_messages.lifecycle_events@1",
+    "agent.conversations.lifecycle_events@1",
     "agent.cost.usd@1",
     "agent.definitions.lifecycle_events@1",
     "agent.effects.lifecycle_events@1",
@@ -49,6 +54,8 @@ pub const METRIC_KEYS: &[&str] = &[
 
 pub const DIMENSION_KEYS: &[&str] = &[
     "agent_audience",
+    "agent_conversation_channel",
+    "agent_conversation_kind",
     "agent_creation_profile",
     "agent_definition",
     "agent_execution_mode",
@@ -60,11 +67,17 @@ pub const DIMENSION_KEYS: &[&str] = &[
     "capability",
     "channel",
     "conversation_channel",
+    "conversation_handoff_state",
     "effect_reconciliation",
     "failure_class",
     "funding_source",
     "installation_scope",
     "lifecycle_action",
+    "message_action",
+    "message_delivery_status",
+    "message_direction",
+    "message_responder_type",
+    "message_type",
     "model",
     "model_provider",
     "outcome",
@@ -82,6 +95,11 @@ pub const METRIC_SET_KEYS: &[&str] = &["agent.performance@1", "overview.summary@
 
 pub mod metric_keys {
     pub const AGENT_APPROVALS_LIFECYCLE_EVENTS_1: &str = "agent.approvals.lifecycle_events@1";
+    pub const AGENT_CONVERSATION_RESPONSE_TIME_MS_1: &str = "agent.conversation.response_time_ms@1";
+    pub const AGENT_CONVERSATION_MESSAGES_LIFECYCLE_EVENTS_1: &str =
+        "agent.conversation_messages.lifecycle_events@1";
+    pub const AGENT_CONVERSATIONS_LIFECYCLE_EVENTS_1: &str =
+        "agent.conversations.lifecycle_events@1";
     pub const AGENT_COST_USD_1: &str = "agent.cost.usd@1";
     pub const AGENT_DEFINITIONS_LIFECYCLE_EVENTS_1: &str = "agent.definitions.lifecycle_events@1";
     pub const AGENT_EFFECTS_LIFECYCLE_EVENTS_1: &str = "agent.effects.lifecycle_events@1";

@@ -6,6 +6,7 @@ import { InstallationGrantRepository } from "../src/db/repositories/installation
 import { ScheduleRepository } from "../src/db/repositories/schedule-repository";
 import { RunRepository } from "../src/db/repositories/run-repository";
 import { ReadinessRepository } from "../src/db/repositories/readiness-repository";
+import { ConversationRepository } from "../src/db/repositories/conversation-repository";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
 const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRATION_TESTS === "true");
@@ -17,6 +18,7 @@ describe.skipIf(!runIntegration)("hosted agent lifecycle and isolation (integrat
   const schedules = new ScheduleRepository(pool);
   const runs = new RunRepository(pool);
   const readiness = new ReadinessRepository(pool);
+  const conversations = new ConversationRepository(pool);
   const organizationA = `hosted-boundary-a-${randomUUID()}`;
   const organizationB = `hosted-boundary-b-${randomUUID()}`;
   let agentId = "";
@@ -111,6 +113,61 @@ describe.skipIf(!runIntegration)("hosted agent lifecycle and isolation (integrat
       { action: "paused", status: "paused", previous_status: "active", agent_audience: "personal", execution_mode: "kasitek_hosted" },
       { action: "activated", status: "active", previous_status: "paused", agent_audience: "personal", execution_mode: "kasitek_hosted" },
     ]);
+
+    const conversation = await conversations.createConversation({
+      organizationId: organizationA,
+      installationId,
+      channelType: "platform",
+      channelKey: "analytics-boundary",
+      conversationKind: "test",
+    });
+    await conversations.appendMessage({
+      organizationId: organizationA,
+      conversationId: conversation.id,
+      direction: "inbound",
+      content: { text: "private inbound transcript" },
+      sourceChannel: "platform",
+    });
+    await conversations.appendMessage({
+      organizationId: organizationA,
+      conversationId: conversation.id,
+      direction: "outbound",
+      content: { text: "private outbound transcript" },
+      provider: "kasitek-human",
+      sourceChannel: "platform",
+    });
+    await conversations.markInstallationOpened(organizationA, conversation.id);
+    const conversationFacts = await pool.query<{
+      contract_name: string;
+      action: string;
+      conversation_kind: string;
+      responder_type: string | null;
+      response_time_ms: number | null;
+      envelope: Record<string, unknown>;
+    }>(
+      `SELECT contract_name,
+              envelope->'data'->>'action' AS action,
+              envelope->'data'->>'conversation_kind' AS conversation_kind,
+              envelope->'data'->>'responder_type' AS responder_type,
+              (envelope->'data'->>'response_time_ms')::integer AS response_time_ms,
+              envelope
+       FROM analytics_outbox
+       WHERE (source_stream_key = $1 AND envelope->>'subject' = $3)
+          OR (source_stream_key = $2 AND envelope->>'subject' LIKE 'message:%')
+       ORDER BY source_sequence`,
+      [
+        `organization:${organizationA}:conversations`,
+        `organization:${organizationA}:messages`,
+        `conversation:${conversation.id}`,
+      ],
+    );
+    expect(conversationFacts.rows.filter((row) => row.contract_name === "agent.conversation.lifecycle@1").map((row) => row.action)).toEqual(["created", "opened"]);
+    const messageFacts = conversationFacts.rows.filter((row) => row.contract_name === "agent.conversation.message@1");
+    expect(messageFacts).toHaveLength(2);
+    expect(messageFacts.map((row) => row.responder_type)).toEqual(["human", "human"]);
+    expect(messageFacts.every((row) => row.conversation_kind === "test" && row.response_time_ms === null)).toBe(true);
+    expect(JSON.stringify(conversationFacts.rows)).not.toContain("private inbound transcript");
+    expect(await pool.query("SELECT 1 FROM analytics_outbox WHERE source_stream_key = $1", [`organization:${organizationB}:messages`])).toMatchObject({ rows: [] });
     await expect(agents.setInstallationStatus(organizationB, installation.id, "disabled", "owner-b")).rejects.toThrow("Installation not found");
   });
 
@@ -265,10 +322,14 @@ describe.skipIf(!runIntegration)("hosted agent lifecycle and isolation (integrat
 
   afterAll(async () => {
     if (installationId) {
+      await pool.query("DELETE FROM messages WHERE organization_id = $1 AND run_id IS NOT NULL", [organizationA]);
       await pool.query("DELETE FROM run_workflow_state WHERE organization_id = $1", [organizationA]);
       await pool.query("DELETE FROM run_attempts WHERE organization_id = $1", [organizationA]);
       await pool.query("DELETE FROM agent_events WHERE organization_id = $1", [organizationA]);
       await pool.query("DELETE FROM agent_runs WHERE organization_id = $1", [organizationA]);
+      await pool.query("DELETE FROM messages WHERE organization_id = $1", [organizationA]);
+      await pool.query("DELETE FROM participants WHERE organization_id = $1", [organizationA]);
+      await pool.query("DELETE FROM conversations WHERE organization_id = $1", [organizationA]);
       await pool.query("DELETE FROM agent_schedules WHERE organization_id = $1", [organizationA]);
       await pool.query("DELETE FROM agent_installation_resource_grants WHERE organization_id = $1", [organizationA]);
       await pool.query("DELETE FROM agent_installation_connector_grants WHERE organization_id = $1", [organizationA]);

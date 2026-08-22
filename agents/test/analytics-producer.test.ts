@@ -5,6 +5,8 @@ import {
   buildApprovalLifecycleEvent,
   buildCompletedAgentRunEvent,
   buildCompletedModelCallEvent,
+  buildConversationLifecycleEvent,
+  buildConversationMessageEvent,
   buildDefinitionLifecycleEvent,
   buildEffectLifecycleEvent,
   buildFailedAgentRunEvent,
@@ -433,6 +435,64 @@ describe("Agent analytics producer", () => {
     expect(record.envelope.data.state_fingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(JSON.stringify(record.envelope)).not.toContain("detail");
     expect(JSON.stringify(record.envelope)).not.toContain("credential_reference");
+  });
+
+  it("builds conversation facts with agent audience and no transcript content", () => {
+    const context = {
+      organizationId: "org-1",
+      conversationId: "conversation-1",
+      installationId: "installation-1",
+      agentDefinitionId: "agent-1",
+      agentVersionId: "version-1",
+      agentAudience: "customer_service" as const,
+      conversationKind: "customer" as const,
+      channel: "whatsapp",
+      status: "active" as const,
+      handoffState: "agent_active" as const,
+    };
+    const lifecycle = buildConversationLifecycleEvent({
+      ...context,
+      action: "opened",
+      actorType: "human",
+      occurredAt: "2026-08-22T10:05:00.000Z",
+    });
+    expect(lifecycle.envelope).toMatchObject({
+      type: "agent.conversation.lifecycle@1",
+      subject: "conversation:conversation-1",
+      dataschema: "https://kasitek.co.za/analytics/contracts/events/agent/conversation_lifecycle/v1.schema.json",
+    });
+    expect(lifecycle.envelope.data).toMatchObject({
+      conversation_kind: "customer",
+      agent_audience: "customer_service",
+      action: "opened",
+      handoff_state: "agent_active",
+    });
+
+    const message = buildConversationMessageEvent({
+      ...context,
+      messageId: "message-1",
+      action: "created",
+      direction: "outbound",
+      responderType: "agent",
+      messageType: "text",
+      deliveryStatus: "queued",
+      runId: "run-1",
+      responseTimeMs: 1820,
+      occurredAt: "2026-08-22T10:05:01.000Z",
+    });
+    expect(message.envelope).toMatchObject({
+      type: "agent.conversation.message@1",
+      subject: "message:message-1",
+      dataschema: "https://kasitek.co.za/analytics/contracts/events/agent/conversation_message/v1.schema.json",
+    });
+    expect(message.envelope.data).toMatchObject({
+      action: "created",
+      direction: "outbound",
+      responder_type: "agent",
+      response_time_ms: 1820,
+    });
+    expect(JSON.stringify(message.envelope)).not.toContain("private transcript");
+    expect(JSON.stringify(message.envelope)).not.toContain("provider message");
   });
 
   it("rejects prohibited content before a database call", () => {

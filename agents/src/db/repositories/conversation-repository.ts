@@ -1,5 +1,10 @@
 import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
+import {
+  enqueueAgentConversationLifecycle,
+  enqueueAgentConversationMessage,
+  loadAgentConversationAnalyticsContext,
+} from "../../analytics";
 
 export interface ConversationRecord {
   id: string;
@@ -88,30 +93,50 @@ export class ConversationRepository {
     title?: string;
     conversationKind?: ConversationRecord["conversation_kind"];
   }): Promise<ConversationRecord> {
-    const result = await query<ConversationRecord>(
-      this.pool,
-      `INSERT INTO conversations
-        (installation_id, organization_id, channel_type, channel_key, external_conversation_id, title, conversation_kind)
-       SELECT $2, $1, $3, $4, $5, $6, $7
-       WHERE EXISTS (
-         SELECT 1 FROM agent_installations WHERE id = $2 AND organization_id = $1 AND status = 'active'
-       )
-       ON CONFLICT (installation_id, channel_type, channel_key, external_conversation_id)
-       WHERE external_conversation_id IS NOT NULL
-       DO UPDATE SET updated_at = conversations.updated_at
-       RETURNING *`,
-      [
-        input.organizationId,
-        input.installationId,
-        input.channelType ?? "platform",
-        input.channelKey ?? "platform",
-        input.externalConversationId ?? null,
-        input.title ?? null,
-        input.conversationKind ?? "customer",
-      ],
-    );
-    if (!result.rows[0]) throw new Error("Active installation not found");
-    return result.rows[0];
+    return withTransaction(this.pool, async (client) => {
+      const inserted = await client.query<ConversationRecord>(
+        `INSERT INTO conversations
+          (installation_id, organization_id, channel_type, channel_key, external_conversation_id, title, conversation_kind)
+         SELECT $2, $1, $3, $4, $5, $6, $7
+         WHERE EXISTS (
+           SELECT 1 FROM agent_installations WHERE id = $2 AND organization_id = $1 AND status = 'active'
+         )
+         ON CONFLICT (installation_id, channel_type, channel_key, external_conversation_id)
+         WHERE external_conversation_id IS NOT NULL
+         DO NOTHING
+         RETURNING *`,
+        [
+          input.organizationId,
+          input.installationId,
+          input.channelType ?? "platform",
+          input.channelKey ?? "platform",
+          input.externalConversationId ?? null,
+          input.title ?? null,
+          input.conversationKind ?? "customer",
+        ],
+      );
+      const conversation = inserted.rows[0] ?? (await client.query<ConversationRecord>(
+        `SELECT c.*
+         FROM conversations c
+         JOIN agent_installations ai ON ai.id = c.installation_id
+           AND ai.organization_id = c.organization_id AND ai.status = 'active'
+         WHERE c.organization_id = $1 AND c.installation_id = $2
+           AND c.channel_type = $3 AND c.channel_key = $4
+           AND c.external_conversation_id = $5
+         LIMIT 1`,
+        [input.organizationId, input.installationId, input.channelType ?? "platform", input.channelKey ?? "platform", input.externalConversationId ?? null],
+      )).rows[0];
+      if (!conversation) throw new Error("Active installation not found");
+      if (inserted.rows[0]) {
+        const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, conversation.id);
+        await enqueueAgentConversationLifecycle(client, context, {
+          action: "created",
+          actorType: "system",
+          occurredAt: conversation.created_at,
+        });
+      }
+      return conversation;
+    });
   }
 
   public async getConversation(organizationId: string, conversationId: string): Promise<ConversationRecord | null> {
@@ -229,6 +254,14 @@ export class ConversationRepository {
     status: "archived" | "deleted",
   ): Promise<ConversationRecord> {
     return withTransaction(this.pool, async (client) => {
+      const current = await client.query<ConversationRecord>(
+        `SELECT * FROM conversations
+         WHERE organization_id = $1 AND id = $2 AND owner_actor_id = $3
+           AND status <> 'deleted'
+         FOR UPDATE`,
+        [organizationId, conversationId, ownerActorId],
+      );
+      if (!current.rows[0]) throw new Error("Conversation not found");
       const result = await client.query<ConversationRecord>(
         `UPDATE conversations
          SET status = $4, is_primary = false,
@@ -240,6 +273,14 @@ export class ConversationRepository {
         [organizationId, conversationId, ownerActorId, status],
       );
       if (!result.rows[0]) throw new Error("Conversation not found");
+      if (current.rows[0].status !== status) {
+        const context = await loadAgentConversationAnalyticsContext(client, organizationId, conversationId);
+        await enqueueAgentConversationLifecycle(client, context, {
+          action: status,
+          actorType: "human",
+          occurredAt: result.rows[0].updated_at,
+        });
+      }
       if (status === "deleted") {
         await client.query(
           `UPDATE memory_records
@@ -257,16 +298,23 @@ export class ConversationRepository {
   }
 
   public async restoreOwnedConversation(organizationId: string, conversationId: string, ownerActorId: string): Promise<ConversationRecord> {
-    const result = await query<ConversationRecord>(
-      this.pool,
-      `UPDATE conversations
-       SET status = 'active', archived_at = NULL, is_primary = false, updated_at = now()
-       WHERE organization_id = $1 AND id = $2 AND owner_actor_id = $3 AND status = 'archived'
-       RETURNING *`,
-      [organizationId, conversationId, ownerActorId],
-    );
-    if (!result.rows[0]) throw new Error("Archived conversation not found");
-    return result.rows[0];
+    return withTransaction(this.pool, async (client) => {
+      const result = await client.query<ConversationRecord>(
+        `UPDATE conversations
+         SET status = 'active', archived_at = NULL, is_primary = false, updated_at = now()
+         WHERE organization_id = $1 AND id = $2 AND owner_actor_id = $3 AND status = 'archived'
+         RETURNING *`,
+        [organizationId, conversationId, ownerActorId],
+      );
+      if (!result.rows[0]) throw new Error("Archived conversation not found");
+      const context = await loadAgentConversationAnalyticsContext(client, organizationId, conversationId);
+      await enqueueAgentConversationLifecycle(client, context, {
+        action: "restored",
+        actorType: "human",
+        occurredAt: result.rows[0].updated_at,
+      });
+      return result.rows[0];
+    });
   }
 
   public async updateOwnedConversation(input: {
@@ -323,12 +371,22 @@ export class ConversationRepository {
   }
 
   public async markOpened(organizationId: string, conversationId: string, ownerActorId: string): Promise<void> {
-    await query(
-      this.pool,
-      `UPDATE conversations SET last_opened_at = now(), last_read_at = now()
-       WHERE organization_id = $1 AND id = $2 AND owner_actor_id = $3`,
-      [organizationId, conversationId, ownerActorId],
-    );
+    await withTransaction(this.pool, async (client) => {
+      const result = await client.query<ConversationRecord>(
+        `UPDATE conversations SET last_opened_at = now(), last_read_at = now()
+         WHERE organization_id = $1 AND id = $2 AND owner_actor_id = $3
+         RETURNING *`,
+        [organizationId, conversationId, ownerActorId],
+      );
+      if (result.rows[0]) {
+        const context = await loadAgentConversationAnalyticsContext(client, organizationId, conversationId);
+        await enqueueAgentConversationLifecycle(client, context, {
+          action: "opened",
+          actorType: "human",
+          occurredAt: result.rows[0].last_opened_at ?? result.rows[0].updated_at,
+        });
+      }
+    });
   }
 
   /**
@@ -338,13 +396,23 @@ export class ConversationRepository {
    * update instead of the personal-chat owner guard above.
    */
   public async markInstallationOpened(organizationId: string, conversationId: string): Promise<void> {
-    await query(
-      this.pool,
-      `UPDATE conversations SET last_opened_at = now(), last_read_at = now()
-       WHERE organization_id = $1 AND id = $2 AND status = 'active'
-         AND conversation_kind IN ('customer', 'test')`,
-      [organizationId, conversationId],
-    );
+    await withTransaction(this.pool, async (client) => {
+      const result = await client.query<ConversationRecord>(
+        `UPDATE conversations SET last_opened_at = now(), last_read_at = now()
+         WHERE organization_id = $1 AND id = $2 AND status = 'active'
+           AND conversation_kind IN ('customer', 'test')
+         RETURNING *`,
+        [organizationId, conversationId],
+      );
+      if (result.rows[0]) {
+        const context = await loadAgentConversationAnalyticsContext(client, organizationId, conversationId);
+        await enqueueAgentConversationLifecycle(client, context, {
+          action: "opened",
+          actorType: "human",
+          occurredAt: result.rows[0].last_opened_at ?? result.rows[0].updated_at,
+        });
+      }
+    });
   }
 
   public async setGeneratedTitle(input: {
@@ -392,6 +460,7 @@ export class ConversationRepository {
     content: Record<string, unknown>;
     provider?: string;
     providerMessageId?: string;
+    runId?: string;
     sourceChannel?: string;
     sourceConnectionId?: string;
     sourceBindingId?: string;
@@ -437,10 +506,10 @@ export class ConversationRepository {
       const created = await client.query<MessageRecord>(
         `INSERT INTO messages
           (conversation_id, organization_id, participant_id, direction, message_type, content,
-           provider, provider_message_id, sequence_number, source_channel, source_connection_id,
+           provider, provider_message_id, run_id, sequence_number, source_channel, source_connection_id,
            source_binding_id, external_conversation_id, occurred_at, delivery_status)
-         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13,
-                 COALESCE($14::timestamptz, now()), $15)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14,
+                 COALESCE($15::timestamptz, now()), $16)
          RETURNING *`,
         [
           input.conversationId,
@@ -451,6 +520,7 @@ export class ConversationRepository {
           JSON.stringify(input.content),
           input.provider ?? null,
           input.providerMessageId ?? null,
+          input.runId ?? null,
           nextSequence.rows[0]!.sequence_number,
           input.sourceChannel ?? input.provider ?? "platform",
           input.sourceConnectionId ?? null,
@@ -470,7 +540,10 @@ export class ConversationRepository {
          WHERE id = $1`,
         [input.conversationId, input.occurredAt ?? null, input.direction, typeof input.content.text === "string" ? input.content.text : null, input.messageType ?? "text"],
       );
-      return created.rows[0]!;
+      const message = created.rows[0]!;
+      const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, input.conversationId);
+      await enqueueAgentConversationMessage(client, context, message, "created");
+      return message;
     });
   }
 

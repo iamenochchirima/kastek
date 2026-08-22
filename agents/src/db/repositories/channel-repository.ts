@@ -1,6 +1,11 @@
 import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
 import { createPairingToken, hashPairingToken } from "../../channels/pairing";
+import {
+  enqueueAgentConversationMessage,
+  loadAgentConversationAnalyticsContext,
+  type ConversationMessageAnalyticsRecord,
+} from "../../analytics";
 
 export interface ChannelConnectionRecord {
   id: string;
@@ -308,11 +313,17 @@ export class ChannelRepository {
         [input.organizationId, input.conversationId, input.messageId, input.channelType],
       );
       if (!result.rows[0]) throw new Error("Message not found");
-      await client.query(
+      const message = await client.query<ConversationMessageAnalyticsRecord>(
         `UPDATE messages SET delivery_status = 'queued'
-         WHERE id = $1 AND conversation_id = $2 AND organization_id = $3`,
+         WHERE id = $1 AND conversation_id = $2 AND organization_id = $3
+           AND delivery_status IS DISTINCT FROM 'queued'
+         RETURNING *`,
         [input.messageId, input.conversationId, input.organizationId],
       );
+      if (message.rows[0]) {
+        const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, input.conversationId);
+        await enqueueAgentConversationMessage(client, context, message.rows[0], "delivery_updated");
+      }
       return result.rows[0]!;
     });
   }
@@ -347,14 +358,14 @@ export class ChannelRepository {
         throw Object.assign(new Error("Replaying an unknown delivery requires confirmUnknown"), { statusCode: 400 });
       }
 
-      const message = (await client.query<{ id: string; conversation_id: string; organization_id: string }>(
+      const messageTarget = (await client.query<{ id: string; conversation_id: string; organization_id: string }>(
         `SELECT id, conversation_id, organization_id
          FROM messages
          WHERE id = $1 AND conversation_id = $2 AND organization_id = $3
          FOR UPDATE`,
         [target.message_id, target.conversation_id, input.organizationId],
       )).rows[0];
-      if (!message) throw Object.assign(new Error("Delivery message not found"), { statusCode: 404 });
+      if (!messageTarget) throw Object.assign(new Error("Delivery message not found"), { statusCode: 404 });
 
       const latest = (await client.query<{ id: string }>(
         `SELECT id FROM delivery_attempts
@@ -373,14 +384,20 @@ export class ChannelRepository {
          SELECT $1, $2, $3, $4, 'queued',
                 COALESCE((SELECT MAX(attempt_number) FROM delivery_attempts WHERE message_id = $3), 0) + 1
          RETURNING *`,
-        [input.organizationId, message.conversation_id, message.id, target.channel_type],
+        [input.organizationId, messageTarget.conversation_id, messageTarget.id, target.channel_type],
       )).rows[0];
       if (!replay) throw new Error("Delivery replay could not be queued");
-      await client.query(
+      const updatedMessage = await client.query<ConversationMessageAnalyticsRecord>(
         `UPDATE messages SET delivery_status = 'queued'
-         WHERE id = $1 AND conversation_id = $2 AND organization_id = $3`,
-        [message.id, message.conversation_id, input.organizationId],
+         WHERE id = $1 AND conversation_id = $2 AND organization_id = $3
+           AND delivery_status IS DISTINCT FROM 'queued'
+         RETURNING *`,
+        [messageTarget.id, messageTarget.conversation_id, input.organizationId],
       );
+      if (updatedMessage.rows[0]) {
+        const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, updatedMessage.rows[0].conversation_id);
+        await enqueueAgentConversationMessage(client, context, updatedMessage.rows[0], "delivery_updated");
+      }
       return { previous: target, replay };
     });
   }
@@ -460,7 +477,14 @@ export class ChannelRepository {
         [attemptId, organizationId],
       );
       if (!result.rows[0]) throw new Error("Delivery attempt is not claimable");
-      await client.query("UPDATE messages SET delivery_status = 'sending' WHERE id = $1", [result.rows[0].message_id]);
+      const message = await client.query<ConversationMessageAnalyticsRecord>(
+        "UPDATE messages SET delivery_status = 'sending' WHERE id = $1 AND delivery_status IS DISTINCT FROM 'sending' RETURNING *",
+        [result.rows[0].message_id],
+      );
+      if (message.rows[0]) {
+        const context = await loadAgentConversationAnalyticsContext(client, organizationId, message.rows[0].conversation_id);
+        await enqueueAgentConversationMessage(client, context, message.rows[0], "delivery_updated");
+      }
       return result.rows[0];
     });
   }
@@ -474,12 +498,17 @@ export class ChannelRepository {
         [input.attemptId, input.organizationId, input.providerMessageId ?? null],
       );
       if (!result.rows[0]) throw new Error("Delivery attempt is not sending");
-      await client.query(
+      const message = await client.query<ConversationMessageAnalyticsRecord>(
         `UPDATE messages SET delivery_status = 'sent',
            provider_message_id = COALESCE($2, provider_message_id)
-         WHERE id = $1`,
+         WHERE id = $1 AND delivery_status IS DISTINCT FROM 'sent'
+         RETURNING *`,
         [result.rows[0].message_id, input.providerMessageId ?? null],
       );
+      if (message.rows[0]) {
+        const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, message.rows[0].conversation_id);
+        await enqueueAgentConversationMessage(client, context, message.rows[0], "delivery_updated");
+      }
       return result.rows[0];
     });
   }
@@ -493,7 +522,14 @@ export class ChannelRepository {
         [input.attemptId, input.organizationId, JSON.stringify(input.error)],
       );
       if (!result.rows[0]) throw new Error("Delivery attempt is terminal or missing");
-      await client.query("UPDATE messages SET delivery_status = 'failed' WHERE id = $1", [result.rows[0].message_id]);
+      const message = await client.query<ConversationMessageAnalyticsRecord>(
+        "UPDATE messages SET delivery_status = 'failed' WHERE id = $1 AND delivery_status IS DISTINCT FROM 'failed' RETURNING *",
+        [result.rows[0].message_id],
+      );
+      if (message.rows[0]) {
+        const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, message.rows[0].conversation_id);
+        await enqueueAgentConversationMessage(client, context, message.rows[0], "delivery_updated");
+      }
       return result.rows[0];
     });
   }
@@ -505,6 +541,14 @@ export class ChannelRepository {
     error?: Record<string, unknown>;
   }): Promise<MessageDeliveryStatusRecord> {
     return withTransaction(this.pool, async (client) => {
+      const current = await client.query<{ id: string; delivery_status: string | null }>(
+        `SELECT id, delivery_status
+         FROM messages
+         WHERE organization_id = $1 AND provider_message_id = $2
+         FOR UPDATE`,
+        [input.organizationId, input.providerMessageId],
+      );
+      if (!current.rows[0]) throw new Error("Provider message not found");
       const message = await client.query<MessageDeliveryStatusRecord>(
         `UPDATE messages SET delivery_status = CASE
            WHEN delivery_status = 'failed' THEN delivery_status
@@ -529,6 +573,11 @@ export class ChannelRepository {
          WHERE organization_id = $1 AND message_id = $2`,
         [input.organizationId, message.rows[0].id, input.status, input.error ? JSON.stringify(input.error) : null],
       );
+      if (current.rows[0].delivery_status !== message.rows[0].delivery_status) {
+        const fullMessage = await client.query<ConversationMessageAnalyticsRecord>("SELECT * FROM messages WHERE id = $1", [message.rows[0].id]);
+        const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, message.rows[0].conversation_id);
+        await enqueueAgentConversationMessage(client, context, fullMessage.rows[0]!, "delivery_updated");
+      }
       return message.rows[0];
     });
   }

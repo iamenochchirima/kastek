@@ -494,3 +494,102 @@ definitions:
     effective_from: "2026-08-22T00:00:00Z"
     applicability: the readiness route successfully evaluates an Agent installation
     dependencies: []
+
+  - key: agent.conversations.lifecycle_events
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Agent conversation creation, access, and retention lifecycle facts.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.conversation.lifecycle@1
+    formula: count(agent.conversation.lifecycle@1)
+    eligible_population: persisted Agent conversation lifecycle facts
+    exclusions: [conversation titles, previews, customer identifiers, and message content]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, agent_audience, agent_conversation_kind, agent_conversation_channel, conversation_handoff_state, lifecycle_action, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.conversation.lifecycle@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: an Agent conversation is created, opened, archived, restored, or deleted
+    dependencies: []
+
+  - key: agent.conversation_messages.lifecycle_events
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Agent conversation message creation and delivery lifecycle facts.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.conversation.message@1
+    formula: count(agent.conversation.message@1)
+    eligible_population: persisted Agent conversation message lifecycle facts
+    exclusions: [message content, provider message identifiers, customer identifiers, and internal payloads]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: source_entity
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, agent_audience, agent_conversation_kind, agent_conversation_channel, message_action, message_direction, message_responder_type, message_type, message_delivery_status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.conversation.message@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: an Agent conversation message is persisted or its delivery status changes
+    dependencies: []
+
+  - key: agent.conversation.response_time_ms
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Time from the latest customer message to an Agent or human response.
+    value_type: duration
+    unit: milliseconds
+    precision: 0
+    sources:
+      - agent.conversation.message@1
+    formula: average(agent.conversation.message@1, response_time_ms)
+    eligible_population: outbound Agent or human messages with a measured preceding customer message
+    exclusions: [messages without a preceding customer message, delivery updates, personal-agent messages]
+    time_semantics: event_time
+    default_aggregation: weighted_average
+    temporal_aggregation: weighted_average
+    comparison: previous_period
+    deduplication: source_entity
+    descendant_aggregation: weighted_average
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, agent_audience, agent_conversation_channel, message_responder_type]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.conversation.message@1]}
+    availability: when_applicable
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: a customer-service conversation has an outbound Agent or human response after a customer message
+    dependencies: []

@@ -1664,6 +1664,22 @@ Only conversational deployments emit conversation volume, response timing, chann
 customer-conversation references, and Agent versus human responder attribution. Personal KasiAi,
 test, customer, and externally connected conversations remain distinct categories.
 
+#### Execution slice 1 — Agent conversation and message facts
+
+- [x] Register bounded conversation lifecycle and message lifecycle contracts without titles,
+  previews, identifiers for external customers, provider message IDs, or transcript content.
+- [x] Register lifecycle, message, delivery-state, responder, channel, and response-time metrics
+  with tenant-compatible scope and dimension bindings.
+- [x] Emit conversation creation, open, archive, restore, delete, message creation, and delivery
+  status facts from the Agent Platform's transactional mutation paths.
+- [x] Cover generic conversations, private platform chats, channel-ingested messages, agent replies,
+  and customer-service human replies through the same analytics helper.
+- [x] Keep personal, test, customer, and external conversation kinds distinct in every fact.
+- [x] Measure response time only for outbound Agent or human messages following a customer message.
+- [x] Verify producer privacy and organization isolation with unit and live database tests.
+- [ ] Add Core Inbox-owned conversation and message facts in the next M2 slice; do not make Agent
+  Platform the owner of Core Inbox conversations.
+
 ### Agent Platform lane: customer handoff
 
 Customer-takeover analytics applies only to a customer-facing Agent whose workflow has the

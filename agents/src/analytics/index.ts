@@ -24,6 +24,8 @@ export {
   buildCompletedAgentRunEvent,
   buildCompletedModelCallEvent,
   buildApprovalLifecycleEvent,
+  buildConversationLifecycleEvent,
+  buildConversationMessageEvent,
   buildDefinitionLifecycleEvent,
   buildEffectLifecycleEvent,
   buildFailedAgentRunEvent,
@@ -49,6 +51,11 @@ export {
   type AgentReadinessAnalyticsInput,
   type AgentReadinessBlockerCode,
   type DefinitionLifecycleAnalyticsInput,
+  type AgentConversationAnalyticsContext,
+  type AgentConversationHandoffState,
+  type AgentConversationKind,
+  type AgentConversationLifecycleAnalyticsInput,
+  type AgentConversationMessageAnalyticsInput,
   type InstallationLifecycleAnalyticsInput,
   type VersionLifecycleAnalyticsInput,
   type ScheduleAnalyticsInput,
@@ -69,3 +76,9 @@ export {
   type RetryPolicyOptions,
 } from "./publisher";
 export { ReadinessSweep, type ReadinessSweepSettings } from "./readiness-sweep";
+export {
+  enqueueAgentConversationLifecycle,
+  enqueueAgentConversationMessage,
+  loadAgentConversationAnalyticsContext,
+  type ConversationMessageAnalyticsRecord,
+} from "./conversation";

@@ -5,6 +5,8 @@ import { createAgentEvent } from "../../events/envelope";
 import {
   buildCompletedAgentRunEvent,
   buildFailedAgentRunEvent,
+  enqueueAgentConversationMessage,
+  loadAgentConversationAnalyticsContext,
   enqueueOutbox,
   type AgentRunTerminalInput,
 } from "../../analytics";
@@ -366,6 +368,20 @@ export class RunRepository {
              WHERE id = $1`,
             [run.conversation_id, responseMessage],
           );
+          const outboundMessage = await client.query<{
+            id: string;
+            conversation_id: string;
+            participant_id: string | null;
+            direction: "inbound" | "outbound" | "system";
+            message_type: string;
+            provider: string | null;
+            run_id: string | null;
+            source_channel: string | null;
+            occurred_at: string;
+            delivery_status: string | null;
+          }>("SELECT * FROM messages WHERE id = $1", [outbound.rows[0].id]);
+          const context = await loadAgentConversationAnalyticsContext(client, run.organization_id, run.conversation_id);
+          await enqueueAgentConversationMessage(client, context, outboundMessage.rows[0]!, "created");
         }
         if (replySuppressed) {
           await client.query(

@@ -3,6 +3,7 @@ import { query, withTransaction } from "../pool";
 import type { ConversationRecord, MessageRecord } from "./conversation-repository";
 import { createAgentEvent } from "../../events/envelope";
 import { buildEvent, enqueueOutbox } from "../../analytics/producer";
+import { enqueueAgentConversationMessage, loadAgentConversationAnalyticsContext } from "../../analytics";
 
 export type HandoffReason = "customer_requested" | "agent_uncertain" | "policy_required" | "high_value" | "configured_workflow" | "other";
 export type HandoffPriority = "normal" | "high" | "urgent";
@@ -789,6 +790,8 @@ export class HandoffRepository {
         [input.organizationId, current.conversation.id, text],
       );
       if (!updatedConversation.rows[0]) throw new Error("Conversation update failed after human message");
+      const conversationContext = await loadAgentConversationAnalyticsContext(client, input.organizationId, current.conversation.id);
+      await enqueueAgentConversationMessage(client, conversationContext, message.rows[0]!, "created");
       if (isFirstHumanResponse) {
         await this.appendLifecycleEvent(client, {
           eventType: "conversation.handoff.first_human_response",

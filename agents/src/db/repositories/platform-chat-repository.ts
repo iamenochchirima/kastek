@@ -1,6 +1,11 @@
 import type { Pool, PoolClient } from "pg";
 import { randomUUID } from "node:crypto";
 import { withTransaction } from "../pool";
+import {
+  enqueueAgentConversationLifecycle,
+  enqueueAgentConversationMessage,
+  loadAgentConversationAnalyticsContext,
+} from "../../analytics";
 import type { ConversationRecord, MessageRecord, ParticipantRecord } from "./conversation-repository";
 import type { RunRecord } from "./run-repository";
 
@@ -108,6 +113,14 @@ export class PlatformChatRepository {
            WHERE organization_id = $1 AND conversation_id = ANY($2::uuid[]) AND status <> 'deleted'`,
           [input.organizationId, conversationIds],
         );
+        for (const conversationId of conversationIds) {
+          const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, conversationId);
+          await enqueueAgentConversationLifecycle(client, context, {
+            action: "deleted",
+            actorType: "human",
+            occurredAt: new Date().toISOString(),
+          });
+        }
         await client.query(
           `DELETE FROM conversation_summaries
            WHERE organization_id = $1 AND conversation_id = ANY($2::uuid[])`,
@@ -282,6 +295,8 @@ export class PlatformChatRepository {
          WHERE id = $1`,
         [resolved.conversation.id, input.message],
       );
+      const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, resolved.conversation.id);
+      await enqueueAgentConversationMessage(client, context, createdMessage.rows[0]!, "created");
       return { ...resolved, message: createdMessage.rows[0]!, run, created: true };
     });
   }
@@ -656,6 +671,8 @@ export class PlatformChatRepository {
           input.messageType,
         ],
       );
+      const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, resolved.conversation.id);
+      await enqueueAgentConversationMessage(client, context, messageResult.rows[0]!, "created");
       return { ...resolved, sourceParticipant, message: messageResult.rows[0]!, run, created: true };
     });
   }
@@ -733,17 +750,31 @@ export class PlatformChatRepository {
        VALUES ($1, $2, $3, $4, $5, $6, 'customer', NULL, false, 'fallback')
        ON CONFLICT (installation_id, channel_type, channel_key, external_conversation_id)
        WHERE external_conversation_id IS NOT NULL
-       DO UPDATE SET updated_at = conversations.updated_at,
-                     title = CASE
-                       WHEN conversations.title_source = 'fallback' AND $6::text <> '' THEN $6
-                       ELSE conversations.title
-                     END
+       DO NOTHING
        RETURNING *`,
       [input.installationId, input.organizationId, input.channelType, input.channelKey, input.externalConversationId, title],
     );
-    const conversation = created.rows[0];
+    const conversation = created.rows[0] ?? (await client.query<ConversationRecord>(
+      `UPDATE conversations
+       SET title = CASE
+             WHEN title_source = 'fallback' AND $6::text <> '' THEN $6
+             ELSE title
+           END
+       WHERE organization_id = $1 AND installation_id = $2 AND channel_type = $3
+         AND channel_key = $4 AND external_conversation_id = $5
+       RETURNING *`,
+      [input.organizationId, input.installationId, input.channelType, input.channelKey, input.externalConversationId, title],
+    )).rows[0];
     if (!conversation) throw new Error("Customer conversation could not be resolved");
     if (conversation.status !== "active") throw new Error("Customer conversation is not active");
+    if (created.rows[0]) {
+      const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, conversation.id);
+      await enqueueAgentConversationLifecycle(client, context, {
+        action: "created",
+        actorType: "system",
+        occurredAt: conversation.created_at,
+      });
+    }
     const customerParticipant = await this.upsertParticipant(client, {
       conversationId: conversation.id,
       organizationId: input.organizationId,
@@ -835,7 +866,14 @@ export class PlatformChatRepository {
        RETURNING *`,
       [input.installationId, input.organizationId, input.channelKey, input.externalConversationId, input.title, input.conversationKind, input.actorId, input.modelProvider ?? null, input.model ?? null, input.isPrimary],
     );
-    return created.rows[0]!;
+    const conversation = created.rows[0]!;
+    const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, conversation.id);
+    await enqueueAgentConversationLifecycle(client, context, {
+      action: "created",
+      actorType: "human",
+      occurredAt: conversation.created_at,
+    });
+    return conversation;
   }
 
   private async ensureParticipants(

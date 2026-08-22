@@ -229,6 +229,15 @@ type, but never copy schedule input or the expression. There is no authoritative
 in Agent Platform yet, so dispatch, missed-run, delay, and schedule-to-run facts are intentionally
 not claimed by this contract.
 
+Conditional Agent conversation collection now covers conversation creation, opening, archive and
+restore state, message creation, and delivery-state transitions across generic conversations,
+platform chat, channel ingestion, Agent replies, and customer-service human replies. Facts retain
+only bounded references, conversation kind, channel, direction, responder type, delivery state,
+and response timing; transcript content, titles, previews, external customer identifiers, and
+provider message identifiers remain operational-only. Personal, test, customer, and external
+conversation kinds stay distinct, and customer handoff remains a separate conditional contract
+for customer-service agents.
+
 The common path applies to personal, customer-service, system-hosted, hosted, and
 external-connected runs. Customer handoff is a separate conditional lifecycle contract already
 emitted by the handoff repository and scoped to customer-service handoff-enabled agents; it is not
@@ -243,6 +252,7 @@ no one opens the readiness route.
 A-01 through A-12 provide the service, dedicated storage, registries, scope authorization, immutable
 facts, source controls, quarantine, authenticated ingestion, source cursors, reconciliation
 summaries, projection metadata, reporting, caching, and the audited rollout boundary. A-13 has
-started with transactional Agent terminal run, model-call, tool, approval, effect, schedule, and readiness facts; the remaining M1 slices, complete
-mutation-to-reporting E2E, rollout control-management UI, source publisher clients, and customer
-dashboards belong to later execution packages.
+started with transactional Agent runtime facts, and the first M2 conditional Agent conversation
+slice now has live collection and isolation evidence. Core Inbox ownership, full mutation-to-
+reporting E2E, rollout control-management UI, source publisher clients, and customer dashboards
+belong to later execution packages.

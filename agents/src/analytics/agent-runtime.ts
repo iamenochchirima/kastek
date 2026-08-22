@@ -159,6 +159,40 @@ export interface DefinitionLifecycleAnalyticsInput {
   correlationId?: string | null;
 }
 
+export type AgentConversationKind = "personal" | "customer" | "test" | "external";
+export type AgentConversationHandoffState = "agent_active" | "handoff_requested" | "human_owned" | "resolved" | "expired" | "cancelled";
+
+export interface AgentConversationAnalyticsContext {
+  conversationId: string;
+  installationId: string;
+  agentDefinitionId: string;
+  agentVersionId: string;
+  agentAudience: AgentAudience;
+  conversationKind: AgentConversationKind;
+  channel: string;
+  status: "active" | "archived" | "deleted";
+  handoffState: AgentConversationHandoffState;
+  organizationId: string;
+}
+
+export interface AgentConversationLifecycleAnalyticsInput extends AgentConversationAnalyticsContext {
+  action: "created" | "opened" | "archived" | "restored" | "deleted";
+  actorType: "human" | "system";
+  occurredAt: Date | string;
+}
+
+export interface AgentConversationMessageAnalyticsInput extends AgentConversationAnalyticsContext {
+  messageId: string;
+  action: "created" | "delivery_updated";
+  direction: "inbound" | "outbound" | "system";
+  responderType: "customer" | "human" | "agent" | "system";
+  messageType: string;
+  deliveryStatus: string | null;
+  runId: string | null;
+  responseTimeMs: number | null;
+  occurredAt: Date | string;
+}
+
 export type AgentReadinessBlockerCode =
   | "installation_inactive"
   | "workflow_invalid"
@@ -484,6 +518,74 @@ export function buildDefinitionLifecycleEvent(input: DefinitionLifecycleAnalytic
   });
 }
 
+export function buildConversationLifecycleEvent(input: AgentConversationLifecycleAnalyticsInput): AnalyticsOutboxRecord {
+  const occurredAt = timestampAttribute(input.occurredAt);
+  const attributes: JsonObject = {
+    conversation_id: input.conversationId,
+    installation_id: input.installationId,
+    agent_definition_id: input.agentDefinitionId,
+    agent_version_id: input.agentVersionId,
+    agent_audience: input.agentAudience,
+    conversation_kind: input.conversationKind,
+    channel: input.channel,
+    action: input.action,
+    status: input.status,
+    handoff_state: input.handoffState,
+    actor_type: input.actorType,
+    occurred_at: occurredAt,
+  };
+  const identity = `conversation:${input.conversationId}:${input.action}:${occurredAt}`;
+  return buildEvent({
+    recordId: identity,
+    sourceDomain: "agents",
+    sourceStreamKey: `organization:${input.organizationId}:conversations`,
+    contractName: "agent.conversation.lifecycle@1",
+    schemaVersion: 1,
+    scopeKind: "core_organization",
+    scopeExternalId: input.organizationId,
+    subject: `conversation:${input.conversationId}`,
+    occurredAt: input.occurredAt,
+    attributes,
+    idempotencyKey: `agent-platform:${identity}`,
+  });
+}
+
+export function buildConversationMessageEvent(input: AgentConversationMessageAnalyticsInput): AnalyticsOutboxRecord {
+  const occurredAt = timestampAttribute(input.occurredAt);
+  const attributes: JsonObject = {
+    message_id: input.messageId,
+    conversation_id: input.conversationId,
+    installation_id: input.installationId,
+    agent_definition_id: input.agentDefinitionId,
+    agent_version_id: input.agentVersionId,
+    agent_audience: input.agentAudience,
+    conversation_kind: input.conversationKind,
+    channel: input.channel,
+    action: input.action,
+    direction: input.direction,
+    responder_type: input.responderType,
+    message_type: input.messageType,
+    delivery_status: input.deliveryStatus,
+    run_id: input.runId,
+    response_time_ms: nonNegativeIntegerOrNull(input.responseTimeMs),
+    occurred_at: occurredAt,
+  };
+  const identity = `message:${input.messageId}:${input.action}:${occurredAt}`;
+  return buildEvent({
+    recordId: identity,
+    sourceDomain: "agents",
+    sourceStreamKey: `organization:${input.organizationId}:messages`,
+    contractName: "agent.conversation.message@1",
+    schemaVersion: 1,
+    scopeKind: "core_organization",
+    scopeExternalId: input.organizationId,
+    subject: `message:${input.messageId}`,
+    occurredAt: input.occurredAt,
+    attributes,
+    idempotencyKey: `agent-platform:${identity}`,
+  });
+}
+
 export function readinessStateFingerprint(input: AgentReadinessAnalyticsInput): string {
   return canonicalStateFingerprint(input);
 }
@@ -592,6 +694,10 @@ export function classifyAgentFailure(error: Record<string, unknown>): "validatio
 
 function nonNegativeInteger(value: number | undefined): number {
   return Number.isSafeInteger(value) && value !== undefined && value >= 0 ? value : 0;
+}
+
+function nonNegativeIntegerOrNull(value: number | null | undefined): number | null {
+  return value == null ? null : Number.isSafeInteger(value) && value >= 0 ? value : null;
 }
 
 function timestampAttribute(value: Date | string): string {
