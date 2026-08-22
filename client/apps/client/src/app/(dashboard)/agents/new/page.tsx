@@ -14,11 +14,6 @@ export default async function CreateAgentPage({
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
   const { template: templateKey, draft: draftId, audience } = await searchParams;
-  const initialTemplate = templateKey
-    ? await fetchRustJson<{ templates: AgentTemplate[] }>("/api/agents/templates")
-        .then((response) => response.templates.find((template) => template.key === templateKey))
-        .catch(() => undefined)
-    : undefined;
   const initialDraft = draftId
     ? await fetchRustJson<{ agents: AgentDefinition[] }>("/api/agents")
         .then(async (response) => {
@@ -37,5 +32,12 @@ export default async function CreateAgentPage({
       : initialDraft?.agent.agent_audience === "customer_service"
         ? "customer_service"
         : "personal";
+  // Keep template selection scoped to the chosen audience. A copied or stale
+  // URL must not apply a customer-service blueprint to a personal agent.
+  const initialTemplate = templateKey
+    ? await fetchRustJson<{ templates: AgentTemplate[] }>(`/api/agents/templates?audience=${selectedAudience}`)
+        .then((response) => response.templates.find((template) => template.key === templateKey))
+        .catch(() => undefined)
+    : undefined;
   return <CreateAgentPageClient audience={selectedAudience} initialTemplate={initialTemplate} initialDraft={initialDraft} />;
 }
