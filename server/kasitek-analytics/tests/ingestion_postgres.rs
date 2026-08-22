@@ -301,6 +301,7 @@ async fn ingests_idempotently_tracks_cursor_and_reconciles_source_summary() {
         &authenticated,
         ReconciliationRequest {
             reconciliation_run_id: run_id.clone(),
+            reconciliation_work_id: None,
             producer_id: authenticated.producer_id.clone(),
             source_domain: "campaigns".to_string(),
             source_stream_key: stream.clone(),

@@ -69,9 +69,12 @@ async fn worker_claims_dirty_window_and_promotes_a_complete_generation() {
     assert!(row.get::<i64, _>("rollups") > 0);
 
     let scope = sqlx::query(
-        r#"SELECT reporting_scope_id, root_scope_id, generation_id
-           FROM analytics.analytics_projection_checkpoint
-           WHERE projection_name = $1
+        r#"SELECT checkpoint.reporting_scope_id, checkpoint.root_scope_id, checkpoint.generation_id
+           FROM analytics.analytics_projection_checkpoint AS checkpoint
+           JOIN analytics.reporting_scope AS scope
+             ON scope.scope_id = checkpoint.reporting_scope_id
+           WHERE checkpoint.projection_name = $1
+             AND scope.external_source_id LIKE 'a09-org-%'
            ORDER BY checkpoint_id DESC
            LIMIT 1"#,
     )

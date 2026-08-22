@@ -198,7 +198,14 @@ checklist records implementation evidence for the current package only.
 - [x] Connect Core, Agent Platform, and Tenant Platform lease publishers to the authenticated HTTP
   endpoint and process accepted, duplicate, retryable, and rejected acknowledgements in their
   source outboxes.
-- [ ] Add worker-scheduled reconciliation, quarantine release, and replay orchestration.
+- [x] Add worker-scheduled reconciliation and quarantine-repair work queues without retaining raw
+  rejected payloads; source services claim only their authenticated work.
+- [x] Add explicit versioned quarantine repair context through the authenticated ingestion boundary;
+  corrected records release only the matching leased failure after full validation.
+- [x] Add resumable worker orchestration for projection rebuild and fact-replay backfill jobs with
+  leases, checkpoints, retry state, and producer claim support for source reconstruction jobs.
+- [x] Add PostgreSQL end-to-end coverage for maintenance scheduling, producer claims, reconciliation
+  completion, quarantine repair release, and projection-rebuild completion.
 
 ## A-10 — projection queue, contributions, rollups, generations, and rebuilds
 
@@ -295,6 +302,12 @@ checklist records implementation evidence for the current package only.
   the local native Analytics PostgreSQL database, covering accepted events and observations,
   immutable scope receipts, identical duplicates, identity-conflict quarantine, cursor/source
   health state, and authenticated reconciliation evidence.
+- A-09: migration `20260822060000_analytics_maintenance_work.sql` applied successfully to the local
+  native Analytics PostgreSQL database; it adds durable reconciliation, quarantine-release, and
+  leased backfill work controls without storing rejected raw payloads.
+- A-09: `cargo test -p kasitek-analytics --test maintenance_postgres -- --nocapture` passed against
+  the local native Analytics PostgreSQL database, covering producer work claims, reconciliation
+  completion, versioned quarantine repair release, and projection rebuild completion.
 - Publisher transport: shared Rust wire-contract tests passed, including authenticated request
   headers, bounded batch shape, per-record acknowledgement matching, transient HTTP failure
   classification, and malformed-ack retry behavior.
@@ -323,5 +336,6 @@ checklist records implementation evidence for the current package only.
 - A-06 signed audit checkpoint production/verification until the controlled signing boundary exists
 - A-07/A-08 authoritative domain mutation instrumentation until the applicable reference vertical
   slices exist
-- Scheduled reconciliation/replay workers; domain-specific ancestor projections, reporting APIs,
-  query planning, caching, and UI
+- Domain-specific ancestor projections, reporting APIs, query planning, caching, and UI; source
+  reconstruction and provider-history backfill execution remains producer-owned behind the claim
+  boundary.

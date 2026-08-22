@@ -244,6 +244,86 @@ pub async fn request_rebuild(
     Ok(generation_id)
 }
 
+/// Requeues projection windows for immutable facts inside a requested time range.
+///
+/// Fact replay does not rewrite facts or create a new generation. It simply makes the normal
+/// projection worker revisit the affected windows, preserving the same idempotent projection
+/// boundary used by live ingestion.
+pub async fn enqueue_replay_range(
+    pool: &PgPool,
+    reporting_scope_id: i64,
+    root_scope_id: i64,
+    range_start: DateTime<Utc>,
+    range_end: DateTime<Utc>,
+) -> Result<u64, sqlx::Error> {
+    let mut transaction = pool.begin().await?;
+    let windows = sqlx::query(
+        r#"SELECT 'event' AS fact_kind,
+                  date_trunc('hour', occurred_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS window_start,
+                  (date_trunc('hour', occurred_at AT TIME ZONE 'UTC') + INTERVAL '1 hour') AT TIME ZONE 'UTC' AS window_end,
+                  MIN(storage_id) AS min_storage_id, MAX(storage_id) AS max_storage_id
+           FROM analytics.analytics_event
+           WHERE reporting_scope_id = $1 AND occurred_at >= $2 AND occurred_at < $3
+           GROUP BY 1, 2, 3
+           UNION ALL
+           SELECT 'observation' AS fact_kind, reporting_window_start, reporting_window_end,
+                  MIN(storage_id), MAX(storage_id)
+           FROM analytics.analytics_metric_observation
+           WHERE reporting_scope_id = $1
+             AND reporting_window_start >= $2 AND reporting_window_start < $3
+           GROUP BY 1, 2, 3
+           ORDER BY window_start"#,
+    )
+    .bind(reporting_scope_id)
+    .bind(range_start)
+    .bind(range_end)
+    .fetch_all(&mut *transaction)
+    .await?;
+
+    let mut enqueued = 0;
+    for window in windows {
+        let result = sqlx::query(
+            r#"INSERT INTO analytics.analytics_projection_work (
+                 projection_name, projection_version, fact_kind, reporting_scope_id, root_scope_id,
+                 source_window_start, source_window_end, min_source_storage_id, max_source_storage_id,
+                 priority, work_status
+               ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,700,'pending')
+               ON CONFLICT DO NOTHING"#,
+        )
+        .bind(PROJECTION_NAME)
+        .bind(PROJECTION_VERSION)
+        .bind(window.try_get::<String, _>("fact_kind")?)
+        .bind(reporting_scope_id)
+        .bind(root_scope_id)
+        .bind(window.try_get::<DateTime<Utc>, _>("window_start")?)
+        .bind(window.try_get::<DateTime<Utc>, _>("window_end")?)
+        .bind(window.try_get::<i64, _>("min_storage_id")?)
+        .bind(window.try_get::<i64, _>("max_storage_id")?)
+        .execute(&mut *transaction)
+        .await?;
+        enqueued += result.rows_affected();
+    }
+
+    sqlx::query(
+        r#"INSERT INTO analytics.analytics_projection_checkpoint (
+             projection_name, projection_version, reporting_scope_id, root_scope_id,
+             shard_key, processing_status
+           ) VALUES ($1,$2,$3,$4,$5,'idle')
+           ON CONFLICT (projection_name, projection_version, reporting_scope_id, shard_key)
+           DO UPDATE SET root_scope_id = EXCLUDED.root_scope_id"#,
+    )
+    .bind(PROJECTION_NAME)
+    .bind(PROJECTION_VERSION)
+    .bind(reporting_scope_id)
+    .bind(root_scope_id)
+    .bind(DEFAULT_SHARD_KEY)
+    .execute(&mut *transaction)
+    .await?;
+
+    transaction.commit().await?;
+    Ok(enqueued)
+}
+
 async fn promote_empty_generation(
     transaction: &mut Transaction<'_, Postgres>,
     generation_id: i64,
@@ -311,6 +391,7 @@ struct ClaimedWork {
 struct GenerationSelection {
     generation_id: i64,
     shadow: bool,
+    rebuild_in_progress: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -396,6 +477,20 @@ pub async fn run(pool: PgPool, registry: RegistrySnapshot) -> Result<(), std::io
         tokio::select! {
             _ = tokio::signal::ctrl_c() => break,
             _ = interval.tick() => {
+                if let Err(error) = crate::maintenance::run_once(
+                    &pool,
+                    &registry,
+                    &worker_id,
+                    lease_seconds,
+                )
+                .await
+                {
+                    log::error!(
+                        "service={} process=analytics-worker status=maintenance_failed error={}",
+                        SERVICE_NAME,
+                        error
+                    );
+                }
                 for _ in 0..batch_size {
                     match process_once(&pool, &registry, &worker_id, lease_seconds).await {
                         Ok(true) => {}
@@ -502,7 +597,10 @@ async fn process_work(
                  WHEN max_source_storage_id > $2 THEN 'pending'
                  ELSE 'completed'
                END,
-               generation_id = COALESCE(generation_id, $3),
+               generation_id = CASE
+                 WHEN $5 AND generation_id IS NULL THEN NULL
+                 ELSE COALESCE(generation_id, $3)
+               END,
                lease_owner = NULL,
                lease_expires_at = NULL,
                completed_at = CASE
@@ -517,6 +615,7 @@ async fn process_work(
     .bind(work.max_source_storage_id)
     .bind(selection.generation_id)
     .bind(worker_id)
+    .bind(selection.shadow)
     .execute(&mut *transaction)
     .await?;
 
@@ -540,7 +639,7 @@ async fn process_work(
     .fetch_one(&mut *transaction)
     .await?;
 
-    if remaining == 0 {
+    if remaining == 0 && (selection.shadow || !selection.rebuild_in_progress) {
         finish_generation(&mut transaction, selection, work, registry).await?;
     } else {
         sqlx::query(
@@ -551,7 +650,7 @@ async fn process_work(
                    last_processed_storage_id = GREATEST(last_processed_storage_id, $1),
                    last_processed_work_id = GREATEST(last_processed_work_id, $2),
                    processing_status = CASE
-                     WHEN $3 THEN 'rebuilding'
+                     WHEN $3 OR $10 THEN 'rebuilding'
                      ELSE 'running'
                    END,
                    lease_owner = NULL,
@@ -570,6 +669,7 @@ async fn process_work(
         .bind(PROJECTION_VERSION)
         .bind(work.reporting_scope_id)
         .bind(DEFAULT_SHARD_KEY)
+        .bind(selection.rebuild_in_progress)
         .execute(&mut *transaction)
         .await?;
     }
@@ -615,24 +715,25 @@ async fn ensure_generation(
 
     let checkpoint_generation: Option<i64> = checkpoint.try_get("generation_id")?;
     let rebuild_generation: Option<i64> = checkpoint.try_get("rebuild_generation_id")?;
-    let selection = work
-        .generation_id
-        .map(|generation_id| GenerationSelection {
+    let selection = if let Some(generation_id) = work.generation_id {
+        Some(GenerationSelection {
             generation_id,
             shadow: true,
+            rebuild_in_progress: true,
         })
-        .or_else(|| {
-            rebuild_generation.map(|generation_id| GenerationSelection {
-                generation_id,
-                shadow: true,
-            })
+    } else if let Some(generation_id) = checkpoint_generation {
+        Some(GenerationSelection {
+            generation_id,
+            shadow: false,
+            rebuild_in_progress: rebuild_generation.is_some(),
         })
-        .or_else(|| {
-            checkpoint_generation.map(|generation_id| GenerationSelection {
-                generation_id,
-                shadow: false,
-            })
-        });
+    } else {
+        rebuild_generation.map(|generation_id| GenerationSelection {
+            generation_id,
+            shadow: true,
+            rebuild_in_progress: true,
+        })
+    };
     if let Some(selection) = selection {
         let generation_id = selection.generation_id;
         let status: String = sqlx::query_scalar(
@@ -646,7 +747,7 @@ async fn ensure_generation(
                 r#"UPDATE analytics.analytics_projection_checkpoint
                    SET generation_id = CASE WHEN $2 THEN generation_id ELSE $1 END,
                        rebuild_generation_id = CASE WHEN $2 THEN $1 ELSE rebuild_generation_id END,
-                       processing_status = CASE WHEN $2 THEN 'rebuilding' ELSE 'running' END
+                       processing_status = CASE WHEN $2 OR $7 THEN 'rebuilding' ELSE 'running' END
                    WHERE projection_name = $3 AND projection_version = $4
                      AND reporting_scope_id = $5 AND shard_key = $6"#,
             )
@@ -656,6 +757,7 @@ async fn ensure_generation(
             .bind(PROJECTION_VERSION)
             .bind(work.reporting_scope_id)
             .bind(DEFAULT_SHARD_KEY)
+            .bind(selection.rebuild_in_progress)
             .execute(&mut **transaction)
             .await?;
             return Ok(selection);
@@ -714,6 +816,7 @@ async fn ensure_generation(
     Ok(GenerationSelection {
         generation_id,
         shadow: work.generation_id.is_some(),
+        rebuild_in_progress: work.generation_id.is_some(),
     })
 }
 

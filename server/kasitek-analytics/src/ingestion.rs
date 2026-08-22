@@ -33,6 +33,17 @@ pub struct AuthenticatedProducer {
     pub producer_id: String,
 }
 
+/// Versioned source-side repair authorization for one quarantined identity.
+///
+/// The corrected record still goes through the complete ingestion validator. This context only
+/// permits the successful record to release the matching quarantine row; it never bypasses
+/// contract, envelope, scope, or identity checks.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RepairContext {
+    pub failure_id: i64,
+    pub transform_version: String,
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum AuthenticationError {
     MissingBearer,
@@ -246,7 +257,22 @@ pub async fn handler(
         }));
     }
 
-    let response = ingest_batch(pool.get_ref(), &authenticated, body.into_inner()).await;
+    let repair_context = match parse_repair_context(&request) {
+        Ok(repair_context) => repair_context,
+        Err(code) => return HttpResponse::BadRequest().json(json!({ "error": code })),
+    };
+    if repair_context.is_some() && body.records.len() != 1 {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "repair_requires_single_record"
+        }));
+    }
+    let response = ingest_batch_with_repair(
+        pool.get_ref(),
+        &authenticated,
+        body.into_inner(),
+        repair_context,
+    )
+    .await;
     HttpResponse::Ok().json(response)
 }
 
@@ -255,6 +281,15 @@ pub async fn ingest_batch(
     authenticated: &AuthenticatedProducer,
     batch: IngestionBatchRequest,
 ) -> IngestionBatchResponse {
+    ingest_batch_with_repair(pool, authenticated, batch, None).await
+}
+
+pub async fn ingest_batch_with_repair(
+    pool: &PgPool,
+    authenticated: &AuthenticatedProducer,
+    batch: IngestionBatchRequest,
+    repair_context: Option<RepairContext>,
+) -> IngestionBatchResponse {
     let mut acknowledgements = Vec::with_capacity(batch.records.len());
     for record in batch.records {
         acknowledgements.push(
@@ -262,6 +297,7 @@ pub async fn ingest_batch(
                 pool,
                 authenticated,
                 batch.backfill_job_id.as_deref(),
+                repair_context.as_ref(),
                 record,
             )
             .await,
@@ -296,6 +332,7 @@ async fn ingest_record(
     pool: &PgPool,
     authenticated: &AuthenticatedProducer,
     backfill_job_id: Option<&str>,
+    repair_context: Option<&RepairContext>,
     record: IngestionRecord,
 ) -> IngestionAcknowledgement {
     let record_id = record.record_id.clone();
@@ -341,6 +378,13 @@ async fn ingest_record(
     };
     if !producer.active || producer.source_service != authenticated.source_service {
         return rejected("producer_not_authorized");
+    }
+    if let Some(repair_context) = repair_context {
+        if let Err(code) =
+            validate_repair_context(&mut transaction, authenticated, &record, repair_context).await
+        {
+            return rejected(code);
+        }
     }
 
     let validated = match validation {
@@ -401,6 +445,14 @@ async fn ingest_record(
             {
                 return retryable(record_id, source_sequence, "analytics_unavailable");
             }
+            if let Some(repair_context) = repair_context {
+                if release_quarantine(&mut transaction, authenticated, &record, repair_context)
+                    .await
+                    .is_err()
+                {
+                    return retryable(record_id, source_sequence, "analytics_unavailable");
+                }
+            }
             if transaction.commit().await.is_err() {
                 return retryable(record_id, source_sequence, "analytics_unavailable");
             }
@@ -457,6 +509,14 @@ async fn ingest_record(
         }
         if let Some(job_id) = backfill_job_id {
             if update_backfill_count(&mut transaction, job_id, true)
+                .await
+                .is_err()
+            {
+                return retryable(record_id, source_sequence, "analytics_unavailable");
+            }
+        }
+        if let Some(repair_context) = repair_context {
+            if release_quarantine(&mut transaction, authenticated, &record, repair_context)
                 .await
                 .is_err()
             {
@@ -651,6 +711,14 @@ async fn ingest_record(
             return retryable(record_id, source_sequence, "analytics_unavailable");
         }
     }
+    if let Some(repair_context) = repair_context {
+        if release_quarantine(&mut transaction, authenticated, &record, repair_context)
+            .await
+            .is_err()
+        {
+            return retryable(record_id, source_sequence, "analytics_unavailable");
+        }
+    }
     if transaction.commit().await.is_err() {
         return retryable(record_id, source_sequence, "analytics_unavailable");
     }
@@ -660,6 +728,138 @@ async fn ingest_record(
         status: AcknowledgementStatus::Accepted,
         error_code: None,
     }
+}
+
+fn parse_repair_context(request: &HttpRequest) -> Result<Option<RepairContext>, &'static str> {
+    let failure_id = request
+        .headers()
+        .get("X-Analytics-Repair-Failure-Id")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let transform_version = request
+        .headers()
+        .get("X-Analytics-Repair-Transform-Version")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    match (failure_id, transform_version) {
+        (None, None) => Ok(None),
+        (Some(failure_id), Some(transform_version)) => {
+            let failure_id = failure_id
+                .parse::<i64>()
+                .ok()
+                .filter(|value| *value > 0)
+                .ok_or("invalid_repair_failure_id")?;
+            if transform_version.len() > 128
+                || !transform_version
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || b"._-".contains(&byte))
+            {
+                return Err("invalid_repair_transform_version");
+            }
+            Ok(Some(RepairContext {
+                failure_id,
+                transform_version: transform_version.to_string(),
+            }))
+        }
+        _ => Err("incomplete_repair_context"),
+    }
+}
+
+async fn validate_repair_context(
+    transaction: &mut Transaction<'_, Postgres>,
+    authenticated: &AuthenticatedProducer,
+    record: &IngestionRecord,
+    repair_context: &RepairContext,
+) -> Result<(), &'static str> {
+    let authorized: bool = sqlx::query_scalar(
+        r#"SELECT EXISTS (
+             SELECT 1
+             FROM analytics.analytics_ingestion_failure AS failure
+             JOIN analytics.analytics_quarantine_release_work AS work
+               ON work.failure_id = failure.failure_id
+             WHERE failure.failure_id = $1
+               AND failure.producer_id = $2
+               AND failure.source_service = $3
+               AND failure.source_domain = $4
+               AND failure.source_stream_key = $5
+               AND failure.source_sequence = $6
+               AND failure.record_category = $7
+               AND failure.record_identity = $8
+               AND failure.quarantine_status = 'quarantined'
+               AND work.work_status = 'leased'
+               AND work.lease_owner = $2
+               AND work.lease_expires_at > NOW()
+           )"#,
+    )
+    .bind(repair_context.failure_id)
+    .bind(&authenticated.producer_id)
+    .bind(&authenticated.source_service)
+    .bind(record_source_domain(record))
+    .bind(&record.source_stream_key)
+    .bind(record.source_sequence)
+    .bind(record.record_category.as_str())
+    .bind(&record.record_id)
+    .fetch_one(&mut **transaction)
+    .await
+    .map_err(|_| "analytics_unavailable")?;
+    if authorized {
+        Ok(())
+    } else {
+        Err("repair_not_authorized")
+    }
+}
+
+async fn release_quarantine(
+    transaction: &mut Transaction<'_, Postgres>,
+    authenticated: &AuthenticatedProducer,
+    record: &IngestionRecord,
+    repair_context: &RepairContext,
+) -> Result<(), sqlx::Error> {
+    let updated = sqlx::query(
+        r#"UPDATE analytics.analytics_ingestion_failure
+           SET quarantine_status = 'released', repair_transform_version = $2,
+               resolution_actor_type = 'source_service', resolution_actor_id = $3,
+               resolved_at = NOW()
+           WHERE failure_id = $1 AND producer_id = $3 AND source_service = $4
+             AND source_stream_key = $5 AND source_sequence = $6
+             AND record_category = $7 AND record_identity = $8
+             AND quarantine_status = 'quarantined'"#,
+    )
+    .bind(repair_context.failure_id)
+    .bind(&repair_context.transform_version)
+    .bind(&authenticated.producer_id)
+    .bind(&authenticated.source_service)
+    .bind(&record.source_stream_key)
+    .bind(record.source_sequence)
+    .bind(record.record_category.as_str())
+    .bind(&record.record_id)
+    .execute(&mut **transaction)
+    .await?;
+    if updated.rows_affected() != 1 {
+        return Err(sqlx::Error::Protocol(
+            "quarantine release identity changed".into(),
+        ));
+    }
+    let work_updated = sqlx::query(
+        r#"UPDATE analytics.analytics_quarantine_release_work
+           SET work_status = 'released', repair_transform_version = $2,
+               lease_owner = NULL, lease_expires_at = NULL, completed_at = NOW()
+           WHERE failure_id = $1 AND producer_id = $3 AND work_status = 'leased'
+             AND lease_owner = $3"#,
+    )
+    .bind(repair_context.failure_id)
+    .bind(&repair_context.transform_version)
+    .bind(&authenticated.producer_id)
+    .execute(&mut **transaction)
+    .await?;
+    if work_updated.rows_affected() != 1 {
+        return Err(sqlx::Error::Protocol(
+            "quarantine release work lease changed".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn retryable(
@@ -1495,7 +1695,7 @@ async fn update_backfill_count(
         "rejected_count"
     };
     let query = format!(
-        "UPDATE analytics.analytics_backfill_job SET scanned_count = scanned_count + 1, {column} = {column} + 1, remaining_count = CASE WHEN remaining_count IS NULL THEN NULL ELSE GREATEST(remaining_count - 1, 0) END WHERE job_id = $1"
+        "UPDATE analytics.analytics_backfill_job SET scanned_count = scanned_count + 1, {column} = {column} + 1, remaining_count = CASE WHEN remaining_count IS NULL THEN NULL ELSE GREATEST(remaining_count - 1, 0) END, job_status = CASE WHEN remaining_count IS NOT NULL AND remaining_count <= 1 THEN 'completed' ELSE job_status END, completed_at = CASE WHEN remaining_count IS NOT NULL AND remaining_count <= 1 THEN NOW() ELSE completed_at END, lease_owner = CASE WHEN remaining_count IS NOT NULL AND remaining_count <= 1 THEN NULL ELSE lease_owner END, lease_expires_at = CASE WHEN remaining_count IS NOT NULL AND remaining_count <= 1 THEN NULL ELSE lease_expires_at END WHERE job_id = $1"
     );
     sqlx::query(&query)
         .bind(job_id)

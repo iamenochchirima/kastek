@@ -12,6 +12,7 @@ pub mod error;
 pub mod generated_registry;
 pub mod health;
 pub mod ingestion;
+pub mod maintenance;
 pub mod metrics;
 pub mod migrations;
 pub mod projections;

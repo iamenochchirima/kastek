@@ -20,6 +20,8 @@ pub const RECONCILIATION_PATH: &str = "/internal/reconciliation/v1/summary";
 #[serde(deny_unknown_fields)]
 pub struct ReconciliationRequest {
     pub reconciliation_run_id: String,
+    #[serde(default)]
+    pub reconciliation_work_id: Option<i64>,
     pub producer_id: String,
     pub source_domain: String,
     pub source_stream_key: String,
@@ -40,6 +42,8 @@ pub struct ReconciliationRequest {
 #[derive(Clone, Debug, Serialize)]
 pub struct ReconciliationResponse {
     pub reconciliation_run_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reconciliation_work_id: Option<i64>,
     pub reconciliation_status: String,
     pub analytics_highest_received_sequence: i64,
     pub analytics_highest_contiguous_sequence: i64,
@@ -86,6 +90,9 @@ pub async fn reconcile_stream(
 ) -> Result<ReconciliationResponse, ReconciliationError> {
     if request.producer_id != authenticated.producer_id
         || request.reconciliation_run_id.trim().is_empty()
+        || request
+            .reconciliation_work_id
+            .is_some_and(|value| value <= 0)
         || request.source_domain.trim().is_empty()
         || request.source_stream_key.trim().is_empty()
         || request
@@ -128,6 +135,30 @@ pub async fn reconcile_stream(
     let producer_active: bool = producer.get("active");
     if !producer_active || producer_source_service != authenticated.source_service {
         return Err(ReconciliationError::BadRequest("producer_not_authorized"));
+    }
+
+    if let Some(work_id) = request.reconciliation_work_id {
+        let work_authorized: bool = sqlx::query_scalar(
+            r#"SELECT EXISTS (
+                 SELECT 1
+                 FROM analytics.analytics_reconciliation_work
+                 WHERE work_id = $1 AND producer_id = $2 AND source_service = $3
+                   AND source_stream_key = $4 AND work_status = 'leased'
+                   AND lease_owner = $2 AND lease_expires_at > NOW()
+               )"#,
+        )
+        .bind(work_id)
+        .bind(&request.producer_id)
+        .bind(&authenticated.source_service)
+        .bind(&request.source_stream_key)
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(|_| ReconciliationError::Unavailable)?;
+        if !work_authorized {
+            return Err(ReconciliationError::BadRequest(
+                "reconciliation_work_not_authorized",
+            ));
+        }
     }
 
     let binding = match (&request.scope_kind, &request.scope_external_id) {
@@ -246,12 +277,27 @@ pub async fn reconcile_stream(
     .execute(&mut *transaction)
     .await
     .map_err(|_| ReconciliationError::Unavailable)?;
+    if let Some(work_id) = request.reconciliation_work_id {
+        sqlx::query(
+            r#"UPDATE analytics.analytics_reconciliation_work
+               SET work_status = 'completed', lease_owner = NULL, lease_expires_at = NULL,
+                   completed_at = NOW(), last_error_code = $2
+               WHERE work_id = $1 AND work_status = 'leased' AND lease_owner = $3"#,
+        )
+        .bind(work_id)
+        .bind(safe_failure_code)
+        .bind(&authenticated.producer_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|_| ReconciliationError::Unavailable)?;
+    }
     transaction
         .commit()
         .await
         .map_err(|_| ReconciliationError::Unavailable)?;
     Ok(ReconciliationResponse {
         reconciliation_run_id: request.reconciliation_run_id,
+        reconciliation_work_id: request.reconciliation_work_id,
         reconciliation_status: reconciliation_status.to_string(),
         analytics_highest_received_sequence: analytics_received,
         analytics_highest_contiguous_sequence: analytics_contiguous,
