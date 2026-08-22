@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   BookOpen,
@@ -22,6 +22,7 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,12 +47,18 @@ import {
   parseAgentRuntimeLimits,
   type AgentRuntimeLimitsValue,
 } from "./agent-runtime-limits";
+import {
+  containsKnowledgePlaceholders,
+  generatedAgentInstructions,
+  getAgentRole,
+  getAgentRoleOptions,
+  knowledgeOutline,
+  type AgentRoleKey,
+} from "./agent-creation-config";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 type KnowledgeRetry = { sourceId: string; kind: "text" | "file"; label: string };
 
-const starterInstructions =
-  "You are a helpful user-created assistant. Use only the instructions, knowledge, and integrations configured for this agent. Be clear about what you know, what you did, and what still requires the user to act.";
 const runtimeLimitKeys: Array<keyof AgentRuntimeLimitsValue> = [
   "maxIterations",
   "maxToolCalls",
@@ -150,7 +157,7 @@ type AgentAudience = "personal" | "customer_service";
 function CustomerServiceSetup({ template }: { template?: AgentTemplate }) {
   const setupSteps = template?.setupSteps.length
     ? template.setupSteps
-    : ["Review handoff behavior", "Connect a customer channel", "Test a customer conversation"];
+    : ["Add approved knowledge", "Connect a customer channel", "Review escalation rules"];
   return (
     <Card className="rounded-2xl border-primary/25 bg-primary/5">
       <CardContent className="space-y-4 p-5">
@@ -180,14 +187,25 @@ function CustomerServiceSetup({ template }: { template?: AgentTemplate }) {
 export function CreateAgentPageClient({ audience = "personal", initialTemplate, initialDraft }: { audience?: AgentAudience; initialTemplate?: AgentTemplate; initialDraft?: { agent: AgentDefinition; version: AgentVersion } }) {
   const router = useRouter();
   const initialDraftConfiguration = initialDraft?.version.configuration ?? {};
+  const configuredRole = typeof initialDraftConfiguration.agentRole === "string"
+    ? initialDraftConfiguration.agentRole
+    : typeof initialTemplate?.configuration?.agentRole === "string"
+      ? initialTemplate.configuration.agentRole
+      : undefined;
+  const configuredKnowledgeSetup = initialDraftConfiguration.knowledgeSetup && typeof initialDraftConfiguration.knowledgeSetup === "object"
+    ? initialDraftConfiguration.knowledgeSetup as Record<string, unknown>
+    : undefined;
   const initialDraftPolicy = initialDraft?.version.policy?.modelPolicy;
   const initialDraftPrimary = initialDraftPolicy && typeof initialDraftPolicy === "object" ? (initialDraftPolicy as Record<string, unknown>).primary : undefined;
   const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState(initialDraft?.agent.name ?? initialTemplate?.name ?? "");
-  const [purpose, setPurpose] = useState(initialDraft?.agent.description ?? initialTemplate?.description ?? "");
+  const [role, setRole] = useState<AgentRoleKey>(getAgentRole(configuredRole, audience).key);
+  const [roleSummary, setRoleSummary] = useState(initialDraft?.agent.description ?? "");
   const [knowledgeText, setKnowledgeText] = useState("");
   const [knowledgeFile, setKnowledgeFile] = useState<File | null>(null);
-  const [instructions, setInstructions] = useState(initialDraft?.version.instructions ?? initialTemplate?.instructions ?? starterInstructions);
+  const [instructions, setInstructions] = useState(initialDraft?.version.instructions ?? "");
+  const [knowledgeOutlineInserted, setKnowledgeOutlineInserted] = useState(false);
+  const [knowledgeConfirmed, setKnowledgeConfirmed] = useState(configuredKnowledgeSetup?.confirmed === true);
   const [provider, setProvider] = useState(() => typeof initialDraftConfiguration.provider === "string" ? initialDraftConfiguration.provider : templateConfigurationString(initialTemplate, "provider", "openrouter"));
   const [model, setModel] = useState(() => { const primary = initialDraftPrimary && typeof initialDraftPrimary === "object" ? initialDraftPrimary as Record<string, unknown> : undefined; return typeof primary?.model === "string" ? primary.model : typeof initialDraftConfiguration.model === "string" ? initialDraftConfiguration.model : templateConfigurationString(initialTemplate, "model", "openai/gpt-oss-20b:free"); });
   const [runtimeLimits, setRuntimeLimits] = useState<AgentRuntimeLimitsValue>(() => initialDraft ? {
@@ -209,9 +227,27 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
   const [draft, setDraft] = useState<{ agent: AgentDefinition; version: AgentVersion } | null>(initialDraft ?? null);
   const [created, setCreated] = useState<{ id: string; name: string; knowledgeWarning?: string; knowledgeRetries: KnowledgeRetry[] } | null>(null);
 
+  const roleOptions = getAgentRoleOptions(audience);
+  const generatedInstructions = useMemo(() => generatedAgentInstructions({
+    name: name.trim() || "user-configured assistant",
+    audience,
+    role,
+    roleSummary,
+    templateInstructions: initialTemplate?.instructions,
+  }), [audience, initialTemplate?.instructions, name, role, roleSummary]);
+  const effectiveInstructions = instructions.trim() || generatedInstructions;
+  const knowledgeReady = Boolean(knowledgeText.trim() || knowledgeFile);
+  const knowledgeHasPlaceholders = containsKnowledgePlaceholders(knowledgeText);
+  const readinessIssues = [
+    !workflow || !workflowValid ? "Complete the workflow before publishing." : null,
+    audience === "customer_service" && !knowledgeReady ? "Add at least one approved knowledge source for a customer-service agent." : null,
+    audience === "customer_service" && !knowledgeConfirmed ? "Confirm that the knowledge is current and approved." : null,
+    knowledgeHasPlaceholders ? "Replace the bracketed knowledge examples before publishing." : null,
+  ].filter((issue): issue is string => Boolean(issue));
+
   const canContinue =
     step === 1
-      ? name.trim().length > 0 && purpose.trim().length > 0
+      ? name.trim().length > 0 && Boolean(role)
       : step === 4
         ? Boolean(workflow && workflowValid)
         : true;
@@ -233,11 +269,11 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
   };
 
   const submit = async () => {
-    if (!name.trim() || !purpose.trim() || loading || draft) return;
+    if (!name.trim() || !role || loading || draft) return;
     setLoading(true);
     setError(null);
     try {
-      const agent = await createAgent({ name: name.trim(), description: purpose.trim(), creationProfile: "custom", agentAudience: audience });
+      const agent = await createAgent({ name: name.trim(), description: roleSummary.trim() || getAgentRole(role, audience).summary, creationProfile: "custom", agentAudience: audience });
       const parsedLimits = parseAgentRuntimeLimits(runtimeLimits);
       const blueprint = initialTemplate
         ? {
@@ -249,19 +285,19 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
             setupSteps: initialTemplate.setupSteps,
           }
         : undefined;
-      const generatedInstructions = [
-        `You are a helpful user-created assistant named "${name.trim()}".`,
-        `Your purpose is: ${purpose.trim()}`,
-        "Use only the instructions, knowledge, and integrations configured for this agent. Do not claim to be KasiAi or a KasiTek workspace assistant.",
-        "Be clear about what you know, what you did, and what still requires the user to act.",
-      ]
-        .filter(Boolean)
-        .join("\n\n");
       const version = await createAgentVersion(agent.id, {
-        instructions: instructions.trim() === starterInstructions ? generatedInstructions : instructions.trim(),
+        instructions: effectiveInstructions,
         configuration: {
           ...(initialTemplate?.configuration ?? {}),
           ...(blueprint ? { blueprint } : {}),
+          agentRole: role,
+          roleSummary: roleSummary.trim() || getAgentRole(role, audience).summary,
+          instructionMode: instructions.trim() ? "advanced" : "generated",
+          knowledgeSetup: {
+            requiredForPublish: audience === "customer_service",
+            outlineInserted: knowledgeOutlineInserted,
+            confirmed: knowledgeConfirmed,
+          },
           provider,
           model: model.trim(),
           ...parsedLimits,
@@ -279,10 +315,9 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
           runLimits: parsedLimits,
         },
       });
-      setInstructions(instructions.trim() === starterInstructions ? generatedInstructions : instructions.trim());
       setWorkflow(workflow ?? starterGraph);
       setDraft({ agent, version });
-      router.replace(`/agents/new?draft=${encodeURIComponent(agent.id)}`);
+      if (typeof window !== "undefined") window.history.replaceState({}, "", `/agents/new?draft=${encodeURIComponent(agent.id)}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to create agent draft");
     } finally {
@@ -294,9 +329,17 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
     if (!draft || !workflow || !workflowValid) return null;
     const parsedLimits = parseAgentRuntimeLimits(runtimeLimits);
     return createAgentVersion(draft.agent.id, {
-      instructions: instructions.trim(),
+      instructions: effectiveInstructions,
       configuration: {
         ...(draft.version.configuration ?? {}),
+        agentRole: role,
+        roleSummary: roleSummary.trim() || getAgentRole(role, audience).summary,
+        instructionMode: instructions.trim() ? "advanced" : "generated",
+        knowledgeSetup: {
+          requiredForPublish: audience === "customer_service",
+          outlineInserted: knowledgeOutlineInserted,
+          confirmed: knowledgeConfirmed,
+        },
         provider,
         model: model.trim(),
         ...parsedLimits,
@@ -332,6 +375,10 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
 
   const publishDraft = async () => {
     if (!draft || loading) return;
+    if (readinessIssues.length) {
+      setError(readinessIssues[0] ?? "Complete the required setup before publishing.");
+      return;
+    }
     setLoading(true);
     setError(null);
     setPublishStage("publishing");
@@ -425,29 +472,21 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
       <div className="min-h-[100dvh] bg-background px-4 py-4 sm:px-6 lg:px-8">
         <header className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
           <div className="flex items-center gap-3"><Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Agents</Link><span className="text-border">/</span><div><div className="flex items-center gap-2"><h1 className="text-lg font-semibold text-foreground">{draft.agent.name}</h1><Badge className="border-status-attention/30 bg-status-attention-soft text-status-attention">Draft</Badge></div><p className="text-xs text-muted-foreground">Build the agent on the canvas</p></div></div>
-          <div className="flex items-center gap-2"><Badge className="border-primary/20 bg-primary/10 text-primary">{audience === "customer_service" ? "Customer service" : "Personal"}</Badge><span className="hidden text-xs text-muted-foreground sm:inline">v{draft.version.version_number} · not published</span><Button type="button" variant="outline" size="sm" disabled={loading} onClick={() => void saveWorkspaceDraft()}>{loading && publishStage === "idle" ? <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}{loading && publishStage === "idle" ? "Saving…" : "Save draft"}</Button><Button type="button" size="sm" disabled={loading || !workflow || !workflowValid} onClick={() => void publishDraft()}>{loading && publishStage !== "idle" ? <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}{loading ? publishStageLabel ?? "Publishing…" : "Publish"}</Button></div>
+          <div className="flex items-center gap-2"><Badge className="border-primary/20 bg-primary/10 text-primary">{audience === "customer_service" ? "Customer service" : "Personal"}</Badge><span className="hidden text-xs text-muted-foreground sm:inline">v{draft.version.version_number} · not published</span><Button type="button" variant="outline" size="sm" disabled={loading} onClick={() => void saveWorkspaceDraft()}>{loading && publishStage === "idle" ? <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}{loading && publishStage === "idle" ? "Saving…" : "Save draft"}</Button><Button type="button" size="sm" disabled={loading || readinessIssues.length > 0} onClick={() => void publishDraft()}>{loading && publishStage !== "idle" ? <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}{loading ? publishStageLabel ?? "Publishing…" : "Publish"}</Button></div>
         </header>
         <main className="mx-auto mt-4 max-w-[1440px]">
           {error ? <p className="mb-4 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p> : null}
           {publishStageLabel ? <p className="mb-4 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary" role="status"><LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" />{publishStageLabel}</p> : null}
+          {readinessIssues.length ? <div className="mb-4 rounded-2xl border border-status-attention/30 bg-status-attention-soft p-4"><p className="font-semibold text-status-attention">Complete setup before publishing</p><ul className="mt-2 space-y-1 text-sm text-status-attention">{readinessIssues.map((issue) => <li key={issue}>• {issue}</li>)}</ul>{audience === "customer_service" ? <label className="mt-3 flex items-start gap-3 rounded-xl border border-status-attention/30 bg-background/30 p-3 text-sm"><Checkbox checked={knowledgeConfirmed} onCheckedChange={(checked) => setKnowledgeConfirmed(checked === true)} /><span className="leading-5 text-status-attention">I confirm these sources are current and approved for customer responses.</span></label> : null}</div> : null}
           {audience === "customer_service" ? <div className="mb-4"><CustomerServiceSetup template={initialTemplate} /></div> : null}
-          <AgentWorkflowEditor configuration={draft.version.configuration ?? {}} onChange={setWorkflow} onValidityChange={setWorkflowValid} knowledgeText={knowledgeText} knowledgeFile={knowledgeFile} onKnowledgeTextChange={setKnowledgeText} onKnowledgeFileChange={(file) => { if (file && file.size > 20 * 1024 * 1024) { setError("Files must be 20 MB or smaller."); return; } setError(null); setKnowledgeFile(file); }} />
+          <AgentWorkflowEditor configuration={draft.version.configuration ?? {}} onChange={setWorkflow} onValidityChange={setWorkflowValid} knowledgeText={knowledgeText} knowledgeFile={knowledgeFile} onKnowledgeTextChange={(value) => { setKnowledgeText(value); setKnowledgeConfirmed(false); }} onKnowledgeFileChange={(file) => { if (file && file.size > 20 * 1024 * 1024) { setError("Files must be 20 MB or smaller."); return; } setError(null); setKnowledgeFile(file); setKnowledgeConfirmed(false); }} />
         </main>
       </div>
     );
   }
 
-  if (!draft && !created) {
-    return (
-      <div className="min-h-[100dvh] px-4 py-8 sm:px-6 lg:px-8"><div className="mx-auto max-w-2xl">
-        <div className="flex items-center justify-between gap-4"><Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to agents</Link><div className="flex items-center gap-2"><Badge className="border-primary/20 bg-primary/10 text-primary">{audience === "customer_service" ? "Customer service" : "Personal"}</Badge><p className="text-xs font-medium text-muted-foreground">New custom agent</p></div></div>
-        <Card className="mt-12 rounded-3xl border-border/80 shadow-xl shadow-black/10"><CardContent className="p-6 sm:p-10 lg:p-12"><div className="text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20"><Bot className="h-7 w-7" /></div><h1 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">Create your agent</h1><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Give it a name and a job. You’ll configure the rest on the canvas.</p></div>{initialTemplate ? <div className="mt-8 rounded-2xl border border-primary/25 bg-primary/5 p-4"><p className="text-sm font-semibold text-foreground">Starting from {initialTemplate.name}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{initialTemplate.description}</p></div> : null}{audience === "customer_service" ? <div className="mt-8"><CustomerServiceSetup template={initialTemplate} /></div> : null}<div className="mt-8 space-y-5"><Field label="Agent name"><Input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Support operations agent" className="mt-2 h-12 px-4 text-base" /></Field><Field label="What should it do?"><Textarea value={purpose} onChange={(event) => setPurpose(event.target.value)} rows={5} maxLength={2000} placeholder="Handle support questions and guide customers to the right next step." className="mt-2 resize-y px-4 py-3 leading-6" /></Field></div>{error ? <p className="mt-5 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p> : null}<div className="mt-8 flex items-center justify-between gap-3 border-t border-border pt-6"><Button type="button" variant="outline" disabled={loading} onClick={() => router.push("/agents")}>Cancel</Button><Button type="button" disabled={loading || !name.trim() || !purpose.trim()} onClick={() => void submit()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Creating draft…</> : "Continue"}</Button></div></CardContent></Card>
-      </div></div>
-    );
-  }
-
   const stepTitle = step === 1 ? "Define your agent" : step === 2 ? "Choose what it can use" : step === 3 ? "Add its knowledge" : step === 4 ? "Shape the workflow" : "Review your agent";
-  const stepDescription = step === 1 ? "Name it and describe its job." : step === 2 ? "Start with no tools. Add services after the baseline works." : step === 3 ? "Optional: paste or upload the information it should use." : step === 4 ? "Connect steps visually. Start with the baseline and add services when needed." : "Review the setup before publishing.";
+  const stepDescription = step === 1 ? "Give it a public name and choose the work it should handle." : step === 2 ? "Start with no tools. Add services after the baseline works." : step === 3 ? "Add facts, policies, and approved answers the agent can rely on." : step === 4 ? "Connect steps visually. Start with the baseline and add services when needed." : "Review the setup and resolve any publish requirements.";
 
   return (
     <div className="min-h-[100dvh] px-4 py-6 sm:px-6 lg:px-8"><div className="mx-auto max-w-5xl">
@@ -457,11 +496,11 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
         <div className="text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">{step === 2 ? <PlugZap className="h-7 w-7" /> : step === 3 ? <BookOpen className="h-7 w-7" /> : step === 4 ? <Workflow className="h-7 w-7" /> : step === 5 ? <SlidersHorizontal className="h-7 w-7" /> : <Bot className="h-7 w-7" />}</div><h1 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">{stepTitle}</h1><p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{stepDescription}</p></div>
         {initialTemplate ? <div className="mt-8 rounded-2xl border border-primary/25 bg-primary/5 p-5"><div className="flex flex-wrap items-center gap-2"><Badge className="border-primary/20 bg-primary/10 text-primary">Custom blueprint</Badge><span className="font-medium text-foreground">{initialTemplate.name}</span></div><p className="mt-2 text-sm leading-6 text-muted-foreground">{initialTemplate.description}</p><div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground"><span className="rounded-full border border-border bg-background/60 px-2.5 py-1">{initialTemplate.requiredConnections.length ? `${initialTemplate.requiredConnections.length} connection${initialTemplate.requiredConnections.length === 1 ? "" : "s"} required` : "No connection required"}</span><span className="rounded-full border border-border bg-background/60 px-2.5 py-1">{initialTemplate.setupSteps.length} setup step{initialTemplate.setupSteps.length === 1 ? "" : "s"}</span></div></div> : null}
         <div className="mt-9 space-y-6">
-          {step === 1 ? <div className="space-y-5"><Field label="Agent name"><Input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Support operations agent" className="mt-2 h-12 px-4 text-base" /></Field><Field label="What should it help with?"><Textarea value={purpose} onChange={(event) => setPurpose(event.target.value)} rows={5} maxLength={2000} placeholder="Handle support questions and guide customers to the right next step." className="mt-2 resize-y px-4 py-3 leading-6" /></Field></div> : null}
+          {step === 1 ? <div className="space-y-6"><Field label="Agent name" hint="Visible to customers and workspace members."><Input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Support operations agent" className="mt-2 h-12 px-4 text-base" /></Field><div><p className="text-sm font-medium text-foreground">Primary role</p><p className="mt-1 text-sm text-muted-foreground">Choose the work this agent is configured to handle.</p><div className="mt-3 grid gap-3 sm:grid-cols-2">{roleOptions.map((option) => <button key={option.key} type="button" onClick={() => setRole(option.key)} className={`rounded-2xl border p-4 text-left transition-colors ${role === option.key ? "border-primary bg-primary/10" : "border-border bg-secondary/10 hover:border-primary/50"}`} aria-pressed={role === option.key}><span className="font-semibold text-foreground">{option.label}</span><span className="mt-1 block text-sm leading-5 text-muted-foreground">{option.summary}</span></button>)}</div></div><Field label="Role context" hint="Optional. This stays a summary, not the agent's instructions."><Textarea value={roleSummary} onChange={(event) => setRoleSummary(event.target.value)} rows={3} maxLength={500} placeholder={getAgentRole(role, audience).summary} className="mt-2 resize-y px-4 py-3 leading-6" /></Field></div> : null}
           {step === 2 ? <div className="space-y-4"><Card className="rounded-2xl border-border bg-secondary/20"><CardContent className="space-y-4 p-5"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-status-success-soft text-status-success"><CheckCircle2 className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">Text gateway ready</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">The agent will start with an isolated text conversation. No credentials or external services are needed to create it.</p></div><Badge className="ml-auto border-status-success/30 bg-status-success-soft text-status-success">Ready</Badge></div></CardContent></Card><Card className="rounded-2xl border-border"><CardContent className="space-y-4 p-5"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary text-muted-foreground"><PlugZap className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">External tools</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">No integrations are selected. After the agent is working, connect Email, Calendar, CRM, MCP, REST, or other services from its details page.</p></div><Badge className="ml-auto border-border bg-secondary text-muted-foreground">Not selected</Badge></div>{initialTemplate?.requiredConnections.length ? <div className="rounded-xl border border-status-attention/30 bg-status-attention-soft px-4 py-3 text-sm text-status-attention"><p className="font-medium">This blueprint may need later setup</p><p className="mt-1">{initialTemplate.requiredConnections.join(", ")}</p></div> : null}</CardContent></Card><p className="text-xs leading-5 text-muted-foreground">Connections and capabilities are installation-scoped. Keeping them optional here lets you test the baseline before granting access.</p></div> : null}
-          {step === 3 ? <div className="space-y-4"><Card className="rounded-2xl border-border bg-secondary/20"><CardContent className="space-y-4 p-5"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><FileText className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">Paste information</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Add the facts, FAQs, policies, or service details this agent should know.</p></div></div><Textarea autoFocus value={knowledgeText} onChange={(event) => setKnowledgeText(event.target.value)} rows={9} maxLength={200_000} placeholder="Paste information here…" className="mt-2 resize-y px-4 py-3 leading-6" /><div className="flex items-center gap-2 text-xs text-muted-foreground"><BookOpen className="h-4 w-4 shrink-0 text-primary" />Optional. You can add more information later.</div></CardContent></Card><label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border bg-secondary/10 p-4 transition-colors hover:border-primary/50 hover:bg-secondary/20"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Upload className="h-5 w-5" /></div><div className="min-w-0 flex-1"><p className="text-sm font-medium text-foreground">Upload a file</p><p className="mt-1 truncate text-xs text-muted-foreground">{knowledgeFile ? knowledgeFile.name : "TXT, Markdown, CSV, PDF, DOCX, or Excel · up to 20 MB"}</p></div><input type="file" className="sr-only" accept=".txt,.text,.md,.markdown,.csv,.pdf,.docx,.xlsx,.xls,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (file && file.size > 20 * 1024 * 1024) { setError("Files must be 20 MB or smaller."); setKnowledgeFile(null); return; } setError(null); setKnowledgeFile(file); }} /></label><div className="flex items-center gap-3 rounded-2xl border border-dashed border-border bg-secondary/10 p-4 opacity-60"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-secondary text-muted-foreground"><Globe2 className="h-4 w-4" /></div><div><p className="text-sm font-medium text-foreground">Website crawling</p><p className="mt-1 text-xs text-muted-foreground">Unavailable</p></div><span className="ml-auto rounded-full border border-border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Unavailable</span></div></div> : null}
+          {step === 3 ? <div className="space-y-4"><Card className="rounded-2xl border-border bg-secondary/20"><CardContent className="space-y-4 p-5"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><FileText className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">Approved information</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Add the facts, policies, FAQs, and escalation rules this agent should use.</p></div></div><Textarea autoFocus value={knowledgeText} onChange={(event) => { setKnowledgeText(event.target.value); setKnowledgeOutlineInserted(false); setKnowledgeConfirmed(false); }} rows={10} maxLength={200_000} placeholder="Business facts, services, prices, hours, policies, and approved answers…" className="mt-2 resize-y px-4 py-3 leading-6" /><div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground"><span className="flex items-center gap-2"><BookOpen className="h-4 w-4 shrink-0 text-primary" />{audience === "customer_service" ? "Required before publishing." : "Optional for personal agents."}</span><Button type="button" variant="outline" size="sm" onClick={() => { setKnowledgeText(knowledgeOutline(audience, role)); setKnowledgeOutlineInserted(true); setKnowledgeConfirmed(false); }}>Insert outline</Button></div>{knowledgeHasPlaceholders ? <p className="rounded-lg border border-status-attention/30 bg-status-attention-soft px-3 py-2 text-xs text-status-attention">Replace the bracketed examples before publishing.</p> : null}{audience === "customer_service" ? <label className="flex items-start gap-3 rounded-xl border border-border bg-background/40 p-3 text-sm"><Checkbox checked={knowledgeConfirmed} onCheckedChange={(checked) => setKnowledgeConfirmed(checked === true)} /><span className="leading-5 text-foreground">I confirm these sources are current and approved for customer responses.</span></label> : null}</CardContent></Card><label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border bg-secondary/10 p-4 transition-colors hover:border-primary/50 hover:bg-secondary/20"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Upload className="h-5 w-5" /></div><div className="min-w-0 flex-1"><p className="text-sm font-medium text-foreground">Upload a knowledge file</p><p className="mt-1 truncate text-xs text-muted-foreground">{knowledgeFile ? knowledgeFile.name : "TXT, Markdown, CSV, PDF, DOCX, or Excel · up to 20 MB"}</p></div><input type="file" className="sr-only" accept=".txt,.text,.md,.markdown,.csv,.pdf,.docx,.xlsx,.xls,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (file && file.size > 20 * 1024 * 1024) { setError("Files must be 20 MB or smaller."); setKnowledgeFile(null); return; } setError(null); setKnowledgeFile(file); setKnowledgeConfirmed(false); }} /></label><div className="flex items-center gap-3 rounded-2xl border border-dashed border-border bg-secondary/10 p-4 opacity-60"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-secondary text-muted-foreground"><Globe2 className="h-4 w-4" /></div><div><p className="text-sm font-medium text-foreground">Website crawling</p><p className="mt-1 text-xs text-muted-foreground">Unavailable</p></div><span className="ml-auto rounded-full border border-border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Unavailable</span></div></div> : null}
           {step === 4 ? <div className="space-y-4"><div className="rounded-2xl border border-border bg-secondary/20 p-5"><div className="flex items-start gap-3"><Workflow className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><div><h2 className="font-semibold text-foreground">Baseline workflow</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">The starter graph is already configured. You can keep it as-is or add declarative steps for this process.</p></div></div></div><AgentWorkflowEditor configuration={initialTemplate?.configuration ?? {}} onChange={setWorkflow} onValidityChange={setWorkflowValid} /></div> : null}
-          {step === 5 ? <div className="space-y-4"><dl className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-secondary/20 text-sm"><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Agent</dt><dd className="font-medium text-foreground sm:text-right">{name}</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Purpose</dt><dd className="text-foreground sm:max-w-[70%] sm:text-right">{purpose}</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Knowledge</dt><dd className="font-medium text-foreground sm:text-right">{knowledgeText.trim() && knowledgeFile ? `Pasted information + ${knowledgeFile.name}` : knowledgeText.trim() ? "Pasted information" : knowledgeFile ? knowledgeFile.name : "None yet"}</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Tools</dt><dd className="font-medium text-foreground sm:text-right">None selected</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Workflow</dt><dd className="font-medium text-foreground sm:text-right">{workflow?.nodes.length ?? 0} nodes · {workflow?.edges.length ?? 0} edges</dd></div></dl><details open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)} className="rounded-2xl border border-border bg-secondary/10 p-5"><summary className="cursor-pointer list-none text-sm font-semibold text-foreground">Advanced settings <span className="ml-1 font-normal text-muted-foreground">model, instructions, and runtime limits</span></summary><div className="mt-5 space-y-5"><div className="grid gap-3 sm:grid-cols-[0.65fr_1.35fr]"><Field label="Provider"><Select value={provider} onValueChange={setProvider}><SelectTrigger className="mt-2 h-10"><SelectValue /></SelectTrigger><SelectContent>{AGENT_MODEL_PROVIDERS.map((providerId) => <SelectItem key={providerId} value={providerId}>{AGENT_MODEL_PROVIDER_LABELS[providerId]}</SelectItem>)}</SelectContent></Select></Field><Field label="Model"><Input value={model} onChange={(event) => setModel(event.target.value)} placeholder="provider/model" className="mt-2 h-10" /></Field></div><Field label="Instructions"><Textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={7} maxLength={200000} className="mt-2 resize-y font-mono leading-6" /></Field><AgentRuntimeLimits value={runtimeLimits} onChange={setRuntimeLimits} /></div></details></div> : null}
+          {step === 5 ? <div className="space-y-4"><dl className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-secondary/20 text-sm"><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Agent</dt><dd className="font-medium text-foreground sm:text-right">{name}</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Role</dt><dd className="text-foreground sm:max-w-[70%] sm:text-right">{getAgentRole(role, audience).label}</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Knowledge</dt><dd className="font-medium text-foreground sm:text-right">{knowledgeText.trim() && knowledgeFile ? `Pasted information + ${knowledgeFile.name}` : knowledgeText.trim() ? "Pasted information" : knowledgeFile ? knowledgeFile.name : "None yet"}</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Tools</dt><dd className="font-medium text-foreground sm:text-right">None selected</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Workflow</dt><dd className="font-medium text-foreground sm:text-right">{workflow?.nodes.length ?? 0} nodes · {workflow?.edges.length ?? 0} edges</dd></div></dl><Card className="rounded-2xl border-primary/25 bg-primary/5"><CardContent className="space-y-3 p-5"><div className="flex items-center justify-between gap-3"><div><h2 className="font-semibold text-foreground">Generated behavior</h2><p className="mt-1 text-sm text-muted-foreground">Built from the selected role, audience, and configured knowledge rules.</p></div><Badge className="border-primary/20 bg-primary/10 text-primary">Preview</Badge></div><pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-xl border border-border bg-background/70 p-4 text-xs leading-5 text-muted-foreground">{effectiveInstructions}</pre></CardContent></Card>{readinessIssues.length ? <div className="rounded-2xl border border-status-attention/30 bg-status-attention-soft p-5"><h2 className="font-semibold text-status-attention">Before publishing</h2><ul className="mt-2 space-y-1 text-sm text-status-attention">{readinessIssues.map((issue) => <li key={issue}>• {issue}</li>)}</ul></div> : <div className="rounded-2xl border border-status-success/30 bg-status-success-soft p-4 text-sm text-status-success">Setup is ready for draft creation.</div>}<details open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)} className="rounded-2xl border border-border bg-secondary/10 p-5"><summary className="cursor-pointer list-none text-sm font-semibold text-foreground">Advanced settings <span className="ml-1 font-normal text-muted-foreground">edit behavior, model, and runtime limits</span></summary><div className="mt-5 space-y-5"><div className="grid gap-3 sm:grid-cols-[0.65fr_1.35fr]"><Field label="Provider"><Select value={provider} onValueChange={setProvider}><SelectTrigger className="mt-2 h-10"><SelectValue /></SelectTrigger><SelectContent>{AGENT_MODEL_PROVIDERS.map((providerId) => <SelectItem key={providerId} value={providerId}>{AGENT_MODEL_PROVIDER_LABELS[providerId]}</SelectItem>)}</SelectContent></Select></Field><Field label="Model"><Input value={model} onChange={(event) => setModel(event.target.value)} placeholder="provider/model" className="mt-2 h-10" /></Field></div><Field label="Advanced instructions" hint="Optional override"><Textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={7} maxLength={200000} placeholder={generatedInstructions} className="mt-2 resize-y font-mono leading-6" /></Field><AgentRuntimeLimits value={runtimeLimits} onChange={setRuntimeLimits} /></div></details></div> : null}
         </div>
         {error ? <p className="mt-6 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p> : null}
         <div className="mt-10 flex items-center justify-between gap-3 border-t border-border pt-6"><Button type="button" variant="outline" disabled={loading} onClick={goBack}>{step === 1 ? "Cancel" : <><ChevronLeft className="mr-1 h-4 w-4" />Back</>}</Button>{step < 5 ? <Button type="button" disabled={!canContinue || loading} onClick={goNext}>Continue <ChevronRight className="ml-1 h-4 w-4" /></Button> : <Button type="button" disabled={loading || !workflow || !workflowValid} onClick={() => void submit()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Creating draft…</> : "Create draft"}</Button>}</div>

@@ -234,7 +234,7 @@ function CreateAgentDialog({
           <div className="mt-8 grid items-stretch gap-5 md:grid-cols-2">
             <div className="flex min-h-[260px] flex-col rounded-xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35 md:min-h-[320px] md:p-8">
               <h3 className="text-base font-semibold text-foreground">General-purpose agent</h3>
-              <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-muted-foreground">A complete assistant for a common job. Give it a name, purpose, and a few preferences.</p>
+              <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-muted-foreground">Start with a role, approved knowledge, and response preferences.</p>
               <div className="mt-6 flex flex-wrap justify-center gap-2" aria-label="Common general-purpose use cases">
                 {['Customer support', 'Lead qualification', 'Booking assistant', 'Internal helpdesk'].map((useCase) => <span key={useCase} className="rounded-full border border-border bg-secondary px-2 py-1 text-[11px] text-muted-foreground">{useCase}</span>)}
               </div>

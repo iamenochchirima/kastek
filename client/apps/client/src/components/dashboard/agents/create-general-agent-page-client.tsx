@@ -6,10 +6,12 @@ import { ArrowLeft, BookOpen, Bot, CheckCircle2, ChevronLeft, ChevronRight, File
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { createAgent, createAgentInstallation, createAgentKnowledgeSource, createAgentVersion, ingestAgentKnowledgeSourceFile, ingestAgentKnowledgeSourceText, publishAgentVersion } from "@/lib/agent-platform";
+import { containsKnowledgePlaceholders, generatedAgentInstructions, getAgentRole, getAgentRoleOptions, knowledgeOutline, type AgentRoleKey } from "./agent-creation-config";
 
 type Step = 1 | 2 | 3 | 4;
 type AgentAudience = "personal" | "customer_service";
@@ -20,36 +22,48 @@ export function CreateGeneralAgentPageClient({ audience = "personal" }: { audien
   const router = useRouter();
   const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState("");
-  const [purpose, setPurpose] = useState("");
+  const [role, setRole] = useState<AgentRoleKey>(getAgentRole(undefined, audience).key);
+  const [roleSummary, setRoleSummary] = useState("");
   const [knowledgeText, setKnowledgeText] = useState("");
   const [knowledgeFile, setKnowledgeFile] = useState<File | null>(null);
+  const [knowledgeOutlineInserted, setKnowledgeOutlineInserted] = useState(false);
+  const [knowledgeConfirmed, setKnowledgeConfirmed] = useState(false);
   const [tone, setTone] = useState("balanced");
   const [responseDetail, setResponseDetail] = useState("standard");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<{ id: string; name: string; knowledgeWarning?: string } | null>(null);
 
-  const canContinue = step === 1
-    ? name.trim().length > 0 && purpose.trim().length > 0
-    : true;
+  const canContinue = step === 1 ? name.trim().length > 0 && Boolean(role) : true;
+  const roleOptions = getAgentRoleOptions(audience);
+  const generatedInstructions = generatedAgentInstructions({ name: name.trim() || "user-configured assistant", audience, role, roleSummary, tone, responseDetail });
+  const knowledgeReady = Boolean(knowledgeText.trim() || knowledgeFile);
+  const knowledgeHasPlaceholders = containsKnowledgePlaceholders(knowledgeText);
 
   const create = async () => {
-    if (!name.trim() || !purpose.trim() || loading) return;
+    if (!name.trim() || !role || loading) return;
+    if (audience === "customer_service" && !knowledgeReady) {
+      setError("Add at least one approved knowledge source before creating a customer-service agent.");
+      setStep(2);
+      return;
+    }
+    if (audience === "customer_service" && !knowledgeConfirmed) {
+      setError("Confirm that the knowledge is current and approved before creating this agent.");
+      setStep(2);
+      return;
+    }
+    if (knowledgeHasPlaceholders) {
+      setError("Replace the bracketed knowledge examples before creating the agent.");
+      setStep(2);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const agent = await createAgent({ name: name.trim(), description: purpose.trim(), creationProfile: "general", agentAudience: audience });
+      const agent = await createAgent({ name: name.trim(), description: roleSummary.trim() || getAgentRole(role, audience).summary, creationProfile: "general", agentAudience: audience });
       const maxTotalTokens = 2_048;
       const version = await createAgentVersion(agent.id, {
-        instructions: [
-          `You are a user-created assistant named "${name.trim()}".`,
-          `Your configured purpose is: ${purpose.trim()}`,
-          `Use a ${tone} tone and provide ${responseDetail} responses.`,
-          "You are not KasiAi and you are not the KasiTek platform guidance agent.",
-          "Use the configured knowledge for this agent and trusted tool results when they are available. If the answer is not supported by that knowledge or evidence, say that you do not have that information.",
-          "Never substitute generic KasiTek platform guidance, invent facts, pricing, policies, availability, or completed actions, and never claim an action succeeded without a trusted result.",
-          "Keep internal capabilities, grounding markers, and execution details out of user-facing responses.",
-        ].join("\n\n"),
+        instructions: generatedInstructions,
         configuration: {
           provider: model.provider,
           model: model.name,
@@ -60,6 +74,10 @@ export function CreateGeneralAgentPageClient({ audience = "personal" }: { audien
           maxContextMessages: 24,
           maxContextTokens: 8_000,
           maxWallTimeMs: 60_000,
+          agentRole: role,
+          roleSummary: roleSummary.trim() || getAgentRole(role, audience).summary,
+          instructionMode: "generated",
+          knowledgeSetup: { requiredForPublish: audience === "customer_service", outlineInserted: knowledgeOutlineInserted, confirmed: knowledgeConfirmed },
         },
         policy: {
           allowedTools: [],
@@ -119,11 +137,11 @@ export function CreateGeneralAgentPageClient({ audience = "personal" }: { audien
   }
 
   const steps = [[1, "Basics"], [2, "Knowledge"], [3, "Behavior"], [4, "Review"]] as const;
-  const stepTitle = step === 1 ? "What should we call it?" : step === 2 ? "What should it know?" : step === 3 ? "How should it respond?" : "Review your agent";
+  const stepTitle = step === 1 ? "Define your agent" : step === 2 ? "Add its knowledge" : step === 3 ? "How should it respond?" : "Review your agent";
   const stepDescription = step === 1
-    ? "Give your assistant a clear name and purpose."
+    ? "Give it a public name and choose the work it should handle."
     : step === 2
-      ? "Add approved information it can use to answer questions. You can skip this and add more later."
+      ? "Add facts, policies, and approved answers it can rely on."
       : step === 3
         ? "Choose the defaults that feel right for your team."
         : "Everything looks good? You can change these settings later.";
@@ -160,17 +178,16 @@ export function CreateGeneralAgentPageClient({ audience = "personal" }: { audien
               </div>
 
               <div className="mt-9 space-y-5">
-                {step === 1 ? <>
-                  <label className="block text-sm font-medium text-foreground">Agent name<Input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="My assistant" className="mt-2 h-12 px-4 text-base" /></label>
-                  <label className="block text-sm font-medium text-foreground">What should it help with?<Textarea value={purpose} onChange={(event) => setPurpose(event.target.value)} rows={4} maxLength={2000} placeholder="Help my team answer customer questions and find the right next step." className="mt-2 resize-y px-4 py-3 leading-6" /></label>
-                </> : null}
+                {step === 1 ? <><label className="block text-sm font-medium text-foreground">Agent name<span className="ml-1 font-normal text-muted-foreground">Visible to customers and workspace members.</span><Input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="My assistant" className="mt-2 h-12 px-4 text-base" /></label><div><p className="text-sm font-medium text-foreground">Primary role</p><p className="mt-1 text-sm text-muted-foreground">Choose the work this agent is configured to handle.</p><div className="mt-3 grid gap-3 sm:grid-cols-2">{roleOptions.map((option) => <button key={option.key} type="button" onClick={() => setRole(option.key)} className={`rounded-2xl border p-4 text-left transition-colors ${role === option.key ? "border-primary bg-primary/10" : "border-border bg-secondary/10 hover:border-primary/50"}`} aria-pressed={role === option.key}><span className="font-semibold text-foreground">{option.label}</span><span className="mt-1 block text-sm leading-5 text-muted-foreground">{option.summary}</span></button>)}</div></div><label className="block text-sm font-medium text-foreground">Role context<span className="ml-1 font-normal text-muted-foreground">Optional summary</span><Textarea value={roleSummary} onChange={(event) => setRoleSummary(event.target.value)} rows={3} maxLength={500} placeholder={getAgentRole(role, audience).summary} className="mt-2 resize-y px-4 py-3 leading-6" /></label></> : null}
                 {step === 2 ? <>
                   <div className="rounded-2xl border border-border bg-secondary/20 p-5 sm:p-6">
                     <div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><FileText className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">Paste your information</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Add the facts, FAQs, policies, or service details your agent should know.</p></div></div>
-                    <Textarea autoFocus value={knowledgeText} onChange={(event) => setKnowledgeText(event.target.value)} rows={10} maxLength={200_000} placeholder="Paste information here…" className="mt-5 resize-y px-4 py-3 leading-6" />
-                    <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground"><BookOpen className="h-4 w-4 shrink-0 text-primary" />Optional. You can add more information later.</div>
+                    <Textarea autoFocus value={knowledgeText} onChange={(event) => { setKnowledgeText(event.target.value); setKnowledgeOutlineInserted(false); setKnowledgeConfirmed(false); }} rows={10} maxLength={200_000} placeholder="Business facts, services, prices, hours, policies, and approved answers…" className="mt-5 resize-y px-4 py-3 leading-6" />
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground"><span className="flex items-center gap-2"><BookOpen className="h-4 w-4 shrink-0 text-primary" />{audience === "customer_service" ? "Required before creating this agent." : "Optional for personal agents."}</span><Button type="button" variant="outline" size="sm" onClick={() => { setKnowledgeText(knowledgeOutline(audience, role)); setKnowledgeOutlineInserted(true); setKnowledgeConfirmed(false); }}>Insert outline</Button></div>
+                    {knowledgeHasPlaceholders ? <p className="mt-3 rounded-lg border border-status-attention/30 bg-status-attention-soft px-3 py-2 text-xs text-status-attention">Replace the bracketed examples before creating the agent.</p> : null}
+                    {audience === "customer_service" ? <label className="mt-3 flex items-start gap-3 rounded-xl border border-border bg-background/40 p-3 text-sm"><Checkbox checked={knowledgeConfirmed} onCheckedChange={(checked) => setKnowledgeConfirmed(checked === true)} /><span className="leading-5 text-foreground">I confirm these sources are current and approved for customer responses.</span></label> : null}
                   </div>
-                  <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border bg-secondary/10 p-4 transition-colors hover:border-primary/50 hover:bg-secondary/20"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Upload className="h-5 w-5" /></div><div className="min-w-0 flex-1"><p className="text-sm font-medium text-foreground">Upload a file</p><p className="mt-1 truncate text-xs text-muted-foreground">{knowledgeFile ? knowledgeFile.name : "TXT, Markdown, CSV, PDF, DOCX, or Excel · up to 20 MB"}</p></div><input type="file" className="sr-only" accept=".txt,.text,.md,.markdown,.csv,.pdf,.docx,.xlsx,.xls,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (file && file.size > 20 * 1024 * 1024) { setError("Files must be 20 MB or smaller."); setKnowledgeFile(null); return; } setError(null); setKnowledgeFile(file); }} /></label>
+                  <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border bg-secondary/10 p-4 transition-colors hover:border-primary/50 hover:bg-secondary/20"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Upload className="h-5 w-5" /></div><div className="min-w-0 flex-1"><p className="text-sm font-medium text-foreground">Upload a file</p><p className="mt-1 truncate text-xs text-muted-foreground">{knowledgeFile ? knowledgeFile.name : "TXT, Markdown, CSV, PDF, DOCX, or Excel · up to 20 MB"}</p></div><input type="file" className="sr-only" accept=".txt,.text,.md,.markdown,.csv,.pdf,.docx,.xlsx,.xls,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (file && file.size > 20 * 1024 * 1024) { setError("Files must be 20 MB or smaller."); setKnowledgeFile(null); return; } setError(null); setKnowledgeFile(file); setKnowledgeConfirmed(false); }} /></label>
                   <div className="flex items-center gap-3 rounded-2xl border border-dashed border-border bg-secondary/10 p-4 opacity-60"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-secondary text-muted-foreground"><Globe2 className="h-4 w-4" /></div><div><p className="text-sm font-medium text-foreground">Website crawling</p><p className="mt-1 text-xs text-muted-foreground">Unavailable</p></div><span className="ml-auto rounded-full border border-border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Unavailable</span></div>
                 </> : null}
                 {step === 3 ? <>
@@ -183,12 +200,14 @@ export function CreateGeneralAgentPageClient({ audience = "personal" }: { audien
                 {step === 4 ? <>
                   <dl className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-secondary/20 text-sm">
                     <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Name</dt><dd className="font-medium text-foreground sm:text-right">{name}</dd></div>
-                    <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Purpose</dt><dd className="text-foreground sm:max-w-[70%] sm:text-right">{purpose}</dd></div>
+                    <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Role</dt><dd className="text-foreground sm:max-w-[70%] sm:text-right">{getAgentRole(role, audience).label}</dd></div>
                     <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Knowledge</dt><dd className="font-medium text-foreground sm:max-w-[70%] sm:text-right">{knowledgeText.trim() && knowledgeFile ? `Pasted information + ${knowledgeFile.name}` : knowledgeText.trim() ? "Pasted information" : knowledgeFile ? knowledgeFile.name : "None yet"}</dd></div>
                     <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Behavior</dt><dd className="font-medium capitalize text-foreground sm:text-right">{tone}, {responseDetail}</dd></div>
                     <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Access</dt><dd className="font-medium text-foreground sm:text-right">No tools selected</dd></div>
                     <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Workflow</dt><dd className="font-medium text-foreground sm:text-right">Standard assistant runtime</dd></div>
                   </dl>
+                  <div className="rounded-2xl border border-primary/25 bg-primary/5 p-5"><div className="flex items-center justify-between gap-3"><div><h2 className="font-semibold text-foreground">Generated behavior</h2><p className="mt-1 text-sm text-muted-foreground">Built from the selected role, audience, and response settings.</p></div><span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">Preview</span></div><pre className="mt-4 max-h-64 overflow-auto whitespace-pre-wrap rounded-xl border border-border bg-background/70 p-4 text-xs leading-5 text-muted-foreground">{generatedInstructions}</pre></div>
+                  {audience === "customer_service" && !knowledgeReady ? <p className="rounded-xl border border-status-attention/30 bg-status-attention-soft px-4 py-3 text-sm text-status-attention">Add approved knowledge before creating this customer-service agent.</p> : null}
                 </> : null}
               </div>
 
