@@ -45,6 +45,7 @@ crypto-utils = { path = "../crates/crypto-utils" }
 observability = { path = "../crates/observability" }
 types = { path = "../crates/types" }
 actions = { path = "../crates/actions" }
+analytics-producer = { path = "../crates/analytics-producer" }
 execution = { path = "../crates/execution" }
 semver.workspace = true
 jwt-simple = "0.11"

@@ -5,6 +5,7 @@
 //! Existing controller/service modules remain available while their behaviour
 //! is incrementally moved behind domain commands and queries.
 
+pub mod analytics;
 pub mod api;
 pub mod bootstrap;
 pub mod capabilities;

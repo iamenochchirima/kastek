@@ -126,6 +126,29 @@ checklist records implementation evidence for the current package only.
 - [ ] Connect the A-06 tables to authenticated batch ingestion, source outboxes, and producer
   publishers in A-07 through A-09.
 
+## A-07 — Rust producer library, Core outbox, and Tenant outbox
+
+- [x] Add the shared `analytics-producer` Rust crate to the server workspace.
+- [x] Build versioned event, provider-observation, and scope-definition envelopes with source,
+  scope, subject, timing, correlation, and idempotency metadata.
+- [x] Canonicalize payload JSON and compute the shared SHA-256 payload hash before the source
+  transaction commits.
+- [x] Reject malformed versioned contracts and prohibited message bodies, prompts, contact values,
+  credentials, tokens, and unrestricted provider payloads in the producer helper.
+- [x] Add Core's independent `analytics_outbox` SQL inventory and Tenant Platform's SQLx migration;
+  both use database-generated monotonic source sequences and immutable envelope content.
+- [x] Add transactional enqueue helpers with identical-identity duplicate acknowledgement and
+  conflicting-payload detection.
+- [x] Add bounded `FOR UPDATE SKIP LOCKED` leasing, attempt counts, short leases, stale-lease
+  recovery, deterministic capped retry jitter, and per-record delivery state transitions.
+- [x] Add Core and Tenant producer modules that accept the caller's existing SQLx transaction.
+- [x] Run shared Rust unit tests and PostgreSQL outbox integration using a temporary table so no
+  test rows remain in the Core database.
+- [x] Apply the Core outbox SQL migration locally and validate the Tenant migration transactionally
+  in an isolated schema; the configured Tenant development endpoint was unavailable.
+- [ ] Attach authenticated batch HTTP transport and real authoritative domain mutations in the
+  ingestion/vertical-slice packages that follow A-07.
+
 ## Verification evidence
 
 - `cargo fmt --manifest-path server/kasitek-analytics/Cargo.toml -- --check`
@@ -176,6 +199,15 @@ checklist records implementation evidence for the current package only.
 - A-06: `scripts/test-a06-native.sql` passed in the isolated database; it exercised all A-06 control
   tables, rejected an immutable event update and broken audit chain, and confirmed forced-RLS hides
   the sibling client's event and audit row. The transaction rolled back its fixtures.
+- A-07: `cargo test -p analytics-producer` — 4 producer validation and retry-policy tests passed.
+- A-07: PostgreSQL `outbox_postgres` integration passed against the local Core database using a
+  temporary `analytics_outbox`; enqueue duplicate/conflict detection, lease claim, retry reclaim,
+  and accepted delivery all passed without persistent fixtures.
+- A-07: Core `sql/20260822030000_analytics_outbox.sql` applied successfully; the Tenant migration
+  parsed and created its full table/trigger shape inside a rolled-back isolated schema because the
+  configured Tenant endpoint was unavailable.
+- A-07: Core transactional SQL smoke test passed: immutable envelope mutation was rejected, a row
+  was leased and acknowledged delivered, and the transaction rolled back its fixture.
 
 ## Explicitly deferred
 
@@ -186,4 +218,5 @@ checklist records implementation evidence for the current package only.
 - A-04 historical compatibility fixtures until a second major contract or metric version exists
 - A-05 signed ES256 transport verification until the reporting/ingestion HTTP grant boundary exists
 - A-06 signed audit checkpoint production/verification until the controlled signing boundary exists
+- A-07 authenticated publisher transport until the Analytics ingestion HTTP boundary exists
 - Source outboxes, ingestion, authentication, projections, reporting, and UI

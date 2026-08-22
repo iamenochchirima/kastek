@@ -4,6 +4,7 @@ use actix_web::{http::header::HeaderValue, web, App, HttpServer};
 use dotenv::dotenv;
 use sqlx::postgres::PgPoolOptions;
 
+pub mod analytics;
 mod config;
 mod controllers;
 mod error;
