@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from "pg";
 import { query, withTransaction } from "../pool";
 import type { ConversationRecord, MessageRecord } from "./conversation-repository";
 import { createAgentEvent } from "../../events/envelope";
+import { buildEvent, enqueueOutbox } from "../../analytics/producer";
 
 export type HandoffReason = "customer_requested" | "agent_uncertain" | "policy_required" | "high_value" | "configured_workflow" | "other";
 export type HandoffPriority = "normal" | "high" | "urgent";
@@ -629,6 +630,57 @@ export class HandoffRepository {
         input.actorId,
       ],
     );
+    const action = input.eventType === "conversation.handoff.requested"
+      ? "requested"
+      : input.eventType === "conversation.handoff.claimed"
+        ? "claimed"
+        : input.eventType === "conversation.human_message.sent"
+          ? "human_message"
+          : input.eventType === "conversation.handoff.continued"
+            ? "continued"
+            : input.eventType === "conversation.handoff.resolved"
+              ? "resolved"
+              : undefined;
+    if (!action) throw new Error(`Unsupported handoff lifecycle event ${input.eventType}`);
+    const occurredAt = new Date().toISOString();
+    const analyticsAttributes: Record<string, unknown> = {
+      handoff_id: input.handoff.id,
+      conversation_id: input.conversation.id,
+      installation_id: input.handoff.installation_id,
+      agent_definition_id: input.handoff.agent_definition_id,
+      agent_version_id: input.handoff.agent_version_id,
+      run_id: input.handoff.run_id,
+      channel_type: input.handoff.channel_type,
+      action,
+      status: action === "human_message"
+        ? input.handoff.status
+        : typeof input.payload.status === "string" ? input.payload.status : input.handoff.status,
+      reason: input.handoff.reason,
+      priority: input.handoff.priority,
+      actor_type: input.actorType,
+      conversation_state: input.conversation.handoff_state,
+      occurred_at: occurredAt,
+    };
+    if (typeof input.payload.messageId === "string") analyticsAttributes.message_id = input.payload.messageId;
+    if (typeof input.payload.deliveryStatus === "string") analyticsAttributes.delivery_status = input.payload.deliveryStatus;
+    if (typeof input.payload.resolution === "string") analyticsAttributes.resolution_code = input.payload.resolution;
+    const recordSuffix = typeof input.payload.messageId === "string"
+      ? `${action}:${input.payload.messageId}`
+      : action;
+    await enqueueOutbox(client, buildEvent({
+      recordId: `handoff:${input.handoff.id}:${recordSuffix}`,
+      sourceDomain: "agents",
+      sourceStreamKey: `organization:${input.handoff.organization_id}:handoffs`,
+      contractName: "agent.handoff.lifecycle@1",
+      schemaVersion: 1,
+      scopeKind: "core_organization",
+      scopeExternalId: input.handoff.organization_id,
+      subject: `handoff:${input.handoff.id}`,
+      occurredAt,
+      attributes: analyticsAttributes,
+      correlationId: input.handoff.run_id ?? undefined,
+      idempotencyKey: `agent-platform:handoff:${input.handoff.id}:${recordSuffix}`,
+    }));
   }
 
   private async lockMutationTarget(client: PoolClient, organizationId: string, handoffId: string): Promise<HandoffQueueItem> {

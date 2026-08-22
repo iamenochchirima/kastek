@@ -20,6 +20,14 @@
       "privacy_class": "aggregate"
     },
     {
+      "identity": "agent.handoff.lifecycle@1",
+      "schema": "events/agent/handoff_lifecycle/v1.schema.json",
+      "examples": ["examples/agent/handoff_lifecycle.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
       "identity": "campaign.recipient.sent@1",
       "schema": "events/campaign/recipient_sent/v1.schema.json",
       "examples": ["examples/campaign/recipient_sent.json"],

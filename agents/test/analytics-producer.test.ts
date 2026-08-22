@@ -46,6 +46,34 @@ describe("Agent analytics producer", () => {
     expect(record.payloadHash).toBe(canonicalJsonSha256({ a: 1, b: 2 }));
   });
 
+  it("registers the handoff lifecycle contract without carrying transcript content", () => {
+    const record = buildEvent(event({
+      recordId: "handoff-1-requested",
+      contractName: "agent.handoff.lifecycle@1",
+      subject: "handoff/handoff-1",
+      idempotencyKey: "handoff-1-requested",
+      attributes: {
+        handoff_id: "handoff-1",
+        conversation_id: "conversation-1",
+        installation_id: "installation-1",
+        agent_definition_id: "agent-1",
+        agent_version_id: "version-1",
+        run_id: "run-1",
+        channel_type: "platform",
+        action: "requested",
+        status: "pending",
+        reason: "customer_requested",
+        priority: "normal",
+        actor_type: "agent",
+        conversation_state: "handoff_requested",
+        occurred_at: "2026-08-22T10:00:00.000Z",
+      },
+    }));
+    expect(isRegisteredAgentContract(record.contractName)).toBe(true);
+    expect(record.envelope.dataschema).toBe("https://kasitek.co.za/analytics/contracts/events/agent/handoff_lifecycle/v1.schema.json");
+    expect(record.envelope.data).not.toHaveProperty("customer_message");
+  });
+
   it("rejects prohibited content before a database call", () => {
     expect(() => buildEvent(event({ attributes: { response: "private model output" } }))).toThrowError(
       new AnalyticsProducerValidationError("prohibited_field", "Analytics payload contains prohibited field response"),

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/agent/handoff_lifecycle/v1.schema.json",
+  "title": "Agent handoff lifecycle attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "handoff_id",
+    "conversation_id",
+    "installation_id",
+    "agent_definition_id",
+    "agent_version_id",
+    "action",
+    "status",
+    "occurred_at"
+  ],
+  "properties": {
+    "handoff_id": { "type": "string", "minLength": 1 },
+    "conversation_id": { "type": "string", "minLength": 1 },
+    "installation_id": { "type": "string", "minLength": 1 },
+    "agent_definition_id": { "type": "string", "minLength": 1 },
+    "agent_version_id": { "type": "string", "minLength": 1 },
+    "run_id": { "type": ["string", "null"] },
+    "channel_type": { "type": "string", "minLength": 1 },
+    "action": {
+      "type": "string",
+      "enum": ["requested", "claimed", "human_message", "continued", "resolved", "released", "expired", "cancelled"]
+    },
+    "status": { "type": "string", "enum": ["pending", "claimed", "resolved", "expired", "cancelled"] },
+    "reason": { "type": "string", "enum": ["customer_requested", "agent_uncertain", "policy_required", "high_value", "configured_workflow", "other"] },
+    "priority": { "type": "string", "enum": ["normal", "high", "urgent"] },
+    "actor_type": { "type": "string", "enum": ["agent", "user", "system"] },
+    "message_id": { "type": "string", "minLength": 1 },
+    "delivery_status": { "type": "string", "minLength": 1 },
+    "conversation_state": { "type": "string", "enum": ["agent_active", "handoff_requested", "human_owned", "resolved", "expired", "cancelled"] },
+    "resolution_code": { "type": "string", "enum": ["continued_with_agent", "resolved"] },
+    "occurred_at": { "type": "string", "format": "date-time" }
+  },
+  "x-kasitek": {
+    "identity": "agent.handoff.lifecycle@1",
+    "owner": "agent-platform",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["summary", "customer_message", "content", "prompt", "response", "phone_number", "email", "credential", "token"]
+  }
+}
