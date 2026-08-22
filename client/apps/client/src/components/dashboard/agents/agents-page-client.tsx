@@ -220,13 +220,13 @@ function CreateAgentDialog({
             <button type="button" onClick={() => { onAudienceChange("personal"); onStepChange("type"); }} className={`flex min-h-[244px] flex-col rounded-xl border p-6 text-left transition-colors ${audience === "personal" ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/60 hover:bg-secondary/35"}`}>
               <UserRound className="h-6 w-6 text-primary" />
               <h3 className="mt-5 text-base font-semibold text-foreground">Personal agent</h3>
-              <p className="mt-2 text-sm leading-5 text-muted-foreground">Private assistant for your own work, knowledge, and test chats.</p>
+              <p className="mt-2 text-sm leading-5 text-muted-foreground">Private assistant for your work, knowledge, and everyday tasks.</p>
               <span className="mt-auto pt-5 text-sm font-medium text-primary">Continue</span>
             </button>
             <button type="button" onClick={() => { onAudienceChange("customer_service"); onStepChange("type"); }} className={`flex min-h-[244px] flex-col rounded-xl border p-6 text-left transition-colors ${audience === "customer_service" ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/60 hover:bg-secondary/35"}`}>
               <MessageSquare className="h-6 w-6 text-primary" />
               <h3 className="mt-5 text-base font-semibold text-foreground">Customer service agent</h3>
-              <p className="mt-2 text-sm leading-5 text-muted-foreground">Customer-facing assistant with channels and human handoff support.</p>
+              <p className="mt-2 text-sm leading-5 text-muted-foreground">Customer-facing assistant for conversations, support, and service workflows.</p>
               <span className="mt-auto pt-5 text-sm font-medium text-primary">Continue</span>
             </button>
           </div>
