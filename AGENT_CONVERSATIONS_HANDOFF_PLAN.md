@@ -26,9 +26,9 @@ This plan covers the split between personal and customer-service agents, custome
 
 - [x] Ask whether a new agent is Personal or Customer service.
 - [x] Keep personal creation focused on private/test use.
-- [ ] Show customer-service setup only for customer-service agents.
+- [x] Show customer-service setup only for customer-service agents.
 - [x] Preserve existing general and custom builder paths.
-- [ ] Add inline validation and loading/error feedback.
+- [x] Add inline validation and loading/error feedback.
 
 ## 3. Template catalog
 

@@ -12,6 +12,7 @@ import {
   FileText,
   Globe2,
   LoaderCircle,
+  ListChecks,
   PlugZap,
   SlidersHorizontal,
   Upload,
@@ -145,6 +146,36 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 type AgentAudience = "personal" | "customer_service";
+
+function CustomerServiceSetup({ template }: { template?: AgentTemplate }) {
+  const setupSteps = template?.setupSteps.length
+    ? template.setupSteps
+    : ["Review handoff behavior", "Connect a customer channel", "Test a customer conversation"];
+  return (
+    <Card className="rounded-2xl border-primary/25 bg-primary/5">
+      <CardContent className="space-y-4 p-5">
+        <div className="flex items-start gap-3">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><ListChecks className="h-5 w-5" /></div>
+          <div>
+            <h2 className="font-semibold text-foreground">Customer-service setup</h2>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">Human handoff is enabled for this agent.</p>
+          </div>
+          <Badge className="ml-auto border-primary/20 bg-primary/10 text-primary">Handoff enabled</Badge>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-border bg-background/50 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Channel</p><p className="mt-1 text-sm font-medium text-foreground">{template?.channelCompatibility?.join(", ") || "Platform"}</p></div>
+          <div className="rounded-xl border border-border bg-background/50 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Queue</p><p className="mt-1 text-sm font-medium text-foreground">Agent Conversations</p></div>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Setup</p>
+          <ol className="mt-2 grid gap-2 text-sm text-foreground sm:grid-cols-3">
+            {setupSteps.map((step, index) => <li key={`${step}-${index}`} className="flex items-start gap-2"><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{index + 1}</span><span>{step}</span></li>)}
+          </ol>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export function CreateAgentPageClient({ audience = "personal", initialTemplate, initialDraft }: { audience?: AgentAudience; initialTemplate?: AgentTemplate; initialDraft?: { agent: AgentDefinition; version: AgentVersion } }) {
   const router = useRouter();
@@ -399,6 +430,7 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
         <main className="mx-auto mt-4 max-w-[1440px]">
           {error ? <p className="mb-4 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p> : null}
           {publishStageLabel ? <p className="mb-4 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary" role="status"><LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" />{publishStageLabel}</p> : null}
+          {audience === "customer_service" ? <div className="mb-4"><CustomerServiceSetup template={initialTemplate} /></div> : null}
           <AgentWorkflowEditor configuration={draft.version.configuration ?? {}} onChange={setWorkflow} onValidityChange={setWorkflowValid} knowledgeText={knowledgeText} knowledgeFile={knowledgeFile} onKnowledgeTextChange={setKnowledgeText} onKnowledgeFileChange={(file) => { if (file && file.size > 20 * 1024 * 1024) { setError("Files must be 20 MB or smaller."); return; } setError(null); setKnowledgeFile(file); }} />
         </main>
       </div>
@@ -408,8 +440,8 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
   if (!draft && !created) {
     return (
       <div className="min-h-[100dvh] px-4 py-8 sm:px-6 lg:px-8"><div className="mx-auto max-w-2xl">
-        <div className="flex items-center justify-between gap-4"><Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to agents</Link><p className="text-xs font-medium text-muted-foreground">New custom agent</p></div>
-        <Card className="mt-12 rounded-3xl border-border/80 shadow-xl shadow-black/10"><CardContent className="p-6 sm:p-10 lg:p-12"><div className="text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20"><Bot className="h-7 w-7" /></div><h1 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">Create your agent</h1><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Give it a name and a job. You’ll configure the rest on the canvas.</p></div>{initialTemplate ? <div className="mt-8 rounded-2xl border border-primary/25 bg-primary/5 p-4"><p className="text-sm font-semibold text-foreground">Starting from {initialTemplate.name}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{initialTemplate.description}</p></div> : null}<div className="mt-8 space-y-5"><Field label="Agent name"><Input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Support operations agent" className="mt-2 h-12 px-4 text-base" /></Field><Field label="What should it do?"><Textarea value={purpose} onChange={(event) => setPurpose(event.target.value)} rows={5} maxLength={2000} placeholder="Handle support questions and guide customers to the right next step." className="mt-2 resize-y px-4 py-3 leading-6" /></Field></div>{error ? <p className="mt-5 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p> : null}<div className="mt-8 flex items-center justify-between gap-3 border-t border-border pt-6"><Button type="button" variant="outline" disabled={loading} onClick={() => router.push("/agents")}>Cancel</Button><Button type="button" disabled={loading || !name.trim() || !purpose.trim()} onClick={() => void submit()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Creating draft…</> : "Continue"}</Button></div></CardContent></Card>
+        <div className="flex items-center justify-between gap-4"><Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to agents</Link><div className="flex items-center gap-2"><Badge className="border-primary/20 bg-primary/10 text-primary">{audience === "customer_service" ? "Customer service" : "Personal"}</Badge><p className="text-xs font-medium text-muted-foreground">New custom agent</p></div></div>
+        <Card className="mt-12 rounded-3xl border-border/80 shadow-xl shadow-black/10"><CardContent className="p-6 sm:p-10 lg:p-12"><div className="text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20"><Bot className="h-7 w-7" /></div><h1 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">Create your agent</h1><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Give it a name and a job. You’ll configure the rest on the canvas.</p></div>{initialTemplate ? <div className="mt-8 rounded-2xl border border-primary/25 bg-primary/5 p-4"><p className="text-sm font-semibold text-foreground">Starting from {initialTemplate.name}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{initialTemplate.description}</p></div> : null}{audience === "customer_service" ? <div className="mt-8"><CustomerServiceSetup template={initialTemplate} /></div> : null}<div className="mt-8 space-y-5"><Field label="Agent name"><Input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Support operations agent" className="mt-2 h-12 px-4 text-base" /></Field><Field label="What should it do?"><Textarea value={purpose} onChange={(event) => setPurpose(event.target.value)} rows={5} maxLength={2000} placeholder="Handle support questions and guide customers to the right next step." className="mt-2 resize-y px-4 py-3 leading-6" /></Field></div>{error ? <p className="mt-5 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p> : null}<div className="mt-8 flex items-center justify-between gap-3 border-t border-border pt-6"><Button type="button" variant="outline" disabled={loading} onClick={() => router.push("/agents")}>Cancel</Button><Button type="button" disabled={loading || !name.trim() || !purpose.trim()} onClick={() => void submit()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Creating draft…</> : "Continue"}</Button></div></CardContent></Card>
       </div></div>
     );
   }
