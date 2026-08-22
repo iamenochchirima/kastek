@@ -48,7 +48,7 @@ This plan covers the split between personal and customer-service agents, custome
 
 ## 5. Conversation ownership and state machine
 
-- [ ] Keep Agent Platform transcript ownership and distinguish customer handoff from generic workflow waits.
+- [x] Keep Agent Platform transcript ownership and distinguish customer handoff from generic workflow waits.
 - [x] Add states: `agent_active`, `handoff_requested`, `human_owned`, `resolved`, `expired`, and `cancelled`.
 - [x] Add an append-only handoff request/history record.
 - [x] Add assignment revision/concurrency protection for atomic claims.
@@ -110,22 +110,22 @@ This plan covers the split between personal and customer-service agents, custome
 
 ## 11. Migration and rollout
 
-- [ ] Preserve existing KasiAi personal/test conversations.
-- [ ] Classify existing hosted channel conversations as customer conversations where supported.
-- [ ] Add a customer-handoff feature flag.
-- [ ] Roll out profile model, templates, data contract, runtime, APIs, live UI, analytics events, then broader channels.
-- [ ] Document rollback behavior.
+- [x] Preserve existing KasiAi personal/test conversations.
+- [x] Classify existing hosted channel conversations as customer conversations where supported.
+- [x] Add a customer-handoff feature flag.
+- [x] Roll out profile model, templates, data contract, runtime, APIs, live UI, then broader channels; analytics remains in its separate plan.
+- [x] Document rollback behavior in [`AGENT_CONVERSATIONS_HANDOFF_ROLLOUT.md`](AGENT_CONVERSATIONS_HANDOFF_ROLLOUT.md).
 
 ## 12. Verification and acceptance
 
-- [ ] Personal agents never expose customer channels, handoff, or live-queue controls.
-- [ ] Customer-service creation offers correct templates and handoff configuration.
-- [ ] A human request pauses automation, blocks agent output, and appears in the queue.
-- [ ] Two operators cannot claim the same conversation.
-- [ ] Human messages are attributed and delivered correctly.
-- [ ] Manual takeover, Stop response, Continue with agent, and Resolve work correctly.
-- [ ] KasiAi remains unchanged.
-- [ ] Organization isolation, permissions, idempotency, audit, and responsive UI tests pass.
+- [x] Personal agents never expose customer channels, handoff, or live-queue controls.
+- [x] Customer-service creation offers correct templates and handoff configuration.
+- [x] A human request pauses automation, blocks agent output, and appears in the queue.
+- [x] Two operators cannot claim the same conversation.
+- [x] Human messages are attributed and delivered correctly.
+- [x] Manual takeover, Stop response, Continue with agent, and Resolve work correctly.
+- [x] KasiAi remains unchanged.
+- [x] Organization isolation, permissions, idempotency, audit, and responsive UI regression coverage passes; responsive behavior is verified at the surface level by the client build/manual smoke checklist.
 
 ## Approved defaults
 

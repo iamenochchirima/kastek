@@ -191,6 +191,12 @@ describe("foundation migration", () => {
     expect(handoffSql).toContain("idempotency_key");
   });
 
+  it("defines the scoped customer handoff rollout flag", async () => {
+    const rolloutSql = await readFile(new URL("../migrations/069_customer_handoff_feature_flag.sql", import.meta.url), "utf8");
+    expect(rolloutSql).toContain("customer_handoff_enabled");
+    expect(rolloutSql).toContain("organization/installation scoped");
+  });
+
   it("defines agent context and aggregate ownership invariants", async () => {
     const scopeSql = await readFile(new URL("../migrations/057_agent_context_and_ownership_invariants.sql", import.meta.url), "utf8");
     expect(scopeSql).toContain("memory_records_agent_scope_required");

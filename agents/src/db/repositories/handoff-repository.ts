@@ -317,7 +317,20 @@ export class HandoffRepository {
   public async conversationExists(organizationId: string, conversationId: string): Promise<boolean> {
     const result = await query<{ exists: boolean }>(
       this.pool,
-      "SELECT EXISTS (SELECT 1 FROM conversations WHERE organization_id = $1 AND id = $2 AND status <> 'deleted') AS exists",
+      `SELECT EXISTS (
+         SELECT 1
+         FROM conversations c
+         JOIN agent_installations ai
+           ON ai.id = c.installation_id
+          AND ai.organization_id = c.organization_id
+         JOIN agent_definitions ad
+           ON ad.id = ai.agent_definition_id
+          AND ad.agent_audience = 'customer_service'
+         WHERE c.organization_id = $1
+           AND c.id = $2
+           AND c.status <> 'deleted'
+           AND c.conversation_kind = 'customer'
+       ) AS exists`,
       [organizationId, conversationId],
     );
     return result.rows[0]?.exists === true;
@@ -332,10 +345,26 @@ export class HandoffRepository {
       this.pool,
       `SELECT sequence_number, event_type, payload, created_at
        FROM agent_events
-       WHERE organization_id = $1 AND subject = $2 AND sequence_number > $3
+       WHERE organization_id = $1
+         AND subject = $2
+         AND sequence_number > $3
+         AND EXISTS (
+           SELECT 1
+           FROM conversations c
+           JOIN agent_installations ai
+             ON ai.id = c.installation_id
+            AND ai.organization_id = c.organization_id
+           JOIN agent_definitions ad
+             ON ad.id = ai.agent_definition_id
+            AND ad.agent_audience = 'customer_service'
+           WHERE c.organization_id = $1
+             AND c.id = $4
+             AND c.status <> 'deleted'
+             AND c.conversation_kind = 'customer'
+         )
        ORDER BY sequence_number ASC
        LIMIT 200`,
-      [organizationId, `conversation:${conversationId}`, afterSequence],
+      [organizationId, `conversation:${conversationId}`, afterSequence, conversationId],
     );
     return result.rows as Array<Record<string, unknown>>;
   }

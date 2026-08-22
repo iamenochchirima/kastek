@@ -2,6 +2,24 @@ import { describe, expect, it, vi } from "vitest";
 import { HandoffRepository } from "../src/db/repositories/handoff-repository";
 
 describe("handoff repository lifecycle", () => {
+  it("limits event-stream ownership to customer conversations on customer-service installations", async () => {
+    const query = vi.fn(async () => ({ rows: [{ exists: false }] }));
+    const pool = { query } as never;
+    const repository = new HandoffRepository(pool);
+
+    await expect(repository.conversationExists("org-1", "conversation-1")).resolves.toBe(false);
+    const existsSql = String(query.mock.calls[0]?.[0]);
+    expect(existsSql).toContain("ad.agent_audience = 'customer_service'");
+    expect(existsSql).toContain("c.conversation_kind = 'customer'");
+
+    query.mockResolvedValueOnce({ rows: [] });
+    await repository.listConversationEventsAfter("org-1", "conversation-1", 4);
+    const eventsSql = String(query.mock.calls[1]?.[0]);
+    expect(eventsSql).toContain("c.conversation_kind = 'customer'");
+    expect(eventsSql).toContain("ad.agent_audience = 'customer_service'");
+    expect(query.mock.calls[1]?.[1]).toEqual(["org-1", "conversation:conversation-1", 4, "conversation-1"]);
+  });
+
   it("emits first-human-response before the per-message event", async () => {
     const eventTypes: string[] = [];
     const auditRecords: Array<{ action: string; metadata: Record<string, unknown> }> = [];

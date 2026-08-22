@@ -395,8 +395,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const installationCredentials = dependencies.installationCredentials ?? new InstallationCredentialRepository(dependencies.pool);
   const developerApiKeyResolver = dependencies.developerApiKeyResolver ?? new KasitekCoreDeveloperApiKeyResolver(dependencies.config);
   const installationGrants = dependencies.installationGrants ?? new InstallationGrantRepository(dependencies.pool);
+  const controls = dependencies.controls ?? new OperatorControlRepository(dependencies.pool);
   const handoffs = new HandoffRepository(dependencies.pool);
-  const conversationActions = dependencies.conversationActions ?? new ConversationActionService(handoffs);
+  const conversationActions = dependencies.conversationActions ?? new ConversationActionService(handoffs, controls);
   const conversationControls = dependencies.conversationControls ?? new ConversationControlService(handoffs);
   const coreClient = new KasitekCoreReadClient(dependencies.config);
   const toolRegistry = dependencies.toolRegistry ?? createDefaultTools(new KasitekCoreReadClient(dependencies.config), conversationActions);
@@ -436,7 +437,6 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const audits = dependencies.audits ?? new AuditRepository(dependencies.pool);
   const schedules = dependencies.schedules ?? new ScheduleRepository(dependencies.pool);
   const killSwitches = dependencies.killSwitches ?? new KillSwitchRepository(dependencies.pool);
-  const controls = dependencies.controls ?? new OperatorControlRepository(dependencies.pool);
   const retention = dependencies.retention ?? new RetentionRepository(dependencies.pool);
   const kasiaiPreferences = dependencies.kasiaiPreferences ?? new KasiAiPreferenceRepository(dependencies.pool);
   const approvalDecisionRateLimiter = new ApprovalDecisionRateLimiter(
@@ -2852,6 +2852,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       requireHostedInstallation(installation);
       if (installation.execution_mode === "kasitek_hosted") {
         if (conversation.conversation_kind && !["customer", "test"].includes(conversation.conversation_kind)) {
+          return reply.code(404).send({ error: "conversation_not_found" });
+        }
+        if (conversation.conversation_kind === "customer" && installation.agent_audience !== "customer_service") {
           return reply.code(404).send({ error: "conversation_not_found" });
         }
         if (typeof conversations.markInstallationOpened === "function") {

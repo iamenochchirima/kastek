@@ -1,4 +1,5 @@
 import type { HandoffPriority, HandoffReason, HandoffRepository } from "../db/repositories/handoff-repository";
+import type { OperatorControlRepository } from "../db/repositories/operator-control-repository";
 import type { ToolInvocationContext } from "../tools/types";
 
 export interface RequestHumanArguments {
@@ -26,7 +27,10 @@ export interface RequestHumanResult {
  * conversation ownership state independently.
  */
 export class ConversationActionService {
-  public constructor(private readonly handoffs: HandoffRepository) {}
+  public constructor(
+    private readonly handoffs: HandoffRepository,
+    private readonly controls?: Pick<OperatorControlRepository, "isFeatureEnabled">,
+  ) {}
 
   public async requestHuman(context: ToolInvocationContext, input: RequestHumanArguments): Promise<RequestHumanResult> {
     const conversationId = input.conversationId?.trim() || context.conversationId;
@@ -34,6 +38,12 @@ export class ConversationActionService {
       throw Object.assign(new Error("A conversation is required for human handoff"), {
         statusCode: 400,
         code: "conversation_target_required",
+      });
+    }
+    if (this.controls && !(await this.controls.isFeatureEnabled(context.organizationId, "customer_handoff_enabled", context.installationId))) {
+      throw Object.assign(new Error("Customer handoff is disabled by an active feature policy"), {
+        statusCode: 403,
+        code: "CUSTOMER_HANDOFF_FEATURE_DISABLED",
       });
     }
     const result = await this.handoffs.requestHuman({

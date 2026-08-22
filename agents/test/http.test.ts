@@ -1269,6 +1269,40 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("does not expose a customer transcript through a personal installation deep link", async () => {
+    const getConversation = vi.fn(async () => ({
+      id: "conversation-1",
+      installation_id: "install-1",
+      organization_id: "org-1",
+      conversation_kind: "customer",
+      status: "active",
+    }));
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      agents: {
+        getInstallation: async () => ({
+          id: "install-1",
+          organization_id: "org-1",
+          status: "active",
+          ...hostedInstallationIdentity,
+          agent_audience: "personal" as const,
+        }),
+      } as never,
+      conversations: { getConversation } as never,
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/conversations/conversation-1",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+    });
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({ error: "conversation_not_found" });
+    expect(getConversation).toHaveBeenCalledWith("org-1", "conversation-1");
+    await app.close();
+  });
+
   it("keeps the protected KasiAi service allowlist release-managed", async () => {
     const grantVersionTool = vi.fn();
     const grantInstallationTool = vi.fn();

@@ -1049,7 +1049,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     : new EnvironmentCredentialResolver());
   const coreClient = options.coreClient ?? (options.config ? new KasitekCoreReadClient(options.config) : undefined);
   const telegramClient = options.telegramClient ?? (options.config ? new TelegramBotClient({ apiBaseUrl: options.config.TELEGRAM_API_BASE_URL, timeoutMs: options.config.TELEGRAM_API_TIMEOUT_MS }) : undefined);
-  const conversationActions = options.conversationActions ?? new ConversationActionService(new HandoffRepository(pool));
+  const conversationActions = options.conversationActions ?? new ConversationActionService(new HandoffRepository(pool), controls);
   const handoffs = new HandoffRepository(pool);
   const tools = options.tools ?? createDefaultTools(coreClient, conversationActions);
   return {

@@ -78,6 +78,25 @@ describe("conversation action contract", () => {
     })).rejects.toMatchObject({ code: "conversation_target_required", statusCode: 400 });
   });
 
+  it("fails closed when the customer handoff rollout flag is disabled", async () => {
+    const requestHuman = vi.fn();
+    const controls = { isFeatureEnabled: vi.fn(async () => false) };
+    const service = new ConversationActionService(
+      { requestHuman } as unknown as HandoffRepository,
+      controls,
+    );
+
+    await expect(service.requestHuman(context, {
+      reason: "customer_requested",
+      summary: "Customer requested a person.",
+    })).rejects.toMatchObject({
+      code: "CUSTOMER_HANDOFF_FEATURE_DISABLED",
+      statusCode: 403,
+    });
+    expect(controls.isFeatureEnabled).toHaveBeenCalledWith("org-1", "customer_handoff_enabled", "installation-1");
+    expect(requestHuman).not.toHaveBeenCalled();
+  });
+
   it("keeps operator controls on the same handoff repository boundary", async () => {
     const handoffs = {
       listQueue: vi.fn(async () => ({ items: [], nextBefore: null })),
