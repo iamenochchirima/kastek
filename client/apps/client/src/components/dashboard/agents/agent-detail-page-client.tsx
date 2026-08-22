@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
-import { Archive, ArrowLeft, BookOpen, Bot, CheckCircle2, Copy, Globe2, History, KeyRound, LayoutDashboard, MessageSquare, PlugZap, RefreshCw, Rocket, RotateCcw, Settings2, SlidersHorizontal, Sparkles, Trash2, Upload, Workflow } from "lucide-react";
+import { Archive, ArrowLeft, BookOpen, Bot, CheckCircle2, Copy, Cpu, Globe2, History, KeyRound, LayoutDashboard, MessageSquare, PlugZap, RefreshCw, Rocket, RotateCcw, Settings2, SlidersHorizontal, Sparkles, Trash2, Upload, Workflow } from "lucide-react";
 import type { IconType } from "react-icons";
-import { SiDiscord, SiInstagram, SiMessenger, SiModelcontextprotocol, SiSlack, SiTelegram, SiWhatsapp, SiWordpress } from "react-icons/si";
+import { SiAnthropic, SiDiscord, SiGooglegemini, SiInstagram, SiMessenger, SiModelcontextprotocol, SiOpenai, SiSlack, SiTelegram, SiWhatsapp, SiWordpress, SiX } from "react-icons/si";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -125,13 +125,41 @@ function providerLabel(provider?: AgentModelProvider) {
   return provider ? AGENT_MODEL_PROVIDER_LABELS[provider] : "provider";
 }
 
+const PROVIDER_LOGOS: Partial<Record<AgentModelProvider, IconType>> = {
+  openai: SiOpenai,
+  anthropic: SiAnthropic,
+  gemini: SiGooglegemini,
+  xai: SiX,
+};
+
+const PROVIDER_MARKS: Record<AgentModelProvider, string> = {
+  openrouter: "OR",
+  openai: "AI",
+  anthropic: "A",
+  gemini: "G",
+  deepseek: "DS",
+  glm: "GLM",
+  kimi: "K",
+  minimax: "MM",
+  xai: "X",
+  opencode_go: "GO",
+  opencode_zen: "Z",
+};
+
+function ProviderLogo({ provider, compact = false }: { provider: AgentModelProvider; compact?: boolean }) {
+  const Logo = PROVIDER_LOGOS[provider];
+  return <span className={`grid shrink-0 place-items-center rounded-lg border border-primary/20 bg-primary/10 text-primary ${compact ? "h-6 w-6" : "h-9 w-9"}`} aria-hidden="true">
+    {Logo ? <Logo className={compact ? "h-3.5 w-3.5" : "h-5 w-5"} /> : <span className={compact ? "text-[8px] font-bold leading-none" : "text-[10px] font-bold leading-none"}>{PROVIDER_MARKS[provider]}</span>}
+  </span>;
+}
+
 function ProviderTabs({ value, onChange, configuredProviders }: { value: AgentModelProvider; onChange: (provider: AgentModelProvider) => void; configuredProviders: AgentModelProvider[] }) {
   return <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="tablist" aria-label="API key providers">
     {MODEL_PROVIDERS.map((provider) => {
       const configured = configuredProviders.includes(provider);
       const selected = value === provider;
       return <button key={provider} type="button" role="tab" aria-selected={selected} onClick={() => onChange(provider)} className={`rounded-lg border p-3 text-left transition-colors ${selected ? "border-primary bg-primary/10" : "border-border bg-background hover:border-primary/50"}`}>
-        <span className="flex items-center justify-between gap-2"><span className="font-medium text-foreground">{providerLabel(provider)}</span>{selected ? <Badge className="border-primary/30 bg-primary/10 text-primary">Selected</Badge> : null}</span>
+        <span className="flex items-center justify-between gap-2"><span className="flex min-w-0 items-center gap-2"><ProviderLogo provider={provider} /><span className="truncate font-medium text-foreground">{providerLabel(provider)}</span></span>{selected ? <Badge className="border-primary/30 bg-primary/10 text-primary">Selected</Badge> : null}</span>
         <span className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground"><span className={`h-1.5 w-1.5 rounded-full ${configured ? "bg-status-success" : "bg-muted-foreground/50"}`} />{configured ? "Configured" : "Not configured"}</span>
       </button>;
     })}
@@ -143,7 +171,7 @@ function capabilityGroup(capability: AgentCapability) {
   return scope.split(".")[0] || "platform";
 }
 
-function KasiAiBehaviour({ installationId }: { installationId: string }) {
+function KasiAiModels({ installationId }: { installationId: string }) {
   const [home, setHome] = useState<KasiAiHome | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -307,7 +335,7 @@ function KasiAiBehaviour({ installationId }: { installationId: string }) {
   };
 
   return <Card><CardContent className="space-y-4 p-6">
-    <div><h2 className="text-lg font-semibold text-foreground">Agent behaviour</h2><p className="mt-1 text-sm text-muted-foreground">Choose the default model for KasiAi.</p></div>
+    <div><h2 className="text-lg font-semibold text-foreground">Models</h2><p className="mt-1 text-sm text-muted-foreground">Choose the default model and API key.</p></div>
     <div className="rounded-xl border border-border bg-secondary/20 p-4">
       <h3 className="text-sm font-semibold text-foreground">Default model</h3>
       <div className="mt-3 max-w-xl">
@@ -428,7 +456,7 @@ function sanitizeAgentSlug(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
 }
 
-type DetailSection = "overview" | "activity" | "conversations" | "operations" | "knowledge" | "behavior" | "integrations" | "appearance" | "deployment" | "connection" | "settings" | "advanced";
+type DetailSection = "overview" | "activity" | "conversations" | "operations" | "knowledge" | "behavior" | "models" | "integrations" | "appearance" | "deployment" | "connection" | "settings" | "advanced";
 
 type DetailNavigationItem = {
   section: DetailSection;
@@ -443,7 +471,7 @@ type DetailNavigationGroup = {
 };
 
 function isDetailSection(value: string | null): value is DetailSection {
-  return value === "overview" || value === "activity" || value === "conversations" || value === "operations" || value === "knowledge" || value === "behavior" || value === "integrations" || value === "appearance" || value === "deployment" || value === "connection" || value === "settings" || value === "advanced";
+  return value === "overview" || value === "activity" || value === "conversations" || value === "operations" || value === "knowledge" || value === "behavior" || value === "models" || value === "integrations" || value === "appearance" || value === "deployment" || value === "connection" || value === "settings" || value === "advanced";
 }
 
 export function AgentDetailPageClient({ agent, initialVersions }: { agent: AgentDefinition; initialVersions: AgentVersion[] }) {
@@ -514,7 +542,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const activeSection: DetailSection = requestedDetailSection === "advanced" ? "settings" : requestedDetailSection;
 
   useEffect(() => {
-    if (!kasitekHostedAgent || activeSection !== "behavior") return;
+    if (!kasitekHostedAgent || activeSection !== "models") return;
     let cancelled = false;
     setModelCatalogLoading(true);
     setModelCatalogLoadError(null);
@@ -535,7 +563,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   }, [activeSection, kasitekHostedAgent]);
 
   useEffect(() => {
-    if (!kasitekHostedAgent || activeSection !== "behavior") return;
+    if (!kasitekHostedAgent || activeSection !== "models") return;
     let cancelled = false;
     setCredentialsLoading(true);
     void listAgentProviderCredentials()
@@ -642,7 +670,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
     if (hostedAgent) {
       groups.push(
         { label: "Training data", items: [{ section: "knowledge", label: "Knowledge", description: "Files, text, and Q&A", icon: BookOpen }] },
-        { label: "Behaviour", items: [{ section: "behavior", label: "Tune agent", description: "Model, instructions, and workflow", icon: SlidersHorizontal }] },
+        ...(kasitekHostedAgent ? [{ label: "Behaviour", items: [{ section: "behavior" as const, label: "Tune agent", description: "Instructions, runtime, and workflow", icon: SlidersHorizontal }] }] : []),
+        { label: "Models", items: [{ section: "models", label: "Models", description: "Model and API key", icon: Cpu }] },
         {
           label: "Deployment",
           items: [
@@ -894,22 +923,22 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 
         {activeSection === "behavior" && kasitekHostedAgent ? <AgentWorkflowEditor configuration={baseConfiguration} onChange={handleWorkflowChange} onValidityChange={handleWorkflowValidity} onTestRun={agent.installation_id && installationStatus === "active" ? runWorkflowTest : undefined} /> : null}
 
-        {activeSection === "behavior" && executionMode === "system_hosted" && agent.installation_id ? <KasiAiBehaviour installationId={agent.installation_id} /> : null}
+        {activeSection === "models" && executionMode === "system_hosted" && agent.installation_id ? <KasiAiModels installationId={agent.installation_id} /> : null}
 
-        {activeSection === "behavior" && kasitekHostedAgent ? (
+        {activeSection === "models" && kasitekHostedAgent ? (
           <Card>
             <CardContent className="space-y-4 p-6">
               <div>
-                <h2 className="text-lg font-semibold text-foreground">Agent behaviour</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Set the model, instructions, runtime limits, and workflow for this agent.</p>
+                <h2 className="text-lg font-semibold text-foreground">Models</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Choose the model and API key for this agent.</p>
               </div>
               <div className="rounded-xl border border-border bg-secondary/20 p-4">
                 <h3 className="text-sm font-semibold text-foreground">Model policy</h3>
-                <div className="mt-3 grid gap-3 sm:grid-cols-[0.65fr_1.35fr_0.7fr]">
+                <div className="mt-3 grid gap-3 sm:grid-cols-[0.65fr_1.35fr]">
                   <label className="text-xs font-medium text-foreground">Provider
                     <Select value={modelProvider} onValueChange={(value) => changeModelProvider(value as AgentModelProvider)}>
                       <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                      <SelectContent>{providerOptions.map((provider) => <SelectItem key={provider} value={provider}>{providerLabel(provider)}</SelectItem>)}</SelectContent>
+                      <SelectContent>{providerOptions.map((provider) => <SelectItem key={provider} value={provider}><span className="flex items-center gap-2"><ProviderLogo provider={provider} compact />{providerLabel(provider)}</span></SelectItem>)}</SelectContent>
                     </Select>
                   </label>
                   <div className="min-w-0 text-xs font-medium text-foreground">
@@ -920,7 +949,6 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
                     {modelCatalog?.error ? <p className="mt-1 text-[11px] font-normal text-status-attention">Showing fallback models while the live catalog is unavailable.</p> : null}
                     {modelCatalog && providerModels.length && model.trim() && !selectedModelAvailable ? <p className="mt-1 text-[11px] font-normal text-destructive">The saved model is unavailable. Choose another model before saving.</p> : null}
                   </div>
-                  <label className="text-xs font-medium text-foreground">Max tokens<Input value={runtimeLimits.maxTotalTokens} onChange={(event) => setRuntimeLimits((current) => ({ ...current, maxTotalTokens: event.target.value }))} inputMode="numeric" className="mt-1" /></label>
                 </div>
               </div>
               <div className="rounded-xl border border-border bg-secondary/20 p-4">
@@ -953,8 +981,23 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
                     <Button type="button" variant="outline" disabled={!credentialKey.trim() || credentialSaving} onClick={() => void saveProviderCredential()}>{credentialSaving ? "Saving…" : "Verify & save"}</Button>
                   </div>
                   {credentialSaved ? <p className="text-xs text-status-success" role="status">API key saved{credentialProvider !== modelProvider ? `. Select ${providerLabel(credentialProvider)} as the model provider to use it` : ""}.</p> : null}
-                  {credentialError ? <p className="text-xs text-destructive" role="alert">{credentialError}</p> : null}
+                {credentialError ? <p className="text-xs text-destructive" role="alert">{credentialError}</p> : null}
                 </div> : <p className="mt-2 text-xs text-muted-foreground">Uses the configured KasiTek provider key.</p>}
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-muted-foreground">Changes are saved as a new version. Publish it from Settings when you are ready.</p>
+                <Button type="button" disabled={creatingVersion || !instructions.trim() || !model.trim() || Boolean(modelCatalog && providerModels.length && !selectedModelAvailable) || !workflowReady || !workflowValid || !workflow || (credentialMode === "user" && (!credentialReference || credentialProvider !== modelProvider))} onClick={() => void createVersion()}>{creatingVersion ? "Saving…" : "Save version"}</Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {activeSection === "behavior" && kasitekHostedAgent ? (
+          <Card>
+            <CardContent className="space-y-4 p-6">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Agent behaviour</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Set instructions and runtime limits for this agent.</p>
               </div>
               <AgentRuntimeLimits value={runtimeLimits} onChange={setRuntimeLimits} />
               <Textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={8} maxLength={200000} className="resize-y font-mono leading-6" aria-label="Agent instructions" />
