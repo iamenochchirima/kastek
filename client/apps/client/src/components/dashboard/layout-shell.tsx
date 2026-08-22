@@ -33,6 +33,7 @@ import {
   LockKeyhole,
   LogOut,
   Menu,
+  MessageSquare,
   Moon,
   PhoneCall,
   Search,
@@ -134,6 +135,7 @@ const navigationGroups: NavigationGroup[] = [
     label: "Automation",
     items: [
       { name: "Agents", href: "/agents", icon: Bot },
+      { name: "Conversations", href: "/agents/conversations", icon: MessageSquare },
       { name: "Templates", href: "/agents/templates", icon: LayoutTemplate },
       { name: "Activity", href: "/agents/activity", icon: History },
       { name: "Analytics", href: "/agents/analytics", icon: ChartColumn },

@@ -16,6 +16,18 @@ pub struct StreamQuery {
     pub after: Option<u64>,
 }
 
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct HandoffQuery {
+    pub installation_id: Option<String>,
+    pub agent_id: Option<String>,
+    pub status: Option<String>,
+    pub priority: Option<String>,
+    pub search: Option<String>,
+    pub limit: Option<u32>,
+    pub before: Option<String>,
+}
+
 fn client(config: &AppConfig) -> Result<AgentPlatformClient, AppError> {
     AgentPlatformClient::from_config(config)
 }
@@ -859,6 +871,100 @@ pub async fn list_conversations(
     let (user, organization_id) = scope(&req, pool.get_ref()).await?;
     let response = client(config.get_ref())?
         .list_conversations(&organization_id, &user.id, &installation_id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn list_handoffs(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<HandoffQuery>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let query = query.into_inner();
+    let response = client(config.get_ref())?
+        .list_handoffs(
+            &organization_id,
+            &user.id,
+            query.installation_id.as_deref(),
+            query.agent_id.as_deref(),
+            query.status.as_deref(),
+            query.priority.as_deref(),
+            query.search.as_deref(),
+            query.limit,
+            query.before.as_deref(),
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn get_handoff(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    handoff_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .get_handoff(&organization_id, &user.id, handoff_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn claim_handoff(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    handoff_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .claim_handoff(&organization_id, &user.id, handoff_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn continue_handoff(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    handoff_id: web::Path<String>,
+    body: Option<web::Json<Value>>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let body = body
+        .map(|value| value.into_inner())
+        .unwrap_or_else(|| Value::Object(Map::new()));
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Handoff continuation body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .continue_handoff(&organization_id, &user.id, handoff_id.trim(), body)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn resolve_handoff(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    handoff_id: web::Path<String>,
+    body: Option<web::Json<Value>>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let body = body
+        .map(|value| value.into_inner())
+        .unwrap_or_else(|| Value::Object(Map::new()));
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Handoff resolution body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .resolve_handoff(&organization_id, &user.id, handoff_id.trim(), body)
         .await?;
     Ok(HttpResponse::Ok().json(response))
 }

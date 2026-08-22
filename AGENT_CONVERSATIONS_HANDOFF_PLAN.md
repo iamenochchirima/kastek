@@ -74,12 +74,12 @@ This plan covers the split between personal and customer-service agents, custome
 
 ## 7. Agent Conversations live interface
 
-- [ ] Add `/agents/conversations`.
-- [ ] Add Handoff requests, Human owned, Agent live, and All views.
+- [x] Add `/agents/conversations`.
+- [x] Add Handoff requests, Human owned, and All views; Agent live remains tied to active-run data.
 - [ ] Add agent, channel, status, reason, priority, and search filters.
-- [ ] Build responsive list/detail navigation for desktop, tablet, and mobile.
+- [x] Build responsive list/detail navigation for desktop, tablet, and mobile.
 - [ ] Show customer, agent, human, and system attribution.
-- [ ] Add Take over, Stop response, Send as human, Continue with agent, Resolve, and activity controls.
+- [x] Add Take over, Continue with agent, and Resolve controls; Stop response and Send as human remain pending.
 - [ ] Deep-link to filtered conversations from agent details and Inbox projections.
 
 ## 8. Existing surfaces and navigation
@@ -87,7 +87,7 @@ This plan covers the split between personal and customer-service agents, custome
 - [ ] Replace links-only agent conversation cards with live queue links/actions.
 - [ ] Keep personal agent chats in the private/test surface.
 - [ ] Keep Agent Platform customer transcripts distinct from legacy Inbox ownership.
-- [ ] Add Agent Conversations to the Automation navigation group.
+- [x] Add Agent Conversations to the Automation navigation group.
 - [ ] Avoid duplicating handoff controls across surfaces.
 
 ## 9. Analytics integration

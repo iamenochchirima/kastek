@@ -1511,6 +1511,120 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn list_handoffs(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: Option<&str>,
+        agent_id: Option<&str>,
+        status: Option<&str>,
+        priority: Option<&str>,
+        search: Option<&str>,
+        limit: Option<u32>,
+        before: Option<&str>,
+    ) -> Result<Value, AppError> {
+        let mut query = Vec::new();
+        for (key, value) in [
+            ("installationId", installation_id),
+            ("agentId", agent_id),
+            ("status", status),
+            ("priority", priority),
+            ("search", search),
+            ("before", before),
+        ] {
+            if let Some(value) = value.filter(|value| !value.trim().is_empty()) {
+                query.push(format!("{key}={}", urlencoding::encode(value)));
+            }
+        }
+        if let Some(limit) = limit {
+            query.push(format!("limit={limit}"));
+        }
+        let path = if query.is_empty() {
+            "/v1/conversations/handoffs".to_string()
+        } else {
+            format!("/v1/conversations/handoffs?{}", query.join("&"))
+        };
+        self.request_json(
+            Method::GET,
+            &path,
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn get_handoff(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        handoff_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/conversations/handoffs/{handoff_id}"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn claim_handoff(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        handoff_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/conversations/handoffs/{handoff_id}/claim"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(json!({})),
+        )
+        .await
+    }
+
+    pub async fn continue_handoff(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        handoff_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/conversations/handoffs/{handoff_id}/continue"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn resolve_handoff(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        handoff_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/conversations/handoffs/{handoff_id}/resolve"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
     pub async fn kasiai_home(
         &self,
         organization_id: &str,

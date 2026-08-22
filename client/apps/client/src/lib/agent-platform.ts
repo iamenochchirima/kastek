@@ -91,6 +91,90 @@ export type AgentConversation = {
   updated_at: string;
 };
 
+export type AgentHandoffStatus = "pending" | "claimed" | "resolved" | "expired" | "cancelled";
+export type AgentHandoffPriority = "normal" | "high" | "urgent";
+
+export type AgentHandoffRequest = {
+  id: string;
+  organization_id: string;
+  installation_id: string;
+  conversation_id: string;
+  agent_definition_id: string;
+  agent_version_id: string;
+  run_id?: string | null;
+  channel_type: string;
+  reason: string;
+  priority: AgentHandoffPriority;
+  summary: string;
+  customer_message?: string | null;
+  status: AgentHandoffStatus;
+  requested_by: string;
+  claimed_by?: string | null;
+  claimed_at?: string | null;
+  resolved_by?: string | null;
+  resolved_at?: string | null;
+  resolution?: string | null;
+  metadata?: Record<string, unknown>;
+  idempotency_key?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AgentHandoffQueueItem = {
+  handoff: AgentHandoffRequest;
+  conversation: AgentConversation;
+};
+
+export type AgentHandoffQueue = {
+  items: AgentHandoffQueueItem[];
+  nextBefore: string | null;
+};
+
+export type AgentHandoffMutation = AgentHandoffQueueItem & { changed: boolean };
+
+export function listAgentHandoffs(filters: {
+  installationId?: string;
+  agentId?: string;
+  status?: AgentHandoffStatus[];
+  priority?: AgentHandoffPriority;
+  search?: string;
+  limit?: number;
+  before?: string;
+} = {}): Promise<AgentHandoffQueue> {
+  const query = new URLSearchParams();
+  if (filters.installationId) query.set("installationId", filters.installationId);
+  if (filters.agentId) query.set("agentId", filters.agentId);
+  if (filters.status?.length) query.set("status", filters.status.join(","));
+  if (filters.priority) query.set("priority", filters.priority);
+  if (filters.search) query.set("search", filters.search);
+  if (filters.limit) query.set("limit", String(filters.limit));
+  if (filters.before) query.set("before", filters.before);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return request<AgentHandoffQueue>(`/api/agents/conversations/handoffs${suffix}`);
+}
+
+export function getAgentHandoff(handoffId: string): Promise<AgentHandoffQueueItem> {
+  return request(`/api/agents/conversations/handoffs/${encodeURIComponent(handoffId)}`);
+}
+
+export function claimAgentHandoff(handoffId: string): Promise<AgentHandoffMutation> {
+  return request(`/api/agents/conversations/handoffs/${encodeURIComponent(handoffId)}/claim`, { method: "POST", body: JSON.stringify({}) });
+}
+
+export function continueAgentHandoff(handoffId: string, resolution?: string): Promise<AgentHandoffMutation> {
+  return request(`/api/agents/conversations/handoffs/${encodeURIComponent(handoffId)}/continue`, {
+    method: "POST",
+    body: JSON.stringify(resolution ? { resolution } : {}),
+  });
+}
+
+export function resolveAgentHandoff(handoffId: string, resolution?: string): Promise<AgentHandoffMutation> {
+  return request(`/api/agents/conversations/handoffs/${encodeURIComponent(handoffId)}/resolve`, {
+    method: "POST",
+    body: JSON.stringify(resolution ? { resolution } : {}),
+  });
+}
+
 export type AgentRun = {
   id: string;
   organization_id?: string;

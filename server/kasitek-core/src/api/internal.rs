@@ -332,6 +332,26 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_platform::list_conversations),
             )
             .route(
+                "/conversations/handoffs",
+                web::get().to(agent_platform::list_handoffs),
+            )
+            .route(
+                "/conversations/handoffs/{handoffId}",
+                web::get().to(agent_platform::get_handoff),
+            )
+            .route(
+                "/conversations/handoffs/{handoffId}/claim",
+                web::post().to(agent_platform::claim_handoff),
+            )
+            .route(
+                "/conversations/handoffs/{handoffId}/continue",
+                web::post().to(agent_platform::continue_handoff),
+            )
+            .route(
+                "/conversations/handoffs/{handoffId}/resolve",
+                web::post().to(agent_platform::resolve_handoff),
+            )
+            .route(
                 "/installations/{installationId}/kasiai/home",
                 web::post().to(agent_platform::kasiai_home),
             )
