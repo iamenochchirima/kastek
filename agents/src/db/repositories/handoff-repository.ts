@@ -74,6 +74,22 @@ export interface HandoffQueuePage {
   nextBefore: string | null;
 }
 
+export interface LiveConversationItem {
+  conversation: ConversationRecord & {
+    participant_display_name?: string | null;
+    participant_external_id?: string | null;
+  };
+  run: {
+    id: string;
+    status: string;
+    installation_id: string;
+    agent_definition_id: string;
+    created_at: string;
+    updated_at: string;
+    trigger_type: string;
+  };
+}
+
 export interface HandoffMutationResult {
   handoff: HandoffRequestRecord;
   conversation: ConversationRecord;
@@ -148,6 +164,78 @@ export class HandoffRepository {
     );
     const row = result.rows[0];
     return row ? { handoff: row, conversation: row.conversation } : null;
+  }
+
+  public async listLive(organizationId: string, filters: { installationId?: string; agentId?: string; search?: string; limit?: number } = {}): Promise<{ items: LiveConversationItem[] }> {
+    const values: unknown[] = [organizationId];
+    const where = [
+      "c.organization_id = $1",
+      "c.conversation_kind = 'customer'",
+      "c.status = 'active'",
+      "r.status = ANY(ARRAY['received', 'queued', 'running', 'awaiting_approval', 'awaiting_external_event']::text[])",
+    ];
+    const add = (sql: string, value: unknown): void => {
+      values.push(value);
+      where.push(sql.replace("$VALUE", `$${values.length}`));
+    };
+    if (filters.installationId) add("c.installation_id = $VALUE", filters.installationId);
+    if (filters.agentId) add("r.agent_definition_id = $VALUE", filters.agentId);
+    if (filters.search?.trim()) {
+      values.push(`%${filters.search.trim().replace(/[%_]/g, "\\$&")}%`);
+      where.push("(c.title ILIKE $VALUE ESCAPE '\\' OR c.last_message_preview ILIKE $VALUE ESCAPE '\\' OR participant.display_name ILIKE $VALUE ESCAPE '\\')".replace(/\$VALUE/g, `$${values.length}`));
+    }
+    const limit = Math.max(1, Math.min(filters.limit ?? 100, 200));
+    values.push(limit);
+    const result = await query<ConversationRecord & {
+      run_id: string;
+      run_status: string;
+      run_installation_id: string;
+      run_agent_definition_id: string;
+      run_created_at: string;
+      run_updated_at: string;
+      run_trigger_type: string;
+      participant_display_name: string | null;
+      participant_external_id: string | null;
+    }>(
+      this.pool,
+      `SELECT c.*, r.id AS run_id, r.status AS run_status,
+              r.installation_id AS run_installation_id, r.agent_definition_id AS run_agent_definition_id,
+              r.created_at AS run_created_at, r.updated_at AS run_updated_at, r.trigger_type AS run_trigger_type,
+              participant.display_name AS participant_display_name,
+              participant.external_id AS participant_external_id
+       FROM conversations c
+       JOIN agent_runs r ON r.conversation_id = c.id AND r.organization_id = c.organization_id
+       LEFT JOIN LATERAL (
+         SELECT p.display_name, p.external_id
+         FROM participants p
+         WHERE p.conversation_id = c.id AND p.organization_id = c.organization_id
+           AND p.participant_type = 'customer'
+         ORDER BY p.created_at
+         LIMIT 1
+       ) participant ON true
+       WHERE ${where.join(" AND ")}
+       ORDER BY r.updated_at DESC, r.id DESC
+       LIMIT $${values.length}`,
+      values,
+    );
+    return {
+      items: result.rows.map((row) => ({
+        conversation: {
+          ...row,
+          participant_display_name: row.participant_display_name,
+          participant_external_id: row.participant_external_id,
+        },
+        run: {
+          id: row.run_id,
+          status: row.run_status,
+          installation_id: row.run_installation_id,
+          agent_definition_id: row.run_agent_definition_id,
+          created_at: row.run_created_at,
+          updated_at: row.run_updated_at,
+          trigger_type: row.run_trigger_type,
+        },
+      })),
+    };
   }
 
   public async requestHuman(input: RequestHumanInput): Promise<RequestedHandoff> {

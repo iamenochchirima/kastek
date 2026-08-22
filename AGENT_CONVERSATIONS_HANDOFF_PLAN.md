@@ -54,8 +54,8 @@ This plan covers the split between personal and customer-service agents, custome
 - [x] Add assignment revision/concurrency protection for atomic claims.
 - [x] Add atomic claim, continue-with-agent, and resolve transitions behind a shared operator control service.
 - [ ] Block agent replies while handoff is pending or human-owned.
-- [ ] Support Stop response without claiming the conversation.
-- [ ] Support Take over, Continue with agent, Resolve, and expiry/cancellation transitions.
+- [x] Support Stop response without claiming the conversation.
+- [x] Support Take over, Continue with agent, Resolve, and cancellation transitions; expiry remains pending.
 - [ ] Continue with agent starts a fresh run from the latest transcript.
 
 ## 6. Runtime and API contract
@@ -64,13 +64,14 @@ This plan covers the split between personal and customer-service agents, custome
 - [x] Pause the model loop with an `awaiting_human` control after a successful handoff request.
 - [x] Define queue pagination/filter inputs and keep operator mutations on the same repository boundary.
 - [x] Expose an organization-scoped handoff queue/detail API with claim, continue-with-agent, and resolve transitions.
-- [ ] List live conversations and handoff requests with filters and pagination.
+- [x] List live conversations with organization-scoped installation, agent, search, and bounded-limit filters; cursor pagination remains pending.
 - [ ] Get transcript, participants, active runs, ownership, and handoff history.
-- [ ] Add atomic claim, release, pause/stop, resume, human-message, resolve, and expire operations.
+- [x] Add atomic claim, pause/stop, resume, human-message, and resolve operations.
+- [ ] Add release and expiry operations.
 - [ ] Apply organization scope, permissions, idempotency keys, and optimistic concurrency.
 - [x] Apply organization scoping and read/write scopes to the operator API; keep handoff creation idempotent and claims transactionally race-safe.
 - [ ] Emit lifecycle events compatible with the analytics handoff contract.
-- [ ] Add realtime updates with a polling fallback where necessary.
+- [x] Add polling refresh for live and handoff views; realtime updates remain pending.
 
 ## 7. Agent Conversations live interface
 
@@ -79,7 +80,7 @@ This plan covers the split between personal and customer-service agents, custome
 - [ ] Add agent, channel, status, reason, priority, and search filters.
 - [x] Build responsive list/detail navigation for desktop, tablet, and mobile.
 - [ ] Show customer, agent, human, and system attribution.
-- [x] Add Take over, Continue with agent, and Resolve controls; Stop response and Send as human remain pending.
+- [x] Add Take over, Continue with agent, Resolve, Stop response, and Send as human controls.
 - [ ] Deep-link to filtered conversations from agent details and Inbox projections.
 
 ## 8. Existing surfaces and navigation

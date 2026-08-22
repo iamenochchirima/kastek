@@ -24,6 +24,7 @@ import {
   cancelAgentRun,
   continueAgentHandoff,
   getPlatformConversation,
+  listAgentLiveConversations,
   listAgentHandoffs,
   resolveAgentHandoff,
   sendAgentHumanMessage,
@@ -36,11 +37,12 @@ import {
 import { MotionReveal } from "@/components/ui/motion-reveal";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 
-type QueueView = "handoff" | "human" | "all";
+type QueueView = "handoff" | "human" | "live" | "all";
 
 const viewStatuses: Record<QueueView, AgentHandoffStatus[]> = {
   handoff: ["pending"],
   human: ["claimed"],
+  live: [],
   all: ["pending", "claimed", "resolved", "expired", "cancelled"],
 };
 
@@ -80,7 +82,9 @@ function EmptyQueue({ view }: { view: QueueView }) {
 export function AgentConversationsPageClient({ initialQueue }: { initialQueue: AgentHandoffQueue }) {
   const [view, setView] = useState<QueueView>("handoff");
   const [queue, setQueue] = useState(initialQueue);
+  const [liveQueue, setLiveQueue] = useState<Array<{ conversation: AgentHandoffQueueItem["conversation"]; run: { id: string; status: string; installation_id: string; agent_definition_id: string; created_at: string; updated_at: string; trigger_type: string } }>>([]);
   const [selectedId, setSelectedId] = useState<string | null>(initialQueue.items[0]?.handoff.id ?? null);
+  const [selectedLiveId, setSelectedLiveId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [priority, setPriority] = useState<AgentHandoffPriority | "">("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -95,9 +99,15 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
   const loadQueue = useCallback(async (nextView: QueueView = view, silent = false) => {
     if (!silent) setRefreshing(true);
     try {
-      const result = await listAgentHandoffs({ status: viewStatuses[nextView], limit: 100, search: search.trim() || undefined, priority: priority || undefined });
-      setQueue(result);
-      setSelectedId((current) => result.items.some((item) => item.handoff.id === current) ? current : result.items[0]?.handoff.id ?? null);
+      if (nextView === "live") {
+        const result = await listAgentLiveConversations({ limit: 100, search: search.trim() || undefined });
+        setLiveQueue(result.items);
+        setSelectedLiveId((current) => result.items.some((item) => item.conversation.id === current) ? current : result.items[0]?.conversation.id ?? null);
+      } else {
+        const result = await listAgentHandoffs({ status: viewStatuses[nextView], limit: 100, search: search.trim() || undefined, priority: priority || undefined });
+        setQueue(result);
+        setSelectedId((current) => result.items.some((item) => item.handoff.id === current) ? current : result.items[0]?.handoff.id ?? null);
+      }
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to load conversations");
@@ -116,16 +126,18 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
   }, [loadQueue, view]);
 
   const selected = useMemo(() => queue.items.find((item) => item.handoff.id === selectedId) ?? null, [queue.items, selectedId]);
+  const selectedLive = useMemo(() => liveQueue.find((item) => item.conversation.id === selectedLiveId) ?? null, [liveQueue, selectedLiveId]);
+  const activeConversationId = view === "live" ? selectedLive?.conversation.id : selected?.conversation.id;
 
   useEffect(() => {
-    if (!selected) {
+    if (!activeConversationId) {
       setMessages([]);
       setActiveRuns([]);
       return;
     }
     let cancelled = false;
     setTranscriptLoading(true);
-    void getPlatformConversation(selected.conversation.id, { limit: 100 })
+    void getPlatformConversation(activeConversationId, { limit: 100 })
       .then((result) => {
         if (cancelled) return;
         setMessages(result.messages ?? []);
@@ -143,7 +155,7 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
     return () => {
       cancelled = true;
     };
-  }, [selected]);
+  }, [activeConversationId]);
 
   async function mutate(id: string, action: "claim" | "continue" | "resolve") {
     setBusy(`${action}:${id}`);
@@ -196,6 +208,7 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
   const counts = {
     handoff: queue.items.filter((item) => item.handoff.status === "pending").length,
     human: queue.items.filter((item) => item.handoff.status === "claimed").length,
+    live: liveQueue.length,
   };
 
   return (
@@ -217,10 +230,10 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
 
         <MotionReveal delay={0.08}>
           <div className="mt-8 grid gap-3 sm:grid-cols-3">
-            {(["handoff", "human", "all"] as QueueView[]).map((key) => (
+            {(["handoff", "human", "live", "all"] as QueueView[]).map((key) => (
               <button key={key} type="button" onClick={() => setView(key)} className={`rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary/40 ${view === key ? "border-primary/60 ring-1 ring-primary/20" : "border-border"}`}>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{key === "handoff" ? "Handoff requests" : key === "human" ? "Human owned" : "All activity"}</p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{key === "handoff" ? counts.handoff : key === "human" ? counts.human : queue.items.length}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{key === "handoff" ? "Handoff requests" : key === "human" ? "Human owned" : key === "live" ? "Agent live" : "All activity"}</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{key === "handoff" ? counts.handoff : key === "human" ? counts.human : key === "live" ? counts.live : queue.items.length}</p>
               </button>
             ))}
           </div>
@@ -230,7 +243,7 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
           <section className="mt-6 rounded-xl border border-border bg-card/80 p-3 sm:p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap gap-1 rounded-lg bg-secondary/70 p-1">
-                {(["handoff", "human", "all"] as QueueView[]).map((key) => <button key={key} type="button" onClick={() => setView(key)} className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${view === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{key === "handoff" ? "Handoff requests" : key === "human" ? "Human owned" : "All"}</button>)}
+                {(["handoff", "human", "live", "all"] as QueueView[]).map((key) => <button key={key} type="button" onClick={() => setView(key)} className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${view === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{key === "handoff" ? "Handoff requests" : key === "human" ? "Human owned" : key === "live" ? "Agent live" : "All"}</button>)}
               </div>
               <div className="flex w-full gap-2 sm:w-auto"><div className="relative min-w-0 flex-1 sm:w-56"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search conversations" className="pl-9" /></div><select aria-label="Priority" value={priority} onChange={(event) => setPriority(event.target.value as AgentHandoffPriority | "")} className="h-9 rounded-md border border-border bg-background px-2.5 text-xs text-foreground"><option value="">All priorities</option><option value="urgent">Urgent</option><option value="high">High</option><option value="normal">Normal</option></select></div>
             </div>
@@ -240,16 +253,23 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
         <MotionReveal delay={0.2}>
           <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
             <aside className="space-y-2" aria-label="Agent conversations">
-              {queue.items.length === 0 ? <EmptyQueue view={view} /> : queue.items.map((item) => (
+              {view === "live" ? (liveQueue.length === 0 ? <EmptyQueue view="all" /> : liveQueue.map((item) => (
+                <button key={item.conversation.id} type="button" onClick={() => setSelectedLiveId(item.conversation.id)} className={`w-full rounded-xl border p-4 text-left transition-colors ${selectedLiveId === item.conversation.id ? "border-primary/60 bg-primary/5" : "border-border bg-card hover:border-primary/30"}`}>
+                  <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground">{item.conversation.participant_display_name || item.conversation.title || "Customer conversation"}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.conversation.channel_type} · {timeLabel(item.run.updated_at)}</p></div><Badge className="shrink-0 border-status-info/30 bg-status-info-soft text-status-info">{item.run.status.replaceAll("_", " ")}</Badge></div>
+                  <p className="mt-3 line-clamp-2 text-xs text-muted-foreground">{item.conversation.last_message_preview || "Agent is processing this conversation."}</p>
+                </button>
+              ))) : (queue.items.length === 0 ? <EmptyQueue view={view} /> : queue.items.map((item) => (
                 <button key={item.handoff.id} type="button" onClick={() => setSelectedId(item.handoff.id)} className={`w-full rounded-xl border p-4 text-left transition-colors ${selectedId === item.handoff.id ? "border-primary/60 bg-primary/5" : "border-border bg-card hover:border-primary/30"}`}>
                   <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground">{titleFor(item)}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.handoff.channel_type} · {timeLabel(item.handoff.created_at)}</p></div><Badge className={`shrink-0 ${statusClass(item.handoff.status)}`}>{item.handoff.status}</Badge></div>
                   <p className={`mt-3 line-clamp-2 text-xs ${priorityClass(item.handoff.priority)}`}>{item.handoff.summary}</p>
                 </button>
-              ))}
+              )))}
             </aside>
 
             <section className="min-w-0 rounded-xl border border-border bg-card p-4 sm:p-6" aria-live="polite">
-              {!selected ? <div className="flex min-h-64 flex-col items-center justify-center text-center"><MessageSquare className="h-7 w-7 text-muted-foreground" /><p className="mt-3 text-sm text-muted-foreground">Select a conversation</p></div> : (
+              {view === "live" ? (!selectedLive ? <div className="flex min-h-64 flex-col items-center justify-center text-center"><MessageSquare className="h-7 w-7 text-muted-foreground" /><p className="mt-3 text-sm text-muted-foreground">Select a live conversation</p></div> : (
+                <div><div className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><div className="flex items-center gap-2"><Bot className="h-5 w-5 text-primary" /><h2 className="truncate text-lg font-semibold text-foreground">{selectedLive.conversation.participant_display_name || selectedLive.conversation.title || "Customer conversation"}</h2></div><p className="mt-1 text-sm text-muted-foreground">{selectedLive.conversation.channel_type} · {timeLabel(selectedLive.run.updated_at)}</p></div><Badge className="border-status-info/30 bg-status-info-soft text-status-info">Agent live</Badge></div><div className="mt-5 rounded-lg border border-status-info/30 bg-status-info-soft px-3 py-2 text-sm text-status-info"><span className="flex items-center gap-2"><span className="h-2 w-2 animate-pulse rounded-full bg-current" />Run {selectedLive.run.status.replaceAll("_", " ")}</span></div><div className="mt-6 rounded-lg border border-border p-4"><div className="flex items-center justify-between gap-3"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</p>{transcriptLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}</div>{messages.length ? <div className="mt-4 max-h-[32rem] space-y-3 overflow-y-auto pr-1">{messages.map((message) => { const text = typeof message.content?.text === "string" ? message.content.text : message.message_type; const isInbound = message.direction === "inbound"; return <div key={message.id} className={`flex ${isInbound ? "justify-start" : "justify-end"}`}><div className={`max-w-[86%] rounded-xl px-3 py-2 text-sm ${isInbound ? "bg-secondary text-foreground" : "bg-primary text-primary-foreground"}`}><p className="whitespace-pre-wrap leading-5">{text}</p><p className={`mt-1 text-[10px] ${isInbound ? "text-muted-foreground" : "text-primary-foreground/70"}`}>{isInbound ? "Customer" : message.direction === "system" ? "System" : "Agent"} · {timeLabel(message.created_at)}</p></div></div>; })}</div> : <p className="mt-4 text-sm text-muted-foreground">{transcriptLoading ? "Loading transcript…" : "No messages recorded."}</p>}</div></div>
+              )) : !selected ? <div className="flex min-h-64 flex-col items-center justify-center text-center"><MessageSquare className="h-7 w-7 text-muted-foreground" /><p className="mt-3 text-sm text-muted-foreground">Select a conversation</p></div> : (
                 <div>
                   <div className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><div className="flex items-center gap-2"><UserRound className="h-5 w-5 text-primary" /><h2 className="truncate text-lg font-semibold text-foreground">{titleFor(selected)}</h2></div><p className="mt-1 text-sm text-muted-foreground">{selected.handoff.channel_type} · {timeLabel(selected.handoff.created_at)}</p></div><Badge className={statusClass(selected.handoff.status)}>{selected.handoff.status}</Badge></div>
                   <div className="mt-5 grid gap-4 sm:grid-cols-3"><div><p className="text-xs text-muted-foreground">Reason</p><p className="mt-1 text-sm font-medium capitalize text-foreground">{selected.handoff.reason.replaceAll("_", " ")}</p></div><div><p className="text-xs text-muted-foreground">Priority</p><p className={`mt-1 text-sm font-medium capitalize ${priorityClass(selected.handoff.priority)}`}>{selected.handoff.priority}</p></div><div><p className="text-xs text-muted-foreground">Agent</p><p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-foreground"><Bot className="h-4 w-4 text-muted-foreground" />{selected.conversation.installation_id.slice(0, 8)}</p></div></div>

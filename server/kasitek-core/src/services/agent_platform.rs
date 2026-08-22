@@ -1555,6 +1555,44 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn list_live_conversations(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: Option<&str>,
+        agent_id: Option<&str>,
+        search: Option<&str>,
+        limit: Option<u32>,
+    ) -> Result<Value, AppError> {
+        let mut query = Vec::new();
+        for (key, value) in [
+            ("installationId", installation_id),
+            ("agentId", agent_id),
+            ("search", search),
+        ] {
+            if let Some(value) = value.filter(|value| !value.trim().is_empty()) {
+                query.push(format!("{key}={}", urlencoding::encode(value)));
+            }
+        }
+        if let Some(limit) = limit {
+            query.push(format!("limit={limit}"));
+        }
+        let path = if query.is_empty() {
+            "/v1/conversations/live".to_string()
+        } else {
+            format!("/v1/conversations/live?{}", query.join("&"))
+        };
+        self.request_json(
+            Method::GET,
+            &path,
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
     pub async fn get_handoff(
         &self,
         organization_id: &str,

@@ -5,6 +5,7 @@ import type {
   HandoffQueueItem,
   HandoffRepository,
   HumanMessageResult,
+  LiveConversationItem,
 } from "../db/repositories/handoff-repository";
 
 /** Operator-side controls for the same ownership state used by agent actions. */
@@ -17,6 +18,10 @@ export class ConversationControlService {
 
   public getHandoff(organizationId: string, handoffId: string): Promise<HandoffQueueItem | null> {
     return this.handoffs.get(organizationId, handoffId);
+  }
+
+  public listLive(organizationId: string, filters?: { installationId?: string; agentId?: string; search?: string; limit?: number }): Promise<{ items: LiveConversationItem[] }> {
+    return this.handoffs.listLive(organizationId, filters);
   }
 
   public claim(input: { organizationId: string; handoffId: string; actorId: string }): Promise<HandoffMutationResult> {

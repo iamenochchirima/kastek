@@ -28,6 +28,15 @@ pub struct HandoffQuery {
     pub before: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveConversationQuery {
+    pub installation_id: Option<String>,
+    pub agent_id: Option<String>,
+    pub search: Option<String>,
+    pub limit: Option<u32>,
+}
+
 fn client(config: &AppConfig) -> Result<AgentPlatformClient, AppError> {
     AgentPlatformClient::from_config(config)
 }
@@ -894,6 +903,27 @@ pub async fn list_handoffs(
             query.search.as_deref(),
             query.limit,
             query.before.as_deref(),
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn list_live_conversations(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<LiveConversationQuery>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let query = query.into_inner();
+    let response = client(config.get_ref())?
+        .list_live_conversations(
+            &organization_id,
+            &user.id,
+            query.installation_id.as_deref(),
+            query.agent_id.as_deref(),
+            query.search.as_deref(),
+            query.limit,
         )
         .await?;
     Ok(HttpResponse::Ok().json(response))

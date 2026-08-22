@@ -2215,6 +2215,21 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     },
   );
 
+  app.get<{ Querystring: { installationId?: string; agentId?: string; search?: string; limit?: string } }>(
+    "/v1/conversations/live",
+    async (request) => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "agents:read");
+      const queryInput = z.object({
+        installationId: z.string().uuid().optional(),
+        agentId: z.string().uuid().optional(),
+        search: z.string().trim().max(240).optional(),
+        limit: z.coerce.number().int().min(1).max(200).optional(),
+      }).parse(request.query);
+      return conversationControls.listLive(auth.organizationId, queryInput);
+    },
+  );
+
   app.get<{ Params: { handoffId: string } }>("/v1/conversations/handoffs/:handoffId", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");

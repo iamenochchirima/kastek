@@ -139,6 +139,11 @@ export type AgentHumanMessageResult = AgentHandoffQueueItem & {
   delivery?: { status: string };
 };
 
+export type AgentLiveConversation = {
+  conversation: AgentConversation;
+  run: { id: string; status: string; installation_id: string; agent_definition_id: string; created_at: string; updated_at: string; trigger_type: string };
+};
+
 export function listAgentHandoffs(filters: {
   installationId?: string;
   agentId?: string;
@@ -158,6 +163,16 @@ export function listAgentHandoffs(filters: {
   if (filters.before) query.set("before", filters.before);
   const suffix = query.toString() ? `?${query.toString()}` : "";
   return request<AgentHandoffQueue>(`/api/agents/conversations/handoffs${suffix}`);
+}
+
+export function listAgentLiveConversations(filters: { installationId?: string; agentId?: string; search?: string; limit?: number } = {}): Promise<{ items: AgentLiveConversation[] }> {
+  const query = new URLSearchParams();
+  if (filters.installationId) query.set("installationId", filters.installationId);
+  if (filters.agentId) query.set("agentId", filters.agentId);
+  if (filters.search) query.set("search", filters.search);
+  if (filters.limit) query.set("limit", String(filters.limit));
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return request(`/api/agents/conversations/live${suffix}`);
 }
 
 export function getAgentHandoff(handoffId: string): Promise<AgentHandoffQueueItem> {
