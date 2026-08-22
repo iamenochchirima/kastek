@@ -540,6 +540,13 @@ export class PlatformChatRepository {
         return { ...resolved, sourceParticipant, message: duplicate.rows[0], run: existingRun.rows[0], created: false };
       }
 
+      if (resolved.conversation.conversation_kind === "customer" && resolved.conversation.handoff_state !== "agent_active") {
+        throw Object.assign(new Error("Agent execution is paused while this conversation is owned by a human"), {
+          statusCode: 409,
+          code: "conversation_handoff_active",
+        });
+      }
+
       const openRun = await client.query<{ id: string }>(
         `SELECT id FROM agent_runs
          WHERE conversation_id = $1

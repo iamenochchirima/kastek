@@ -595,6 +595,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         }
         return reply.code(200).send({ ok: true });
       }
+      if ((error as { code?: string }).code === "conversation_handoff_active") {
+        // The provider webhook must be acknowledged while a human owns the
+        // thread; otherwise Telegram will retry the same update indefinitely.
+        return reply.code(200).send({ ok: true, handoffActive: true });
+      }
       throw error;
     }
     return reply.code(200).send({ ok: true });

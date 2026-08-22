@@ -316,6 +316,50 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     expect(secondThread.conversation.id).not.toBe(accepted.conversation.id);
     expect(secondThread.conversation.conversation_kind).toBe("customer");
 
+    const handoffThread = await platformChat.acceptExternalMessage({
+      organizationId,
+      installationId,
+      channelType: "whatsapp",
+      provider: "meta-whatsapp",
+      providerEventId: "event-handoff-1",
+      providerMessageId: "wamid-handoff-1",
+      externalIdentity: "+27820000001",
+      externalConversationId: "wa-handoff-thread",
+      messageType: "text",
+      content: { text: "Please connect me to a person." },
+    });
+    await pool.query(
+      `UPDATE conversations
+       SET handoff_state = 'handoff_requested', handoff_revision = handoff_revision + 1
+       WHERE id = $1 AND organization_id = $2`,
+      [handoffThread.conversation.id, organizationId],
+    );
+    await expect(conversations.appendMessage({
+      organizationId,
+      conversationId: handoffThread.conversation.id,
+      direction: "outbound",
+      content: { text: "This agent reply must be blocked." },
+      provider: "platform",
+    })).rejects.toMatchObject({ code: "conversation_handoff_active", statusCode: 409 });
+    await runs.transitionRun(handoffThread.run.id, "received", "queued");
+    await runs.transitionRun(handoffThread.run.id, "queued", "running");
+    const suppressed = await runs.completeRun(handoffThread.run.id, { message: "This response must not be sent." });
+    expect(suppressed.output).toMatchObject({ replySuppressed: true, replySuppressionReason: "conversation_handoff_active" });
+    expect((await conversations.listMessages(organizationId, handoffThread.conversation.id))
+      .filter((message) => message.direction === "outbound")).toHaveLength(0);
+    await expect(platformChat.acceptExternalMessage({
+      organizationId,
+      installationId,
+      channelType: "whatsapp",
+      provider: "meta-whatsapp",
+      providerEventId: "event-handoff-2",
+      providerMessageId: "wamid-handoff-2",
+      externalIdentity: "+27820000001",
+      externalConversationId: "wa-handoff-thread",
+      messageType: "text",
+      content: { text: "Do not start another agent run while a human owns this thread." },
+    })).rejects.toMatchObject({ code: "conversation_handoff_active", statusCode: 409 });
+
     await channels.createConnection({
       organizationId,
       installationId,

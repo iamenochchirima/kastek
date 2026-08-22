@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
 import { assertRunTransition, type RunStatus, type StartRunInput } from "../../domain/types";
 import { createAgentEvent } from "../../events/envelope";
+import type { ConversationRecord } from "./conversation-repository";
 
 export interface RunRecord {
   id: string;
@@ -94,6 +95,29 @@ export class RunRepository {
       );
       if (target.execution_mode === "external_connected" && !capabilityInvocation) {
         throw new Error("External-connected installations are invoked through MCP or REST capabilities");
+      }
+      if (input.conversationId) {
+        const conversation = await client.query<{
+          conversation_kind: ConversationRecord["conversation_kind"];
+          handoff_state: ConversationRecord["handoff_state"];
+          status: string;
+        }>(
+          `SELECT conversation_kind, handoff_state, status
+           FROM conversations
+           WHERE organization_id = $1 AND id = $2
+           FOR UPDATE`,
+          [organizationId, input.conversationId],
+        );
+        const currentConversation = conversation.rows[0];
+        if (!currentConversation || currentConversation.status !== "active") {
+          throw new Error("Active conversation not found");
+        }
+        if (currentConversation.conversation_kind === "customer" && currentConversation.handoff_state !== "agent_active") {
+          throw Object.assign(new Error("Agent execution is paused while this conversation is owned by a human"), {
+            statusCode: 409,
+            code: "conversation_handoff_active",
+          });
+        }
       }
       const maxConcurrentRuns = typeof target.policy.maxConcurrentRuns === "number"
         ? Math.trunc(target.policy.maxConcurrentRuns)
@@ -244,10 +268,16 @@ export class RunRepository {
       if (run.status === "completed") return run;
       assertRunTransition(run.status, "completed");
       const responseMessage = typeof output.message === "string" ? output.message.trim() : "";
+      let replySuppressed = false;
       if (run.conversation_id) {
-        if (!responseMessage) throw new Error("Conversation run cannot complete without an assistant message");
-        const conversation = await client.query<{ id: string; status: string }>(
-          `SELECT id, status FROM conversations
+        const conversation = await client.query<{
+          id: string;
+          status: string;
+          conversation_kind: ConversationRecord["conversation_kind"];
+          handoff_state: ConversationRecord["handoff_state"];
+        }>(
+          `SELECT id, status, conversation_kind, handoff_state
+           FROM conversations
            WHERE id = $1 AND organization_id = $2
            FOR UPDATE`,
           [run.conversation_id, run.organization_id],
@@ -255,7 +285,10 @@ export class RunRepository {
         if (!conversation.rows[0] || conversation.rows[0].status !== "active") {
           throw new Error("Active conversation not found");
         }
-        const participant = await client.query<{ id: string }>(
+        replySuppressed = conversation.rows[0].conversation_kind === "customer"
+          && conversation.rows[0].handoff_state !== "agent_active";
+        if (!replySuppressed && !responseMessage) throw new Error("Conversation run cannot complete without an assistant message");
+        const participant = replySuppressed ? null : await client.query<{ id: string }>(
           `INSERT INTO participants
             (conversation_id, organization_id, participant_type, external_id, display_name)
            SELECT $1, $2, 'agent', $3, name
@@ -265,17 +298,17 @@ export class RunRepository {
            RETURNING id`,
           [run.conversation_id, run.organization_id, run.agent_definition_id, run.agent_definition_id],
         );
-        const nextSequence = await client.query<{ sequence_number: string }>(
+        const nextSequence = replySuppressed ? null : await client.query<{ sequence_number: string }>(
           `SELECT COALESCE(MAX(sequence_number), 0) + 1 AS sequence_number
            FROM messages WHERE conversation_id = $1`,
           [run.conversation_id],
         );
-        const inboundRoute = await client.query<{ external_conversation_id: string | null }>(
+        const inboundRoute = replySuppressed ? null : await client.query<{ external_conversation_id: string | null }>(
           `SELECT external_conversation_id FROM messages
            WHERE run_id = $1 AND direction = 'inbound' LIMIT 1`,
           [run.id],
         );
-        const outbound = await client.query<{ id: string }>(
+        const outbound = replySuppressed ? { rows: [] as Array<{ id: string }> } : await client.query<{ id: string }>(
           `INSERT INTO messages
             (conversation_id, organization_id, participant_id, direction, message_type, content,
              provider, provider_message_id, sequence_number, run_id, source_channel,
@@ -290,14 +323,14 @@ export class RunRepository {
           [
             run.conversation_id,
             run.organization_id,
-            participant.rows[0]!.id,
+            participant!.rows[0]!.id,
             JSON.stringify({ text: responseMessage }),
             run.id,
-            nextSequence.rows[0]!.sequence_number,
+            nextSequence!.rows[0]!.sequence_number,
             run.id,
             run.reply_channel_type ?? "platform",
             run.reply_binding_id ?? null,
-            inboundRoute.rows[0]?.external_conversation_id ?? null,
+            inboundRoute!.rows[0]?.external_conversation_id ?? null,
           ],
         );
         if (outbound.rows[0] && run.reply_channel_type && run.reply_channel_type !== "platform") {
@@ -318,16 +351,33 @@ export class RunRepository {
             [run.conversation_id, responseMessage],
           );
         }
+        if (replySuppressed) {
+          await client.query(
+            `INSERT INTO agent_events
+              (organization_id, run_id, installation_id, event_type, payload, correlation_id)
+             VALUES ($1, $2, $3, 'agent.reply.suppressed', $4::jsonb, $5)`,
+            [
+              run.organization_id,
+              run.id,
+              run.installation_id,
+              JSON.stringify({ conversationId: run.conversation_id, reason: "conversation_handoff_active", handoffState: conversation.rows[0].handoff_state }),
+              run.correlation_id,
+            ],
+          );
+        }
       }
+      const persistedOutput = replySuppressed
+        ? { ...output, replySuppressed: true, replySuppressionReason: "conversation_handoff_active" }
+        : output;
       const updated = await client.query<RunRecord>(
         `UPDATE agent_runs SET status = 'completed', output = $2::jsonb, finished_at = now(), updated_at = now()
          WHERE id = $1 RETURNING *`,
-        [runId, JSON.stringify(output)],
+        [runId, JSON.stringify(persistedOutput)],
       );
       await client.query(
         `INSERT INTO agent_events (organization_id, run_id, installation_id, event_type, payload, correlation_id)
          VALUES ($1, $2, $3, 'run.completed', $4::jsonb, $5)`,
-        [run.organization_id, runId, run.installation_id, JSON.stringify(output), run.correlation_id],
+        [run.organization_id, runId, run.installation_id, JSON.stringify(persistedOutput), run.correlation_id],
       );
       await client.query(
         `UPDATE run_attempts SET status = 'completed', finished_at = now()

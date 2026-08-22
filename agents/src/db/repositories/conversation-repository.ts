@@ -405,6 +405,17 @@ export class ConversationRepository {
       if (!conversation.rows[0] || conversation.rows[0].status !== "active") {
         throw new Error("Active conversation not found");
       }
+      if (
+        input.direction === "outbound"
+        && input.provider !== "kasitek-human"
+        && conversation.rows[0].conversation_kind === "customer"
+        && conversation.rows[0].handoff_state !== "agent_active"
+      ) {
+        throw Object.assign(new Error("Agent replies are paused while this conversation is owned by a human"), {
+          statusCode: 409,
+          code: "conversation_handoff_active",
+        });
+      }
       if (input.participantId) {
         const participant = await client.query("SELECT id FROM participants WHERE id = $1 AND conversation_id = $2 AND organization_id = $3", [input.participantId, input.conversationId, input.organizationId]);
         if (!participant.rows[0]) throw new Error("Participant does not belong to conversation");
