@@ -47,7 +47,7 @@ import Image from "next/image";
 import { apiUrl } from "@/lib/server-api";
 import Link from "next/link";
 import { AnimatePresence, motion, MotionConfig } from "framer-motion";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
   useWhatsappInboxUnreadCount,
@@ -186,20 +186,20 @@ function ThemeToggleSimple({ className, iconOnly = false }: { className?: string
   );
 }
 
-function isItemActive(pathname: string, href: string) {
-  const matches = navigationGroups
+function getActiveNavItem(pathname: string) {
+  return navigationGroups
     .flatMap((group) => group.items)
     .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
     .sort((left, right) => right.href.length - left.href.length);
-  return matches[0]?.href === href;
 }
 
-function getSectionLabel(pathname: string) {
-  return (
-    navigationGroups.find((group) =>
-      group.items.some((item) => isItemActive(pathname, item.href)),
-    )?.label ?? "Home"
-  );
+function isItemActive(pathname: string, href: string) {
+  return getActiveNavItem(pathname)[0]?.href === href;
+}
+
+function getSectionLabel(pathname: string, view?: string | null) {
+  if (pathname === "/agents" && view === "external") return "External agents";
+  return getActiveNavItem(pathname)[0]?.name ?? "Home";
 }
 
 function DesktopTopbar({
@@ -589,7 +589,8 @@ export function LayoutShell({
   const [commandOpen, setCommandOpen] = useState(false);
   const appearance = useAppearance();
   const pathname = usePathname();
-  const sectionLabel = getSectionLabel(pathname);
+  const searchParams = useSearchParams();
+  const sectionLabel = getSectionLabel(pathname, searchParams.get("view"));
   const organizationName = orgs.find((org) => org.id === activeOrgId)?.name ?? "Workspace";
   const setSidebarCollapsed = useCallback((value: boolean) => {
     setCollapsed(value);
