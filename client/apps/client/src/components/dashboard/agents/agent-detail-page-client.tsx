@@ -515,11 +515,22 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const hostedAgent = executionMode === "system_hosted" || executionMode === "kasitek_hosted";
   const kasitekHostedAgent = executionMode === "kasitek_hosted";
   const customHostedAgent = kasitekHostedAgent && agent.creation_profile === "custom";
+  const customerServiceAgent = agent.agent_audience === "customer_service";
+  // KasiAi is a system-hosted personal agent with private pairing controls.
+  // Custom personal agents stay in the private/test surface and never expose
+  // customer channels, website chat, or the live customer queue.
+  const privateSystemAgent = executionMode === "system_hosted";
+  const customerConversationSurface = kasitekHostedAgent && customerServiceAgent;
+  const channelSurface = hostedAgent && (customerServiceAgent || privateSystemAgent);
   const deletableAgent = !protectedAgent && agent.owner_type === "organization";
   const requestedSection = searchParams.get("section");
   const requestedDetailSection: DetailSection = isDetailSection(requestedSection) ? requestedSection : "overview";
   // Keep old deep links working while presenting one Settings destination.
-  const activeSection: DetailSection = requestedDetailSection === "advanced" ? "settings" : requestedDetailSection;
+  const normalizedSection: DetailSection = requestedDetailSection === "advanced" ? "settings" : requestedDetailSection;
+  const activeSection: DetailSection = (
+    (normalizedSection === "conversations" && !customerConversationSurface)
+    || (["integrations", "deployment", "appearance"].includes(normalizedSection) && !channelSurface)
+  ) ? "activity" : normalizedSection;
 
   useEffect(() => {
     if (!kasitekHostedAgent || activeSection !== "models") return;
@@ -611,7 +622,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   };
 
   useEffect(() => {
-    if (!hostedAgent || protectedAgent || !agent.installation_id) {
+    if (!customerServiceAgent || !hostedAgent || protectedAgent || !agent.installation_id) {
       setWebsiteChatConfigured(false);
       return;
     }
@@ -624,15 +635,15 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         if (!cancelled) setWebsiteChatConfigured(false);
       });
     return () => { cancelled = true; };
-  }, [agent.installation_id, hostedAgent, protectedAgent]);
+  }, [agent.installation_id, customerServiceAgent, hostedAgent, protectedAgent]);
 
   const navigationGroups = useMemo<DetailNavigationGroup[]>(() => {
     const activityItems: DetailNavigationItem[] = [{ section: "activity", label: "Test chat", description: "Chat with this agent privately", icon: MessageSquare }];
+    if (customerConversationSurface) {
+      activityItems.push({ section: "conversations", label: "Chat history", description: "Customer conversations with this agent", icon: MessageSquare });
+    }
     if (kasitekHostedAgent) {
-      activityItems.push(
-        { section: "conversations", label: "Chat history", description: "Customer conversations with this agent", icon: MessageSquare },
-        { section: "operations", label: "Operations", description: "Runs and delivery activity", icon: History },
-      );
+      activityItems.push({ section: "operations", label: "Operations", description: "Runs and delivery activity", icon: History });
     }
     const groups: DetailNavigationGroup[] = [
       {
@@ -652,14 +663,14 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         { label: "Training data", items: [{ section: "knowledge", label: "Knowledge", description: "Files, text, and Q&A", icon: BookOpen }] },
         ...(kasitekHostedAgent ? [{ label: "Behaviour", items: [{ section: "behavior" as const, label: "Tune agent", description: "Instructions, runtime, and workflow", icon: SlidersHorizontal }] }] : []),
         { label: "Models", items: [{ section: "models", label: "Models", description: "Model and API key", icon: Cpu }] },
-        {
+        ...(channelSurface ? [{
           label: "Deployment",
           items: [
-            { section: "integrations", label: "Integrations", description: "Connect channels and surfaces", icon: PlugZap },
+            { section: "integrations" as const, label: "Integrations", description: "Connect channels and surfaces", icon: PlugZap },
             ...(websiteChatConfigured ? [{ section: "appearance" as const, label: "Appearance", description: "Customize Website Chat", icon: Sparkles }] : []),
-            { section: "deployment", label: "Channels & status", description: "Health, routing, and delivery", icon: Rocket },
+            { section: "deployment" as const, label: "Channels & status", description: "Health, routing, and delivery", icon: Rocket },
           ],
-        },
+        }] : []),
       );
     } else {
       groups.push({ label: "Connection", items: [{ section: "connection", label: "Credentials", description: "Connect and monitor runtime", icon: KeyRound }] });
@@ -675,7 +686,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
       groups.push({ label: "Settings", items: [{ section: "settings", label: "Settings", description: "Access and platform settings", icon: Settings2 }] });
     }
     return groups;
-  }, [externalAgent, hostedAgent, kasitekHostedAgent, protectedAgent, websiteChatConfigured]);
+  }, [channelSurface, customerConversationSurface, externalAgent, hostedAgent, kasitekHostedAgent, protectedAgent, websiteChatConfigured]);
 
   const selectSection = (section: DetailSection) => {
     if (section === "appearance") {
@@ -891,13 +902,13 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 
         {activeSection === "operations" && externalAgent && agent.installation_id ? <ExternalAgentOperations installationId={agent.installation_id} /> : null}
 
-        {activeSection === "conversations" && kasitekHostedAgent && agent.installation_id ? <AgentConversationHistory agentId={agent.id} installationId={agent.installation_id} /> : null}
+        {activeSection === "conversations" && customerConversationSurface && agent.installation_id ? <AgentConversationHistory agentId={agent.id} installationId={agent.installation_id} /> : null}
 
-        {activeSection === "integrations" && hostedAgent && agent.installation_id ? <InstallationIntegrations agentId={agent.id} installationId={agent.installation_id} personal={executionMode === "system_hosted"} agentName={agent.name} onWebsiteDeploymentStateChange={setWebsiteChatConfigured} /> : null}
+        {activeSection === "integrations" && channelSurface && agent.installation_id ? <InstallationIntegrations agentId={agent.id} installationId={agent.installation_id} personal={executionMode === "system_hosted"} agentName={agent.name} onWebsiteDeploymentStateChange={setWebsiteChatConfigured} /> : null}
 
-        {activeSection === "deployment" && hostedAgent && agent.installation_id ? <InstallationChannels installationId={agent.installation_id} personal={executionMode === "system_hosted"} /> : null}
+        {activeSection === "deployment" && channelSurface && agent.installation_id ? <InstallationChannels installationId={agent.installation_id} personal={executionMode === "system_hosted"} /> : null}
 
-        {activeSection === "deployment" && agent.installation_id ? <InstallationReadiness installationId={agent.installation_id} /> : null}
+        {activeSection === "deployment" && channelSurface && agent.installation_id ? <InstallationReadiness installationId={agent.installation_id} /> : null}
 
         {activeSection === "activity" && agent.installation_id && hostedAgent ? <AgentChatPanel installationId={agent.installation_id} active={installationStatus === "active"} initialModelProvider={modelProvider} initialModel={model} /> : null}
 

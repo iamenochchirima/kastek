@@ -87,7 +87,7 @@ This plan covers the split between personal and customer-service agents, custome
 ## 8. Existing surfaces and navigation
 
 - [x] Replace links-only agent conversation cards with live queue links/actions.
-- [ ] Keep personal agent chats in the private/test surface.
+- [x] Keep personal agent chats in the private/test surface; customer history, website chat, customer channels, and live-queue navigation are audience-gated, with KasiAi's private system channels preserved.
 - [ ] Keep Agent Platform customer transcripts distinct from legacy Inbox ownership.
 - [x] Add Agent Conversations to the Automation navigation group.
 - [ ] Avoid duplicating handoff controls across surfaces.

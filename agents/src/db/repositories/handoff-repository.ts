@@ -187,6 +187,7 @@ export class HandoffRepository {
       `SELECT h.*, row_to_json(c) AS conversation
        FROM agent_handoff_requests h
        JOIN conversations c ON c.id = h.conversation_id AND c.organization_id = h.organization_id
+       JOIN agent_definitions ad ON ad.id = h.agent_definition_id AND ad.agent_audience = 'customer_service'
        WHERE ${where.join(" AND ")}
        ORDER BY h.created_at DESC, h.id DESC
        LIMIT $${values.length}`,
@@ -207,6 +208,7 @@ export class HandoffRepository {
       `SELECT h.*, row_to_json(c) AS conversation
        FROM agent_handoff_requests h
        JOIN conversations c ON c.id = h.conversation_id AND c.organization_id = h.organization_id
+       JOIN agent_definitions ad ON ad.id = h.agent_definition_id AND ad.agent_audience = 'customer_service'
        WHERE h.organization_id = $1 AND h.id = $2`,
       [organizationId, handoffId],
     );
@@ -278,6 +280,7 @@ export class HandoffRepository {
               participant.external_id AS participant_external_id
        FROM conversations c
        JOIN agent_runs r ON r.conversation_id = c.id AND r.organization_id = c.organization_id
+       JOIN agent_definitions ad ON ad.id = r.agent_definition_id AND ad.agent_audience = 'customer_service'
        LEFT JOIN LATERAL (
          SELECT p.display_name, p.external_id
          FROM participants p
@@ -553,17 +556,18 @@ export class HandoffRepository {
   public async expirePending(organizationId?: string, limit = 100): Promise<number> {
     return withTransaction(this.pool, async (client) => {
       const values: unknown[] = [];
-      const where = ["status = 'pending'", "expires_at <= now()"];
+      const where = ["h.status = 'pending'", "h.expires_at <= now()"];
       if (organizationId) {
         values.push(organizationId);
-        where.push(`organization_id = $${values.length}`);
+        where.push(`h.organization_id = $${values.length}`);
       }
       values.push(Math.max(1, Math.min(limit, 500)));
       const expired = await client.query<{ id: string; organization_id: string }>(
-        `SELECT id, organization_id FROM agent_handoff_requests
+        `SELECT h.id, h.organization_id FROM agent_handoff_requests h
+         JOIN agent_definitions ad ON ad.id = h.agent_definition_id AND ad.agent_audience = 'customer_service'
          WHERE ${where.join(" AND ")}
-         ORDER BY expires_at ASC, id ASC
-         FOR UPDATE SKIP LOCKED
+         ORDER BY h.expires_at ASC, h.id ASC
+         FOR UPDATE OF h SKIP LOCKED
          LIMIT $${values.length}`,
         values,
       );
@@ -589,6 +593,7 @@ export class HandoffRepository {
         `SELECT h.*, row_to_json(c) AS conversation
          FROM agent_handoff_requests h
          JOIN conversations c ON c.id = h.conversation_id AND c.organization_id = h.organization_id
+         JOIN agent_definitions ad ON ad.id = h.agent_definition_id AND ad.agent_audience = 'customer_service'
          WHERE h.organization_id = $1 AND h.run_id = $2 AND h.status = 'pending'
            AND c.handoff_state = 'handoff_requested'
          ORDER BY h.created_at DESC, h.id DESC
@@ -1150,7 +1155,11 @@ export class HandoffRepository {
 
   private async lockMutationTarget(client: PoolClient, organizationId: string, handoffId: string): Promise<HandoffQueueItem> {
     const handoffResult = await client.query<HandoffRequestRecord>(
-      `SELECT * FROM agent_handoff_requests WHERE organization_id = $1 AND id = $2 FOR UPDATE`,
+      `SELECT h.*
+       FROM agent_handoff_requests h
+       JOIN agent_definitions ad ON ad.id = h.agent_definition_id AND ad.agent_audience = 'customer_service'
+       WHERE h.organization_id = $1 AND h.id = $2
+       FOR UPDATE OF h`,
       [organizationId, handoffId],
     );
     const handoff = handoffResult.rows[0];

@@ -1241,6 +1241,34 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("blocks customer conversation reads for personal hosted agents", async () => {
+    const listInstallationConversationProjections = vi.fn(async () => []);
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      agents: {
+        getInstallation: async (_organizationId: string, installationId: string) => ({
+          id: installationId,
+          organization_id: "org-1",
+          status: "active",
+          ...hostedInstallationIdentity,
+          agent_audience: "personal" as const,
+        }),
+      } as never,
+      conversations: { listInstallationConversationProjections } as never,
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/installations/install-1/conversations?kind=customer",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({ code: "personal_agent_customer_conversations_not_allowed" });
+    expect(listInstallationConversationProjections).not.toHaveBeenCalled();
+    await app.close();
+  });
+
   it("keeps the protected KasiAi service allowlist release-managed", async () => {
     const grantVersionTool = vi.fn();
     const grantInstallationTool = vi.fn();

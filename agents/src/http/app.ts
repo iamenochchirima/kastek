@@ -2129,6 +2129,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const status = request.query.status
         ? z.enum(["active", "archived", "deleted"]).parse(request.query.status)
         : "active" as const;
+      if (kind === "customer" && installation.agent_audience !== "customer_service") {
+        throw Object.assign(new Error("Personal agents cannot expose customer conversations"), {
+          statusCode: 409,
+          code: "personal_agent_customer_conversations_not_allowed",
+        });
+      }
       return {
         mode: installation.execution_mode,
         conversations: await conversations.listInstallationConversationProjections(
