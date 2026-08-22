@@ -284,7 +284,7 @@ checklist records implementation evidence for the current package only.
 - [ ] Add control-management UI in a later slice; expired entries fail closed during evaluation
   even before maintenance runs.
 
-## A-13 — M1 reference vertical slices (slices 1–5: Agent runtime)
+## A-13 — M1 reference vertical slices (slices 1–9: Agent runtime)
 
 - [x] Reuse the existing Agent Platform transactional Analytics outbox and registered terminal
   run contracts instead of reconstructing runtime facts from polling or operational summaries.
@@ -336,6 +336,12 @@ checklist records implementation evidence for the current package only.
   retirement, and rollback; exclude instructions, configuration, policy, and checksums.
 - [x] Emit version lifecycle facts transactionally across hosted, system, template, and external
   version creation/release paths, including the replaced version during publication or release.
+- [x] Add a versioned Agent definition lifecycle contract and metric for creation, metadata updates,
+  archive/restore, and deletion; export only bounded ownership, profile, audience, action, and
+  status fields, never definition names, slugs, or descriptions.
+- [x] Emit definition lifecycle facts transactionally across direct, external, Developer API,
+  template, and system definition paths, including the terminal deletion fact before dependent
+  data is removed and avoiding unchanged metadata-update duplicates.
 
 ## Verification evidence
 
@@ -508,6 +514,9 @@ checklist records implementation evidence for the current package only.
 - A-13 slice 8: version lifecycle contract, metric, dimensions, and registry bindings were
   regenerated; producer coverage and the live hosted-agent integration passed for draft creation,
   publication, bounded payloads, and organization isolation.
+- A-13 slice 9: definition lifecycle contract, metric, dimensions, and registry bindings were
+  regenerated; producer coverage and the live hosted-agent integration passed for creation,
+  metadata updates, deletion-before-removal, bounded payloads, and organization isolation.
 
 ## Explicitly deferred
 

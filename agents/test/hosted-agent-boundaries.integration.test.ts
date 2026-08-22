@@ -26,6 +26,21 @@ describe.skipIf(!runIntegration)("hosted agent lifecycle and isolation (integrat
   it("keeps definitions, versions, and installations organization-scoped", async () => {
     const agent = await agents.createAgent(organizationA, "owner-a", { name: "Boundary agent" });
     agentId = agent.id;
+    await agents.updateAgent(organizationA, "owner-a", agent.id, { name: "Boundary agent renamed", description: "A private description" });
+    const definitionFacts = await pool.query<{ action: string; status: string; changed_fields: string[] }>(
+      `SELECT envelope->'data'->>'action' AS action,
+              envelope->'data'->>'status' AS status,
+              ARRAY(SELECT jsonb_array_elements_text(envelope->'data'->'changed_fields')) AS changed_fields
+       FROM analytics_outbox
+       WHERE source_stream_key = $1 AND envelope->>'subject' = $2 AND contract_name = 'agent.definition.lifecycle@1'
+       ORDER BY source_sequence`,
+      [`organization:${organizationA}:definitions`, `definition:${agent.id}`],
+    );
+    expect(definitionFacts.rows).toEqual([
+      { action: "created", status: "active", changed_fields: [] },
+      { action: "updated", status: "active", changed_fields: ["description", "name", "slug"] },
+    ]);
+    expect(await pool.query("SELECT 1 FROM analytics_outbox WHERE source_stream_key = $1", [`organization:${organizationB}:definitions`])).toMatchObject({ rows: [] });
     const version = await agents.createVersion(organizationA, "owner-a", agent.id, {
       instructions: "Follow the published workflow.",
       configuration: {
@@ -97,6 +112,25 @@ describe.skipIf(!runIntegration)("hosted agent lifecycle and isolation (integrat
       { action: "activated", status: "active", previous_status: "paused", agent_audience: "personal", execution_mode: "kasitek_hosted" },
     ]);
     await expect(agents.setInstallationStatus(organizationB, installation.id, "disabled", "owner-b")).rejects.toThrow("Installation not found");
+  });
+
+  it("records deletion as a terminal definition lifecycle fact before removing data", async () => {
+    const deletable = await agents.createAgent(organizationA, "owner-a", { name: "Deleted boundary agent" });
+    await agents.deleteAgent(organizationA, "owner-a", deletable.id);
+    const facts = await pool.query<{ action: string; status: string; changed_fields: string[] }>(
+      `SELECT envelope->'data'->>'action' AS action,
+              envelope->'data'->>'status' AS status,
+              ARRAY(SELECT jsonb_array_elements_text(envelope->'data'->'changed_fields')) AS changed_fields
+       FROM analytics_outbox
+       WHERE source_stream_key = $1 AND envelope->>'subject' = $2 AND contract_name = 'agent.definition.lifecycle@1'
+       ORDER BY source_sequence`,
+      [`organization:${organizationA}:definitions`, `definition:${deletable.id}`],
+    );
+    expect(facts.rows).toEqual([
+      { action: "created", status: "active", changed_fields: [] },
+      { action: "deleted", status: "deleted", changed_fields: ["status"] },
+    ]);
+    expect(await agents.getAgent(organizationA, deletable.id)).toBeNull();
   });
 
   it("scopes resource, connector, and schedule grants to the installation organization", async () => {
@@ -243,7 +277,7 @@ describe.skipIf(!runIntegration)("hosted agent lifecycle and isolation (integrat
       await pool.query("DELETE FROM agent_installations WHERE organization_id = $1", [organizationA]);
     }
     if (versionId) await pool.query("DELETE FROM agent_tool_grants WHERE organization_id = $1 AND agent_version_id = $2", [organizationA, versionId]);
-    if (agentId) await pool.query("DELETE FROM agent_versions WHERE id = $1", [versionId]);
+    if (versionId) await pool.query("DELETE FROM agent_versions WHERE id = $1", [versionId]);
     if (agentId) await pool.query("DELETE FROM agent_definitions WHERE id = $1", [agentId]);
     await pool.end();
   });

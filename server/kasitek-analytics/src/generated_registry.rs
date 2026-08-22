@@ -2,10 +2,11 @@
 
 pub const REGISTRY_VERSION: &str = "20260822.1";
 pub const REGISTRY_SHA256: &str =
-    "40991f9421dcfb4f6edde29aed4796506a4b8ab29c7fcd7a8dbfc24929109dd8";
+    "d0a794bccaedf059303818f6c83fcbef8e69cf1350481cb27ba202f6491a7eed";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",
+    "agent.definition.lifecycle@1",
     "agent.effect.lifecycle@1",
     "agent.handoff.lifecycle@1",
     "agent.installation.lifecycle@1",
@@ -26,6 +27,7 @@ pub const CONTRACT_KEYS: &[&str] = &[
 pub const METRIC_KEYS: &[&str] = &[
     "agent.approvals.lifecycle_events@1",
     "agent.cost.usd@1",
+    "agent.definitions.lifecycle_events@1",
     "agent.effects.lifecycle_events@1",
     "agent.installations.lifecycle_events@1",
     "agent.model_calls.completed@1",
@@ -51,6 +53,7 @@ pub const DIMENSION_KEYS: &[&str] = &[
     "agent_definition",
     "agent_execution_mode",
     "agent_installation",
+    "agent_owner_type",
     "agent_version",
     "approval_actor_type",
     "campaign",
@@ -80,6 +83,7 @@ pub const METRIC_SET_KEYS: &[&str] = &["agent.performance@1", "overview.summary@
 pub mod metric_keys {
     pub const AGENT_APPROVALS_LIFECYCLE_EVENTS_1: &str = "agent.approvals.lifecycle_events@1";
     pub const AGENT_COST_USD_1: &str = "agent.cost.usd@1";
+    pub const AGENT_DEFINITIONS_LIFECYCLE_EVENTS_1: &str = "agent.definitions.lifecycle_events@1";
     pub const AGENT_EFFECTS_LIFECYCLE_EVENTS_1: &str = "agent.effects.lifecycle_events@1";
     pub const AGENT_INSTALLATIONS_LIFECYCLE_EVENTS_1: &str =
         "agent.installations.lifecycle_events@1";

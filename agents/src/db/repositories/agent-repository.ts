@@ -18,7 +18,7 @@ import { CUSTOMER_SERVICE_HANDOFF_TOOL, resolveHostedAgentAllowedTools } from ".
 import { KASIAI_KNOWLEDGE_CHUNKS, KASIAI_KNOWLEDGE_SOURCE_NAME, KASIAI_KNOWLEDGE_VERSION } from "../../system/kasiai-knowledge";
 import { KASIAI_EVALUATION_SCENARIOS, KASIAI_EVALUATION_VERSION } from "../../system/kasiai-evaluations";
 import { createInstallationCredentialInTransaction, type CreatedInstallationCredential } from "./installation-credential-repository";
-import { buildInstallationLifecycleEvent, buildVersionLifecycleEvent, enqueueOutbox, type InstallationLifecycleAnalyticsInput, type VersionLifecycleAnalyticsInput } from "../../analytics";
+import { buildDefinitionLifecycleEvent, buildInstallationLifecycleEvent, buildVersionLifecycleEvent, enqueueOutbox, type DefinitionLifecycleAnalyticsInput, type InstallationLifecycleAnalyticsInput, type VersionLifecycleAnalyticsInput } from "../../analytics";
 
 type DbExecutor = Pool | PoolClient;
 
@@ -153,15 +153,18 @@ export class AgentRepository {
     const isProtected = input.protected ?? false;
     if (isProtected) throw new Error("Only system-owned agents may be protected");
     const slug = input.slug ?? slugify(input.name);
-    const result = await query<AgentRecord>(
-      this.pool,
-      `INSERT INTO agent_definitions
-        (organization_id, owner_type, name, slug, description, creation_profile, agent_audience, protected, created_by)
-       VALUES ($1, 'organization', $2, $3, $4, $5, $6, $7, $8)
-       RETURNING *`,
-      [organizationId, input.name, slug, input.description ?? null, input.creationProfile ?? "custom", input.agentAudience ?? "personal", isProtected, actorId],
-    );
-    return result.rows[0]!;
+    return withTransaction(this.pool, async (client) => {
+      const result = await client.query<AgentRecord>(
+        `INSERT INTO agent_definitions
+          (organization_id, owner_type, name, slug, description, creation_profile, agent_audience, protected, created_by)
+         VALUES ($1, 'organization', $2, $3, $4, $5, $6, $7, $8)
+         RETURNING *`,
+        [organizationId, input.name, slug, input.description ?? null, input.creationProfile ?? "custom", input.agentAudience ?? "personal", isProtected, actorId],
+      );
+      const agent = result.rows[0]!;
+      await this.enqueueDefinitionLifecycle(client, organizationId, agent, "created", "active", [], "human", agent.created_at);
+      return agent;
+    });
   }
 
   public async updateAgent(
@@ -184,6 +187,11 @@ export class AgentRepository {
       const slug = input.slug ?? (input.name ? slugify(name) : agent.slug);
       if (!slug) throw Object.assign(new Error("The agent name must contain letters or numbers"), { statusCode: 400, code: "AGENT_SLUG_INVALID" });
       const description = input.description === undefined ? agent.description : input.description || null;
+      const changedFields: DefinitionLifecycleAnalyticsInput["changedFields"] = [
+        ...(name !== agent.name ? ["name" as const] : []),
+        ...(slug !== agent.slug ? ["slug" as const] : []),
+        ...(description !== agent.description ? ["description" as const] : []),
+      ];
       const conflict = await client.query<{ id: string }>(
         `SELECT id FROM agent_definitions
          WHERE organization_id = $1 AND slug = $2 AND id <> $3
@@ -200,6 +208,9 @@ export class AgentRepository {
         [agentId, organizationId, name, slug, description],
       );
       const result = updated.rows[0]!;
+      if (changedFields.length) {
+        await this.enqueueDefinitionLifecycle(client, organizationId, result, "updated", result.status as DefinitionLifecycleAnalyticsInput["status"], changedFields, "human", result.updated_at);
+      }
       await client.query(
         `INSERT INTO audit_records
           (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
@@ -258,6 +269,7 @@ export class AgentRepository {
         [organizationId, input.name, requestedSlug, input.description ?? null, input.agentAudience ?? "personal", actorId],
       );
       const agent = agentResult.rows[0]!;
+      await this.enqueueDefinitionLifecycle(client, organizationId, agent, "created", "active", [], "human", agent.created_at);
       const versionResult = await client.query<AgentVersionRecord>(
         `INSERT INTO agent_versions
           (agent_definition_id, version_number, status, instructions, configuration, policy,
@@ -410,6 +422,7 @@ export class AgentRepository {
           [input.organizationId, "KasiTek Developer API", slug, "Workspace MCP access for Developer API keys", actorId],
         );
         const agent = agentResult.rows[0]!;
+        await this.enqueueDefinitionLifecycle(client, input.organizationId, agent, "created", "active", [], "system", agent.created_at);
         const policy = { allowedTools: [...input.toolNames] };
         const configuration = { executionMode: "external_connected", runtime: "developer_api_key", protocols: ["mcp"] };
         const versionResult = await client.query<AgentVersionRecord>(
@@ -498,13 +511,15 @@ export class AgentRepository {
     validateVersionWorkflow(versionInput.configuration);
     const name = input.name?.trim() || template.name;
     return withTransaction(this.pool, async (client) => {
-      await client.query(
+      const insertedDefinition = await client.query<AgentRecord>(
         `INSERT INTO agent_definitions
           (organization_id, owner_type, name, slug, description, agent_audience, protected, created_by)
          VALUES ($1, 'organization', $2, $3, $4, $5, FALSE, $6)
-         ON CONFLICT (organization_id, slug) DO NOTHING`,
+         ON CONFLICT (organization_id, slug) DO NOTHING
+         RETURNING *`,
         [input.organizationId, name, template.key, template.description, template.audience, input.actorId],
       );
+      const definitionCreated = Boolean(insertedDefinition.rows[0]);
       const agentResult = await client.query<AgentRecord>(
         `SELECT * FROM agent_definitions
          WHERE organization_id = $1 AND slug = $2
@@ -514,6 +529,9 @@ export class AgentRepository {
       const agent = agentResult.rows[0];
       if (!agent || agent.owner_type !== "organization" || agent.protected) {
         throw new Error("Agent template slug is occupied by a protected or incompatible agent");
+      }
+      if (definitionCreated) {
+        await this.enqueueDefinitionLifecycle(client, input.organizationId, agent, "created", "active", [], "human", agent.created_at);
       }
       const existingVersion = await client.query<AgentVersionRecord>(
         `SELECT * FROM agent_versions WHERE agent_definition_id = $1 AND status = 'published' LIMIT 1`,
@@ -606,15 +624,18 @@ export class AgentRepository {
   ): Promise<AgentRecord> {
     const organizationId = input.organizationId ?? SYSTEM_ORGANIZATION_ID;
     const slug = input.slug ?? slugify(input.name);
-    const result = await query<AgentRecord>(
-      this.pool,
-      `INSERT INTO agent_definitions
-        (organization_id, owner_type, name, slug, description, creation_profile, protected, created_by)
-       VALUES ($1, 'system', $2, $3, $4, 'system', TRUE, $5)
-       RETURNING *`,
-      [organizationId, input.name, slug, input.description ?? null, actorId],
-    );
-    return result.rows[0]!;
+    return withTransaction(this.pool, async (client) => {
+      const result = await client.query<AgentRecord>(
+        `INSERT INTO agent_definitions
+          (organization_id, owner_type, name, slug, description, creation_profile, protected, created_by)
+         VALUES ($1, 'system', $2, $3, $4, 'system', TRUE, $5)
+         RETURNING *`,
+        [organizationId, input.name, slug, input.description ?? null, actorId],
+      );
+      const agent = result.rows[0]!;
+      await this.enqueueDefinitionLifecycle(client, organizationId, agent, "created", "active", [], "system", agent.created_at);
+      return agent;
+    });
   }
 
   public async ensureSystemAgent(
@@ -624,13 +645,15 @@ export class AgentRepository {
     const organizationId = input.organizationId ?? SYSTEM_ORGANIZATION_ID;
     const slug = input.slug ?? slugify(input.name);
     return withTransaction(this.pool, async (client) => {
-      await client.query(
+      const inserted = await client.query<AgentRecord>(
         `INSERT INTO agent_definitions
           (organization_id, owner_type, name, slug, description, creation_profile, protected, created_by)
          VALUES ($1, 'system', $2, $3, $4, 'system', TRUE, $5)
-         ON CONFLICT (organization_id, slug) DO NOTHING`,
+         ON CONFLICT (organization_id, slug) DO NOTHING
+         RETURNING *`,
         [organizationId, input.name, slug, input.description ?? null, actorId],
       );
+      const created = Boolean(inserted.rows[0]);
       const existing = await client.query<AgentRecord>(
         `SELECT * FROM agent_definitions
          WHERE organization_id = $1 AND slug = $2
@@ -648,7 +671,29 @@ export class AgentRepository {
          RETURNING *`,
         [organizationId, agent.id, input.name, input.description ?? null],
       );
-      return updated.rows[0]!;
+      const result = updated.rows[0]!;
+      if (created) {
+        await this.enqueueDefinitionLifecycle(client, organizationId, result, "created", "active", [], "system", result.created_at);
+      } else {
+        const changedFields: DefinitionLifecycleAnalyticsInput["changedFields"] = [
+          ...(agent.name !== result.name ? ["name" as const] : []),
+          ...(agent.description !== result.description ? ["description" as const] : []),
+          ...(agent.status !== result.status ? ["status" as const] : []),
+        ];
+        if (changedFields.length) {
+          await this.enqueueDefinitionLifecycle(
+            client,
+            organizationId,
+            result,
+            agent.status === "archived" && result.status === "active" ? "restored" : "updated",
+            "active",
+            changedFields,
+            "system",
+            result.updated_at,
+          );
+        }
+      }
+      return result;
     });
   }
 
@@ -956,11 +1001,15 @@ export class AgentRepository {
       if (installation.status !== "disabled" && disabled.rows[0]) {
         await this.enqueueInstallationLifecycle(client, disabled.rows[0], "disabled", installation.status as InstallationLifecycleAnalyticsInput["previousStatus"], "human", disabled.rows[0].updated_at);
       }
-      await client.query(
+      const archivedDefinition = await client.query<AgentRecord>(
         `UPDATE agent_definitions SET status = 'archived', archived_at = COALESCE(archived_at, now()), updated_at = now()
-         WHERE id = $1 AND organization_id = $2 AND owner_type = 'organization' AND protected = FALSE`,
+         WHERE id = $1 AND organization_id = $2 AND owner_type = 'organization' AND protected = FALSE AND status <> 'archived'
+         RETURNING *`,
         [installation.agent_definition_id, organizationId],
       );
+      if (archivedDefinition.rows[0]) {
+        await this.enqueueDefinitionLifecycle(client, organizationId, archivedDefinition.rows[0], "archived", "archived", ["status"], "human", archivedDefinition.rows[0].updated_at);
+      }
       await client.query(
         `INSERT INTO audit_records
           (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
@@ -1184,6 +1233,14 @@ export class AgentRepository {
   public async archiveAgent(organizationId: string, actorId: string, agentId: string): Promise<AgentRecord> {
     return withTransaction(this.pool, async (client) => {
       await this.assertHostedDefinition(client, organizationId, agentId);
+      const existing = await client.query<AgentRecord>(
+        `SELECT * FROM agent_definitions
+         WHERE organization_id = $1 AND id = $2 AND protected = FALSE
+         FOR UPDATE`,
+        [organizationId, agentId],
+      );
+      const previous = existing.rows[0];
+      if (!previous) throw new Error("Agent not found or protected");
       const result = await client.query<AgentRecord>(
         `UPDATE agent_definitions
          SET status = 'archived', archived_at = COALESCE(archived_at, now()), updated_at = now()
@@ -1192,7 +1249,10 @@ export class AgentRepository {
         [organizationId, agentId],
       );
       const agent = result.rows[0];
-      if (!agent) throw new Error("Agent not found or protected");
+      if (!agent) throw new Error("Agent archive failed");
+      if (previous.status !== "archived") {
+        await this.enqueueDefinitionLifecycle(client, organizationId, agent, "archived", "archived", ["status"], "human", agent.updated_at);
+      }
       const installations = await client.query<InstallationRecord>(
         `SELECT * FROM agent_installations
          WHERE organization_id = $1 AND agent_definition_id = $2 AND status <> 'disabled'
@@ -1225,8 +1285,8 @@ export class AgentRepository {
   /** Permanently removes an organization-owned agent and all agent-scoped data. */
   public async deleteAgent(organizationId: string, actorId: string, agentId: string): Promise<{ agentId: string; installationIds: string[]; deleted: true }> {
     return withTransaction(this.pool, async (client) => {
-      const agentResult = await client.query<Pick<AgentRecord, "id" | "name" | "owner_type" | "protected">>(
-        `SELECT id, name, owner_type, protected
+      const agentResult = await client.query<Pick<AgentRecord, "id" | "name" | "owner_type" | "protected" | "creation_profile" | "agent_audience" | "status">>(
+        `SELECT id, name, owner_type, protected, creation_profile, agent_audience, status
          FROM agent_definitions
          WHERE organization_id = $1 AND id = $2
          FOR UPDATE`,
@@ -1293,6 +1353,8 @@ export class AgentRepository {
         throw Object.assign(new Error("Release the active legal hold before deleting this agent"), { statusCode: 409, code: "AGENT_LEGAL_HOLD_ACTIVE" });
       }
 
+      const deletedAt = new Date().toISOString();
+      await this.enqueueDefinitionLifecycle(client, organizationId, agent, "deleted", "deleted", ["status"], "human", deletedAt);
       // Preserve immutable audit history, but remove execution, conversation, knowledge,
       // credentials, channel, and installation data owned by this agent.
       await client.query(
@@ -1758,6 +1820,30 @@ export class AgentRepository {
       versionNumber: version.version_number,
       status: version.status as VersionLifecycleAnalyticsInput["status"],
       action,
+      actorType,
+      occurredAt,
+    }));
+  }
+
+  private async enqueueDefinitionLifecycle(
+    client: PoolClient,
+    organizationId: string,
+    agent: Pick<AgentRecord, "id" | "owner_type" | "creation_profile" | "agent_audience">,
+    action: DefinitionLifecycleAnalyticsInput["action"],
+    status: DefinitionLifecycleAnalyticsInput["status"],
+    changedFields: DefinitionLifecycleAnalyticsInput["changedFields"],
+    actorType: DefinitionLifecycleAnalyticsInput["actorType"],
+    occurredAt: Date | string,
+  ): Promise<void> {
+    await enqueueOutbox(client, buildDefinitionLifecycleEvent({
+      organizationId,
+      agentDefinitionId: agent.id,
+      ownerType: agent.owner_type as DefinitionLifecycleAnalyticsInput["ownerType"],
+      creationProfile: agent.creation_profile,
+      agentAudience: agent.agent_audience,
+      action,
+      status,
+      changedFields,
       actorType,
       occurredAt,
     }));

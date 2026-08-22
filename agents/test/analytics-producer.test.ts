@@ -5,6 +5,7 @@ import {
   buildApprovalLifecycleEvent,
   buildCompletedAgentRunEvent,
   buildCompletedModelCallEvent,
+  buildDefinitionLifecycleEvent,
   buildEffectLifecycleEvent,
   buildFailedAgentRunEvent,
   buildFailedModelCallEvent,
@@ -364,6 +365,37 @@ describe("Agent analytics producer", () => {
     });
     expect(JSON.stringify(record.envelope)).not.toContain("instructions");
     expect(JSON.stringify(record.envelope)).not.toContain("configuration");
+  });
+
+  it("builds definition lifecycle facts without definition content", () => {
+    const record = buildDefinitionLifecycleEvent({
+      organizationId: "org-1",
+      agentDefinitionId: "agent-1",
+      ownerType: "organization",
+      creationProfile: "custom",
+      agentAudience: "customer_service",
+      action: "updated",
+      status: "active",
+      changedFields: ["description", "name", "description"],
+      actorType: "human",
+      occurredAt: "2026-08-22T10:04:30.000Z",
+    });
+    expect(record.envelope).toMatchObject({
+      type: "agent.definition.lifecycle@1",
+      subject: "definition:agent-1",
+      dataschema: "https://kasitek.co.za/analytics/contracts/events/agent/definition_lifecycle/v1.schema.json",
+    });
+    expect(record.envelope.data).toMatchObject({
+      owner_type: "organization",
+      creation_profile: "custom",
+      agent_audience: "customer_service",
+      action: "updated",
+      status: "active",
+      changed_fields: ["description", "name"],
+      actor_type: "human",
+    });
+    expect(JSON.stringify(record.envelope)).not.toContain("private agent name");
+    expect(JSON.stringify(record.envelope)).not.toContain("private agent description");
   });
 
   it("builds readiness snapshots from bounded state fields", () => {

@@ -145,6 +145,20 @@ export interface VersionLifecycleAnalyticsInput {
   correlationId?: string | null;
 }
 
+export interface DefinitionLifecycleAnalyticsInput {
+  organizationId: string;
+  agentDefinitionId: string;
+  ownerType: "organization" | "system";
+  creationProfile: AgentCreationProfile;
+  agentAudience: AgentAudience;
+  action: "created" | "updated" | "archived" | "restored" | "deleted";
+  status: "active" | "paused" | "archived" | "deleted";
+  changedFields: readonly ("name" | "slug" | "description" | "status")[];
+  actorType: "human" | "system";
+  occurredAt: Date | string;
+  correlationId?: string | null;
+}
+
 export type AgentReadinessBlockerCode =
   | "installation_inactive"
   | "workflow_invalid"
@@ -432,6 +446,37 @@ export function buildVersionLifecycleEvent(input: VersionLifecycleAnalyticsInput
     scopeKind: "core_organization",
     scopeExternalId: input.organizationId,
     subject: `version:${input.agentVersionId}`,
+    occurredAt: input.occurredAt,
+    attributes,
+    correlationId: input.correlationId ?? undefined,
+    idempotencyKey: `agent-platform:${identity}`,
+  });
+}
+
+export function buildDefinitionLifecycleEvent(input: DefinitionLifecycleAnalyticsInput): AnalyticsOutboxRecord {
+  const occurredAt = timestampAttribute(input.occurredAt);
+  const changedFields = [...new Set(input.changedFields)].sort();
+  const attributes: JsonObject = {
+    agent_definition_id: input.agentDefinitionId,
+    owner_type: input.ownerType,
+    creation_profile: input.creationProfile,
+    agent_audience: input.agentAudience,
+    action: input.action,
+    status: input.status,
+    changed_fields: changedFields,
+    actor_type: input.actorType,
+    occurred_at: occurredAt,
+  };
+  const identity = `definition:${input.agentDefinitionId}:${input.action}:${occurredAt}`;
+  return buildEvent({
+    recordId: identity,
+    sourceDomain: "agents",
+    sourceStreamKey: `organization:${input.organizationId}:definitions`,
+    contractName: "agent.definition.lifecycle@1",
+    schemaVersion: 1,
+    scopeKind: "core_organization",
+    scopeExternalId: input.organizationId,
+    subject: `definition:${input.agentDefinitionId}`,
     occurredAt: input.occurredAt,
     attributes,
     correlationId: input.correlationId ?? undefined,
