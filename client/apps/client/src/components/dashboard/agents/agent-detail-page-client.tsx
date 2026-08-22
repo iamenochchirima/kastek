@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
-import { Archive, ArrowLeft, BookOpen, Bot, CheckCircle2, Copy, Cpu, Globe2, History, KeyRound, LayoutDashboard, MessageSquare, PlugZap, RefreshCw, Rocket, RotateCcw, Settings2, SlidersHorizontal, Sparkles, Trash2, Upload, Workflow } from "lucide-react";
+import { Archive, ArrowLeft, BookOpen, Bot, CheckCircle2, Copy, Cpu, Globe2, History, KeyRound, LayoutDashboard, MessageSquare, PlugZap, RefreshCw, Rocket, RotateCcw, Settings2, SlidersHorizontal, Sparkles, Trash2, Upload, Workflow, Wrench } from "lucide-react";
 import type { IconType } from "react-icons";
 import { SiDiscord, SiInstagram, SiMessenger, SiModelcontextprotocol, SiSlack, SiTelegram, SiWhatsapp, SiWordpress } from "react-icons/si";
 import { Badge } from "@/components/ui/badge";
@@ -476,7 +476,7 @@ function sanitizeAgentSlug(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
 }
 
-type DetailSection = "overview" | "activity" | "conversations" | "operations" | "knowledge" | "behavior" | "models" | "integrations" | "appearance" | "deployment" | "connection" | "settings" | "advanced";
+type DetailSection = "overview" | "activity" | "conversations" | "operations" | "knowledge" | "behavior" | "models" | "tools" | "integrations" | "appearance" | "deployment" | "connection" | "settings" | "advanced";
 
 type DetailNavigationItem = {
   section: DetailSection;
@@ -491,7 +491,7 @@ type DetailNavigationGroup = {
 };
 
 function isDetailSection(value: string | null): value is DetailSection {
-  return value === "overview" || value === "activity" || value === "conversations" || value === "operations" || value === "knowledge" || value === "behavior" || value === "models" || value === "integrations" || value === "appearance" || value === "deployment" || value === "connection" || value === "settings" || value === "advanced";
+  return value === "overview" || value === "activity" || value === "conversations" || value === "operations" || value === "knowledge" || value === "behavior" || value === "models" || value === "tools" || value === "integrations" || value === "appearance" || value === "deployment" || value === "connection" || value === "settings" || value === "advanced";
 }
 
 export function AgentDetailPageClient({ agent, initialVersions }: { agent: AgentDefinition; initialVersions: AgentVersion[] }) {
@@ -569,6 +569,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const normalizedSection: DetailSection = requestedDetailSection === "advanced" ? "settings" : requestedDetailSection;
   const activeSection: DetailSection = (
     (normalizedSection === "conversations" && !customerConversationSurface)
+    || (normalizedSection === "tools" && !hostedAgent)
     || (["integrations", "deployment", "appearance"].includes(normalizedSection) && !channelSurface)
   ) ? "activity" : normalizedSection;
 
@@ -703,6 +704,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         { label: "Training data", items: [{ section: "knowledge", label: "Knowledge", description: "Files, text, and Q&A", icon: BookOpen }] },
         ...(kasitekHostedAgent ? [{ label: "Behaviour", items: [{ section: "behavior" as const, label: "Tune agent", description: "Instructions, runtime, and workflow", icon: SlidersHorizontal }] }] : []),
         { label: "Models", items: [{ section: "models", label: "Models", description: "Model and API key", icon: Cpu }] },
+        { label: "Tools", items: [{ section: "tools", label: "Tools", description: "Capabilities and access", icon: Wrench }] },
         ...(channelSurface ? [{
           label: "Deployment",
           items: [
@@ -928,14 +930,18 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 
         {activeSection === "knowledge" && hostedAgent && agent.installation_id ? <InstallationKnowledge agentId={agent.id} installationId={agent.installation_id} /> : null}
 
+        {activeSection === "tools" && hostedAgent && agent.installation_id ? <section className="space-y-3" aria-labelledby="agent-tools-title">
+          <div><h2 id="agent-tools-title" className="text-lg font-semibold text-foreground">Tools</h2><p className="text-sm text-muted-foreground">Capabilities, resource grants, and connectors.</p></div>
+          <InstallationCapabilities installationId={agent.installation_id} protectedAgent={protectedAgent} />
+          <InstallationAccessScope installationId={agent.installation_id} />
+        </section> : null}
+
         {activeSection === "settings" && agent.installation_id ? <section className="space-y-3" aria-labelledby="additional-settings-title">
           <div><h2 id="additional-settings-title" className="text-lg font-semibold text-foreground">Additional settings</h2><p className="text-sm text-muted-foreground">Access, schedules, and activation controls.</p></div>
           {kasitekHostedAgent ? <details className="group rounded-xl border border-border bg-card">
             <summary className="cursor-pointer list-none p-5 [&::-webkit-details-marker]:hidden"><div className="flex items-center justify-between gap-3"><div><h3 className="font-semibold text-foreground">Schedules</h3><p className="mt-1 text-sm text-muted-foreground">Run this agent on a recurring schedule.</p></div><span className="text-xs font-medium text-primary group-open:hidden">Open</span><span className="hidden text-xs font-medium text-primary group-open:inline">Close</span></div></summary>
             <div className="border-t border-border p-5"><InstallationSchedules installationId={agent.installation_id} /></div>
           </details> : null}
-          <InstallationCapabilities installationId={agent.installation_id} protectedAgent={protectedAgent} />
-          <InstallationAccessScope installationId={agent.installation_id} />
         </section> : null}
 
         {activeSection === "operations" && kasitekHostedAgent && agent.installation_id ? <InstallationRuns installationId={agent.installation_id} /> : null}
@@ -1279,7 +1285,7 @@ function InstallationCapabilities({ installationId, protectedAgent }: { installa
 
   return <Card>
     <CardContent className="p-0">
-      <details className="group">
+      <details className="group" open>
         <summary className="cursor-pointer list-none p-6 [&::-webkit-details-marker]:hidden">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -1379,7 +1385,7 @@ function InstallationAccessScope({ installationId }: { installationId: string })
 
   return <Card>
     <CardContent className="p-0">
-      <details className="group">
+      <details className="group" open>
         <summary className="cursor-pointer list-none p-6 [&::-webkit-details-marker]:hidden">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
