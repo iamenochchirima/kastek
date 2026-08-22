@@ -92,6 +92,19 @@ describe.skipIf(!runIntegration)("hosted agent lifecycle and isolation (integrat
     expect((await schedules.list(organizationA, installationId)).map((entry) => entry.id)).toContain(schedule.id);
     expect(await schedules.list(organizationB, installationId)).toEqual([]);
     expect((await schedules.setStatus(organizationA, schedule.id, "paused", "owner-a")).status).toBe("paused");
+    expect((await schedules.setStatus(organizationA, schedule.id, "paused", "owner-a")).status).toBe("paused");
+    const scheduleFacts = await pool.query<{ action: string; status: string; previous_status: string | null }>(
+      `SELECT envelope->'data'->>'action' AS action, envelope->'data'->>'status' AS status,
+              envelope->'data'->>'previous_status' AS previous_status
+       FROM analytics_outbox
+       WHERE source_stream_key = $1 AND contract_name = 'agent.schedule.lifecycle@1'
+       ORDER BY source_sequence`,
+      [`organization:${organizationA}:schedules`],
+    );
+    expect(scheduleFacts.rows).toEqual([
+      { action: "created", status: "active", previous_status: null },
+      { action: "paused", status: "paused", previous_status: "active" },
+    ]);
     await expect(schedules.setStatus(organizationB, schedule.id, "disabled", "owner-b")).rejects.toThrow("Schedule not found");
   });
 

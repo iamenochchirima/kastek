@@ -27,6 +27,7 @@ export {
   buildEffectLifecycleEvent,
   buildFailedAgentRunEvent,
   buildFailedModelCallEvent,
+  buildScheduleLifecycleEvent,
   buildToolInvocationLifecycleEvent,
   classifyAgentFailure,
   type AgentRuntimeFactInput,
@@ -41,6 +42,7 @@ export {
   type CompletedAgentRunInput,
   type FailedAgentRunInput,
   type ModelCallAnalyticsInput,
+  type ScheduleAnalyticsInput,
 } from "./agent-runtime";
 export {
   AnalyticsIngestionClient,

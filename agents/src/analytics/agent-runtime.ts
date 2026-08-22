@@ -100,6 +100,22 @@ export interface EffectAnalyticsInput extends AgentRuntimeFactInput {
   completedAt?: Date | string | null;
 }
 
+export interface ScheduleAnalyticsInput {
+  scheduleId: string;
+  organizationId: string;
+  agentDefinitionId: string;
+  agentVersionId: string;
+  installationId: string;
+  action: "created" | "activated" | "paused" | "disabled";
+  status: "active" | "paused" | "disabled";
+  previousStatus: "active" | "paused" | "disabled" | null;
+  timezone: string;
+  nextRunAt: Date | string | null;
+  actorType: "human" | "system";
+  occurredAt: Date | string;
+  correlationId?: string | null;
+}
+
 export function buildCompletedAgentRunEvent(input: CompletedAgentRunInput): AnalyticsOutboxRecord {
   const attributes: JsonObject = {
     run_id: input.runId,
@@ -272,6 +288,38 @@ export function buildEffectLifecycleEvent(input: EffectAnalyticsInput): Analytic
     attributes,
     correlationId: input.correlationId ?? undefined,
     idempotencyKey: `agent-platform:effect:${input.effectId}:${input.action}`,
+  });
+}
+
+export function buildScheduleLifecycleEvent(input: ScheduleAnalyticsInput): AnalyticsOutboxRecord {
+  const occurredAt = timestampAttribute(input.occurredAt);
+  const attributes: JsonObject = {
+    schedule_id: input.scheduleId,
+    agent_definition_id: input.agentDefinitionId,
+    agent_version_id: input.agentVersionId,
+    installation_id: input.installationId,
+    action: input.action,
+    status: input.status,
+    previous_status: input.previousStatus,
+    timezone: input.timezone,
+    next_run_at: input.nextRunAt == null ? null : timestampAttribute(input.nextRunAt),
+    actor_type: input.actorType,
+    occurred_at: occurredAt,
+  };
+  const identity = `schedule:${input.scheduleId}:${input.action}:${input.status}:${occurredAt}`;
+  return buildEvent({
+    recordId: identity,
+    sourceDomain: "agents",
+    sourceStreamKey: `organization:${input.organizationId}:schedules`,
+    contractName: "agent.schedule.lifecycle@1",
+    schemaVersion: 1,
+    scopeKind: "core_organization",
+    scopeExternalId: input.organizationId,
+    subject: `schedule:${input.scheduleId}`,
+    occurredAt: input.occurredAt,
+    attributes,
+    correlationId: input.correlationId ?? undefined,
+    idempotencyKey: `agent-platform:${identity}`,
   });
 }
 

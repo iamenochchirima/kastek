@@ -202,7 +202,7 @@ executables before running the recovery scripts.
 
 ## Agent runtime collection
 
-A-13 slices 1–3 connect Agent Platform terminal run, model-call, tool, approval, and effect mutations to the existing transactional outbox.
+A-13 slices 1–4 connect Agent Platform terminal run, model-call, tool, approval, effect, and schedule configuration mutations to the existing transactional outbox.
 Completed and failed runs publish the registered `agent.run.completed@1` and `agent.run.failed@1`
 contracts in the same transaction as the run and attempt state change. Facts include stable agent
 references, organization scope, trigger, execution mode, creation profile, audience, deployment
@@ -220,16 +220,23 @@ references. Tool arguments, outputs, approval resource snapshots, provider recei
 remain operational-only. Lifecycle facts are written in the same transaction as their authoritative
 repository mutation, including the atomic approval-consumption/effect-start boundary.
 
+Schedule facts cover hosted schedule creation and actual active/paused/disabled transitions. They
+include schedule and agent references, status transition, timezone, next-run metadata, and actor
+type, but never copy schedule input or the expression. There is no authoritative schedule executor
+in Agent Platform yet, so dispatch, missed-run, delay, and schedule-to-run facts are intentionally
+not claimed by this contract.
+
 The common path applies to personal, customer-service, system-hosted, hosted, and
-external-connected runs. Customer handoff is a separate conditional lifecycle contract and is
-not inferred for ordinary Agents. Tool, approval/effect, schedule, readiness, and conditional
-conversation facts remain separate A-13 slices.
+external-connected runs. Customer handoff is a separate conditional lifecycle contract already
+emitted by the handoff repository and scoped to customer-service handoff-enabled agents; it is not
+inferred for ordinary Agents. Readiness is currently an on-demand projection from the readiness
+route, not a persisted transition stream, so historical readiness facts are not emitted yet.
 
 ## Current boundary
 
 A-01 through A-12 provide the service, dedicated storage, registries, scope authorization, immutable
 facts, source controls, quarantine, authenticated ingestion, source cursors, reconciliation
 summaries, projection metadata, reporting, caching, and the audited rollout boundary. A-13 has
-started with transactional Agent terminal run, model-call, tool, approval, and effect facts; the remaining M1 slices, complete
+started with transactional Agent terminal run, model-call, tool, approval, effect, and schedule facts; the remaining M1 slices, complete
 mutation-to-reporting E2E, rollout control-management UI, source publisher clients, and customer
 dashboards belong to later execution packages.

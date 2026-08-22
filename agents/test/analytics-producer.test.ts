@@ -8,6 +8,7 @@ import {
   buildEffectLifecycleEvent,
   buildFailedAgentRunEvent,
   buildFailedModelCallEvent,
+  buildScheduleLifecycleEvent,
   buildToolInvocationLifecycleEvent,
   buildEvent,
   buildObservation,
@@ -271,6 +272,36 @@ describe("Agent analytics producer", () => {
     expect(isRegisteredAgentContract(record.contractName)).toBe(true);
     expect(record.envelope.dataschema).toBe("https://kasitek.co.za/analytics/contracts/events/agent/handoff_lifecycle/v1.schema.json");
     expect(record.envelope.data).not.toHaveProperty("customer_message");
+  });
+
+  it("builds schedule lifecycle facts without schedule input", () => {
+    const record = buildScheduleLifecycleEvent({
+      scheduleId: "schedule-1",
+      organizationId: "org-1",
+      agentDefinitionId: "agent-1",
+      agentVersionId: "version-1",
+      installationId: "installation-1",
+      action: "paused",
+      status: "paused",
+      previousStatus: "active",
+      timezone: "Africa/Johannesburg",
+      nextRunAt: "2026-08-23T06:00:00.000Z",
+      actorType: "human",
+      occurredAt: "2026-08-22T10:03:00.000Z",
+    });
+    expect(record.envelope).toMatchObject({
+      type: "agent.schedule.lifecycle@1",
+      subject: "schedule:schedule-1",
+      dataschema: "https://kasitek.co.za/analytics/contracts/events/agent/schedule_lifecycle/v1.schema.json",
+    });
+    expect(record.envelope.data).toMatchObject({
+      action: "paused",
+      status: "paused",
+      previous_status: "active",
+      actor_type: "human",
+    });
+    expect(JSON.stringify(record.envelope)).not.toContain("prompt");
+    expect(JSON.stringify(record.envelope)).not.toContain("expression");
   });
 
   it("rejects prohibited content before a database call", () => {

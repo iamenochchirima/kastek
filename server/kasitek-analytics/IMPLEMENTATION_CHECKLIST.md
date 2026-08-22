@@ -284,7 +284,7 @@ checklist records implementation evidence for the current package only.
 - [ ] Add control-management UI in a later slice; expired entries fail closed during evaluation
   even before maintenance runs.
 
-## A-13 — M1 reference vertical slices (slices 1–3: Agent runtime)
+## A-13 — M1 reference vertical slices (slices 1–4: Agent runtime)
 
 - [x] Reuse the existing Agent Platform transactional Analytics outbox and registered terminal
   run contracts instead of reconstructing runtime facts from polling or operational summaries.
@@ -315,7 +315,14 @@ checklist records implementation evidence for the current package only.
 - [x] Add lifecycle producer coverage and a database-backed state-machine fixture covering proposals,
   decisions, expiry, execution, unknown outcomes, reconciliation, and terminal effects without
   exporting arguments, outputs, snapshots, provider receipts, or raw errors.
-- [ ] Add schedule, readiness, and conditional conversation facts in subsequent Agent runtime slices.
+- [x] Add a versioned schedule lifecycle contract and metric for hosted schedule creation and actual
+  status transitions; exclude schedule input, expressions, and scheduler dispatch claims.
+- [x] Emit schedule lifecycle facts transactionally with schedule and audit mutations, preserve
+  organization and agent references, and avoid duplicate facts for unchanged status writes.
+- [x] Confirm the existing conditional handoff lifecycle contract remains customer-service scoped;
+  ordinary personal and non-handoff Agents do not emit handoff facts.
+- [ ] Add historical readiness snapshots after an authoritative readiness transition or periodic
+  evaluation source exists; the current readiness route is an on-demand projection only.
 
 ## Verification evidence
 
@@ -473,6 +480,9 @@ checklist records implementation evidence for the current package only.
 - A-13 slice 3: tool, approval, and effect lifecycle contracts and registry bindings were regenerated;
   Agent producer tests and the live run integration passed across proposal, decision, expiry,
   execution, unknown-outcome, reconciliation, and terminal-effect paths.
+- A-13 slice 4: schedule lifecycle contract, metric, dimensions, and registry bindings were
+  regenerated; producer coverage and the live hosted-agent integration passed for creation, status
+  transition, unchanged-status idempotency, and organization isolation.
 
 ## Explicitly deferred
 
@@ -482,8 +492,8 @@ checklist records implementation evidence for the current package only.
   tested recovery drills
 - A-12 control-management UI remains deferred; evaluation is database-authoritative and expired
   entries fail closed before or after maintenance closure.
-- A-13 schedule, readiness, conditional conversation, campaign, and Tenant M1
-  slices remain deferred until their authoritative mutations are instrumented.
+- A-13 readiness snapshots, scheduler dispatch/missed-run facts, campaign, and Tenant M1 slices
+  remain deferred until their authoritative source mutations or evaluation workers exist.
 - A-04 historical compatibility fixtures until a second major contract or metric version exists
 - Complete product mutation-to-reporting E2E until the source-domain vertical slices exist
 - A-06 signed audit checkpoint production/verification until the controlled signing boundary exists

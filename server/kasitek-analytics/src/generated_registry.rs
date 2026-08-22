@@ -2,7 +2,7 @@
 
 pub const REGISTRY_VERSION: &str = "20260822.1";
 pub const REGISTRY_SHA256: &str =
-    "2e7d5d2da5f112a3ea7410e412a9614072ea331731f56b027e5e8d4358636b27";
+    "8f034632674eb99b078492cadb783405deb6a0e052d73f25e350d35258a862ba";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",
@@ -12,6 +12,7 @@ pub const CONTRACT_KEYS: &[&str] = &[
     "agent.model_call.failed@1",
     "agent.run.completed@1",
     "agent.run.failed@1",
+    "agent.schedule.lifecycle@1",
     "agent.tool_invocation.lifecycle@1",
     "campaign.recipient.delivered@1",
     "campaign.recipient.sent@1",
@@ -27,6 +28,7 @@ pub const METRIC_KEYS: &[&str] = &[
     "agent.model_calls.failed@1",
     "agent.runs.completed@1",
     "agent.runs.failed@1",
+    "agent.schedules.lifecycle_events@1",
     "agent.tokens.input@1",
     "agent.tokens.output@1",
     "agent.tools.lifecycle_events@1",
@@ -70,6 +72,7 @@ pub mod metric_keys {
     pub const AGENT_MODEL_CALLS_FAILED_1: &str = "agent.model_calls.failed@1";
     pub const AGENT_RUNS_COMPLETED_1: &str = "agent.runs.completed@1";
     pub const AGENT_RUNS_FAILED_1: &str = "agent.runs.failed@1";
+    pub const AGENT_SCHEDULES_LIFECYCLE_EVENTS_1: &str = "agent.schedules.lifecycle_events@1";
     pub const AGENT_TOKENS_INPUT_1: &str = "agent.tokens.input@1";
     pub const AGENT_TOKENS_OUTPUT_1: &str = "agent.tokens.output@1";
     pub const AGENT_TOOLS_LIFECYCLE_EVENTS_1: &str = "agent.tools.lifecycle_events@1";
