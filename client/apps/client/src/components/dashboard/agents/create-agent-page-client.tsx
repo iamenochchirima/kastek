@@ -142,7 +142,9 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
-export function CreateAgentPageClient({ initialTemplate, initialDraft }: { initialTemplate?: AgentTemplate; initialDraft?: { agent: AgentDefinition; version: AgentVersion } }) {
+type AgentAudience = "personal" | "customer_service";
+
+export function CreateAgentPageClient({ audience = "personal", initialTemplate, initialDraft }: { audience?: AgentAudience; initialTemplate?: AgentTemplate; initialDraft?: { agent: AgentDefinition; version: AgentVersion } }) {
   const router = useRouter();
   const initialDraftConfiguration = initialDraft?.version.configuration ?? {};
   const initialDraftPolicy = initialDraft?.version.policy?.modelPolicy;
@@ -202,7 +204,7 @@ export function CreateAgentPageClient({ initialTemplate, initialDraft }: { initi
     setLoading(true);
     setError(null);
     try {
-      const agent = await createAgent({ name: name.trim(), description: purpose.trim(), creationProfile: "custom" });
+      const agent = await createAgent({ name: name.trim(), description: purpose.trim(), creationProfile: "custom", agentAudience: audience });
       const parsedLimits = parseAgentRuntimeLimits(runtimeLimits);
       const blueprint = initialTemplate
         ? {
@@ -305,7 +307,7 @@ export function CreateAgentPageClient({ initialTemplate, initialDraft }: { initi
       const versionToPublish = currentVersion ?? draft.version;
       if (currentVersion) setDraft((current) => current ? { ...current, version: currentVersion } : current);
       const published = await publishAgentVersion(draft.agent.id, versionToPublish.id);
-      const installation = await createAgentInstallation(published.id, { profile: "custom", tone: "balanced", responseDetail: "standard" });
+      const installation = await createAgentInstallation(published.id, { profile: "custom", agentAudience: audience, tone: "balanced", responseDetail: "standard" });
       const knowledgeErrors: string[] = [];
       const knowledgeRetries: KnowledgeRetry[] = [];
       if (knowledgeText.trim()) {

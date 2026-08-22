@@ -6,7 +6,7 @@ import {
   type AgentView,
   type AgentListItem,
 } from "@/components/dashboard/agents/agents-page-client";
-import type { AgentOperationsSummary, AgentTemplate } from "@/lib/agent-platform";
+import type { AgentAudienceCounts, AgentOperationsSummary, AgentTemplate } from "@/lib/agent-platform";
 
 export const metadata = {
   title: "Agents | KasiTek",
@@ -27,14 +27,15 @@ export default async function AgentsPage({
     headers: { "content-type": "application/json" },
     body: JSON.stringify({}),
   }).catch(() => null);
-  const agentResult = await fetchRustJson<{ agents: AgentListItem[] }>("/api/agents")
+  const agentResult = await fetchRustJson<{ agents: AgentListItem[]; counts?: AgentAudienceCounts }>("/api/agents")
     .then((value) => ({ value, unavailable: false }))
-    .catch(() => ({ value: { agents: [] as AgentListItem[] }, unavailable: true }));
+    .catch(() => ({ value: { agents: [] as AgentListItem[], counts: undefined }, unavailable: true }));
   const templates = await fetchRustJson<{ templates: AgentTemplate[] }>("/api/agents/templates").catch(() => ({ templates: [] }));
   const operations = await fetchRustJson<AgentOperationsSummary>("/api/agents/operations/summary").catch(() => null);
   return (
     <AgentsPageClient
       initialAgents={agentResult.value.agents}
+      initialCounts={agentResult.value.counts}
       initialTemplates={templates.templates}
       initialTemplateKey={template}
       initialView={initialView}

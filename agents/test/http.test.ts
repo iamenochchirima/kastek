@@ -927,6 +927,20 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("returns organization-scoped audience counts with the agent list", async () => {
+    const listAgents = vi.fn(async () => [
+      { id: "personal-1", status: "active", agent_audience: "personal" },
+      { id: "support-1", status: "active", agent_audience: "customer_service" },
+    ]);
+    const countAgentsByAudience = vi.fn(async () => ({ total: 2, personal: 1, customer_service: 1 }));
+    const app = buildApp({ config, pool: fakePool, agents: { listAgents, countAgentsByAudience } as unknown as AgentRepository });
+    const response = await app.inject({ method: "GET", url: "/v1/agents", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ counts: { total: 2, personal: 1, customer_service: 1 } });
+    expect(countAgentsByAudience).toHaveBeenCalledWith("org-1");
+    await app.close();
+  });
+
   it("updates an organization agent identity through the scoped control-plane contract", async () => {
     const updateAgent = vi.fn(async (_organizationId: string, _actorId: string, _agentId: string, input: Record<string, unknown>) => ({ id: "agent-1", name: input.name, slug: input.slug, description: input.description, protected: false }));
     const app = buildApp({ config, pool: fakePool, agents: { updateAgent } as unknown as AgentRepository });
@@ -1166,6 +1180,45 @@ describe("Agent Platform HTTP foundation", () => {
     expect(kasiai.statusCode).toBe(403);
     expect(kasiai.json()).toMatchObject({ error: expect.stringContaining("protected KasiAi") });
     await kasiaiApp.close();
+  });
+
+  it("blocks customer channels for personal hosted agents", async () => {
+    const listConnections = vi.fn(async () => []);
+    const listOwnerBindings = vi.fn(async () => []);
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      agents: {
+        getInstallation: async (_organizationId: string, installationId: string) => ({
+          id: installationId,
+          organization_id: "org-1",
+          status: "active",
+          ...hostedInstallationIdentity,
+          agent_audience: "personal" as const,
+        }),
+      } as never,
+      channels: { listConnections, listOwnerBindings } as never,
+    });
+
+    const read = await app.inject({
+      method: "GET",
+      url: "/v1/installations/install-1/channels",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+    });
+    expect(read.statusCode).toBe(409);
+    expect(read.json()).toMatchObject({ code: "personal_agent_customer_channels_not_allowed" });
+
+    const write = await app.inject({
+      method: "POST",
+      url: "/v1/installations/install-1/channels",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: {},
+    });
+    expect(write.statusCode).toBe(409);
+    expect(write.json()).toEqual({ error: "personal_agent_customer_channels_not_allowed" });
+    expect(listConnections).not.toHaveBeenCalled();
+    expect(listOwnerBindings).not.toHaveBeenCalled();
+    await app.close();
   });
 
   it("keeps the protected KasiAi service allowlist release-managed", async () => {

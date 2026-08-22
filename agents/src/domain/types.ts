@@ -15,6 +15,9 @@ export type AgentExecutionMode = z.infer<typeof agentExecutionModeSchema>;
 export const hostedAgentCreationProfileSchema = z.enum(["general", "custom"]);
 export type HostedAgentCreationProfile = z.infer<typeof hostedAgentCreationProfileSchema>;
 
+export const agentAudienceSchema = z.enum(["personal", "customer_service"]);
+export type AgentAudience = z.infer<typeof agentAudienceSchema>;
+
 export const runStatusSchema = z.enum([
   "received",
   "queued",
@@ -67,9 +70,10 @@ export const createAgentInputSchema = z.object({
     .optional(),
   description: z.string().trim().max(2000).optional(),
   creationProfile: hostedAgentCreationProfileSchema.default("custom"),
+  agentAudience: agentAudienceSchema.default("personal"),
   protected: z.boolean().default(false),
 });
-export type CreateAgentInput = z.infer<typeof createAgentInputSchema>;
+export type CreateAgentInput = z.input<typeof createAgentInputSchema>;
 
 export const updateAgentInputSchema = z.object({
   name: z.string().trim().min(1).max(160).optional(),
@@ -117,6 +121,7 @@ export const createExternalAgentInputSchema = z.object({
     .max(80)
     .optional(),
   description: z.string().trim().max(2000).optional(),
+  agentAudience: agentAudienceSchema.default("personal"),
   runtime: z.string().trim().min(1).max(80).default("custom"),
   protocols: z.array(z.enum(["mcp", "rest"])).min(1).max(2),
   capabilities: z.array(z.string().trim().min(1).max(160)).max(200).default([]),
@@ -133,7 +138,7 @@ export const createExternalAgentInputSchema = z.object({
     context.addIssue({ code: z.ZodIssueCode.custom, path: [value.clientKeyId === undefined ? "clientKeyId" : "clientPublicKey"], message: "Client key id and public key must be provided together" });
   }
 });
-export type CreateExternalAgentInput = z.infer<typeof createExternalAgentInputSchema>;
+export type CreateExternalAgentInput = Omit<z.infer<typeof createExternalAgentInputSchema>, "agentAudience"> & { agentAudience?: AgentAudience };
 
 export const createInstallationCredentialInputSchema = z.object({
   label: z.string().trim().min(1).max(160),

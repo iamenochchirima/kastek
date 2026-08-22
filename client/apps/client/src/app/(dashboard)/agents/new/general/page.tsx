@@ -4,8 +4,13 @@ import { CreateGeneralAgentPageClient } from "@/components/dashboard/agents/crea
 
 export const metadata = { title: "Create general-purpose agent | KasiTek" };
 
-export default async function CreateGeneralAgentPage() {
+export default async function CreateGeneralAgentPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ audience?: string }>;
+}) {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
-  return <CreateGeneralAgentPageClient />;
+  const { audience } = await searchParams;
+  return <CreateGeneralAgentPageClient audience={audience === "customer_service" ? "customer_service" : "personal"} />;
 }

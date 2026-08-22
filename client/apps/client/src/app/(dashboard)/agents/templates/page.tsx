@@ -12,9 +12,15 @@ type Template = { key: string; profile: "custom"; category: string; name: string
 
 const icons = [Sparkles, Globe2, MessageCircle, UserRound, Bot];
 
-export default async function AgentTemplatesPage() {
+export default async function AgentTemplatesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ audience?: string }>;
+}) {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
+  const { audience } = await searchParams;
+  const selectedAudience = audience === "customer_service" ? "customer_service" : "personal";
   const response = await fetchRustJson<{ templates: Template[] }>("/api/agents/templates").catch(() => ({ templates: [] }));
 
   return (
@@ -32,7 +38,7 @@ export default async function AgentTemplatesPage() {
           {response.templates.map((template, index) => {
             const Icon = icons[index % icons.length]!;
             return (
-              <Link key={template.key} href={`/agents/new?template=${encodeURIComponent(template.key)}`} className="min-h-64 rounded-xl border border-border bg-card p-5 transition-[border-color,background-color,transform] duration-[150ms] hover:-translate-y-0.5 hover:border-primary/50 hover:bg-secondary/35">
+              <Link key={template.key} href={`/agents/new?template=${encodeURIComponent(template.key)}&audience=${selectedAudience}`} className="min-h-64 rounded-xl border border-border bg-card p-5 transition-[border-color,background-color,transform] duration-[150ms] hover:-translate-y-0.5 hover:border-primary/50 hover:bg-secondary/35">
                 <div className="flex items-start justify-between gap-3">
                   <span className="grid h-10 w-10 place-items-center rounded-lg bg-secondary text-foreground"><Icon className="h-5 w-5" /></span>
                   <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">Custom blueprint · v{template.version}</span>

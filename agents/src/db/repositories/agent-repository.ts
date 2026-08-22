@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import type {
+  AgentAudience,
   AgentExecutionMode,
   CreateAgentInput,
   CreateExternalAgentInput,
@@ -30,6 +31,7 @@ export interface AgentRecord {
   slug: string;
   description: string | null;
   creation_profile: HostedAgentCreationProfile | "system";
+  agent_audience: AgentAudience;
   status: string;
   protected: boolean;
   created_by: string;
@@ -75,6 +77,7 @@ export interface InstallationIdentity {
   agent_owner_type: string;
   agent_protected: boolean;
   agent_slug: string;
+  agent_audience: AgentAudience;
 }
 
 export interface SystemInstallationRecord extends InstallationRecord {
@@ -147,10 +150,10 @@ export class AgentRepository {
     const result = await query<AgentRecord>(
       this.pool,
       `INSERT INTO agent_definitions
-        (organization_id, owner_type, name, slug, description, creation_profile, protected, created_by)
-       VALUES ($1, 'organization', $2, $3, $4, $5, $6, $7)
+        (organization_id, owner_type, name, slug, description, creation_profile, agent_audience, protected, created_by)
+       VALUES ($1, 'organization', $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [organizationId, input.name, slug, input.description ?? null, input.creationProfile ?? "custom", isProtected, actorId],
+      [organizationId, input.name, slug, input.description ?? null, input.creationProfile ?? "custom", input.agentAudience ?? "personal", isProtected, actorId],
     );
     return result.rows[0]!;
   }
@@ -235,10 +238,10 @@ export class AgentRepository {
 
       const agentResult = await client.query<AgentRecord>(
         `INSERT INTO agent_definitions
-          (organization_id, owner_type, name, slug, description, protected, created_by)
-         VALUES ($1, 'organization', $2, $3, $4, FALSE, $5)
+          (organization_id, owner_type, name, slug, description, agent_audience, protected, created_by)
+         VALUES ($1, 'organization', $2, $3, $4, $5, FALSE, $6)
          RETURNING *`,
-        [organizationId, input.name, requestedSlug, input.description ?? null, actorId],
+        [organizationId, input.name, requestedSlug, input.description ?? null, input.agentAudience ?? "personal", actorId],
       );
       const agent = agentResult.rows[0]!;
       const versionResult = await client.query<AgentVersionRecord>(
@@ -825,6 +828,38 @@ export class AgentRepository {
     return result.rows;
   }
 
+  public async countAgentsByAudience(organizationId: string): Promise<{ total: number; personal: number; customer_service: number }> {
+    const result = await query<{ agent_audience: AgentAudience; count: string }>(
+      this.pool,
+      `SELECT ad.agent_audience, COUNT(*)::text AS count
+       FROM agent_definitions ad
+       WHERE (
+         ad.organization_id = $1 OR (
+           ad.owner_type = 'system' AND ad.protected = TRUE AND EXISTS (
+             SELECT 1 FROM agent_installations ai
+             WHERE ai.agent_definition_id = ad.id AND ai.organization_id = $1
+           )
+         )
+       )
+       AND ad.status <> 'archived'
+       AND NOT EXISTS (
+         SELECT 1 FROM agent_installations hidden_ai
+         WHERE hidden_ai.agent_definition_id = ad.id
+           AND hidden_ai.organization_id = $1
+           AND hidden_ai.settings ->> 'developerApiKeyId' IS NOT NULL
+       )
+       GROUP BY ad.agent_audience`,
+      [organizationId],
+    );
+    const counts = { total: 0, personal: 0, customer_service: 0 };
+    for (const row of result.rows) {
+      const count = Number(row.count);
+      counts.total += count;
+      counts[row.agent_audience] = count;
+    }
+    return counts;
+  }
+
   public async listExternalAgents(organizationId: string): Promise<AgentRecord[]> {
     const result = await query<AgentRecord>(
       this.pool,
@@ -1254,8 +1289,8 @@ export class AgentRepository {
     input: CreateInstallationInput,
   ): Promise<InstallationRecord> {
     return withTransaction(this.pool, async (client) => {
-      const version = await client.query<AgentVersionRecord & { owner_type: string; protected: boolean }>(
-        `SELECT av.*, ad.owner_type, ad.protected FROM agent_versions av
+      const version = await client.query<AgentVersionRecord & { owner_type: string; protected: boolean; agent_audience: AgentAudience }>(
+        `SELECT av.*, ad.owner_type, ad.protected, ad.agent_audience FROM agent_versions av
          JOIN agent_definitions ad ON ad.id = av.agent_definition_id
          WHERE av.id = $2 AND av.status = 'published' AND ad.status = 'active' AND (
            ad.organization_id = $1 OR (ad.owner_type = 'system' AND ad.protected = TRUE)
@@ -1268,6 +1303,9 @@ export class AgentRepository {
       if (executionMode === "external_connected") throw new Error("Use the external-agent creation flow for external installations");
       if (executionMode === "system_hosted" && !(target.owner_type === "system" && target.protected)) {
         throw new Error("Only protected system definitions may use system_hosted mode");
+      }
+      if (executionMode === "system_hosted" && target.agent_audience !== "personal") {
+        throw new Error("System-hosted installations must use the personal audience");
       }
       if (executionMode === "kasitek_hosted" && !(target.owner_type === "organization" && !target.protected)) {
         throw new Error("Only organization-owned definitions may use kasitek_hosted mode");
@@ -1528,7 +1566,8 @@ export class AgentRepository {
     const result = await query<InstallationRecord & InstallationIdentity>(
       this.pool,
       `SELECT ai.*, ad.owner_type AS agent_owner_type,
-              ad.protected AS agent_protected, ad.slug AS agent_slug
+              ad.protected AS agent_protected, ad.slug AS agent_slug,
+              ad.agent_audience
        FROM agent_installations ai
        JOIN agent_definitions ad ON ad.id = ai.agent_definition_id
        WHERE ai.organization_id = $1 AND ai.id = $2`,

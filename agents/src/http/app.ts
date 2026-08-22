@@ -1560,7 +1560,20 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.get("/v1/agents", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
-    return { agents: await agents.listAgents(auth.organizationId) };
+    const listedAgents = await agents.listAgents(auth.organizationId);
+    const counts = typeof agents.countAgentsByAudience === "function"
+      ? await agents.countAgentsByAudience(auth.organizationId)
+      : listedAgents.reduce(
+        (summary, agent) => {
+          if (agent.status === "archived") return summary;
+          summary.total += 1;
+          if (agent.agent_audience === "customer_service") summary.customer_service += 1;
+          else summary.personal += 1;
+          return summary;
+        },
+        { total: 0, personal: 0, customer_service: 0 },
+      );
+    return { agents: listedAgents, counts };
   });
 
   app.get("/v1/templates", async (request) => {
@@ -2342,6 +2355,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) return reply.code(404).send({ error: "installation_not_found" });
     requireHostedInstallation(installation);
+    if (installation.execution_mode === "kasitek_hosted" && installation.agent_audience === "personal") {
+      return reply.code(409).send({ error: "personal_agent_customer_channels_not_allowed" });
+    }
     const input = z.object({
       channelType: z.string().trim().min(1).max(80),
       channelKey: z.string().trim().min(1).max(160).optional(),
@@ -2427,6 +2443,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
     if (!installation) throw Object.assign(new Error("Installation not found"), { statusCode: 404 });
     requireHostedInstallation(installation);
+    if (installation.execution_mode === "kasitek_hosted" && installation.agent_audience === "personal") {
+      throw Object.assign(new Error("Personal agents cannot serve customer channels"), { statusCode: 409, code: "personal_agent_customer_channels_not_allowed" });
+    }
     const [connections, bindings] = await Promise.all([
       channels.listConnections(auth.organizationId, request.params.installationId),
       channels.listOwnerBindings(auth.organizationId, request.params.installationId, auth.actorId),

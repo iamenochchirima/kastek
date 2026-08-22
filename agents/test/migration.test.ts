@@ -170,6 +170,14 @@ describe("foundation migration", () => {
     expect(profileSql).toContain("'system'");
   });
 
+  it("defines agent audiences for personal and customer-service agents", async () => {
+    const audienceSql = await readFile(new URL("../migrations/063_agent_audiences.sql", import.meta.url), "utf8");
+    expect(audienceSql).toContain("agent_audience");
+    expect(audienceSql).toContain("'personal'");
+    expect(audienceSql).toContain("'customer_service'");
+    expect(audienceSql).toContain("agent_definitions_audience_idx");
+  });
+
   it("defines agent context and aggregate ownership invariants", async () => {
     const scopeSql = await readFile(new URL("../migrations/057_agent_context_and_ownership_invariants.sql", import.meta.url), "utf8");
     expect(scopeSql).toContain("memory_records_agent_scope_required");

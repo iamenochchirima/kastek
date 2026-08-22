@@ -12,10 +12,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { createAgent, createAgentInstallation, createAgentKnowledgeSource, createAgentVersion, ingestAgentKnowledgeSourceFile, ingestAgentKnowledgeSourceText, publishAgentVersion } from "@/lib/agent-platform";
 
 type Step = 1 | 2 | 3 | 4;
+type AgentAudience = "personal" | "customer_service";
 
 const model = { provider: "openrouter", name: "openai/gpt-oss-20b:free" };
 
-export function CreateGeneralAgentPageClient() {
+export function CreateGeneralAgentPageClient({ audience = "personal" }: { audience?: AgentAudience }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState("");
@@ -37,7 +38,7 @@ export function CreateGeneralAgentPageClient() {
     setLoading(true);
     setError(null);
     try {
-      const agent = await createAgent({ name: name.trim(), description: purpose.trim(), creationProfile: "general" });
+      const agent = await createAgent({ name: name.trim(), description: purpose.trim(), creationProfile: "general", agentAudience: audience });
       const maxTotalTokens = 2_048;
       const version = await createAgentVersion(agent.id, {
         instructions: [
@@ -73,7 +74,7 @@ export function CreateGeneralAgentPageClient() {
         },
       });
       const published = await publishAgentVersion(agent.id, version.id);
-      const installation = await createAgentInstallation(published.id, { profile: "general", tone, responseDetail });
+      const installation = await createAgentInstallation(published.id, { profile: "general", agentAudience: audience, tone, responseDetail });
       const knowledgeErrors: string[] = [];
       if (knowledgeText.trim()) {
         try {
@@ -132,7 +133,7 @@ export function CreateGeneralAgentPageClient() {
       <div className="mx-auto max-w-5xl">
         <div className="flex items-center justify-between gap-4">
           <Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back</Link>
-          <p className="text-xs font-medium text-muted-foreground">Create a general-purpose agent</p>
+          <p className="text-xs font-medium text-muted-foreground">Create a {audience === "customer_service" ? "customer service" : "personal"} agent</p>
         </div>
 
         <nav aria-label="Creation progress" className="mx-auto mt-8 max-w-3xl">

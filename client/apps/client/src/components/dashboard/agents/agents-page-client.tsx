@@ -19,11 +19,11 @@ import {
   PageHeaderDescription,
   PageHeaderTitle,
 } from "@/components/ui/page-header";
-import { ArrowLeft, Bot, Info, MessageSquare, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Bot, Info, MessageSquare, Sparkles, UserRound, X } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { setAgentInstallationStatus, type AgentDefinition, type AgentOperationsSummary, type AgentTemplate } from "@/lib/agent-platform";
+import { setAgentInstallationStatus, type AgentAudience, type AgentAudienceCounts, type AgentDefinition, type AgentOperationsSummary, type AgentTemplate } from "@/lib/agent-platform";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 import { AgentChatPanel } from "./agent-chat-panel";
 
@@ -70,8 +70,19 @@ function creationProfileLabel(agent: AgentDefinition): string | null {
   return agent.creation_profile === "general" ? "General-purpose" : "Custom";
 }
 
+function audienceLabel(agent: AgentDefinition): string {
+  return agent.agent_audience === "customer_service" ? "Customer service" : "Personal";
+}
+
+function audienceClass(agent: AgentDefinition): string {
+  return agent.agent_audience === "customer_service"
+    ? "border-status-info/30 bg-status-info-soft text-status-info"
+    : "border-border bg-secondary text-muted-foreground";
+}
+
 export function AgentsPageClient({
   initialAgents,
+  initialCounts,
   initialTemplates,
   initialTemplateKey,
   initialView = "agents",
@@ -79,6 +90,7 @@ export function AgentsPageClient({
   initialOperations = null,
 }: {
   initialAgents: AgentListItem[];
+  initialCounts?: AgentAudienceCounts;
   initialTemplates: AgentTemplate[];
   initialTemplateKey?: string;
   initialView?: AgentView;
@@ -87,7 +99,8 @@ export function AgentsPageClient({
 }) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(Boolean(initialTemplateKey));
-  const [createStep, setCreateStep] = useState<"type" | "custom">("type");
+  const [createStep, setCreateStep] = useState<"audience" | "type" | "custom">("audience");
+  const [createAudience, setCreateAudience] = useState<AgentAudience>("personal");
   const [chatAgent, setChatAgent] = useState<AgentDefinition | null>(null);
   const [activeView, setActiveView] = useState<AgentView>(initialView);
   const templates: SelectableTemplate[] = initialTemplates.map((template) => ({ value: template.key, label: template.name, description: template.description, available: true }));
@@ -95,7 +108,8 @@ export function AgentsPageClient({
 
   const closeCreate = () => {
     setCreateOpen(false);
-    setCreateStep("type");
+    setCreateStep("audience");
+    setCreateAudience("personal");
   };
 
   const openCreateRoute = (path: string) => {
@@ -112,11 +126,12 @@ export function AgentsPageClient({
             <PageHeaderDescription>Installed agents.</PageHeaderDescription>
           </PageHeaderContent>
           <PageHeaderActions>
-          <Button type="button" onClick={() => { setCreateStep("type"); setCreateOpen(true); }}>Create agent</Button>
+          <Button type="button" onClick={() => { setCreateStep("audience"); setCreateOpen(true); }}>Create agent</Button>
           </PageHeaderActions>
         </PageHeader>
 
         {initialOperations ? <OperationsSummary summary={initialOperations} /> : null}
+        {initialCounts ? <AudienceSummary counts={initialCounts} /> : null}
 
         <div role="tablist" aria-label="Agent views" className="flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-border bg-secondary/40 p-1">
           <button
@@ -153,7 +168,7 @@ export function AgentsPageClient({
                 <h2 className="text-xl font-semibold text-foreground">{activeView === "external" ? "No external agents yet" : "No installed agents yet"}</h2>
                 <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">{activeView === "external" ? "External connections will appear here." : "Install KasiAI or choose an available template to get started."}</p>
               </div>
-              {activeView === "agents" ? <Button type="button" onClick={() => { setCreateStep("type"); setCreateOpen(true); }}>Create agent</Button> : null}
+              {activeView === "agents" ? <Button type="button" onClick={() => { setCreateStep("audience"); setCreateOpen(true); }}>Create agent</Button> : null}
             </CardContent>
           </Card>
         )}
@@ -162,7 +177,7 @@ export function AgentsPageClient({
       {createOpen ? initialTemplateKey ? (
         <TemplateDialog templates={templates} onClose={closeCreate} initialTemplateKey={initialTemplateKey} />
       ) : (
-        <CreateAgentDialog step={createStep} onStepChange={setCreateStep} onClose={closeCreate} onChooseGeneral={() => openCreateRoute("/agents/new/general")} onChooseCustom={() => setCreateStep("custom")} onBrowseTemplates={() => openCreateRoute("/agents/templates")} onStartFromScratch={() => openCreateRoute("/agents/new")} />
+        <CreateAgentDialog audience={createAudience} step={createStep} onAudienceChange={setCreateAudience} onStepChange={setCreateStep} onClose={closeCreate} onChooseGeneral={() => openCreateRoute(`/agents/new/general?audience=${createAudience}`)} onChooseCustom={() => setCreateStep("custom")} onBrowseTemplates={() => openCreateRoute(`/agents/templates?audience=${createAudience}`)} onStartFromScratch={() => openCreateRoute(`/agents/new?audience=${createAudience}`)} />
       ) : null}
       {chatAgent?.installation_id ? <AgentChatDialog agent={chatAgent} onClose={() => setChatAgent(null)} /> : null}
     </div>
@@ -170,7 +185,9 @@ export function AgentsPageClient({
 }
 
 function CreateAgentDialog({
+  audience,
   step,
+  onAudienceChange,
   onStepChange,
   onClose,
   onChooseGeneral,
@@ -178,8 +195,10 @@ function CreateAgentDialog({
   onBrowseTemplates,
   onStartFromScratch,
 }: {
-  step: "type" | "custom";
-  onStepChange: (step: "type" | "custom") => void;
+  audience: AgentAudience;
+  step: "audience" | "type" | "custom";
+  onAudienceChange: (audience: AgentAudience) => void;
+  onStepChange: (step: "audience" | "type" | "custom") => void;
   onClose: () => void;
   onChooseGeneral: () => void;
   onChooseCustom: () => void;
@@ -192,11 +211,26 @@ function CreateAgentDialog({
         <div className="flex items-start justify-between gap-4">
           <DialogHeader>
             <DialogTitle>Create an agent</DialogTitle>
-            <DialogDescription>Choose a starting point.</DialogDescription>
+            <DialogDescription>{step === "audience" ? "Choose who it will serve." : "Choose a starting point."}</DialogDescription>
           </DialogHeader>
         </div>
 
-        {step === "type" ? (
+        {step === "audience" ? (
+          <div className="mt-6 grid items-stretch gap-4 sm:grid-cols-2">
+            <button type="button" onClick={() => { onAudienceChange("personal"); onStepChange("type"); }} className={`flex min-h-[244px] flex-col rounded-xl border p-6 text-left transition-colors ${audience === "personal" ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/60 hover:bg-secondary/35"}`}>
+              <UserRound className="h-6 w-6 text-primary" />
+              <h3 className="mt-5 text-base font-semibold text-foreground">Personal agent</h3>
+              <p className="mt-2 text-sm leading-5 text-muted-foreground">Private assistant for your own work, knowledge, and test chats.</p>
+              <span className="mt-auto pt-5 text-sm font-medium text-primary">Continue</span>
+            </button>
+            <button type="button" onClick={() => { onAudienceChange("customer_service"); onStepChange("type"); }} className={`flex min-h-[244px] flex-col rounded-xl border p-6 text-left transition-colors ${audience === "customer_service" ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/60 hover:bg-secondary/35"}`}>
+              <MessageSquare className="h-6 w-6 text-primary" />
+              <h3 className="mt-5 text-base font-semibold text-foreground">Customer service agent</h3>
+              <p className="mt-2 text-sm leading-5 text-muted-foreground">Customer-facing assistant with channels and human handoff support.</p>
+              <span className="mt-auto pt-5 text-sm font-medium text-primary">Continue</span>
+            </button>
+          </div>
+        ) : step === "type" ? (
           <div className="mt-6 grid items-stretch gap-4 sm:grid-cols-2">
             <div className="flex min-h-[284px] flex-col rounded-xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35">
               <h3 className="text-base font-semibold text-foreground">General-purpose agent</h3>
@@ -243,6 +277,14 @@ function OperationsSummary({ summary }: { summary: AgentOperationsSummary }) {
     <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Runs</p><p className="mt-1 text-2xl font-semibold text-foreground">{runCount}</p><p className="mt-1 text-xs text-muted-foreground">{activeCount} active or waiting</p></CardContent></Card>
     <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Tool outcomes</p><p className="mt-1 text-2xl font-semibold text-foreground">{summary.tools.reduce((total, entry) => total + Number(entry.count || 0), 0)}</p><p className="mt-1 text-xs text-muted-foreground">Durable tool invocations</p></CardContent></Card>
     <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Reconciliation</p><p className={`mt-1 text-2xl font-semibold ${pendingReconciliation ? "text-status-attention" : "text-foreground"}`}>{pendingReconciliation}</p><p className="mt-1 text-xs text-muted-foreground">Effects needing operator review</p></CardContent></Card>
+  </section>;
+}
+
+function AudienceSummary({ counts }: { counts: AgentAudienceCounts }) {
+  return <section aria-label="Agent audience summary" className="grid gap-3 sm:grid-cols-3">
+    <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Total agents</p><p className="mt-1 text-2xl font-semibold text-foreground">{counts.total}</p><p className="mt-1 text-xs text-muted-foreground">Personal and customer service</p></CardContent></Card>
+    <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Personal agents</p><p className="mt-1 text-2xl font-semibold text-foreground">{counts.personal}</p><p className="mt-1 text-xs text-muted-foreground">Private and test assistants</p></CardContent></Card>
+    <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Customer service</p><p className="mt-1 text-2xl font-semibold text-foreground">{counts.customer_service}</p><p className="mt-1 text-xs text-muted-foreground">Customer-facing agents</p></CardContent></Card>
   </section>;
 }
 
@@ -293,6 +335,7 @@ function AgentCard({ agent, onChanged, onChat, onOpenDetails, delay = 0 }: { age
           </div>
           <div className="flex flex-wrap justify-end gap-2">
             <Badge className={modeClass(agent)}>{modeLabel(agent)}</Badge>
+            <Badge className={audienceClass(agent)}>{audienceLabel(agent)}</Badge>
             {creationProfileLabel(agent) ? <Badge className="border-border bg-secondary text-muted-foreground">{creationProfileLabel(agent)}</Badge> : null}
             <Badge className={statusClass(agent.installation_status ?? agent.status)}>{agent.installation_status ?? agent.status}</Badge>
           </div>

@@ -4,6 +4,7 @@ export type AgentInstallation = {
   id: string;
   status: "active" | "paused" | "disabled";
   execution_mode?: "system_hosted" | "kasitek_hosted" | "external_connected";
+  agent_audience?: "personal" | "customer_service" | null;
   agent_name?: string;
   agent_slug?: string;
   agent_protected?: boolean;
@@ -311,6 +312,7 @@ export type AgentDefinition = {
   slug: string;
   description?: string | null;
   creation_profile?: "general" | "custom" | "system" | null;
+  agent_audience?: "personal" | "customer_service" | null;
   status: string;
   protected: boolean;
   owner_type: string;
@@ -322,11 +324,19 @@ export type AgentDefinition = {
   version_number?: number | null;
 };
 
-export function listAgents(): Promise<{ agents: AgentDefinition[] }> {
-  return request<{ agents: AgentDefinition[] }>("/api/agents");
+export type AgentAudience = "personal" | "customer_service";
+
+export type AgentAudienceCounts = {
+  total: number;
+  personal: number;
+  customer_service: number;
+};
+
+export function listAgents(): Promise<{ agents: AgentDefinition[]; counts?: AgentAudienceCounts }> {
+  return request<{ agents: AgentDefinition[]; counts?: AgentAudienceCounts }>("/api/agents");
 }
 
-export function createAgent(input: { name: string; slug?: string; description?: string; creationProfile?: "general" | "custom" }): Promise<AgentDefinition> {
+export function createAgent(input: { name: string; slug?: string; description?: string; creationProfile?: "general" | "custom"; agentAudience?: AgentAudience }): Promise<AgentDefinition> {
   return request("/api/agents", { method: "POST", body: JSON.stringify({ ...input, protected: false }) });
 }
 
@@ -363,6 +373,7 @@ export function createExternalAgentConnection(input: {
   name: string;
   slug?: string;
   description?: string;
+  agentAudience?: AgentAudience;
   runtime: string;
   protocols: Array<"mcp" | "rest">;
   capabilities?: string[];

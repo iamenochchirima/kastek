@@ -9,11 +9,11 @@ export const metadata = { title: "Create agent | KasiTek" };
 export default async function CreateAgentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ template?: string; draft?: string }>;
+  searchParams: Promise<{ template?: string; draft?: string; audience?: string }>;
 }) {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
-  const { template: templateKey, draft: draftId } = await searchParams;
+  const { template: templateKey, draft: draftId, audience } = await searchParams;
   const initialTemplate = templateKey
     ? await fetchRustJson<{ templates: AgentTemplate[] }>("/api/agents/templates")
         .then((response) => response.templates.find((template) => template.key === templateKey))
@@ -30,5 +30,12 @@ export default async function CreateAgentPage({
         })
         .catch(() => undefined)
     : undefined;
-  return <CreateAgentPageClient initialTemplate={initialTemplate} initialDraft={initialDraft} />;
+  const selectedAudience = audience === "customer_service"
+    ? "customer_service"
+    : audience === "personal"
+      ? "personal"
+      : initialDraft?.agent.agent_audience === "customer_service"
+        ? "customer_service"
+        : "personal";
+  return <CreateAgentPageClient audience={selectedAudience} initialTemplate={initialTemplate} initialDraft={initialDraft} />;
 }
