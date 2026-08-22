@@ -4,6 +4,7 @@ import type {
   HandoffQueuePage,
   HandoffQueueItem,
   HandoffRepository,
+  HumanMessageResult,
 } from "../db/repositories/handoff-repository";
 
 /** Operator-side controls for the same ownership state used by agent actions. */
@@ -28,5 +29,15 @@ export class ConversationControlService {
 
   public resolve(input: { organizationId: string; handoffId: string; actorId: string; resolution?: string }): Promise<HandoffMutationResult> {
     return this.handoffs.resolve(input);
+  }
+
+  public sendHumanMessage(input: {
+    organizationId: string;
+    handoffId: string;
+    actorId: string;
+    text: string;
+    idempotencyKey: string;
+  }): Promise<HumanMessageResult> {
+    return this.handoffs.appendHumanMessage(input);
   }
 }

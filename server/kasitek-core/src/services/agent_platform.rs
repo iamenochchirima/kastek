@@ -1625,6 +1625,32 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn send_human_message(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        handoff_id: &str,
+        body: Value,
+        idempotency_key: &str,
+    ) -> Result<Value, AppError> {
+        let mut body = body;
+        if let Value::Object(ref mut object) = body {
+            object.insert(
+                "idempotencyKey".to_string(),
+                Value::String(idempotency_key.to_string()),
+            );
+        }
+        self.request_json(
+            Method::POST,
+            &format!("/v1/conversations/handoffs/{handoff_id}/messages"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
     pub async fn kasiai_home(
         &self,
         organization_id: &str,

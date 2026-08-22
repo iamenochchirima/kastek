@@ -132,6 +132,13 @@ export type AgentHandoffQueue = {
 
 export type AgentHandoffMutation = AgentHandoffQueueItem & { changed: boolean };
 
+export type AgentHumanMessageResult = AgentHandoffQueueItem & {
+  message: AgentMessage;
+  deliveryAttemptId: string | null;
+  created: boolean;
+  delivery?: { status: string };
+};
+
 export function listAgentHandoffs(filters: {
   installationId?: string;
   agentId?: string;
@@ -172,6 +179,14 @@ export function resolveAgentHandoff(handoffId: string, resolution?: string): Pro
   return request(`/api/agents/conversations/handoffs/${encodeURIComponent(handoffId)}/resolve`, {
     method: "POST",
     body: JSON.stringify(resolution ? { resolution } : {}),
+  });
+}
+
+export function sendAgentHumanMessage(handoffId: string, input: { text: string; idempotencyKey: string }): Promise<AgentHumanMessageResult> {
+  return request(`/api/agents/conversations/handoffs/${encodeURIComponent(handoffId)}/messages`, {
+    method: "POST",
+    headers: { "idempotency-key": input.idempotencyKey },
+    body: JSON.stringify({ text: input.text }),
   });
 }
 

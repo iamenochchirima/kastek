@@ -427,6 +427,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 "/conversations/{conversationId}",
                 web::get().to(agent_platform::get_conversation),
             )
+            .route(
+                "/conversations/handoffs/{handoffId}/messages",
+                web::post().to(agent_platform::send_human_message),
+            )
             .route("/runs/{runId}", web::get().to(agent_platform::get_run))
             .route(
                 "/runs/{runId}/timeline",

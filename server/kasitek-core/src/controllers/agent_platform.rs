@@ -969,6 +969,55 @@ pub async fn resolve_handoff(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn send_human_message(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    handoff_id: web::Path<String>,
+    body: Option<web::Json<Value>>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let mut body = body
+        .map(|value| value.into_inner())
+        .unwrap_or_else(|| Value::Object(Map::new()));
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Human message body must be an object".to_string(),
+        ));
+    }
+    let idempotency_key = req
+        .headers()
+        .get("idempotency-key")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .or_else(|| {
+            body.get("idempotencyKey")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned)
+        })
+        .ok_or_else(|| AppError::BadRequest("idempotency-key is required".to_string()))?;
+    if let Value::Object(ref mut object) = body {
+        object.insert(
+            "idempotencyKey".to_string(),
+            Value::String(idempotency_key.clone()),
+        );
+    }
+    let response = client(config.get_ref())?
+        .send_human_message(
+            &organization_id,
+            &user.id,
+            handoff_id.trim(),
+            body,
+            &idempotency_key,
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn kasiai_home(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

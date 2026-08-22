@@ -396,6 +396,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const handoffs = new HandoffRepository(dependencies.pool);
   const conversationActions = dependencies.conversationActions ?? new ConversationActionService(handoffs);
   const conversationControls = dependencies.conversationControls ?? new ConversationControlService(handoffs);
+  const coreClient = new KasitekCoreReadClient(dependencies.config);
   const toolRegistry = dependencies.toolRegistry ?? createDefaultTools(new KasitekCoreReadClient(dependencies.config), conversationActions);
   const capabilityAccess = dependencies.capabilityAccess ?? new UnknownCapabilityAccessSource();
   const connectorRegistry = dependencies.connectorRegistry ?? new ConnectorRegistry();
@@ -2244,6 +2245,66 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const handoffId = z.string().uuid().parse(request.params.handoffId);
     const input = z.object({ resolution: z.string().trim().max(2_000).optional() }).parse(request.body ?? {});
     return conversationControls.resolve({ organizationId: auth.organizationId, handoffId, actorId: auth.actorId, resolution: input.resolution });
+  });
+
+  app.post<{ Params: { handoffId: string } }>("/v1/conversations/handoffs/:handoffId/messages", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const handoffId = z.string().uuid().parse(request.params.handoffId);
+    const input = z.object({
+      text: z.string().trim().min(1).max(20_000),
+      idempotencyKey: z.string().trim().min(1).max(240).optional(),
+    }).parse(request.body ?? {});
+    const idempotencyKey = headerValue(request, "idempotency-key") ?? input.idempotencyKey;
+    const result = await conversationControls.sendHumanMessage({
+      organizationId: auth.organizationId,
+      handoffId,
+      actorId: auth.actorId,
+      text: input.text,
+      idempotencyKey: idempotencyKey ?? "",
+    });
+    if (!result.created || !result.deliveryAttemptId) return reply.code(result.created ? 201 : 200).send(result);
+
+    let claimed = false;
+    try {
+      await channels.claimDelivery(auth.organizationId, result.deliveryAttemptId);
+      claimed = true;
+      const text = typeof result.message.content.text === "string" ? result.message.content.text : input.text;
+      const delivery = result.conversation.channel_type === "telegram"
+        ? await (async () => {
+          const connection = (await channels.listConnections(auth.organizationId, result.conversation.installation_id))
+            .find((candidate) => candidate.channel_type === "telegram" && candidate.status === "active");
+          if (!connection?.credential_reference) throw new Error("Telegram channel delivery is not configured");
+          const token = await channelCredentials.resolve(auth.organizationId, connection.credential_reference, "telegram");
+          if (!result.conversation.external_conversation_id) throw new Error("Conversation has no external recipient");
+          return telegramClient.sendMessage(token, result.conversation.external_conversation_id, text);
+        })()
+        : await coreClient.deliverChannelMessage({
+          organizationId: auth.organizationId,
+          installationId: result.conversation.installation_id,
+          actorId: auth.actorId,
+          runId: result.message.id,
+          correlationId: result.message.id,
+          channelType: result.conversation.channel_type,
+          externalConversationId: result.conversation.external_conversation_id ?? "",
+          text,
+        });
+      await channels.markDelivered({
+        organizationId: auth.organizationId,
+        attemptId: result.deliveryAttemptId,
+        providerMessageId: delivery.providerMessageId,
+      });
+      return reply.code(201).send({ ...result, delivery: { status: delivery.status } });
+    } catch (error) {
+      if (claimed) {
+        await channels.markDeliveryFailed({
+          organizationId: auth.organizationId,
+          attemptId: result.deliveryAttemptId,
+          error: { code: "HUMAN_MESSAGE_DELIVERY_FAILED", message: error instanceof Error ? error.message : "Human message delivery failed" },
+        });
+      }
+      throw error;
+    }
   });
 
   app.post<{ Params: { installationId: string } }>(

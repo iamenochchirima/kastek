@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import { query, withTransaction } from "../pool";
-import type { ConversationRecord } from "./conversation-repository";
+import type { ConversationRecord, MessageRecord } from "./conversation-repository";
 
 export type HandoffReason = "customer_requested" | "agent_uncertain" | "policy_required" | "high_value" | "configured_workflow" | "other";
 export type HandoffPriority = "normal" | "high" | "urgent";
@@ -78,6 +78,14 @@ export interface HandoffMutationResult {
   handoff: HandoffRequestRecord;
   conversation: ConversationRecord;
   changed: boolean;
+}
+
+export interface HumanMessageResult {
+  handoff: HandoffRequestRecord;
+  conversation: ConversationRecord;
+  message: MessageRecord;
+  deliveryAttemptId: string | null;
+  created: boolean;
 }
 
 function handoffError(message: string, code: string, statusCode = 409): Error {
@@ -282,6 +290,123 @@ export class HandoffRepository {
 
   public async resolve(input: { organizationId: string; handoffId: string; actorId: string; resolution?: string }): Promise<HandoffMutationResult> {
     return this.closeClaim(input, "resolved", "resolved", input.resolution);
+  }
+
+  /**
+   * Appends a message from the assigned operator while retaining the same
+   * conversation ownership lock used by claim/continue/resolve. External
+   * channels receive a queued delivery attempt; the HTTP boundary is
+   * responsible for handing that attempt to the provider adapter.
+   */
+  public async appendHumanMessage(input: {
+    organizationId: string;
+    handoffId: string;
+    actorId: string;
+    text: string;
+    idempotencyKey: string;
+  }): Promise<HumanMessageResult> {
+    const text = input.text.trim();
+    const idempotencyKey = input.idempotencyKey.trim();
+    if (!text) throw handoffError("A message is required", "human_message_required", 400);
+    if (text.length > 20_000) throw handoffError("The message is too long", "human_message_too_long", 400);
+    if (!idempotencyKey || idempotencyKey.length > 240) throw handoffError("A valid idempotency key is required", "human_message_idempotency_required", 400);
+
+    return withTransaction(this.pool, async (client) => {
+      const current = await this.lockMutationTarget(client, input.organizationId, input.handoffId);
+      if (current.handoff.status !== "claimed" || current.conversation.handoff_state !== "human_owned") {
+        throw handoffError("Only a claimed human-owned conversation can receive an operator message", "conversation_not_human_owned");
+      }
+      if (current.handoff.claimed_by !== input.actorId) {
+        throw handoffError("Only the assigned operator can send a message", "handoff_not_assigned", 403);
+      }
+
+      const existing = await client.query<MessageRecord>(
+        `SELECT * FROM messages
+         WHERE organization_id = $1 AND provider = 'kasitek-human' AND provider_message_id = $2
+         LIMIT 1`,
+        [input.organizationId, idempotencyKey],
+      );
+      if (existing.rows[0]) {
+        if (existing.rows[0].conversation_id !== current.conversation.id) {
+          throw handoffError("The idempotency key belongs to another conversation", "human_message_idempotency_conflict", 409);
+        }
+        const attempt = await client.query<{ id: string }>(
+          `SELECT id FROM delivery_attempts WHERE message_id = $1 ORDER BY attempt_number DESC LIMIT 1`,
+          [existing.rows[0].id],
+        );
+        return {
+          handoff: current.handoff,
+          conversation: current.conversation,
+          message: existing.rows[0],
+          deliveryAttemptId: attempt.rows[0]?.id ?? null,
+          created: false,
+        };
+      }
+
+      const participant = await client.query<{ id: string }>(
+        `INSERT INTO participants (conversation_id, organization_id, participant_type, external_id, display_name)
+         VALUES ($1, $2, 'staff', $3, $3)
+         ON CONFLICT (conversation_id, participant_type, external_id)
+         DO UPDATE SET display_name = EXCLUDED.display_name
+         RETURNING id`,
+        [current.conversation.id, input.organizationId, input.actorId],
+      );
+      const sequence = await client.query<{ sequence_number: string }>(
+        `SELECT COALESCE(MAX(sequence_number), 0) + 1 AS sequence_number
+         FROM messages WHERE conversation_id = $1`,
+        [current.conversation.id],
+      );
+      const deliveryStatus = current.conversation.channel_type === "platform" ? "local" : "queued";
+      const message = await client.query<MessageRecord>(
+        `INSERT INTO messages
+          (conversation_id, organization_id, participant_id, direction, message_type, content,
+           provider, provider_message_id, sequence_number, source_channel,
+           external_conversation_id, occurred_at, delivery_status)
+         VALUES ($1, $2, $3, 'outbound', 'text', $4::jsonb,
+                 'kasitek-human', $5, $6, $7, $8, now(), $9)
+         RETURNING *`,
+        [
+          current.conversation.id,
+          input.organizationId,
+          participant.rows[0]?.id ?? null,
+          JSON.stringify({ text }),
+          idempotencyKey,
+          sequence.rows[0]!.sequence_number,
+          current.conversation.channel_type,
+          current.conversation.external_conversation_id,
+          deliveryStatus,
+        ],
+      );
+      if (!message.rows[0]) throw new Error("Human message could not be persisted");
+
+      let deliveryAttemptId: string | null = null;
+      if (current.conversation.channel_type !== "platform") {
+        const attempt = await client.query<{ id: string }>(
+          `INSERT INTO delivery_attempts
+            (organization_id, conversation_id, message_id, channel_type, status, attempt_number)
+           VALUES ($1, $2, $3, $4, 'queued', 1)
+           RETURNING id`,
+          [input.organizationId, current.conversation.id, message.rows[0].id, current.conversation.channel_type],
+        );
+        deliveryAttemptId = attempt.rows[0]?.id ?? null;
+      }
+      const updatedConversation = await client.query<ConversationRecord>(
+        `UPDATE conversations
+         SET updated_at = now(), last_message_at = now(), last_message_direction = 'outbound',
+             last_message_preview = LEFT($3, 500), message_count = message_count + 1
+         WHERE organization_id = $1 AND id = $2
+         RETURNING *`,
+        [input.organizationId, current.conversation.id, text],
+      );
+      if (!updatedConversation.rows[0]) throw new Error("Conversation update failed after human message");
+      return {
+        handoff: current.handoff,
+        conversation: updatedConversation.rows[0],
+        message: message.rows[0],
+        deliveryAttemptId,
+        created: true,
+      };
+    });
   }
 
   private async closeClaim(
