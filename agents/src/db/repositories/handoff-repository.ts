@@ -929,6 +929,36 @@ export class HandoffRepository {
     if (typeof input.payload.deliveryStatus === "string") analyticsAttributes.delivery_status = input.payload.deliveryStatus;
     if (typeof input.payload.resolutionCode === "string") analyticsAttributes.resolution_code = input.payload.resolutionCode;
     else if (typeof input.payload.resolution === "string") analyticsAttributes.resolution_code = input.payload.resolution;
+    const auditMetadata: Record<string, unknown> = {
+      handoff_id: input.handoff.id,
+      conversation_id: input.conversation.id,
+      installation_id: input.handoff.installation_id,
+      agent_definition_id: input.handoff.agent_definition_id,
+      agent_version_id: input.handoff.agent_version_id,
+      run_id: input.handoff.run_id,
+      channel_type: input.handoff.channel_type,
+      event_type: input.eventType,
+      action,
+      status: analyticsAttributes.status,
+      reason: input.handoff.reason,
+      priority: input.handoff.priority,
+      ...(typeof input.payload.resolutionCode === "string" ? { resolution_code: input.payload.resolutionCode } : {}),
+    };
+    await client.query(
+      `INSERT INTO audit_records
+        (organization_id, actor_type, actor_id, action, resource_type, resource_id, correlation_id, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
+      [
+        input.handoff.organization_id,
+        input.actorType,
+        input.actorId,
+        `agent_handoff.${action}`,
+        "agent_handoff",
+        input.handoff.id,
+        input.handoff.run_id,
+        JSON.stringify(auditMetadata),
+      ],
+    );
     const recordSuffix = typeof input.payload.messageId === "string"
       ? `${action}:${input.payload.messageId}`
       : action;

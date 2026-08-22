@@ -4,6 +4,7 @@ import { HandoffRepository } from "../src/db/repositories/handoff-repository";
 describe("handoff repository lifecycle", () => {
   it("emits first-human-response before the per-message event", async () => {
     const eventTypes: string[] = [];
+    const auditRecords: Array<{ action: string; metadata: Record<string, unknown> }> = [];
     const handoff = {
       id: "11111111-1111-4111-8111-111111111111",
       organization_id: "org-1",
@@ -100,6 +101,10 @@ describe("handoff repository lifecycle", () => {
           eventTypes.push(String(values?.[3]));
           return { rows: [] };
         }
+        if (sql.includes("INSERT INTO audit_records")) {
+          auditRecords.push({ action: String(values?.[3]), metadata: JSON.parse(String(values?.[7])) as Record<string, unknown> });
+          return { rows: [] };
+        }
         if (sql.includes("INSERT INTO analytics_outbox")) return { rows: [{ outbox_id: "outbox-1", source_sequence: "1" }] };
         throw new Error(`Unexpected query: ${sql}`);
       }),
@@ -120,5 +125,10 @@ describe("handoff repository lifecycle", () => {
       "conversation.handoff.first_human_response",
       "conversation.human_message.sent",
     ]);
+    expect(auditRecords.map((record) => record.action)).toEqual([
+      "agent_handoff.first_human_response",
+      "agent_handoff.human_message",
+    ]);
+    expect(JSON.stringify(auditRecords)).not.toContain("I can help.");
   });
 });
