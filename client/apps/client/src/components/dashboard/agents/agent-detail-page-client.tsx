@@ -520,7 +520,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 
         {activeSection === "operations" && externalAgent && agent.installation_id ? <ExternalAgentOperations installationId={agent.installation_id} /> : null}
 
-        {activeSection === "conversations" && kasitekHostedAgent && agent.installation_id ? <AgentConversationHistory installationId={agent.installation_id} /> : null}
+        {activeSection === "conversations" && kasitekHostedAgent && agent.installation_id ? <AgentConversationHistory agentId={agent.id} installationId={agent.installation_id} /> : null}
 
         {activeSection === "integrations" && hostedAgent && agent.installation_id ? <InstallationIntegrations agentId={agent.id} installationId={agent.installation_id} personal={executionMode === "system_hosted"} agentName={agent.name} onWebsiteDeploymentStateChange={setWebsiteChatConfigured} /> : null}
 
@@ -930,7 +930,7 @@ function ExternalAgentHealth({ installationId }: { installationId: string }) {
   return <Card><CardContent className="space-y-4 p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-semibold text-foreground">External connection health</h2><p className="mt-1 text-sm text-muted-foreground">This runtime is operated outside KasiTek. Health reflects installation status and whether a usable transport credential exists; it does not claim that the remote runtime is reachable.</p></div><Button type="button" variant="outline" size="sm" disabled={checking} onClick={() => void refresh()}><RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${checking ? "animate-spin" : ""}`} />{checking ? "Checking…" : "Check now"}</Button></div>{error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : health ? <><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Platform readiness</p><p className="mt-1 font-medium capitalize text-foreground">{health.status.replaceAll("_", " ")}</p></div><div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Active credentials</p><p className="mt-1 font-medium text-foreground">{health.activeCredentialCount}</p></div><div className="rounded-lg bg-secondary/50 p-3"><p className="text-xs text-muted-foreground">Last used</p><p className="mt-1 font-medium text-foreground">{health.lastUsedAt ? new Date(health.lastUsedAt).toLocaleString() : "Not used yet"}</p></div></div>{checkedAt ? <p className="text-xs text-muted-foreground">Checked {new Date(checkedAt).toLocaleTimeString()}</p> : null}</> : <p className="text-sm text-muted-foreground">Checking connection health…</p>}</CardContent></Card>;
 }
 
-function AgentConversationHistory({ installationId }: { installationId: string }) {
+function AgentConversationHistory({ agentId, installationId }: { agentId: string; installationId: string }) {
   const [conversations, setConversations] = useState<AgentConversation[]>([]);
   const [selected, setSelected] = useState<AgentConversation | null>(null);
   const [messages, setMessages] = useState<AgentMessage[]>([]);
@@ -975,7 +975,10 @@ function AgentConversationHistory({ installationId }: { installationId: string }
 
   return <Card>
     <CardContent className="space-y-4 p-6">
-      <h2 className="text-lg font-semibold text-foreground">Chat history</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-foreground">Chat history</h2>
+        <Button asChild type="button" variant="outline" size="sm"><Link href={`/agents/conversations?view=all&agentId=${encodeURIComponent(agentId)}&installationId=${encodeURIComponent(installationId)}`}>Open live queue</Link></Button>
+      </div>
       {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
       <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
         <div className="space-y-2 rounded-xl border border-border bg-secondary/20 p-2" aria-label="Agent conversations">

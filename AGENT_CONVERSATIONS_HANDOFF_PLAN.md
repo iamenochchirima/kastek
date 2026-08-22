@@ -32,11 +32,11 @@ This plan covers the split between personal and customer-service agents, custome
 
 ## 3. Template catalog
 
-- [ ] Add audience metadata to templates.
-- [ ] Split Personal and Customer service template browsing.
-- [ ] Add personal templates other than KasiAi.
-- [ ] Add support, FAQ escalation, lead intake, and booking intake customer-service templates.
-- [ ] Declare supported channels, handoff support, required connections, capabilities, and setup fields.
+- [x] Add audience metadata to templates.
+- [x] Split Personal and Customer service template browsing.
+- [x] Add personal templates other than KasiAi.
+- [x] Add support, FAQ escalation, lead intake, and booking intake customer-service templates.
+- [x] Declare supported channels, handoff support, required connections, capabilities, and setup fields.
 
 ## 4. Handoff policy
 
@@ -64,11 +64,11 @@ This plan covers the split between personal and customer-service agents, custome
 - [x] Pause the model loop with an `awaiting_human` control after a successful handoff request.
 - [x] Define queue pagination/filter inputs and keep operator mutations on the same repository boundary.
 - [x] Expose an organization-scoped handoff queue/detail API with claim, continue-with-agent, and resolve transitions.
-- [x] List live conversations with organization-scoped installation, agent, search, and bounded-limit filters; cursor pagination remains pending.
+- [x] List live conversations with organization-scoped installation, agent, search, bounded-limit filters, and cursor pagination.
 - [x] Get transcript, participants, active runs, ownership, and handoff history.
 - [x] Add atomic claim, pause/stop, resume, human-message, and resolve operations.
 - [x] Add release and expiry operations with organization-scoped operator APIs.
-- [ ] Apply organization scope, permissions, idempotency keys, and optimistic concurrency.
+- [x] Apply organization scope, permissions, idempotency keys, and optimistic concurrency.
 - [x] Apply organization scoping and read/write scopes to the operator API; keep handoff creation idempotent and claims transactionally race-safe.
 - [x] Emit transactional handoff lifecycle events to `agent_events` for request, claim, human message, continue, release, resolve, expiry, and cancellation transitions.
 - [x] Emit lifecycle events compatible with the analytics handoff contract.
@@ -95,18 +95,18 @@ This plan covers the split between personal and customer-service agents, custome
 ## 9. Analytics integration
 
 - [x] Register the versioned `agent.handoff.lifecycle@1` contract and enqueue request, claim, human-message, continue, and resolve transitions.
-- [ ] Emit request created, shown, claimed, first human response, human message, released, resolved, expired, and cancelled events.
-- [ ] Include organization, agent definition/version/installation, conversation, channel, connection, run, actor, reason, timestamps, and idempotency key.
+- [x] Emit request created, shown, claimed, first human response, human message, released, resolved, expired, and cancelled events.
+- [x] Include organization, agent definition/version/installation, conversation, channel, connection, run, actor, reason, timestamps, and idempotency key.
 - [ ] Keep rollups, dimensions, and dashboards in the analytics plan.
 - [ ] Add organization and installation isolation tests.
 
 ## 10. Permissions, audit, and safety
 
-- [ ] Gate handoff by audience/profile and supported channel.
-- [ ] Restrict claim and response actions to authorized workspace members.
-- [ ] Make claims race-safe.
-- [ ] Audit ownership, pause, release, message, resolve, and expiry transitions.
-- [ ] Never expose unauthorized transcript content.
+- [x] Gate handoff by audience/profile and supported channel.
+- [x] Restrict claim and response actions to authorized workspace members.
+- [x] Make claims race-safe.
+- [x] Audit ownership, pause, release, message, resolve, and expiry transitions.
+- [x] Never expose unauthorized transcript content.
 
 ## 11. Migration and rollout
 

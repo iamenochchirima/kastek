@@ -44,6 +44,16 @@ import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle }
 
 type QueueView = "handoff" | "human" | "live" | "all";
 
+type InitialFilters = {
+  view?: QueueView;
+  agentId?: string;
+  installationId?: string;
+  search?: string;
+  channelType?: string;
+  reason?: AgentHandoffReason;
+  priority?: AgentHandoffPriority;
+};
+
 const viewStatuses: Record<QueueView, AgentHandoffStatus[]> = {
   handoff: ["pending"],
   human: ["claimed"],
@@ -106,16 +116,18 @@ function EmptyQueue({ view }: { view: QueueView }) {
   );
 }
 
-export function AgentConversationsPageClient({ initialQueue }: { initialQueue: AgentHandoffQueue }) {
-  const [view, setView] = useState<QueueView>("handoff");
+export function AgentConversationsPageClient({ initialQueue, initialFilters }: { initialQueue: AgentHandoffQueue; initialFilters?: InitialFilters }) {
+  const [view, setView] = useState<QueueView>(initialFilters?.view ?? "handoff");
   const [queue, setQueue] = useState(initialQueue);
   const [liveQueue, setLiveQueue] = useState<Array<{ conversation: AgentHandoffQueueItem["conversation"]; run: { id: string; status: string; installation_id: string; agent_definition_id: string; created_at: string; updated_at: string; trigger_type: string } }>>([]);
   const [selectedId, setSelectedId] = useState<string | null>(initialQueue.items[0]?.handoff.id ?? null);
   const [selectedLiveId, setSelectedLiveId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [priority, setPriority] = useState<AgentHandoffPriority | "">("");
-  const [channelType, setChannelType] = useState("");
-  const [reason, setReason] = useState<AgentHandoffReason | "">("");
+  const [search, setSearch] = useState(initialFilters?.search ?? "");
+  const [priority, setPriority] = useState<AgentHandoffPriority | "">(initialFilters?.priority ?? "");
+  const [channelType, setChannelType] = useState(initialFilters?.channelType ?? "");
+  const [reason, setReason] = useState<AgentHandoffReason | "">(initialFilters?.reason ?? "");
+  const [agentId] = useState(initialFilters?.agentId);
+  const [installationId] = useState(initialFilters?.installationId);
   const [queueCursor, setQueueCursor] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -131,11 +143,13 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
     if (!silent) setRefreshing(true);
     try {
       if (nextView === "live") {
-        const result = await listAgentLiveConversations({ limit: 100, search: search.trim() || undefined });
+        const result = await listAgentLiveConversations({ agentId, installationId, limit: 100, search: search.trim() || undefined });
         setLiveQueue(result.items);
         setSelectedLiveId((current) => result.items.some((item) => item.conversation.id === current) ? current : result.items[0]?.conversation.id ?? null);
       } else {
         const result = await listAgentHandoffs({
+          agentId,
+          installationId,
           status: viewStatuses[nextView],
           limit: 100,
           search: search.trim() || undefined,
@@ -153,7 +167,7 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
     } finally {
       if (!silent) setRefreshing(false);
     }
-  }, [channelType, priority, queueCursor, reason, search, view]);
+  }, [agentId, channelType, installationId, priority, queueCursor, reason, search, view]);
 
   useEffect(() => {
     void loadQueue(view);
