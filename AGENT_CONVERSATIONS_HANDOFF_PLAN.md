@@ -49,7 +49,7 @@ This plan covers the split between personal and customer-service agents, custome
 ## 5. Conversation ownership and state machine
 
 - [ ] Keep Agent Platform transcript ownership and distinguish customer handoff from generic workflow waits.
-- [ ] Add states: `agent_active`, `handoff_requested`, `human_owned`, `resolved`, `expired`, and `cancelled`.
+- [x] Add states: `agent_active`, `handoff_requested`, `human_owned`, `resolved`, `expired`, and `cancelled`.
 - [ ] Add an append-only handoff request/history record.
 - [x] Add assignment revision/concurrency protection for atomic claims.
 - [x] Add atomic claim, continue-with-agent, and resolve transitions behind a shared operator control service.
@@ -63,10 +63,12 @@ This plan covers the split between personal and customer-service agents, custome
 - [x] Register the handoff action in the hosted runtime and MCP/REST capability registry.
 - [x] Pause the model loop with an `awaiting_human` control after a successful handoff request.
 - [x] Define queue pagination/filter inputs and keep operator mutations on the same repository boundary.
+- [x] Expose an organization-scoped handoff queue/detail API with claim, continue-with-agent, and resolve transitions.
 - [ ] List live conversations and handoff requests with filters and pagination.
 - [ ] Get transcript, participants, active runs, ownership, and handoff history.
 - [ ] Add atomic claim, release, pause/stop, resume, human-message, resolve, and expire operations.
 - [ ] Apply organization scope, permissions, idempotency keys, and optimistic concurrency.
+- [x] Apply organization scoping and read/write scopes to the operator API; keep handoff creation idempotent and claims transactionally race-safe.
 - [ ] Emit lifecycle events compatible with the analytics handoff contract.
 - [ ] Add realtime updates with a polling fallback where necessary.
 

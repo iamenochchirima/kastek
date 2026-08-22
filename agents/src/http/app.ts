@@ -92,6 +92,7 @@ import { ApprovalDecisionRateLimiter } from "./approval-rate-limit";
 import { approveOperatorCommand, createOperatorCommand, getOperatorCommand, operatorCommandInputSchema } from "./operator-commands";
 import { acknowledgeOperatorNotification, getOperatorProjection, listOperatorNotifications, rebuildOperatorProjections } from "./operator-projections";
 import { ConversationActionService } from "../actions/conversation-actions";
+import { ConversationControlService } from "../actions/conversation-controls";
 import { HandoffRepository } from "../db/repositories/handoff-repository";
 
 export interface AppDependencies {
@@ -116,6 +117,7 @@ export interface AppDependencies {
   installationGrants?: InstallationGrantRepository;
   toolRegistry?: ToolRegistry;
   conversationActions?: ConversationActionService;
+  conversationControls?: ConversationControlService;
   /** Product-owned entitlement/provider readiness projection for capabilities. */
   capabilityAccess?: CapabilityAccessSource;
   connectorRegistry?: ConnectorRegistry;
@@ -391,7 +393,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const installationCredentials = dependencies.installationCredentials ?? new InstallationCredentialRepository(dependencies.pool);
   const developerApiKeyResolver = dependencies.developerApiKeyResolver ?? new KasitekCoreDeveloperApiKeyResolver(dependencies.config);
   const installationGrants = dependencies.installationGrants ?? new InstallationGrantRepository(dependencies.pool);
-  const conversationActions = dependencies.conversationActions ?? new ConversationActionService(new HandoffRepository(dependencies.pool));
+  const handoffs = new HandoffRepository(dependencies.pool);
+  const conversationActions = dependencies.conversationActions ?? new ConversationActionService(handoffs);
+  const conversationControls = dependencies.conversationControls ?? new ConversationControlService(handoffs);
   const toolRegistry = dependencies.toolRegistry ?? createDefaultTools(new KasitekCoreReadClient(dependencies.config), conversationActions);
   const capabilityAccess = dependencies.capabilityAccess ?? new UnknownCapabilityAccessSource();
   const connectorRegistry = dependencies.connectorRegistry ?? new ConnectorRegistry();
@@ -2184,6 +2188,63 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       return reply.code(201).send({ ...resolved, ...messages });
     },
   );
+
+  app.get<{ Querystring: { installationId?: string; agentId?: string; status?: string; priority?: string; search?: string; limit?: string; before?: string } }>(
+    "/v1/conversations/handoffs",
+    async (request) => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "agents:read");
+      const queryInput = z.object({
+        installationId: z.string().uuid().optional(),
+        agentId: z.string().uuid().optional(),
+        status: z.string().optional(),
+        priority: z.enum(["normal", "high", "urgent"]).optional(),
+        search: z.string().trim().max(240).optional(),
+        limit: z.coerce.number().int().min(1).max(100).optional(),
+        before: z.string().datetime().optional(),
+      }).parse(request.query);
+      const statuses = queryInput.status
+        ? queryInput.status.split(",").map((value) => value.trim()).filter(Boolean)
+        : undefined;
+      const validStatuses = statuses?.map((value) => z.enum(["pending", "claimed", "resolved", "expired", "cancelled"]).parse(value));
+      return conversationControls.listHandoffs(auth.organizationId, {
+        ...queryInput,
+        status: validStatuses,
+      });
+    },
+  );
+
+  app.get<{ Params: { handoffId: string } }>("/v1/conversations/handoffs/:handoffId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const handoffId = z.string().uuid().parse(request.params.handoffId);
+    const handoff = await conversationControls.getHandoff(auth.organizationId, handoffId);
+    if (!handoff) return reply.code(404).send({ error: "handoff_not_found" });
+    return handoff;
+  });
+
+  app.post<{ Params: { handoffId: string } }>("/v1/conversations/handoffs/:handoffId/claim", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const handoffId = z.string().uuid().parse(request.params.handoffId);
+    return conversationControls.claim({ organizationId: auth.organizationId, handoffId, actorId: auth.actorId });
+  });
+
+  app.post<{ Params: { handoffId: string } }>("/v1/conversations/handoffs/:handoffId/continue", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const handoffId = z.string().uuid().parse(request.params.handoffId);
+    const input = z.object({ resolution: z.string().trim().max(2_000).optional() }).parse(request.body ?? {});
+    return conversationControls.continueWithAgent({ organizationId: auth.organizationId, handoffId, actorId: auth.actorId, resolution: input.resolution });
+  });
+
+  app.post<{ Params: { handoffId: string } }>("/v1/conversations/handoffs/:handoffId/resolve", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const handoffId = z.string().uuid().parse(request.params.handoffId);
+    const input = z.object({ resolution: z.string().trim().max(2_000).optional() }).parse(request.body ?? {});
+    return conversationControls.resolve({ organizationId: auth.organizationId, handoffId, actorId: auth.actorId, resolution: input.resolution });
+  });
 
   app.post<{ Params: { installationId: string } }>(
     "/v1/installations/:installationId/platform/conversations/clear",

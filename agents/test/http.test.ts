@@ -2137,6 +2137,36 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("exposes the organization-scoped handoff queue and operator transitions", async () => {
+    const controls = {
+      listHandoffs: vi.fn(async (organizationId: string, filters: Record<string, unknown>) => ({
+        items: [{ handoff: { id: "11111111-1111-4111-8111-111111111111", organization_id: organizationId, status: "pending" }, conversation: { id: "22222222-2222-4222-8222-222222222222" } }],
+        nextBefore: null,
+        filters,
+      })),
+      getHandoff: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111" }, conversation: { id: "22222222-2222-4222-8222-222222222222" } })),
+      claim: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111", status: "claimed" }, conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "human_owned" }, changed: true })),
+      continueWithAgent: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111", status: "resolved" }, conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "agent_active" }, changed: true })),
+      resolve: vi.fn(async () => ({ handoff: { id: "11111111-1111-4111-8111-111111111111", status: "resolved" }, conversation: { id: "22222222-2222-4222-8222-222222222222", handoff_state: "resolved" }, changed: true })),
+    } as never;
+    const app = buildApp({ config, pool: fakePool, conversationControls: controls });
+    const headers = { "x-organization-id": "org-1", "x-actor-id": "user-1" };
+    const queue = await app.inject({ method: "GET", url: "/v1/conversations/handoffs?status=pending,claimed&limit=10", headers });
+    const detail = await app.inject({ method: "GET", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111", headers });
+    const claimed = await app.inject({ method: "POST", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/claim", headers });
+    const continued = await app.inject({ method: "POST", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/continue", headers, payload: { resolution: "customer chose automation" } });
+    const resolved = await app.inject({ method: "POST", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/resolve", headers, payload: { resolution: "completed" } });
+    expect(queue.statusCode).toBe(200);
+    expect(queue.json()).toMatchObject({ items: [{ handoff: { status: "pending" } }], nextBefore: null });
+    expect(detail.statusCode).toBe(200);
+    expect(claimed.json()).toMatchObject({ changed: true, conversation: { handoff_state: "human_owned" } });
+    expect(continued.json()).toMatchObject({ conversation: { handoff_state: "agent_active" } });
+    expect(resolved.json()).toMatchObject({ conversation: { handoff_state: "resolved" } });
+    expect(controls.listHandoffs).toHaveBeenCalledWith("org-1", expect.objectContaining({ status: ["pending", "claimed"], limit: 10 }));
+    expect(controls.claim).toHaveBeenCalledWith({ organizationId: "org-1", handoffId: "11111111-1111-4111-8111-111111111111", actorId: "user-1" });
+    await app.close();
+  });
+
   it("clears only the hosted installation's private test chats", async () => {
     const clearPrivateConversations = vi.fn(async () => ({
       conversation: { id: "fresh-conversation", installation_id: "install-1", status: "active" },
