@@ -149,6 +149,26 @@ checklist records implementation evidence for the current package only.
 - [ ] Attach authenticated batch HTTP transport and real authoritative domain mutations in the
   ingestion/vertical-slice packages that follow A-07.
 
+## A-08 — TypeScript producer library, Agent outbox, and publisher foundation
+
+- [x] Add the Agent Platform TypeScript producer and publisher modules under `agents/src/analytics`.
+- [x] Use the generated Analytics contract bindings for registered Agent contract identity checks,
+  while keeping the producer boundary extensible for newly registered observation and scope facts.
+- [x] Build CloudEvents-compatible event, provider-observation, and scope-definition records with
+  Agent source identity, scope, subject, timing, correlation, and idempotency metadata.
+- [x] Canonicalize JSON payloads, hash them with SHA-256, and reject malformed JSON, invalid dates,
+  invalid windows, and prohibited content before any database operation.
+- [x] Add Agent migration `065_analytics_outbox.sql` with a database-generated source sequence,
+  immutable envelope content, duplicate identity protection, claim indexes, and delivery states.
+- [x] Accept the caller's existing `pg.PoolClient` for transactional enqueue and report inserted,
+  identical duplicate, and conflicting duplicate outcomes.
+- [x] Add bounded `SKIP LOCKED` leasing, stale-lease recovery, deterministic capped retry jitter,
+  lease ownership checks, and accepted/retryable/quarantined delivery transitions.
+- [x] Run TypeScript checks, focused producer/migration tests, and the PostgreSQL outbox integration
+  test against the local Agent database without leaving persistent test rows.
+- [ ] Attach authenticated batch HTTP transport and authoritative Agent mutation instrumentation
+  after the shared Analytics ingestion boundary and vertical-slice contracts are ready.
+
 ## Verification evidence
 
 - `cargo fmt --manifest-path server/kasitek-analytics/Cargo.toml -- --check`
@@ -208,6 +228,11 @@ checklist records implementation evidence for the current package only.
   configured Tenant endpoint was unavailable.
 - A-07: Core transactional SQL smoke test passed: immutable envelope mutation was rejected, a row
   was leased and acknowledged delivered, and the transaction rolled back its fixture.
+- A-08: `pnpm exec tsc --noEmit` passed in `agents`; focused Vitest producer, migration, and
+  integration files passed with 16 tests.
+- A-08: The Agent migration was applied to the local `kasitek_agents` database and the explicit
+  PostgreSQL integration test passed transactional enqueue, duplicate/conflict detection, lease
+  claim, retry reclaim, accepted delivery, and empty-backlog checks using temporary rows.
 
 ## Explicitly deferred
 
@@ -219,4 +244,6 @@ checklist records implementation evidence for the current package only.
 - A-05 signed ES256 transport verification until the reporting/ingestion HTTP grant boundary exists
 - A-06 signed audit checkpoint production/verification until the controlled signing boundary exists
 - A-07 authenticated publisher transport until the Analytics ingestion HTTP boundary exists
+- A-08 authenticated publisher transport and authoritative Agent mutation instrumentation until the
+  Analytics ingestion boundary and reference vertical slices exist
 - Source outboxes, ingestion, authentication, projections, reporting, and UI
