@@ -284,6 +284,22 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           });
           await emit(input, { type: "tool.completed", iteration, payload: { name: toolCall.name, latencyMs: result.latencyMs } });
           await input.onToolCompleted?.({ toolCallId: toolCall.id, name: toolCall.name, argumentsHash, output: safeOutput, latencyMs: result.latencyMs, effectId: result.effectId });
+          if (result.control === "awaiting_human") {
+            await emit(input, { type: "loop.paused", iteration, payload: { reason: "handoff", name: toolCall.name } });
+            const safeOutputRecord = safeOutput && typeof safeOutput === "object" ? safeOutput as Record<string, unknown> : undefined;
+            const handoffRequestId = safeOutputRecord && typeof safeOutputRecord.handoffRequestId === "string"
+              ? safeOutputRecord.handoffRequestId
+              : undefined;
+            return {
+              status: "awaiting_human",
+              messages,
+              response,
+              usage,
+              iterations: iteration,
+              toolCalls,
+              waitingFor: handoffRequestId,
+            };
+          }
         } catch (error) {
           if (error instanceof ToolPolicyError && error.code === "APPROVAL_REQUIRED") {
             await emit(input, { type: "loop.paused", iteration, payload: { reason: "approval", name: toolCall.name } });

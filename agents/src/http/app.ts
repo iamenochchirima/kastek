@@ -91,6 +91,8 @@ import { authorizeInstallationCapability } from "../capabilities/authorization";
 import { ApprovalDecisionRateLimiter } from "./approval-rate-limit";
 import { approveOperatorCommand, createOperatorCommand, getOperatorCommand, operatorCommandInputSchema } from "./operator-commands";
 import { acknowledgeOperatorNotification, getOperatorProjection, listOperatorNotifications, rebuildOperatorProjections } from "./operator-projections";
+import { ConversationActionService } from "../actions/conversation-actions";
+import { HandoffRepository } from "../db/repositories/handoff-repository";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -113,6 +115,7 @@ export interface AppDependencies {
   developerApiKeyResolver?: DeveloperApiKeyResolver;
   installationGrants?: InstallationGrantRepository;
   toolRegistry?: ToolRegistry;
+  conversationActions?: ConversationActionService;
   /** Product-owned entitlement/provider readiness projection for capabilities. */
   capabilityAccess?: CapabilityAccessSource;
   connectorRegistry?: ConnectorRegistry;
@@ -388,7 +391,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const installationCredentials = dependencies.installationCredentials ?? new InstallationCredentialRepository(dependencies.pool);
   const developerApiKeyResolver = dependencies.developerApiKeyResolver ?? new KasitekCoreDeveloperApiKeyResolver(dependencies.config);
   const installationGrants = dependencies.installationGrants ?? new InstallationGrantRepository(dependencies.pool);
-  const toolRegistry = dependencies.toolRegistry ?? createDefaultTools(new KasitekCoreReadClient(dependencies.config));
+  const conversationActions = dependencies.conversationActions ?? new ConversationActionService(new HandoffRepository(dependencies.pool));
+  const toolRegistry = dependencies.toolRegistry ?? createDefaultTools(new KasitekCoreReadClient(dependencies.config), conversationActions);
   const capabilityAccess = dependencies.capabilityAccess ?? new UnknownCapabilityAccessSource();
   const connectorRegistry = dependencies.connectorRegistry ?? new ConnectorRegistry();
   if (connectorRegistry.list().length === 0) {

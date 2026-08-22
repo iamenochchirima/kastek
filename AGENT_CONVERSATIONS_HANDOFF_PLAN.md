@@ -10,7 +10,7 @@ This plan covers the split between personal and customer-service agents, custome
 - Personal agents are private/test assistants and do not expose customer channels or human handoff.
 - Customer-service agents can serve customer channels and support human handoff.
 - The existing builder type (`general` or `custom`) remains separate from the agent audience.
-- External-connected agents do not receive handoff controls until their adapter supports the same ownership contract.
+- External-connected customer-service agents receive the same handoff capability through the MCP/REST boundary; ownership controls still remain in the platform.
 
 ## 1. Audience and capability model
 
@@ -18,8 +18,8 @@ This plan covers the split between personal and customer-service agents, custome
 - [x] Return organization-scoped Personal and Customer service counts.
 - [x] Show those counts in the Agents overview.
 - [x] Keep builder type independent from audience.
-- [x] Gate hosted customer channels by audience and installation mode; handoff support remains pending.
-- [ ] Ensure KasiAi and personal agents cannot enable customer handoff through UI or API.
+- [x] Gate hosted customer channels by audience and installation mode; customer-service agents receive the handoff capability by default.
+- [x] Ensure KasiAi and personal agents cannot enable customer handoff through UI or API.
 - [x] Add migration/backfill rules for existing definitions and installations.
 
 ## 2. Agent creation flow
@@ -40,9 +40,9 @@ This plan covers the split between personal and customer-service agents, custome
 
 ## 4. Handoff policy
 
-- [ ] Support an explicit customer request for a human.
-- [ ] Support a configured workflow handoff node for customer-service agents.
-- [ ] Record reason code, triggering message, triggering run, agent/version/installation, channel, and timestamps.
+- [x] Support an explicit customer request for a human through the standard `conversation.request_human` capability.
+- [x] Route the configured workflow handoff node through the same handoff action service.
+- [x] Record reason code, triggering message, triggering run, agent/version/installation, channel, and timestamps.
 - [ ] Define queue, timeout/expiry, eligible claimers, and fallback behavior.
 - [ ] Leave confidence, sentiment, business-hours, and advanced routing for a later extension.
 
@@ -59,6 +59,8 @@ This plan covers the split between personal and customer-service agents, custome
 
 ## 6. Runtime and API contract
 
+- [x] Register the handoff action in the hosted runtime and MCP/REST capability registry.
+- [x] Pause the model loop with an `awaiting_human` control after a successful handoff request.
 - [ ] List live conversations and handoff requests with filters and pagination.
 - [ ] Get transcript, participants, active runs, ownership, and handoff history.
 - [ ] Add atomic claim, release, pause/stop, resume, human-message, resolve, and expire operations.

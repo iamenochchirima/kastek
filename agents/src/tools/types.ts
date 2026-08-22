@@ -21,6 +21,7 @@ export interface ToolInvocationContext {
   agentVersionId: string;
   installationId: string;
   runId: string;
+  conversationId?: string;
   actorId?: string;
   correlationId: string;
 }
@@ -65,6 +66,7 @@ export interface ToolInvocationResult {
   version: string;
   argumentsHash: string;
   output: unknown;
+  control?: "awaiting_human";
   effectId?: string;
   latencyMs: number;
 }

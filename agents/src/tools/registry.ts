@@ -118,6 +118,9 @@ export class ToolRegistry {
       version: tool.version,
       argumentsHash,
       output,
+      control: output && typeof output === "object" && (output as Record<string, unknown>).control === "awaiting_human"
+        ? "awaiting_human"
+        : undefined,
       effectId: tool.riskClass === "external-effect" ? effectIdForInvocation(request.context, tool.name, argumentsHash) : undefined,
       latencyMs: Date.now() - startedAt,
     };

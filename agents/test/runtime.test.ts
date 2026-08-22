@@ -143,6 +143,55 @@ describe("Tool Gateway and bounded runtime", () => {
     expect(result.messages.at(-1)).toMatchObject({ role: "assistant", content: "done" });
   });
 
+  it("stops the model loop when a conversation action requests human ownership", async () => {
+    const registry = new ToolRegistry();
+    registry.register({
+      name: "conversation.request_human",
+      version: "1.0.0",
+      description: "Request a human",
+      riskClass: "controlled-write",
+      requiresApproval: false,
+      timeoutMs: 1_000,
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object" },
+      handler: async () => ({
+        status: "handoff_requested",
+        handoffRequestId: "handoff-1",
+        conversationId: "conversation-1",
+        agentPaused: true,
+        created: true,
+        control: "awaiting_human",
+      }),
+    });
+    const adapter: ModelAdapter = {
+      provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+      complete: async () => response([{ id: "call-handoff", name: "conversation.request_human", arguments: {} }]),
+    };
+    const events: string[] = [];
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "I need a person" }],
+      credentials,
+      gateway: new ModelGateway([adapter]),
+      tools: registry,
+      grantedTools: new Set(["conversation.request_human"]),
+      toolContext: {
+        organizationId: "org",
+        agentId: "agent",
+        agentVersionId: "version",
+        installationId: "install",
+        runId: "run",
+        correlationId: "corr",
+        conversationId: "conversation-1",
+      },
+      onEvent: (event) => { if (event.type === "loop.paused") events.push(String(event.payload.reason)); },
+    });
+    expect(result.status).toBe("awaiting_human");
+    expect(result.waitingFor).toBe("handoff-1");
+    expect(events).toEqual(["handoff"]);
+  });
+
   it("fails cleanly when a provider returns an empty final assistant response", async () => {
     const adapter: ModelAdapter = {
       provider: "openai",

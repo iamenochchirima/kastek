@@ -18,6 +18,10 @@ export interface ConversationRecord {
   model_provider: string | null;
   model: string | null;
   conversation_kind: "personal" | "customer" | "test" | "external";
+  handoff_state: "agent_active" | "handoff_requested" | "human_owned" | "resolved" | "expired" | "cancelled";
+  handoff_revision: string | number;
+  handoff_requested_at: string | null;
+  handoff_resolved_at: string | null;
   assigned_actor_id: string | null;
   last_message_at: string | null;
   last_message_direction: string | null;

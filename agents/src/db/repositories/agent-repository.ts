@@ -14,7 +14,7 @@ import { query, withTransaction } from "../pool";
 import { validateVersionWorkflow } from "../../workflows/graph";
 import { normalizeModelPolicy } from "../../model/policy";
 import { getAgentTemplate, templateVersionInput } from "../../system/templates";
-import { resolveHostedAgentAllowedTools } from "../../system/hosted-agent-defaults";
+import { CUSTOMER_SERVICE_HANDOFF_TOOL, resolveHostedAgentAllowedTools } from "../../system/hosted-agent-defaults";
 import { KASIAI_KNOWLEDGE_CHUNKS, KASIAI_KNOWLEDGE_SOURCE_NAME, KASIAI_KNOWLEDGE_VERSION } from "../../system/kasiai-knowledge";
 import { KASIAI_EVALUATION_SCENARIOS, KASIAI_EVALUATION_VERSION } from "../../system/kasiai-evaluations";
 import { createInstallationCredentialInTransaction, type CreatedInstallationCredential } from "./installation-credential-repository";
@@ -210,12 +210,20 @@ export class AgentRepository {
     actorId: string,
     input: CreateExternalAgentInput,
   ): Promise<ExternalAgentConnectionRecord> {
+    const agentAudience = input.agentAudience ?? "personal";
+    if (agentAudience === "personal" && input.capabilities.includes(CUSTOMER_SERVICE_HANDOFF_TOOL)) {
+      throw new Error("Customer handoff capability requires a customer-service agent");
+    }
+    const capabilities = [...new Set([
+      ...input.capabilities,
+      ...(agentAudience === "customer_service" ? [CUSTOMER_SERVICE_HANDOFF_TOOL] : []),
+    ])];
     const requestedSlug = input.slug ?? `${slugify(input.name) || "external-agent"}-external`.slice(0, 80);
     const settings = {
       externalConnectionKey: input.idempotencyKey,
       runtime: input.runtime,
       protocols: input.protocols,
-      capabilities: input.capabilities,
+      capabilities,
       resources: input.resources,
       connectors: input.connectors,
     };
@@ -254,13 +262,13 @@ export class AgentRepository {
           agent.id,
           input.instructions,
           JSON.stringify({ executionMode: "external_connected", runtime: input.runtime, protocols: input.protocols }),
-          JSON.stringify({ allowedTools: input.capabilities }),
-          checksumVersion({ instructions: input.instructions, configuration: { executionMode: "external_connected", runtime: input.runtime, protocols: input.protocols }, policy: { allowedTools: input.capabilities } }, 1),
+          JSON.stringify({ allowedTools: capabilities }),
+          checksumVersion({ instructions: input.instructions, configuration: { executionMode: "external_connected", runtime: input.runtime, protocols: input.protocols }, policy: { allowedTools: capabilities } }, 1),
           actorId,
         ],
       );
       const version = versionResult.rows[0]!;
-      for (const toolName of input.capabilities) {
+      for (const toolName of capabilities) {
         await client.query(
           `INSERT INTO agent_tool_grants
             (organization_id, agent_version_id, tool_name, granted_by)
@@ -354,6 +362,9 @@ export class AgentRepository {
     apiKeyId: string;
     toolNames: readonly string[];
   }): Promise<ExternalAgentConnectionRecord> {
+    if (input.toolNames.includes(CUSTOMER_SERVICE_HANDOFF_TOOL)) {
+      throw new Error("Customer handoff capability requires a customer-service agent");
+    }
     const developerApiKeyId = input.apiKeyId.trim();
     const actorId = `developer-api-key:${developerApiKeyId}`;
     const settings = {
@@ -472,13 +483,15 @@ export class AgentRepository {
     if (!template) throw new Error("Agent template not found");
     const settings = input.settings ?? {};
     const versionInput = templateVersionInput(template, settings);
+    const allowedTools = resolveHostedAgentAllowedTools(template.profile, versionInput.policy.allowedTools, "customer_service");
+    const effectiveVersionInput = { ...versionInput, policy: { ...versionInput.policy, allowedTools } };
     validateVersionWorkflow(versionInput.configuration);
     const name = input.name?.trim() || template.name;
     return withTransaction(this.pool, async (client) => {
       await client.query(
         `INSERT INTO agent_definitions
-          (organization_id, owner_type, name, slug, description, protected, created_by)
-         VALUES ($1, 'organization', $2, $3, $4, FALSE, $5)
+          (organization_id, owner_type, name, slug, description, agent_audience, protected, created_by)
+         VALUES ($1, 'organization', $2, $3, $4, 'customer_service', FALSE, $5)
          ON CONFLICT (organization_id, slug) DO NOTHING`,
         [input.organizationId, name, template.key, template.description, input.actorId],
       );
@@ -498,6 +511,18 @@ export class AgentRepository {
       );
       let version = existingVersion.rows[0];
       let created = false;
+      const existingAllowedTools = version && Array.isArray(version.policy.allowedTools) ? version.policy.allowedTools : [];
+      const versionHasAllDefaultTools = Boolean(version) && allowedTools.every((toolName) => existingAllowedTools.includes(toolName));
+      if (version && !versionHasAllDefaultTools) {
+        const updated = await client.query<AgentVersionRecord>(
+          `UPDATE agent_versions
+           SET policy = $2::jsonb, checksum = $3
+           WHERE id = $1
+           RETURNING *`,
+          [version.id, JSON.stringify(effectiveVersionInput.policy), checksumVersion(effectiveVersionInput, version.version_number)],
+        );
+        version = updated.rows[0] ?? version;
+      }
       if (!version) {
         const next = await client.query<{ version_number: number }>(
           `SELECT COALESCE(MAX(version_number), 0) + 1 AS version_number
@@ -516,26 +541,23 @@ export class AgentRepository {
             versionNumber,
             versionInput.instructions,
             JSON.stringify(versionInput.configuration),
-            JSON.stringify(versionInput.policy),
-            checksumVersion(versionInput, versionNumber),
+            JSON.stringify(effectiveVersionInput.policy),
+            checksumVersion(effectiveVersionInput, versionNumber),
             input.actorId,
           ],
         );
         version = inserted.rows[0]!;
         created = true;
-        const allowedTools = Array.isArray(versionInput.policy.allowedTools)
-          ? versionInput.policy.allowedTools.filter((tool): tool is string => typeof tool === "string" && tool.trim().length > 0)
-          : [];
-        for (const toolName of allowedTools) {
-          await client.query(
-            `INSERT INTO agent_tool_grants
-              (organization_id, agent_version_id, tool_name, granted_by)
-             VALUES ($1, $2, $3, $4)
-             ON CONFLICT (agent_version_id, COALESCE(installation_id, '00000000-0000-0000-0000-000000000000'::uuid), tool_name)
-               WHERE revoked_at IS NULL DO NOTHING`,
-            [input.organizationId, version.id, toolName.trim(), input.actorId],
-          );
-        }
+      }
+      for (const toolName of allowedTools) {
+        await client.query(
+          `INSERT INTO agent_tool_grants
+            (organization_id, agent_version_id, tool_name, granted_by)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (agent_version_id, COALESCE(installation_id, '00000000-0000-0000-0000-000000000000'::uuid), tool_name)
+             WHERE revoked_at IS NULL DO NOTHING`,
+          [input.organizationId, version.id, toolName.trim(), input.actorId],
+        );
       }
       const installationResult = await client.query<InstallationRecord>(
         `INSERT INTO agent_installations
@@ -962,7 +984,15 @@ export class AgentRepository {
       );
       const versionNumber = Number(versionResult.rows[0]!.version_number);
       const normalizedPolicy = normalizeModelPolicy(input.policy);
-      const allowedTools = resolveHostedAgentAllowedTools(agent.rows[0]!.creation_profile, normalizedPolicy.allowedTools);
+      if (agent.rows[0]!.agent_audience === "personal" && Array.isArray(normalizedPolicy.allowedTools)
+        && normalizedPolicy.allowedTools.includes(CUSTOMER_SERVICE_HANDOFF_TOOL)) {
+        throw new Error("Customer handoff capability requires a customer-service agent");
+      }
+      const allowedTools = resolveHostedAgentAllowedTools(
+        agent.rows[0]!.creation_profile,
+        normalizedPolicy.allowedTools,
+        agent.rows[0]!.agent_audience,
+      );
       const effectiveInput = { ...input, policy: { ...normalizedPolicy, allowedTools } };
       const checksum = checksumVersion(effectiveInput, versionNumber);
       const created = await client.query<AgentVersionRecord>(

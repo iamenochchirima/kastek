@@ -178,6 +178,14 @@ describe("foundation migration", () => {
     expect(audienceSql).toContain("agent_definitions_audience_idx");
   });
 
+  it("defines durable conversation handoff state and requests", async () => {
+    const handoffSql = await readFile(new URL("../migrations/064_conversation_handoff_actions.sql", import.meta.url), "utf8");
+    expect(handoffSql).toContain("handoff_state");
+    expect(handoffSql).toContain("agent_handoff_requests");
+    expect(handoffSql).toContain("agent_handoff_requests_active_conversation_idx");
+    expect(handoffSql).toContain("idempotency_key");
+  });
+
   it("defines agent context and aggregate ownership invariants", async () => {
     const scopeSql = await readFile(new URL("../migrations/057_agent_context_and_ownership_invariants.sql", import.meta.url), "utf8");
     expect(scopeSql).toContain("memory_records_agent_scope_required");

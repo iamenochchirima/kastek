@@ -39,6 +39,9 @@ import { buildGroundingProvenance } from "../runtime/provenance";
 import type { ToolInvocationContext } from "../tools/types";
 import type { CoreContentPost } from "../core/client";
 import { buildDomainApprovalSnapshot, projectBookingApprovalResource, projectCampaignApprovalResource } from "../approval/domain-preview";
+import { ConversationActionService } from "../actions/conversation-actions";
+import type { RequestHumanArguments } from "../actions/conversation-actions";
+import { HandoffRepository } from "../db/repositories/handoff-repository";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -47,6 +50,7 @@ export interface ActivityOptions {
   coreClient?: KasitekCoreReadClient;
   telegramClient?: TelegramBotClient;
   config?: AppConfig;
+  conversationActions?: ConversationActionService;
 }
 
 function pricingFromConfig(config?: AppConfig): Record<string, ModelPricing> {
@@ -59,7 +63,7 @@ function pricingFromConfig(config?: AppConfig): Record<string, ModelPricing> {
   }
 }
 
-export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegistry {
+export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversationActions?: ConversationActionService): ToolRegistry {
   const tools = new ToolRegistry();
   tools.register({
     name: "platform.current_time",
@@ -773,6 +777,45 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient): ToolRegi
       return coreClient.deleteContentPost(context, String(args.postId));
     },
   });
+  if (conversationActions) {
+    tools.register({
+      name: "conversation.request_human",
+      version: "1.0.0",
+      description: "Request a human to take over a customer conversation and pause agent automation.",
+      riskClass: "controlled-write",
+      requiresApproval: false,
+      timeoutMs: 12_000,
+      inputSchema: {
+        type: "object",
+        properties: {
+          conversationId: { type: "string", minLength: 1, maxLength: 160 },
+          reason: { type: "string", enum: ["customer_requested", "agent_uncertain", "policy_required", "high_value", "configured_workflow", "other"] },
+          priority: { type: "string", enum: ["normal", "high", "urgent"] },
+          summary: { type: "string", minLength: 1, maxLength: 2_000 },
+          customerMessage: { type: "string", maxLength: 4_000 },
+          metadata: { type: "object", additionalProperties: true },
+          idempotencyKey: { type: "string", minLength: 1, maxLength: 240 },
+        },
+        required: ["reason", "summary"],
+        additionalProperties: false,
+      },
+      outputSchema: {
+        type: "object",
+        properties: {
+          status: { type: "string", const: "handoff_requested" },
+          handoffRequestId: { type: "string" },
+          conversationId: { type: "string" },
+          agentPaused: { type: "boolean", const: true },
+          created: { type: "boolean" },
+          control: { type: "string", const: "awaiting_human" },
+        },
+        required: ["status", "handoffRequestId", "conversationId", "agentPaused", "created", "control"],
+        additionalProperties: false,
+      },
+      manifest: { ownerService: "agents", requiredScope: "conversations.handoff", execution: "durable", idempotency: "required", approval: "none", auditClassification: "full", redaction: ["customerMessage", "metadata"] },
+      handler: async (context, args) => conversationActions.requestHuman(context, args as unknown as RequestHumanArguments),
+    });
+  }
   return tools;
 }
 
@@ -1006,7 +1049,8 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     : new EnvironmentCredentialResolver());
   const coreClient = options.coreClient ?? (options.config ? new KasitekCoreReadClient(options.config) : undefined);
   const telegramClient = options.telegramClient ?? (options.config ? new TelegramBotClient({ apiBaseUrl: options.config.TELEGRAM_API_BASE_URL, timeoutMs: options.config.TELEGRAM_API_TIMEOUT_MS }) : undefined);
-  const tools = options.tools ?? createDefaultTools(coreClient);
+  const conversationActions = options.conversationActions ?? new ConversationActionService(new HandoffRepository(pool));
+  const tools = options.tools ?? createDefaultTools(coreClient, conversationActions);
   return {
     async transitionRun(input) {
       await runs.transitionRun(input.runId, input.expectedStatus, input.nextStatus);
@@ -1031,7 +1075,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           coreClient,
         );
       }
-      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, runs, modelCalls, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, workflowState, coreClient);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, runs, modelCalls, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, workflowState, coreClient, conversationActions);
     },
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
@@ -1386,6 +1430,7 @@ async function executeMcpToolRun(
         agentVersionId: run.agent_version_id,
         installationId: run.installation_id,
         runId: run.id,
+        conversationId: run.conversation_id ?? undefined,
         actorId: run.created_by,
         correlationId: run.correlation_id,
       },
@@ -1462,6 +1507,7 @@ async function executeLoopForRun(
   tools: ToolRegistry,
   workflowState: WorkflowStateRepository,
   coreClient: KasitekCoreReadClient | undefined,
+  conversationActions: ConversationActionService,
 ) {
   if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
   const configuration = run.configuration;
@@ -1656,6 +1702,7 @@ async function executeLoopForRun(
       resumeApprovedToolCall,
       resumeExternalEvent,
       coreClient,
+      conversationActions,
     });
   }
   const approvedResourceSnapshot = resumeApprovedToolCall?.approval.resourceSnapshot
@@ -1678,6 +1725,7 @@ async function executeLoopForRun(
       agentVersionId: run.agent_version_id,
       installationId: run.installation_id,
       runId: run.id,
+      conversationId: run.conversation_id ?? undefined,
       actorId: run.created_by,
       correlationId: run.correlation_id,
     },
@@ -1915,6 +1963,7 @@ async function executeConfiguredWorkflow(input: {
   controls: OperatorControlRepository;
   workflowState: WorkflowStateRepository;
   coreClient?: KasitekCoreReadClient;
+  conversationActions: ConversationActionService;
   resumeApprovedToolCall?: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeApprovedToolCall"];
   resumeExternalEvent?: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeExternalEvent"];
 }): Promise<AgentLoopResult> {
@@ -2003,6 +2052,7 @@ async function executeConfiguredWorkflow(input: {
           agentVersionId: input.run.agent_version_id,
           installationId: input.run.installation_id,
           runId: input.run.id,
+          conversationId: input.run.conversation_id ?? undefined,
           actorId: input.run.created_by,
           correlationId: input.run.correlation_id,
         },
@@ -2087,8 +2137,24 @@ async function executeConfiguredWorkflow(input: {
     return { status: "awaiting_external_event", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value, waitingFor: result.waitingFor, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
   }
   if (result.status === "awaiting_human") {
+    const handoff = input.run.conversation_id
+      ? await input.conversationActions.requestHuman({
+        organizationId: input.run.organization_id,
+        agentId: input.run.agent_definition_id,
+        agentVersionId: input.run.agent_version_id,
+        installationId: input.run.installation_id,
+        runId: input.run.id,
+        conversationId: input.run.conversation_id,
+        actorId: input.run.created_by,
+        correlationId: input.run.correlation_id,
+      }, {
+        reason: "configured_workflow",
+        summary: `Configured workflow requested human handoff${result.waitingFor ? ` (${result.waitingFor})` : ""}.`,
+        idempotencyKey: `workflow-handoff:${input.run.id}:${result.waitingFor ?? result.pausedAt ?? "handoff"}`,
+      })
+      : null;
     await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: result.pausedAt, __workflowState: result.state } });
-    await input.runRepository.appendEvent({ organizationId: input.run.organization_id, runId: input.run.id, installationId: input.run.installation_id, eventType: "agent.workflow.handoff.pending", payload: { nodeId: result.pausedAt, waitingFor: result.waitingFor } });
+    await input.runRepository.appendEvent({ organizationId: input.run.organization_id, runId: input.run.id, installationId: input.run.installation_id, eventType: "agent.workflow.handoff.pending", payload: { nodeId: result.pausedAt, waitingFor: result.waitingFor, handoffRequestId: handoff?.handoffRequestId } });
     return { status: "awaiting_human", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value, waitingFor: result.waitingFor, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
   }
   if (result.status === "failed") return { status: "failed", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value, error: { code: "WORKFLOW_FAILED", message: result.error ?? "Workflow execution failed" }, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };

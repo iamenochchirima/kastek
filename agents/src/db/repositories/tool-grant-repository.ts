@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import { query, withTransaction } from "../pool";
+import { CUSTOMER_SERVICE_HANDOFF_TOOL } from "../../system/hosted-agent-defaults";
 
 export interface ToolGrantRecord {
   id: string;
@@ -71,13 +72,16 @@ export class ToolGrantRepository {
     toolName: string;
     actorId: string;
   }): Promise<ToolGrantRecord> {
-    const version = await executor.query<{ id: string }>(
-      `SELECT av.id FROM agent_versions av
+    const version = await executor.query<{ id: string; agent_audience: "personal" | "customer_service" }>(
+      `SELECT av.id, ad.agent_audience FROM agent_versions av
        JOIN agent_definitions ad ON ad.id = av.agent_definition_id
        WHERE av.id = $1 AND ad.id = $2 AND ad.organization_id = $3`,
       [input.versionId, input.agentId, input.organizationId],
     );
     if (!version.rows[0]) throw new Error("Agent version not found");
+    if (input.toolName.trim() === CUSTOMER_SERVICE_HANDOFF_TOOL && version.rows[0].agent_audience !== "customer_service") {
+      throw new Error("Customer handoff capability requires a customer-service agent");
+    }
     const result = await executor.query<ToolGrantRecord>(
       `INSERT INTO agent_tool_grants
         (organization_id, agent_version_id, installation_id, tool_name, granted_by)
