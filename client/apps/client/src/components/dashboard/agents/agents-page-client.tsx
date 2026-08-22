@@ -207,7 +207,7 @@ function CreateAgentDialog({
 }) {
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl sm:p-8">
+      <DialogContent className="sm:!max-w-3xl sm:p-8">
         <div className="flex items-start justify-between gap-4">
           <DialogHeader>
             <DialogTitle>Create an agent</DialogTitle>
@@ -216,14 +216,14 @@ function CreateAgentDialog({
         </div>
 
         {step === "audience" ? (
-          <div className="mt-6 grid items-stretch gap-4 sm:grid-cols-2">
-            <button type="button" onClick={() => { onAudienceChange("personal"); onStepChange("type"); }} className={`flex min-h-[244px] flex-col rounded-xl border p-6 text-left transition-colors ${audience === "personal" ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/60 hover:bg-secondary/35"}`}>
+          <div className="mt-6 grid items-stretch gap-4 md:grid-cols-2">
+            <button type="button" onClick={() => { onAudienceChange("personal"); onStepChange("type"); }} className={`flex min-h-[220px] flex-col rounded-xl border p-6 text-left transition-colors md:min-h-[244px] ${audience === "personal" ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/60 hover:bg-secondary/35"}`}>
               <UserRound className="h-6 w-6 text-primary" />
               <h3 className="mt-5 text-base font-semibold text-foreground">Personal agent</h3>
               <p className="mt-2 text-sm leading-5 text-muted-foreground">Private assistant for your work, knowledge, and everyday tasks.</p>
               <span className="mt-auto pt-5 text-sm font-medium text-primary">Continue</span>
             </button>
-            <button type="button" onClick={() => { onAudienceChange("customer_service"); onStepChange("type"); }} className={`flex min-h-[244px] flex-col rounded-xl border p-6 text-left transition-colors ${audience === "customer_service" ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/60 hover:bg-secondary/35"}`}>
+            <button type="button" onClick={() => { onAudienceChange("customer_service"); onStepChange("type"); }} className={`flex min-h-[220px] flex-col rounded-xl border p-6 text-left transition-colors md:min-h-[244px] ${audience === "customer_service" ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/60 hover:bg-secondary/35"}`}>
               <MessageSquare className="h-6 w-6 text-primary" />
               <h3 className="mt-5 text-base font-semibold text-foreground">Customer service agent</h3>
               <p className="mt-2 text-sm leading-5 text-muted-foreground">Customer-facing assistant for conversations, support, and service workflows.</p>
@@ -231,31 +231,31 @@ function CreateAgentDialog({
             </button>
           </div>
         ) : step === "type" ? (
-          <div className="mt-8 grid items-stretch gap-5 sm:grid-cols-2">
-            <div className="flex min-h-[320px] flex-col rounded-xl border border-border bg-card p-8 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35">
+          <div className="mt-8 grid items-stretch gap-5 md:grid-cols-2">
+            <div className="flex min-h-[260px] flex-col rounded-xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35 md:min-h-[320px] md:p-8">
               <h3 className="text-base font-semibold text-foreground">General-purpose agent</h3>
               <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-muted-foreground">A complete assistant for a common job. Give it a name, purpose, and a few preferences.</p>
               <div className="mt-6 flex flex-wrap justify-center gap-2" aria-label="Common general-purpose use cases">
                 {['Customer support', 'Lead qualification', 'Booking assistant', 'Internal helpdesk'].map((useCase) => <span key={useCase} className="rounded-full border border-border bg-secondary px-2 py-1 text-[11px] text-muted-foreground">{useCase}</span>)}
               </div>
-              <Button type="button" className="mx-auto mt-auto w-full max-w-[240px]" onClick={onChooseGeneral}>Choose general-purpose</Button>
+              <Button type="button" className="mx-auto mt-auto w-full max-w-[240px] whitespace-normal leading-4" onClick={onChooseGeneral}>Use general-purpose</Button>
             </div>
-            <div className="flex min-h-[320px] flex-col rounded-xl border border-border bg-card p-8 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35">
+            <div className="flex min-h-[260px] flex-col rounded-xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35 md:min-h-[320px] md:p-8">
               <h3 className="text-base font-semibold text-foreground">Custom agent</h3>
               <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-muted-foreground">Build a workflow from a canvas. Connect tools, knowledge, channels, and services when you need them.</p>
-              <Button type="button" variant="outline" className="mx-auto mt-auto w-full max-w-[240px]" onClick={onChooseCustom}>Choose custom</Button>
+              <Button type="button" variant="outline" className="mx-auto mt-auto w-full max-w-[240px] whitespace-normal leading-4" onClick={onChooseCustom}>Use custom</Button>
             </div>
           </div>
         ) : (
           <div className="mt-6 space-y-4">
             <button type="button" onClick={() => onStepChange("type")} className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="mr-1.5 h-4 w-4" />Back</button>
-            <div className="grid items-stretch gap-4 sm:grid-cols-2">
-              <div className="flex min-h-[218px] flex-col rounded-xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35">
+            <div className="grid items-stretch gap-4 md:grid-cols-2">
+              <div className="flex min-h-[200px] flex-col rounded-xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35 md:min-h-[218px]">
                 <h3 className="text-base font-semibold text-foreground">Start from scratch</h3>
                 <p className="mx-auto mt-3 max-w-xs text-sm leading-5 text-muted-foreground">Build your agent on a clean workflow canvas.</p>
                 <Button type="button" className="mx-auto mt-auto w-full max-w-[190px]" onClick={onStartFromScratch}>Start from scratch</Button>
               </div>
-              <div className="flex min-h-[218px] flex-col rounded-xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35">
+              <div className="flex min-h-[200px] flex-col rounded-xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35 md:min-h-[218px]">
                 <h3 className="text-base font-semibold text-foreground">Browse templates</h3>
                 <p className="mx-auto mt-3 max-w-xs text-sm leading-5 text-muted-foreground">Choose a prepared workflow, then configure its services.</p>
                 <Button type="button" variant="outline" className="mx-auto mt-auto w-full max-w-[190px]" onClick={onBrowseTemplates}>Browse templates</Button>
