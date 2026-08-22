@@ -60,6 +60,12 @@ async fn rollout_registry_is_revisioned_audited_and_fail_closed() {
         producer_id: "a12-rollout-test".to_string(),
     };
     let now = Utc::now();
+    let initial_registry_revision: i64 = sqlx::query_scalar(
+        "SELECT revision FROM analytics.analytics_rollout_registry WHERE registry_name = 'default'",
+    )
+    .fetch_one(&mut *transaction)
+    .await
+    .expect("initial registry revision");
     let scope_id: i64 = sqlx::query_scalar(
         r#"INSERT INTO analytics.reporting_scope (
              scope_kind, owning_source_service, external_source_id, status, reporting_timezone
@@ -88,6 +94,7 @@ async fn rollout_registry_is_revisioned_audited_and_fail_closed() {
     .await
     .expect("global control");
     assert_eq!(global.revision, 1);
+    assert_eq!(global.registry_revision, initial_registry_revision + 1);
 
     let scoped = upsert_transaction(
         &mut transaction,
@@ -107,6 +114,7 @@ async fn rollout_registry_is_revisioned_audited_and_fail_closed() {
     .await
     .expect("scope control");
     assert_eq!(scoped.revision, 1);
+    assert_eq!(scoped.registry_revision, initial_registry_revision + 2);
 
     let scoped_decision = evaluate_transaction(
         &mut transaction,
@@ -122,6 +130,10 @@ async fn rollout_registry_is_revisioned_audited_and_fail_closed() {
     .expect("scoped decision");
     assert!(!scoped_decision.allowed);
     assert_eq!(scoped_decision.revision, Some(1));
+    assert_eq!(
+        scoped_decision.registry_revision,
+        initial_registry_revision + 2
+    );
 
     let global_decision = evaluate_transaction(
         &mut transaction,
@@ -156,6 +168,7 @@ async fn rollout_registry_is_revisioned_audited_and_fail_closed() {
     .await
     .expect("expiring control");
     assert_eq!(expired.revision, 1);
+    assert_eq!(expired.registry_revision, initial_registry_revision + 3);
     let expired_decision = evaluate_transaction(
         &mut transaction,
         "alerts",
@@ -167,6 +180,10 @@ async fn rollout_registry_is_revisioned_audited_and_fail_closed() {
     .expect("expired decision");
     assert!(!expired_decision.allowed);
     assert!(expired_decision.defaulted);
+    assert_eq!(
+        expired_decision.registry_revision,
+        initial_registry_revision + 3
+    );
 
     let audit_rows = sqlx::query(
         r#"SELECT chain_sequence, previous_record_hash, record_hash

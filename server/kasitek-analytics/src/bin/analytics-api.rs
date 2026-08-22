@@ -8,7 +8,7 @@ use kasitek_analytics::{
     ingestion::IngestionAuthenticator,
     metrics::{MetricsAccess, ProcessMetrics},
     reporting::{ReportingAuthenticator, ReportingCache},
-    rollout::RolloutAuthenticator,
+    rollout::{RolloutAuthenticator, RolloutDecisionCache},
 };
 
 fn load_dotenv() {
@@ -38,6 +38,7 @@ async fn main() -> Result<(), AnalyticsError> {
     );
     let reporting_cache = web::Data::new(ReportingCache::from_config(&config));
     let rollout_access = web::Data::new(RolloutAuthenticator::from_config(&config));
+    let rollout_cache = web::Data::new(RolloutDecisionCache::from_config(&config));
     let bind_address = (config.api_host.clone(), config.api_port);
 
     log::info!(
@@ -55,6 +56,7 @@ async fn main() -> Result<(), AnalyticsError> {
             .app_data(reporting_access.clone())
             .app_data(reporting_cache.clone())
             .app_data(rollout_access.clone())
+            .app_data(rollout_cache.clone())
             .app_data(registry_access.clone())
             .app_data(
                 web::JsonConfig::default().limit(kasitek_analytics::ingestion::MAX_BATCH_BYTES),

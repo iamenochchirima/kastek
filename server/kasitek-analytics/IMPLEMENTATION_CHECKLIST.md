@@ -253,7 +253,7 @@ checklist records implementation evidence for the current package only.
   values; the fixture rolls back after the test.
 - [ ] Add the complete product mutation-to-reporting E2E.
 
-## A-12 — audited rollout registry and operational controls (slice 1)
+## A-12 — audited rollout registry and operational controls (slices 1–2)
 
 - [x] Add the Analytics-owned current rollout registry with forward-only migration, explicit
   control keys, rollout/kill-switch separation, expiry, removal, revision, and audit metadata.
@@ -269,7 +269,14 @@ checklist records implementation evidence for the current package only.
   reason, issue reference, target, revision, expiry, removal, and request hash.
 - [x] Add unit and native PostgreSQL coverage for normalization, default policy, precedence,
   stable cohort assignment, expiry, authentication, revisioning, rollback, and audit continuity.
-- [ ] Add bounded decision caching and revision invalidation in the next A-12 slice.
+- [x] Add a monotonic PostgreSQL registry revision incremented in the same transaction as each
+  control mutation; cached decisions include that revision in their key.
+- [x] Add an optional bounded Redis decision cache with control-expiry-aware TTLs, malformed-entry
+  rejection, and database fallback when Redis is disabled or unavailable.
+- [x] Keep cache reads behind server-side producer authentication and database revision lookup;
+  Redis never authorizes a caller or becomes the source of truth.
+- [x] Add deterministic cache tests for hits, revision separation, control expiry, and disabled
+  cache behavior.
 - [ ] Add expiry-closure maintenance, operational rollout metrics, and control-management UI in
   later slices; expired entries already fail closed during evaluation.
 
@@ -407,6 +414,13 @@ checklist records implementation evidence for the current package only.
 - A-12 slice 1: `cargo test -p kasitek-analytics --test rollout_postgres -- --nocapture` passed;
   the fixture covered global and reporting-scope overrides, expiry fallback, revisioning, audit
   hash-chain continuity, and rolled back all fixture rows.
+- A-12 slice 2: migration `20260822091000_analytics_rollout_revision.sql` applied through the
+  Analytics migration release binary; control mutations advance the monotonic registry revision
+  transactionally.
+- A-12 slice 2: 11 rollout-focused unit tests passed, covering Redis-shaped cache hits, revision
+  key separation, decision expiry, disabled-cache fallback, policy behavior, and authentication.
+- A-12 slice 2: native PostgreSQL rollout integration passed with registry revision assertions and
+  all fixture rows rolled back; strict Analytics Clippy passed.
 
 ## Explicitly deferred
 
@@ -414,8 +428,8 @@ checklist records implementation evidence for the current package only.
   the foundation runtime.
 - A-03 complete product mutation-to-reporting E2E, domain OpenTelemetry exporters, alert rules, and
   tested recovery drills
-- A-12 decision caching, expiry-closure maintenance, operational rollout metrics, and management
-  UI remain later slices; evaluation is database-authoritative and expired entries fail closed.
+- A-12 expiry-closure maintenance, operational rollout metrics, and management UI remain later
+  slices; evaluation is database-authoritative and expired entries fail closed.
 - A-04 historical compatibility fixtures until a second major contract or metric version exists
 - Complete product mutation-to-reporting E2E until the source-domain vertical slices exist
 - A-06 signed audit checkpoint production/verification until the controlled signing boundary exists

@@ -5,10 +5,12 @@
 //! matching rule exists; operational controls remain available unless an explicit kill switch is
 //! active. Callers never receive an authorization decision from browser state.
 
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc, time::Duration as StdDuration};
 
 use actix_web::{http::header, web, HttpRequest, HttpResponse, Responder};
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::Digest;
@@ -24,6 +26,9 @@ pub const CONTROLS_PATH: &str = "/internal/rollouts/v1/controls";
 pub const EVALUATE_PATH: &str = "/internal/rollouts/v1/evaluate";
 const AUDIT_CHAIN: &str = "analytics.rollout_controls";
 const AUDIT_POLICY_VERSION: &str = "analytics-rollout/v1";
+const DECISION_CACHE_TTL_SECONDS: u64 = 15;
+const DECISION_CACHE_OPERATION_TIMEOUT: StdDuration = StdDuration::from_millis(150);
+const DECISION_CACHE_KEY_VERSION: u8 = 1;
 
 const CONTROL_KEYS: &[&str] = &[
     "publish",
@@ -128,7 +133,7 @@ pub struct RolloutEvaluationQuery {
     pub cohort_key: Option<String>,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct EvaluationContext {
     pub source_service: Option<String>,
     pub source_domain: Option<String>,
@@ -136,10 +141,11 @@ pub struct EvaluationContext {
     pub cohort_key: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RolloutDecision {
     pub control_key: String,
     pub control_kind: RolloutControlKind,
+    pub registry_revision: i64,
     pub allowed: bool,
     pub defaulted: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -161,6 +167,7 @@ pub struct RolloutMutationResponse {
     pub enabled: bool,
     pub removed: bool,
     pub revision: i64,
+    pub registry_revision: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<DateTime<Utc>>,
 }
@@ -200,6 +207,241 @@ impl RolloutAuthenticator {
             Err(RolloutError::Unauthorized)
         }
     }
+}
+
+#[derive(Clone)]
+pub struct RolloutDecisionCache {
+    backend: Option<Arc<dyn DecisionCacheBackend>>,
+    ttl_seconds: u64,
+}
+
+#[derive(Debug)]
+enum DecisionCacheRead {
+    Disabled,
+    Miss,
+    Hit(RolloutDecision),
+    Stale,
+    Unavailable,
+}
+
+#[derive(Deserialize, Serialize)]
+struct CachedDecision {
+    cached_at: DateTime<Utc>,
+    decision: RolloutDecision,
+}
+
+#[async_trait]
+trait DecisionCacheBackend: Send + Sync {
+    async fn get(&self, key: &str) -> Result<Option<String>, String>;
+    async fn set(&self, key: &str, value: &str, ttl_seconds: u64) -> Result<(), String>;
+}
+
+struct RedisDecisionCacheBackend {
+    client: redis::Client,
+    connection: tokio::sync::Mutex<Option<redis::aio::ConnectionManager>>,
+}
+
+impl RedisDecisionCacheBackend {
+    fn new(client: redis::Client) -> Self {
+        Self {
+            client,
+            connection: tokio::sync::Mutex::new(None),
+        }
+    }
+
+    async fn connection(&self) -> Result<redis::aio::ConnectionManager, String> {
+        if let Some(connection) = self.connection.lock().await.clone() {
+            return Ok(connection);
+        }
+        let config = redis::aio::ConnectionManagerConfig::new()
+            .set_number_of_retries(0)
+            .set_connection_timeout(DECISION_CACHE_OPERATION_TIMEOUT)
+            .set_response_timeout(DECISION_CACHE_OPERATION_TIMEOUT);
+        let connection =
+            redis::aio::ConnectionManager::new_with_config(self.client.clone(), config)
+                .await
+                .map_err(|error| error.to_string())?;
+        *self.connection.lock().await = Some(connection.clone());
+        Ok(connection)
+    }
+
+    async fn invalidate_connection(&self) {
+        *self.connection.lock().await = None;
+    }
+}
+
+#[async_trait]
+impl DecisionCacheBackend for RedisDecisionCacheBackend {
+    async fn get(&self, key: &str) -> Result<Option<String>, String> {
+        let mut connection = self.connection().await?;
+        let result = tokio::time::timeout(
+            DECISION_CACHE_OPERATION_TIMEOUT,
+            connection.get::<_, Option<String>>(key),
+        )
+        .await
+        .map_err(|_| "redis rollout decision read timed out".to_string())?
+        .map_err(|error| error.to_string());
+        if result.is_err() {
+            self.invalidate_connection().await;
+        }
+        result
+    }
+
+    async fn set(&self, key: &str, value: &str, ttl_seconds: u64) -> Result<(), String> {
+        let mut connection = self.connection().await?;
+        let result = tokio::time::timeout(
+            DECISION_CACHE_OPERATION_TIMEOUT,
+            connection.set_ex::<_, _, ()>(key, value, ttl_seconds),
+        )
+        .await
+        .map_err(|_| "redis rollout decision write timed out".to_string())?
+        .map_err(|error| error.to_string());
+        if result.is_err() {
+            self.invalidate_connection().await;
+        }
+        result
+    }
+}
+
+impl RolloutDecisionCache {
+    pub fn from_config(config: &AnalyticsConfig) -> Self {
+        let backend = config.redis_url.as_deref().and_then(|url| {
+            if url.trim().is_empty() {
+                return None;
+            }
+            match redis::Client::open(url) {
+                Ok(client) => {
+                    Some(Arc::new(RedisDecisionCacheBackend::new(client))
+                        as Arc<dyn DecisionCacheBackend>)
+                }
+                Err(error) => {
+                    log::warn!(
+                        "service=kasitek-analytics process=analytics-api rollout_cache=disabled reason=invalid_redis_url error={error}"
+                    );
+                    None
+                }
+            }
+        });
+        Self {
+            backend,
+            ttl_seconds: DECISION_CACHE_TTL_SECONDS,
+        }
+    }
+
+    pub fn disabled() -> Self {
+        Self {
+            backend: None,
+            ttl_seconds: DECISION_CACHE_TTL_SECONDS,
+        }
+    }
+
+    #[cfg(test)]
+    fn from_backend(backend: Arc<dyn DecisionCacheBackend>) -> Self {
+        Self {
+            backend: Some(backend),
+            ttl_seconds: DECISION_CACHE_TTL_SECONDS,
+        }
+    }
+
+    async fn read(&self, key: &str, now: DateTime<Utc>) -> DecisionCacheRead {
+        let Some(backend) = &self.backend else {
+            return DecisionCacheRead::Disabled;
+        };
+        let serialized = match backend.get(key).await {
+            Ok(Some(value)) => value,
+            Ok(None) => return DecisionCacheRead::Miss,
+            Err(error) => {
+                log::warn!(
+                    "service=kasitek-analytics process=analytics-api rollout_cache=unavailable operation=get error={error}"
+                );
+                return DecisionCacheRead::Unavailable;
+            }
+        };
+        let cached = match serde_json::from_str::<CachedDecision>(&serialized) {
+            Ok(cached) => cached,
+            Err(error) => {
+                log::warn!(
+                    "service=kasitek-analytics process=analytics-api rollout_cache=unavailable operation=decode error={error}"
+                );
+                return DecisionCacheRead::Unavailable;
+            }
+        };
+        if cached.cached_at + chrono::Duration::seconds(self.ttl_seconds as i64) <= now
+            || cached
+                .decision
+                .expires_at
+                .is_some_and(|expires_at| expires_at <= now)
+        {
+            DecisionCacheRead::Stale
+        } else {
+            DecisionCacheRead::Hit(cached.decision)
+        }
+    }
+
+    async fn write(&self, key: &str, decision: &RolloutDecision, now: DateTime<Utc>) {
+        let Some(backend) = &self.backend else {
+            return;
+        };
+        let ttl_seconds = cache_ttl_seconds(decision, now, self.ttl_seconds);
+        if ttl_seconds == 0 {
+            return;
+        }
+        let value = match serde_json::to_string(&CachedDecision {
+            cached_at: now,
+            decision: decision.clone(),
+        }) {
+            Ok(value) => value,
+            Err(error) => {
+                log::warn!(
+                    "service=kasitek-analytics process=analytics-api rollout_cache=unavailable operation=encode error={error}"
+                );
+                return;
+            }
+        };
+        if let Err(error) = backend.set(key, &value, ttl_seconds).await {
+            log::warn!(
+                "service=kasitek-analytics process=analytics-api rollout_cache=unavailable operation=set error={error}"
+            );
+        }
+    }
+}
+
+fn cache_ttl_seconds(decision: &RolloutDecision, now: DateTime<Utc>, maximum: u64) -> u64 {
+    let decision_remaining = decision
+        .expires_at
+        .map(|expires_at| (expires_at - now).num_seconds().max(0) as u64)
+        .unwrap_or(maximum);
+    maximum.min(decision_remaining)
+}
+
+#[derive(Serialize)]
+struct DecisionCacheKeyPayload<'a> {
+    schema_version: u8,
+    registry_revision: i64,
+    control_key: &'a str,
+    control_kind: RolloutControlKind,
+    context: &'a EvaluationContext,
+}
+
+fn decision_cache_key(
+    control_key: &str,
+    control_kind: RolloutControlKind,
+    context: &EvaluationContext,
+    registry_revision: i64,
+) -> String {
+    let payload = DecisionCacheKeyPayload {
+        schema_version: DECISION_CACHE_KEY_VERSION,
+        registry_revision,
+        control_key,
+        control_kind,
+        context,
+    };
+    let serialized = serde_json::to_vec(&payload).expect("decision cache key is serializable");
+    format!(
+        "kasitek:analytics:rollout:v{}:{}",
+        DECISION_CACHE_KEY_VERSION,
+        hex_sha256(&serialized)
+    )
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -493,6 +735,7 @@ fn evaluate_candidates(
         Some(control) => RolloutDecision {
             control_key,
             control_kind,
+            registry_revision: 0,
             allowed: match control_kind {
                 RolloutControlKind::Rollout => control.enabled,
                 RolloutControlKind::KillSwitch => !control.enabled,
@@ -507,6 +750,7 @@ fn evaluate_candidates(
             allowed: default_allowed(&control_key, control_kind),
             control_key,
             control_kind,
+            registry_revision: 0,
             defaulted: true,
             matched_target_kind: None,
             matched_target_key: None,
@@ -514,6 +758,17 @@ fn evaluate_candidates(
             expires_at: None,
         },
     }
+}
+
+async fn current_registry_revision(
+    transaction: &mut Transaction<'_, Postgres>,
+) -> Result<i64, RolloutError> {
+    sqlx::query_scalar::<_, i64>(
+        "SELECT revision FROM analytics.analytics_rollout_registry WHERE registry_name = 'default'",
+    )
+    .fetch_one(&mut **transaction)
+    .await
+    .map_err(RolloutError::Database)
 }
 
 pub async fn evaluate_transaction(
@@ -524,6 +779,7 @@ pub async fn evaluate_transaction(
     now: DateTime<Utc>,
 ) -> Result<RolloutDecision, RolloutError> {
     let control_key = normalize_control_key(control_key)?;
+    let registry_revision = current_registry_revision(transaction).await?;
     let rows = sqlx::query(
         r#"SELECT control_id, control_key, control_kind, target_kind, target_key, enabled,
                   percentage_basis_points, revision, expires_at, removed_at
@@ -542,12 +798,9 @@ pub async fn evaluate_transaction(
         .iter()
         .map(StoredControl::from_row)
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(evaluate_candidates(
-        control_key,
-        control_kind,
-        context,
-        candidates,
-    ))
+    let mut decision = evaluate_candidates(control_key, control_kind, context, candidates);
+    decision.registry_revision = registry_revision;
+    Ok(decision)
 }
 
 pub async fn upsert_transaction(
@@ -624,6 +877,16 @@ pub async fn upsert_transaction(
         .await?
     };
 
+    let registry_revision = sqlx::query_scalar::<_, i64>(
+        r#"INSERT INTO analytics.analytics_rollout_registry (registry_name, revision)
+           VALUES ('default', 1)
+           ON CONFLICT (registry_name)
+           DO UPDATE SET revision = analytics.analytics_rollout_registry.revision + 1
+           RETURNING revision"#,
+    )
+    .fetch_one(&mut **transaction)
+    .await?;
+
     sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
         .bind(AUDIT_CHAIN)
         .execute(&mut **transaction)
@@ -646,6 +909,7 @@ pub async fn upsert_transaction(
     let safe_metadata = json!({
         "source_service": actor.source_service,
         "control_id": control_id,
+        "registry_revision": registry_revision,
         "control_key": normalized.control_key,
         "control_kind": normalized.control_kind,
         "target": normalized.target,
@@ -713,6 +977,7 @@ pub async fn upsert_transaction(
         enabled,
         removed: normalized.remove,
         revision,
+        registry_revision,
         expires_at: normalized.expires_at,
     })
 }
@@ -765,6 +1030,7 @@ async fn evaluate_handler(
     query: web::Query<RolloutEvaluationQuery>,
     pool: web::Data<sqlx::PgPool>,
     access: web::Data<RolloutAuthenticator>,
+    cache: web::Data<RolloutDecisionCache>,
 ) -> impl Responder {
     if let Err(error) = access.authenticate(&request) {
         return error_response(error);
@@ -776,16 +1042,39 @@ async fn evaluate_handler(
         reporting_scope_id: query.reporting_scope_id,
         cohort_key: query.cohort_key,
     };
+    let control_key = match normalize_control_key(&query.control_key) {
+        Ok(control_key) => control_key,
+        Err(error) => return error_response(error),
+    };
+    let now = Utc::now();
     let mut transaction = match pool.begin().await {
         Ok(transaction) => transaction,
         Err(error) => return error_response(RolloutError::Database(error)),
     };
-    let decision = match evaluate_transaction(
-        &mut transaction,
-        &query.control_key,
+    let registry_revision = match current_registry_revision(&mut transaction).await {
+        Ok(revision) => revision,
+        Err(error) => return error_response(error),
+    };
+    let cache_key = decision_cache_key(
+        &control_key,
         query.control_kind,
         &context,
-        Utc::now(),
+        registry_revision,
+    );
+    if let DecisionCacheRead::Hit(decision) = cache.read(&cache_key, now).await {
+        if decision.registry_revision == registry_revision {
+            if let Err(error) = transaction.commit().await {
+                return error_response(RolloutError::Database(error));
+            }
+            return HttpResponse::Ok().json(decision);
+        }
+    }
+    let decision = match evaluate_transaction(
+        &mut transaction,
+        &control_key,
+        query.control_kind,
+        &context,
+        now,
     )
     .await
     {
@@ -795,6 +1084,7 @@ async fn evaluate_handler(
     if let Err(error) = transaction.commit().await {
         return error_response(RolloutError::Database(error));
     }
+    cache.write(&cache_key, &decision, now).await;
     HttpResponse::Ok().json(decision)
 }
 
@@ -816,14 +1106,16 @@ fn error_response(error: RolloutError) -> HttpResponse {
 
 #[cfg(test)]
 mod tests {
+    use std::{collections::HashMap, sync::Arc};
+
     use actix_web::test as actix_test;
     use chrono::Duration;
     use serde_json::json;
 
     use super::{
-        evaluate_candidates, normalize_mutation, stable_cohort_enabled, EvaluationContext,
-        RolloutAuthenticator, RolloutControlKind, RolloutMutationRequest, RolloutTarget,
-        StoredControl, TargetKind,
+        decision_cache_key, evaluate_candidates, normalize_mutation, stable_cohort_enabled,
+        EvaluationContext, RolloutAuthenticator, RolloutControlKind, RolloutDecision,
+        RolloutDecisionCache, RolloutMutationRequest, RolloutTarget, StoredControl, TargetKind,
     };
     use crate::config::AnalyticsConfig;
 
@@ -1001,6 +1293,94 @@ mod tests {
         .value();
         assert_eq!(value["target"]["key"], json!("global"));
         assert_eq!(value["revision"], json!(1));
+    }
+
+    #[derive(Default)]
+    struct MemoryDecisionCache {
+        values: tokio::sync::Mutex<HashMap<String, String>>,
+    }
+
+    #[async_trait::async_trait]
+    impl super::DecisionCacheBackend for MemoryDecisionCache {
+        async fn get(&self, key: &str) -> Result<Option<String>, String> {
+            Ok(self.values.lock().await.get(key).cloned())
+        }
+
+        async fn set(&self, key: &str, value: &str, _ttl_seconds: u64) -> Result<(), String> {
+            self.values
+                .lock()
+                .await
+                .insert(key.to_string(), value.to_string());
+            Ok(())
+        }
+    }
+
+    fn cached_decision(
+        registry_revision: i64,
+        expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> RolloutDecision {
+        RolloutDecision {
+            control_key: "ui".to_string(),
+            control_kind: RolloutControlKind::Rollout,
+            registry_revision,
+            allowed: true,
+            defaulted: false,
+            matched_target_kind: Some(TargetKind::Global),
+            matched_target_key: Some("global".to_string()),
+            revision: Some(1),
+            expires_at,
+        }
+    }
+
+    #[tokio::test]
+    async fn decision_cache_hits_and_separates_registry_revisions() {
+        let backend = Arc::new(MemoryDecisionCache::default());
+        let cache = RolloutDecisionCache::from_backend(backend);
+        let context = EvaluationContext::default();
+        let now = chrono::Utc::now();
+        let key = decision_cache_key("ui", RolloutControlKind::Rollout, &context, 7);
+        cache.write(&key, &cached_decision(7, None), now).await;
+        let hit = cache.read(&key, now).await;
+        assert!(matches!(hit, super::DecisionCacheRead::Hit(_)));
+
+        let other_revision = decision_cache_key("ui", RolloutControlKind::Rollout, &context, 8);
+        assert!(matches!(
+            cache.read(&other_revision, now).await,
+            super::DecisionCacheRead::Miss
+        ));
+    }
+
+    #[tokio::test]
+    async fn decision_cache_rejects_decisions_past_their_control_expiry() {
+        let backend = Arc::new(MemoryDecisionCache::default());
+        let cache = RolloutDecisionCache::from_backend(backend);
+        let now = chrono::Utc::now();
+        let key = decision_cache_key(
+            "ui",
+            RolloutControlKind::Rollout,
+            &EvaluationContext::default(),
+            1,
+        );
+        cache
+            .write(
+                &key,
+                &cached_decision(1, Some(now + Duration::seconds(1))),
+                now,
+            )
+            .await;
+        assert!(matches!(
+            cache.read(&key, now + Duration::seconds(2)).await,
+            super::DecisionCacheRead::Stale
+        ));
+    }
+
+    #[tokio::test]
+    async fn disabled_decision_cache_is_non_authoritative() {
+        let cache = RolloutDecisionCache::disabled();
+        assert!(matches!(
+            cache.read("unused", chrono::Utc::now()).await,
+            super::DecisionCacheRead::Disabled
+        ));
     }
 
     #[test]

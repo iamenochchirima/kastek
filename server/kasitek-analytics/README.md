@@ -184,7 +184,9 @@ A-12 adds the internal, server-side rollout boundary at `/internal/rollouts/v1/c
 `/internal/rollouts/v1/evaluate`. Both endpoints require an ingestion credential whose producer ID
 is listed in `ANALYTICS_ROLLOUT_ADMIN_PRODUCERS`; an empty list denies every caller. The registry
 supports scoped rules and separate operational kill switches. Customer-facing controls default to
-denied, and every mutation is recorded in the immutable Analytics audit chain.
+denied, and every mutation is recorded in the immutable Analytics audit chain. Evaluation may use
+an optional bounded Redis cache, but PostgreSQL remains authoritative through the monotonic
+registry revision and control expiry checks.
 
 If the local PostgreSQL client is older than the server, set
 `ANALYTICS_PG_DUMP_BIN` and `ANALYTICS_PG_RESTORE_BIN` to matching `pg_dump` and `pg_restore`
