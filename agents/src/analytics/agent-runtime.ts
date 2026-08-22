@@ -133,6 +133,18 @@ export interface InstallationLifecycleAnalyticsInput {
   correlationId?: string | null;
 }
 
+export interface VersionLifecycleAnalyticsInput {
+  organizationId: string;
+  agentDefinitionId: string;
+  agentVersionId: string;
+  versionNumber: number;
+  status: "draft" | "published" | "retired";
+  action: "created" | "published" | "retired" | "rolled_back";
+  actorType: "human" | "system";
+  occurredAt: Date | string;
+  correlationId?: string | null;
+}
+
 export type AgentReadinessBlockerCode =
   | "installation_inactive"
   | "workflow_invalid"
@@ -392,6 +404,34 @@ export function buildInstallationLifecycleEvent(input: InstallationLifecycleAnal
     scopeKind: "core_organization",
     scopeExternalId: input.organizationId,
     subject: `installation:${input.installationId}`,
+    occurredAt: input.occurredAt,
+    attributes,
+    correlationId: input.correlationId ?? undefined,
+    idempotencyKey: `agent-platform:${identity}`,
+  });
+}
+
+export function buildVersionLifecycleEvent(input: VersionLifecycleAnalyticsInput): AnalyticsOutboxRecord {
+  const occurredAt = timestampAttribute(input.occurredAt);
+  const attributes: JsonObject = {
+    agent_definition_id: input.agentDefinitionId,
+    agent_version_id: input.agentVersionId,
+    version_number: input.versionNumber,
+    status: input.status,
+    action: input.action,
+    actor_type: input.actorType,
+    occurred_at: occurredAt,
+  };
+  const identity = `version:${input.agentVersionId}:${input.action}:${occurredAt}`;
+  return buildEvent({
+    recordId: identity,
+    sourceDomain: "agents",
+    sourceStreamKey: `organization:${input.organizationId}:versions`,
+    contractName: "agent.version.lifecycle@1",
+    schemaVersion: 1,
+    scopeKind: "core_organization",
+    scopeExternalId: input.organizationId,
+    subject: `version:${input.agentVersionId}`,
     occurredAt: input.occurredAt,
     attributes,
     correlationId: input.correlationId ?? undefined,

@@ -12,6 +12,7 @@ import {
   buildReadinessSnapshotEvent,
   buildScheduleLifecycleEvent,
   buildToolInvocationLifecycleEvent,
+  buildVersionLifecycleEvent,
   buildEvent,
   buildObservation,
   buildScopeDefinition,
@@ -337,6 +338,32 @@ describe("Agent analytics producer", () => {
     });
     expect(JSON.stringify(record.envelope)).not.toContain("settings");
     expect(JSON.stringify(record.envelope)).not.toContain("prompt");
+  });
+
+  it("builds version lifecycle facts without version content", () => {
+    const record = buildVersionLifecycleEvent({
+      organizationId: "org-1",
+      agentDefinitionId: "agent-1",
+      agentVersionId: "version-2",
+      versionNumber: 2,
+      status: "published",
+      action: "rolled_back",
+      actorType: "human",
+      occurredAt: "2026-08-22T10:04:00.000Z",
+    });
+    expect(record.envelope).toMatchObject({
+      type: "agent.version.lifecycle@1",
+      subject: "version:version-2",
+      dataschema: "https://kasitek.co.za/analytics/contracts/events/agent/version_lifecycle/v1.schema.json",
+    });
+    expect(record.envelope.data).toMatchObject({
+      version_number: 2,
+      status: "published",
+      action: "rolled_back",
+      actor_type: "human",
+    });
+    expect(JSON.stringify(record.envelope)).not.toContain("instructions");
+    expect(JSON.stringify(record.envelope)).not.toContain("configuration");
   });
 
   it("builds readiness snapshots from bounded state fields", () => {

@@ -43,6 +43,20 @@ describe.skipIf(!runIntegration)("hosted agent lifecycle and isolation (integrat
     });
     versionId = version.id;
     await agents.publishVersion(organizationA, "owner-a", agent.id, version.id);
+    const versionFacts = await pool.query<{ action: string; status: string; version_number: number }>(
+      `SELECT envelope->'data'->>'action' AS action,
+              envelope->'data'->>'status' AS status,
+              (envelope->'data'->>'version_number')::integer AS version_number
+       FROM analytics_outbox
+       WHERE source_stream_key = $1 AND contract_name = 'agent.version.lifecycle@1'
+       ORDER BY source_sequence`,
+      [`organization:${organizationA}:versions`],
+    );
+    expect(versionFacts.rows).toEqual([
+      { action: "created", status: "draft", version_number: 1 },
+      { action: "published", status: "published", version_number: 1 },
+    ]);
+    expect(await pool.query("SELECT 1 FROM analytics_outbox WHERE source_stream_key = $1", [`organization:${organizationB}:versions`])).toMatchObject({ rows: [] });
 
     expect(await agents.getAgent(organizationB, agent.id)).toBeNull();
     expect(await agents.getVersion(organizationB, version.id)).toBeNull();

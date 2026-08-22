@@ -18,7 +18,7 @@ import { CUSTOMER_SERVICE_HANDOFF_TOOL, resolveHostedAgentAllowedTools } from ".
 import { KASIAI_KNOWLEDGE_CHUNKS, KASIAI_KNOWLEDGE_SOURCE_NAME, KASIAI_KNOWLEDGE_VERSION } from "../../system/kasiai-knowledge";
 import { KASIAI_EVALUATION_SCENARIOS, KASIAI_EVALUATION_VERSION } from "../../system/kasiai-evaluations";
 import { createInstallationCredentialInTransaction, type CreatedInstallationCredential } from "./installation-credential-repository";
-import { buildInstallationLifecycleEvent, enqueueOutbox, type InstallationLifecycleAnalyticsInput } from "../../analytics";
+import { buildInstallationLifecycleEvent, buildVersionLifecycleEvent, enqueueOutbox, type InstallationLifecycleAnalyticsInput, type VersionLifecycleAnalyticsInput } from "../../analytics";
 
 type DbExecutor = Pool | PoolClient;
 
@@ -274,6 +274,7 @@ export class AgentRepository {
         ],
       );
       const version = versionResult.rows[0]!;
+      await this.enqueueVersionLifecycle(client, organizationId, version, "created", "human", version.created_at);
       for (const toolName of capabilities) {
         await client.query(
           `INSERT INTO agent_tool_grants
@@ -427,6 +428,7 @@ export class AgentRepository {
           ],
         );
         const version = versionResult.rows[0]!;
+        await this.enqueueVersionLifecycle(client, input.organizationId, version, "created", "system", version.created_at);
         for (const toolName of input.toolNames) {
           await client.query(
             `INSERT INTO agent_tool_grants
@@ -556,6 +558,7 @@ export class AgentRepository {
         );
         version = inserted.rows[0]!;
         created = true;
+        await this.enqueueVersionLifecycle(client, input.organizationId, version, "created", "human", version.created_at);
       }
       for (const toolName of allowedTools) {
         await client.query(
@@ -700,6 +703,7 @@ export class AgentRepository {
         ],
       );
       const version = created.rows[0]!;
+      await this.enqueueVersionLifecycle(client, agent.organization_id, version, "created", "system", version.created_at);
       const allowedTools = Array.isArray(input.policy.allowedTools)
         ? input.policy.allowedTools.filter(
             (tool): tool is string => typeof tool === "string" && tool.trim().length > 0,
@@ -753,7 +757,13 @@ export class AgentRepository {
         [agentId],
       );
       if (current.rows[0]) {
-        await client.query("UPDATE agent_versions SET status = 'retired' WHERE id = $1", [current.rows[0].id]);
+        const retired = await client.query<AgentVersionRecord>(
+          "UPDATE agent_versions SET status = 'retired', retired_at = now() WHERE id = $1 RETURNING *",
+          [current.rows[0].id],
+        );
+        if (retired.rows[0]) {
+          await this.enqueueVersionLifecycle(client, agent.rows[0].organization_id, retired.rows[0], "retired", "system", new Date().toISOString());
+        }
       }
       const versionNumber = Number(next.rows[0]!.version_number);
       const created = await client.query<AgentVersionRecord>(
@@ -765,6 +775,7 @@ export class AgentRepository {
         [agentId, versionNumber, input.instructions, JSON.stringify(input.configuration), JSON.stringify(input.policy), checksumVersion(input, versionNumber), actorId],
       );
       const version = created.rows[0]!;
+      await this.enqueueVersionLifecycle(client, agent.rows[0].organization_id, version, "created", "system", version.created_at);
       const allowedTools = Array.isArray(input.policy.allowedTools)
         ? input.policy.allowedTools.filter((tool): tool is string => typeof tool === "string" && tool.trim().length > 0)
         : [];
@@ -1025,6 +1036,7 @@ export class AgentRepository {
           actorId,
         ],
       );
+      await this.enqueueVersionLifecycle(client, organizationId, created.rows[0]!, "created", "human", created.rows[0]!.created_at);
       for (const toolName of allowedTools) {
         await client.query(
           `INSERT INTO agent_tool_grants
@@ -1053,10 +1065,12 @@ export class AgentRepository {
       if (agent.rows[0].protected && agent.rows[0].owner_type !== "system") {
         throw new Error("Protected agent ownership is invalid");
       }
-      await client.query(
+      const lifecycleAt = new Date().toISOString();
+      const retired = await client.query<AgentVersionRecord>(
         `UPDATE agent_versions
          SET status = 'retired', retired_at = now()
-         WHERE agent_definition_id = $1 AND status = 'published'`,
+         WHERE agent_definition_id = $1 AND status = 'published'
+         RETURNING *`,
         [agentId],
       );
       const published = await client.query<AgentVersionRecord>(
@@ -1067,6 +1081,10 @@ export class AgentRepository {
         [versionId, agentId],
       );
       if (!published.rows[0]) throw new Error("Draft version not found");
+      for (const version of retired.rows) {
+        await this.enqueueVersionLifecycle(client, organizationId, version, "retired", "human", lifecycleAt);
+      }
+      await this.enqueueVersionLifecycle(client, organizationId, published.rows[0], "published", "human", lifecycleAt);
       await client.query(
         `INSERT INTO audit_records
           (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
@@ -1097,9 +1115,11 @@ export class AgentRepository {
       if (!target.rows[0]) throw new Error("Version not found");
       if (target.rows[0].status === "published") return target.rows[0];
       if (target.rows[0].status !== "retired") throw new Error("Only a retired version can be rolled back");
-      await client.query(
+      const lifecycleAt = new Date().toISOString();
+      const retired = await client.query<AgentVersionRecord>(
         `UPDATE agent_versions SET status = 'retired', retired_at = now()
-         WHERE agent_definition_id = $1 AND status = 'published'`,
+         WHERE agent_definition_id = $1 AND status = 'published'
+         RETURNING *`,
         [agentId],
       );
       const published = await client.query<AgentVersionRecord>(
@@ -1107,6 +1127,12 @@ export class AgentRepository {
          WHERE id = $1 RETURNING *`,
         [versionId],
       );
+      for (const version of retired.rows) {
+        await this.enqueueVersionLifecycle(client, organizationId, version, "retired", "human", lifecycleAt);
+      }
+      if (published.rows[0]) {
+        await this.enqueueVersionLifecycle(client, organizationId, published.rows[0], "rolled_back", "human", lifecycleAt);
+      }
       await client.query(
         `INSERT INTO audit_records
           (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
@@ -1123,36 +1149,36 @@ export class AgentRepository {
     agentId: string,
     versionId: string,
   ): Promise<AgentVersionRecord> {
-    const modeGuard = await query<{ execution_mode: AgentExecutionMode }>(
-      this.pool,
-      `SELECT ai.execution_mode FROM agent_installations ai
-       WHERE ai.organization_id = $1 AND ai.agent_definition_id = $2
-       ORDER BY ai.updated_at DESC LIMIT 1`,
-      [organizationId, agentId],
-    );
-    if (modeGuard.rows[0]?.execution_mode === "external_connected") {
-      throw new Error("External-connected definitions cannot use hosted agent editing");
-    }
-    const result = await query<AgentVersionRecord>(
-      this.pool,
-      `UPDATE agent_versions av
-       SET status = 'retired', retired_at = now()
-       FROM agent_definitions ad
-       WHERE av.id = $1 AND av.agent_definition_id = $2 AND ad.id = av.agent_definition_id
-         AND ad.organization_id = $3 AND av.status = 'published'
-       RETURNING av.*`,
-      [versionId, agentId, organizationId],
-    );
-    const version = result.rows[0];
-    if (!version) throw new Error("Published version not found");
-    await query(
-      this.pool,
-      `INSERT INTO audit_records
-        (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
-       VALUES ($1, 'human', $2, 'agent_version.retired', 'agent_version', $3, $4::jsonb)`,
-      [organizationId, actorId, versionId, JSON.stringify({ agentId })],
-    );
-    return version;
+    return withTransaction(this.pool, async (client) => {
+      const modeGuard = await client.query<{ execution_mode: AgentExecutionMode }>(
+        `SELECT ai.execution_mode FROM agent_installations ai
+         WHERE ai.organization_id = $1 AND ai.agent_definition_id = $2
+         ORDER BY ai.updated_at DESC LIMIT 1`,
+        [organizationId, agentId],
+      );
+      if (modeGuard.rows[0]?.execution_mode === "external_connected") {
+        throw new Error("External-connected definitions cannot use hosted agent editing");
+      }
+      const result = await client.query<AgentVersionRecord>(
+        `UPDATE agent_versions av
+         SET status = 'retired', retired_at = now()
+         FROM agent_definitions ad
+         WHERE av.id = $1 AND av.agent_definition_id = $2 AND ad.id = av.agent_definition_id
+           AND ad.organization_id = $3 AND av.status = 'published'
+         RETURNING av.*`,
+        [versionId, agentId, organizationId],
+      );
+      const version = result.rows[0];
+      if (!version) throw new Error("Published version not found");
+      await this.enqueueVersionLifecycle(client, organizationId, version, "retired", "human", new Date().toISOString());
+      await client.query(
+        `INSERT INTO audit_records
+          (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'human', $2, 'agent_version.retired', 'agent_version', $3, $4::jsonb)`,
+        [organizationId, actorId, versionId, JSON.stringify({ agentId })],
+      );
+      return version;
+    });
   }
 
   public async archiveAgent(organizationId: string, actorId: string, agentId: string): Promise<AgentRecord> {
@@ -1712,6 +1738,26 @@ export class AgentRepository {
       action,
       status: row.status as InstallationLifecycleAnalyticsInput["status"],
       previousStatus,
+      actorType,
+      occurredAt,
+    }));
+  }
+
+  private async enqueueVersionLifecycle(
+    client: PoolClient,
+    organizationId: string,
+    version: AgentVersionRecord,
+    action: VersionLifecycleAnalyticsInput["action"],
+    actorType: VersionLifecycleAnalyticsInput["actorType"],
+    occurredAt: Date | string,
+  ): Promise<void> {
+    await enqueueOutbox(client, buildVersionLifecycleEvent({
+      organizationId,
+      agentDefinitionId: version.agent_definition_id,
+      agentVersionId: version.id,
+      versionNumber: version.version_number,
+      status: version.status as VersionLifecycleAnalyticsInput["status"],
+      action,
       actorType,
       occurredAt,
     }));

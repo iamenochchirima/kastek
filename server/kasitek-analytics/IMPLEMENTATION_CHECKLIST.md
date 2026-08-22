@@ -332,6 +332,10 @@ checklist records implementation evidence for the current package only.
   profile, audience, scope, and bounded status transitions; exclude settings and credentials.
 - [x] Emit installation creation, activation, pause, and disable facts transactionally across
   direct status changes and archive paths, and avoid duplicate facts for unchanged status writes.
+- [x] Add a versioned Agent version lifecycle contract and metric for creation, publication,
+  retirement, and rollback; exclude instructions, configuration, policy, and checksums.
+- [x] Emit version lifecycle facts transactionally across hosted, system, template, and external
+  version creation/release paths, including the replaced version during publication or release.
 
 ## Verification evidence
 
@@ -501,6 +505,9 @@ checklist records implementation evidence for the current package only.
 - A-13 slice 7: installation lifecycle contract, metric, dimensions, and registry bindings were
   regenerated; producer coverage and the live hosted-agent integration passed for creation,
   pause/resume transitions, unchanged-status idempotency, and organization isolation.
+- A-13 slice 8: version lifecycle contract, metric, dimensions, and registry bindings were
+  regenerated; producer coverage and the live hosted-agent integration passed for draft creation,
+  publication, bounded payloads, and organization isolation.
 
 ## Explicitly deferred
 
