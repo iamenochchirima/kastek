@@ -227,6 +227,7 @@ export class HandoffRepository {
            'conversation.handoff.resolved',
            'conversation.handoff.expired',
            'conversation.handoff.cancelled',
+           'conversation.handoff.first_human_response',
            'conversation.human_message.sent'
          )
        ORDER BY sequence_number ASC, created_at ASC`,
@@ -660,6 +661,18 @@ export class HandoffRepository {
         throw handoffError("Only the assigned operator can send a message", "handoff_not_assigned", 403);
       }
 
+      const priorHumanResponse = await client.query<{ exists: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1
+           FROM messages m
+           LEFT JOIN participants p ON p.id = m.participant_id
+           WHERE m.organization_id = $1 AND m.conversation_id = $2 AND m.direction = 'outbound'
+             AND (m.provider = 'kasitek-human' OR p.participant_type = 'staff')
+         ) AS exists`,
+        [input.organizationId, current.conversation.id],
+      );
+      const isFirstHumanResponse = !priorHumanResponse.rows[0]?.exists;
+
       const existing = await client.query<MessageRecord>(
         `SELECT * FROM messages
          WHERE organization_id = $1 AND provider = 'kasitek-human' AND provider_message_id = $2
@@ -739,6 +752,20 @@ export class HandoffRepository {
         [input.organizationId, current.conversation.id, text],
       );
       if (!updatedConversation.rows[0]) throw new Error("Conversation update failed after human message");
+      if (isFirstHumanResponse) {
+        await this.appendLifecycleEvent(client, {
+          eventType: "conversation.handoff.first_human_response",
+          handoff: current.handoff,
+          conversation: updatedConversation.rows[0],
+          actorType: "user",
+          actorId: input.actorId,
+          payload: {
+            status: "sent",
+            messageId: message.rows[0].id,
+            deliveryStatus,
+          },
+        });
+      }
       await this.appendLifecycleEvent(client, {
         eventType: "conversation.human_message.sent",
         handoff: current.handoff,
@@ -875,7 +902,9 @@ export class HandoffRepository {
                   ? "expired"
                   : input.eventType === "conversation.handoff.cancelled"
                     ? "cancelled"
-                    : undefined;
+                    : input.eventType === "conversation.handoff.first_human_response"
+                      ? "first_human_response"
+                      : undefined;
     if (!action) throw new Error(`Unsupported handoff lifecycle event ${input.eventType}`);
     const occurredAt = new Date().toISOString();
     const analyticsAttributes: Record<string, unknown> = {
