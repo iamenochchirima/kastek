@@ -2162,7 +2162,7 @@ describe("Agent Platform HTTP foundation", () => {
     const signalExternalEvent = vi.fn(async () => undefined);
     const app = buildApp({ config, pool: fakePool, conversationControls: controls, signalExternalEvent });
     const headers = { "x-organization-id": "org-1", "x-actor-id": "user-1" };
-    const queue = await app.inject({ method: "GET", url: "/v1/conversations/handoffs?status=pending,claimed&limit=10", headers });
+    const queue = await app.inject({ method: "GET", url: "/v1/conversations/handoffs?status=pending,claimed&channelType=whatsapp&reason=customer_requested&priority=urgent&cursor=next-page&limit=10", headers });
     const live = await app.inject({ method: "GET", url: "/v1/conversations/live?search=acme&limit=10", headers });
     const detail = await app.inject({ method: "GET", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111", headers });
     const claimed = await app.inject({ method: "POST", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/claim", headers });
@@ -2187,7 +2187,7 @@ describe("Agent Platform HTTP foundation", () => {
     expect(resolved.json()).toMatchObject({ conversation: { handoff_state: "resolved" } });
     expect(message.statusCode).toBe(201);
     expect(message.json()).toMatchObject({ message: { content: { text: "I can help." } }, created: true });
-    expect(controls.listHandoffs).toHaveBeenCalledWith("org-1", expect.objectContaining({ status: ["pending", "claimed"], limit: 10 }));
+    expect(controls.listHandoffs).toHaveBeenCalledWith("org-1", expect.objectContaining({ status: ["pending", "claimed"], channelType: "whatsapp", reason: "customer_requested", priority: "urgent", cursor: "next-page", limit: 10 }));
     expect(controls.listLive).toHaveBeenCalledWith("org-1", { search: "acme", limit: 10 });
     expect(controls.claim).toHaveBeenCalledWith({ organizationId: "org-1", handoffId: "11111111-1111-4111-8111-111111111111", actorId: "user-1" });
     expect(controls.sendHumanMessage).toHaveBeenCalledWith({ organizationId: "org-1", handoffId: "11111111-1111-4111-8111-111111111111", actorId: "user-1", text: "I can help.", idempotencyKey: "human-message-1" });

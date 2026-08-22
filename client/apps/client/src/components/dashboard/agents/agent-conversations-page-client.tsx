@@ -26,6 +26,7 @@ import {
   getPlatformConversation,
   listAgentLiveConversations,
   listAgentHandoffs,
+  releaseAgentHandoff,
   resolveAgentHandoff,
   sendAgentHumanMessage,
   streamAgentConversation,
@@ -33,6 +34,7 @@ import {
   type AgentHandoffQueue,
   type AgentHandoffQueueItem,
   type AgentHandoffPriority,
+  type AgentHandoffReason,
   type AgentHandoffStatus,
 } from "@/lib/agent-platform";
 import { MotionReveal } from "@/components/ui/motion-reveal";
@@ -46,6 +48,15 @@ const viewStatuses: Record<QueueView, AgentHandoffStatus[]> = {
   live: [],
   all: ["pending", "claimed", "resolved", "expired", "cancelled"],
 };
+
+const handoffReasons: Array<{ value: AgentHandoffReason; label: string }> = [
+  { value: "customer_requested", label: "Customer requested" },
+  { value: "agent_uncertain", label: "Agent uncertain" },
+  { value: "policy_required", label: "Policy required" },
+  { value: "high_value", label: "High value" },
+  { value: "configured_workflow", label: "Configured workflow" },
+  { value: "other", label: "Other" },
+];
 
 function statusClass(status: AgentHandoffStatus) {
   if (status === "pending") return "border-status-attention/30 bg-status-attention-soft text-status-attention";
@@ -88,6 +99,9 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
   const [selectedLiveId, setSelectedLiveId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [priority, setPriority] = useState<AgentHandoffPriority | "">("");
+  const [channelType, setChannelType] = useState("");
+  const [reason, setReason] = useState<AgentHandoffReason | "">("");
+  const [queueCursor, setQueueCursor] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +119,15 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
         setLiveQueue(result.items);
         setSelectedLiveId((current) => result.items.some((item) => item.conversation.id === current) ? current : result.items[0]?.conversation.id ?? null);
       } else {
-        const result = await listAgentHandoffs({ status: viewStatuses[nextView], limit: 100, search: search.trim() || undefined, priority: priority || undefined });
+        const result = await listAgentHandoffs({
+          status: viewStatuses[nextView],
+          limit: 100,
+          search: search.trim() || undefined,
+          priority: priority || undefined,
+          channelType: channelType || undefined,
+          reason: reason || undefined,
+          cursor: queueCursor,
+        });
         setQueue(result);
         setSelectedId((current) => result.items.some((item) => item.handoff.id === current) ? current : result.items[0]?.handoff.id ?? null);
       }
@@ -115,7 +137,7 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
     } finally {
       if (!silent) setRefreshing(false);
     }
-  }, [priority, search, view]);
+  }, [channelType, priority, queueCursor, reason, search, view]);
 
   useEffect(() => {
     void loadQueue(view);
@@ -175,12 +197,22 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
     return () => controller.abort();
   }, [activeConversationId, loadQueue, view]);
 
-  async function mutate(id: string, action: "claim" | "continue" | "resolve") {
+  function resetQueuePosition() {
+    setQueueCursor(undefined);
+  }
+
+  function changeView(nextView: QueueView) {
+    resetQueuePosition();
+    setView(nextView);
+  }
+
+  async function mutate(id: string, action: "claim" | "continue" | "resolve" | "release") {
     setBusy(`${action}:${id}`);
     try {
       if (action === "claim") await claimAgentHandoff(id);
       if (action === "continue") await continueAgentHandoff(id, resolution.trim() || undefined);
       if (action === "resolve") await resolveAgentHandoff(id, resolution.trim() || undefined);
+      if (action === "release") await releaseAgentHandoff(id, resolution.trim() || undefined);
       setResolution("");
       await loadQueue(view);
     } catch (cause) {
@@ -249,7 +281,7 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
         <MotionReveal delay={0.08}>
           <div className="mt-8 grid gap-3 sm:grid-cols-3">
             {(["handoff", "human", "live", "all"] as QueueView[]).map((key) => (
-              <button key={key} type="button" onClick={() => setView(key)} className={`rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary/40 ${view === key ? "border-primary/60 ring-1 ring-primary/20" : "border-border"}`}>
+              <button key={key} type="button" onClick={() => changeView(key)} className={`rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary/40 ${view === key ? "border-primary/60 ring-1 ring-primary/20" : "border-border"}`}>
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{key === "handoff" ? "Handoff requests" : key === "human" ? "Human owned" : key === "live" ? "Agent live" : "All activity"}</p>
                 <p className="mt-2 text-2xl font-semibold text-foreground">{key === "handoff" ? counts.handoff : key === "human" ? counts.human : key === "live" ? counts.live : queue.items.length}</p>
               </button>
@@ -261,9 +293,9 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
           <section className="mt-6 rounded-xl border border-border bg-card/80 p-3 sm:p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap gap-1 rounded-lg bg-secondary/70 p-1">
-                {(["handoff", "human", "live", "all"] as QueueView[]).map((key) => <button key={key} type="button" onClick={() => setView(key)} className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${view === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{key === "handoff" ? "Handoff requests" : key === "human" ? "Human owned" : key === "live" ? "Agent live" : "All"}</button>)}
+                {(["handoff", "human", "live", "all"] as QueueView[]).map((key) => <button key={key} type="button" onClick={() => changeView(key)} className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${view === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{key === "handoff" ? "Handoff requests" : key === "human" ? "Human owned" : key === "live" ? "Agent live" : "All"}</button>)}
               </div>
-              <div className="flex w-full gap-2 sm:w-auto"><div className="relative min-w-0 flex-1 sm:w-56"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search conversations" className="pl-9" /></div><select aria-label="Priority" value={priority} onChange={(event) => setPriority(event.target.value as AgentHandoffPriority | "")} className="h-9 rounded-md border border-border bg-background px-2.5 text-xs text-foreground"><option value="">All priorities</option><option value="urgent">Urgent</option><option value="high">High</option><option value="normal">Normal</option></select></div>
+              <div className="flex w-full flex-wrap gap-2 sm:w-auto"><div className="relative min-w-0 flex-1 sm:w-56"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => { setSearch(event.target.value); resetQueuePosition(); }} placeholder="Search conversations" className="pl-9" /></div><select aria-label="Channel" value={channelType} onChange={(event) => { setChannelType(event.target.value); resetQueuePosition(); }} className="h-9 rounded-md border border-border bg-background px-2.5 text-xs text-foreground"><option value="">All channels</option><option value="platform">Platform</option><option value="whatsapp">WhatsApp</option><option value="telegram">Telegram</option><option value="messenger">Messenger</option><option value="instagram">Instagram</option></select><select aria-label="Reason" value={reason} onChange={(event) => { setReason(event.target.value as AgentHandoffReason | ""); resetQueuePosition(); }} className="h-9 rounded-md border border-border bg-background px-2.5 text-xs text-foreground"><option value="">All reasons</option>{handoffReasons.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><select aria-label="Priority" value={priority} onChange={(event) => { setPriority(event.target.value as AgentHandoffPriority | ""); resetQueuePosition(); }} className="h-9 rounded-md border border-border bg-background px-2.5 text-xs text-foreground"><option value="">All priorities</option><option value="urgent">Urgent</option><option value="high">High</option><option value="normal">Normal</option></select></div>
             </div>
           </section>
         </MotionReveal>
@@ -295,12 +327,13 @@ export function AgentConversationsPageClient({ initialQueue }: { initialQueue: A
                   <div className="mt-6 space-y-4"><div className="rounded-lg border border-border bg-secondary/35 p-4"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Handoff summary</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">{selected.handoff.summary}</p></div>{selected.handoff.customer_message ? <div className="rounded-lg border border-border p-4"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Customer message</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">{selected.handoff.customer_message}</p></div> : null}</div>
                   <div className="mt-6 rounded-lg border border-border p-4"><div className="flex items-center justify-between gap-3"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</p>{transcriptLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}</div>{messages.length ? <div className="mt-4 max-h-[32rem] space-y-3 overflow-y-auto pr-1">{messages.map((message) => { const text = typeof message.content?.text === "string" ? message.content.text : message.message_type; const isInbound = message.direction === "inbound"; return <div key={message.id} className={`flex ${isInbound ? "justify-start" : "justify-end"}`}><div className={`max-w-[86%] rounded-xl px-3 py-2 text-sm ${isInbound ? "bg-secondary text-foreground" : "bg-primary text-primary-foreground"}`}><p className="whitespace-pre-wrap leading-5">{text}</p><p className={`mt-1 text-[10px] ${isInbound ? "text-muted-foreground" : "text-primary-foreground/70"}`}>{isInbound ? "Customer" : message.direction === "system" ? "System" : "Agent"} · {timeLabel(message.created_at)}</p></div></div>; })}</div> : <p className="mt-4 text-sm text-muted-foreground">{transcriptLoading ? "Loading transcript…" : "No messages recorded."}</p>}</div>
                   {selected.handoff.status === "claimed" ? <div className="mt-4 rounded-lg border border-border bg-secondary/20 p-4"><label htmlFor="human-message" className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Message customer</label><Textarea id="human-message" value={messageDraft} onChange={(event) => setMessageDraft(event.target.value)} placeholder="Write a reply" className="mt-3 min-h-24 resize-y bg-background" disabled={busy !== null} /><div className="mt-3 flex justify-end"><Button type="button" disabled={busy !== null || !messageDraft.trim()} onClick={() => void sendMessage()}>{busy === `message:${selected.handoff.id}` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}Send message</Button></div></div> : null}
-                  {selected.handoff.status === "claimed" ? <div className="mt-6"><label htmlFor="handoff-resolution" className="text-sm font-medium text-foreground">Resolution note</label><Textarea id="handoff-resolution" value={resolution} onChange={(event) => setResolution(event.target.value)} placeholder="Optional note" className="mt-2 min-h-24" /><div className="mt-3 flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={busy !== null} onClick={() => void mutate(selected.handoff.id, "continue")}>{busy === `continue:${selected.handoff.id}` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clock3 className="mr-2 h-4 w-4" />}Continue with agent</Button><Button type="button" disabled={busy !== null} onClick={() => void mutate(selected.handoff.id, "resolve")}>{busy === `resolve:${selected.handoff.id}` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}Resolve</Button></div></div> : null}
+                  {selected.handoff.status === "claimed" ? <div className="mt-6"><label htmlFor="handoff-resolution" className="text-sm font-medium text-foreground">Resolution note</label><Textarea id="handoff-resolution" value={resolution} onChange={(event) => setResolution(event.target.value)} placeholder="Optional note" className="mt-2 min-h-24" /><div className="mt-3 flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={busy !== null} onClick={() => void mutate(selected.handoff.id, "release")}>{busy === `release:${selected.handoff.id}` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Release</Button><Button type="button" variant="outline" disabled={busy !== null} onClick={() => void mutate(selected.handoff.id, "continue")}>{busy === `continue:${selected.handoff.id}` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clock3 className="mr-2 h-4 w-4" />}Continue with agent</Button><Button type="button" disabled={busy !== null} onClick={() => void mutate(selected.handoff.id, "resolve")}>{busy === `resolve:${selected.handoff.id}` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}Resolve</Button></div></div> : null}
                   {selected.handoff.status === "pending" ? <div className="mt-6"><Button type="button" disabled={busy !== null} onClick={() => void mutate(selected.handoff.id, "claim")}>{busy === `claim:${selected.handoff.id}` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserRound className="mr-2 h-4 w-4" />}Take over</Button></div> : null}
                 </div>
               )}
             </section>
           </div>
+          {view !== "live" && queue.nextCursor ? <div className="mt-4 flex justify-end"><Button type="button" variant="outline" onClick={() => setQueueCursor(queue.nextCursor ?? undefined)} disabled={refreshing}>Next page</Button></div> : null}
         </MotionReveal>
       </div>
     </div>

@@ -93,6 +93,7 @@ export type AgentConversation = {
 
 export type AgentHandoffStatus = "pending" | "claimed" | "resolved" | "expired" | "cancelled";
 export type AgentHandoffPriority = "normal" | "high" | "urgent";
+export type AgentHandoffReason = "customer_requested" | "agent_uncertain" | "policy_required" | "high_value" | "configured_workflow" | "other";
 
 export type AgentHandoffRequest = {
   id: string;
@@ -103,7 +104,7 @@ export type AgentHandoffRequest = {
   agent_version_id: string;
   run_id?: string | null;
   channel_type: string;
-  reason: string;
+  reason: AgentHandoffReason;
   priority: AgentHandoffPriority;
   summary: string;
   customer_message?: string | null;
@@ -152,7 +153,7 @@ export function listAgentHandoffs(filters: {
   status?: AgentHandoffStatus[];
   priority?: AgentHandoffPriority;
   channelType?: string;
-  reason?: string;
+  reason?: AgentHandoffReason;
   search?: string;
   limit?: number;
   cursor?: string;
