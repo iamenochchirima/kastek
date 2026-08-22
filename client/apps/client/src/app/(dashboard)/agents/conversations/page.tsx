@@ -4,7 +4,7 @@ import { fetchRustJson } from "@/lib/rust-server-api";
 import type { AgentHandoffPriority, AgentHandoffQueue, AgentHandoffReason } from "@/lib/agent-platform";
 import { AgentConversationsPageClient } from "@/components/dashboard/agents/agent-conversations-page-client";
 
-export const metadata = { title: "Agent Conversations | KasiTek" };
+export const metadata = { title: "Live Chat | KasiTek" };
 
 type ConversationQuery = {
   view?: string;

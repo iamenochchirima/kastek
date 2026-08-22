@@ -23,11 +23,8 @@ pub struct PublicApiPrincipalPolicy {
     pub requires_installation_capabilities: bool,
 }
 
-pub const SUPPORTED_PUBLIC_API_PRINCIPALS: [&str; 3] = [
-    "direct_user",
-    "workspace_api_key",
-    "agent_installation",
-];
+pub const SUPPORTED_PUBLIC_API_PRINCIPALS: [&str; 3] =
+    ["direct_user", "workspace_api_key", "agent_installation"];
 pub const UNSUPPORTED_PUBLIC_API_PRINCIPALS: [&str; 3] =
     ["service_account", "oauth_user", "oauth_application"];
 

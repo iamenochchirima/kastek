@@ -924,6 +924,25 @@ export function createAgentKnowledgeSource(input: { agentId: string; installatio
   return request("/api/agents/knowledge/sources", { method: "POST", body: JSON.stringify(input) });
 }
 
+export type AgentWebsiteMapLink = { url: string; title?: string; description?: string };
+export type AgentWebsiteCrawl = { source: AgentKnowledgeSource; crawlId: string; status: string };
+
+export function mapAgentWebsite(input: { agentId: string; installationId?: string; url: string; limit?: number; includeSubdomains?: boolean }): Promise<{ url: string; links: AgentWebsiteMapLink[] }> {
+  return request("/api/agents/knowledge/websites/map", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function startAgentWebsiteCrawl(input: { agentId: string; installationId?: string; name: string; url: string; limit?: number; maxDiscoveryDepth?: number; includePaths?: string[]; excludePaths?: string[]; allowSubdomains?: boolean }): Promise<AgentWebsiteCrawl> {
+  return request("/api/agents/knowledge/websites/crawl", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function getAgentWebsiteCrawl(sourceId: string): Promise<AgentWebsiteCrawl & { total?: number; completed?: number; pages?: number }> {
+  return request(`/api/agents/knowledge/websites/crawl/${encodeURIComponent(sourceId)}`);
+}
+
+export function cancelAgentWebsiteCrawl(sourceId: string): Promise<AgentWebsiteCrawl> {
+  return request(`/api/agents/knowledge/websites/crawl/${encodeURIComponent(sourceId)}`, { method: "DELETE" });
+}
+
 export function ingestAgentKnowledgeSourceUrl(sourceId: string, url: string): Promise<{ sourceId: string; revision: number; chunks: unknown[] }> {
   return request(`/api/agents/knowledge/sources/${encodeURIComponent(sourceId)}/ingest-url`, { method: "POST", body: JSON.stringify({ url }) });
 }

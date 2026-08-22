@@ -15,10 +15,7 @@ pub struct CreateDeveloperApiKeyRequest {
     pub expires_at: Option<DateTime<Utc>>,
 }
 
-async fn workspace_admin(
-    pool: &PgPool,
-    req: &HttpRequest,
-) -> Result<(String, String), AppError> {
+async fn workspace_admin(pool: &PgPool, req: &HttpRequest) -> Result<(String, String), AppError> {
     let user = extract_user(req, pool).await?;
     let organization_id = resolve_active_org_id(req, pool, &user.id).await?;
     orgs::require_admin(pool, &organization_id, &user.id).await?;
@@ -100,12 +97,7 @@ pub async fn rotate_api_key(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let (organization_id, user_id) = workspace_admin(pool.get_ref(), &req).await?;
-    let created = developer_api_keys::rotate(
-        pool.get_ref(),
-        &organization_id,
-        &user_id,
-        &path,
-    )
-    .await?;
+    let created =
+        developer_api_keys::rotate(pool.get_ref(), &organization_id, &user_id, &path).await?;
     Ok(HttpResponse::Created().json(created))
 }

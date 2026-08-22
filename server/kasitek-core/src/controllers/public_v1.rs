@@ -1194,8 +1194,7 @@ mod tests {
     use super::{
         developer_api_key_bearer_token, installation_action_allowed, installation_bearer_token,
         is_public_action_for_actor, page_window, paginate_collection, public_action_allowed,
-        redacted,
-        verify_installation_token, PublicPageQuery,
+        redacted, verify_installation_token, PublicPageQuery,
     };
     use actions::{catalog::initial_registry, ActionLifecycle, ActorKind, ProductRuntime};
     use actix_web::test::TestRequest;

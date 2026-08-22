@@ -5,7 +5,7 @@ import { decryptChannelSecret, encryptChannelSecret } from "../channel-secret-cr
 export interface ChannelCredentialRecord {
   id: string;
   organization_id: string;
-  provider: "telegram";
+  provider: "telegram" | "discord";
   label: string;
   status: "active" | "revoked";
   created_by: string;
@@ -18,7 +18,7 @@ export class ChannelCredentialRepository {
 
   public async store(input: {
     organizationId: string;
-    provider: "telegram";
+    provider: "telegram" | "discord";
     secret: string;
     label?: string;
     actorId: string;
@@ -31,12 +31,12 @@ export class ChannelCredentialRepository {
         (organization_id, provider, label, encrypted_payload, created_by)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING id, organization_id, provider, label, status, created_by, created_at, revoked_at`,
-      [input.organizationId, input.provider, input.label?.trim() || "Telegram bot credential", encryptChannelSecret(input.secret.trim(), this.encryptionSecret), input.actorId],
+      [input.organizationId, input.provider, input.label?.trim() || `${input.provider} bot credential`, encryptChannelSecret(input.secret.trim(), this.encryptionSecret), input.actorId],
     );
     return result.rows[0]!;
   }
 
-  public async resolve(organizationId: string, reference: string, provider: "telegram" = "telegram"): Promise<string> {
+  public async resolve(organizationId: string, reference: string, provider: "telegram" | "discord" = "telegram"): Promise<string> {
     if (!this.encryptionSecret) throw new Error("Credential vault encryption is not configured");
     const result = await query<{ encrypted_payload: string }>(
       this.pool,

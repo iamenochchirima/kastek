@@ -54,4 +54,29 @@ describe("thin external channel adapters", () => {
   it("rejects Discord messages without an author identity", () => {
     expect(() => new DiscordChannelAdapter().normalizeInbound({ id: "msg-3", channel_id: "channel-1", content: "hello", author: {} })).toThrow("Invalid Discord message");
   });
+
+  it("normalizes Discord approval component interactions with the interaction response claims", () => {
+    const event = new DiscordChannelAdapter().normalizeInbound({
+      id: "interaction-1",
+      type: 3,
+      application_id: "app-1",
+      token: "interaction-token",
+      channel_id: "channel-1",
+      guild_id: "guild-1",
+      data: { component_type: 2, custom_id: "ka_approval_token" },
+      member: { user: { id: "user-1", username: "Ada" } },
+      message: { id: "prompt-1", channel_id: "channel-1", guild_id: "guild-1" },
+    });
+    expect(event).toMatchObject({
+      providerEventId: "interaction-1",
+      externalIdentity: "user-1",
+      externalConversationId: "channel-1",
+      approvalAction: { token: "ka_approval_token", interactionId: "interaction-1", interactionToken: "interaction-token", applicationId: "app-1" },
+      message: { messageType: "command", providerMessageId: "prompt-1" },
+    });
+  });
+
+  it("rejects malformed Discord component interactions", () => {
+    expect(() => new DiscordChannelAdapter().normalizeInbound({ type: 3, id: "interaction-1", data: {} })).toThrow("Invalid Discord component interaction");
+  });
 });

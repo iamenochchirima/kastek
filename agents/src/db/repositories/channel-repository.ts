@@ -263,6 +263,18 @@ export class ChannelRepository {
     return result.rows;
   }
 
+  public async listActiveDiscordConnections(): Promise<(ChannelConnectionRecord & { installation_status: string })[]> {
+    const result = await query<ChannelConnectionRecord & { installation_status: string }>(
+      this.pool,
+      `SELECT cc.*, ai.status AS installation_status
+       FROM channel_connections cc
+       JOIN agent_installations ai ON ai.id = cc.installation_id
+       WHERE cc.channel_type = 'discord' AND cc.status = 'active' AND ai.status = 'active'
+       ORDER BY cc.created_at ASC`,
+    );
+    return result.rows;
+  }
+
   public async listBindings(organizationId: string, installationId?: string): Promise<ChannelBindingRecord[]> {
     const result = await query<ChannelBindingRecord>(
       this.pool,
@@ -443,7 +455,7 @@ export class ChannelRepository {
          LIMIT 1
        ) inbound ON true
        WHERE ar.id = $1
-         AND ar.reply_channel_type IN ('telegram', 'whatsapp')
+         AND ar.reply_channel_type IN ('telegram', 'whatsapp', 'discord')
          AND cb.status = 'active' AND cc.status = 'active'
          AND cb.owner_actor_id IS NOT NULL
        LIMIT 1`,

@@ -25,6 +25,7 @@ import { OperatorControlRepository } from "../db/repositories/operator-control-r
 import { ChannelRepository } from "../db/repositories/channel-repository";
 import { ChannelCredentialRepository } from "../db/repositories/channel-credential-repository";
 import { TelegramBotClient } from "../channels/telegram-client";
+import { DiscordBotClient } from "../channels/discord-client";
 import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference-repository";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
 import { ApprovalRepository } from "../db/repositories/approval-repository";
@@ -51,6 +52,7 @@ export interface ActivityOptions {
   tools?: ToolRegistry;
   coreClient?: KasitekCoreReadClient;
   telegramClient?: TelegramBotClient;
+  discordClient?: DiscordBotClient;
   config?: AppConfig;
   conversationActions?: ConversationActionService;
 }
@@ -1082,6 +1084,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     : new EnvironmentCredentialResolver());
   const coreClient = options.coreClient ?? (options.config ? new KasitekCoreReadClient(options.config) : undefined);
   const telegramClient = options.telegramClient ?? (options.config ? new TelegramBotClient({ apiBaseUrl: options.config.TELEGRAM_API_BASE_URL, timeoutMs: options.config.TELEGRAM_API_TIMEOUT_MS }) : undefined);
+  const discordClient = options.discordClient ?? (options.config ? new DiscordBotClient({ apiBaseUrl: options.config.DISCORD_API_BASE_URL, timeoutMs: options.config.DISCORD_API_TIMEOUT_MS }) : undefined);
   const conversationActions = options.conversationActions ?? new ConversationActionService(new HandoffRepository(pool), controls);
   const handoffs = new HandoffRepository(pool);
   const tools = options.tools ?? createDefaultTools(coreClient, conversationActions);
@@ -1174,6 +1177,10 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           if (!channelCredentials || !telegramClient || !target.credential_reference) throw new Error("Telegram approval prompt is not configured");
           const token = await channelCredentials.resolve(target.organization_id, target.credential_reference, "telegram");
           await telegramClient.sendApprovalPrompt(token, target.external_conversation_id, prompt, { approve, reject });
+        } else if (target.channel_type === "discord") {
+          if (!channelCredentials || !discordClient || !target.credential_reference) throw new Error("Discord approval prompt is not configured");
+          const token = await channelCredentials.resolve(target.organization_id, target.credential_reference, "discord");
+          await discordClient.sendApprovalPrompt(token, target.external_conversation_id, prompt, { approve, reject });
         } else if (target.channel_type === "whatsapp") {
           if (!coreClient) throw new Error("WhatsApp approval prompt boundary is not configured");
           await coreClient.deliverChannelMessage({
@@ -1338,6 +1345,12 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
             if (!channelCredentials || !telegramClient || !pending.credential_reference) throw new Error("Telegram channel delivery is not configured");
             const token = await channelCredentials.resolve(pending.organization_id, pending.credential_reference, "telegram");
             return telegramClient.sendMessage(token, pending.external_conversation_id, text);
+          })()
+          : pending.channel_type === "discord"
+          ? await (async () => {
+            if (!channelCredentials || !discordClient || !pending.credential_reference) throw new Error("Discord channel delivery is not configured");
+            const token = await channelCredentials.resolve(pending.organization_id, pending.credential_reference, "discord");
+            return discordClient.sendMessage(token, pending.external_conversation_id, text);
           })()
           : await (async () => {
             if (!coreClient) throw new Error("kasitek-core channel delivery boundary is not configured");

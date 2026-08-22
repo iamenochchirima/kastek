@@ -1305,6 +1305,74 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn map_agent_website(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            "/v1/knowledge/websites/map",
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn start_agent_website_crawl(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            "/v1/knowledge/websites/crawl",
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn get_agent_website_crawl(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        source_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/knowledge/websites/crawl/{source_id}"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn cancel_agent_website_crawl(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        source_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::DELETE,
+            &format!("/v1/knowledge/websites/crawl/{source_id}"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
     pub async fn list_memory(
         &self,
         organization_id: &str,

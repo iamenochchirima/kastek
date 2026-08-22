@@ -80,6 +80,9 @@ import {
   listAgentKnowledgeSources,
   getAgentKnowledgeSource,
   createAgentKnowledgeSource,
+  startAgentWebsiteCrawl,
+  getAgentWebsiteCrawl,
+  cancelAgentWebsiteCrawl,
   ingestAgentKnowledgeSourceFile,
   ingestAgentKnowledgeSourceText,
   deleteAgentKnowledgeSource,
@@ -1573,6 +1576,7 @@ function InstallationKnowledge({ agentId, installationId }: { agentId: string; i
   const [sources, setSources] = useState<AgentKnowledgeSource[]>([]);
   const [memories, setMemories] = useState<AgentMemory[]>([]);
   const [articleText, setArticleText] = useState("");
+  const [websiteUrl, setWebsiteUrl] = useState("");
   const [knowledgeFile, setKnowledgeFile] = useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
@@ -1601,6 +1605,16 @@ function InstallationKnowledge({ agentId, installationId }: { agentId: string; i
   }, [agentId, installationId]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  const processingWebsite = sources.find((source) => source.source_type === "url" && source.status === "processing" && typeof source.provenance.crawlId === "string" && source.provenance.crawler === "firecrawl");
+  const processingWebsiteId = processingWebsite?.id;
+  useEffect(() => {
+    if (!processingWebsiteId) return;
+    const timer = setInterval(() => {
+      void getAgentWebsiteCrawl(processingWebsiteId).then(() => refresh()).catch(() => undefined);
+    }, 4_000);
+    return () => clearInterval(timer);
+  }, [processingWebsiteId, refresh]);
 
   const openSource = async (source: AgentKnowledgeSource) => {
     if (busy) return;
@@ -1670,6 +1684,35 @@ function InstallationKnowledge({ agentId, installationId }: { agentId: string; i
     }
   };
 
+  const addWebsite = async () => {
+    if (!websiteUrl.trim() || busy) return;
+    setBusy("website");
+    setError(null);
+    try {
+      await startAgentWebsiteCrawl({ agentId, installationId, name: "Website knowledge", url: websiteUrl.trim() });
+      setWebsiteUrl("");
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to start the website crawl");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const cancelWebsite = async (source: AgentKnowledgeSource) => {
+    if (busy) return;
+    setBusy(`cancel-website:${source.id}`);
+    setError(null);
+    try {
+      await cancelAgentWebsiteCrawl(source.id);
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to cancel the website crawl");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const removeSource = async (source: AgentKnowledgeSource) => {
     if (busy || !await confirm({ title: `Remove ${source.name}?`, description: "Its indexed chunks will no longer be retrieved.", confirmLabel: "Remove", variant: "destructive" })) return;
     setBusy(`source:${source.id}`);
@@ -1724,9 +1767,9 @@ function InstallationKnowledge({ agentId, installationId }: { agentId: string; i
         </div>
       </div>
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-secondary/10 p-4 sm:flex-row sm:items-center"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Upload className="h-5 w-5" /></div><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-foreground">Upload information</p><p className="mt-1 truncate text-xs text-muted-foreground">{knowledgeFile ? knowledgeFile.name : "TXT, Markdown, CSV, PDF, DOCX, or Excel · up to 20 MB"}</p></div><label className="cursor-pointer rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:border-primary/50"><span>Choose file</span><input key={fileInputKey} type="file" className="sr-only" accept=".txt,.text,.md,.markdown,.csv,.pdf,.docx,.xlsx,.xls,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (file && file.size > 20 * 1024 * 1024) { setError("Files must be 20 MB or smaller."); setKnowledgeFile(null); return; } setError(null); setKnowledgeFile(file); }} /></label><Button type="button" size="sm" disabled={busy !== null || !knowledgeFile} onClick={() => void addFile()}>{busy === "file" ? "Indexing…" : "Add file"}</Button></div>
-      <div className="flex items-center gap-3 rounded-xl border border-dashed border-border bg-secondary/10 p-4 opacity-60"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-secondary text-muted-foreground"><Globe2 className="h-4 w-4" /></div><div><p className="text-sm font-medium text-foreground">Website crawling</p><p className="mt-1 text-xs text-muted-foreground">Unavailable</p></div><span className="ml-auto rounded-full border border-border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Unavailable</span></div>
+      <div className="rounded-xl border border-border bg-secondary/10 p-4"><div className="flex items-start gap-3"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Globe2 className="h-4 w-4" /></div><div><p className="text-sm font-semibold text-foreground">Website source</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Crawl public pages and add their content and links to knowledge.</p></div></div><div className="mt-3 flex flex-col gap-2 sm:flex-row"><Input type="url" value={websiteUrl} onChange={(event) => setWebsiteUrl(event.target.value)} placeholder="https://example.com" className="h-10" /><Button type="button" size="sm" disabled={busy !== null || !websiteUrl.trim()} onClick={() => void addWebsite()}>{busy === "website" ? "Starting…" : "Crawl website"}</Button></div>{processingWebsite ? <p className="mt-2 text-xs text-primary">Crawling {processingWebsite.source_uri}…</p> : null}</div>
       {loading ? <p className="text-sm text-muted-foreground">Loading knowledge and memory…</p> : <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-2"><p className="text-sm font-semibold text-foreground">Knowledge sources</p>{sources.length ? sources.map((source) => <div key={source.id} className="flex items-start justify-between gap-3 rounded-lg border border-border p-3"><div className="min-w-0"><p className="font-medium text-foreground">{source.name}</p><p className="mt-1 truncate text-xs text-muted-foreground">{source.source_uri || source.source_type} · revision {source.revision} · {source.status}</p></div><div className="flex shrink-0 gap-2"><Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void openSource(source)}>{busy === `open-source:${source.id}` ? "Opening…" : source.source_type === "manual" ? "Edit" : "Open"}</Button><Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void removeSource(source)}>{busy === `source:${source.id}` ? "Removing…" : "Remove"}</Button></div></div>) : <p className="text-sm text-muted-foreground">No knowledge sources are attached.</p>}</div>
+        <div className="space-y-2"><p className="text-sm font-semibold text-foreground">Knowledge sources</p>{sources.length ? sources.map((source) => <div key={source.id} className="flex items-start justify-between gap-3 rounded-lg border border-border p-3"><div className="min-w-0"><p className="font-medium text-foreground">{source.name}</p><p className="mt-1 truncate text-xs text-muted-foreground">{source.source_uri || source.source_type} · revision {source.revision} · {source.status}</p></div><div className="flex shrink-0 gap-2">{source.status === "processing" && source.source_type === "url" ? <Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void cancelWebsite(source)}>{busy === `cancel-website:${source.id}` ? "Cancelling…" : "Cancel"}</Button> : <Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void openSource(source)}>{busy === `open-source:${source.id}` ? "Opening…" : source.source_type === "manual" ? "Edit" : "Open"}</Button>}<Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void removeSource(source)}>{busy === `source:${source.id}` ? "Removing…" : "Remove"}</Button></div></div>) : <p className="text-sm text-muted-foreground">No knowledge sources are attached.</p>}</div>
         <div className="space-y-2"><p className="text-sm font-semibold text-foreground">Durable memories</p>{memories.length ? memories.slice(0, 20).map((memory) => <div key={memory.id} className="rounded-lg border border-border p-3"><p className="line-clamp-2 text-sm text-foreground">{memory.canonical_text}</p><div className="mt-2 flex items-center justify-between gap-2"><p className="text-[11px] text-muted-foreground">{memory.namespace} · {memory.memory_type} · {memory.status}{memory.expires_at ? ` · expires ${new Date(memory.expires_at).toLocaleDateString()}` : ""}</p><div className="flex gap-1"><Button type="button" variant="ghost" size="sm" disabled={busy !== null} onClick={() => void revalidate(memory)}>{busy === `revalidate:${memory.id}` ? "…" : "Revalidate"}</Button><Button type="button" variant="ghost" size="sm" disabled={busy !== null} onClick={() => void removeMemory(memory)}>Delete</Button></div></div></div>) : <p className="text-sm text-muted-foreground">No memories are recorded for this installation.</p>}</div>
       </div>}
     </CardContent>
@@ -1895,6 +1938,7 @@ function InstallationIntegrations({ agentId, installationId, personal, agentName
 
   const openWebsiteChat = () => setWebsiteChatOpen(true);
   const [telegramSetupOpen, setTelegramSetupOpen] = useState(false);
+  const [discordSetupOpen, setDiscordSetupOpen] = useState(false);
 
   const agentChannelFor = (connection: WorkspaceConnection) => agentConnections.find((entry) => (
     entry.channel_type === "whatsapp" && entry.status === "active"
@@ -1983,10 +2027,13 @@ function InstallationIntegrations({ agentId, installationId, personal, agentName
   const telegramConnection = agentConnections.find((connection) => connection.channel_type === "telegram" && connection.status === "active");
   const telegramConnected = Boolean(telegramConnection);
   const telegramStatus = loading ? "Checking…" : telegramConnected ? "Connected" : "Set up";
+  const discordConnection = agentConnections.find((connection) => connection.channel_type === "discord" && connection.status === "active");
+  const discordConnected = Boolean(discordConnection);
+  const discordStatus = loading ? "Checking…" : discordConnected ? "Connected" : "Set up";
   const upcomingIntegrations = [
     ...(!personal ? [{ label: "Website Chat", description: "Add this agent to any website", icon: Globe2, iconClass: "text-[#06B6D4]", status: websiteStatus, action: "website" as const }] : []),
     { label: "Telegram", description: "Bot messaging", icon: SiTelegram, iconClass: "text-[#229ED9]", status: telegramStatus, action: "channels" as const },
-    { label: "Discord", description: "Servers and direct messages", icon: SiDiscord, iconClass: "text-[#5865F2]", status: "Coming soon" },
+    { label: "Discord", description: "Servers and direct messages", icon: SiDiscord, iconClass: "text-[#5865F2]", status: discordStatus, action: "discord" as const },
     { label: "Slack", description: "Workspace messaging", icon: SiSlack, iconClass: "text-[#36C5F0]", status: "Coming soon" },
     { label: "WordPress", description: "Use the Website Chat embed", icon: SiWordpress, iconClass: "text-[#21759B]", status: "Uses Website Chat" },
     { label: "Custom Button", description: "Launch Website Chat from your button", icon: Bot, iconClass: "text-[#F59E0B]", status: "Uses Website Chat" },
@@ -2015,9 +2062,10 @@ function InstallationIntegrations({ agentId, installationId, personal, agentName
       </CardContent>
     </Card>
     <Card>
-      <CardContent className="space-y-4 p-6"><div><h3 className="text-sm font-semibold text-foreground">Available integrations</h3><p className="mt-1 text-sm text-muted-foreground">More ways to deploy this agent.</p></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{upcomingIntegrations.map((integration) => { const Icon = integration.icon; const isWebsite = integration.action === "website"; const isChannelSetup = integration.action === "channels"; const isActionable = isWebsite || isChannelSetup; const openIntegration = isWebsite ? openWebsiteChat : isChannelSetup ? () => setTelegramSetupOpen(true) : undefined; return <div key={integration.label} role={isActionable ? "button" : undefined} tabIndex={isActionable ? 0 : undefined} onClick={openIntegration} onKeyDown={isActionable ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openIntegration?.(); } } : undefined} className={`rounded-xl border border-border p-4${isActionable ? " cursor-pointer transition-colors hover:border-primary/60 hover:bg-secondary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" : ""}`}><div className="flex items-start justify-between gap-3"><div className="rounded-lg border border-border bg-secondary p-2"><Icon className={`h-5 w-5 ${integration.iconClass}`} /></div><Badge className={`border-border bg-secondary text-muted-foreground${isChannelSetup && integration.status !== "Checking…" ? " border-status-success/30 bg-status-success-soft text-status-success" : ""}`}>{integration.status}</Badge></div><p className="mt-3 font-medium text-foreground">{integration.label}</p><p className="mt-1 text-sm text-muted-foreground">{integration.description}</p>{isWebsite ? <span className="mt-3 inline-flex text-xs font-medium text-foreground">{websiteConfigured ? "Manage Website Chat" : "Configure Website Chat"} <span aria-hidden="true" className="ml-1">→</span></span> : isChannelSetup ? <span className="mt-3 inline-flex text-xs font-medium text-foreground">{telegramConnected ? "Manage Telegram" : "Connect Telegram"} <span aria-hidden="true" className="ml-1">→</span></span> : integration.status === "Developer setup" ? <Link href="/developers" className="mt-3 inline-flex text-xs font-medium text-foreground underline-offset-4 hover:underline">Open Developers</Link> : null}</div>; })}</div></CardContent>
+      <CardContent className="space-y-4 p-6"><div><h3 className="text-sm font-semibold text-foreground">Available integrations</h3><p className="mt-1 text-sm text-muted-foreground">More ways to deploy this agent.</p></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{upcomingIntegrations.map((integration) => { const Icon = integration.icon; const isWebsite = integration.action === "website"; const isDiscordSetup = integration.action === "discord"; const isChannelSetup = integration.action === "channels" || isDiscordSetup; const isActionable = isWebsite || isChannelSetup; const openIntegration = isWebsite ? openWebsiteChat : isDiscordSetup ? () => setDiscordSetupOpen(true) : isChannelSetup ? () => setTelegramSetupOpen(true) : undefined; return <div key={integration.label} role={isActionable ? "button" : undefined} tabIndex={isActionable ? 0 : undefined} onClick={openIntegration} onKeyDown={isActionable ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openIntegration?.(); } } : undefined} className={`rounded-xl border border-border p-4${isActionable ? " cursor-pointer transition-colors hover:border-primary/60 hover:bg-secondary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" : ""}`}><div className="flex items-start justify-between gap-3"><div className="rounded-lg border border-border bg-secondary p-2"><Icon className={`h-5 w-5 ${integration.iconClass}`} /></div><Badge className={`border-border bg-secondary text-muted-foreground${isChannelSetup && integration.status !== "Checking…" ? " border-status-success/30 bg-status-success-soft text-status-success" : ""}`}>{integration.status}</Badge></div><p className="mt-3 font-medium text-foreground">{integration.label}</p><p className="mt-1 text-sm text-muted-foreground">{integration.description}</p>{isWebsite ? <span className="mt-3 inline-flex text-xs font-medium text-foreground">{websiteConfigured ? "Manage Website Chat" : "Configure Website Chat"} <span aria-hidden="true" className="ml-1">→</span></span> : isDiscordSetup ? <span className="mt-3 inline-flex text-xs font-medium text-foreground">{discordConnected ? "Manage Discord" : "Connect Discord"} <span aria-hidden="true" className="ml-1">→</span></span> : isChannelSetup ? <span className="mt-3 inline-flex text-xs font-medium text-foreground">{telegramConnected ? "Manage Telegram" : "Connect Telegram"} <span aria-hidden="true" className="ml-1">→</span></span> : integration.status === "Developer setup" ? <Link href="/developers" className="mt-3 inline-flex text-xs font-medium text-foreground underline-offset-4 hover:underline">Open Developers</Link> : null}</div>; })}</div></CardContent>
     </Card>
     <TelegramSetupDialog open={telegramSetupOpen} onOpenChange={setTelegramSetupOpen} installationId={installationId} personal={personal} existingConnection={telegramConnection} onConnected={() => void refresh()} onDisconnected={() => void refresh()} />
+    <DiscordSetupDialog open={discordSetupOpen} onOpenChange={setDiscordSetupOpen} installationId={installationId} personal={personal} existingConnection={discordConnection} onConnected={() => void refresh()} onDisconnected={() => void refresh()} />
     {!personal && websiteChatOpen ? <WebsiteChatDeployments agentId={agentId} installationId={installationId} agentName={agentName} onClose={() => { setWebsiteChatOpen(false); void refreshWebsiteDeployments(); }} /> : null}
   </div>;
 }
@@ -2293,6 +2341,116 @@ function TelegramSetupDialog({ open, onOpenChange, installationId, personal, exi
   </Dialog>;
 }
 
+function DiscordSetupDialog({ open, onOpenChange, installationId, personal, existingConnection, onConnected, onDisconnected }: { open: boolean; onOpenChange: (open: boolean) => void; installationId: string; personal: boolean; existingConnection?: AgentChannelConnection; onConnected?: () => void; onDisconnected?: () => void }) {
+  const [botToken, setBotToken] = useState("");
+  const [allowedUsers, setAllowedUsers] = useState("");
+  const [allowedChannels, setAllowedChannels] = useState("");
+  const [requireMention, setRequireMention] = useState(true);
+  const [connection, setConnection] = useState<AgentChannelConnection | null>(null);
+  const [pairing, setPairing] = useState<{ token: string; expires_at: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { confirm } = useConfirmationDialog();
+
+  const reset = () => {
+    setBotToken("");
+    setAllowedUsers("");
+    setAllowedChannels("");
+    setRequireMention(true);
+    setConnection(null);
+    setPairing(null);
+    setBusy(false);
+    setError(null);
+  };
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) reset();
+    onOpenChange(nextOpen);
+  };
+
+  const issuePairing = async (created: AgentChannelConnection) => {
+    try {
+      setPairing(await issueAgentChannelPairing(installationId, created.id));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to create Discord pairing code");
+    }
+  };
+
+  useEffect(() => {
+    if (!open || !existingConnection || connection) return;
+    setConnection(existingConnection);
+    if (personal) void issuePairing(existingConnection);
+  }, [connection, existingConnection, open, personal]);
+
+  const connect = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (busy || !botToken.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const created = await createAgentChannelConnection(installationId, {
+        channelType: "discord",
+        credentialSecret: botToken.trim(),
+        metadata: {
+          configuredFrom: "discord-setup-dialog",
+          routing: personal ? "private" : "public",
+          discordAccess: { allowedUsers: allowedUsers.trim(), allowedChannels: allowedChannels.trim(), requireMention },
+        },
+      });
+      setConnection(created);
+      setBotToken("");
+      onConnected?.();
+      if (personal) await issuePairing(created);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to connect Discord");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disconnect = async () => {
+    if (!connection || busy || !await confirm({ title: "Disconnect Discord?", description: "This removes the bot route.", confirmLabel: "Disconnect", variant: "destructive" })) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await revokeAgentChannelConnection(installationId, connection.id);
+      onDisconnected?.();
+      handleOpenChange(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to disconnect Discord");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const discordMetadata = connection?.metadata?.discord && typeof connection.metadata.discord === "object" ? connection.metadata.discord as Record<string, unknown> : {};
+  const botName = typeof discordMetadata.globalName === "string" ? discordMetadata.globalName : typeof discordMetadata.username === "string" ? discordMetadata.username : "Discord bot";
+  return <Dialog open={open} onOpenChange={handleOpenChange}>
+    <DialogContent className="sm:max-w-md">
+      {!connection ? <form onSubmit={(event) => void connect(event)}>
+        <DialogHeader>
+          <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl border border-[#5865F2]/30 bg-[#5865F2]/10"><SiDiscord className="h-5 w-5 text-[#5865F2]" /></div>
+          <DialogTitle>Connect Discord</DialogTitle>
+          <DialogDescription>{personal ? "Connect a Discord bot, then pair your account." : "Connect a Discord bot for agent conversations."}</DialogDescription>
+        </DialogHeader>
+        <div className="mt-5 space-y-4">
+          <label className="text-sm font-medium text-foreground" htmlFor="discord-bot-token">Bot token<Input id="discord-bot-token" type="password" value={botToken} onChange={(event) => setBotToken(event.target.value)} placeholder="Bot token" className="mt-2" autoComplete="off" autoFocus /></label>
+          <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-medium text-foreground">Allowed users<Input value={allowedUsers} onChange={(event) => setAllowedUsers(event.target.value)} placeholder="User IDs" className="mt-2" /></label><label className="text-sm font-medium text-foreground">Allowed server channels<Input value={allowedChannels} onChange={(event) => setAllowedChannels(event.target.value)} placeholder="Channel IDs" className="mt-2" /></label></div>
+          <label className="flex items-center gap-2 text-sm text-foreground"><Checkbox checked={requireMention} onCheckedChange={(checked) => setRequireMention(checked === true)} />Require @mention in servers</label>
+          <p className="text-xs text-muted-foreground">Empty channel IDs keeps server traffic closed. Enable Message Content Intent for the bot.</p>
+          {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+        </div>
+        <DialogFooter className="mt-6"><Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button><Button type="submit" disabled={busy || !botToken.trim()}>{busy ? "Connecting…" : "Connect Discord"}</Button></DialogFooter>
+      </form> : <>
+        <DialogHeader><div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl border border-status-success/30 bg-status-success-soft"><CheckCircle2 className="h-5 w-5 text-status-success" /></div><DialogTitle>Discord connected</DialogTitle><DialogDescription>{botName} is connected to this agent.</DialogDescription></DialogHeader>
+        {personal ? pairing ? <div className="mt-5 space-y-2"><p className="text-sm font-medium text-foreground">Send this code in a Discord DM</p><code className="block overflow-x-auto rounded-lg border border-border bg-secondary p-3 text-xs text-foreground">{pairing.token}</code><p className="text-xs text-muted-foreground">Expires {new Date(pairing.expires_at).toLocaleString()}.</p></div> : <p className="mt-5 text-sm text-muted-foreground">Preparing pairing code…</p> : <div className="mt-5 rounded-lg border border-status-success/30 bg-status-success-soft/40 p-3 text-sm text-muted-foreground">Messages sent to this bot will be routed to this agent.</div>}
+        {error ? <p className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+        <DialogFooter className="mt-6"><Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>Close</Button><Button type="button" variant="destructive" disabled={busy} onClick={() => void disconnect()}>{busy ? "Disconnecting…" : "Disconnect"}</Button></DialogFooter>
+      </>}
+    </DialogContent>
+  </Dialog>;
+}
+
 function InstallationChannels({ installationId, personal }: { installationId: string; personal: boolean }) {
   const [connections, setConnections] = useState<AgentChannelConnection[]>([]);
   const [bindings, setBindings] = useState<AgentChannelBinding[]>([]);
@@ -2306,6 +2464,8 @@ function InstallationChannels({ installationId, personal }: { installationId: st
   const [error, setError] = useState<string | null>(null);
   const { confirm } = useConfirmationDialog();
   const isTelegram = channelType === "telegram";
+  const isDiscord = channelType === "discord";
+  const isBotChannel = isTelegram || isDiscord;
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
@@ -2339,7 +2499,7 @@ function InstallationChannels({ installationId, personal }: { installationId: st
 
   const createConnection = async () => {
     if (busy) return;
-    if (channelType === "telegram" ? !botToken.trim() && !credentialReference.trim() : !channelKey.trim()) return;
+    if (isBotChannel ? !botToken.trim() && !credentialReference.trim() : !channelKey.trim()) return;
     setBusy("create");
     setError(null);
     try {
@@ -2347,14 +2507,14 @@ function InstallationChannels({ installationId, personal }: { installationId: st
         channelType,
         ...(channelKey.trim() ? { channelKey: channelKey.trim() } : {}),
         ...(credentialReference.trim() ? { credentialReference: credentialReference.trim() } : {}),
-        ...(channelType === "telegram" && botToken.trim() ? { credentialSecret: botToken.trim() } : {}),
+        ...(isBotChannel && botToken.trim() ? { credentialSecret: botToken.trim() } : {}),
         metadata: { configuredFrom: "agent-detail", routing: personal ? "private" : "public" },
       });
       setConnections((current) => [connection, ...current.filter((entry) => entry.id !== connection.id)]);
       setChannelKey("");
       setCredentialReference("");
       setBotToken("");
-      if (personal && channelType === "telegram") await preparePairing(connection);
+      if (personal && isTelegram) await preparePairing(connection);
       else setPairing(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to register channel connection");
@@ -2415,10 +2575,10 @@ function InstallationChannels({ installationId, personal }: { installationId: st
       {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
       <div className="grid gap-3 rounded-xl border border-border bg-secondary/20 p-4 sm:grid-cols-[0.7fr_1fr_1fr_auto] sm:items-end">
         <label className="text-xs font-medium text-foreground">Channel type<Select value={channelType} onValueChange={(value) => { setChannelType(value); setBotToken(""); setChannelKey(""); setCredentialReference(""); }}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="telegram">Telegram</SelectItem><SelectItem value="discord">Discord</SelectItem><SelectItem value="whatsapp">WhatsApp</SelectItem><SelectItem value="webhook">Webhook</SelectItem></SelectContent></Select></label>
-        {isTelegram ? <label className="text-xs font-medium text-foreground sm:col-span-2">Bot token from @BotFather<Input type="password" value={botToken} onChange={(event) => setBotToken(event.target.value)} placeholder="123456:ABC…" className="mt-1" autoComplete="off" /></label> : <><label className="text-xs font-medium text-foreground">Channel key<Input value={channelKey} onChange={(event) => setChannelKey(event.target.value)} placeholder="bot or provider key" className="mt-1" /></label><label className="text-xs font-medium text-foreground">Credential reference<Input value={credentialReference} onChange={(event) => setCredentialReference(event.target.value)} placeholder="vault reference" className="mt-1" /></label></>}
-        <Button type="button" size="sm" disabled={busy !== null || (isTelegram ? !botToken.trim() && !credentialReference.trim() : !channelKey.trim())} onClick={() => void createConnection()}>{busy === "create" ? "Connecting…" : isTelegram ? "Connect Telegram" : "Register channel"}</Button>
+        {isBotChannel ? <label className="text-xs font-medium text-foreground sm:col-span-2">{isTelegram ? "Bot token from @BotFather" : "Discord bot token"}<Input type="password" value={botToken} onChange={(event) => setBotToken(event.target.value)} placeholder={isTelegram ? "123456:ABC…" : "Bot token"} className="mt-1" autoComplete="off" /></label> : <><label className="text-xs font-medium text-foreground">Channel key<Input value={channelKey} onChange={(event) => setChannelKey(event.target.value)} placeholder="bot or provider key" className="mt-1" /></label><label className="text-xs font-medium text-foreground">Credential reference<Input value={credentialReference} onChange={(event) => setCredentialReference(event.target.value)} placeholder="vault reference" className="mt-1" /></label></>}
+        <Button type="button" size="sm" disabled={busy !== null || (isBotChannel ? !botToken.trim() && !credentialReference.trim() : !channelKey.trim())} onClick={() => void createConnection()}>{busy === "create" ? "Connecting…" : isTelegram ? "Connect Telegram" : isDiscord ? "Connect Discord" : "Register channel"}</Button>
       </div>
-      {isTelegram ? <p className="text-xs text-muted-foreground">The token is encrypted and is not shown again.</p> : null}
+      {isBotChannel ? <p className="text-xs text-muted-foreground">The token is encrypted and is not shown again.</p> : null}
       {personal && pairing ? <div className="rounded-xl border border-status-attention/40 bg-status-attention-soft p-4" role="alert"><p className="text-sm font-semibold text-status-attention">Pair this Telegram account</p><p className="mt-1 text-xs text-muted-foreground">Choose one of these options. Expires {new Date(pairing.expires_at).toLocaleString()}.</p><TelegramPairingActions username={pairing.username} token={pairing.token} /></div> : null}
       {loading ? <p className="text-sm text-muted-foreground">Loading channels…</p> : connections.length ? <div className="space-y-2">{connections.map((connection: AgentChannelConnection) => { const metadata = telegramMetadata(connection); const username = typeof metadata.username === "string" ? `@${metadata.username}` : `Bot ${metadata.botId ?? connection.channel_key}`; const webhook = connection.metadata?.webhook && typeof connection.metadata.webhook === "object" ? connection.metadata.webhook as Record<string, unknown> : {}; const label = connection.channel_type === "telegram" ? username : `${connection.channel_type} · ${connection.channel_key}`; return <div key={connection.id} className="rounded-lg border border-border p-3"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium capitalize text-foreground">{label}</p><p className="mt-1 text-xs text-muted-foreground">{connection.status}{connection.channel_type === "telegram" ? ` · webhook ${typeof webhook.status === "string" ? webhook.status : "pending"}` : ""}</p></div><div className="flex flex-wrap gap-2"><Badge className="border-border bg-secondary text-muted-foreground">{personal ? "personal" : "business"}</Badge>{personal ? <Button type="button" variant="outline" size="sm" disabled={busy !== null || connection.status !== "active"} onClick={() => void issuePairing(connection)}>{busy === `pair:${connection.id}` ? "Issuing…" : "Issue pairing"}</Button> : null}<Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void disconnectConnection(connection)}>{busy === `disconnect:${connection.id}` ? "Disconnecting…" : "Disconnect"}</Button></div></div></div>; })}{personal ? bindings.map((binding: AgentChannelBinding) => <div key={binding.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"><div><p className="font-medium text-foreground">{binding.external_identity}</p><p className="mt-1 text-xs text-muted-foreground">{binding.channel_type} · {binding.status}</p></div>{binding.status === "active" ? <Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void disconnect(binding)}>{busy === binding.id ? "Disconnecting…" : "Disconnect"}</Button> : null}</div>) : null}</div> : <p className="text-sm text-muted-foreground">No channels connected.</p>}
     </CardContent>

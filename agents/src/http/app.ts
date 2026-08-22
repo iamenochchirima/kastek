@@ -29,6 +29,7 @@ import { InstallationGrantRepository } from "../db/repositories/installation-gra
 import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
 import { MemoryRepository } from "../db/repositories/memory-repository";
 import { chunkKnowledgeText, fetchBoundedKnowledgeDocument } from "../knowledge/ingestion";
+import { FirecrawlClient } from "../knowledge/firecrawl";
 import { extractKnowledgeFile, MAX_KNOWLEDGE_FILE_BYTES } from "../knowledge/file-ingestion";
 import { EvaluationRepository } from "../db/repositories/evaluation-repository";
 import { evaluateDeterministicAssertions, evaluationAssertionSchema } from "../evaluations/deterministic";
@@ -64,6 +65,8 @@ import { randomUUID } from "node:crypto";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { TelegramBotClient } from "../channels/telegram-client";
 import { TelegramChannelAdapter } from "../channels/telegram";
+import { DiscordBotClient } from "../channels/discord-client";
+import { DiscordChannelAdapter } from "../channels/discord";
 import { channelSecretsEqual, hashChannelSecret } from "../db/channel-secret-crypto";
 import {
   clientSupportsExtension,
@@ -114,6 +117,7 @@ export interface AppDependencies {
   channels?: ChannelRepository;
   channelCredentials?: ChannelCredentialRepository;
   telegramClient?: TelegramBotClient;
+  discordClient?: DiscordBotClient;
   credentials?: CredentialVaultRepository;
   /** Provider preflight used before a model credential is persisted. */
   verifyCredential?: (input: CredentialVerificationInput) => Promise<CredentialVerificationResult>;
@@ -135,6 +139,7 @@ export interface AppDependencies {
    */
   installationInvocations?: Pick<InstallationCapabilityInvocationService, "accept">;
   knowledge?: KnowledgeRepository;
+  websiteCrawler?: FirecrawlClient;
   memory?: MemoryRepository;
   evaluations?: EvaluationRepository;
   audits?: AuditRepository;
@@ -394,6 +399,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const channels = dependencies.channels ?? new ChannelRepository(dependencies.pool);
   const channelCredentials = dependencies.channelCredentials ?? new ChannelCredentialRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
   const telegramClient = dependencies.telegramClient ?? new TelegramBotClient({ apiBaseUrl: dependencies.config.TELEGRAM_API_BASE_URL, timeoutMs: dependencies.config.TELEGRAM_API_TIMEOUT_MS });
+  const discordClient = dependencies.discordClient ?? new DiscordBotClient({ apiBaseUrl: dependencies.config.DISCORD_API_BASE_URL, timeoutMs: dependencies.config.DISCORD_API_TIMEOUT_MS });
   const credentials = dependencies.credentials ?? new CredentialVaultRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
   const verifyCredential = dependencies.verifyCredential ?? ((input: CredentialVerificationInput) => verifyProviderCredential(input));
   const installationCredentials = dependencies.installationCredentials ?? new InstallationCredentialRepository(dependencies.pool);
@@ -444,6 +450,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const killSwitches = dependencies.killSwitches ?? new KillSwitchRepository(dependencies.pool);
   const retention = dependencies.retention ?? new RetentionRepository(dependencies.pool);
   const kasiaiPreferences = dependencies.kasiaiPreferences ?? new KasiAiPreferenceRepository(dependencies.pool);
+  const websiteCrawler = dependencies.websiteCrawler ?? new FirecrawlClient({
+    apiKey: dependencies.config.FIRECRAWL_API_KEY,
+    baseUrl: dependencies.config.FIRECRAWL_API_BASE_URL,
+    timeoutMs: dependencies.config.FIRECRAWL_TIMEOUT_MS,
+  });
   const approvalDecisionRateLimiter = new ApprovalDecisionRateLimiter(
     dependencies.config.APPROVAL_DECISION_RATE_LIMIT_PER_WINDOW,
     dependencies.config.APPROVAL_DECISION_RATE_LIMIT_WINDOW_MS,
@@ -885,6 +896,104 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         // thread; otherwise Telegram will retry the same update indefinitely.
         return reply.code(200).send({ ok: true, handoffActive: true });
       }
+      throw error;
+    }
+    return reply.code(200).send({ ok: true });
+  });
+
+  app.post<{ Params: { connectionId: string } }>("/v1/webhooks/discord/:connectionId", async (request, reply) => {
+    if (!secretHeaderMatches(dependencies.config.INTERNAL_AUTH_SECRET, headerValue(request, "x-kasitek-core-forward-secret"))) {
+      return reply.code(401).send({ error: "Unauthorized" });
+    }
+    const connection = await channels.getConnectionForWebhook(request.params.connectionId);
+    if (!connection || connection.channel_type !== "discord" || connection.status !== "active" || connection.installation_status !== "active") {
+      return reply.code(404).send({ error: "discord_connection_not_found" });
+    }
+    const payload = request.body && typeof request.body === "object" ? request.body as Record<string, unknown> : {};
+    if (payload.type !== 3 && (typeof payload.id !== "string" || typeof payload.channel_id !== "string" || !payload.author || typeof payload.author !== "object")) {
+      return reply.code(200).send({ ok: true, ignored: true });
+    }
+
+    const event = new DiscordChannelAdapter().normalizeInbound(payload);
+    if (event.metadata.authorIsBot === true) return reply.code(200).send({ ok: true, ignored: true });
+    const messageText = typeof event.message.content.text === "string" ? event.message.content.text.trim() : "";
+    const credential = connection.credential_reference
+      ? await channelCredentials.resolve(connection.organization_id, connection.credential_reference, "discord").catch(() => undefined)
+      : undefined;
+
+    if (event.approvalAction) {
+      let result: { accepted: boolean } | undefined;
+      let decision: ChannelApprovalDecision | undefined;
+      if (event.approvalAction.interactionId && event.approvalAction.interactionToken && event.approvalAction.applicationId && credential) {
+        await discordClient.deferComponent(event.approvalAction.interactionId, event.approvalAction.interactionToken).catch(() => undefined);
+      }
+      try {
+        const claims = verifyChannelApprovalActionToken(event.approvalAction.token, dependencies.config.INTERNAL_AUTH_SECRET ?? "");
+        decision = claims.decision;
+        const approval = await approvals.getById(connection.organization_id, claims.approvalId);
+        const target = approval ? await channels.getApprovalPromptTarget(approval.run_id) : null;
+        if (!approval || !target || target.channel_type !== "discord" || target.external_identity !== event.externalIdentity || target.external_conversation_id !== event.externalConversationId || target.channel_connection_id !== connection.id || target.owner_actor_id === null || target.owner_actor_id === undefined) {
+          throw new Error("channel_approval_not_authorized");
+        }
+        result = await decideApproval({
+          organizationId: connection.organization_id,
+          runId: approval.run_id,
+          providerToolCallId: approval.provider_tool_call_id,
+          argumentsHash: approval.arguments_hash,
+          decision: claims.decision,
+          approvedBy: target.owner_actor_id,
+          rateLimitKey: `${connection.organization_id}:channel:${target.owner_actor_id}`,
+        });
+      } catch (error) {
+        request.log.warn({ error: error instanceof Error ? error.message : "channel approval failed" }, "Discord channel approval failed");
+      }
+      if (event.approvalAction.applicationId && event.approvalAction.interactionToken && credential) {
+        const acknowledgement = result
+          ? (result.accepted ? (decision === "approved" ? "Approved" : "Denied") : "Already decided")
+          : "Approval unavailable";
+        await discordClient.editOriginalResponse(event.approvalAction.applicationId, event.approvalAction.interactionToken, acknowledgement).catch(() => undefined);
+      }
+      return reply.code(200).send({ ok: true, approval: result ? "processed" : "unavailable" });
+    }
+
+    if (connection.execution_mode === "system_hosted") {
+      const pairingMatch = messageText.match(/^(?:\/start\s+)?(kasiai_pair_[A-Za-z0-9_-]+)$/i);
+      if (pairingMatch) {
+        try {
+          await channels.consumePairingToken({ organizationId: connection.organization_id, token: pairingMatch[1]!, externalIdentity: event.externalIdentity });
+          if (credential) await discordClient.sendMessage(credential, event.externalConversationId, "Connected. You can now message this agent.").catch(() => undefined);
+        } catch (error) {
+          request.log.warn({ error: error instanceof Error ? error.message : "pairing failed" }, "Discord pairing attempt failed");
+        }
+        return reply.code(200).send({ ok: true });
+      }
+    }
+
+    try {
+      const accepted = await platformChat.acceptExternalMessage({
+        organizationId: connection.organization_id,
+        installationId: connection.installation_id,
+        channelType: event.channelType,
+        channelKey: connection.channel_key,
+        provider: event.provider,
+        providerEventId: event.providerEventId,
+        providerMessageId: event.message.providerMessageId ?? event.providerEventId,
+        externalIdentity: event.externalIdentity,
+        externalConversationId: event.externalConversationId,
+        messageType: event.message.messageType,
+        content: parseCanonicalMessageContent(event.message.messageType, event.message.content),
+        occurredAt: event.message.occurredAt,
+        displayName: typeof event.metadata.senderDisplayName === "string" ? event.metadata.senderDisplayName : undefined,
+        correlationId: randomUUID(),
+      });
+      const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
+      if (workflowEnabled && dependencies.startWorkflow && accepted.created && accepted.run.status === "received") await dependencies.startWorkflow(accepted.run.id);
+    } catch (error) {
+      if ((error as { code?: string }).code === "channel_identity_not_paired") {
+        if (credential) await discordClient.sendMessage(credential, event.externalConversationId, "This bot is not paired yet.").catch(() => undefined);
+        return reply.code(200).send({ ok: true });
+      }
+      if ((error as { code?: string }).code === "conversation_handoff_active") return reply.code(200).send({ ok: true, handoffActive: true });
       throw error;
     }
     return reply.code(200).send({ ok: true });
@@ -2865,14 +2974,59 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       credentialSecret: z.string().trim().min(1).max(512).optional(),
       metadata: z.record(z.string(), z.unknown()).default({}),
     }).parse(request.body);
-    if (input.channelType !== "telegram" && !input.channelKey) {
+    if (input.channelType !== "telegram" && input.channelType !== "discord" && !input.channelKey) {
       throw Object.assign(new Error("channelKey is required for this channel"), { statusCode: 400 });
     }
     if (input.credentialSecret && input.credentialReference) {
       throw Object.assign(new Error("Use credentialSecret or credentialReference, not both"), { statusCode: 400 });
     }
-    if (input.channelType !== "telegram") {
+    if (input.channelType === "discord" && !input.credentialSecret && !input.credentialReference) {
+      throw Object.assign(new Error("A Discord bot token is required"), { statusCode: 400, code: "discord_token_required" });
+    }
+    if (input.channelType !== "telegram" && input.channelType !== "discord") {
       const connection = await channels.createConnection({ organizationId: auth.organizationId, installationId: request.params.installationId, channelType: input.channelType, channelKey: input.channelKey!, credentialReference: input.credentialReference, metadata: input.metadata, actorId: auth.actorId });
+      return reply.code(201).send(connection);
+    }
+
+    if (input.channelType === "discord") {
+      const botToken = input.credentialSecret
+        ?? await channelCredentials.resolve(auth.organizationId, input.credentialReference!, "discord");
+      let bot;
+      try {
+        bot = await discordClient.getMe(botToken);
+      } catch (error) {
+        throw Object.assign(new Error("Discord bot token could not be verified"), { statusCode: 400, code: "discord_token_invalid", cause: error });
+      }
+      const channelKey = input.channelKey ?? `bot:${bot.id}`;
+      const credential = input.credentialSecret
+        ? await channelCredentials.store({ organizationId: auth.organizationId, provider: "discord", secret: input.credentialSecret, label: `Discord ${bot.globalName ?? bot.username}`, actorId: auth.actorId })
+        : undefined;
+      let connection;
+      try {
+        connection = await channels.createConnection({
+          organizationId: auth.organizationId,
+          installationId: request.params.installationId,
+          channelType: "discord",
+          channelKey,
+          credentialReference: credential?.id ?? input.credentialReference,
+          metadata: {
+            ...input.metadata,
+            discord: { botId: bot.id, username: bot.username, ...(bot.globalName ? { globalName: bot.globalName } : {}) },
+            gateway: { status: "waiting_for_gateway" },
+          },
+          actorId: auth.actorId,
+        });
+        connection = await channels.updateConnection({
+          organizationId: auth.organizationId,
+          connectionId: connection.id,
+          status: "active",
+          metadata: { ...connection.metadata, gateway: { status: "waiting_for_gateway" } },
+        });
+      } catch (error) {
+        if (connection) await channels.updateConnection({ organizationId: auth.organizationId, connectionId: connection.id, status: "failed" }).catch(() => undefined);
+        if (credential) await channelCredentials.revoke(auth.organizationId, credential.id).catch(() => undefined);
+        throw error;
+      }
       return reply.code(201).send(connection);
     }
 
@@ -2983,7 +3137,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       installationId: request.params.installationId,
       connectionId: request.params.connectionId,
     });
-    if (connection?.channel_type === "telegram" && connection.credential_reference) {
+    if ((connection?.channel_type === "telegram" || connection?.channel_type === "discord") && connection.credential_reference) {
       await channelCredentials.revoke(auth.organizationId, connection.credential_reference).catch(() => undefined);
     }
     return { disconnected: true };
@@ -3393,6 +3547,178 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     await verifyCredential({ provider: existing.provider, apiKey: input.apiKey });
     const credential = await credentials.rotate({ organizationId: auth.organizationId, credentialId: request.params.credentialId, actorId: auth.actorId, ...input });
     return reply.code(201).send(credential);
+  });
+
+  app.post("/v1/knowledge/websites/map", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    if (!websiteCrawler.isConfigured()) return reply.code(503).send({ error: "website_crawler_unconfigured" });
+    const input = z.object({
+      url: z.string().url().max(2_000),
+      agentId: z.string().uuid(),
+      installationId: z.string().uuid().optional(),
+      limit: z.number().int().positive().max(5_000).default(100),
+      includeSubdomains: z.boolean().default(false),
+      ignoreQueryParameters: z.boolean().default(true),
+      sitemap: z.enum(["include", "skip", "only"]).default("include"),
+    }).parse(request.body);
+    const url = new URL(input.url);
+    if ((url.protocol !== "https:" && url.protocol !== "http:") || url.username || url.password) {
+      return reply.code(422).send({ error: "website_url_invalid" });
+    }
+    await requireHostedResourceScope(agents, auth.organizationId, input);
+    const mapped = await websiteCrawler.map({ ...input, url: url.toString() });
+    return { url: url.toString(), ...mapped };
+  });
+
+  app.post("/v1/knowledge/websites/crawl", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    if (!websiteCrawler.isConfigured()) return reply.code(503).send({ error: "website_crawler_unconfigured" });
+    const input = z.object({
+      name: z.string().trim().min(1).max(240),
+      url: z.string().url().max(2_000),
+      agentId: z.string().uuid(),
+      installationId: z.string().uuid().optional(),
+      limit: z.number().int().positive().max(1_000).default(100),
+      maxDiscoveryDepth: z.number().int().min(0).max(10).default(3),
+      includePaths: z.array(z.string().trim().min(1).max(240)).max(50).default([]),
+      excludePaths: z.array(z.string().trim().min(1).max(240)).max(50).default([]),
+      allowSubdomains: z.boolean().default(false),
+      delaySeconds: z.number().min(0).max(30).optional(),
+      maxConcurrency: z.number().int().min(1).max(20).optional(),
+    }).parse(request.body);
+    const url = new URL(input.url);
+    if ((url.protocol !== "https:" && url.protocol !== "http:") || url.username || url.password) {
+      return reply.code(422).send({ error: "website_url_invalid" });
+    }
+    await requireHostedResourceScope(agents, auth.organizationId, input);
+    const source = await knowledge.createSource({
+      name: input.name,
+      sourceType: "url",
+      sourceUri: url.toString(),
+      organizationId: auth.organizationId,
+      agentId: input.agentId,
+      installationId: input.installationId,
+      actorId: auth.actorId,
+      provenance: { crawler: "firecrawl", rootUrl: url.toString(), crawlStatus: "starting" },
+    });
+    try {
+      const crawl = await websiteCrawler.startCrawl({ ...input, url: url.toString() });
+      const updated = await knowledge.updateSource({
+        sourceId: source.id,
+        scope: { organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId },
+        status: "processing",
+        provenance: { crawlId: crawl.id, crawlStatus: "scraping", crawlOptions: input, startedAt: new Date().toISOString() },
+      });
+      return reply.code(202).send({ source: updated, crawlId: crawl.id, status: "scraping" });
+    } catch (error) {
+      await knowledge.updateSource({
+        sourceId: source.id,
+        scope: { organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId },
+        status: "failed",
+        provenance: { crawlStatus: "failed", error: error instanceof Error ? error.message : "Firecrawl could not start the crawl" },
+      });
+      throw error;
+    }
+  });
+
+  app.get<{ Params: { sourceId: string } }>("/v1/knowledge/websites/crawl/:sourceId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    if (!websiteCrawler.isConfigured()) return reply.code(503).send({ error: "website_crawler_unconfigured" });
+    const source = await knowledge.getSource({ organizationId: auth.organizationId }, request.params.sourceId);
+    if (!source) return reply.code(404).send({ error: "knowledge_source_not_found" });
+    if (source.source_type !== "url" || !source.agent_definition_id) return reply.code(422).send({ error: "website_source_required" });
+    await requireHostedResourceScope(agents, auth.organizationId, { agentId: source.agent_definition_id, installationId: source.installation_id ?? undefined });
+    const crawlId = source.provenance.crawlId;
+    if (typeof crawlId !== "string" || !crawlId) return reply.code(422).send({ error: "website_crawl_not_started" });
+    const status = await websiteCrawler.getCrawlStatus(crawlId);
+    const isComplete = status.status === "completed";
+    const isFailed = status.status === "failed" || status.status === "cancelled";
+    const alreadyIngested = typeof source.provenance.ingestedAt === "string";
+    let updatedSource = source;
+    if (isComplete && !alreadyIngested) {
+      const chunks = status.data.flatMap((page) => {
+        const content = (page.markdown ?? page.html ?? "").trim();
+        if (!content) return [];
+        const metadata = page.metadata ?? {};
+        const pageUrl = typeof metadata.sourceURL === "string" ? metadata.sourceURL : typeof metadata.url === "string" ? metadata.url : source.source_uri;
+        const title = typeof metadata.title === "string" ? metadata.title.trim() : "";
+        const description = typeof metadata.description === "string" ? metadata.description.trim() : "";
+        const links = (page.links ?? []).slice(0, 20);
+        const text = [title, description, content].filter(Boolean).join("\n\n");
+        return chunkKnowledgeText(text).map((chunk, index) => ({
+          text: [`Source: ${pageUrl}`, links.length ? `Related links: ${links.join(", ")}` : "", chunk].filter(Boolean).join("\n\n"),
+          metadata: {
+            contentType: "text/markdown",
+            pageUrl,
+            title,
+            language: typeof metadata.language === "string" ? metadata.language : undefined,
+            links,
+            statusCode: metadata.statusCode,
+            characters: chunk.length,
+          },
+          provenance: { sourceType: "website", url: pageUrl, title, fetchedAt: new Date().toISOString(), chunkIndex: index },
+        }));
+      });
+      if (chunks.length) {
+        await knowledge.addChunks({
+          sourceId: source.id,
+          scope: { organizationId: auth.organizationId, agentId: source.agent_definition_id, installationId: source.installation_id ?? undefined },
+          revision: source.revision + 1,
+          chunks,
+        });
+        updatedSource = await knowledge.updateSource({
+          sourceId: source.id,
+          scope: { organizationId: auth.organizationId, agentId: source.agent_definition_id, installationId: source.installation_id ?? undefined },
+          status: "active",
+          provenance: { crawlStatus: "completed", ingestedAt: new Date().toISOString(), pageCount: status.data.length, chunkCount: chunks.length, creditsUsed: status.creditsUsed },
+        });
+      } else {
+        updatedSource = await knowledge.updateSource({
+          sourceId: source.id,
+          scope: { organizationId: auth.organizationId, agentId: source.agent_definition_id, installationId: source.installation_id ?? undefined },
+          status: "failed",
+          provenance: { crawlStatus: "failed", error: "Firecrawl returned no readable pages" },
+        });
+      }
+    } else if (isFailed && source.status !== "failed") {
+      updatedSource = await knowledge.updateSource({
+        sourceId: source.id,
+        scope: { organizationId: auth.organizationId, agentId: source.agent_definition_id, installationId: source.installation_id ?? undefined },
+        status: "failed",
+        provenance: { crawlStatus: status.status },
+      });
+    }
+    return {
+      source: updatedSource,
+      crawlId,
+      status: isComplete ? "completed" : status.status,
+      total: status.total ?? status.data.length,
+      completed: status.completed ?? (isComplete ? status.data.length : 0),
+      pages: status.data.length,
+      creditsUsed: status.creditsUsed,
+    };
+  });
+
+  app.delete<{ Params: { sourceId: string } }>("/v1/knowledge/websites/crawl/:sourceId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    if (!websiteCrawler.isConfigured()) return reply.code(503).send({ error: "website_crawler_unconfigured" });
+    const source = await knowledge.getSource({ organizationId: auth.organizationId }, request.params.sourceId);
+    if (!source || source.source_type !== "url" || !source.agent_definition_id) return reply.code(404).send({ error: "website_source_not_found" });
+    await requireHostedResourceScope(agents, auth.organizationId, { agentId: source.agent_definition_id, installationId: source.installation_id ?? undefined });
+    const crawlId = source.provenance.crawlId;
+    if (typeof crawlId !== "string" || !crawlId) return reply.code(422).send({ error: "website_crawl_not_started" });
+    await websiteCrawler.cancelCrawl(crawlId);
+    const updated = await knowledge.updateSource({
+      sourceId: source.id,
+      scope: { organizationId: auth.organizationId, agentId: source.agent_definition_id, installationId: source.installation_id ?? undefined },
+      status: "failed",
+      provenance: { crawlStatus: "cancelled", cancelledAt: new Date().toISOString() },
+    });
+    return { source: updated, crawlId, status: "cancelled" };
   });
 
   app.post("/v1/knowledge/sources", async (request, reply) => {

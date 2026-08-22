@@ -129,15 +129,15 @@ function isPublicApiTransport(route: Route): boolean {
 }
 
 function isProviderWebhook(route: Route): boolean {
-  return route.path === "/v1/webhooks/telegram/:connectionId" && route.method === "POST";
+  return (route.path === "/v1/webhooks/telegram/:connectionId" || route.path === "/v1/webhooks/discord/:connectionId") && route.method === "POST";
 }
 
 describe("Agent REST and MCP conformance matrices", () => {
   it("guards every mounted /v1 route before parsing input or touching dependencies", async () => {
     const routes = await mountedAgentRoutes();
     const protectedRoutes = routes.filter(({ path }) => path.startsWith("/v1/") && path !== "/v1/installation-tokens/exchange");
-    expect(routes).toHaveLength(151);
-    expect(protectedRoutes).toHaveLength(145);
+    expect(routes).toHaveLength(152);
+    expect(protectedRoutes).toHaveLength(146);
 
     const app = buildApp({ config, pool: fakePool });
     try {

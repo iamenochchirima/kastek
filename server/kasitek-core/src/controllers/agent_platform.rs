@@ -820,6 +820,68 @@ pub async fn delete_knowledge_source(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn map_agent_website(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Website map body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .map_agent_website(&organization_id, &user.id, body.into_inner())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn start_agent_website_crawl(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Website crawl body must be an object".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .start_agent_website_crawl(&organization_id, &user.id, body.into_inner())
+        .await?;
+    Ok(HttpResponse::Accepted().json(response))
+}
+
+pub async fn get_agent_website_crawl(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    source_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .get_agent_website_crawl(&organization_id, &user.id, source_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn cancel_agent_website_crawl(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    source_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .cancel_agent_website_crawl(&organization_id, &user.id, source_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn list_memory(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
@@ -968,12 +1030,7 @@ pub async fn stream_conversation(
 ) -> Result<HttpResponse, AppError> {
     let (user, organization_id) = scope(&req, pool.get_ref()).await?;
     let response = client(config.get_ref())?
-        .stream_conversation_events(
-            &organization_id,
-            &user.id,
-            &conversation_id,
-            query.after,
-        )
+        .stream_conversation_events(&organization_id, &user.id, &conversation_id, query.after)
         .await?;
     let stream = response.bytes_stream().map(|chunk| {
         chunk.map_err(|error| {
@@ -1026,7 +1083,9 @@ pub async fn release_handoff(
         .map(|value| value.into_inner())
         .unwrap_or_else(|| Value::Object(Map::new()));
     if !body.is_object() {
-        return Err(AppError::BadRequest("Handoff release body must be an object".to_string()));
+        return Err(AppError::BadRequest(
+            "Handoff release body must be an object".to_string(),
+        ));
     }
     let response = client(config.get_ref())?
         .release_handoff(&organization_id, &user.id, handoff_id.trim(), body)
@@ -1426,6 +1485,7 @@ pub async fn create_channel_connection(
         .map(str::trim)
         .unwrap_or_default();
     if channel_type != "telegram"
+        && channel_type != "discord"
         && body
             .get("channelKey")
             .and_then(Value::as_str)
@@ -1453,6 +1513,24 @@ pub async fn create_channel_connection(
     {
         return Err(AppError::BadRequest(
             "A Telegram bot token is required".to_string(),
+        ));
+    }
+    if channel_type == "discord"
+        && body
+            .get("credentialSecret")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_none()
+        && body
+            .get("credentialReference")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_none()
+    {
+        return Err(AppError::BadRequest(
+            "A Discord bot token is required".to_string(),
         ));
     }
     let response = client(config.get_ref())?
@@ -2418,8 +2496,7 @@ fn sanitize_message_body(body: Value) -> Result<Value, AppError> {
                 | "xai"
                 | "opencode_go"
                 | "opencode_zen"
-        )
-            || model.trim().is_empty()
+        ) || model.trim().is_empty()
             || model.len() > 240
         {
             return Err(AppError::BadRequest(

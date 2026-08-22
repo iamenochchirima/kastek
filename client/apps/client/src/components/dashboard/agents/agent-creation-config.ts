@@ -67,11 +67,14 @@ export function getAgentRole(key: string | undefined, audience: AgentAudience): 
   return options.find((option) => option.key === key) ?? options[0] ?? roleOptions.general_assistant;
 }
 
-export function knowledgeOutline(audience: AgentAudience, role: AgentRoleKey): string {
-  const roleLabel = getAgentRole(role, audience).label;
+export function knowledgeOutline(audience: AgentAudience, role: AgentRoleKey | AgentRoleKey[]): string {
+  const roles = Array.isArray(role) ? role : [role];
+  const roleLabel = roles.length === 1
+    ? getAgentRole(roles[0], audience).label.toLowerCase()
+    : roles.map((key) => getAgentRole(key, audience).label.toLowerCase()).join(", ");
   return [
     `Business or team: [Add the name and a short description]`,
-    `What ${roleLabel.toLowerCase()} can help with: [List the supported requests]`,
+    `${roles.length === 1 ? `What ${roleLabel} can help with` : "What these responsibilities can help with"}: [List the supported requests]`,
     "Approved facts, prices, hours, or service details: [Add current information]",
     "Policies and limits: [Add what the agent may and may not promise]",
     "Escalation rules: [List when the agent must involve a human]",
@@ -87,15 +90,21 @@ export function generatedAgentInstructions(input: {
   name: string;
   audience: AgentAudience;
   role: AgentRoleKey;
+  roles?: AgentRoleKey[];
   roleSummary?: string;
   templateInstructions?: string;
   tone?: string;
   responseDetail?: string;
 }): string {
-  const roleOption = getAgentRole(input.role, input.audience);
+  const selectedRoles = input.roles?.length ? input.roles : [input.role];
+  const roleOptions = selectedRoles.map((role) => getAgentRole(role, input.audience));
+  const primaryRole = roleOptions[0] ?? getAgentRole(input.role, input.audience);
   const lines = [
     `You are a user-configured assistant named "${input.name.trim()}".`,
-    `Your primary role is to ${roleOption.instruction.charAt(0).toLowerCase()}${roleOption.instruction.slice(1)}`,
+    `Your primary role is to ${primaryRole.instruction.charAt(0).toLowerCase()}${primaryRole.instruction.slice(1)}`,
+    roleOptions.length > 1
+      ? `Also handle these responsibilities when relevant:\n${roleOptions.slice(1).map((option) => `- ${option.label}: ${option.instruction}`).join("\n")}`
+      : undefined,
     input.roleSummary?.trim() ? `Additional role context: ${input.roleSummary.trim()}` : undefined,
     input.tone ? `Use a ${input.tone} tone.` : undefined,
     input.responseDetail ? `Provide ${input.responseDetail} responses.` : undefined,
@@ -107,4 +116,3 @@ export function generatedAgentInstructions(input: {
   ];
   return lines.filter((line): line is string => Boolean(line?.trim())).join("\n\n");
 }
-

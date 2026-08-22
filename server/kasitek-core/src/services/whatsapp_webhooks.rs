@@ -65,9 +65,7 @@ fn approval_acknowledgement(response: &Value) -> &'static str {
     ) {
         (Some("approval_already_signalled"), _) => "Already decided.",
         (Some("approval_signalled"), Some("rejected")) => "Denied.",
-        (Some("approval_signalled"), Some("approved")) => {
-            "Approval received. Processing…"
-        }
+        (Some("approval_signalled"), Some("approved")) => "Approval received. Processing…",
         _ => "Approval received.",
     }
 }

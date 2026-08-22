@@ -110,14 +110,19 @@ fn generate_secret() -> (String, String, String) {
 pub fn valid_secret_shape(secret: &str) -> bool {
     secret.len() >= 40
         && secret.starts_with(KEY_PREFIX)
-        && secret.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+        && secret
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
 }
 
 pub fn secret_digest(secret: &str) -> String {
     hash_secret(secret)
 }
 
-pub async fn list(pool: &PgPool, organization_id: &str) -> Result<Vec<DeveloperApiKeyMetadata>, AppError> {
+pub async fn list(
+    pool: &PgPool,
+    organization_id: &str,
+) -> Result<Vec<DeveloperApiKeyMetadata>, AppError> {
     let rows = sqlx::query_as::<_, DeveloperApiKeyRow>(
         r#"
         SELECT id, "orgId", name, prefix, scopes,
@@ -183,7 +188,10 @@ pub async fn create(
     .bind(expires_at)
     .fetch_one(pool)
     .await?;
-    Ok(CreatedDeveloperApiKey { key: metadata(row), secret })
+    Ok(CreatedDeveloperApiKey {
+        key: metadata(row),
+        secret,
+    })
 }
 
 pub async fn revoke(pool: &PgPool, organization_id: &str, key_id: &str) -> Result<(), AppError> {
@@ -257,10 +265,16 @@ pub async fn rotate(
     .fetch_one(&mut *transaction)
     .await?;
     transaction.commit().await?;
-    Ok(CreatedDeveloperApiKey { key: metadata(new_row), secret })
+    Ok(CreatedDeveloperApiKey {
+        key: metadata(new_row),
+        secret,
+    })
 }
 
-pub async fn authenticate(pool: &PgPool, secret: &str) -> Result<Option<DeveloperApiKeyAuth>, AppError> {
+pub async fn authenticate(
+    pool: &PgPool,
+    secret: &str,
+) -> Result<Option<DeveloperApiKeyAuth>, AppError> {
     if !valid_secret_shape(secret) {
         return Ok(None);
     }
@@ -280,11 +294,18 @@ pub async fn authenticate(pool: &PgPool, secret: &str) -> Result<Option<Develope
     let Some((id, organization_id, created_by_id, scopes)) = row else {
         return Ok(None);
     };
-    sqlx::query(r#"UPDATE "DeveloperApiKey" SET "lastUsedAt" = NOW(), "updatedAt" = NOW() WHERE id = $1"#)
-        .bind(&id)
-        .execute(pool)
-        .await?;
-    Ok(Some(DeveloperApiKeyAuth { id, organization_id, created_by_id, scopes }))
+    sqlx::query(
+        r#"UPDATE "DeveloperApiKey" SET "lastUsedAt" = NOW(), "updatedAt" = NOW() WHERE id = $1"#,
+    )
+    .bind(&id)
+    .execute(pool)
+    .await?;
+    Ok(Some(DeveloperApiKeyAuth {
+        id,
+        organization_id,
+        created_by_id,
+        scopes,
+    }))
 }
 
 #[cfg(test)]
@@ -303,6 +324,8 @@ mod tests {
     fn malformed_or_short_values_are_not_treated_as_api_keys() {
         assert!(!valid_secret_shape("session-token"));
         assert!(!valid_secret_shape("kst_short"));
-        assert!(!valid_secret_shape(format!("kst_{}", "a".repeat(10)).as_str()));
+        assert!(!valid_secret_shape(
+            format!("kst_{}", "a".repeat(10)).as_str()
+        ));
     }
 }

@@ -3,6 +3,9 @@ export type ChannelMessageType = "text" | "attachment" | "reaction" | "status" |
 export interface ChannelApprovalAction {
   token: string;
   callbackQueryId?: string;
+  interactionId?: string;
+  interactionToken?: string;
+  applicationId?: string;
 }
 
 export interface CanonicalChannelEvent {

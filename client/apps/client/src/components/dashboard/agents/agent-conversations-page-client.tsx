@@ -315,8 +315,8 @@ export function AgentConversationsPageClient({ initialQueue, initialFilters }: {
       <div className="mx-auto max-w-[1440px]">
         <PageHeader>
           <PageHeaderContent>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Automation</p>
-            <PageHeaderTitle>Agent conversations</PageHeaderTitle>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Customer</p>
+            <PageHeaderTitle>Live Chat</PageHeaderTitle>
             <PageHeaderDescription>Customer conversations that need operator attention.</PageHeaderDescription>
           </PageHeaderContent>
           <Button type="button" variant="outline" onClick={() => void loadQueue(view)} disabled={refreshing}>

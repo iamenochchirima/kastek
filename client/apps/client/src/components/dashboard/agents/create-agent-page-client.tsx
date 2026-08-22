@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   BookOpen,
   Bot,
+  Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -31,8 +32,11 @@ import {
   createAgentInstallation,
   createAgentKnowledgeSource,
   createAgentVersion,
+  getAgentKnowledgeSource,
+  getAgentWebsiteCrawl,
   ingestAgentKnowledgeSourceFile,
   ingestAgentKnowledgeSourceText,
+  startAgentWebsiteCrawl,
   publishAgentVersion,
   AGENT_MODEL_PROVIDERS,
   AGENT_MODEL_PROVIDER_LABELS,
@@ -58,6 +62,15 @@ import {
 
 type Step = 1 | 2 | 3 | 4 | 5;
 type KnowledgeRetry = { sourceId: string; kind: "text" | "file"; label: string };
+type WebsiteCrawlPreview = {
+  sourceId: string;
+  crawlId: string;
+  status: string;
+  total?: number;
+  completed?: number;
+  pages?: number;
+  preview?: string;
+};
 
 const runtimeLimitKeys: Array<keyof AgentRuntimeLimitsValue> = [
   "maxIterations",
@@ -192,6 +205,10 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
     : typeof initialTemplate?.configuration?.agentRole === "string"
       ? initialTemplate.configuration.agentRole
       : undefined;
+  const configuredRolesValue = initialDraftConfiguration.agentRoles ?? initialTemplate?.configuration?.agentRoles;
+  const configuredRoles = Array.isArray(configuredRolesValue)
+    ? configuredRolesValue.filter((key): key is AgentRoleKey => typeof key === "string" && getAgentRoleOptions(audience).some((option) => option.key === key))
+    : [];
   const configuredKnowledgeSetup = initialDraftConfiguration.knowledgeSetup && typeof initialDraftConfiguration.knowledgeSetup === "object"
     ? initialDraftConfiguration.knowledgeSetup as Record<string, unknown>
     : undefined;
@@ -199,13 +216,19 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
   const initialDraftPrimary = initialDraftPolicy && typeof initialDraftPolicy === "object" ? (initialDraftPolicy as Record<string, unknown>).primary : undefined;
   const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState(initialDraft?.agent.name ?? initialTemplate?.name ?? "");
-  const [role, setRole] = useState<AgentRoleKey>(getAgentRole(configuredRole, audience).key);
+  const defaultRole = getAgentRole(configuredRole, audience).key;
+  const [roles, setRoles] = useState<AgentRoleKey[]>(configuredRoles.length ? configuredRoles : [defaultRole]);
   const [roleSummary, setRoleSummary] = useState(initialDraft?.agent.description ?? "");
   const [knowledgeText, setKnowledgeText] = useState("");
+  const [websiteUrl, setWebsiteUrl] = useState("");
   const [knowledgeFile, setKnowledgeFile] = useState<File | null>(null);
   const [instructions, setInstructions] = useState(initialDraft?.version.instructions ?? "");
   const [knowledgeOutlineInserted, setKnowledgeOutlineInserted] = useState(false);
   const [knowledgeConfirmed, setKnowledgeConfirmed] = useState(configuredKnowledgeSetup?.confirmed === true);
+  const [crawlAgent, setCrawlAgent] = useState<AgentDefinition | null>(null);
+  const [websiteCrawl, setWebsiteCrawl] = useState<WebsiteCrawlPreview | null>(null);
+  const websitePreviewRef = useRef<string | undefined>(undefined);
+  const [crawlingWebsite, setCrawlingWebsite] = useState(false);
   const [provider, setProvider] = useState(() => typeof initialDraftConfiguration.provider === "string" ? initialDraftConfiguration.provider : templateConfigurationString(initialTemplate, "provider", "openrouter"));
   const [model, setModel] = useState(() => { const primary = initialDraftPrimary && typeof initialDraftPrimary === "object" ? initialDraftPrimary as Record<string, unknown> : undefined; return typeof primary?.model === "string" ? primary.model : typeof initialDraftConfiguration.model === "string" ? initialDraftConfiguration.model : templateConfigurationString(initialTemplate, "model", "openai/gpt-oss-20b:free"); });
   const [runtimeLimits, setRuntimeLimits] = useState<AgentRuntimeLimitsValue>(() => initialDraft ? {
@@ -221,22 +244,24 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
   const [workflowValid, setWorkflowValid] = useState(Boolean(initialDraft));
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [publishStage, setPublishStage] = useState<"idle" | "publishing" | "indexing-text" | "indexing-file">("idle");
+  const [publishStage, setPublishStage] = useState<"idle" | "publishing" | "indexing-text" | "indexing-file" | "crawling-website">("idle");
   const [retryingKnowledge, setRetryingKnowledge] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ agent: AgentDefinition; version: AgentVersion } | null>(initialDraft ?? null);
-  const [created, setCreated] = useState<{ id: string; name: string; knowledgeWarning?: string; knowledgeRetries: KnowledgeRetry[] } | null>(null);
+  const [created, setCreated] = useState<{ id: string; name: string; knowledgeWarning?: string; knowledgeRetries: KnowledgeRetry[]; websiteCrawlStarted?: boolean } | null>(null);
 
+  const role = roles[0] ?? defaultRole;
   const roleOptions = getAgentRoleOptions(audience);
   const generatedInstructions = useMemo(() => generatedAgentInstructions({
     name: name.trim() || "user-configured assistant",
     audience,
     role,
+    roles,
     roleSummary,
     templateInstructions: initialTemplate?.instructions,
-  }), [audience, initialTemplate?.instructions, name, role, roleSummary]);
+  }), [audience, initialTemplate?.instructions, name, role, roles, roleSummary]);
   const effectiveInstructions = instructions.trim() || generatedInstructions;
-  const knowledgeReady = Boolean(knowledgeText.trim() || knowledgeFile);
+  const knowledgeReady = Boolean(knowledgeText.trim() || knowledgeFile || websiteUrl.trim());
   const knowledgeHasPlaceholders = containsKnowledgePlaceholders(knowledgeText);
   const readinessIssues = [
     !workflow || !workflowValid ? "Complete the workflow before publishing." : null,
@@ -245,9 +270,75 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
     knowledgeHasPlaceholders ? "Replace the bracketed knowledge examples before publishing." : null,
   ].filter((issue): issue is string => Boolean(issue));
 
+  const crawlSourceId = websiteCrawl?.sourceId;
+  const crawlStatus = websiteCrawl?.status;
+
+  useEffect(() => {
+    if (!crawlSourceId || !["starting", "scraping", "processing"].includes(crawlStatus ?? "")) return;
+    let cancelled = false;
+    let timer: number | undefined;
+    const poll = async () => {
+      try {
+        const status = await getAgentWebsiteCrawl(crawlSourceId);
+        if (cancelled) return;
+        let preview = websitePreviewRef.current;
+        if (status.status === "completed") {
+          try {
+            const source = await getAgentKnowledgeSource(crawlSourceId);
+            preview = source.text.trim().slice(0, 2_400) || undefined;
+          } catch {
+            // Status can complete just before source ingestion is readable.
+          }
+        }
+        websitePreviewRef.current = preview;
+        setWebsiteCrawl({
+          sourceId: status.source.id,
+          crawlId: status.crawlId,
+          status: status.status,
+          total: status.total,
+          completed: status.completed,
+          pages: status.pages,
+          preview,
+        });
+        if (!["completed", "failed", "cancelled"].includes(status.status)) {
+          timer = window.setTimeout(() => void poll(), 4_000);
+        }
+      } catch (cause) {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : "The website crawl status could not be loaded");
+      }
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [crawlSourceId, crawlStatus]);
+
+  const crawlWebsite = async () => {
+    if (!name.trim() || !websiteUrl.trim() || crawlingWebsite) return;
+    setCrawlingWebsite(true);
+    setError(null);
+    try {
+      const agent = crawlAgent ?? await createAgent({
+        name: name.trim(),
+        description: roleSummary.trim() || getAgentRole(role, audience).summary,
+        creationProfile: "custom",
+        agentAudience: audience,
+      });
+      if (!crawlAgent) setCrawlAgent(agent);
+      const started = await startAgentWebsiteCrawl({ agentId: agent.id, name: `${agent.name} website`, url: websiteUrl.trim() });
+      websitePreviewRef.current = undefined;
+      setWebsiteCrawl({ sourceId: started.source.id, crawlId: started.crawlId, status: started.status });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The website crawl could not be started");
+    } finally {
+      setCrawlingWebsite(false);
+    }
+  };
+
   const canContinue =
     step === 1
-      ? name.trim().length > 0 && Boolean(role)
+      ? name.trim().length > 0 && roles.length > 0
       : step === 4
         ? Boolean(workflow && workflowValid)
         : true;
@@ -269,11 +360,12 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
   };
 
   const submit = async () => {
-    if (!name.trim() || !role || loading || draft) return;
+    if (!name.trim() || !roles.length || loading || draft) return;
     setLoading(true);
     setError(null);
     try {
-      const agent = await createAgent({ name: name.trim(), description: roleSummary.trim() || getAgentRole(role, audience).summary, creationProfile: "custom", agentAudience: audience });
+      const roleSummaryFallback = roles.map((key) => getAgentRole(key, audience).summary).join(" ");
+      const agent = crawlAgent ?? await createAgent({ name: name.trim(), description: roleSummary.trim() || roleSummaryFallback, creationProfile: "custom", agentAudience: audience });
       const parsedLimits = parseAgentRuntimeLimits(runtimeLimits);
       const blueprint = initialTemplate
         ? {
@@ -289,9 +381,10 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
         instructions: effectiveInstructions,
         configuration: {
           ...(initialTemplate?.configuration ?? {}),
-          ...(blueprint ? { blueprint } : {}),
-          agentRole: role,
-          roleSummary: roleSummary.trim() || getAgentRole(role, audience).summary,
+            ...(blueprint ? { blueprint } : {}),
+            agentRole: role,
+            agentRoles: roles,
+            roleSummary: roleSummary.trim() || roleSummaryFallback,
           instructionMode: instructions.trim() ? "advanced" : "generated",
           knowledgeSetup: {
             requiredForPublish: audience === "customer_service",
@@ -333,7 +426,8 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
       configuration: {
         ...(draft.version.configuration ?? {}),
         agentRole: role,
-        roleSummary: roleSummary.trim() || getAgentRole(role, audience).summary,
+        agentRoles: roles,
+        roleSummary: roleSummary.trim() || roles.map((key) => getAgentRole(key, audience).summary).join(" "),
         instructionMode: instructions.trim() ? "advanced" : "generated",
         knowledgeSetup: {
           requiredForPublish: audience === "customer_service",
@@ -414,7 +508,22 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
           if (sourceId) knowledgeRetries.push({ sourceId, kind: "file", label: knowledgeFile.name });
         }
       }
-      setCreated({ id: draft.agent.id, name: draft.agent.name, knowledgeWarning: knowledgeErrors.length ? knowledgeErrors.join(" ") : undefined, knowledgeRetries });
+      let websiteCrawlStarted = false;
+      if (websiteUrl.trim() && (!websiteCrawl || ["failed", "cancelled"].includes(websiteCrawl.status))) {
+        setPublishStage("crawling-website");
+        try {
+          await startAgentWebsiteCrawl({
+            agentId: draft.agent.id,
+            installationId: installation.id,
+            name: `${draft.agent.name} website`,
+            url: websiteUrl.trim(),
+          });
+          websiteCrawlStarted = true;
+        } catch (cause) {
+          knowledgeErrors.push(`Website: ${cause instanceof Error ? cause.message : "could not start the crawl"}`);
+        }
+      }
+      setCreated({ id: draft.agent.id, name: draft.agent.name, knowledgeWarning: knowledgeErrors.length ? knowledgeErrors.join(" ") : undefined, knowledgeRetries, websiteCrawlStarted });
       setDraft(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to publish and install the custom agent");
@@ -447,9 +556,11 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
     ? "Publishing the reviewed version…"
     : publishStage === "indexing-text"
       ? "Indexing pasted information…"
-      : publishStage === "indexing-file"
-        ? "Indexing the uploaded file…"
-        : null;
+    : publishStage === "indexing-file"
+      ? "Indexing the uploaded file…"
+      : publishStage === "crawling-website"
+        ? "Starting the website crawl…"
+      : null;
 
   if (created) {
     return (
@@ -460,7 +571,7 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
           <p className="mt-6 text-xs font-semibold uppercase tracking-[0.16em] text-status-success">Agent created</p>
           <h1 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">{created.name} is ready</h1>
           <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted-foreground">Your custom agent is installed with an isolated text gateway. Add connections and channels from its details page.</p>
-          {created.knowledgeWarning ? <div className="mx-auto mt-4 max-w-xl rounded-xl border border-status-attention/30 bg-status-attention-soft p-4 text-left text-sm text-status-attention"><p>The agent was created, but some knowledge was not indexed: {created.knowledgeWarning}</p>{created.knowledgeRetries.length ? <Button type="button" variant="outline" size="sm" className="mt-3" disabled={retryingKnowledge} onClick={() => void retryKnowledge()}>{retryingKnowledge ? "Retrying…" : "Retry indexing"}</Button> : null}</div> : knowledgeText.trim() || knowledgeFile ? <p className="mx-auto mt-4 text-sm text-status-success">Knowledge added and ready for the agent.</p> : null}
+          {created.knowledgeWarning ? <div className="mx-auto mt-4 max-w-xl rounded-xl border border-status-attention/30 bg-status-attention-soft p-4 text-left text-sm text-status-attention"><p>The agent was created, but some knowledge was not indexed: {created.knowledgeWarning}</p>{created.knowledgeRetries.length ? <Button type="button" variant="outline" size="sm" className="mt-3" disabled={retryingKnowledge} onClick={() => void retryKnowledge()}>{retryingKnowledge ? "Retrying…" : "Retry indexing"}</Button> : null}</div> : created.websiteCrawlStarted ? <p className="mx-auto mt-4 text-sm text-status-success">Website crawl started. The knowledge source will update when it finishes.</p> : knowledgeText.trim() || knowledgeFile ? <p className="mx-auto mt-4 text-sm text-status-success">Knowledge added and ready for the agent.</p> : null}
           <div className="mt-8 flex flex-wrap justify-center gap-2"><Button type="button" variant="outline" onClick={() => router.push("/agents")}>All agents</Button><Button asChild><Link href={`/agents/${encodeURIComponent(created.id)}`}>Open agent</Link></Button></div>
         </CardContent></Card>
       </div></div>
@@ -496,11 +607,11 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
         <div className="text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">{step === 2 ? <PlugZap className="h-7 w-7" /> : step === 3 ? <BookOpen className="h-7 w-7" /> : step === 4 ? <Workflow className="h-7 w-7" /> : step === 5 ? <SlidersHorizontal className="h-7 w-7" /> : <Bot className="h-7 w-7" />}</div><h1 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">{stepTitle}</h1><p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{stepDescription}</p></div>
         {initialTemplate ? <div className="mt-8 rounded-2xl border border-primary/25 bg-primary/5 p-5"><div className="flex flex-wrap items-center gap-2"><Badge className="border-primary/20 bg-primary/10 text-primary">Custom blueprint</Badge><span className="font-medium text-foreground">{initialTemplate.name}</span></div><p className="mt-2 text-sm leading-6 text-muted-foreground">{initialTemplate.description}</p><div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground"><span className="rounded-full border border-border bg-background/60 px-2.5 py-1">{initialTemplate.requiredConnections.length ? `${initialTemplate.requiredConnections.length} connection${initialTemplate.requiredConnections.length === 1 ? "" : "s"} required` : "No connection required"}</span><span className="rounded-full border border-border bg-background/60 px-2.5 py-1">{initialTemplate.setupSteps.length} setup step{initialTemplate.setupSteps.length === 1 ? "" : "s"}</span></div></div> : null}
         <div className="mt-9 space-y-6">
-          {step === 1 ? <div className="space-y-6"><Field label="Agent name" hint="Visible to customers and workspace members."><Input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Support operations agent" className="mt-2 h-12 px-4 text-base" /></Field><div><p className="text-sm font-medium text-foreground">Primary role</p><p className="mt-1 text-sm text-muted-foreground">Choose the work this agent is configured to handle.</p><div className="mt-3 grid gap-3 sm:grid-cols-2">{roleOptions.map((option) => <button key={option.key} type="button" onClick={() => setRole(option.key)} className={`rounded-2xl border p-4 text-left transition-colors ${role === option.key ? "border-primary bg-primary/10" : "border-border bg-secondary/10 hover:border-primary/50"}`} aria-pressed={role === option.key}><span className="font-semibold text-foreground">{option.label}</span><span className="mt-1 block text-sm leading-5 text-muted-foreground">{option.summary}</span></button>)}</div></div><Field label="Role context" hint="Optional. This stays a summary, not the agent's instructions."><Textarea value={roleSummary} onChange={(event) => setRoleSummary(event.target.value)} rows={3} maxLength={500} placeholder={getAgentRole(role, audience).summary} className="mt-2 resize-y px-4 py-3 leading-6" /></Field></div> : null}
+          {step === 1 ? <div className="space-y-6"><Field label="Agent name" hint="Visible to customers and workspace members."><Input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Support operations agent" className="mt-2 h-12 px-4 text-base" /></Field><div><p className="text-sm font-medium text-foreground">Responsibilities</p><p className="mt-1 text-sm text-muted-foreground">Select everything this agent should handle.</p><div className="mt-3 space-y-2">{roleOptions.map((option) => { const selected = roles.includes(option.key); return <button key={option.key} type="button" onClick={() => setRoles((current) => selected ? (current.length === 1 ? current : current.filter((key) => key !== option.key)) : [...current, option.key])} className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors ${selected ? "border-primary bg-primary/10" : "border-border bg-secondary/10 hover:border-primary/50"}`} aria-pressed={selected}><span aria-hidden="true" className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded border ${selected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/50 bg-background"}`}>{selected ? <Check className="h-3.5 w-3.5" /> : null}</span><span><span className="font-semibold text-foreground">{option.label}</span><span className="mt-1 block text-sm leading-5 text-muted-foreground">{option.summary}</span></span></button>; })}</div></div><Field label="Role context" hint="Optional. This stays a summary, not the agent's instructions."><Textarea value={roleSummary} onChange={(event) => setRoleSummary(event.target.value)} rows={3} maxLength={500} placeholder={getAgentRole(role, audience).summary} className="mt-2 resize-y px-4 py-3 leading-6" /></Field></div> : null}
           {step === 2 ? <div className="space-y-4"><Card className="rounded-2xl border-border bg-secondary/20"><CardContent className="space-y-4 p-5"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-status-success-soft text-status-success"><CheckCircle2 className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">Text gateway ready</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">The agent will start with an isolated text conversation. No credentials or external services are needed to create it.</p></div><Badge className="ml-auto border-status-success/30 bg-status-success-soft text-status-success">Ready</Badge></div></CardContent></Card><Card className="rounded-2xl border-border"><CardContent className="space-y-4 p-5"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary text-muted-foreground"><PlugZap className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">External tools</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">No integrations are selected. After the agent is working, connect Email, Calendar, CRM, MCP, REST, or other services from its details page.</p></div><Badge className="ml-auto border-border bg-secondary text-muted-foreground">Not selected</Badge></div>{initialTemplate?.requiredConnections.length ? <div className="rounded-xl border border-status-attention/30 bg-status-attention-soft px-4 py-3 text-sm text-status-attention"><p className="font-medium">This blueprint may need later setup</p><p className="mt-1">{initialTemplate.requiredConnections.join(", ")}</p></div> : null}</CardContent></Card><p className="text-xs leading-5 text-muted-foreground">Connections and capabilities are installation-scoped. Keeping them optional here lets you test the baseline before granting access.</p></div> : null}
-          {step === 3 ? <div className="space-y-4"><Card className="rounded-2xl border-border bg-secondary/20"><CardContent className="space-y-4 p-5"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><FileText className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">Approved information</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Add the facts, policies, FAQs, and escalation rules this agent should use.</p></div></div><Textarea autoFocus value={knowledgeText} onChange={(event) => { setKnowledgeText(event.target.value); setKnowledgeOutlineInserted(false); setKnowledgeConfirmed(false); }} rows={10} maxLength={200_000} placeholder="Business facts, services, prices, hours, policies, and approved answers…" className="mt-2 resize-y px-4 py-3 leading-6" /><div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground"><span className="flex items-center gap-2"><BookOpen className="h-4 w-4 shrink-0 text-primary" />{audience === "customer_service" ? "Required before publishing." : "Optional for personal agents."}</span><Button type="button" variant="outline" size="sm" onClick={() => { setKnowledgeText(knowledgeOutline(audience, role)); setKnowledgeOutlineInserted(true); setKnowledgeConfirmed(false); }}>Insert outline</Button></div>{knowledgeHasPlaceholders ? <p className="rounded-lg border border-status-attention/30 bg-status-attention-soft px-3 py-2 text-xs text-status-attention">Replace the bracketed examples before publishing.</p> : null}{audience === "customer_service" ? <label className="flex items-start gap-3 rounded-xl border border-border bg-background/40 p-3 text-sm"><Checkbox checked={knowledgeConfirmed} onCheckedChange={(checked) => setKnowledgeConfirmed(checked === true)} /><span className="leading-5 text-foreground">I confirm these sources are current and approved for customer responses.</span></label> : null}</CardContent></Card><label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border bg-secondary/10 p-4 transition-colors hover:border-primary/50 hover:bg-secondary/20"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Upload className="h-5 w-5" /></div><div className="min-w-0 flex-1"><p className="text-sm font-medium text-foreground">Upload a knowledge file</p><p className="mt-1 truncate text-xs text-muted-foreground">{knowledgeFile ? knowledgeFile.name : "TXT, Markdown, CSV, PDF, DOCX, or Excel · up to 20 MB"}</p></div><input type="file" className="sr-only" accept=".txt,.text,.md,.markdown,.csv,.pdf,.docx,.xlsx,.xls,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (file && file.size > 20 * 1024 * 1024) { setError("Files must be 20 MB or smaller."); setKnowledgeFile(null); return; } setError(null); setKnowledgeFile(file); setKnowledgeConfirmed(false); }} /></label><div className="flex items-center gap-3 rounded-2xl border border-dashed border-border bg-secondary/10 p-4 opacity-60"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-secondary text-muted-foreground"><Globe2 className="h-4 w-4" /></div><div><p className="text-sm font-medium text-foreground">Website crawling</p><p className="mt-1 text-xs text-muted-foreground">Unavailable</p></div><span className="ml-auto rounded-full border border-border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Unavailable</span></div></div> : null}
+          {step === 3 ? <div className="space-y-4"><div className="grid gap-4 md:grid-cols-2"><Card className="h-full rounded-2xl border-border bg-secondary/20"><CardContent className="flex h-full flex-col p-5 sm:p-6"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Globe2 className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">Website source</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Crawl public pages and add their content and links.</p></div></div><div className="mt-6 flex flex-col gap-2 sm:flex-row"><Input type="url" value={websiteUrl} onChange={(event) => { setWebsiteUrl(event.target.value); websitePreviewRef.current = undefined; setWebsiteCrawl(null); setKnowledgeConfirmed(false); }} placeholder="https://example.com" className="h-11" /><Button type="button" variant="outline" className="h-11 shrink-0" disabled={!name.trim() || !websiteUrl.trim() || crawlingWebsite || ["starting", "scraping", "processing"].includes(websiteCrawl?.status ?? "")} onClick={() => void crawlWebsite()}>{crawlingWebsite ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Crawling…</> : websiteCrawl?.status === "completed" ? "Re-crawl" : "Crawl website"}</Button></div><p className="mt-3 text-xs text-muted-foreground">{websiteCrawl?.status === "completed" ? `Website indexed · ${websiteCrawl.pages ?? websiteCrawl.completed ?? 0} pages` : websiteCrawl?.status === "failed" || websiteCrawl?.status === "cancelled" ? "Crawl failed. Check the URL and try again." : websiteCrawl ? `Crawling pages…${websiteCrawl.completed !== undefined && websiteCrawl.total ? ` ${websiteCrawl.completed}/${websiteCrawl.total}` : ""}` : "Crawl now and review the indexed content before publishing."}</p>{websiteCrawl?.preview ? <pre className="mt-4 max-h-48 overflow-auto whitespace-pre-wrap rounded-xl border border-border bg-background/60 p-3 text-xs leading-5 text-muted-foreground">{websiteCrawl.preview}</pre> : null}</CardContent></Card><label className="flex min-h-[196px] cursor-pointer flex-col rounded-2xl border border-border bg-secondary/20 p-5 transition-colors hover:border-primary/50 hover:bg-secondary/30 sm:p-6"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Upload className="h-5 w-5" /></div><div><p className="font-semibold text-foreground">Upload a file</p><p className="mt-1 text-xs leading-5 text-muted-foreground">PDF, Word, Excel, CSV, or text.</p></div></div><span className="mt-5 flex flex-1 items-center justify-center rounded-xl border border-dashed border-border bg-background/30 px-4 py-6 text-center text-sm text-muted-foreground">{knowledgeFile ? knowledgeFile.name : "Choose a file · up to 20 MB"}</span><input type="file" className="sr-only" accept=".txt,.text,.md,.markdown,.csv,.pdf,.docx,.xlsx,.xls,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (file && file.size > 20 * 1024 * 1024) { setError("Files must be 20 MB or smaller."); setKnowledgeFile(null); return; } setError(null); setKnowledgeFile(file); setKnowledgeConfirmed(false); }} /></label></div><Card className="rounded-2xl border-border bg-secondary/20"><CardContent className="p-5 sm:p-6"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><FileText className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">Paste approved information</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Add facts, FAQs, policies, and escalation rules.</p></div></div><Textarea autoFocus value={knowledgeText} onChange={(event) => { setKnowledgeText(event.target.value); setKnowledgeOutlineInserted(false); setKnowledgeConfirmed(false); }} rows={7} maxLength={200_000} placeholder="Business facts, services, prices, hours, policies, and approved answers…" className="mt-5 resize-y px-4 py-3 leading-6" /><div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground"><span className="flex items-center gap-2"><BookOpen className="h-4 w-4 shrink-0 text-primary" />{audience === "customer_service" ? "Required before publishing." : "Optional for personal agents."}</span><Button type="button" variant="outline" size="sm" onClick={() => { setKnowledgeText(knowledgeOutline(audience, roles)); setKnowledgeOutlineInserted(true); setKnowledgeConfirmed(false); }}>Insert outline</Button></div>{knowledgeHasPlaceholders ? <p className="rounded-lg border border-status-attention/30 bg-status-attention-soft px-3 py-2 text-xs text-status-attention">Replace the bracketed examples before publishing.</p> : null}{audience === "customer_service" ? <label className="mt-3 flex items-start gap-3 rounded-xl border border-border bg-background/40 p-3 text-sm"><Checkbox checked={knowledgeConfirmed} onCheckedChange={(checked) => setKnowledgeConfirmed(checked === true)} /><span className="leading-5 text-foreground">I confirm these sources are current and approved for customer responses.</span></label> : null}</CardContent></Card></div> : null}
           {step === 4 ? <div className="space-y-4"><div className="rounded-2xl border border-border bg-secondary/20 p-5"><div className="flex items-start gap-3"><Workflow className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><div><h2 className="font-semibold text-foreground">Baseline workflow</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">The starter graph is already configured. You can keep it as-is or add declarative steps for this process.</p></div></div></div><AgentWorkflowEditor configuration={initialTemplate?.configuration ?? {}} onChange={setWorkflow} onValidityChange={setWorkflowValid} /></div> : null}
-          {step === 5 ? <div className="space-y-4"><dl className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-secondary/20 text-sm"><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Agent</dt><dd className="font-medium text-foreground sm:text-right">{name}</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Role</dt><dd className="text-foreground sm:max-w-[70%] sm:text-right">{getAgentRole(role, audience).label}</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Knowledge</dt><dd className="font-medium text-foreground sm:text-right">{knowledgeText.trim() && knowledgeFile ? `Pasted information + ${knowledgeFile.name}` : knowledgeText.trim() ? "Pasted information" : knowledgeFile ? knowledgeFile.name : "None yet"}</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Tools</dt><dd className="font-medium text-foreground sm:text-right">None selected</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Workflow</dt><dd className="font-medium text-foreground sm:text-right">{workflow?.nodes.length ?? 0} nodes · {workflow?.edges.length ?? 0} edges</dd></div></dl><Card className="rounded-2xl border-primary/25 bg-primary/5"><CardContent className="space-y-3 p-5"><div className="flex items-center justify-between gap-3"><div><h2 className="font-semibold text-foreground">Generated behavior</h2><p className="mt-1 text-sm text-muted-foreground">Built from the selected role, audience, and configured knowledge rules.</p></div><Badge className="border-primary/20 bg-primary/10 text-primary">Preview</Badge></div><pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-xl border border-border bg-background/70 p-4 text-xs leading-5 text-muted-foreground">{effectiveInstructions}</pre></CardContent></Card>{readinessIssues.length ? <div className="rounded-2xl border border-status-attention/30 bg-status-attention-soft p-5"><h2 className="font-semibold text-status-attention">Before publishing</h2><ul className="mt-2 space-y-1 text-sm text-status-attention">{readinessIssues.map((issue) => <li key={issue}>• {issue}</li>)}</ul></div> : <div className="rounded-2xl border border-status-success/30 bg-status-success-soft p-4 text-sm text-status-success">Setup is ready for draft creation.</div>}<details open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)} className="rounded-2xl border border-border bg-secondary/10 p-5"><summary className="cursor-pointer list-none text-sm font-semibold text-foreground">Advanced settings <span className="ml-1 font-normal text-muted-foreground">edit behavior, model, and runtime limits</span></summary><div className="mt-5 space-y-5"><div className="grid gap-3 sm:grid-cols-[0.65fr_1.35fr]"><Field label="Provider"><Select value={provider} onValueChange={setProvider}><SelectTrigger className="mt-2 h-10"><SelectValue /></SelectTrigger><SelectContent>{AGENT_MODEL_PROVIDERS.map((providerId) => <SelectItem key={providerId} value={providerId}>{AGENT_MODEL_PROVIDER_LABELS[providerId]}</SelectItem>)}</SelectContent></Select></Field><Field label="Model"><Input value={model} onChange={(event) => setModel(event.target.value)} placeholder="provider/model" className="mt-2 h-10" /></Field></div><Field label="Advanced instructions" hint="Optional override"><Textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={7} maxLength={200000} placeholder={generatedInstructions} className="mt-2 resize-y font-mono leading-6" /></Field><AgentRuntimeLimits value={runtimeLimits} onChange={setRuntimeLimits} /></div></details></div> : null}
+          {step === 5 ? <div className="space-y-4"><dl className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-secondary/20 text-sm"><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Agent</dt><dd className="font-medium text-foreground sm:text-right">{name}</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Responsibilities</dt><dd className="text-foreground sm:max-w-[70%] sm:text-right">{roles.map((key) => getAgentRole(key, audience).label).join(", ")}</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Knowledge</dt><dd className="font-medium text-foreground sm:text-right">{websiteUrl.trim() ? `${knowledgeText.trim() ? "Pasted information + " : ""}${knowledgeFile ? `${knowledgeFile.name} + ` : ""}Website crawl` : knowledgeText.trim() && knowledgeFile ? `Pasted information + ${knowledgeFile.name}` : knowledgeText.trim() ? "Pasted information" : knowledgeFile ? knowledgeFile.name : "None yet"}</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Tools</dt><dd className="font-medium text-foreground sm:text-right">None selected</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Workflow</dt><dd className="font-medium text-foreground sm:text-right">{workflow?.nodes.length ?? 0} nodes · {workflow?.edges.length ?? 0} edges</dd></div></dl><Card className="rounded-2xl border-primary/25 bg-primary/5"><CardContent className="space-y-3 p-5"><div className="flex items-center justify-between gap-3"><div><h2 className="font-semibold text-foreground">Generated behavior</h2><p className="mt-1 text-sm text-muted-foreground">Built from the selected role, audience, and configured knowledge rules.</p></div><Badge className="border-primary/20 bg-primary/10 text-primary">Preview</Badge></div><pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-xl border border-border bg-background/70 p-4 text-xs leading-5 text-muted-foreground">{effectiveInstructions}</pre></CardContent></Card>{readinessIssues.length ? <div className="rounded-2xl border border-status-attention/30 bg-status-attention-soft p-5"><h2 className="font-semibold text-status-attention">Before publishing</h2><ul className="mt-2 space-y-1 text-sm text-status-attention">{readinessIssues.map((issue) => <li key={issue}>• {issue}</li>)}</ul></div> : <div className="rounded-2xl border border-status-success/30 bg-status-success-soft p-4 text-sm text-status-success">Setup is ready for draft creation.</div>}<details open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)} className="rounded-2xl border border-border bg-secondary/10 p-5"><summary className="cursor-pointer list-none text-sm font-semibold text-foreground">Advanced settings <span className="ml-1 font-normal text-muted-foreground">edit behavior, model, and runtime limits</span></summary><div className="mt-5 space-y-5"><div className="grid gap-3 sm:grid-cols-[0.65fr_1.35fr]"><Field label="Provider"><Select value={provider} onValueChange={setProvider}><SelectTrigger className="mt-2 h-10"><SelectValue /></SelectTrigger><SelectContent>{AGENT_MODEL_PROVIDERS.map((providerId) => <SelectItem key={providerId} value={providerId}>{AGENT_MODEL_PROVIDER_LABELS[providerId]}</SelectItem>)}</SelectContent></Select></Field><Field label="Model"><Input value={model} onChange={(event) => setModel(event.target.value)} placeholder="provider/model" className="mt-2 h-10" /></Field></div><Field label="Advanced instructions" hint="Optional override"><Textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={7} maxLength={200000} placeholder={generatedInstructions} className="mt-2 resize-y font-mono leading-6" /></Field><AgentRuntimeLimits value={runtimeLimits} onChange={setRuntimeLimits} /></div></details></div> : null}
         </div>
         {error ? <p className="mt-6 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p> : null}
         <div className="mt-10 flex items-center justify-between gap-3 border-t border-border pt-6"><Button type="button" variant="outline" disabled={loading} onClick={goBack}>{step === 1 ? "Cancel" : <><ChevronLeft className="mr-1 h-4 w-4" />Back</>}</Button>{step < 5 ? <Button type="button" disabled={!canContinue || loading} onClick={goNext}>Continue <ChevronRight className="ml-1 h-4 w-4" /></Button> : <Button type="button" disabled={loading || !workflow || !workflowValid} onClick={() => void submit()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Creating draft…</> : "Create draft"}</Button>}</div>

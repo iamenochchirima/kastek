@@ -18,13 +18,13 @@ paused run after a valid decision, and remain auditable and idempotent.
 - Approval prompts for all hosted agents, not only KasiAi.
 - WhatsApp reply-button prompts and inbound button handling.
 - Telegram inline-keyboard prompts and callback-query handling.
+- Discord Gateway messages and component-interaction prompts.
 - Dashboard compatibility with the same approval contract.
 - Expiry, denial, duplicate clicks, stale actions, and delivery failures.
 - A channel adapter boundary that can later support Discord and other providers.
 
 ### Excluded for this pass
 
-- Discord provider implementation.
 - Letting arbitrary customer messages approve consequential actions.
 - Changing which tools require approval.
 - Replacing the existing Temporal run state machine.
@@ -37,6 +37,9 @@ paused run after a valid decision, and remain auditable and idempotent.
 - Customer-service conversations do not grant approval authority to the customer by default.
 - Personal paired KasiAi channels may be enabled as an owner approval surface after the shared
   path is complete.
+- Discord server traffic is deny-by-default: DMs may be used for pairing, while server channels
+  require an explicit channel allowlist and mention by default. Button clicks are still checked
+  against the durable owner binding before a decision is accepted.
 - Every decision continues through the existing policy re-check, audit record, and Temporal signal.
 
 ## Checklist
@@ -73,6 +76,16 @@ paused run after a valid decision, and remain auditable and idempotent.
 - [x] Answer callback queries and route the callback data through the shared decision service.
 - [x] Preserve normal message routing and pairing behavior.
 
+### Discord
+
+- [x] Add encrypted Discord bot credential storage and token verification.
+- [x] Add a Gateway runner with Waku-style DM/server access policy and reconnect/heartbeat handling.
+- [x] Normalize Discord messages and component interactions into the shared channel envelope.
+- [x] Deliver normal replies and approval prompts through the Discord REST API.
+- [x] Defer component interactions within Discord's acknowledgement window and update the ephemeral result.
+- [x] Authenticate component actions against the organization, connection, conversation, binding, and owner.
+- [x] Add dashboard setup controls for Discord bot token and access policy.
+
 ### Verification
 
 - [x] Unit-test token signing, compact claims, expiry, tampering, and approval-id mismatch.
@@ -81,25 +94,29 @@ paused run after a valid decision, and remain auditable and idempotent.
 - [ ] Test duplicate clicks, stale hashes, expired approvals, denied approvals, and delivery retry.
 - [ ] Run agents typecheck/lint/tests and the relevant core Rust checks.
 
-### Later: Discord and other channels
+### Later: Other channels
 
-- [ ] Implement the same prompt/action adapter using Discord components/interactions.
-- [ ] Add provider-specific delivery and webhook fixtures without changing approval semantics.
+- [ ] Add equivalent adapters for additional providers without changing approval semantics.
 
 ## Current implementation evidence
 
 - Durable approval state and expiry already exist in `agents/src/db/repositories/approval-repository.ts`.
 - Temporal pauses and resumes runs through `agent.approval` in `agents/src/temporal/workflows.ts`.
 - Dashboard approval currently calls `POST /v1/runs/:runId/approval`.
-- WhatsApp and Telegram now have provider-native approval transport; Discord remains an adapter-only
-  follow-up and customer-facing bindings intentionally cannot approve by default.
+- WhatsApp, Telegram, and Discord now have provider-native approval transport; customer-facing
+  bindings still cannot approve by default.
+
+Discord startup is deliberately separate from the HTTP API. Run `pnpm start:discord` with
+`DISCORD_GATEWAY_ENABLED=true`; it discovers active Discord channel connections, opens one Gateway
+session per bot, and forwards only policy-approved events to the Agent Platform.
 
 ## Verification log
 
-- `pnpm exec tsc -p tsconfig.json --noEmit` — passed.
-- Targeted Agent tests — 106 passed, including HTTP/conformance, token, Telegram, and adapter suites.
-- Full Agent suite — 362 passed, 42 integration tests skipped by the repository configuration.
+- `pnpm exec tsc -p tsconfig.json --noEmit` — passed, including the Discord Gateway runner.
+- Targeted Discord tests — 16 passed across policy, Gateway, REST client, and adapter fixtures.
+- Full Agent suite — 370 passed, 42 integration tests skipped by the repository configuration.
 - `cargo check -p kasitek-core` — passed.
+- Client build — passed; Next reported only the existing `Geist Pixel` font fallback warning.
 - Focused core tests — WhatsApp webhook 5 passed; inbox delivery 2 passed.
 - Focused rustfmt checks for changed core files — passed. Repository-wide formatting remains blocked
   by the pre-existing missing `kasitek-analytics/src/rollout.rs` module and unrelated baseline diffs.

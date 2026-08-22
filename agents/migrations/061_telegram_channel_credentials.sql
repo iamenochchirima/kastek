@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS channel_credentials (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id TEXT NOT NULL,
-  provider TEXT NOT NULL CHECK (provider IN ('telegram')),
+  provider TEXT NOT NULL CHECK (provider IN ('telegram', 'discord')),
   label TEXT NOT NULL DEFAULT 'Telegram bot credential',
   encrypted_payload TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'revoked')),

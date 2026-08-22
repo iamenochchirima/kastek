@@ -25,6 +25,7 @@ import {
   Bot,
   FileText,
   Grid2x2,
+  Headphones,
   HelpCircle,
   History,
   Inbox,
@@ -33,7 +34,6 @@ import {
   LockKeyhole,
   LogOut,
   Menu,
-  MessageSquare,
   Moon,
   PhoneCall,
   Search,
@@ -111,6 +111,7 @@ const navigationGroups: NavigationGroup[] = [
     label: "Customer",
     items: [
       { name: "Inbox", href: "/inbox", icon: Inbox },
+      { name: "Live Chat", href: "/agents/conversations", icon: Headphones },
       { name: "Calls", href: "/calls", icon: PhoneCall },
       { name: "Contacts", href: "/contacts", icon: Users },
       { name: "Bookings", href: "/bookings", icon: CalendarCheck },
@@ -135,7 +136,6 @@ const navigationGroups: NavigationGroup[] = [
     label: "Automation",
     items: [
       { name: "Agents", href: "/agents", icon: Bot },
-      { name: "Conversations", href: "/agents/conversations", icon: MessageSquare },
       { name: "Templates", href: "/agents/templates", icon: LayoutTemplate },
       { name: "Activity", href: "/agents/activity", icon: History },
       { name: "Analytics", href: "/agents/analytics", icon: ChartColumn },

@@ -72,12 +72,35 @@ export class KnowledgeRepository {
     const result = await query<KnowledgeSourceRecord>(
       this.pool,
       `SELECT * FROM knowledge_sources
-       WHERE id = $1 AND organization_id = $2 AND status = 'active'
+       WHERE id = $1 AND organization_id = $2 AND status <> 'deleted'
          AND ($3::uuid IS NULL OR agent_definition_id = $3)
          AND ($4::uuid IS NULL OR installation_id IS NULL OR installation_id = $4)`,
       [sourceId, scope.organizationId, scope.agentId ?? null, scope.installationId ?? null],
     );
     return result.rows[0] ?? null;
+  }
+
+  public async updateSource(input: {
+    sourceId: string;
+    scope: MemoryScope;
+    status?: "active" | "processing" | "failed";
+    provenance?: Record<string, unknown>;
+  }): Promise<KnowledgeSourceRecord> {
+    const result = await query<KnowledgeSourceRecord>(
+      this.pool,
+      `UPDATE knowledge_sources
+       SET status = COALESCE($4, status),
+           provenance = provenance || $5::jsonb,
+           updated_at = now()
+       WHERE id = $1 AND organization_id = $2
+         AND agent_definition_id = $3
+         AND (installation_id IS NULL OR installation_id = $6)
+         AND status <> 'deleted'
+       RETURNING *`,
+      [input.sourceId, input.scope.organizationId, input.scope.agentId, input.status ?? null, JSON.stringify(input.provenance ?? {}), input.scope.installationId ?? null],
+    );
+    if (!result.rows[0]) throw new Error("Knowledge source not found");
+    return result.rows[0];
   }
 
   public async getSourceDocument(scope: { organizationId: string; agentId?: string; installationId?: string }, sourceId: string): Promise<KnowledgeSourceDocument | null> {
@@ -102,7 +125,7 @@ export class KnowledgeRepository {
     return withTransaction(this.pool, async (client) => {
       const source = await client.query<KnowledgeSourceRecord>(
         `SELECT * FROM knowledge_sources
-         WHERE id = $1 AND organization_id = $2 AND status = 'active'
+         WHERE id = $1 AND organization_id = $2 AND status <> 'deleted'
            AND ($3::uuid IS NULL OR agent_definition_id = $3)
            AND ($4::uuid IS NULL OR installation_id IS NULL OR installation_id = $4)
          FOR UPDATE`,
