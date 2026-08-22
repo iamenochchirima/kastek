@@ -200,11 +200,25 @@ If the local PostgreSQL client is older than the server, set
 `ANALYTICS_PG_DUMP_BIN` and `ANALYTICS_PG_RESTORE_BIN` to matching `pg_dump` and `pg_restore`
 executables before running the recovery scripts.
 
+## Agent runtime collection
+
+A-13 slice 1 connects Agent Platform terminal run mutations to the existing transactional outbox.
+Completed and failed runs publish the registered `agent.run.completed@1` and `agent.run.failed@1`
+contracts in the same transaction as the run and attempt state change. Facts include stable agent
+references, organization scope, trigger, execution mode, creation profile, audience, deployment
+surface, duration, outcome, or bounded failure class. Prompts, responses, raw errors, credentials,
+and other prohibited content remain in the Agent operational store and are not copied to Analytics.
+
+The common path applies to personal, customer-service, system-hosted, hosted, and
+external-connected runs. Customer handoff is a separate conditional lifecycle contract and is
+not inferred for ordinary Agents. Model-call, tool, approval/effect, schedule, readiness, and
+conditional conversation facts remain separate A-13 slices.
+
 ## Current boundary
 
 A-01 through A-12 provide the service, dedicated storage, registries, scope authorization, immutable
 facts, source controls, quarantine, authenticated ingestion, source cursors, reconciliation
-summaries, projection metadata, reporting, caching, and the audited rollout boundary. Authoritative
-product mutation instrumentation and the complete mutation-to-reporting E2E remain owned by the
-later A-13 vertical slices; rollout control-management UI, source publisher clients, and customer
+summaries, projection metadata, reporting, caching, and the audited rollout boundary. A-13 has
+started with transactional Agent terminal run facts; the remaining M1 slices, complete
+mutation-to-reporting E2E, rollout control-management UI, source publisher clients, and customer
 dashboards belong to later execution packages.

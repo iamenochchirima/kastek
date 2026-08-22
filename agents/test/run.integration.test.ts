@@ -15,7 +15,7 @@ const databaseUrl = process.env.AGENTS_DATABASE_URL;
 const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRATION_TESTS === "true");
 
 describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
-  const pool = new Pool({ connectionString: databaseUrl });
+  const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   const runs = new RunRepository(pool);
   const steps = new RunStepRepository(pool);
   const workflowState = new WorkflowStateRepository(pool);
@@ -30,6 +30,20 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
   let runId = "";
 
   beforeAll(async () => {
+    const setup = await pool.connect();
+    try {
+      await setup.query(
+        "CREATE TEMP TABLE analytics_outbox (LIKE public.analytics_outbox INCLUDING DEFAULTS INCLUDING IDENTITY INCLUDING CONSTRAINTS INCLUDING INDEXES) ON COMMIT PRESERVE ROWS",
+      );
+      await setup.query(
+        "CREATE TRIGGER analytics_outbox_updated_at_trigger BEFORE UPDATE ON analytics_outbox FOR EACH ROW EXECUTE FUNCTION analytics_outbox_set_updated_at()",
+      );
+      await setup.query(
+        "CREATE TRIGGER analytics_outbox_content_trigger BEFORE UPDATE OR DELETE ON analytics_outbox FOR EACH ROW EXECUTE FUNCTION analytics_outbox_protect_content()",
+      );
+    } finally {
+      setup.release();
+    }
     await pool.query("INSERT INTO agent_definitions (id, organization_id, name, slug, created_by) VALUES ($1, $2, 'Run test', $3, 'test')", [agentId, organizationId, `run-${agentId}`]);
     await pool.query("INSERT INTO agent_versions (id, agent_definition_id, version_number, instructions, checksum, created_by, status) VALUES ($1, $2, 1, 'test', 'test', 'test', 'published')", [versionId, agentId]);
     await pool.query("INSERT INTO agent_installations (id, agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, settings, created_by) VALUES ($1, $2, $3, $4, 'organization', $4, 'kasitek_hosted', $5::jsonb, 'test')", [installationId, agentId, versionId, organizationId, JSON.stringify({ maxModelCalls: 1 })]);
@@ -53,6 +67,35 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
     const updatedState = await workflowState.put({ organizationId, runId, expectedRevision: 0, state: { node: "model", attempt: 1 } });
     expect(updatedState).toMatchObject({ revision: 1, state: { node: "model", attempt: 1 } });
     await expect(workflowState.put({ organizationId, runId, expectedRevision: 0, state: { node: "stale" } })).rejects.toThrow("revision conflict");
+    const completedAnalyticsRun = await runs.createRun(organizationId, "test-user", {
+      installationId,
+      idempotencyKey: `analytics-completed-${randomUUID()}`,
+      input: { message: "analytics completion fixture" },
+      triggerType: "manual",
+    });
+    await runs.transitionRun(completedAnalyticsRun.id, "received", "queued");
+    await runs.transitionRun(completedAnalyticsRun.id, "queued", "running");
+    await runs.completeRun(completedAnalyticsRun.id, { message: "fixture response" });
+    const completedAnalytics = await pool.query<{ envelope: { data: Record<string, unknown> }; source_stream_key: string; scope_kind: string; scope_external_id: string }>(
+      `SELECT envelope, source_stream_key, scope_kind, scope_external_id
+       FROM analytics_outbox
+       WHERE record_id = $1`,
+      [`run:${completedAnalyticsRun.id}:completed`],
+    );
+    expect(completedAnalytics.rows[0]).toMatchObject({
+      source_stream_key: `organization:${organizationId}:agent-runs`,
+      scope_kind: "core_organization",
+      scope_external_id: organizationId,
+      envelope: {
+        data: {
+          status: "completed",
+          trigger_type: "manual",
+          execution_mode: "kasitek_hosted",
+          deployment_surface: "direct",
+        },
+      },
+    });
+    expect(JSON.stringify(completedAnalytics.rows[0]?.envelope)).not.toContain("hello");
     await pool.query("INSERT INTO model_calls (organization_id, run_id, provider, model, funding_source, total_tokens, estimated_cost_usd, status) VALUES ($1, $2, 'openai', 'test', 'kasitek', 10, 0.25, 'completed')", [organizationId, runId]);
     await expect(modelCalls.assertRunBudget({ organizationId, runId, maxRequests: 1 })).rejects.toThrow("REQUEST_BUDGET");
     const decisionCallId = "idempotent-decision-call";
@@ -441,6 +484,27 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
     });
     expect(providerCalls).toBe(1);
     await pool.query("UPDATE agent_installations SET status = 'active' WHERE id = $1", [installationId]);
+
+    const failedRun = await runs.createRun(organizationId, "test-user", {
+      installationId,
+      idempotencyKey: `analytics-failed-${randomUUID()}`,
+      input: { mcpTool: { name: "test.external" } },
+      triggerType: "schedule",
+    });
+    await runs.transitionRun(failedRun.id, "received", "queued");
+    await runs.transitionRun(failedRun.id, "queued", "running");
+    await runs.failRun(failedRun.id, { code: "MODEL_TIMEOUT", message: "provider detail must stay operational-only" });
+    const failedAnalytics = await pool.query<{ envelope: { data: Record<string, unknown> } }>(
+      "SELECT envelope FROM analytics_outbox WHERE record_id = $1",
+      [`run:${failedRun.id}:failed`],
+    );
+    expect(failedAnalytics.rows[0]?.envelope.data).toMatchObject({
+      status: "failed",
+      failure_class: "timeout",
+      trigger_type: "schedule",
+      deployment_surface: "external_operation",
+    });
+    expect(JSON.stringify(failedAnalytics.rows[0]?.envelope)).not.toContain("provider detail");
   });
 
   it("binds approval consumption to every persisted identity and proposal field", async () => {
@@ -484,6 +548,7 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
   });
 
   afterAll(async () => {
+    await pool.query("TRUNCATE analytics_outbox");
     await pool.query("DELETE FROM run_steps WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM run_workflow_state WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM model_calls WHERE organization_id = $1", [organizationId]);

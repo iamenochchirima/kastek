@@ -4,6 +4,11 @@
   "agent_definition_id": "agent_01HZX8VZ0M",
   "status": "failed",
   "failure_class": "timeout",
+  "trigger_type": "schedule",
+  "execution_mode": "kasitek_hosted",
+  "creation_profile": "custom",
+  "agent_audience": "personal",
+  "deployment_surface": "direct",
   "occurred_at": "2026-08-22T10:04:58Z",
   "duration_ms": 30000
 }

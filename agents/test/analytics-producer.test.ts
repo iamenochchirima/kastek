@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   AnalyticsIngestionClient,
   AnalyticsProducerValidationError,
+  buildCompletedAgentRunEvent,
+  buildFailedAgentRunEvent,
   buildEvent,
   buildObservation,
   buildScopeDefinition,
@@ -35,6 +37,67 @@ function event(overrides: Partial<EventInput> = {}): EventInput {
 }
 
 describe("Agent analytics producer", () => {
+  it("builds terminal runtime facts with safe conditional-agent metadata", () => {
+    const completed = buildCompletedAgentRunEvent({
+      runId: "run-completed",
+      organizationId: "org-1",
+      agentDefinitionId: "agent-1",
+      agentVersionId: "version-1",
+      installationId: "installation-1",
+      conversationId: "conversation-1",
+      triggerType: "message",
+      executionMode: "kasitek_hosted",
+      creationProfile: "custom",
+      agentAudience: "customer_service",
+      input: { message: "not copied" },
+      correlationId: "correlation-1",
+      causationId: null,
+      createdAt: "2026-08-22T09:59:00.000Z",
+      startedAt: "2026-08-22T09:59:30.000Z",
+      finishedAt: "2026-08-22T10:00:00.000Z",
+      output: { outcome: "partial", message: "private response" },
+    });
+    expect(completed.envelope.data).toMatchObject({
+      status: "completed",
+      outcome: "partial",
+      trigger_type: "message",
+      execution_mode: "kasitek_hosted",
+      creation_profile: "custom",
+      agent_audience: "customer_service",
+      deployment_surface: "conversation",
+      duration_ms: 30_000,
+    });
+    expect(completed.envelope.data).not.toHaveProperty("message");
+    expect(completed.idempotencyKey).toBe("agent-platform:run:run-completed:completed");
+
+    const failed = buildFailedAgentRunEvent({
+      runId: "run-failed",
+      organizationId: "org-1",
+      agentDefinitionId: "agent-1",
+      agentVersionId: "version-1",
+      installationId: "installation-1",
+      conversationId: null,
+      triggerType: "schedule",
+      executionMode: "kasitek_hosted",
+      creationProfile: "general",
+      agentAudience: "personal",
+      input: { mcpTool: { name: "external" } },
+      correlationId: "correlation-2",
+      causationId: null,
+      createdAt: "2026-08-22T10:00:00.000Z",
+      startedAt: "2026-08-22T10:00:01.000Z",
+      finishedAt: "2026-08-22T10:00:03.000Z",
+      error: { code: "MODEL_TIMEOUT", message: "private provider detail" },
+    });
+    expect(failed.envelope.data).toMatchObject({
+      status: "failed",
+      failure_class: "timeout",
+      deployment_surface: "external_operation",
+      duration_ms: 2_000,
+    });
+    expect(JSON.stringify(failed.envelope.data)).not.toContain("private provider detail");
+  });
+
   it("builds a registered envelope and hashes canonical payload JSON", () => {
     const record = buildEvent(event({ attributes: { b: 2, a: 1 } }));
     expect(isRegisteredAgentContract(record.contractName)).toBe(true);

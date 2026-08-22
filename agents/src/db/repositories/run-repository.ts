@@ -2,6 +2,12 @@ import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
 import { assertRunTransition, type RunStatus, type StartRunInput } from "../../domain/types";
 import { createAgentEvent } from "../../events/envelope";
+import {
+  buildCompletedAgentRunEvent,
+  buildFailedAgentRunEvent,
+  enqueueOutbox,
+  type AgentRunTerminalInput,
+} from "../../analytics";
 import type { ConversationRecord } from "./conversation-repository";
 
 export interface RunRecord {
@@ -11,7 +17,7 @@ export interface RunRecord {
   agent_version_id: string;
   installation_id: string;
   conversation_id: string | null;
-  trigger_type: string;
+  trigger_type: "message" | "schedule" | "webhook" | "manual";
   status: RunStatus;
   input: Record<string, unknown>;
   output: Record<string, unknown> | null;
@@ -34,6 +40,8 @@ export interface RunRecord {
   agent_owner_type?: string | null;
   agent_protected?: boolean;
   execution_mode?: "system_hosted" | "kasitek_hosted" | "external_connected";
+  creation_profile?: "general" | "custom" | "system";
+  agent_audience?: "personal" | "customer_service";
   created?: boolean;
 }
 
@@ -262,7 +270,15 @@ export class RunRepository {
 
   public async completeRun(runId: string, output: Record<string, unknown>): Promise<RunRecord> {
     return withTransaction(this.pool, async (client) => {
-      const current = await client.query<RunRecord>("SELECT * FROM agent_runs WHERE id = $1 FOR UPDATE", [runId]);
+      const current = await client.query<RunRecord>(
+        `SELECT ar.*, ai.execution_mode, ad.creation_profile, ad.agent_audience
+         FROM agent_runs ar
+         JOIN agent_installations ai ON ai.id = ar.installation_id
+         JOIN agent_definitions ad ON ad.id = ar.agent_definition_id
+         WHERE ar.id = $1
+         FOR UPDATE OF ar`,
+        [runId],
+      );
       const run = current.rows[0];
       if (!run) throw new Error("Run not found");
       if (run.status === "completed") return run;
@@ -384,6 +400,10 @@ export class RunRepository {
          WHERE run_id = $1 AND status = 'started'`,
         [runId],
       );
+      await enqueueOutbox(client, buildCompletedAgentRunEvent({
+        ...terminalAnalyticsInput(run, updated.rows[0]!.finished_at ?? new Date().toISOString()),
+        output: persistedOutput,
+      }));
       return updated.rows[0]!;
     });
   }
@@ -473,7 +493,15 @@ export class RunRepository {
 
   public async failRun(runId: string, error: Record<string, unknown>): Promise<RunRecord> {
     return withTransaction(this.pool, async (client) => {
-      const current = await client.query<RunRecord>("SELECT * FROM agent_runs WHERE id = $1 FOR UPDATE", [runId]);
+      const current = await client.query<RunRecord>(
+        `SELECT ar.*, ai.execution_mode, ad.creation_profile, ad.agent_audience
+         FROM agent_runs ar
+         JOIN agent_installations ai ON ai.id = ar.installation_id
+         JOIN agent_definitions ad ON ad.id = ar.agent_definition_id
+         WHERE ar.id = $1
+         FOR UPDATE OF ar`,
+        [runId],
+      );
       const run = current.rows[0];
       if (!run) throw new Error("Run not found");
       if (["failed", "completed", "cancelled", "expired"].includes(run.status)) return run;
@@ -493,6 +521,10 @@ export class RunRepository {
          WHERE run_id = $1 AND status = 'started'`,
         [runId, JSON.stringify(error)],
       );
+      await enqueueOutbox(client, buildFailedAgentRunEvent({
+        ...terminalAnalyticsInput(run, updated.rows[0]!.finished_at ?? new Date().toISOString()),
+        error,
+      }));
       return updated.rows[0]!;
     });
   }
@@ -681,4 +713,25 @@ export class RunRepository {
       oldestQueuedAt: oldest.rows[0]?.oldest_queued_at ?? null,
     };
   }
+}
+
+function terminalAnalyticsInput(run: RunRecord, finishedAt: Date | string): AgentRunTerminalInput {
+  return {
+    runId: run.id,
+    organizationId: run.organization_id,
+    agentDefinitionId: run.agent_definition_id,
+    agentVersionId: run.agent_version_id,
+    installationId: run.installation_id,
+    conversationId: run.conversation_id,
+    triggerType: run.trigger_type,
+    executionMode: run.execution_mode ?? "kasitek_hosted",
+    creationProfile: run.creation_profile ?? "custom",
+    agentAudience: run.agent_audience ?? "personal",
+    input: run.input,
+    correlationId: run.correlation_id,
+    causationId: run.causation_id,
+    createdAt: run.created_at,
+    startedAt: run.started_at,
+    finishedAt,
+  };
 }

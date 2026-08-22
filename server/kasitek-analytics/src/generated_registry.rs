@@ -2,7 +2,7 @@
 
 pub const REGISTRY_VERSION: &str = "20260822.1";
 pub const REGISTRY_SHA256: &str =
-    "7c32180b08143f327741920343d67901c8ee5da122878773774629caed247a05";
+    "0ca22976042faa2078eb50ec05c6ad63a49723756a346ecd5157c3cf831a04eb";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.handoff.lifecycle@1",

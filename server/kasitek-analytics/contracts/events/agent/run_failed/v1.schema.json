@@ -12,6 +12,11 @@
     "agent_version_id": { "type": "string", "minLength": 1 },
     "status": { "const": "failed" },
     "failure_class": { "type": "string", "enum": ["validation", "provider", "tool", "timeout", "policy", "unknown"] },
+    "trigger_type": { "type": "string", "enum": ["message", "schedule", "webhook", "manual"] },
+    "execution_mode": { "type": "string", "enum": ["system_hosted", "kasitek_hosted", "external_connected"] },
+    "creation_profile": { "type": "string", "enum": ["general", "custom", "system"] },
+    "agent_audience": { "type": "string", "enum": ["personal", "customer_service"] },
+    "deployment_surface": { "type": "string", "enum": ["conversation", "external_operation", "direct"] },
     "occurred_at": { "type": "string", "format": "date-time" },
     "duration_ms": { "type": "integer", "minimum": 0 }
   },

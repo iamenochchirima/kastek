@@ -21,6 +21,17 @@ export {
   type ScopeKind,
 } from "./producer";
 export {
+  buildCompletedAgentRunEvent,
+  buildFailedAgentRunEvent,
+  type AgentAudience,
+  type AgentCreationProfile,
+  type AgentDeploymentSurface,
+  type AgentExecutionMode,
+  type AgentRunTerminalInput,
+  type CompletedAgentRunInput,
+  type FailedAgentRunInput,
+} from "./agent-runtime";
+export {
   AnalyticsIngestionClient,
   AnalyticsPublisherError,
   RetryPolicy,

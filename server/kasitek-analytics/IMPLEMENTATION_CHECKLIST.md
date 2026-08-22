@@ -284,6 +284,24 @@ checklist records implementation evidence for the current package only.
 - [ ] Add control-management UI in a later slice; expired entries fail closed during evaluation
   even before maintenance runs.
 
+## A-13 — M1 reference vertical slices (slice 1: Agent runtime)
+
+- [x] Reuse the existing Agent Platform transactional Analytics outbox and registered terminal
+  run contracts instead of reconstructing runtime facts from polling or operational summaries.
+- [x] Emit `agent.run.completed@1` and `agent.run.failed@1` from the same database transaction as
+  the authoritative run and attempt terminal mutation.
+- [x] Record stable run, definition, version, installation, organization scope, correlation,
+  trigger, execution mode, creation profile, audience, deployment surface, duration, outcome, and
+  failure-class references.
+- [x] Keep prompts, responses, raw errors, credentials, and other prohibited content out of the
+  Analytics payload; failure classification uses bounded reason classes.
+- [x] Preserve idempotency through stable terminal record identities and keep non-handoff agents
+  on the same common runtime path; handoff remains a separate conditional contract.
+- [x] Add producer unit coverage and a database-backed run-to-outbox integration fixture using an
+  isolated temporary outbox table.
+- [ ] Add model-call, tool, approval/effect, schedule, readiness, and conditional conversation
+  facts in subsequent Agent runtime slices.
+
 ## Verification evidence
 
 - `cargo fmt --manifest-path server/kasitek-analytics/Cargo.toml -- --check`
@@ -430,6 +448,10 @@ checklist records implementation evidence for the current package only.
 - A-12 slice 3: process metrics cover rollout evaluation, cache outcome, and expiry-closure
   counters with fixed service/process labels only; 51 Analytics unit tests and strict package
   Clippy passed.
+- A-13 slice 1: Agent producer unit tests and the full Agent test suite passed; the run integration
+  fixture passed with completed and failed terminal mutations writing isolated outbox facts.
+- A-13 slice 1: Analytics registry bindings were regenerated and checked after extending the
+  version-one terminal run schemas with safe runtime-context fields; Analytics unit tests passed.
 
 ## Explicitly deferred
 
@@ -439,6 +461,8 @@ checklist records implementation evidence for the current package only.
   tested recovery drills
 - A-12 control-management UI remains deferred; evaluation is database-authoritative and expired
   entries fail closed before or after maintenance closure.
+- A-13 model/tool/effect, schedule, readiness, conditional conversation, campaign, and Tenant M1
+  slices remain deferred until their authoritative mutations are instrumented.
 - A-04 historical compatibility fixtures until a second major contract or metric version exists
 - Complete product mutation-to-reporting E2E until the source-domain vertical slices exist
 - A-06 signed audit checkpoint production/verification until the controlled signing boundary exists
