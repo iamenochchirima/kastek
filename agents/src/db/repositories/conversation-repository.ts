@@ -60,6 +60,8 @@ export interface MessageRecord {
   external_conversation_id: string | null;
   occurred_at: string;
   delivery_status: string | null;
+  participant_type?: ParticipantRecord["participant_type"] | null;
+  participant_display_name?: string | null;
   sequence_number: string;
   created_at: string;
 }
@@ -475,7 +477,13 @@ export class ConversationRepository {
   public async listMessages(organizationId: string, conversationId: string): Promise<MessageRecord[]> {
     const result = await query<MessageRecord>(
       this.pool,
-      "SELECT * FROM messages WHERE organization_id = $1 AND conversation_id = $2 ORDER BY sequence_number",
+      `SELECT m.*, p.participant_type, p.display_name AS participant_display_name
+       FROM messages m
+       LEFT JOIN participants p ON p.id = m.participant_id
+         AND p.organization_id = m.organization_id
+         AND p.conversation_id = m.conversation_id
+       WHERE m.organization_id = $1 AND m.conversation_id = $2
+       ORDER BY m.sequence_number`,
       [organizationId, conversationId],
     );
     return result.rows;
@@ -490,12 +498,20 @@ export class ConversationRepository {
     const result = await query<MessageRecord>(
       this.pool,
       input.beforeSequence
-        ? `SELECT * FROM messages
-           WHERE organization_id = $1 AND conversation_id = $2 AND sequence_number < $3
-           ORDER BY sequence_number DESC LIMIT $4`
-        : `SELECT * FROM messages
-           WHERE organization_id = $1 AND conversation_id = $2
-           ORDER BY sequence_number DESC LIMIT $3`,
+        ? `SELECT m.*, p.participant_type, p.display_name AS participant_display_name
+           FROM messages m
+           LEFT JOIN participants p ON p.id = m.participant_id
+             AND p.organization_id = m.organization_id
+             AND p.conversation_id = m.conversation_id
+           WHERE m.organization_id = $1 AND m.conversation_id = $2 AND m.sequence_number < $3
+           ORDER BY m.sequence_number DESC LIMIT $4`
+        : `SELECT m.*, p.participant_type, p.display_name AS participant_display_name
+           FROM messages m
+           LEFT JOIN participants p ON p.id = m.participant_id
+             AND p.organization_id = m.organization_id
+             AND p.conversation_id = m.conversation_id
+           WHERE m.organization_id = $1 AND m.conversation_id = $2
+           ORDER BY m.sequence_number DESC LIMIT $3`,
       input.beforeSequence
         ? [organizationId, conversationId, input.beforeSequence, limit + 1]
         : [organizationId, conversationId, limit + 1],

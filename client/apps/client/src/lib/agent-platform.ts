@@ -50,6 +50,8 @@ export type AgentMessage = {
   run_id?: string | null;
   provider?: string | null;
   provider_message_id?: string | null;
+  participant_type?: "user" | "customer" | "staff" | "agent" | "system" | null;
+  participant_display_name?: string | null;
   source_channel?: string;
   source_connection_id?: string | null;
   source_binding_id?: string | null;
