@@ -2,11 +2,11 @@
 
 Standalone customer-facing analytics service foundation.
 
-The A-01 and A-02 packages provide three process commands from one Rust crate:
+The A-01 through A-09 packages provide three process commands from one Rust crate:
 
-- `analytics-api`: health endpoints and the future ingestion/reporting boundary.
-- `analytics-worker`: durable worker process reserved for future projections, reconciliation, and
-  replay loops.
+- `analytics-api`: health endpoints, authenticated batch ingestion, and source reconciliation.
+- `analytics-worker`: durable worker process reserved for projection, replay, and scheduled quality
+  loops.
 - `analytics-migrate`: release job for forward-only migrations.
 
 Analytics requires its own database URL. It must not reuse Core, Tenant Platform, or Agent Platform
@@ -121,6 +121,26 @@ psql "$ANALYTICS_DATABASE_URL" -f scripts/test-a06-native.sql
 The script exercises every A-06 control table, immutable-record protection, audit-chain rejection,
 and forced-RLS sibling isolation, then rolls its fixture back.
 
+## Ingestion and reconciliation
+
+A-09 adds one private batch boundary for Core, Agent Platform, and Tenant Platform. The API accepts
+only a registered producer credential; the credential derives `source_service` and `producer_id`,
+while database producer permissions still control record categories and reporting-scope kinds.
+Payload source claims are cross-checked and cannot impersonate another source. Each record is
+validated, privacy-checked, hash-checked, and committed independently, returning `accepted`,
+`duplicate`, `rejected`, or `retryable` acknowledgement status.
+
+```text
+POST /internal/ingest/v1/batch
+POST /internal/reconciliation/v1/summary
+```
+
+The source cursor records highest received, highest contiguous, and known missing ranges. The
+reconciliation endpoint accepts an authenticated producer summary without connecting to the
+producer database. Scope definitions update the current reporting-scope read model and also create
+immutable source receipts. Replays keep the original producer, stream, sequence, identity, and
+payload hash; approved backfill jobs are required when a batch carries `backfill_job_id`.
+
 Run the bounded local foundation E2E against a disposable loopback database:
 
 ```bash
@@ -135,7 +155,7 @@ projection, and reporting packages.
 The API can start while PostgreSQL is unavailable because its pool is lazy. Readiness returns
 `503` until the database responds. Redis is a non-authoritative cache boundary and is optional to
 the A-02 process configuration; cache behavior is implemented later. The worker currently starts
-and waits for shutdown; projection, ingestion, and reconciliation loops belong to later execution
+and waits for shutdown; projection, replay scheduling, and quality loops belong to later execution
 packages.
 
 If the local PostgreSQL client is older than the server, set
@@ -144,7 +164,8 @@ executables before running the recovery scripts.
 
 ## Current boundary
 
-A-01 through A-06 provide the service, dedicated storage, registries, scope authorization, immutable
-facts, source controls, quarantine, projection metadata, and audit foundation. Source outboxes,
-authenticated ingestion routes, projections, reporting APIs, Redis caches, and customer dashboards
-belong to later execution packages.
+A-01 through A-09 provide the service, dedicated storage, registries, scope authorization, immutable
+facts, source controls, quarantine, authenticated ingestion, source cursors, reconciliation
+summaries, scope-definition receipts, backfill admission checks, projection metadata, and audit
+foundation. Projection workers, reporting APIs, Redis caches, source publisher clients, and
+customer dashboards belong to later execution packages.

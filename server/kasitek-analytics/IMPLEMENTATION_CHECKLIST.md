@@ -123,8 +123,9 @@ checklist records implementation evidence for the current package only.
   window validation helpers.
 - [x] Run native A-06 migration and disposable SQL verification for every control table, immutable
   mutation rejection, broken audit-chain rejection, and forced-RLS sibling isolation.
-- [ ] Connect the A-06 tables to authenticated batch ingestion, source outboxes, and producer
-  publishers in A-07 through A-09.
+- [x] Connect the A-06 tables to the authenticated Analytics batch boundary and source receipts
+  in A-09; source publisher clients still consume the shared response contract in later vertical
+  slices.
 
 ## A-07 — Rust producer library, Core outbox, and Tenant outbox
 
@@ -168,6 +169,36 @@ checklist records implementation evidence for the current package only.
   test against the local Agent database without leaving persistent test rows.
 - [ ] Attach authenticated batch HTTP transport and authoritative Agent mutation instrumentation
   after the shared Analytics ingestion boundary and vertical-slice contracts are ready.
+
+## A-09 — authenticated ingestion, cursors, reconciliation, and replay controls
+
+- [x] Add a private batch-ingestion endpoint shared by Core, Agent Platform, and Tenant Platform.
+- [x] Derive source service and producer identity from deployment credentials; reject payload source
+  impersonation and ambiguous credential configuration.
+- [x] Enforce bounded request, batch, and record sizes with strict envelope identity checks.
+- [x] Validate the repository-owned envelope, registered event contracts, typed observations, and
+  scope-definition fields before writing facts.
+- [x] Enforce producer category and scope-kind permissions from the Analytics producer registry.
+- [x] Keep raw payloads out of quarantine and reject prohibited customer content before persistence.
+- [x] Verify canonical payload hashes and return per-record accepted, duplicate, rejected, and
+  retryable acknowledgements.
+- [x] Insert immutable events and observations idempotently; identity conflicts are quarantined and
+  never silently selected.
+- [x] Add immutable scope-definition receipts and atomically update the reporting-scope read model,
+  including parent-before-child readiness and controlled reparent rejection.
+- [x] Update highest-received, highest-contiguous, and merged known-gap cursor state in the same
+  transaction as each accepted or duplicate record.
+- [x] Update provider observation source health in the same transaction as the observation fact.
+- [x] Add authenticated producer reconciliation summaries and persist mismatch, gap, count, and
+  unresolved-quarantine evidence in `analytics_reconciliation_run`.
+- [x] Admit replay batches only through a running, source-matched approved backfill job and mark
+  accepted facts as backfilled without changing source identity.
+- [x] Add unit tests for credential identity and cursor gaps plus PostgreSQL end-to-end coverage for
+  acceptance, duplicate handling, identity conflict quarantine, cursor state, and reconciliation.
+- [ ] Connect Core, Agent Platform, and Tenant Platform lease publishers to the HTTP endpoint and
+  process the returned acknowledgements in their source outboxes.
+- [ ] Add worker-scheduled reconciliation, quarantine release, replay orchestration, and projection
+  consumers after the producer transport and reporting vertical slices are implemented.
 
 ## Verification evidence
 
@@ -233,6 +264,19 @@ checklist records implementation evidence for the current package only.
 - A-08: The Agent migration was applied to the local `kasitek_agents` database and the explicit
   PostgreSQL integration test passed transactional enqueue, duplicate/conflict detection, lease
   claim, retry reclaim, accepted delivery, and empty-backlog checks using temporary rows.
+- A-09: migrations `20260822030000_analytics_ingestion_receipts.sql` and
+  `20260822040000_analytics_source_validation_fix.sql` applied successfully to the local Analytics
+  PostgreSQL database.
+- A-09: `cargo fmt --all`, strict Analytics Clippy, Analytics package binary tests, and
+  `cargo check --workspace` passed; the package contains credential, cursor, envelope, and
+  registry validation coverage.
+- A-09: 30 Analytics library tests passed with the unrelated handoff-contract registry-count test
+  excluded; that existing test currently expects six contracts while the user's uncommitted
+  handoff contract changes make the registry contain seven.
+- A-09: `cargo test -p kasitek-analytics --test ingestion_postgres -- --nocapture` passed against
+  the local native Analytics PostgreSQL database, covering accepted events and observations,
+  immutable scope receipts, identical duplicates, identity-conflict quarantine, cursor/source
+  health state, and authenticated reconciliation evidence.
 
 ## Explicitly deferred
 
@@ -246,4 +290,5 @@ checklist records implementation evidence for the current package only.
 - A-07 authenticated publisher transport until the Analytics ingestion HTTP boundary exists
 - A-08 authenticated publisher transport and authoritative Agent mutation instrumentation until the
   Analytics ingestion boundary and reference vertical slices exist
-- Source outboxes, ingestion, authentication, projections, reporting, and UI
+- Core, Agent Platform, and Tenant Platform publisher HTTP clients and source-outbox acknowledgement
+  loops; scheduled reconciliation/replay workers; projections, reporting, and UI

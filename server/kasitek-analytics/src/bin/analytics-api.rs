@@ -5,6 +5,7 @@ use kasitek_analytics::{
     contracts::ProcessKind,
     create_pool,
     error::AnalyticsError,
+    ingestion::IngestionAuthenticator,
     metrics::{MetricsAccess, ProcessMetrics},
 };
 
@@ -28,6 +29,7 @@ async fn main() -> Result<(), AnalyticsError> {
     let pool = create_pool(&config)?;
     let metrics = web::Data::new(ProcessMetrics::default());
     let metrics_access = web::Data::new(MetricsAccess::from_config(&config));
+    let ingestion_access = web::Data::new(IngestionAuthenticator::from_config(&config));
     let bind_address = (config.api_host.clone(), config.api_port);
 
     log::info!(
@@ -41,6 +43,10 @@ async fn main() -> Result<(), AnalyticsError> {
             .app_data(web::Data::new(pool.clone()))
             .app_data(metrics.clone())
             .app_data(metrics_access.clone())
+            .app_data(ingestion_access.clone())
+            .app_data(
+                web::JsonConfig::default().limit(kasitek_analytics::ingestion::MAX_BATCH_BYTES),
+            )
             .wrap(observability::http_logger())
             .configure(|cfg| app::configure(cfg, ProcessKind::Api))
     })

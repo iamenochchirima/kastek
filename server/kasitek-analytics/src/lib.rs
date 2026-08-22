@@ -1,9 +1,8 @@
 //! Standalone customer analytics service foundation.
 //!
-//! A-01 through A-06 contain process startup, storage foundations, registries,
-//! scope authorization, immutable fact storage, source controls, audit, and
-//! RLS boundaries. Ingestion APIs, producers, projections, and reporting are
-//! implemented in later packages.
+//! A-01 through A-09 contain process startup, storage foundations, registries,
+//! scope authorization, immutable facts, source controls, authenticated
+//! ingestion, and replay/reconciliation control foundations.
 
 pub mod app;
 pub mod authorization;
@@ -12,8 +11,10 @@ pub mod contracts;
 pub mod error;
 pub mod generated_registry;
 pub mod health;
+pub mod ingestion;
 pub mod metrics;
 pub mod migrations;
+pub mod reconciliation;
 pub mod records;
 pub mod registry;
 pub mod scope;

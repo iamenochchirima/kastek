@@ -1,5 +1,7 @@
-use std::env;
+use std::{collections::HashSet, env};
 
+use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -10,10 +12,27 @@ pub struct AnalyticsConfig {
     pub database_url: String,
     pub redis_url: Option<String>,
     pub metrics_token: Option<String>,
+    pub ingestion_credentials: Vec<IngestionCredential>,
     pub database_max_connections: u32,
     pub database_acquire_timeout_ms: u64,
     pub database_connect_timeout_ms: u64,
     pub log_filter: String,
+}
+
+/// The analytics API keeps only a digest of each ingestion token in memory. The clear token is
+/// supplied by the deployment environment and is never included in configuration debug output.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct IngestionCredential {
+    pub source_service: String,
+    pub producer_id: String,
+    pub token_sha256: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawIngestionCredential {
+    source_service: String,
+    producer_id: String,
+    token: String,
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -46,6 +65,8 @@ impl AnalyticsConfig {
         let database_url = required(get("ANALYTICS_DATABASE_URL"), "ANALYTICS_DATABASE_URL")?;
         let redis_url = optional(get("ANALYTICS_REDIS_URL"));
         let metrics_token = optional(get("ANALYTICS_METRICS_TOKEN"));
+        let ingestion_credentials =
+            parse_ingestion_credentials(optional(get("ANALYTICS_INGESTION_CREDENTIALS_JSON")))?;
         let database_max_connections = parse_u32(
             "ANALYTICS_DATABASE_MAX_CONNECTIONS",
             get("ANALYTICS_DATABASE_MAX_CONNECTIONS"),
@@ -73,12 +94,66 @@ impl AnalyticsConfig {
             database_url,
             redis_url,
             metrics_token,
+            ingestion_credentials,
             database_max_connections,
             database_acquire_timeout_ms,
             database_connect_timeout_ms,
             log_filter,
         })
     }
+}
+
+fn parse_ingestion_credentials(
+    value: Option<String>,
+) -> Result<Vec<IngestionCredential>, ConfigError> {
+    let Some(value) = value else {
+        return Ok(Vec::new());
+    };
+    let parsed = serde_json::from_str::<Vec<RawIngestionCredential>>(&value).map_err(|_| {
+        ConfigError::Invalid {
+            variable: "ANALYTICS_INGESTION_CREDENTIALS_JSON",
+            value: "invalid credential configuration".to_string(),
+        }
+    })?;
+    let mut identities = HashSet::new();
+    let mut token_digests = HashSet::new();
+    let mut credentials = Vec::with_capacity(parsed.len());
+    for raw in parsed {
+        let source_service = raw.source_service.trim().to_string();
+        let producer_id = raw.producer_id.trim().to_string();
+        if !matches!(
+            source_service.as_str(),
+            "core" | "agent-platform" | "tenant-platform"
+        ) || producer_id.is_empty()
+            || raw.token.trim().is_empty()
+            || !identities.insert((source_service.clone(), producer_id.clone()))
+        {
+            return Err(ConfigError::Invalid {
+                variable: "ANALYTICS_INGESTION_CREDENTIALS_JSON",
+                value: "invalid credential configuration".to_string(),
+            });
+        }
+        let token_sha256 = hex_sha256(raw.token.trim().as_bytes());
+        if !token_digests.insert(token_sha256.clone()) {
+            return Err(ConfigError::Invalid {
+                variable: "ANALYTICS_INGESTION_CREDENTIALS_JSON",
+                value: "invalid credential configuration".to_string(),
+            });
+        }
+        credentials.push(IngestionCredential {
+            source_service,
+            producer_id,
+            token_sha256,
+        });
+    }
+    Ok(credentials)
+}
+
+pub(crate) fn hex_sha256(value: &[u8]) -> String {
+    Sha256::digest(value)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn required(value: Option<String>, name: &'static str) -> Result<String, ConfigError> {
@@ -173,6 +248,7 @@ mod tests {
         assert_eq!(config.api_port, 4300);
         assert_eq!(config.redis_url, None);
         assert_eq!(config.metrics_token, None);
+        assert!(config.ingestion_credentials.is_empty());
         assert_eq!(config.database_max_connections, 10);
         assert_eq!(config.database_acquire_timeout_ms, 5_000);
         assert_eq!(config.database_connect_timeout_ms, 5_000);
@@ -205,6 +281,64 @@ mod tests {
             ("ANALYTICS_METRICS_TOKEN", "local-metrics-token"),
         ]);
         assert_eq!(config.metrics_token.as_deref(), Some("local-metrics-token"));
+    }
+
+    #[test]
+    fn parses_ingestion_credentials_without_retaining_clear_tokens() {
+        let config = config(&[
+            ("ANALYTICS_DATABASE_URL", "postgres://localhost/analytics"),
+            (
+                "ANALYTICS_INGESTION_CREDENTIALS_JSON",
+                r#"[{"source_service":"core","producer_id":"core-customer-analytics","token":"secret"}]"#,
+            ),
+        ]);
+        assert_eq!(config.ingestion_credentials.len(), 1);
+        assert_eq!(config.ingestion_credentials[0].source_service, "core");
+        assert_eq!(
+            config.ingestion_credentials[0].producer_id,
+            "core-customer-analytics"
+        );
+        assert_eq!(
+            config.ingestion_credentials[0].token_sha256,
+            super::hex_sha256(b"secret")
+        );
+        assert!(!format!("{:?}", config).contains("secret"));
+    }
+
+    #[test]
+    fn rejects_duplicate_or_invalid_ingestion_credentials() {
+        let values = HashMap::from([
+            (
+                "ANALYTICS_DATABASE_URL".to_string(),
+                "postgres://localhost/analytics".to_string(),
+            ),
+            (
+                "ANALYTICS_INGESTION_CREDENTIALS_JSON".to_string(),
+                "[{\"source_service\":\"core\",\"producer_id\":\"p\",\"token\":\"a\"},{\"source_service\":\"core\",\"producer_id\":\"p\",\"token\":\"b\"}]".to_string(),
+            ),
+        ]);
+        assert!(matches!(
+            AnalyticsConfig::from_lookup(|name| values.get(name).cloned()),
+            Err(super::ConfigError::Invalid {
+                variable: "ANALYTICS_INGESTION_CREDENTIALS_JSON",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn rejects_a_token_that_could_authenticate_two_source_identities() {
+        let values = HashMap::from([
+            (
+                "ANALYTICS_DATABASE_URL".to_string(),
+                "postgres://localhost/analytics".to_string(),
+            ),
+            (
+                "ANALYTICS_INGESTION_CREDENTIALS_JSON".to_string(),
+                "[{\"source_service\":\"core\",\"producer_id\":\"core\",\"token\":\"same\"},{\"source_service\":\"agent-platform\",\"producer_id\":\"agent\",\"token\":\"same\"}]".to_string(),
+            ),
+        ]);
+        assert!(AnalyticsConfig::from_lookup(|name| values.get(name).cloned()).is_err());
     }
 
     #[test]

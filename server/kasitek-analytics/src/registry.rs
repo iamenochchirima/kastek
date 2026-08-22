@@ -687,6 +687,41 @@ pub fn load_registry() -> Result<RegistrySnapshot, RegistryError> {
     })
 }
 
+/// Validates the transport envelope with the repository-owned envelope schema. Ingestion maps the
+/// returned diagnostic to a safe error code before returning it to a producer; raw validation
+/// details are not sent over the API.
+pub fn validate_envelope(value: &Value) -> Result<(), String> {
+    let schema: Value = serde_json::from_str(ENVELOPE_SCHEMA_JSON)
+        .map_err(|error| format!("envelope schema parse failed: {error}"))?;
+    let validator = jsonschema::draft202012::new(&schema)
+        .map_err(|error| format!("envelope schema compile failed: {error}"))?;
+    validator.validate(value).map_err(|error| error.to_string())
+}
+
+/// Validates the `data` object for a registered contract. Scope definitions and provider
+/// observations are intentionally allowed to use their versioned contract identity until their
+/// domain schemas are added to the registry; their typed fields are validated by ingestion.
+pub fn validate_registered_contract(contract_identity: &str, value: &Value) -> Result<(), String> {
+    let source = CONTRACT_SOURCES
+        .iter()
+        .find(|source| {
+            let Ok(schema) = serde_json::from_str::<Value>(source.schema) else {
+                return false;
+            };
+            schema
+                .get("x-kasitek")
+                .and_then(|metadata| metadata.get("identity"))
+                .and_then(Value::as_str)
+                == Some(contract_identity)
+        })
+        .ok_or_else(|| format!("contract {contract_identity} is not registered"))?;
+    let schema: Value = serde_json::from_str(source.schema)
+        .map_err(|error| format!("contract schema parse failed: {error}"))?;
+    let validator = jsonschema::draft202012::new(&schema)
+        .map_err(|error| format!("contract schema compile failed: {error}"))?;
+    validator.validate(value).map_err(|error| error.to_string())
+}
+
 fn validate_metric_semantics(
     metrics: &[MetricDefinition],
     dimensions: &[DimensionDefinition],
