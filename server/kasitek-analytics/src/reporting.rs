@@ -2,12 +2,17 @@
 //!
 //! Reporting is deliberately a read-only boundary over promoted projection generations. The
 //! request is validated against the registry before SQL is assembled, and every database query
-//! runs inside the grant's transaction-local RLS context. Redis and response caching belong to a
-//! later slice; they must not become an alternate authorization or freshness source.
+//! runs inside the grant's transaction-local RLS context. Redis response caching is optional and
+//! non-authoritative; PostgreSQL remains the authorization and freshness source.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    sync::Arc,
+    time::Duration as StdDuration,
+};
 
 use actix_web::{http::header, web, HttpRequest, HttpResponse, Responder};
+use async_trait::async_trait;
 use chrono::{DateTime, Duration, TimeZone, Utc};
 use jwt_simple::{
     algorithms::{ECDSAP256PublicKeyLike, ES256PublicKey},
@@ -15,6 +20,7 @@ use jwt_simple::{
     common::VerificationOptions,
     token::Token,
 };
+use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::{Postgres, Row, Transaction};
@@ -38,6 +44,9 @@ pub const MAX_POINTS: usize = 2_000;
 pub const MAX_FILTER_VALUES: usize = 100;
 pub const MAX_AUTHORIZED_SCOPES: usize = 100;
 pub const MAX_RANGE_DAYS: i64 = 366;
+const REPORT_CACHE_TTL_SECONDS: u64 = 30;
+const REPORT_CACHE_OPERATION_TIMEOUT: StdDuration = StdDuration::from_millis(150);
+const REPORT_CACHE_KEY_VERSION: u8 = 1;
 
 #[derive(Clone)]
 pub struct ReportingAuthenticator {
@@ -211,7 +220,7 @@ pub struct CatalogQuery {
     pub reporting_scope_id: i64,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReportQueryRequest {
     pub reporting_scope_id: i64,
@@ -234,10 +243,25 @@ pub struct ReportQueryRequest {
     pub comparison: Option<ComparisonRequest>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ComparisonRequest {
     pub kind: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ReportComparison {
+    pub kind: String,
+    pub range_start: DateTime<Utc>,
+    pub range_end: DateTime<Utc>,
+    pub metrics: Vec<ComparisonMetricResult>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ComparisonMetricResult {
+    pub key: String,
+    pub version: u32,
+    pub series: Vec<ReportPoint>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -252,7 +276,7 @@ pub struct CatalogResponse {
     pub metric_sets: Vec<MetricSetDefinition>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ReportResponse {
     pub scope_id: i64,
     pub scope_kind: String,
@@ -266,9 +290,10 @@ pub struct ReportResponse {
     pub projection_version: String,
     pub registry_sha256: String,
     pub metrics: Vec<MetricResult>,
+    pub comparison: Option<ReportComparison>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MetricResult {
     pub key: String,
     pub version: u32,
@@ -282,7 +307,7 @@ pub struct MetricResult {
     pub series: Vec<ReportPoint>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ReportPoint {
     pub bucket_start: DateTime<Utc>,
     pub bucket_end: DateTime<Utc>,
@@ -292,20 +317,20 @@ pub struct ReportPoint {
     pub denominator: Option<f64>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AvailabilitySummary {
     pub state: String,
     pub reason: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CoverageSummary {
     pub state: String,
     pub included_points: usize,
     pub expected_points: Option<usize>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct FreshnessSummary {
     pub state: String,
     pub latest_source_timestamp: Option<DateTime<Utc>>,
@@ -333,6 +358,250 @@ struct SourceAvailability {
     state: String,
     reason: Option<String>,
     latest_timestamp: Option<DateTime<Utc>>,
+}
+
+#[derive(Clone)]
+pub struct ReportingCache {
+    backend: Option<Arc<dyn CacheBackend>>,
+    ttl_seconds: u64,
+}
+
+#[derive(Debug)]
+enum CacheRead {
+    Disabled,
+    Miss,
+    Hit(Box<ReportResponse>),
+    Stale,
+    Unavailable,
+}
+
+#[derive(Serialize, Deserialize)]
+struct CachedReport {
+    cached_at: DateTime<Utc>,
+    response: ReportResponse,
+}
+
+#[async_trait]
+trait CacheBackend: Send + Sync {
+    async fn get(&self, key: &str) -> Result<Option<String>, String>;
+    async fn set(&self, key: &str, value: &str, ttl_seconds: u64) -> Result<(), String>;
+}
+
+struct RedisCacheBackend {
+    client: redis::Client,
+    connection: tokio::sync::Mutex<Option<redis::aio::ConnectionManager>>,
+}
+
+impl RedisCacheBackend {
+    fn new(client: redis::Client) -> Self {
+        Self {
+            client,
+            connection: tokio::sync::Mutex::new(None),
+        }
+    }
+
+    async fn connection(&self) -> Result<redis::aio::ConnectionManager, String> {
+        if let Some(connection) = self.connection.lock().await.clone() {
+            return Ok(connection);
+        }
+        let config = redis::aio::ConnectionManagerConfig::new()
+            .set_number_of_retries(0)
+            .set_connection_timeout(REPORT_CACHE_OPERATION_TIMEOUT)
+            .set_response_timeout(REPORT_CACHE_OPERATION_TIMEOUT);
+        let connection =
+            redis::aio::ConnectionManager::new_with_config(self.client.clone(), config)
+                .await
+                .map_err(|error| error.to_string())?;
+        *self.connection.lock().await = Some(connection.clone());
+        Ok(connection)
+    }
+
+    async fn invalidate_connection(&self) {
+        *self.connection.lock().await = None;
+    }
+}
+
+#[async_trait]
+impl CacheBackend for RedisCacheBackend {
+    async fn get(&self, key: &str) -> Result<Option<String>, String> {
+        let mut connection = self.connection().await?;
+        let result = tokio::time::timeout(
+            REPORT_CACHE_OPERATION_TIMEOUT,
+            connection.get::<_, Option<String>>(key),
+        )
+        .await
+        .map_err(|_| "redis cache read timed out".to_string())?
+        .map_err(|error| error.to_string());
+        if result.is_err() {
+            self.invalidate_connection().await;
+        }
+        result
+    }
+
+    async fn set(&self, key: &str, value: &str, ttl_seconds: u64) -> Result<(), String> {
+        let mut connection = self.connection().await?;
+        let result = tokio::time::timeout(
+            REPORT_CACHE_OPERATION_TIMEOUT,
+            connection.set_ex::<_, _, ()>(key, value, ttl_seconds),
+        )
+        .await
+        .map_err(|_| "redis cache write timed out".to_string())?
+        .map_err(|error| error.to_string());
+        if result.is_err() {
+            self.invalidate_connection().await;
+        }
+        result
+    }
+}
+
+impl ReportingCache {
+    pub fn from_config(config: &AnalyticsConfig) -> Self {
+        let backend = config.redis_url.as_deref().and_then(|url| {
+            if url.trim().is_empty() {
+                return None;
+            }
+            match redis::Client::open(url) {
+                Ok(client) => Some(Arc::new(RedisCacheBackend::new(client)) as Arc<dyn CacheBackend>),
+                Err(error) => {
+                    log::warn!(
+                        "service=kasitek-analytics process=analytics-api reporting_cache=disabled reason=invalid_redis_url error={error}"
+                    );
+                    None
+                }
+            }
+        });
+        Self {
+            backend,
+            ttl_seconds: REPORT_CACHE_TTL_SECONDS,
+        }
+    }
+
+    pub fn disabled() -> Self {
+        Self {
+            backend: None,
+            ttl_seconds: REPORT_CACHE_TTL_SECONDS,
+        }
+    }
+
+    fn enabled(&self) -> bool {
+        self.backend.is_some()
+    }
+
+    async fn read(&self, key: &str) -> CacheRead {
+        let Some(backend) = &self.backend else {
+            return CacheRead::Disabled;
+        };
+        let serialized = match backend.get(key).await {
+            Ok(Some(value)) => value,
+            Ok(None) => return CacheRead::Miss,
+            Err(error) => {
+                log::warn!(
+                    "service=kasitek-analytics process=analytics-api reporting_cache=unavailable operation=get error={error}"
+                );
+                return CacheRead::Unavailable;
+            }
+        };
+        let cached = match serde_json::from_str::<CachedReport>(&serialized) {
+            Ok(cached) => cached,
+            Err(error) => {
+                log::warn!(
+                    "service=kasitek-analytics process=analytics-api reporting_cache=unavailable operation=decode error={error}"
+                );
+                return CacheRead::Unavailable;
+            }
+        };
+        let stale_after = cached.cached_at + Duration::seconds(self.ttl_seconds as i64);
+        if stale_after <= Utc::now() {
+            CacheRead::Stale
+        } else {
+            CacheRead::Hit(Box::new(cached.response))
+        }
+    }
+
+    async fn write(&self, key: &str, response: &ReportResponse, ttl_seconds: u64) {
+        let Some(backend) = &self.backend else {
+            return;
+        };
+        if ttl_seconds == 0 {
+            return;
+        }
+        let value = match serde_json::to_string(&CachedReport {
+            cached_at: Utc::now(),
+            response: response.clone(),
+        }) {
+            Ok(value) => value,
+            Err(error) => {
+                log::warn!(
+                    "service=kasitek-analytics process=analytics-api reporting_cache=unavailable operation=encode error={error}"
+                );
+                return;
+            }
+        };
+        if let Err(error) = backend.set(key, &value, ttl_seconds).await {
+            log::warn!(
+                "service=kasitek-analytics process=analytics-api reporting_cache=unavailable operation=set error={error}"
+            );
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct ReportCacheKeyPayload<'a> {
+    schema_version: u8,
+    grant: &'a ReportingGrant,
+    requested_scope_id: i64,
+    authorized_scope_ids: &'a [i64],
+    generation_id: Option<i64>,
+    projection_version: &'a str,
+    generation_registry_sha256: &'a str,
+    request: &'a ReportQueryRequest,
+}
+
+fn generation_identity<'a>(
+    generation: Option<&'a GenerationInfo>,
+    registry: &'a RegistrySnapshot,
+) -> (Option<i64>, &'a str, &'a str) {
+    generation
+        .map(|generation| {
+            (
+                Some(generation.generation_id),
+                generation.projection_version.as_str(),
+                generation.registry_sha256.as_str(),
+            )
+        })
+        .unwrap_or((None, PROJECTION_VERSION, registry.sha256.as_str()))
+}
+
+fn report_cache_key(
+    grant: &ReportingGrant,
+    scope: &AuthorizedScope,
+    request: &ReportQueryRequest,
+    generation_id: Option<i64>,
+    projection_version: &str,
+    generation_registry_sha256: &str,
+) -> String {
+    let payload = ReportCacheKeyPayload {
+        schema_version: REPORT_CACHE_KEY_VERSION,
+        grant,
+        requested_scope_id: scope.requested_scope_id,
+        authorized_scope_ids: &scope.authorized_scope_ids,
+        generation_id,
+        projection_version,
+        generation_registry_sha256,
+        request,
+    };
+    let serialized =
+        serde_json::to_vec(&payload).expect("report cache key payload is serializable");
+    format!(
+        "kasitek:analytics:report:v{}:{}",
+        REPORT_CACHE_KEY_VERSION,
+        crate::config::hex_sha256(&serialized)
+    )
+}
+
+fn cache_ttl_seconds(grant: &ReportingGrant) -> u64 {
+    let remaining = (grant.expires_at - Utc::now()).num_seconds().max(0) as u64;
+    REPORT_CACHE_TTL_SECONDS.min(remaining)
 }
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -386,6 +655,7 @@ async fn report_handler(
     pool: web::Data<sqlx::PgPool>,
     registry: web::Data<RegistrySnapshot>,
     access: web::Data<ReportingAuthenticator>,
+    cache: web::Data<ReportingCache>,
 ) -> impl Responder {
     let grant = match access.authenticate(&request) {
         Ok(grant) => grant,
@@ -400,13 +670,63 @@ async fn report_handler(
             Ok(authorized) => authorized,
             Err(error) => return error_response(error),
         };
+
+    let cache_key = if cache.enabled() {
+        match load_generation(&mut transaction, authorized.requested_scope_id).await {
+            Ok(generation) => {
+                let (generation_id, projection_version, generation_registry_sha256) =
+                    generation_identity(generation.as_ref(), &registry);
+                Some(report_cache_key(
+                    &grant,
+                    &authorized,
+                    &payload,
+                    generation_id,
+                    projection_version,
+                    generation_registry_sha256,
+                ))
+            }
+            Err(error) => {
+                log::warn!(
+                    "service=kasitek-analytics process=analytics-api reporting_cache=bypassed reason=generation_lookup_failed error={error}"
+                );
+                None
+            }
+        }
+    } else {
+        None
+    };
+    if let Some(key) = &cache_key {
+        if let CacheRead::Hit(response) = cache.read(key).await {
+            if let Err(error) = transaction.commit().await {
+                return error_response(ReportingError::Database(error));
+            }
+            return HttpResponse::Ok().json(response);
+        }
+    }
     let response =
         match execute_report(&mut transaction, &registry, &grant, &authorized, &payload).await {
             Ok(response) => response,
             Err(error) => return error_response(error),
         };
+    let write_key = if cache.enabled() {
+        Some(report_cache_key(
+            &grant,
+            &authorized,
+            &payload,
+            response.generation_id,
+            &response.projection_version,
+            &response.registry_sha256,
+        ))
+    } else {
+        None
+    };
     if let Err(error) = transaction.commit().await {
         return error_response(ReportingError::Database(error));
+    }
+    if let Some(key) = write_key {
+        cache
+            .write(&key, &response, cache_ttl_seconds(&grant))
+            .await;
     }
     HttpResponse::Ok().json(response)
 }
@@ -715,15 +1035,14 @@ pub async fn execute_report(
     if request.include_descendants && !grant.permissions.contains(DESCENDANT_PERMISSION) {
         return Err(ReportingError::Forbidden);
     }
-    if let Some(comparison) = &request.comparison {
-        return Err(ReportingError::InvalidRequest(format!(
-            "comparison kind {} is reserved for the comparison query slice",
-            comparison.kind
-        )));
-    }
 
     let metrics = select_metrics(registry, grant, scope, request)?;
     let interval = select_interval(request, &metrics)?;
+    let comparison_range = request
+        .comparison
+        .as_ref()
+        .map(|comparison| previous_period_range(request, comparison))
+        .transpose()?;
     let breakdowns = validate_dimensions(registry, grant, &metrics, &request.breakdowns, true)?;
     let _filters = validate_dimensions(
         registry,
@@ -737,6 +1056,7 @@ pub async fn execute_report(
         load_source_availability(transaction, &scope.authorized_scope_ids, &metrics).await?;
 
     let mut results = Vec::with_capacity(metrics.len());
+    let mut comparison_results = Vec::with_capacity(metrics.len());
     let mut global_data_as_of = None;
     for metric in metrics {
         let source = source_availability
@@ -788,6 +1108,28 @@ pub async fn execute_report(
             coverage_state = "unknown";
             warnings.push("no promoted projection generation is available".to_string());
         }
+        let comparison_series = if let (Some(generation), Some(&(range_start, range_end))) =
+            (&generation, comparison_range.as_ref())
+        {
+            query_metric_series(
+                transaction,
+                SeriesQuery {
+                    generation_id: generation.generation_id,
+                    metric,
+                    range_start,
+                    range_end,
+                    interval: &interval,
+                    requested_scope_id: scope.requested_scope_id,
+                    authorized_scope_ids: &scope.authorized_scope_ids,
+                    include_descendants: request.include_descendants,
+                    breakdowns: &breakdowns,
+                    filters: &request.filters,
+                },
+            )
+            .await?
+        } else {
+            Vec::new()
+        };
         global_data_as_of = max_datetime(
             global_data_as_of,
             series.iter().map(|point| point.bucket_end).max(),
@@ -840,6 +1182,13 @@ pub async fn execute_report(
             warnings,
             series,
         });
+        if comparison_range.is_some() {
+            comparison_results.push(ComparisonMetricResult {
+                key: metric.key.clone(),
+                version: metric.version,
+                series: comparison_series,
+            });
+        }
     }
 
     Ok(ReportResponse {
@@ -860,6 +1209,16 @@ pub async fn execute_report(
             .unwrap_or_else(|| PROJECTION_VERSION.to_string()),
         registry_sha256: registry.sha256.clone(),
         metrics: results,
+        comparison: comparison_range.map(|(range_start, range_end)| ReportComparison {
+            kind: request
+                .comparison
+                .as_ref()
+                .map(|comparison| comparison.kind.clone())
+                .unwrap_or_else(|| "previous_period".to_string()),
+            range_start,
+            range_end,
+            metrics: comparison_results,
+        }),
     })
 }
 
@@ -908,7 +1267,24 @@ fn validate_request_shape(request: &ReportQueryRequest) -> Result<(), ReportingE
             "metrics and metric_set are mutually exclusive".to_string(),
         ));
     }
+    if let Some(comparison) = &request.comparison {
+        previous_period_range(request, comparison)?;
+    }
     Ok(())
+}
+
+fn previous_period_range(
+    request: &ReportQueryRequest,
+    comparison: &ComparisonRequest,
+) -> Result<(DateTime<Utc>, DateTime<Utc>), ReportingError> {
+    if comparison.kind != "previous_period" {
+        return Err(ReportingError::InvalidRequest(format!(
+            "comparison kind {} is not supported",
+            comparison.kind
+        )));
+    }
+    let duration = request.range_end - request.range_start;
+    Ok((request.range_start - duration, request.range_start))
 }
 
 fn select_metrics<'a>(
@@ -1399,6 +1775,121 @@ mod tests {
         algorithms::ECDSAP256KeyPairLike,
         prelude::{Claims, Duration as JwtDuration, ES256KeyPair},
     };
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Default)]
+    struct MemoryCacheBackend {
+        values: Mutex<BTreeMap<String, String>>,
+    }
+
+    #[async_trait]
+    impl CacheBackend for MemoryCacheBackend {
+        async fn get(&self, key: &str) -> Result<Option<String>, String> {
+            Ok(self
+                .values
+                .lock()
+                .expect("memory cache lock")
+                .get(key)
+                .cloned())
+        }
+
+        async fn set(&self, key: &str, value: &str, _ttl_seconds: u64) -> Result<(), String> {
+            self.values
+                .lock()
+                .expect("memory cache lock")
+                .insert(key.to_string(), value.to_string());
+            Ok(())
+        }
+    }
+
+    struct FailingCacheBackend;
+
+    #[async_trait]
+    impl CacheBackend for FailingCacheBackend {
+        async fn get(&self, _key: &str) -> Result<Option<String>, String> {
+            Err("redis unavailable".to_string())
+        }
+
+        async fn set(&self, _key: &str, _value: &str, _ttl_seconds: u64) -> Result<(), String> {
+            Err("redis unavailable".to_string())
+        }
+    }
+
+    fn memory_cache(backend: Arc<dyn CacheBackend>) -> ReportingCache {
+        ReportingCache {
+            backend: Some(backend),
+            ttl_seconds: REPORT_CACHE_TTL_SECONDS,
+        }
+    }
+
+    fn sample_response() -> ReportResponse {
+        let start = Utc.with_ymd_and_hms(2026, 8, 1, 0, 0, 0).unwrap();
+        ReportResponse {
+            scope_id: 1,
+            scope_kind: "core_organization".to_string(),
+            range_start: start,
+            range_end: start + Duration::days(1),
+            interval: "day".to_string(),
+            timezone: "UTC".to_string(),
+            generated_at: start,
+            data_as_of: Some(start),
+            generation_id: Some(7),
+            projection_version: PROJECTION_VERSION.to_string(),
+            registry_sha256: "registry".to_string(),
+            metrics: Vec::new(),
+            comparison: None,
+        }
+    }
+
+    fn sample_grant() -> ReportingGrant {
+        let issued_at = Utc.with_ymd_and_hms(2026, 8, 1, 0, 0, 0).unwrap();
+        ReportingGrant {
+            grant_id: "grant-1".to_string(),
+            issuer: "kasitek-core".to_string(),
+            audience: "kasitek-analytics-reporting".to_string(),
+            principal_type: PrincipalType::User,
+            principal_id: "user-1".to_string(),
+            scope_id: 1,
+            root_scope_id: 1,
+            descendant_mode: DescendantMode::None,
+            explicit_descendant_scope_ids: Vec::new(),
+            permissions: BTreeSet::from([REPORTING_PERMISSION.to_string()]),
+            metric_keys: Vec::new(),
+            dimension_keys: Vec::new(),
+            policy_version: "v1".to_string(),
+            issued_at,
+            not_before: issued_at,
+            expires_at: issued_at + Duration::minutes(1),
+            correlation_id: None,
+            revoked_at: None,
+        }
+    }
+
+    fn sample_scope() -> AuthorizedScope {
+        AuthorizedScope {
+            requested_scope_id: 1,
+            authorized_scope_ids: vec![1],
+            scope_kind: "core_organization".to_string(),
+            timezone: "UTC".to_string(),
+        }
+    }
+
+    fn sample_request() -> ReportQueryRequest {
+        let start = Utc.with_ymd_and_hms(2026, 8, 1, 0, 0, 0).unwrap();
+        ReportQueryRequest {
+            reporting_scope_id: 1,
+            range_start: start,
+            range_end: start + Duration::days(1),
+            timezone: "UTC".to_string(),
+            interval: Some("day".to_string()),
+            metrics: vec!["agent.runs.completed@1".to_string()],
+            metric_set: None,
+            breakdowns: Vec::new(),
+            filters: BTreeMap::new(),
+            include_descendants: false,
+            comparison: None,
+        }
+    }
 
     fn config(public_key: Option<&str>) -> AnalyticsConfig {
         AnalyticsConfig::from_lookup(|name| match name {
@@ -1471,6 +1962,121 @@ mod tests {
             validate_request_shape(&request),
             Err(ReportingError::InvalidRequest(_))
         ));
+    }
+
+    #[test]
+    fn supports_equal_previous_period_ranges_and_rejects_unknown_comparisons() {
+        let mut request = sample_request();
+        request.comparison = Some(ComparisonRequest {
+            kind: "previous_period".to_string(),
+        });
+        let (previous_start, previous_end) =
+            previous_period_range(&request, request.comparison.as_ref().expect("comparison"))
+                .expect("previous period");
+        assert_eq!(previous_end, request.range_start);
+        assert_eq!(
+            previous_end - previous_start,
+            request.range_end - request.range_start
+        );
+        assert!(validate_request_shape(&request).is_ok());
+
+        request.comparison = Some(ComparisonRequest {
+            kind: "rolling_window".to_string(),
+        });
+        assert!(matches!(
+            validate_request_shape(&request),
+            Err(ReportingError::InvalidRequest(message)) if message.contains("not supported")
+        ));
+    }
+
+    #[test]
+    fn report_cache_key_separates_authorization_and_query_identity() {
+        let grant = sample_grant();
+        let scope = sample_scope();
+        let request = sample_request();
+        let first = report_cache_key(
+            &grant,
+            &scope,
+            &request,
+            Some(7),
+            PROJECTION_VERSION,
+            "registry",
+        );
+
+        let mut other_grant = grant.clone();
+        other_grant.grant_id = "grant-2".to_string();
+        assert_ne!(
+            first,
+            report_cache_key(
+                &other_grant,
+                &scope,
+                &request,
+                Some(7),
+                PROJECTION_VERSION,
+                "registry",
+            )
+        );
+
+        let mut other_scope = scope.clone();
+        other_scope.authorized_scope_ids = vec![1, 2];
+        assert_ne!(
+            first,
+            report_cache_key(
+                &grant,
+                &other_scope,
+                &request,
+                Some(7),
+                PROJECTION_VERSION,
+                "registry",
+            )
+        );
+
+        let mut comparison_request = request;
+        comparison_request.comparison = Some(ComparisonRequest {
+            kind: "previous_period".to_string(),
+        });
+        assert_ne!(
+            first,
+            report_cache_key(
+                &grant,
+                &scope,
+                &comparison_request,
+                Some(7),
+                PROJECTION_VERSION,
+                "registry",
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn report_cache_returns_hit_and_expired_entries_fall_back() {
+        let backend = Arc::new(MemoryCacheBackend::default());
+        let cache = memory_cache(backend.clone());
+        let response = sample_response();
+        cache
+            .write("hit", &response, REPORT_CACHE_TTL_SECONDS)
+            .await;
+        assert!(matches!(cache.read("hit").await, CacheRead::Hit(value) if value.scope_id == 1));
+
+        backend.values.lock().expect("memory cache lock").insert(
+            "stale".to_string(),
+            serde_json::to_string(&CachedReport {
+                cached_at: Utc::now() - Duration::seconds(REPORT_CACHE_TTL_SECONDS as i64 + 1),
+                response,
+            })
+            .expect("cached response"),
+        );
+        assert!(matches!(cache.read("stale").await, CacheRead::Stale));
+    }
+
+    #[tokio::test]
+    async fn unavailable_cache_backend_is_non_authoritative() {
+        let cache = memory_cache(Arc::new(FailingCacheBackend));
+        assert!(matches!(
+            cache.read("missing").await,
+            CacheRead::Unavailable
+        ));
+        cache.write("missing", &sample_response(), 10).await;
     }
 
     #[actix_web::test]

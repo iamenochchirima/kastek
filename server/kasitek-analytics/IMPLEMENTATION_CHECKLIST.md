@@ -225,7 +225,7 @@ checklist records implementation evidence for the current package only.
 - [x] Add domain-specific typed projection builders, ancestor contribution rollups, timezone
   calendar buckets, reconciliation-driven repairs, and full parity/coverage validation.
 
-## A-11 — reporting boundary and query planner (slice 1)
+## A-11 — reporting boundary and query planner (slices 1–2)
 
 - [x] Add short-lived ES256 bearer-grant verification with legacy-key and key-ID rotation support.
 - [x] Bind each verified grant to the persisted grant row, service identity issuer, revocation
@@ -241,8 +241,16 @@ checklist records implementation evidence for the current package only.
   metadata instead of treating missing or stale data as zero.
 - [x] Add unit, route-authentication, and native PostgreSQL tests for signed reporting and query
   isolation; the PostgreSQL fixture rolls back after the test.
-- [ ] Add previous-period comparison responses, non-authoritative Redis caching with authorization-
-  complete keys, and the complete product mutation-to-reporting E2E.
+- [x] Add equal-duration `previous_period` responses using the same metric, dimension, filter, and
+  descendant authorization boundary as the current period.
+- [x] Add optional native Redis response caching after authorization, with generation and registry
+  invalidation, grant-complete cache keys, bounded TTL, stale-entry rejection, and PostgreSQL
+  fallback when Redis is disabled or unavailable.
+- [x] Add unit coverage for comparison validation, cache hits, expiry, Redis failure behavior, and
+  authorization-isolated cache keys.
+- [x] Add a native PostgreSQL comparison fixture covering current and previous promoted rollup
+  values; the fixture rolls back after the test.
+- [ ] Add the complete product mutation-to-reporting E2E.
 
 ## Verification evidence
 
@@ -361,6 +369,15 @@ checklist records implementation evidence for the current package only.
   distinct deduplication; all fixture rows were rolled back.
 - A-11 slice 1: migration `20260822080000_analytics_reporting_scope_expansion.sql` applied through
   the Analytics migration release binary.
+- A-11 slice 2: `cargo test -p kasitek-analytics --lib -- --test-threads=1` — 40 unit tests passed,
+  including previous-period validation, authorization-complete cache-key separation, cache hit and
+  expiry behavior, and non-authoritative Redis failure fallback.
+- A-11 slice 2: `cargo test -p kasitek-analytics --test reporting_postgres -- --nocapture` passed
+  against native PostgreSQL; the signed reporting fixture returned current count `3` and previous
+  period count `1`, with all fixture rows rolled back.
+- A-11 slice 2: strict package Clippy, package formatting, `cargo check --workspace`, and
+  `git diff --check` passed. Native Redis was not available for a live integration run; the cache
+  failure and expiry paths are covered by deterministic backend tests.
 
 ## Explicitly deferred
 
@@ -369,7 +386,7 @@ checklist records implementation evidence for the current package only.
 - A-03 complete product mutation-to-reporting E2E, domain OpenTelemetry exporters, alert rules, and
   tested recovery drills
 - A-04 historical compatibility fixtures until a second major contract or metric version exists
-- Previous-period comparisons and non-authoritative reporting caching until their A-11 slices exist
+- Complete product mutation-to-reporting E2E until the source-domain vertical slices exist
 - A-06 signed audit checkpoint production/verification until the controlled signing boundary exists
 - A-07/A-08 authoritative domain mutation instrumentation until the applicable reference vertical
   slices exist

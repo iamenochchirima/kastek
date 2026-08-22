@@ -7,7 +7,7 @@ use kasitek_analytics::{
     error::AnalyticsError,
     ingestion::IngestionAuthenticator,
     metrics::{MetricsAccess, ProcessMetrics},
-    reporting::ReportingAuthenticator,
+    reporting::{ReportingAuthenticator, ReportingCache},
 };
 
 fn load_dotenv() {
@@ -35,6 +35,7 @@ async fn main() -> Result<(), AnalyticsError> {
     let reporting_access = web::Data::new(
         ReportingAuthenticator::from_config(&config).map_err(AnalyticsError::ReportingConfig)?,
     );
+    let reporting_cache = web::Data::new(ReportingCache::from_config(&config));
     let bind_address = (config.api_host.clone(), config.api_port);
 
     log::info!(
@@ -50,6 +51,7 @@ async fn main() -> Result<(), AnalyticsError> {
             .app_data(metrics_access.clone())
             .app_data(ingestion_access.clone())
             .app_data(reporting_access.clone())
+            .app_data(reporting_cache.clone())
             .app_data(registry_access.clone())
             .app_data(
                 web::JsonConfig::default().limit(kasitek_analytics::ingestion::MAX_BATCH_BYTES),

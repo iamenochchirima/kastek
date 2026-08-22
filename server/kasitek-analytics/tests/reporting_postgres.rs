@@ -11,7 +11,8 @@ use kasitek_analytics::{
     projections::{DEFAULT_SHARD_KEY, PROJECTION_NAME, PROJECTION_VERSION},
     registry::load_registry,
     reporting::{
-        authorize_transaction, execute_report, ReportQueryRequest, ReportingAuthenticator,
+        authorize_transaction, execute_report, ComparisonRequest, ReportQueryRequest,
+        ReportingAuthenticator,
     },
     scope::{DescendantMode, PrincipalType},
 };
@@ -123,6 +124,25 @@ async fn insert_fixture(
     .execute(&mut **transaction)
     .await
     .expect("count rollup");
+    sqlx::query(
+        r#"INSERT INTO analytics.analytics_projection_rollup (
+             generation_id, projection_name, projection_version, metric_key, metric_version,
+             target_scope_id, source_scope_id, root_scope_id, interval, bucket_start, bucket_end,
+             timezone_name, timezone_revision, dimensions, value_count, value_sum,
+             source_high_watermark, coverage
+           ) VALUES ($1,$2,$3,'agent.runs.completed',1,$4,$4,$4,'day',$5,$6,'UTC',1,
+                     '{}'::jsonb,1,1,10,$7)"#,
+    )
+    .bind(generation_id)
+    .bind(PROJECTION_NAME)
+    .bind(PROJECTION_VERSION)
+    .bind(scope_id)
+    .bind(bucket_start - Duration::days(1))
+    .bind(bucket_start)
+    .bind(json!({"source_fact_count": 1}))
+    .execute(&mut **transaction)
+    .await
+    .expect("previous count rollup");
 
     for (storage_id, deduplication_key) in [
         (11_i64, "recipient-1"),
@@ -251,7 +271,9 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
         breakdowns: Vec::new(),
         filters: Default::default(),
         include_descendants: false,
-        comparison: None,
+        comparison: Some(ComparisonRequest {
+            kind: "previous_period".to_string(),
+        }),
     };
     let authorized = authorize_transaction(&mut transaction, &grant, scope_id)
         .await
@@ -263,5 +285,13 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
     assert_eq!(response.metrics.len(), 2);
     assert_eq!(response.metrics[0].series[0].value, Some(3.0));
     assert_eq!(response.metrics[1].series[0].value, Some(2.0));
+    let comparison = response.comparison.expect("comparison response");
+    assert_eq!(comparison.kind, "previous_period");
+    assert_eq!(comparison.range_end, request.range_start);
+    assert_eq!(
+        comparison.range_end - comparison.range_start,
+        Duration::days(1)
+    );
+    assert_eq!(comparison.metrics[0].series[0].value, Some(1.0));
     transaction.rollback().await.expect("rollback test fixture");
 }

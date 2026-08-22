@@ -172,8 +172,9 @@ reserved for the product mutation-to-reporting suite that depends on later contr
 projection, and reporting packages.
 
 The API can start while PostgreSQL is unavailable because its pool is lazy. Readiness returns
-`503` until the database responds. Redis is a non-authoritative cache boundary and is optional to
-the A-02 process configuration; cache behavior is implemented later. The worker currently starts
+`503` until the database responds. Redis is an optional, non-authoritative reporting response cache;
+authorization, projection generation, freshness, and fallback responses come from PostgreSQL. The
+worker currently starts
 and waits for shutdown; projection, replay scheduling, and quality loops belong to later execution
 packages.
 
@@ -186,5 +187,5 @@ executables before running the recovery scripts.
 A-01 through A-09 provide the service, dedicated storage, registries, scope authorization, immutable
 facts, source controls, quarantine, authenticated ingestion, source cursors, reconciliation
 summaries, scope-definition receipts, backfill admission checks, projection metadata, and audit
-foundation. Projection workers, reporting APIs, Redis caches, source publisher clients, and
-customer dashboards belong to later execution packages.
+foundation. Projection workers and reporting APIs now include the A-10/A-11 foundation; source
+publisher clients and customer dashboards belong to later execution packages.
