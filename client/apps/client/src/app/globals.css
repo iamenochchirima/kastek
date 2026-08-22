@@ -379,6 +379,13 @@
     background-image: linear-gradient(135deg, #6366F1 0%, #8B5CF6 55%, #D946EF 100%);
   }
 
+  .calendar-surface {
+    background-image:
+      radial-gradient(78% 110% at 0% 0%, color-mix(in srgb, var(--primary) 26%, transparent), transparent 68%),
+      radial-gradient(70% 100% at 100% 100%, color-mix(in srgb, var(--brand-2) 18%, transparent), transparent 72%),
+      linear-gradient(145deg, color-mix(in srgb, var(--card) 82%, var(--primary)), var(--card) 62%);
+  }
+
   .v-aurora {
     position: relative;
     overflow: hidden;
