@@ -5,7 +5,8 @@ export interface AgentTemplateDefinition {
   key: string;
   version: number;
   profile: "custom";
-  category: "support" | "lead_intake" | "booking";
+  audience: "personal" | "customer_service";
+  category: "personal" | "support" | "lead_intake" | "booking";
   name: string;
   description: string;
   instructions: string;
@@ -40,6 +41,7 @@ const templates: AgentTemplateDefinition[] = [
     key: "website-support",
     version: 1,
     profile: "custom",
+    audience: "customer_service",
     category: "support",
     name: "Website support assistant",
     description: "Answer common website questions and explain the next step without claiming actions were completed.",
@@ -56,6 +58,7 @@ const templates: AgentTemplateDefinition[] = [
     key: "faq-knowledge",
     version: 1,
     profile: "custom",
+    audience: "customer_service",
     category: "support",
     name: "FAQ and knowledge assistant",
     description: "Answer frequently asked questions from the knowledge sources connected to the agent.",
@@ -72,6 +75,7 @@ const templates: AgentTemplateDefinition[] = [
     key: "lead-intake",
     version: 1,
     profile: "custom",
+    audience: "customer_service",
     category: "lead_intake",
     name: "Lead intake assistant",
     description: "Collect the information needed for a lead and prepare a clear handoff to a person.",
@@ -88,6 +92,7 @@ const templates: AgentTemplateDefinition[] = [
     key: "booking-intake",
     version: 1,
     profile: "custom",
+    audience: "customer_service",
     category: "booking",
     name: "Booking request intake",
     description: "Collect booking-request details and hand them off without claiming a booking was made.",
@@ -100,10 +105,44 @@ const templates: AgentTemplateDefinition[] = [
     configurableFields: [{ key: "tone", type: "select", description: "Response tone: concise, balanced, or detailed." }],
     channelCompatibility: ["platform"],
   },
+  {
+    key: "private-research",
+    version: 1,
+    profile: "custom",
+    audience: "personal",
+    category: "personal",
+    name: "Private research assistant",
+    description: "Organize research and summarize information for private workspace use.",
+    instructions: "You are a private research assistant. Separate sourced facts from suggestions, ask for missing context, and never claim to have completed an external action.",
+    policy: { allowedTools: ["platform.current_time"], maxIterations: 3, maxToolCalls: 3 },
+    configuration: { maxContextMessages: 24, maxContextTokens: 5_000, maxModelCalls: 3, maxTotalTokens: 1_500, workflow: starterWorkflow("Help with private research using the available workspace context.") },
+    requiredConnections: [],
+    requiredCapabilities: ["platform.current_time"],
+    setupSteps: ["Add private knowledge", "Review research behavior", "Test a question"],
+    configurableFields: [{ key: "tone", type: "select", description: "Response tone: concise, balanced, or detailed." }],
+    channelCompatibility: ["platform"],
+  },
+  {
+    key: "private-writing",
+    version: 1,
+    profile: "custom",
+    audience: "personal",
+    category: "personal",
+    name: "Private writing assistant",
+    description: "Draft, refine, and organize writing for private workspace use.",
+    instructions: "You are a private writing assistant. Preserve the user's intent, identify assumptions, and present drafts for review without claiming to publish or send them.",
+    policy: { allowedTools: ["platform.current_time"], maxIterations: 3, maxToolCalls: 3 },
+    configuration: { maxContextMessages: 24, maxContextTokens: 5_000, maxModelCalls: 3, maxTotalTokens: 1_500, workflow: starterWorkflow("Draft or refine private writing while preserving the user's intent.") },
+    requiredConnections: [],
+    requiredCapabilities: ["platform.current_time"],
+    setupSteps: ["Review writing instructions", "Add private references", "Test a draft"],
+    configurableFields: [{ key: "tone", type: "select", description: "Response tone: concise, balanced, or detailed." }],
+    channelCompatibility: ["platform"],
+  },
 ];
 
-export function listAgentTemplates(): AgentTemplateDefinition[] {
-  return templates.map((template) => ({
+export function listAgentTemplates(audience?: "personal" | "customer_service"): AgentTemplateDefinition[] {
+  return templates.filter((template) => !audience || template.audience === audience).map((template) => ({
     ...template,
     policy: { ...template.policy },
     configuration: {

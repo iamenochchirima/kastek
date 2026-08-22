@@ -483,7 +483,7 @@ export class AgentRepository {
     if (!template) throw new Error("Agent template not found");
     const settings = input.settings ?? {};
     const versionInput = templateVersionInput(template, settings);
-    const allowedTools = resolveHostedAgentAllowedTools(template.profile, versionInput.policy.allowedTools, "customer_service");
+    const allowedTools = resolveHostedAgentAllowedTools(template.profile, versionInput.policy.allowedTools, template.audience);
     const effectiveVersionInput = { ...versionInput, policy: { ...versionInput.policy, allowedTools } };
     validateVersionWorkflow(versionInput.configuration);
     const name = input.name?.trim() || template.name;
@@ -491,9 +491,9 @@ export class AgentRepository {
       await client.query(
         `INSERT INTO agent_definitions
           (organization_id, owner_type, name, slug, description, agent_audience, protected, created_by)
-         VALUES ($1, 'organization', $2, $3, $4, 'customer_service', FALSE, $5)
+         VALUES ($1, 'organization', $2, $3, $4, $5, FALSE, $6)
          ON CONFLICT (organization_id, slug) DO NOTHING`,
-        [input.organizationId, name, template.key, template.description, input.actorId],
+        [input.organizationId, name, template.key, template.description, template.audience, input.actorId],
       );
       const agentResult = await client.query<AgentRecord>(
         `SELECT * FROM agent_definitions

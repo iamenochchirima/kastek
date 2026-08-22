@@ -9,6 +9,7 @@ describe("agent templates", () => {
       expect(template.key).toMatch(/^[a-z0-9-]+$/);
       expect(template.version).toBeGreaterThan(0);
       expect(template.profile).toBe("custom");
+      expect(["personal", "customer_service"]).toContain(template.audience);
       expect(template.instructions.length).toBeGreaterThan(20);
       expect(template.requiredCapabilities.length).toBeGreaterThan(0);
       expect(template.setupSteps.length).toBeGreaterThan(0);
@@ -24,6 +25,16 @@ describe("agent templates", () => {
       expect(template.policy.allowedTools).toEqual(["platform.current_time"]);
       expect(template.channelCompatibility).toContain("platform");
     }
+  });
+
+  it("keeps personal and customer-service catalogs separate", () => {
+    const personal = listAgentTemplates("personal");
+    const customerService = listAgentTemplates("customer_service");
+    expect(personal.length).toBeGreaterThanOrEqual(2);
+    expect(customerService.length).toBeGreaterThanOrEqual(4);
+    expect(personal.every((template) => template.audience === "personal")).toBe(true);
+    expect(customerService.every((template) => template.audience === "customer_service")).toBe(true);
+    expect(personal.some((template) => template.key === "private-research")).toBe(true);
   });
 
   it("normalizes the supported setting and rejects unknown settings", () => {

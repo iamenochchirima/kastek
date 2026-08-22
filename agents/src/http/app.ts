@@ -1590,10 +1590,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return { agents: listedAgents, counts };
   });
 
-  app.get("/v1/templates", async (request) => {
+  app.get<{ Querystring: { audience?: string } }>("/v1/templates", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
-    return { templates: listAgentTemplates() };
+    const audience = request.query.audience ? z.enum(["personal", "customer_service"]).parse(request.query.audience) : undefined;
+    return { templates: listAgentTemplates(audience) };
   });
 
   app.post<{ Params: { templateKey: string } }>("/v1/templates/:templateKey/install", async (request, reply) => {

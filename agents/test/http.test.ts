@@ -941,6 +941,26 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("filters the template catalog by agent audience", async () => {
+    const app = buildApp({ config, pool: fakePool });
+    const personal = await app.inject({
+      method: "GET",
+      url: "/v1/templates?audience=personal",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+    });
+    const customerService = await app.inject({
+      method: "GET",
+      url: "/v1/templates?audience=customer_service",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+    });
+    expect(personal.statusCode).toBe(200);
+    expect(customerService.statusCode).toBe(200);
+    expect(personal.json().templates).toEqual(expect.arrayContaining([expect.objectContaining({ key: "private-research", audience: "personal" })]));
+    expect(personal.json().templates.every((template: { audience: string }) => template.audience === "personal")).toBe(true);
+    expect(customerService.json().templates.every((template: { audience: string }) => template.audience === "customer_service")).toBe(true);
+    await app.close();
+  });
+
   it("updates an organization agent identity through the scoped control-plane contract", async () => {
     const updateAgent = vi.fn(async (_organizationId: string, _actorId: string, _agentId: string, input: Record<string, unknown>) => ({ id: "agent-1", name: input.name, slug: input.slug, description: input.description, protected: false }));
     const app = buildApp({ config, pool: fakePool, agents: { updateAgent } as unknown as AgentRepository });

@@ -585,6 +585,7 @@ export type AgentTemplate = {
   key: string;
   version: number;
   profile: "custom";
+  audience: "personal" | "customer_service";
   category: string;
   name: string;
   description: string;
