@@ -1,10 +1,11 @@
 //! Standalone customer analytics service foundation.
 //!
-//! A-01 and A-02 contain process startup, configuration, health, migration
-//! release handling, and shared service contracts. Event ingestion, analytics
-//! product tables, projections, and reporting are implemented later.
+//! A-01 through A-05 contain process startup, storage foundations, registries,
+//! scope authorization, and RLS boundaries. Event ingestion, analytics facts,
+//! projections, and reporting are implemented later.
 
 pub mod app;
+pub mod authorization;
 pub mod config;
 pub mod contracts;
 pub mod error;
@@ -13,6 +14,7 @@ pub mod health;
 pub mod metrics;
 pub mod migrations;
 pub mod registry;
+pub mod scope;
 pub mod worker;
 
 use std::time::Duration;

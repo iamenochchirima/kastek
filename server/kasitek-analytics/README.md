@@ -83,6 +83,21 @@ The generated bindings are build artifacts, not independent definitions. Produce
 reporting, and dashboard work must reference the registered identities rather than adding local
 formulas or dimensions.
 
+## Scope authorization
+
+A-05 adds the Analytics-side authorization boundary for `core_organization`, `tenant_workspace`,
+and `tenant_client` scopes. Scope hierarchy supports aggregation but never grants access by itself.
+Every report operation must use a short-lived grant with an exact scope, an explicit descendant
+mode, permissions, policy version, and expiry. Core and Tenant Platform remain authoritative for
+users, roles, and assignments; Analytics stores their validated read model.
+
+The migration also provides PostgreSQL authorization context functions and row-level policies for
+scope-bearing control tables. Application authorization must validate the grant before setting the
+transaction-local context; RLS is defense in depth, not a replacement for grant validation.
+
+The Rust `scope` module contains the reusable hierarchy and grant rules. The `authorization`
+module encodes the validated scope set into the PostgreSQL context without storing bearer tokens.
+
 Run the bounded local foundation E2E against a disposable loopback database:
 
 ```bash

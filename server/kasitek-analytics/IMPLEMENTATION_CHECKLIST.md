@@ -79,6 +79,27 @@ checklist records implementation evidence for the current package only.
 - [ ] Add historical-version compatibility fixtures when the first v2 contract or metric is
   introduced; the initial registry has no prior major-version baseline to compare.
 
+## A-05 — scope hierarchy, grants, service identities, and RLS
+
+- [x] Add a versioned scope-kind registry for Core organizations, tenant workspaces, and tenant
+  clients.
+- [x] Add reporting scopes with stable internal IDs, external source references, root/parent
+  ownership, reporting timezone, status, and immutable hierarchy identity.
+- [x] Add a transitive scope-ancestor closure maintained atomically by database triggers.
+- [x] Add Analytics service identities and producer permissions for source services, namespaces,
+  record categories, contract namespaces, and permitted scope kinds.
+- [x] Add the source-owned assignment read model without making Analytics authoritative for roles or
+  memberships.
+- [x] Add short-lived reporting-grant metadata, exact/none/all/explicit descendant modes, policy
+  version, permission restrictions, expiry, and revocation fields.
+- [x] Add Rust hierarchy, permission, root-boundary, expiry, and descendant authorization rules.
+- [x] Add transaction-local PostgreSQL authorization context helpers and RLS policies for all
+  scope-bearing A-05 control tables.
+- [x] Run the A-05 migration against isolated native PostgreSQL and verify trigger-created closure
+  rows and RLS filtering with forced-RLS integration SQL.
+- [ ] Connect signed ES256 grant transport verification to the future reporting/ingestion HTTP
+  boundary; A-05 validates the claims and database context after that boundary supplies them.
+
 ## Verification evidence
 
 - `cargo fmt --manifest-path server/kasitek-analytics/Cargo.toml -- --check`
@@ -113,6 +134,13 @@ checklist records implementation evidence for the current package only.
   — passed with registry SHA-256 `cd4003773c22369b17eef99c0b2599a135cd1fc304b50f52c40bd2f7a5e53e14`.
 - A-04: Rust formatting, Clippy with `-D warnings`, workspace check, TypeScript `tsc --noEmit`,
   shell syntax, Compose config, and `git diff --check` — passed.
+- A-05: `cargo test --manifest-path server/kasitek-analytics/Cargo.toml` — 22 tests passed,
+  including the scope isolation and authorization matrix.
+- A-05: native `analytics-migrate` completed against both the runtime and isolated E2E databases;
+  migration `20260822010000` created the scope, identity, assignment, grant, closure, and RLS
+  objects.
+- A-05: forced-RLS SQL verification passed: a workspace plus one authorized client was visible,
+  while the sibling client's closure row was hidden.
 
 ## Explicitly deferred
 
@@ -121,4 +149,5 @@ checklist records implementation evidence for the current package only.
 - A-03 complete product mutation-to-reporting E2E, domain OpenTelemetry exporters, alert rules, and
   tested recovery drills
 - A-04 historical compatibility fixtures until a second major contract or metric version exists
+- A-05 signed ES256 transport verification until the reporting/ingestion HTTP grant boundary exists
 - Source outboxes, ingestion, authentication, projections, reporting, and UI
