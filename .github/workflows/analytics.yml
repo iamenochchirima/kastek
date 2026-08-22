@@ -49,6 +49,10 @@ jobs:
         working-directory: server
         run: cargo test --manifest-path kasitek-analytics/Cargo.toml
 
+      - name: Validate Analytics contract and metric registries
+        working-directory: server
+        run: cargo run --quiet --manifest-path kasitek-analytics/Cargo.toml --bin analytics-registry -- --check
+
       - name: Run Analytics Clippy
         working-directory: server
         run: cargo clippy --manifest-path kasitek-analytics/Cargo.toml --all-targets --all-features -- -D warnings

@@ -60,6 +60,25 @@ checklist records implementation evidence for the current package only.
 - [ ] Add domain pipeline metrics, OpenTelemetry exporters, alert rules, and tested recovery drills
   after their owning data paths exist.
 
+## A-04 — contracts and metric registries
+
+- [x] Add a repository-owned JSON Schema 2020-12 contract registry with stable major-version
+  identities, owners, categories, privacy classes, and examples.
+- [x] Add a separate CloudEvents-compatible envelope contract and validated envelope example.
+- [x] Validate event schemas, examples, prohibited fields, source metadata, duplicate identities,
+  and registry indexing before service startup.
+- [x] Add YAML metric, dimension, and metric-set registries with a JSON Schema source contract.
+- [x] Add typed metric semantics for population, exclusions, ratios, deduplication, aggregation,
+  scope, permissions, privacy, exactness, freshness, coverage, availability, and effective period.
+- [x] Validate source contracts, dimensions, metric-set references, ratio dependencies, coverage
+  sources, and dependency cycles.
+- [x] Compute a deterministic registry SHA-256 artifact and generate Rust and TypeScript key
+  bindings from it.
+- [x] Add a registry CLI and CI check that fails when schemas, definitions, or generated bindings
+  are stale or invalid.
+- [ ] Add historical-version compatibility fixtures when the first v2 contract or metric is
+  introduced; the initial registry has no prior major-version baseline to compare.
+
 ## Verification evidence
 
 - `cargo fmt --manifest-path server/kasitek-analytics/Cargo.toml -- --check`
@@ -87,6 +106,13 @@ checklist records implementation evidence for the current package only.
   `kasitek_analytics_e2e` with correlation ID `analytics-e2e-20260822T123735Z-753418`.
 - A-03: `scripts/test-analytics-e2e.sh --full` is intentionally gated until the product analytics
   contracts, facts, projections, and reporting packages exist.
+- A-04: `cargo test --manifest-path server/kasitek-analytics/Cargo.toml` — 12 tests passed,
+  including registry validation, semantic reference checks, deterministic hashing, and generated
+  binding freshness.
+- A-04: `cargo run --manifest-path server/kasitek-analytics/Cargo.toml --bin analytics-registry -- --check`
+  — passed with registry SHA-256 `cd4003773c22369b17eef99c0b2599a135cd1fc304b50f52c40bd2f7a5e53e14`.
+- A-04: Rust formatting, Clippy with `-D warnings`, workspace check, TypeScript `tsc --noEmit`,
+  shell syntax, Compose config, and `git diff --check` — passed.
 
 ## Explicitly deferred
 
@@ -94,4 +120,5 @@ checklist records implementation evidence for the current package only.
   the foundation runtime.
 - A-03 complete product mutation-to-reporting E2E, domain OpenTelemetry exporters, alert rules, and
   tested recovery drills
+- A-04 historical compatibility fixtures until a second major contract or metric version exists
 - Source outboxes, ingestion, authentication, projections, reporting, and UI

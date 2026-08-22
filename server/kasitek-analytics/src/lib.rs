@@ -8,9 +8,11 @@ pub mod app;
 pub mod config;
 pub mod contracts;
 pub mod error;
+pub mod generated_registry;
 pub mod health;
 pub mod metrics;
 pub mod migrations;
+pub mod registry;
 pub mod worker;
 
 use std::time::Duration;

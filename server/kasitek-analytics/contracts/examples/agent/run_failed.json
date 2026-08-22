@@ -1,0 +1,9 @@
+{
+  "run_id": "run_01HZX9012C",
+  "installation_id": "installation_01HZX8W2K4",
+  "agent_definition_id": "agent_01HZX8VZ0M",
+  "status": "failed",
+  "failure_class": "timeout",
+  "occurred_at": "2026-08-22T10:04:58Z",
+  "duration_ms": 30000
+}

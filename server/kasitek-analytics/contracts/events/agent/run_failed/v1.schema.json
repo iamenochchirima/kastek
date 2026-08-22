@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/agent/run_failed/v1.schema.json",
+  "title": "Agent run failed attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["run_id", "installation_id", "agent_definition_id", "status", "occurred_at", "failure_class"],
+  "properties": {
+    "run_id": { "type": "string", "minLength": 1 },
+    "installation_id": { "type": "string", "minLength": 1 },
+    "agent_definition_id": { "type": "string", "minLength": 1 },
+    "agent_version_id": { "type": "string", "minLength": 1 },
+    "status": { "const": "failed" },
+    "failure_class": { "type": "string", "enum": ["validation", "provider", "tool", "timeout", "policy", "unknown"] },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "duration_ms": { "type": "integer", "minimum": 0 }
+  },
+  "x-kasitek": {
+    "identity": "agent.run.failed@1",
+    "owner": "agent-platform",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["prompt", "response", "error_message", "phone_number", "email", "credential", "token"]
+  }
+}

@@ -1,0 +1,13 @@
+kind: metric_sets
+definitions:
+  - key: agent.performance
+    version: 1
+    owner: analytics
+    lifecycle: active
+    description: Agent runtime performance metrics.
+    metrics:
+      - agent.runs.completed@1
+      - agent.runs.failed@1
+    default_interval: day
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    permissions: [analytics:read:agent]

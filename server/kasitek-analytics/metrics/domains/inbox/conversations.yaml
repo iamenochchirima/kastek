@@ -1,0 +1,67 @@
+kind: metrics
+definitions:
+  - key: conversation.messages.received
+    version: 1
+    domain: inbox
+    owner: core-inbox
+    lifecycle: active
+    description: Customer messages received by the inbox.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - conversation.message.received@1
+    formula: count(conversation.message.received@1)
+    eligible_population: customer messages received by instrumented inboxes
+    exclusions: [internal system messages]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [conversation_channel, responder_type, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [conversation.message.received@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: inbox message facts are instrumented
+    dependencies: []
+
+  - key: conversation.responses.recorded
+    version: 1
+    domain: inbox
+    owner: core-inbox
+    lifecycle: active
+    description: Responses recorded by an agent, human, or system.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - conversation.response.recorded@1
+    formula: count(conversation.response.recorded@1)
+    eligible_population: responses recorded by instrumented agents, humans, or systems
+    exclusions: [internal system messages without a response]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [conversation_channel, responder_type, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [conversation.response.recorded@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-22T00:00:00Z"
+    applicability: response facts are instrumented
+    dependencies: []

@@ -60,6 +60,29 @@ curl -H "Authorization: Bearer $ANALYTICS_METRICS_TOKEN" \
   http://127.0.0.1:4300/internal/metrics
 ```
 
+## Contracts and metric registry
+
+The JSON Schema 2020-12 event contracts and CloudEvents-compatible envelope live under
+`contracts/`. YAML metric, dimension, and metric-set definitions live under `metrics/`; the
+registry loader validates their schemas, examples, references, privacy metadata, formulas,
+dependencies, and deterministic artifact hash before any service process starts.
+
+Validate the checked-in generated Rust and TypeScript key bindings:
+
+```bash
+cargo run --bin analytics-registry -- --check
+```
+
+After an approved registry change, regenerate them with:
+
+```bash
+cargo run --bin analytics-registry -- --write
+```
+
+The generated bindings are build artifacts, not independent definitions. Producer, projection,
+reporting, and dashboard work must reference the registered identities rather than adding local
+formulas or dimensions.
+
 Run the bounded local foundation E2E against a disposable loopback database:
 
 ```bash

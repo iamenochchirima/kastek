@@ -10,6 +10,8 @@ pub enum AnalyticsError {
     DatabaseConnectTimeout { timeout_ms: u64 },
     #[error("analytics database migration failed: {0}")]
     Migration(#[from] sqlx::migrate::MigrateError),
+    #[error("analytics registry validation failed: {0}")]
+    Registry(#[from] crate::registry::RegistryError),
     #[error("analytics API failed to bind: {0}")]
     Bind(#[from] std::io::Error),
 }

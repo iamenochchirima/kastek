@@ -19,6 +19,12 @@ async fn main() -> Result<(), AnalyticsError> {
     load_dotenv();
     let config = AnalyticsConfig::from_env()?;
     observability::init(&config.log_filter);
+    let registry = kasitek_analytics::registry::load_registry()?;
+    log::info!(
+        "service=kasitek-analytics process=analytics-api status=registry_loaded registry_sha256={} metrics_registry_version={}",
+        registry.sha256,
+        registry.metrics_registry_version
+    );
     let pool = create_pool(&config)?;
     let metrics = web::Data::new(ProcessMetrics::default());
     let metrics_access = web::Data::new(MetricsAccess::from_config(&config));
