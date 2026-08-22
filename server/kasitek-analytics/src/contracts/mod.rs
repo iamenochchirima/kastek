@@ -43,4 +43,5 @@ pub struct ReadinessResponse {
 #[derive(Debug, Serialize)]
 pub struct ReadinessDependencies {
     pub postgres: DependencyStatus,
+    pub migrations: DependencyStatus,
 }

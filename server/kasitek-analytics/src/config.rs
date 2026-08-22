@@ -8,8 +8,10 @@ pub struct AnalyticsConfig {
     pub api_host: String,
     pub api_port: u16,
     pub database_url: String,
+    pub redis_url: Option<String>,
     pub database_max_connections: u32,
     pub database_acquire_timeout_ms: u64,
+    pub database_connect_timeout_ms: u64,
     pub log_filter: String,
 }
 
@@ -41,6 +43,7 @@ impl AnalyticsConfig {
             4300,
         )?;
         let database_url = required(get("ANALYTICS_DATABASE_URL"), "ANALYTICS_DATABASE_URL")?;
+        let redis_url = optional(get("ANALYTICS_REDIS_URL"));
         let database_max_connections = parse_u32(
             "ANALYTICS_DATABASE_MAX_CONNECTIONS",
             get("ANALYTICS_DATABASE_MAX_CONNECTIONS"),
@@ -49,6 +52,11 @@ impl AnalyticsConfig {
         let database_acquire_timeout_ms = parse_u64(
             "ANALYTICS_DATABASE_ACQUIRE_TIMEOUT_MS",
             get("ANALYTICS_DATABASE_ACQUIRE_TIMEOUT_MS"),
+            5_000,
+        )?;
+        let database_connect_timeout_ms = parse_u64(
+            "ANALYTICS_DATABASE_CONNECT_TIMEOUT_MS",
+            get("ANALYTICS_DATABASE_CONNECT_TIMEOUT_MS"),
             5_000,
         )?;
         let log_filter = non_empty_or(
@@ -61,8 +69,10 @@ impl AnalyticsConfig {
             api_host,
             api_port,
             database_url,
+            redis_url,
             database_max_connections,
             database_acquire_timeout_ms,
+            database_connect_timeout_ms,
             log_filter,
         })
     }
@@ -80,6 +90,12 @@ fn non_empty_or(value: Option<String>, default: &str) -> String {
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| default.to_string())
+}
+
+fn optional(value: Option<String>) -> Option<String> {
+    value
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
 }
 
 fn parse_u16(
@@ -152,8 +168,10 @@ mod tests {
         assert_eq!(config.environment, "development");
         assert_eq!(config.api_host, "0.0.0.0");
         assert_eq!(config.api_port, 4300);
+        assert_eq!(config.redis_url, None);
         assert_eq!(config.database_max_connections, 10);
         assert_eq!(config.database_acquire_timeout_ms, 5_000);
+        assert_eq!(config.database_connect_timeout_ms, 5_000);
         assert_eq!(config.log_filter, "info");
     }
 
@@ -165,6 +183,15 @@ mod tests {
             ("ANALYTICS_API_PORT", "4301"),
         ]);
         assert_eq!(config.api_port, 4301);
+    }
+
+    #[test]
+    fn preserves_the_optional_analytics_redis_boundary() {
+        let config = config(&[
+            ("ANALYTICS_DATABASE_URL", "postgres://localhost/analytics"),
+            ("ANALYTICS_REDIS_URL", "redis://localhost/6379"),
+        ]);
+        assert_eq!(config.redis_url.as_deref(), Some("redis://localhost/6379"));
     }
 
     #[test]

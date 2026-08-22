@@ -21,3 +21,7 @@ path = "src/bin/analytics-api.rs"
 [[bin]]
 name = "analytics-worker"
 path = "src/bin/analytics-worker.rs"
+
+[[bin]]
+name = "analytics-migrate"
+path = "src/bin/analytics-migrate.rs"

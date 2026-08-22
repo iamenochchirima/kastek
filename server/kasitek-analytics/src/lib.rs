@@ -1,19 +1,23 @@
 //! Standalone customer analytics service foundation.
 //!
-//! A-01 intentionally contains only process startup, configuration, health,
-//! and shared service contracts. Event ingestion, analytics storage schema,
-//! projections, and reporting are implemented by later execution packages.
+//! A-01 and A-02 contain process startup, configuration, health, migration
+//! release handling, and shared service contracts. Event ingestion, analytics
+//! product tables, projections, and reporting are implemented later.
 
 pub mod app;
 pub mod config;
 pub mod contracts;
 pub mod error;
 pub mod health;
+pub mod migrations;
 pub mod worker;
 
 use std::time::Duration;
 
-use sqlx::{postgres::PgPoolOptions, PgPool};
+use sqlx::{
+    postgres::{PgConnectOptions, PgPoolOptions},
+    PgPool,
+};
 
 use crate::{config::AnalyticsConfig, error::AnalyticsError};
 
@@ -21,9 +25,35 @@ use crate::{config::AnalyticsConfig, error::AnalyticsError};
 /// not-ready response while PostgreSQL is unavailable. The first database
 /// operation still fails normally until the dependency is reachable.
 pub fn create_pool(config: &AnalyticsConfig) -> Result<PgPool, AnalyticsError> {
+    pool_options(config)
+        .connect_lazy(&config.database_url)
+        .map_err(AnalyticsError::Database)
+}
+
+/// Connects eagerly for release jobs that must fail before deployment when the
+/// dedicated analytics database is unavailable.
+pub async fn connect_pool(config: &AnalyticsConfig) -> Result<PgPool, AnalyticsError> {
+    let connection_options = connection_options(config)?;
+    tokio::time::timeout(
+        Duration::from_millis(config.database_connect_timeout_ms),
+        pool_options(config).connect_with(connection_options),
+    )
+    .await
+    .map_err(|_| AnalyticsError::DatabaseConnectTimeout {
+        timeout_ms: config.database_connect_timeout_ms,
+    })?
+    .map_err(AnalyticsError::Database)
+}
+
+fn connection_options(config: &AnalyticsConfig) -> Result<PgConnectOptions, AnalyticsError> {
+    config
+        .database_url
+        .parse::<PgConnectOptions>()
+        .map_err(AnalyticsError::Database)
+}
+
+fn pool_options(config: &AnalyticsConfig) -> PgPoolOptions {
     PgPoolOptions::new()
         .max_connections(config.database_max_connections)
         .acquire_timeout(Duration::from_millis(config.database_acquire_timeout_ms))
-        .connect_lazy(&config.database_url)
-        .map_err(AnalyticsError::Database)
 }
