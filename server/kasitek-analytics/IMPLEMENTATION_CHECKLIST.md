@@ -325,8 +325,9 @@ checklist records implementation evidence for the current package only.
   status, blocker codes, component statuses, and counts; exclude workflow details and credentials.
 - [x] Emit readiness snapshots as a failure-isolated sidecar after successful readiness-route
   evaluation, coalescing unchanged state and recording state transitions in the Agent outbox.
-- [ ] Add periodic or mutation-driven readiness evaluation so coverage does not depend on a user
-  opening the readiness route.
+- [x] Add a bounded periodic readiness sweep in the existing Agent API process. PostgreSQL leases
+  coordinate API replicas, evaluation state is durable and resumable, and the sweep reuses the
+  same projection plus failure-isolated outbox sidecar without adding another service.
 
 ## Verification evidence
 
@@ -490,6 +491,9 @@ checklist records implementation evidence for the current package only.
 - A-13 slice 5: readiness snapshot contract, metric, dimensions, and registry bindings were
   regenerated; producer coverage and the live hosted-agent integration passed for bounded payloads,
   unchanged-state coalescing, and ready/blocked state transitions.
+- A-13 slice 6: periodic readiness evaluation uses a durable due-state table, bounded PostgreSQL
+  leases, replica-safe claims, retry release, and the same readiness projection as the route; sweep
+  unit coverage and the live claim/lease integration passed.
 
 ## Explicitly deferred
 
@@ -499,8 +503,8 @@ checklist records implementation evidence for the current package only.
   tested recovery drills
 - A-12 control-management UI remains deferred; evaluation is database-authoritative and expired
   entries fail closed before or after maintenance closure.
-- A-13 periodic readiness coverage, scheduler dispatch/missed-run facts, campaign, and Tenant M1
-  slices remain deferred until their authoritative source mutations or evaluation workers exist.
+- A-13 scheduler dispatch/missed-run facts, campaign, and Tenant M1 slices remain deferred until
+  their authoritative source mutations or evaluation workers exist.
 - A-04 historical compatibility fixtures until a second major contract or metric version exists
 - Complete product mutation-to-reporting E2E until the source-domain vertical slices exist
 - A-06 signed audit checkpoint production/verification until the controlled signing boundary exists

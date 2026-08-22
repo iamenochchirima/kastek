@@ -35,6 +35,7 @@ import { evaluateDeterministicAssertions, evaluationAssertionSchema } from "../e
 import { AuditRepository } from "../db/repositories/audit-repository";
 import { ScheduleRepository } from "../db/repositories/schedule-repository";
 import { ReadinessRepository } from "../db/repositories/readiness-repository";
+import { ReadinessSweep } from "../analytics/readiness-sweep";
 import { KillSwitchRepository } from "../db/repositories/kill-switch-repository";
 import { OperatorControlRepository } from "../db/repositories/operator-control-repository";
 import { RetentionRepository } from "../db/repositories/retention-repository";
@@ -611,6 +612,113 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     });
     return { installation, grants, capabilities };
   };
+
+  const evaluateInstallationReadiness = async (input: {
+    organizationId: string;
+    installationId: string;
+    actorId: string;
+    correlationId?: string | null;
+    evaluationSource: "readiness_route" | "readiness_sweep";
+  }) => {
+    const installation = await agents.getInstallation(input.organizationId, input.installationId);
+    if (!installation) return null;
+    const [agent, version, projected] = await Promise.all([
+      agents.getAgent(input.organizationId, installation.agent_definition_id),
+      agents.getVersion(input.organizationId, installation.agent_version_id),
+      projectInstallationCapabilities({ organizationId: input.organizationId, installationId: installation.id, transport: "api" }),
+    ]);
+    if (!agent || !version || !projected) return null;
+
+    const configuration = version.configuration ?? {};
+    const policy = version.policy ?? {};
+    const blueprint = configuration.blueprint && typeof configuration.blueprint === "object" && !Array.isArray(configuration.blueprint)
+      ? configuration.blueprint as Record<string, unknown>
+      : {};
+    const asStringArray = (value: unknown): string[] => Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0) : [];
+    const requiredCapabilities = asStringArray(blueprint.requiredCapabilities).length
+      ? asStringArray(blueprint.requiredCapabilities)
+      : asStringArray(policy.allowedTools);
+    const requiredConnections = asStringArray(blueprint.requiredConnections);
+    const knowledgeSources = requiredConnections.includes("website")
+      ? await knowledge.listSources({ organizationId: input.organizationId, agentId: installation.agent_definition_id, installationId: installation.id })
+      : [];
+    const configuredConnections = [
+      ...projected.grants.connectors,
+      ...(knowledgeSources.length ? ["website"] : []),
+    ];
+    let workflowError: string | undefined;
+    try {
+      validateVersionWorkflow(configuration);
+    } catch (cause) {
+      workflowError = cause instanceof Error ? cause.message : "Workflow configuration is invalid.";
+    }
+    const modelPolicy = policy.modelPolicy && typeof policy.modelPolicy === "object" && !Array.isArray(policy.modelPolicy)
+      ? policy.modelPolicy as Record<string, unknown>
+      : {};
+    const kasiaiPreference = agent.slug === "kasiai"
+      ? await kasiaiPreferences.get(input.organizationId, installation.id, input.actorId)
+      : null;
+    const providerValue = kasiaiPreference?.default_model_provider
+      ?? modelPolicy.provider
+      ?? (modelPolicy.primary && typeof modelPolicy.primary === "object" && !Array.isArray(modelPolicy.primary) ? (modelPolicy.primary as Record<string, unknown>).provider : configuration.provider);
+    const provider = typeof providerValue === "string" ? providerValue : undefined;
+    const credentialReference = configuration.credentialReference ?? modelPolicy.credentialReference ?? kasiaiPreference?.default_credential_reference;
+    const credentialKey = modelProviderEnvironmentKey(provider);
+    const credentialConfigured = (typeof credentialReference === "string" && credentialReference.trim().length > 0) || Boolean(credentialKey && process.env[credentialKey]?.trim());
+    const readiness = buildAgentReadiness({
+      executionMode: installation.execution_mode,
+      installationStatus: installation.status,
+      requiredCapabilities,
+      capabilityAvailability: projected.capabilities.map((capability) => ({ name: capability.name, available: capability.available === true || capability.availability === "available", reasonCode: capability.reasonCode ?? capability.availability })),
+      requiredConnections,
+      configuredConnections,
+      provider,
+      credentialConfigured,
+      workflowError,
+    });
+    await readinessAnalytics.recordSnapshot({
+      organizationId: input.organizationId,
+      installationId: installation.id,
+      agentDefinitionId: agent.id,
+      agentVersionId: version.id,
+      executionMode: installation.execution_mode,
+      status: readiness.status,
+      workflowStatus: readiness.checks.workflow.status,
+      credentialStatus: readiness.checks.credentials.status,
+      blockerCodes: readiness.blockers.map((blocker) => blocker.code),
+      requiredCapabilityCount: readiness.checks.capabilities.required.length,
+      missingCapabilityCount: readiness.checks.capabilities.missing.length,
+      requiredConnectionCount: readiness.checks.connections.required.length,
+      missingConnectionCount: readiness.checks.connections.missing.length,
+      evaluationSource: input.evaluationSource,
+      observedAt: new Date(),
+      correlationId: input.correlationId,
+    }).catch((error) => {
+      app.log.warn({ error: error instanceof Error ? error.message : "unknown error" }, "Readiness analytics snapshot unavailable");
+    });
+    return { installation, agent, version, projected, readiness };
+  };
+
+  if (dependencies.config.NODE_ENV !== "test") {
+    const readinessSweep = new ReadinessSweep(readinessAnalytics, {
+      intervalMs: dependencies.config.AGENT_READINESS_EVALUATION_INTERVAL_MS,
+      batchSize: dependencies.config.AGENT_READINESS_EVALUATION_BATCH_SIZE,
+      leaseDurationMs: dependencies.config.AGENT_READINESS_EVALUATION_LEASE_MS,
+      evaluate: async (candidate) => {
+        await evaluateInstallationReadiness({
+          organizationId: candidate.organizationId,
+          installationId: candidate.installationId,
+          actorId: candidate.actorId,
+          evaluationSource: "readiness_sweep",
+        });
+      },
+      onError: (error, candidate) => {
+        app.log.warn({ installationId: candidate?.installationId, error: error instanceof Error ? error.message : "unknown error" }, "Readiness evaluation sweep item failed");
+      },
+    });
+    app.addHook("onReady", async () => readinessSweep.start());
+    app.addHook("onClose", async () => readinessSweep.stop());
+  }
 
   app.setErrorHandler((error, request, reply) => {
     const statusCode = error instanceof ZodError ? 400 : ((error as { statusCode?: number }).statusCode ?? 500);
@@ -1887,90 +1995,22 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/readiness", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
-    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
-    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
-    const [agent, version, projected] = await Promise.all([
-      agents.getAgent(auth.organizationId, installation.agent_definition_id),
-      agents.getVersion(auth.organizationId, installation.agent_version_id),
-      projectInstallationCapabilities({ organizationId: auth.organizationId, installationId: installation.id, transport: "api" }),
-    ]);
-    if (!agent || !version || !projected) return reply.code(404).send({ error: "installation_readiness_unavailable" });
-
-    const configuration = version.configuration ?? {};
-    const policy = version.policy ?? {};
-    const blueprint = configuration.blueprint && typeof configuration.blueprint === "object" && !Array.isArray(configuration.blueprint)
-      ? configuration.blueprint as Record<string, unknown>
-      : {};
-    const asStringArray = (value: unknown): string[] => Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0) : [];
-    const requiredCapabilities = asStringArray(blueprint.requiredCapabilities).length
-      ? asStringArray(blueprint.requiredCapabilities)
-      : asStringArray(policy.allowedTools);
-    const requiredConnections = asStringArray(blueprint.requiredConnections);
-    const knowledgeSources = requiredConnections.includes("website")
-      ? await knowledge.listSources({ organizationId: auth.organizationId, agentId: installation.agent_definition_id, installationId: installation.id })
-      : [];
-    const configuredConnections = [
-      ...projected.grants.connectors,
-      ...(knowledgeSources.length ? ["website"] : []),
-    ];
-    let workflowError: string | undefined;
-    try {
-      validateVersionWorkflow(configuration);
-    } catch (cause) {
-      workflowError = cause instanceof Error ? cause.message : "Workflow configuration is invalid.";
-    }
-    const modelPolicy = policy.modelPolicy && typeof policy.modelPolicy === "object" && !Array.isArray(policy.modelPolicy)
-      ? policy.modelPolicy as Record<string, unknown>
-      : {};
-    const kasiaiPreference = agent.slug === "kasiai"
-      ? await kasiaiPreferences.get(auth.organizationId, installation.id, auth.actorId)
-      : null;
-    const providerValue = kasiaiPreference?.default_model_provider
-      ?? modelPolicy.provider
-      ?? (modelPolicy.primary && typeof modelPolicy.primary === "object" && !Array.isArray(modelPolicy.primary) ? (modelPolicy.primary as Record<string, unknown>).provider : configuration.provider);
-    const provider = typeof providerValue === "string" ? providerValue : undefined;
-    const credentialReference = configuration.credentialReference ?? modelPolicy.credentialReference ?? kasiaiPreference?.default_credential_reference;
-    const credentialKey = modelProviderEnvironmentKey(provider);
-    const credentialConfigured = (typeof credentialReference === "string" && credentialReference.trim().length > 0) || Boolean(credentialKey && process.env[credentialKey]?.trim());
-    const readiness = buildAgentReadiness({
-      executionMode: installation.execution_mode,
-      installationStatus: installation.status,
-      requiredCapabilities,
-      capabilityAvailability: projected.capabilities.map((capability) => ({ name: capability.name, available: capability.available === true || capability.availability === "available", reasonCode: capability.reasonCode ?? capability.availability })),
-      requiredConnections,
-      configuredConnections,
-      provider,
-      credentialConfigured,
-      workflowError,
-    });
-    await readinessAnalytics.recordSnapshot({
+    const evaluated = await evaluateInstallationReadiness({
       organizationId: auth.organizationId,
-      installationId: installation.id,
-      agentDefinitionId: agent.id,
-      agentVersionId: version.id,
-      executionMode: installation.execution_mode,
-      status: readiness.status,
-      workflowStatus: readiness.checks.workflow.status,
-      credentialStatus: readiness.checks.credentials.status,
-      blockerCodes: readiness.blockers.map((blocker) => blocker.code),
-      requiredCapabilityCount: readiness.checks.capabilities.required.length,
-      missingCapabilityCount: readiness.checks.capabilities.missing.length,
-      requiredConnectionCount: readiness.checks.connections.required.length,
-      missingConnectionCount: readiness.checks.connections.missing.length,
-      evaluationSource: "readiness_route",
-      observedAt: new Date(),
+      installationId: request.params.installationId,
+      actorId: auth.actorId,
       correlationId: auth.correlationId,
-    }).catch((error) => {
-      request.log.warn({ error: error instanceof Error ? error.message : "unknown error" }, "Readiness analytics snapshot unavailable");
+      evaluationSource: "readiness_route",
     });
+    if (!evaluated) return reply.code(404).send({ error: "installation_not_found" });
     return {
-      installationId: installation.id,
-      agentId: agent.id,
-      versionId: version.id,
-      profile: agent.creation_profile,
-      executionMode: installation.execution_mode,
-      ...readiness,
-      capabilities: projected.capabilities,
+      installationId: evaluated.installation.id,
+      agentId: evaluated.agent.id,
+      versionId: evaluated.version.id,
+      profile: evaluated.agent.creation_profile,
+      executionMode: evaluated.installation.execution_mode,
+      ...evaluated.readiness,
+      capabilities: evaluated.projected.capabilities,
     };
   });
 

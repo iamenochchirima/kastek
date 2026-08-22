@@ -137,7 +137,7 @@ export interface AgentReadinessAnalyticsInput {
   missingCapabilityCount: number;
   requiredConnectionCount: number;
   missingConnectionCount: number;
-  evaluationSource: "readiness_route";
+  evaluationSource: "readiness_route" | "readiness_sweep";
   observedAt: Date | string;
   correlationId?: string | null;
 }

@@ -197,6 +197,13 @@ describe("foundation migration", () => {
     expect(rolloutSql).toContain("organization/installation scoped");
   });
 
+  it("defines durable readiness evaluation leases", async () => {
+    const readinessSql = await readFile(new URL("../migrations/071_agent_readiness_evaluation_state.sql", import.meta.url), "utf8");
+    expect(readinessSql).toContain("agent_readiness_evaluation_state");
+    expect(readinessSql).toContain("lease_expires_at");
+    expect(readinessSql).toContain("ON DELETE CASCADE");
+  });
+
   it("defines agent context and aggregate ownership invariants", async () => {
     const scopeSql = await readFile(new URL("../migrations/057_agent_context_and_ownership_invariants.sql", import.meta.url), "utf8");
     expect(scopeSql).toContain("memory_records_agent_scope_required");

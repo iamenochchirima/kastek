@@ -42,7 +42,7 @@
     "missing_capability_count": { "type": "integer", "minimum": 0 },
     "required_connection_count": { "type": "integer", "minimum": 0 },
     "missing_connection_count": { "type": "integer", "minimum": 0 },
-    "evaluation_source": { "type": "string", "enum": ["readiness_route"] },
+    "evaluation_source": { "type": "string", "enum": ["readiness_route", "readiness_sweep"] },
     "state_fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "observed_at": { "type": "string", "format": "date-time" }
   },

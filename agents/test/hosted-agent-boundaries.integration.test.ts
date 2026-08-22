@@ -145,6 +145,14 @@ describe.skipIf(!runIntegration)("hosted agent lifecycle and isolation (integrat
       { status: "ready", blocker_set: "none" },
       { status: "blocked", blocker_set: "installation_inactive" },
     ]);
+    const sweepNow = new Date("2030-08-22T10:10:00.000Z");
+    const claimed = await readiness.claimDueEvaluations({ owner: "readiness-test", organizationId: organizationA, limit: 10, leaseDurationMs: 60_000, now: sweepNow });
+    expect(claimed).toEqual([{ installationId, organizationId: organizationA, actorId: "owner-a" }]);
+    expect(await readiness.claimDueEvaluations({ owner: "another-readiness-test", organizationId: organizationA, limit: 10, leaseDurationMs: 60_000, now: sweepNow })).toEqual([]);
+    expect(await readiness.completeEvaluation({ installationId, owner: "readiness-test", evaluatedAt: sweepNow, nextEvaluationAt: new Date("2030-08-22T10:15:00.000Z") })).toBe(true);
+    expect(await readiness.claimDueEvaluations({ owner: "readiness-test", organizationId: organizationA, limit: 10, leaseDurationMs: 60_000, now: new Date("2030-08-22T10:14:59.000Z") })).toEqual([]);
+    expect(await readiness.claimDueEvaluations({ owner: "readiness-test", organizationId: organizationA, limit: 10, leaseDurationMs: 60_000, now: new Date("2030-08-22T10:15:00.000Z") })).toEqual([{ installationId, organizationId: organizationA, actorId: "owner-a" }]);
+    await readiness.releaseEvaluation({ installationId, owner: "readiness-test", retryAt: new Date("2030-08-22T10:15:00.000Z") });
     await expect(schedules.setStatus(organizationB, schedule.id, "disabled", "owner-b")).rejects.toThrow("Schedule not found");
   });
 

@@ -62,3 +62,4 @@ export {
   type DeliveryOutcome,
   type RetryPolicyOptions,
 } from "./publisher";
+export { ReadinessSweep, type ReadinessSweepSettings } from "./readiness-sweep";

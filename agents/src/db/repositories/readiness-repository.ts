@@ -6,6 +6,12 @@ import {
 } from "../../analytics";
 import { withTransaction } from "../pool";
 
+export interface ReadinessEvaluationCandidate {
+  installationId: string;
+  organizationId: string;
+  actorId: string;
+}
+
 export class ReadinessRepository {
   public constructor(private readonly pool: Pool) {}
 
@@ -33,5 +39,82 @@ export class ReadinessRepository {
       await enqueueOutbox(client, record);
       return true;
     });
+  }
+
+  public async claimDueEvaluations(input: {
+    owner: string;
+    limit: number;
+    leaseDurationMs: number;
+    organizationId?: string;
+    now?: Date;
+  }): Promise<ReadinessEvaluationCandidate[]> {
+    const now = input.now ?? new Date();
+    const leaseExpiresAt = new Date(now.getTime() + input.leaseDurationMs);
+    return withTransaction(this.pool, async (client) => {
+      await client.query(
+        `INSERT INTO agent_readiness_evaluation_state (installation_id, organization_id)
+         SELECT id, organization_id FROM agent_installations
+         ON CONFLICT (installation_id) DO NOTHING`,
+      );
+      const result = await client.query<ReadinessEvaluationCandidate>(
+        `WITH due AS (
+           SELECT state.installation_id, state.organization_id
+           FROM agent_readiness_evaluation_state state
+           WHERE state.next_evaluation_at <= $1
+             AND (state.lease_expires_at IS NULL OR state.lease_expires_at <= $1)
+             AND ($5::text IS NULL OR state.organization_id = $5)
+           ORDER BY state.next_evaluation_at ASC, state.installation_id ASC
+           FOR UPDATE SKIP LOCKED
+           LIMIT $2
+         )
+         UPDATE agent_readiness_evaluation_state state
+         SET lease_owner = $3, lease_expires_at = $4, updated_at = now()
+         FROM due
+         JOIN agent_installations installation ON installation.id = due.installation_id
+         WHERE state.installation_id = due.installation_id
+         RETURNING state.installation_id AS "installationId",
+                   state.organization_id AS "organizationId",
+                   installation.created_by AS "actorId"`,
+        [now, input.limit, input.owner, leaseExpiresAt, input.organizationId ?? null],
+      );
+      return result.rows;
+    });
+  }
+
+  public async completeEvaluation(input: {
+    installationId: string;
+    owner: string;
+    nextEvaluationAt: Date;
+    evaluatedAt?: Date;
+  }): Promise<boolean> {
+    const evaluatedAt = input.evaluatedAt ?? new Date();
+    const result = await this.pool.query(
+      `UPDATE agent_readiness_evaluation_state
+       SET next_evaluation_at = $3,
+           last_evaluated_at = $4,
+           lease_owner = NULL,
+           lease_expires_at = NULL,
+           updated_at = now()
+       WHERE installation_id = $1 AND lease_owner = $2`,
+      [input.installationId, input.owner, input.nextEvaluationAt, evaluatedAt],
+    );
+    return result.rowCount === 1;
+  }
+
+  public async releaseEvaluation(input: {
+    installationId: string;
+    owner: string;
+    retryAt?: Date;
+  }): Promise<boolean> {
+    const result = await this.pool.query(
+      `UPDATE agent_readiness_evaluation_state
+       SET next_evaluation_at = $3,
+           lease_owner = NULL,
+           lease_expires_at = NULL,
+           updated_at = now()
+       WHERE installation_id = $1 AND lease_owner = $2`,
+      [input.installationId, input.owner, input.retryAt ?? new Date()],
+    );
+    return result.rowCount === 1;
   }
 }
