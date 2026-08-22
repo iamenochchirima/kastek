@@ -21,12 +21,16 @@ export {
   type ScopeKind,
 } from "./producer";
 export {
+  AnalyticsIngestionClient,
   AnalyticsPublisherError,
   RetryPolicy,
   applyDeliveryOutcome,
   claimOutboxBatch,
+  publishOutboxOnce,
   releaseExpiredLeases,
   type AgentOutboxRow,
+  type AgentPublisherStats,
+  type AnalyticsPublisherSettings,
   type DeliveryOutcome,
   type RetryPolicyOptions,
 } from "./publisher";

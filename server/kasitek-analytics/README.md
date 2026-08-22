@@ -141,6 +141,25 @@ producer database. Scope definitions update the current reporting-scope read mod
 immutable source receipts. Replays keep the original producer, stream, sequence, identity, and
 payload hash; approved backfill jobs are required when a batch carries `backfill_job_id`.
 
+## Source publishers
+
+Core, Tenant Platform, and Agent Platform publish from their own operational databases. Each
+publisher is independently startable and remains disabled until its source-specific ingestion token
+is configured:
+
+```bash
+KASITEK_PROCESS=analytics-publisher cargo run --manifest-path server/kasitek-core/Cargo.toml
+KASITEK_PROCESS=analytics-publisher cargo run --manifest-path server/kasitek-tenants/Cargo.toml
+pnpm --dir agents run dev:analytics-publisher
+```
+
+Set `ANALYTICS_INGESTION_URL` to the Analytics origin and configure
+`ANALYTICS_CORE_INGESTION_TOKEN`, `ANALYTICS_TENANT_INGESTION_TOKEN`, or
+`ANALYTICS_AGENT_INGESTION_TOKEN` in the corresponding source environment. The publisher claims a
+bounded leased batch, posts it to the private ingestion endpoint, marks accepted and identical
+duplicate records delivered, retries transport and transient acknowledgements with capped jitter,
+and quarantines permanent record or batch rejections. Expired leases are reclaimed automatically.
+
 Run the bounded local foundation E2E against a disposable loopback database:
 
 ```bash

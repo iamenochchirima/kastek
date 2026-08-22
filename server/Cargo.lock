@@ -340,6 +340,7 @@ name = "analytics-producer"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "reqwest",
  "serde",
  "serde_json",
  "sha2",

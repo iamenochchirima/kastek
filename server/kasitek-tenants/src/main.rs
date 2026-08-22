@@ -5,6 +5,7 @@ use dotenv::dotenv;
 use sqlx::postgres::PgPoolOptions;
 
 pub mod analytics;
+mod analytics_publisher;
 mod config;
 mod controllers;
 mod error;
@@ -68,6 +69,12 @@ async fn main() -> std::io::Result<()> {
         .run(&db_pool)
         .await
         .expect("failed to run tenant migrations");
+
+    if std::env::var("KASITEK_PROCESS").ok().as_deref() == Some("analytics-publisher") {
+        log::info!("starting tenant analytics publisher worker");
+        analytics_publisher::run(db_pool).await;
+        return Ok(());
+    }
 
     let port = config.port;
     let allowed_origins = config.allowed_origins.clone();

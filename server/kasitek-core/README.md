@@ -66,8 +66,16 @@ KASITEK_PROCESS=whatsapp-marketing-worker cargo run
 KASITEK_PROCESS=whatsapp-inbox-worker cargo run
 KASITEK_PROCESS=social-publishing-worker cargo run
 KASITEK_PROCESS=billing-reconciliation-worker cargo run
+KASITEK_PROCESS=analytics-publisher cargo run
 KASITEK_PROCESS=all-workers cargo run
 ```
+
+The Analytics publisher is independently scalable and disabled unless
+`ANALYTICS_CORE_INGESTION_TOKEN` is configured. Set `ANALYTICS_INGESTION_URL` (default
+`http://127.0.0.1:4300`), `ANALYTICS_CORE_PRODUCER_ID`, and `ANALYTICS_CORE_PUBLISHER_ID` in the
+Core environment. The token must match the `core` credential in the Analytics service. The worker
+claims Core's durable outbox, sends authenticated batches, applies each acknowledgement, retries
+transient failures, and reclaims expired leases.
 
 ### Public v1 API webhooks
 

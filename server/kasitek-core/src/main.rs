@@ -65,6 +65,11 @@ async fn main() -> std::io::Result<()> {
             workers::billing_reconciliation::run(db_pool, config).await;
             return Ok(());
         }
+        Some("analytics-publisher") => {
+            log::info!("starting analytics publisher worker");
+            workers::analytics_publisher::run(db_pool).await;
+            return Ok(());
+        }
         Some("public-webhooks-worker") => {
             log::info!("starting public webhooks worker");
             workers::public_webhooks::run(db_pool).await;
@@ -77,7 +82,8 @@ async fn main() -> std::io::Result<()> {
                 workers::social_publishing::run(db_pool.clone()),
                 workers::whatsapp_campaigns::run(db_pool.clone()),
                 workers::public_webhooks::run(db_pool.clone()),
-                workers::billing_reconciliation::run(db_pool.clone(), config.clone())
+                workers::billing_reconciliation::run(db_pool.clone(), config.clone()),
+                workers::analytics_publisher::run(db_pool.clone())
             );
             return Ok(());
         }

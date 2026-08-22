@@ -50,6 +50,17 @@ const envSchema = z.object({
   APPROVAL_DECISION_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).max(3_600_000).default(60_000),
   APPROVAL_DECISION_RATE_LIMIT_MAX_KEYS: z.coerce.number().int().min(1).max(100_000).default(10_000),
   EFFECT_RECONCILIATION_INTERVAL_MS: z.coerce.number().int().min(10_000).max(3_600_000).default(60_000),
+  ANALYTICS_INGESTION_URL: z.string().url().default("http://127.0.0.1:4300"),
+  ANALYTICS_AGENT_INGESTION_TOKEN: z.string().trim().min(1).optional(),
+  ANALYTICS_AGENT_PRODUCER_ID: z.string().trim().min(1).default("agent-platform-customer-analytics"),
+  ANALYTICS_AGENT_PUBLISHER_ID: z.string().trim().min(1).default("agent-platform-analytics-publisher"),
+  ANALYTICS_PUBLISHER_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(100),
+  ANALYTICS_PUBLISHER_LEASE_DURATION_MS: z.coerce.number().int().min(1).max(300_000).default(30_000),
+  ANALYTICS_PUBLISHER_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(100).max(120_000).default(10_000),
+  ANALYTICS_PUBLISHER_POLL_INTERVAL_MS: z.coerce.number().int().min(100).max(300_000).default(1_000),
+  ANALYTICS_PUBLISHER_RETRY_BASE_DELAY_MS: z.coerce.number().int().min(0).max(300_000).default(2_000),
+  ANALYTICS_PUBLISHER_RETRY_MAX_DELAY_MS: z.coerce.number().int().min(0).max(3_600_000).default(300_000),
+  ANALYTICS_PUBLISHER_RETRY_JITTER_MS: z.coerce.number().int().min(0).max(60_000).default(2_000),
   LOG_LEVEL: z.string().default("info"),
 });
 

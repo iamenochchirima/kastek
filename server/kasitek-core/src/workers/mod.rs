@@ -1,3 +1,4 @@
+pub mod analytics_publisher;
 pub mod billing_reconciliation;
 pub mod public_webhooks;
 pub mod social_publishing;

@@ -147,8 +147,8 @@ checklist records implementation evidence for the current package only.
   test rows remain in the Core database.
 - [x] Apply the Core outbox SQL migration locally and validate the Tenant migration transactionally
   in an isolated schema; the configured Tenant development endpoint was unavailable.
-- [ ] Attach authenticated batch HTTP transport and real authoritative domain mutations in the
-  ingestion/vertical-slice packages that follow A-07.
+- [x] Attach the shared authenticated batch HTTP transport; authoritative domain mutations remain
+  owned by the later vertical-slice packages.
 
 ## A-08 — TypeScript producer library, Agent outbox, and publisher foundation
 
@@ -167,8 +167,8 @@ checklist records implementation evidence for the current package only.
   lease ownership checks, and accepted/retryable/quarantined delivery transitions.
 - [x] Run TypeScript checks, focused producer/migration tests, and the PostgreSQL outbox integration
   test against the local Agent database without leaving persistent test rows.
-- [ ] Attach authenticated batch HTTP transport and authoritative Agent mutation instrumentation
-  after the shared Analytics ingestion boundary and vertical-slice contracts are ready.
+- [x] Attach the authenticated batch HTTP transport; authoritative Agent mutation instrumentation
+  remains a later vertical-slice responsibility.
 
 ## A-09 — authenticated ingestion, cursors, reconciliation, and replay controls
 
@@ -195,8 +195,9 @@ checklist records implementation evidence for the current package only.
   accepted facts as backfilled without changing source identity.
 - [x] Add unit tests for credential identity and cursor gaps plus PostgreSQL end-to-end coverage for
   acceptance, duplicate handling, identity conflict quarantine, cursor state, and reconciliation.
-- [ ] Connect Core, Agent Platform, and Tenant Platform lease publishers to the HTTP endpoint and
-  process the returned acknowledgements in their source outboxes.
+- [x] Connect Core, Agent Platform, and Tenant Platform lease publishers to the authenticated HTTP
+  endpoint and process accepted, duplicate, retryable, and rejected acknowledgements in their
+  source outboxes.
 - [ ] Add worker-scheduled reconciliation, quarantine release, replay orchestration, and projection
   consumers after the producer transport and reporting vertical slices are implemented.
 
@@ -277,6 +278,13 @@ checklist records implementation evidence for the current package only.
   the local native Analytics PostgreSQL database, covering accepted events and observations,
   immutable scope receipts, identical duplicates, identity-conflict quarantine, cursor/source
   health state, and authenticated reconciliation evidence.
+- Publisher transport: shared Rust wire-contract tests passed, including authenticated request
+  headers, bounded batch shape, per-record acknowledgement matching, transient HTTP failure
+  classification, and malformed-ack retry behavior.
+- Publisher transport: `pnpm exec tsc --noEmit` and focused Agent analytics tests passed, including
+  the authenticated TypeScript batch request contract.
+- Publisher workers: Core, Tenant Platform, and Agent Platform now expose independent local worker
+  commands; source outboxes remain durable and unaffected when the Analytics API is unavailable.
 
 ## Explicitly deferred
 
@@ -287,8 +295,6 @@ checklist records implementation evidence for the current package only.
 - A-04 historical compatibility fixtures until a second major contract or metric version exists
 - A-05 signed ES256 transport verification until the reporting/ingestion HTTP grant boundary exists
 - A-06 signed audit checkpoint production/verification until the controlled signing boundary exists
-- A-07 authenticated publisher transport until the Analytics ingestion HTTP boundary exists
-- A-08 authenticated publisher transport and authoritative Agent mutation instrumentation until the
-  Analytics ingestion boundary and reference vertical slices exist
-- Core, Agent Platform, and Tenant Platform publisher HTTP clients and source-outbox acknowledgement
-  loops; scheduled reconciliation/replay workers; projections, reporting, and UI
+- A-07/A-08 authoritative domain mutation instrumentation until the applicable reference vertical
+  slices exist
+- Scheduled reconciliation/replay workers; projections, reporting, and UI

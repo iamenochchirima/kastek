@@ -15,6 +15,13 @@ use sqlx::{postgres::PgRow, PgPool, Postgres, Row, Transaction};
 use thiserror::Error;
 use uuid::Uuid;
 
+mod publisher;
+
+pub use publisher::{
+    publish_outbox_once, AnalyticsIngestionClient, AnalyticsPublisherSettings, PublishStats,
+    PublisherError,
+};
+
 pub const CORE_SOURCE_SERVICE: &str = "core";
 pub const TENANT_SOURCE_SERVICE: &str = "tenant-platform";
 pub const MAX_OUTBOX_BATCH_SIZE: i64 = 500;

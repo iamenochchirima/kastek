@@ -39,6 +39,19 @@ Useful auth and portal settings:
 - `TENANT_CLIENT_SESSION_TTL_HOURS`
 - `TENANT_INVITE_TTL_HOURS`
 
+Analytics publication is a separate worker process. To enable it, set these values in the Tenant
+service environment; the token must match the `tenant-platform` credential configured in the
+Analytics service:
+
+- `ANALYTICS_INGESTION_URL` (default `http://127.0.0.1:4300`)
+- `ANALYTICS_TENANT_INGESTION_TOKEN`
+- `ANALYTICS_TENANT_PRODUCER_ID` (default `tenant-platform-customer-analytics`)
+- `ANALYTICS_TENANT_PUBLISHER_ID` (default `tenant-platform-analytics-publisher`)
+
+Run it with `KASITEK_PROCESS=analytics-publisher cargo run`. It claims the Tenant outbox, sends
+authenticated batches, and applies each Analytics acknowledgement without affecting the API
+process.
+
 ## Real Provisioning Flow
 
 Tenant workspaces are provisioned through the admin application, not through local bootstrap scripts.
