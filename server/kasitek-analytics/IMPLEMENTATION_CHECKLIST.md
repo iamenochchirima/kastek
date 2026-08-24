@@ -662,6 +662,8 @@ checklist records implementation evidence for the current package only.
 - [x] Coalesce repeated observations in the immutable refresh window and preserve the explicit
   no-history boundary: `reliable_coverage_start` remains unset until a source reconstruction or
   approved provider-history import completes.
+- [x] Return the authorized reporting scope's external organization ID with leased source-history
+  work so Core workers do not need Analytics database access to select their source rows.
 - [x] Extend the Core Inbox producer fixture with manifest privacy and same-window idempotency
   assertions.
 - [ ] Add Meta historical backfill, temporal coverage, source reconciliation, projection/reporting

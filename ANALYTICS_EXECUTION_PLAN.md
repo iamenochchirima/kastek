@@ -1935,6 +1935,8 @@ those transitions.
 - [x] Keep the Meta source checkpoint event-driven, immutable, same-window idempotent, and
   explicitly non-historical: `reliable_coverage_start` and temporal completion remain unset until
   an authenticated source reconstruction or approved provider-history import completes.
+- [x] Include the authorized reporting scope's external organization ID in leased source-history
+  work so Core can reconstruct only the requested organization without querying Analytics storage.
 - [ ] Add historical backfill coverage, source reconciliation, projection/reporting evidence, and
   end-to-end mutation-to-reporting tests for Meta Inbox.
 

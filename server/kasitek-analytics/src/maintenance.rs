@@ -66,6 +66,7 @@ pub struct BackfillWork {
     pub source_domain: String,
     pub reporting_scope_id: i64,
     pub root_scope_id: i64,
+    pub scope_external_id: String,
     pub requested_range_start: DateTime<Utc>,
     pub requested_range_end: DateTime<Utc>,
     pub contract_version: String,
@@ -322,7 +323,10 @@ pub async fn claim_source_backfill_work(
            FROM candidate
            WHERE job.job_id = candidate.job_id
            RETURNING job.job_id, job.source_service, job.source_domain, job.reporting_scope_id,
-                     job.root_scope_id, job.requested_range_start, job.requested_range_end,
+                     job.root_scope_id,
+                     (SELECT external_source_id FROM analytics.reporting_scope
+                      WHERE scope_id = job.reporting_scope_id) AS scope_external_id,
+                     job.requested_range_start, job.requested_range_end,
                      job.contract_version, job.projection_version, job.method, job.job_status,
                      job.checkpoint, job.remaining_count, job.lease_expires_at"#,
     )
@@ -341,6 +345,7 @@ fn parse_backfill_work(row: sqlx::postgres::PgRow) -> Result<BackfillWork, sqlx:
         source_domain: row.try_get("source_domain")?,
         reporting_scope_id: row.try_get("reporting_scope_id")?,
         root_scope_id: row.try_get("root_scope_id")?,
+        scope_external_id: row.try_get("scope_external_id")?,
         requested_range_start: row.try_get("requested_range_start")?,
         requested_range_end: row.try_get("requested_range_end")?,
         contract_version: row.try_get("contract_version")?,
@@ -566,7 +571,10 @@ async fn claim_worker_backfill_work(
            FROM candidate
            WHERE job.job_id = candidate.job_id
            RETURNING job.job_id, job.source_service, job.source_domain, job.reporting_scope_id,
-                     job.root_scope_id, job.requested_range_start, job.requested_range_end,
+                     job.root_scope_id,
+                     (SELECT external_source_id FROM analytics.reporting_scope
+                      WHERE scope_id = job.reporting_scope_id) AS scope_external_id,
+                     job.requested_range_start, job.requested_range_end,
                      job.contract_version, job.projection_version, job.method, job.job_status,
                      job.checkpoint, job.remaining_count, job.lease_expires_at"#,
     )
