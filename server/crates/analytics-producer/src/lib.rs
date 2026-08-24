@@ -34,6 +34,7 @@ pub enum RecordCategory {
     Event,
     Observation,
     ScopeDefinition,
+    Manifest,
 }
 
 impl RecordCategory {
@@ -42,6 +43,7 @@ impl RecordCategory {
             Self::Event => "event",
             Self::Observation => "observation",
             Self::ScopeDefinition => "scope_definition",
+            Self::Manifest => "manifest",
         }
     }
 }
@@ -148,6 +150,37 @@ pub struct ScopeDefinitionInput {
     pub idempotency_key: Option<String>,
 }
 
+#[derive(Clone, Debug)]
+pub struct ManifestInput {
+    pub record_id: String,
+    pub source_domain: String,
+    pub source_stream_key: String,
+    pub contract_name: String,
+    pub schema_version: i32,
+    pub scope_kind: ScopeKind,
+    pub scope_external_id: String,
+    pub manifest_key: String,
+    pub manifest_version: i64,
+    pub provider: Option<String>,
+    pub connection_ref: Option<String>,
+    pub supported_contracts: Vec<String>,
+    pub supported_observation_contracts: Vec<String>,
+    pub supported_metrics: Vec<String>,
+    pub supported_dimensions: Vec<String>,
+    pub expected_refresh_seconds: i64,
+    pub reliable_coverage_start: Option<DateTime<Utc>>,
+    pub highest_authoritative_source_sequence: Option<i64>,
+    pub approved_checkpoint_count: Option<i64>,
+    pub approved_checkpoint_hash: Option<String>,
+    pub last_successful_collection_at: Option<DateTime<Utc>>,
+    pub last_attempted_collection_at: Option<DateTime<Utc>>,
+    pub safe_failure_code: Option<String>,
+    pub next_expected_at: Option<DateTime<Utc>>,
+    pub manifest_state: String,
+    pub generated_at: DateTime<Utc>,
+    pub idempotency_key: Option<String>,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AnalyticsEnvelope {
     pub specversion: String,
@@ -208,6 +241,18 @@ pub enum ProducerValidationError {
     InvalidObservationWindow,
     #[error("numeric observation value must be a JSON number")]
     InvalidNumericValue,
+    #[error("manifest version and refresh interval must be positive")]
+    InvalidManifestNumber,
+    #[error("manifest record identity must match its source stream, key, and version")]
+    InvalidManifestIdentity,
+    #[error("manifest state is not supported")]
+    InvalidManifestState,
+    #[error("manifest list contains an invalid identifier")]
+    InvalidManifestIdentifier,
+    #[error("manifest checkpoint hash must be lowercase SHA-256 hex")]
+    InvalidManifestCheckpointHash,
+    #[error("manifest safe failure code is invalid")]
+    InvalidManifestFailureCode,
     #[error("source identity exceeds the database limit")]
     IdentityTooLong,
     #[error("payload serialization failed: {0}")]
@@ -519,6 +564,134 @@ pub fn build_scope_definition(
     )
 }
 
+pub fn build_manifest(
+    config: &ProducerConfig,
+    input: ManifestInput,
+) -> Result<AnalyticsOutboxRecord, ProducerValidationError> {
+    if input.contract_name != "source.manifest@1" || input.schema_version != 1 {
+        return Err(ProducerValidationError::InvalidContractName);
+    }
+    let data = json!({
+        "manifest_key": input.manifest_key,
+        "manifest_version": input.manifest_version,
+        "provider": input.provider,
+        "connection_ref": input.connection_ref,
+        "supported_contracts": input.supported_contracts,
+        "supported_observation_contracts": input.supported_observation_contracts,
+        "supported_metrics": input.supported_metrics,
+        "supported_dimensions": input.supported_dimensions,
+        "expected_refresh_seconds": input.expected_refresh_seconds,
+        "reliable_coverage_start": input.reliable_coverage_start,
+        "highest_authoritative_source_sequence": input.highest_authoritative_source_sequence,
+        "approved_checkpoint_count": input.approved_checkpoint_count,
+        "approved_checkpoint_hash": input.approved_checkpoint_hash,
+        "last_successful_collection_at": input.last_successful_collection_at,
+        "last_attempted_collection_at": input.last_attempted_collection_at,
+        "safe_failure_code": input.safe_failure_code,
+        "next_expected_at": input.next_expected_at,
+        "manifest_state": input.manifest_state,
+        "generated_at": input.generated_at,
+    });
+    validate_common(
+        config,
+        &input.record_id,
+        &input.source_domain,
+        &input.source_stream_key,
+        &input.contract_name,
+        input.schema_version,
+        &input.scope_external_id,
+        &data,
+    )?;
+    if input.manifest_version <= 0 || input.expected_refresh_seconds <= 0 {
+        return Err(ProducerValidationError::InvalidManifestNumber);
+    }
+    require_non_empty(&input.manifest_key, "manifest_key")?;
+    let expected_record_id = format!(
+        "manifest:{}:{}:{}",
+        input.source_stream_key, input.manifest_key, input.manifest_version
+    );
+    if input.record_id != expected_record_id {
+        return Err(ProducerValidationError::InvalidManifestIdentity);
+    }
+    validate_identifier_list(&input.supported_contracts, is_versioned_contract_name)?;
+    validate_identifier_list(
+        &input.supported_observation_contracts,
+        is_versioned_contract_name,
+    )?;
+    validate_identifier_list(&input.supported_metrics, is_metric_key)?;
+    validate_identifier_list(&input.supported_dimensions, is_metric_key)?;
+    for value in [
+        input.highest_authoritative_source_sequence,
+        input.approved_checkpoint_count,
+    ] {
+        if value.is_some_and(|value| value < 0) {
+            return Err(ProducerValidationError::InvalidManifestNumber);
+        }
+    }
+    if let Some(hash) = input.approved_checkpoint_hash.as_deref() {
+        if !is_sha256_hex(hash) {
+            return Err(ProducerValidationError::InvalidManifestCheckpointHash);
+        }
+    }
+    if let Some(code) = input.safe_failure_code.as_deref() {
+        if !is_safe_failure_code(code) {
+            return Err(ProducerValidationError::InvalidManifestFailureCode);
+        }
+    }
+    if !matches!(
+        input.manifest_state.as_str(),
+        "active" | "disabled" | "unsupported" | "awaiting_instrumentation"
+    ) {
+        return Err(ProducerValidationError::InvalidManifestState);
+    }
+    for (value, limit) in [
+        (input.manifest_key.as_str(), 512),
+        (input.provider.as_deref().unwrap_or(""), 128),
+        (input.connection_ref.as_deref().unwrap_or(""), 512),
+    ] {
+        if value.len() > limit {
+            return Err(ProducerValidationError::IdentityTooLong);
+        }
+    }
+    let envelope = AnalyticsEnvelope {
+        specversion: "1.0".to_string(),
+        id: Uuid::new_v4().to_string(),
+        source: config.source_origin.clone(),
+        event_type: input.contract_name.clone(),
+        subject: format!("manifest:{}", input.manifest_key),
+        time: input.generated_at,
+        datacontenttype: "application/json".to_string(),
+        dataschema: schema_uri(&input.contract_name, input.schema_version),
+        source_service: config.source_service.clone(),
+        source_domain: input.source_domain.clone(),
+        record_category: RecordCategory::Manifest,
+        scope_kind: input.scope_kind,
+        scope_external_id: input.scope_external_id.clone(),
+        correlation_id: None,
+        causation_id: None,
+        idempotency_key: Some(
+            input
+                .idempotency_key
+                .clone()
+                .unwrap_or_else(|| input.record_id.clone()),
+        ),
+        data,
+    };
+    record_from_envelope(
+        config,
+        RecordCategory::Manifest,
+        input.record_id,
+        input.source_domain,
+        input.source_stream_key,
+        input.contract_name,
+        input.schema_version,
+        input.scope_kind,
+        input.scope_external_id,
+        envelope,
+        input.idempotency_key,
+    )
+}
+
 // The arguments map directly to the immutable outbox identity columns. Keeping them explicit
 // makes it harder to accidentally omit a source or scope field when a new record builder is added.
 #[allow(clippy::too_many_arguments)]
@@ -623,6 +796,51 @@ fn validate_object(value: &Value) -> Result<(), ProducerValidationError> {
         return Err(ProducerValidationError::AttributesMustBeObject);
     }
     Ok(())
+}
+
+fn validate_identifier_list(
+    values: &[String],
+    predicate: fn(&str) -> bool,
+) -> Result<(), ProducerValidationError> {
+    let mut seen = BTreeSet::new();
+    if values.len() > 256
+        || values
+            .iter()
+            .any(|value| value.len() > 256 || !predicate(value) || !seen.insert(value.as_str()))
+    {
+        return Err(ProducerValidationError::InvalidManifestIdentifier);
+    }
+    Ok(())
+}
+
+fn is_metric_key(value: &str) -> bool {
+    value.len() >= 2
+        && value.bytes().enumerate().all(|(index, byte)| {
+            (index == 0 && byte.is_ascii_lowercase())
+                || (index > 0
+                    && (byte.is_ascii_lowercase()
+                        || byte.is_ascii_digit()
+                        || b"_.-".contains(&byte)))
+        })
+}
+
+fn is_sha256_hex(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn is_safe_failure_code(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value.bytes().enumerate().all(|(index, byte)| {
+            (index == 0 && byte.is_ascii_lowercase())
+                || (index > 0
+                    && (byte.is_ascii_lowercase()
+                        || byte.is_ascii_digit()
+                        || b"_.-".contains(&byte)))
+        })
 }
 
 fn is_versioned_contract_name(value: &str) -> bool {
@@ -902,8 +1120,8 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        build_event, canonical_json_sha256, EventInput, ProducerConfig, ProducerValidationError,
-        RetryPolicy, ScopeKind,
+        build_event, build_manifest, canonical_json_sha256, EventInput, ManifestInput,
+        ProducerConfig, ProducerValidationError, RetryPolicy, ScopeKind,
     };
 
     fn event(attributes: serde_json::Value) -> EventInput {
@@ -954,6 +1172,86 @@ mod tests {
         assert_eq!(
             build_event(&ProducerConfig::core(), invalid).unwrap_err(),
             ProducerValidationError::InvalidContractName
+        );
+    }
+
+    #[test]
+    fn builds_privacy_safe_versioned_manifest() {
+        let generated_at = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+        let record = build_manifest(
+            &ProducerConfig::core(),
+            ManifestInput {
+                record_id: "manifest:core:org-1:core.connections:1".to_string(),
+                source_domain: "connections".to_string(),
+                source_stream_key: "core:org-1".to_string(),
+                contract_name: "source.manifest@1".to_string(),
+                schema_version: 1,
+                scope_kind: ScopeKind::CoreOrganization,
+                scope_external_id: "org-1".to_string(),
+                manifest_key: "core.connections".to_string(),
+                manifest_version: 1,
+                provider: Some("meta".to_string()),
+                connection_ref: Some("connection-1".to_string()),
+                supported_contracts: vec!["connection.created@1".to_string()],
+                supported_observation_contracts: vec!["provider.metric@1".to_string()],
+                supported_metrics: vec!["connection.health".to_string()],
+                supported_dimensions: vec!["provider".to_string()],
+                expected_refresh_seconds: 300,
+                reliable_coverage_start: None,
+                highest_authoritative_source_sequence: Some(12),
+                approved_checkpoint_count: Some(3),
+                approved_checkpoint_hash: Some("a".repeat(64)),
+                last_successful_collection_at: Some(generated_at),
+                last_attempted_collection_at: Some(generated_at),
+                safe_failure_code: None,
+                next_expected_at: None,
+                manifest_state: "active".to_string(),
+                generated_at,
+                idempotency_key: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(record.record_category.as_str(), "manifest");
+        assert_eq!(record.envelope["type"], "source.manifest@1");
+        assert_eq!(record.envelope["data"]["manifest_key"], "core.connections");
+        assert!(!record.envelope.to_string().contains("token"));
+    }
+
+    #[test]
+    fn rejects_manifest_content_and_unbounded_identifiers() {
+        let mut input = ManifestInput {
+            record_id: "manifest:core:org-1:core.connections:1".to_string(),
+            source_domain: "connections".to_string(),
+            source_stream_key: "core:org-1".to_string(),
+            contract_name: "source.manifest@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::CoreOrganization,
+            scope_external_id: "org-1".to_string(),
+            manifest_key: "core.connections".to_string(),
+            manifest_version: 1,
+            provider: None,
+            connection_ref: None,
+            supported_contracts: vec!["connection.created@1".to_string()],
+            supported_observation_contracts: Vec::new(),
+            supported_metrics: Vec::new(),
+            supported_dimensions: Vec::new(),
+            expected_refresh_seconds: 300,
+            reliable_coverage_start: None,
+            highest_authoritative_source_sequence: None,
+            approved_checkpoint_count: None,
+            approved_checkpoint_hash: None,
+            last_successful_collection_at: None,
+            last_attempted_collection_at: None,
+            safe_failure_code: None,
+            next_expected_at: None,
+            manifest_state: "active".to_string(),
+            generated_at: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
+            idempotency_key: None,
+        };
+        input.supported_metrics.push("a".repeat(257));
+        assert_eq!(
+            build_manifest(&ProducerConfig::core(), input).unwrap_err(),
+            ProducerValidationError::InvalidManifestIdentifier
         );
     }
 

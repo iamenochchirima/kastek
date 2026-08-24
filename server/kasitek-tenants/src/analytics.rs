@@ -5,9 +5,9 @@
 //! leased rows to the private Analytics ingestion API.
 
 use analytics_producer::{
-    build_event, build_observation, build_scope_definition, enqueue_outbox, AnalyticsOutboxRecord,
-    EnqueueResult, EventInput, ObservationInput, ProducerConfig, ProducerError,
-    ScopeDefinitionInput,
+    build_event, build_manifest, build_observation, build_scope_definition, enqueue_outbox,
+    AnalyticsOutboxRecord, EnqueueResult, EventInput, ManifestInput, ObservationInput,
+    ProducerConfig, ProducerError, ScopeDefinitionInput,
 };
 use sqlx::{Postgres, Transaction};
 
@@ -48,5 +48,13 @@ pub async fn enqueue_scope_definition(
     input: ScopeDefinitionInput,
 ) -> Result<EnqueueResult, ProducerError> {
     let record = build_scope_definition(&producer_config(), input)?;
+    enqueue_record(transaction, &record).await
+}
+
+pub async fn enqueue_manifest(
+    transaction: &mut Transaction<'_, Postgres>,
+    input: ManifestInput,
+) -> Result<EnqueueResult, ProducerError> {
+    let record = build_manifest(&producer_config(), input)?;
     enqueue_record(transaction, &record).await
 }

@@ -208,6 +208,26 @@ enum ValidatedPayload {
         status: String,
         source_version: i64,
     },
+    Manifest {
+        manifest_key: String,
+        manifest_version: i64,
+        provider: String,
+        connection_ref: String,
+        supported_contracts: Vec<String>,
+        supported_observation_contracts: Vec<String>,
+        supported_metrics: Vec<String>,
+        supported_dimensions: Vec<String>,
+        expected_refresh_seconds: i64,
+        reliable_coverage_start: Option<DateTime<Utc>>,
+        highest_authoritative_source_sequence: Option<i64>,
+        approved_checkpoint_count: Option<i64>,
+        approved_checkpoint_hash: Option<String>,
+        last_successful_collection_at: Option<DateTime<Utc>>,
+        last_attempted_collection_at: Option<DateTime<Utc>>,
+        safe_failure_code: Option<String>,
+        next_expected_at: Option<DateTime<Utc>>,
+        manifest_state: String,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -553,6 +573,105 @@ async fn ingest_record(
         }
     };
 
+    if let ValidatedPayload::Manifest {
+        manifest_key,
+        manifest_version,
+        provider,
+        connection_ref,
+        supported_contracts,
+        supported_observation_contracts,
+        supported_metrics,
+        supported_dimensions,
+        expected_refresh_seconds,
+        reliable_coverage_start,
+        highest_authoritative_source_sequence,
+        approved_checkpoint_count,
+        approved_checkpoint_hash,
+        last_successful_collection_at,
+        last_attempted_collection_at,
+        safe_failure_code,
+        next_expected_at,
+        manifest_state,
+    } = &validated.payload
+    {
+        let inserted = sqlx::query(
+            r#"INSERT INTO analytics.analytics_source_manifest (
+                    producer_id, source_service, source_domain, source_stream_key,
+                    manifest_key, manifest_version, reporting_scope_id, root_scope_id,
+                    provider, connection_ref, supported_contracts,
+                    supported_observation_contracts, supported_metrics, supported_dimensions,
+                    expected_refresh_seconds, reliable_coverage_start,
+                    highest_authoritative_source_sequence, approved_checkpoint_count,
+                    approved_checkpoint_hash, last_successful_collection_at,
+                    last_attempted_collection_at, safe_failure_code, next_expected_at,
+                    manifest_state, payload_hash, generated_at
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+                RETURNING manifest_id"#,
+        )
+        .bind(&record.producer_id)
+        .bind(&authenticated.source_service)
+        .bind(record_source_domain(&record))
+        .bind(&record.source_stream_key)
+        .bind(manifest_key)
+        .bind(manifest_version)
+        .bind(resolution.binding.reporting_scope_id)
+        .bind(resolution.binding.root_scope_id)
+        .bind(provider)
+        .bind(connection_ref)
+        .bind(supported_contracts)
+        .bind(supported_observation_contracts)
+        .bind(supported_metrics)
+        .bind(supported_dimensions)
+        .bind(expected_refresh_seconds)
+        .bind(reliable_coverage_start)
+        .bind(highest_authoritative_source_sequence)
+        .bind(approved_checkpoint_count)
+        .bind(approved_checkpoint_hash)
+        .bind(last_successful_collection_at)
+        .bind(last_attempted_collection_at)
+        .bind(safe_failure_code)
+        .bind(next_expected_at)
+        .bind(manifest_state)
+        .bind(&record.payload_hash)
+        .bind(validated.occurred_at)
+        .fetch_one(&mut *transaction)
+        .await;
+        if inserted.is_err() {
+            return retryable(record_id, source_sequence, "analytics_unavailable");
+        }
+        if update_cursor(&mut transaction, authenticated, &record)
+            .await
+            .is_err()
+        {
+            return retryable(record_id, source_sequence, "analytics_unavailable");
+        }
+        if let Some(job_id) = backfill_job_id {
+            if update_backfill_count(&mut transaction, job_id, true)
+                .await
+                .is_err()
+            {
+                return retryable(record_id, source_sequence, "analytics_unavailable");
+            }
+        }
+        if let Some(repair_context) = repair_context {
+            if release_quarantine(&mut transaction, authenticated, &record, repair_context)
+                .await
+                .is_err()
+            {
+                return retryable(record_id, source_sequence, "analytics_unavailable");
+            }
+        }
+        if transaction.commit().await.is_err() {
+            return retryable(record_id, source_sequence, "analytics_unavailable");
+        }
+        return IngestionAcknowledgement {
+            record_id,
+            source_sequence,
+            status: AcknowledgementStatus::Accepted,
+            error_code: None,
+        };
+    }
+
     let result = match &validated.payload {
         ValidatedPayload::Event {
             event_type,
@@ -660,7 +779,9 @@ async fn ingest_record(
             }
             result.map(|row| row.get::<i64, _>("storage_id"))
         }
-        ValidatedPayload::ScopeDefinition { .. } => unreachable!("scope definitions return above"),
+        ValidatedPayload::ScopeDefinition { .. } | ValidatedPayload::Manifest { .. } => {
+            unreachable!("scope definitions and manifests return above")
+        }
     };
 
     let storage_id = match result {
@@ -674,12 +795,16 @@ async fn ingest_record(
             reporting_window_end,
             ..
         } => (*reporting_window_start, *reporting_window_end),
-        ValidatedPayload::ScopeDefinition { .. } => unreachable!("scope definitions return above"),
+        ValidatedPayload::ScopeDefinition { .. } | ValidatedPayload::Manifest { .. } => {
+            unreachable!("scope definitions and manifests return above")
+        }
     };
     let fact_kind = match &validated.payload {
         ValidatedPayload::Event { .. } => FactKind::Event,
         ValidatedPayload::Observation { .. } => FactKind::Observation,
-        ValidatedPayload::ScopeDefinition { .. } => unreachable!("scope definitions return above"),
+        ValidatedPayload::ScopeDefinition { .. } | ValidatedPayload::Manifest { .. } => {
+            unreachable!("scope definitions and manifests return above")
+        }
     };
     if enqueue_fact(
         &mut transaction,
@@ -929,7 +1054,7 @@ fn validate_record(
             code: "invalid_record_category",
             class: FailureClass::Permanent,
         })?;
-    if category != record.record_category || matches!(category, RecordCategory::Manifest) {
+    if category != record.record_category {
         return Err(ValidationFailure {
             code: "record_category_mismatch",
             class: FailureClass::IdentityConflict,
@@ -977,6 +1102,14 @@ fn validate_record(
                 class: FailureClass::Permanent,
             }
         })?;
+    }
+    if category == RecordCategory::Manifest
+        && (record.contract_name != "source.manifest@1" || record.schema_version != 1)
+    {
+        return Err(ValidationFailure {
+            code: "contract_invalid",
+            class: FailureClass::Permanent,
+        });
     }
     let occurred_at = parse_time(envelope.get("time")).ok_or(ValidationFailure {
         code: "invalid_event_time",
@@ -1038,12 +1171,39 @@ fn validate_record(
                     class: FailureClass::Permanent,
                 })?,
         },
-        RecordCategory::Manifest => {
-            return Err(ValidationFailure {
-                code: "manifest_not_supported",
-                class: FailureClass::Permanent,
-            })
-        }
+        RecordCategory::Manifest => ValidatedPayload::Manifest {
+            manifest_key: required_data_text(data, "manifest_key")?,
+            manifest_version: required_positive_data_i64(data, "manifest_version")?,
+            provider: optional_data_text(data, "provider").unwrap_or_default(),
+            connection_ref: optional_data_text(data, "connection_ref").unwrap_or_default(),
+            supported_contracts: required_identifier_array(data, "supported_contracts", true)?,
+            supported_observation_contracts: required_identifier_array(
+                data,
+                "supported_observation_contracts",
+                true,
+            )?,
+            supported_metrics: required_identifier_array(data, "supported_metrics", false)?,
+            supported_dimensions: required_identifier_array(data, "supported_dimensions", false)?,
+            expected_refresh_seconds: required_positive_data_i64(data, "expected_refresh_seconds")?,
+            reliable_coverage_start: optional_data_time(data, "reliable_coverage_start")?,
+            highest_authoritative_source_sequence: optional_nonnegative_data_i64(
+                data,
+                "highest_authoritative_source_sequence",
+            )?,
+            approved_checkpoint_count: optional_nonnegative_data_i64(
+                data,
+                "approved_checkpoint_count",
+            )?,
+            approved_checkpoint_hash: optional_sha256(data, "approved_checkpoint_hash")?,
+            last_successful_collection_at: optional_data_time(
+                data,
+                "last_successful_collection_at",
+            )?,
+            last_attempted_collection_at: optional_data_time(data, "last_attempted_collection_at")?,
+            safe_failure_code: optional_safe_failure_code(data, "safe_failure_code")?,
+            next_expected_at: optional_data_time(data, "next_expected_at")?,
+            manifest_state: required_manifest_state(data, "manifest_state")?,
+        },
     };
     if let ValidatedPayload::Observation {
         metric_key,
@@ -1075,6 +1235,35 @@ fn validate_record(
         {
             return Err(ValidationFailure {
                 code: "scope_definition_identity_mismatch",
+                class: FailureClass::IdentityConflict,
+            });
+        }
+    }
+    if let ValidatedPayload::Manifest {
+        manifest_key,
+        manifest_version,
+        provider,
+        connection_ref,
+        ..
+    } = &payload
+    {
+        let expected_record_id = format!(
+            "manifest:{}:{}:{}",
+            record.source_stream_key, manifest_key, manifest_version
+        );
+        if record.record_id != expected_record_id
+            || manifest_key.len() > 512
+            || provider.len() > 128
+            || connection_ref.len() > 512
+        {
+            return Err(ValidationFailure {
+                code: "manifest_identity_mismatch",
+                class: FailureClass::IdentityConflict,
+            });
+        }
+        if required_data_time(data, "generated_at")? != occurred_at {
+            return Err(ValidationFailure {
+                code: "manifest_time_mismatch",
                 class: FailureClass::IdentityConflict,
             });
         }
@@ -1112,6 +1301,18 @@ fn is_metric_key(value: &str) -> bool {
                         || byte.is_ascii_digit()
                         || b"_.-".contains(&byte)))
         })
+}
+
+fn is_versioned_contract_name(value: &str) -> bool {
+    let Some((name, version)) = value.rsplit_once('@') else {
+        return false;
+    };
+    !name.is_empty()
+        && version.parse::<u32>().is_ok_and(|version| version > 0)
+        && name.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'.' | b'_' | b'-')
+        })
+        && name.as_bytes()[0].is_ascii_lowercase()
 }
 
 fn parse_time(value: Option<&Value>) -> Option<DateTime<Utc>> {
@@ -1157,6 +1358,145 @@ fn required_data_time(
         code: "invalid_observation_time",
         class: FailureClass::Permanent,
     })
+}
+
+fn required_positive_data_i64(value: &Value, key: &'static str) -> Result<i64, ValidationFailure> {
+    value
+        .get(key)
+        .and_then(Value::as_i64)
+        .filter(|value| *value > 0)
+        .ok_or(ValidationFailure {
+            code: "invalid_manifest_number",
+            class: FailureClass::Permanent,
+        })
+}
+
+fn optional_nonnegative_data_i64(
+    value: &Value,
+    key: &'static str,
+) -> Result<Option<i64>, ValidationFailure> {
+    match value.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => {
+            value
+                .as_i64()
+                .filter(|value| *value >= 0)
+                .map(Some)
+                .ok_or(ValidationFailure {
+                    code: "invalid_manifest_number",
+                    class: FailureClass::Permanent,
+                })
+        }
+    }
+}
+
+fn optional_data_time(
+    value: &Value,
+    key: &'static str,
+) -> Result<Option<DateTime<Utc>>, ValidationFailure> {
+    match value.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => parse_time(Some(value)).map(Some).ok_or(ValidationFailure {
+            code: "invalid_manifest_time",
+            class: FailureClass::Permanent,
+        }),
+    }
+}
+
+fn optional_sha256(value: &Value, key: &'static str) -> Result<Option<String>, ValidationFailure> {
+    match optional_data_text(value, key) {
+        None => Ok(None),
+        Some(value) if validate_sha256_hex(&value).is_ok() => Ok(Some(value)),
+        Some(_) => Err(ValidationFailure {
+            code: "invalid_manifest_checkpoint_hash",
+            class: FailureClass::Permanent,
+        }),
+    }
+}
+
+fn optional_safe_failure_code(
+    value: &Value,
+    key: &'static str,
+) -> Result<Option<String>, ValidationFailure> {
+    match optional_data_text(value, key) {
+        None => Ok(None),
+        Some(value)
+            if value.len() <= 128
+                && value.bytes().enumerate().all(|(index, byte)| {
+                    (index == 0 && byte.is_ascii_lowercase())
+                        || (index > 0
+                            && (byte.is_ascii_lowercase()
+                                || byte.is_ascii_digit()
+                                || b"_.-".contains(&byte)))
+                }) =>
+        {
+            Ok(Some(value))
+        }
+        Some(_) => Err(ValidationFailure {
+            code: "invalid_manifest_failure_code",
+            class: FailureClass::Permanent,
+        }),
+    }
+}
+
+fn required_manifest_state(value: &Value, key: &'static str) -> Result<String, ValidationFailure> {
+    let state = required_data_text(value, key)?;
+    if matches!(
+        state.as_str(),
+        "active" | "disabled" | "unsupported" | "awaiting_instrumentation"
+    ) {
+        Ok(state)
+    } else {
+        Err(ValidationFailure {
+            code: "invalid_manifest_state",
+            class: FailureClass::Permanent,
+        })
+    }
+}
+
+fn required_identifier_array(
+    value: &Value,
+    key: &'static str,
+    versioned_contract: bool,
+) -> Result<Vec<String>, ValidationFailure> {
+    let values = value
+        .get(key)
+        .and_then(Value::as_array)
+        .ok_or(ValidationFailure {
+            code: "invalid_manifest_identifiers",
+            class: FailureClass::Permanent,
+        })?;
+    if values.len() > 256 {
+        return Err(ValidationFailure {
+            code: "invalid_manifest_identifiers",
+            class: FailureClass::Permanent,
+        });
+    }
+    let mut output = Vec::with_capacity(values.len());
+    for value in values {
+        let identifier = value
+            .as_str()
+            .filter(|value| value.len() <= 256)
+            .filter(|value| {
+                if versioned_contract {
+                    is_versioned_contract_name(value)
+                } else {
+                    is_metric_key(value)
+                }
+            })
+            .ok_or(ValidationFailure {
+                code: "invalid_manifest_identifiers",
+                class: FailureClass::Permanent,
+            })?;
+        if output.iter().any(|existing| existing == identifier) {
+            return Err(ValidationFailure {
+                code: "invalid_manifest_identifiers",
+                class: FailureClass::Permanent,
+            });
+        }
+        output.push(identifier.to_string());
+    }
+    Ok(output)
 }
 
 fn required_data_object(value: &Value, key: &'static str) -> Result<Value, ValidationFailure> {
@@ -1266,6 +1606,13 @@ async fn find_existing_identity(
     record: &IngestionRecord,
 ) -> Result<Option<ExistingIdentity>, sqlx::Error> {
     let category = record.record_category.as_str();
+    let manifest_data = record.envelope.get("data");
+    let manifest_key = manifest_data
+        .and_then(|data| data.get("manifest_key"))
+        .and_then(Value::as_str);
+    let manifest_version = manifest_data
+        .and_then(|data| data.get("manifest_version"))
+        .and_then(Value::as_i64);
     let row = sqlx::query(
         r#"SELECT record_category, record_id, payload_hash FROM (
              SELECT 'event'::TEXT AS record_category, event_id AS record_id, payload_hash
@@ -1279,6 +1626,13 @@ async fn find_existing_identity(
              SELECT 'scope_definition'::TEXT, record_id, payload_hash
              FROM analytics.analytics_scope_definition_receipt
              WHERE producer_id = $1 AND source_stream_key = $2 AND (record_id = $3 OR source_sequence = $4)
+             UNION ALL
+             SELECT 'manifest'::TEXT,
+                    'manifest:' || source_stream_key || ':' || manifest_key || ':' || manifest_version::TEXT,
+                    payload_hash
+             FROM analytics.analytics_source_manifest
+             WHERE producer_id = $1 AND source_stream_key = $2
+               AND manifest_key = $6 AND manifest_version = $7
            ) identities
            ORDER BY CASE WHEN record_category = $5 THEN 0 ELSE 1 END
            LIMIT 1"#,
@@ -1288,6 +1642,8 @@ async fn find_existing_identity(
     .bind(&record.record_id)
     .bind(record.source_sequence)
     .bind(category)
+    .bind(manifest_key)
+    .bind(manifest_version)
     .fetch_optional(&mut **transaction)
     .await?;
     Ok(row.map(|row| ExistingIdentity {

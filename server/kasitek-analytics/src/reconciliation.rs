@@ -353,6 +353,9 @@ async fn count_stream_facts(
              UNION ALL
              SELECT storage_id FROM analytics.analytics_scope_definition_receipt
              WHERE producer_id = $1 AND source_stream_key = $2
+             UNION ALL
+             SELECT manifest_id FROM analytics.analytics_source_manifest
+             WHERE producer_id = $1 AND source_stream_key = $2
            ) records"#,
     )
     .bind(&request.producer_id)

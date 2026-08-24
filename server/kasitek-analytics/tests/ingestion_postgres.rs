@@ -114,6 +114,64 @@ fn observation_record(
     }
 }
 
+fn manifest_record(
+    stream: &str,
+    manifest_key: &str,
+    sequence: i64,
+    scope_external_id: &str,
+) -> IngestionRecord {
+    let data = json!({
+        "manifest_key": manifest_key,
+        "manifest_version": 1,
+        "provider": "meta",
+        "connection_ref": "connection-a09",
+        "supported_contracts": ["campaign.recipient.sent@1"],
+        "supported_observation_contracts": ["campaign.delivery.observation@1"],
+        "supported_metrics": ["campaign.recipients.sent"],
+        "supported_dimensions": ["channel"],
+        "expected_refresh_seconds": 300,
+        "reliable_coverage_start": null,
+        "highest_authoritative_source_sequence": 12,
+        "approved_checkpoint_count": 3,
+        "approved_checkpoint_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "last_successful_collection_at": "2026-08-22T12:00:00Z",
+        "last_attempted_collection_at": "2026-08-22T12:00:00Z",
+        "safe_failure_code": null,
+        "next_expected_at": "2026-08-22T12:05:00Z",
+        "manifest_state": "active",
+        "generated_at": "2026-08-22T12:00:00Z"
+    });
+    IngestionRecord {
+        producer_id: "core-customer-analytics".to_string(),
+        source_stream_key: stream.to_string(),
+        source_sequence: sequence,
+        record_category: kasitek_analytics::records::RecordCategory::Manifest,
+        record_id: format!("manifest:{stream}:{manifest_key}:1"),
+        contract_name: "source.manifest@1".to_string(),
+        schema_version: 1,
+        scope_kind: "core_organization".to_string(),
+        scope_external_id: scope_external_id.to_string(),
+        payload_hash: canonical_payload_sha256(&data).unwrap(),
+        envelope: json!({
+            "specversion": "1.0",
+            "id": format!("00000000-0000-4000-8000-{:012}", sequence + 1000),
+            "source": "kasitek://core",
+            "type": "source.manifest@1",
+            "subject": format!("manifest:{manifest_key}"),
+            "time": "2026-08-22T12:00:00Z",
+            "datacontenttype": "application/json",
+            "dataschema": "https://kasitek.co.za/analytics/contracts/manifests/source.manifest/v1.schema.json",
+            "source_service": "core",
+            "source_domain": "connections",
+            "record_category": "manifest",
+            "scope_kind": "core_organization",
+            "scope_external_id": scope_external_id,
+            "idempotency_key": format!("test:{manifest_key}:1"),
+            "data": data,
+        }),
+    }
+}
+
 fn scope_definition_record(
     stream: &str,
     record_id: &str,
@@ -228,6 +286,45 @@ async fn ingests_idempotently_tracks_cursor_and_reconciles_source_summary() {
         observation.acknowledgements[0].status,
         AcknowledgementStatus::Accepted
     ));
+    let manifest_key = format!("connections-a09-{suffix}");
+    let manifest = manifest_record(&stream, &manifest_key, 3, &scope_id);
+    let manifest_response = ingest_batch(
+        &pool,
+        &authenticated,
+        IngestionBatchRequest {
+            records: vec![manifest.clone()],
+            backfill_job_id: None,
+        },
+    )
+    .await;
+    assert!(matches!(
+        manifest_response.acknowledgements[0].status,
+        AcknowledgementStatus::Accepted
+    ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM analytics.analytics_source_manifest WHERE producer_id = $1 AND manifest_key = $2",
+        )
+        .bind(&authenticated.producer_id)
+        .bind(&manifest_key)
+        .fetch_one(&pool)
+        .await
+        .unwrap(),
+        1
+    );
+    let manifest_duplicate = ingest_batch(
+        &pool,
+        &authenticated,
+        IngestionBatchRequest {
+            records: vec![manifest],
+            backfill_job_id: None,
+        },
+    )
+    .await;
+    assert!(matches!(
+        manifest_duplicate.acknowledgements[0].status,
+        AcknowledgementStatus::Duplicate
+    ));
     let source_state = sqlx::query(
         "SELECT availability_state, metric_scope, latest_source_sequence FROM analytics.analytics_source_state WHERE producer_id = $1 AND source_stream_key = $2",
     )
@@ -289,8 +386,8 @@ async fn ingests_idempotently_tracks_cursor_and_reconciles_source_summary() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(cursor.get::<i64, _>("highest_received_sequence"), 2);
-    assert_eq!(cursor.get::<i64, _>("highest_contiguous_sequence"), 2);
+    assert_eq!(cursor.get::<i64, _>("highest_received_sequence"), 3);
+    assert_eq!(cursor.get::<i64, _>("highest_contiguous_sequence"), 3);
     assert_eq!(
         cursor.get::<serde_json::Value, _>("known_gap_ranges"),
         json!([])
@@ -307,15 +404,15 @@ async fn ingests_idempotently_tracks_cursor_and_reconciles_source_summary() {
             source_stream_key: stream.clone(),
             scope_kind: None,
             scope_external_id: None,
-            source_highest_outbox_sequence: Some(2),
-            source_highest_delivered_sequence: Some(2),
-            authoritative_count: Some(2),
+            source_highest_outbox_sequence: Some(3),
+            source_highest_delivered_sequence: Some(3),
+            authoritative_count: Some(3),
             authoritative_checksum: None,
         },
     )
     .await
     .unwrap();
-    assert_eq!(reconciliation.analytics_count, 2);
+    assert_eq!(reconciliation.analytics_count, 3);
     assert_eq!(reconciliation.reconciliation_status, "mismatch");
     assert_eq!(reconciliation.unresolved_quarantine_count, 1);
 

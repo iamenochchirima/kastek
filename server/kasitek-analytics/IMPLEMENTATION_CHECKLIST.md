@@ -131,8 +131,8 @@ checklist records implementation evidence for the current package only.
 ## A-07 — Rust producer library, Core outbox, and Tenant outbox
 
 - [x] Add the shared `analytics-producer` Rust crate to the server workspace.
-- [x] Build versioned event, provider-observation, and scope-definition envelopes with source,
-  scope, subject, timing, correlation, and idempotency metadata.
+- [x] Build versioned event, provider-observation, scope-definition, and source-manifest envelopes
+  with source, scope, subject, timing, correlation, and idempotency metadata.
 - [x] Canonicalize payload JSON and compute the shared SHA-256 payload hash before the source
   transaction commits.
 - [x] Reject malformed versioned contracts and prohibited message bodies, prompts, contact values,
@@ -144,6 +144,9 @@ checklist records implementation evidence for the current package only.
 - [x] Add bounded `FOR UPDATE SKIP LOCKED` leasing, attempt counts, short leases, stale-lease
   recovery, deterministic capped retry jitter, and per-record delivery state transitions.
 - [x] Add Core and Tenant producer modules that accept the caller's existing SQLx transaction.
+- [x] Add privacy-safe manifest builders and Core/Tenant transactional manifest enqueue helpers;
+  derive stream-scoped manifest identities so tenant scopes can reuse manifest keys.
+- [x] Extend Core and Tenant outbox constraints and Analytics producer permissions for manifests.
 - [x] Run shared Rust unit tests and PostgreSQL outbox integration using a temporary table so no
   test rows remain in the Core database.
 - [x] Apply the Core outbox SQL migration locally and validate the Tenant migration transactionally
@@ -178,13 +181,15 @@ checklist records implementation evidence for the current package only.
   impersonation and ambiguous credential configuration.
 - [x] Enforce bounded request, batch, and record sizes with strict envelope identity checks.
 - [x] Validate the repository-owned envelope, registered event contracts, typed observations, and
-  scope-definition fields before writing facts.
+  scope-definition and source-manifest fields before writing facts or manifest receipts.
 - [x] Enforce producer category and scope-kind permissions from the Analytics producer registry.
 - [x] Keep raw payloads out of quarantine and reject prohibited customer content before persistence.
 - [x] Verify canonical payload hashes and return per-record accepted, duplicate, rejected, and
   retryable acknowledgements.
 - [x] Insert immutable events and observations idempotently; identity conflicts are quarantined and
   never silently selected.
+- [x] Insert immutable source manifests idempotently, retain capability/cadence/coverage metadata,
+  and count accepted manifests in stream reconciliation summaries.
 - [x] Add immutable scope-definition receipts and atomically update the reporting-scope read model,
   including parent-before-child readiness and controlled reparent rejection.
 - [x] Update highest-received, highest-contiguous, and merged known-gap cursor state in the same
@@ -195,7 +200,8 @@ checklist records implementation evidence for the current package only.
 - [x] Admit replay batches only through a running, source-matched approved backfill job and mark
   accepted facts as backfilled without changing source identity.
 - [x] Add unit tests for credential identity and cursor gaps plus PostgreSQL end-to-end coverage for
-  acceptance, duplicate handling, identity conflict quarantine, cursor state, and reconciliation.
+  acceptance, duplicate handling, identity conflict quarantine, cursor state, manifest persistence,
+  and reconciliation.
 - [x] Connect Core, Agent Platform, and Tenant Platform lease publishers to the authenticated HTTP
   endpoint and process accepted, duplicate, retryable, and rejected acknowledgements in their
   source outboxes.
