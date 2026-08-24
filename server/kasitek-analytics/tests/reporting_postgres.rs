@@ -581,7 +581,7 @@ async fn insert_fixture(
     .execute(&mut **transaction)
     .await
     .expect("blocked contribution");
-    for (metric_key, storage_id, dimensions, deduplication_key, builder_name, source) in [
+    for (metric_key, storage_id, dimensions, deduplication_key, builder_name, source, value_sum) in [
         (
             "campaign.recipients.suppressed",
             18_i64,
@@ -589,6 +589,7 @@ async fn insert_fixture(
             "recipient-4",
             "campaign.suppressed",
             "campaign.recipient.suppressed@1",
+            1.0_f64,
         ),
         (
             "campaign.recipients.unsubscribed",
@@ -597,6 +598,7 @@ async fn insert_fixture(
             "recipient-5",
             "campaign.unsubscribed",
             "campaign.recipient.unsubscribed@1",
+            1.0_f64,
         ),
     ] {
         sqlx::query(
@@ -607,7 +609,7 @@ async fn insert_fixture(
                  deduplication_key, builder_name, value_count, value_sum, source_high_watermark,
                  coverage
                ) VALUES ($1,$2,$3,$4,1,'event',$5,$6,$6,$6,
-                         $7,$8,'UTC',1,$9::jsonb,$10,$11,1,1,10,$12)"#,
+                         $7,$8,'UTC',1,$9::jsonb,$10,$11,1,$12,10,$13)"#,
         )
         .bind(generation_id)
         .bind(PROJECTION_NAME)
@@ -620,6 +622,7 @@ async fn insert_fixture(
         .bind(dimensions)
         .bind(deduplication_key)
         .bind(builder_name)
+        .bind(value_sum)
         .bind(json!({
             "source_fact_count": 1,
             "coverage_state": "observed",
@@ -629,6 +632,29 @@ async fn insert_fixture(
         .await
         .expect("campaign lifecycle contribution");
     }
+    sqlx::query(
+        r#"INSERT INTO analytics.analytics_projection_rollup (
+             generation_id, projection_name, projection_version, metric_key, metric_version,
+             target_scope_id, source_scope_id, root_scope_id, interval, bucket_start, bucket_end,
+             timezone_name, timezone_revision, dimensions, value_count, value_sum,
+             source_high_watermark, coverage
+           ) VALUES ($1,$2,$3,'campaign.delivery_delay_ms',1,$4,$4,$4,'day',$5,$6,'UTC',1,
+                     '{"timing_kind":"send_to_delivered"}'::jsonb,1,4200,10,$7)"#,
+    )
+    .bind(generation_id)
+    .bind(PROJECTION_NAME)
+    .bind(PROJECTION_VERSION)
+    .bind(scope_id)
+    .bind(bucket_start)
+    .bind(bucket_end)
+    .bind(json!({
+        "source_fact_count": 1,
+        "coverage_state": "observed",
+        "required_sources": ["campaign.recipient.timing@1"]
+    }))
+    .execute(&mut **transaction)
+    .await
+    .expect("timing rollup");
 
     (scope_id, generation_id)
 }
@@ -794,6 +820,7 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
                 "campaign.recipients.blocked@1".to_string(),
                 "campaign.recipients.suppressed@1".to_string(),
                 "campaign.recipients.unsubscribed@1".to_string(),
+                "campaign.delivery_delay_ms@1".to_string(),
                 "campaign.delivery_rate@1".to_string(),
             ],
             comparison: None,
@@ -802,14 +829,15 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
     )
     .await
     .expect("Campaign delivery report response");
-    assert_eq!(delivery_response.metrics.len(), 7);
+    assert_eq!(delivery_response.metrics.len(), 8);
     assert_eq!(delivery_response.metrics[0].series[0].value, Some(1.0));
     assert_eq!(delivery_response.metrics[1].series[0].value, Some(1.0));
     assert_eq!(delivery_response.metrics[2].series[0].value, Some(1.0));
     assert_eq!(delivery_response.metrics[3].series[0].value, Some(1.0));
     assert_eq!(delivery_response.metrics[4].series[0].value, Some(1.0));
     assert_eq!(delivery_response.metrics[5].series[0].value, Some(1.0));
-    assert_eq!(delivery_response.metrics[6].series[0].value, Some(0.5));
+    assert_eq!(delivery_response.metrics[6].series[0].value, Some(4200.0));
+    assert_eq!(delivery_response.metrics[7].series[0].value, Some(0.5));
     assert_eq!(
         delivery_response.metrics[0].coverage.required_sources,
         vec!["campaign.recipient.delivered@1".to_string()]
@@ -836,6 +864,10 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
     );
     assert_eq!(
         delivery_response.metrics[6].coverage.required_sources,
+        vec!["campaign.recipient.timing@1".to_string()]
+    );
+    assert_eq!(
+        delivery_response.metrics[7].coverage.required_sources,
         vec![
             "campaign.recipient.sent@1".to_string(),
             "campaign.recipient.delivered@1".to_string()
@@ -941,6 +973,27 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
             .get("unsubscribe_source")
             .and_then(|value| value.as_str()),
         Some("keyword")
+    );
+    let timing_dimension_response = execute_report(
+        &mut transaction,
+        &registry,
+        &grant,
+        &authorized,
+        &ReportQueryRequest {
+            metrics: vec!["campaign.delivery_delay_ms@1".to_string()],
+            breakdowns: vec!["timing_kind".to_string()],
+            comparison: None,
+            ..request.clone()
+        },
+    )
+    .await
+    .expect("timing dimension report response");
+    assert_eq!(
+        timing_dimension_response.metrics[0].series[0]
+            .dimensions
+            .get("timing_kind")
+            .and_then(|value| value.as_str()),
+        Some("send_to_delivered")
     );
     let dimension_response = execute_report(
         &mut transaction,

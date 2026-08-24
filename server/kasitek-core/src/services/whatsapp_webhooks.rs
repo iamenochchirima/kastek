@@ -320,6 +320,61 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
                 result.map_err(|error| {
                     AppError::Internal(format!("Failed to queue Campaign analytics fact: {error}"))
                 })?;
+                let timing_facts = match next_status {
+                    "DELIVERED" => recipient.sent_at.map(|sent_at| {
+                        vec![(
+                            "send_to_delivered",
+                            timestamp
+                                .signed_duration_since(sent_at)
+                                .num_milliseconds()
+                                .max(0),
+                        )]
+                    }),
+                    "READ" => {
+                        let mut facts = Vec::new();
+                        if let Some(sent_at) = recipient.sent_at {
+                            facts.push((
+                                "send_to_read",
+                                timestamp
+                                    .signed_duration_since(sent_at)
+                                    .num_milliseconds()
+                                    .max(0),
+                            ));
+                        }
+                        if let Some(delivered_at) = recipient.delivered_at {
+                            facts.push((
+                                "delivered_to_read",
+                                timestamp
+                                    .signed_duration_since(delivered_at)
+                                    .num_milliseconds()
+                                    .max(0),
+                            ));
+                        }
+                        Some(facts)
+                    }
+                    _ => None,
+                };
+                if let Some(timing_facts) = timing_facts {
+                    for (timing_kind, duration_ms) in timing_facts {
+                        analytics::campaigns::enqueue_recipient_timing(
+                            &mut status_transaction,
+                            &organization_id,
+                            &recipient.campaign_id,
+                            &recipient.id,
+                            "whatsapp",
+                            "meta",
+                            timing_kind,
+                            duration_ms,
+                            timestamp,
+                        )
+                        .await
+                        .map_err(|error| {
+                            AppError::Internal(format!(
+                                "Failed to queue Campaign timing analytics fact: {error}"
+                            ))
+                        })?;
+                    }
+                }
             }
             status_transaction.commit().await?;
             if matches!(next_status, "FAILED" | "BLOCKED") {

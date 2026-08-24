@@ -4,7 +4,7 @@ use chrono::Utc;
 use kasitek_core::analytics::campaigns::{
     enqueue_recipient_blocked, enqueue_recipient_delivered, enqueue_recipient_failed,
     enqueue_recipient_read, enqueue_recipient_sent, enqueue_recipient_suppressed,
-    enqueue_recipient_unsubscribed,
+    enqueue_recipient_timing, enqueue_recipient_unsubscribed,
 };
 use sqlx::{postgres::PgPoolOptions, Row};
 
@@ -100,6 +100,19 @@ async fn campaign_delivery_facts_are_transactional_and_privacy_safe() {
     )
     .await
     .expect("unsubscribed fact should enqueue");
+    enqueue_recipient_timing(
+        &mut transaction,
+        "org_campaigns_a",
+        "campaign-analytics",
+        "recipient-delivered",
+        "whatsapp",
+        "meta",
+        "send_to_delivered",
+        4200,
+        Utc::now(),
+    )
+    .await
+    .expect("timing fact should enqueue");
 
     let rows = sqlx::query(
         r#"
@@ -113,7 +126,7 @@ async fn campaign_delivery_facts_are_transactional_and_privacy_safe() {
     .fetch_all(&mut *transaction)
     .await
     .expect("campaign facts should be visible before commit");
-    assert_eq!(rows.len(), 7);
+    assert_eq!(rows.len(), 8);
     for row in rows {
         let record_id: String = row.try_get("record_id").unwrap();
         let envelope: serde_json::Value = row.try_get("envelope").unwrap();
@@ -137,6 +150,7 @@ async fn campaign_delivery_facts_are_transactional_and_privacy_safe() {
                 || record_id.ends_with(":blocked")
                 || record_id.ends_with(":suppressed")
                 || record_id.ends_with(":unsubscribed")
+                || record_id.ends_with(":timing:send_to_delivered")
         );
         if record_id.ends_with(":failed") {
             assert_eq!(
@@ -159,6 +173,11 @@ async fn campaign_delivery_facts_are_transactional_and_privacy_safe() {
                 data.get("unsubscribe_source")
                     .and_then(|value| value.as_str()),
                 Some("keyword")
+            );
+        } else if record_id.ends_with(":timing:send_to_delivered") {
+            assert_eq!(
+                data.get("duration_ms").and_then(|value| value.as_i64()),
+                Some(4200)
             );
         } else {
             assert!(data.get("failure_class").is_none());

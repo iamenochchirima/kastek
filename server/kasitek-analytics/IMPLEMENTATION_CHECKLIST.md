@@ -792,8 +792,8 @@ checklist records implementation evidence for the current package only.
   transaction as the authoritative recipient failure transition. Blocked outcomes remain excluded.
 - [x] Verify producer rollback/privacy behavior, authenticated Core publisher delivery, Analytics
   ingestion, failure-class reporting, and available temporal coverage in PostgreSQL tests.
-- [ ] Add read-delay, retry, eligibility, unsubscribe/exclusion, guard, and completed
-  mutation-to-reporting coverage in later Campaign slices.
+- [x] Add read-delay through the registered Campaign timing contract and weighted-average
+  reporting path; retry and completed mutation-to-reporting coverage remain later slices.
 
 ## Core Campaigns — recipient blocked slice 4
 
@@ -805,8 +805,9 @@ checklist records implementation evidence for the current package only.
   the authoritative blocked recipient transition; blocked outcomes remain separate from failures.
 - [x] Verify bounded Meta block classification, producer rollback/privacy behavior, authenticated
   Core publisher delivery, Analytics ingestion, blocked reporting, and available temporal coverage.
-- [ ] Add unsubscribe/exclusion, retry, eligibility, guard, timing, cost, attribution, and complete
-  mutation-to-reporting coverage in later Campaign slices.
+- [x] Add unsubscribe/exclusion, eligibility, guard, and timing coverage in later Campaign slices.
+- [ ] Add retry, cost, attribution, and complete mutation-to-reporting coverage in later Campaign
+  slices.
 
 ## Core Campaigns — suppression and unsubscribe slice 5
 
@@ -824,6 +825,21 @@ checklist records implementation evidence for the current package only.
   breakdowns.
 - [ ] Add retry, timing, cost, attribution, source manifests, historical reconstruction, and the
   combined mutation-to-publisher-to-projection-to-reporting E2E in later Campaign slices.
+
+## Core Campaigns — timing and numeric aggregation slice 6
+
+- [x] Add and register `campaign.recipient.timing@1` with bounded timing kinds, non-negative
+  duration milliseconds, and aggregate-safe attributes.
+- [x] Emit send-to-delivered, send-to-read, and delivered-to-read timing facts transactionally
+  with authoritative WhatsApp delivery/read transitions when timestamps are available.
+- [x] Add `campaign.delivery_delay_ms` with weighted-average aggregation and timing-kind
+  compatibility in the overview metric set.
+- [x] Make the shared projection and reporting paths consume the numeric formula field for
+  weighted-average event metrics; events without that field are excluded from that metric only.
+- [x] Verify Core rollback/privacy, authenticated publisher delivery, projection parity, and
+  signed duration reporting.
+- [ ] Add retry, cost, attribution, source manifests, historical reconstruction, and the combined
+  mutation-to-publisher-to-projection-to-reporting E2E in later Campaign slices.
 
 ## Reporting availability — slice 10
 

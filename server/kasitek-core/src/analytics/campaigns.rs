@@ -186,6 +186,49 @@ pub async fn enqueue_recipient_unsubscribed(
     .await
 }
 
+pub async fn enqueue_recipient_timing(
+    transaction: &mut Transaction<'_, Postgres>,
+    organization_id: &str,
+    campaign_id: &str,
+    recipient_id: &str,
+    channel: &str,
+    provider: &str,
+    timing_kind: &str,
+    duration_ms: i64,
+    occurred_at: DateTime<Utc>,
+) -> Result<EnqueueResult, analytics_producer::ProducerError> {
+    let record_id = format!("campaign-recipient:{campaign_id}:{recipient_id}:timing:{timing_kind}");
+    enqueue_event(
+        transaction,
+        EventInput {
+            record_id: record_id.clone(),
+            source_domain: SOURCE_DOMAIN.to_string(),
+            source_stream_key: stream_key(organization_id),
+            contract_name: "campaign.recipient.timing@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::CoreOrganization,
+            scope_external_id: organization_id.to_string(),
+            subject_type: "campaign_recipient".to_string(),
+            subject_id: recipient_id.to_string(),
+            occurred_at,
+            attributes: json!({
+                "campaign_id": campaign_id,
+                "recipient_id": recipient_id,
+                "channel": channel,
+                "provider": provider,
+                "occurred_at": occurred_at,
+                "status": "timing",
+                "timing_kind": timing_kind,
+                "duration_ms": duration_ms,
+            }),
+            correlation_id: None,
+            causation_id: None,
+            idempotency_key: Some(record_id),
+        },
+    )
+    .await
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn enqueue_recipient_delivery(
     transaction: &mut Transaction<'_, Postgres>,

@@ -1975,6 +1975,10 @@ async fn query_metric_series(
             "SUM(r.numerator)::double precision / NULLIF(SUM(r.denominator)::double precision, 0)"
                 .to_string()
         }
+        "weighted_average" => {
+            "SUM(r.value_sum)::double precision / NULLIF(SUM(r.value_count)::double precision, 0)"
+                .to_string()
+        }
         "count" | "distinct_count" => "SUM(r.value_count)::double precision".to_string(),
         _ => "SUM(r.value_sum)::double precision".to_string(),
     };

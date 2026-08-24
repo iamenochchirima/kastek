@@ -18,7 +18,7 @@ use kasitek_analytics::{
 use kasitek_core::analytics::campaigns::{
     enqueue_recipient_blocked, enqueue_recipient_delivered, enqueue_recipient_failed,
     enqueue_recipient_read, enqueue_recipient_sent, enqueue_recipient_suppressed,
-    enqueue_recipient_unsubscribed,
+    enqueue_recipient_timing, enqueue_recipient_unsubscribed,
 };
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -249,6 +249,19 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         )
         .await
         .expect("Campaign unsubscribed fact should enqueue");
+        enqueue_recipient_timing(
+            &mut transaction,
+            &organization_id,
+            &campaign_id,
+            &delivered_recipient_id,
+            "whatsapp",
+            "meta",
+            "send_to_delivered",
+            4200,
+            delivered_at,
+        )
+        .await
+        .expect("Campaign timing fact should enqueue");
         transaction
             .commit()
             .await
@@ -279,8 +292,8 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
             .await
             .expect("Core publisher should deliver Campaign facts to Analytics");
         assert!(
-            stats.delivered >= 7,
-            "expected seven Campaign facts: {stats:?}"
+            stats.delivered >= 8,
+            "expected eight Campaign facts: {stats:?}"
         );
 
         let delivered: i64 = sqlx::query_scalar(
@@ -293,7 +306,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         .fetch_one(&core_pool)
         .await
         .expect("Core Campaign delivery state");
-        assert_eq!(delivered, 7);
+        assert_eq!(delivered, 8);
 
         let rows = sqlx::query(
             r#"SELECT event_type, source_service, source_record_id, attributes, backfilled
@@ -305,7 +318,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         .fetch_all(&analytics_pool)
         .await
         .expect("Analytics Campaign facts");
-        assert_eq!(rows.len(), 7);
+        assert_eq!(rows.len(), 8);
         let mut event_types = Vec::new();
         for row in rows {
             let event_type: String = row.get("event_type");
@@ -348,6 +361,16 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
                     Some("keyword")
                 );
             }
+            if event_type == "campaign.recipient.timing@1" {
+                assert_eq!(
+                    attributes.get("timing_kind").and_then(Value::as_str),
+                    Some("send_to_delivered")
+                );
+                assert_eq!(
+                    attributes.get("duration_ms").and_then(Value::as_i64),
+                    Some(4200)
+                );
+            }
             for prohibited in [
                 "phone_number",
                 "email",
@@ -373,6 +396,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
                 "campaign.recipient.read@1".to_string(),
                 "campaign.recipient.sent@1".to_string(),
                 "campaign.recipient.suppressed@1".to_string(),
+                "campaign.recipient.timing@1".to_string(),
                 "campaign.recipient.unsubscribed@1".to_string()
             ]
         );

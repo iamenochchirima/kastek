@@ -180,6 +180,14 @@
       "privacy_class": "aggregate"
     },
     {
+      "identity": "campaign.recipient.timing@1",
+      "schema": "events/campaign/recipient_timing/v1.schema.json",
+      "examples": ["examples/campaign/recipient_timing.json"],
+      "owner": "core-campaigns",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
       "identity": "conversation.message.received@1",
       "schema": "events/inbox/message_received/v1.schema.json",
       "examples": ["examples/inbox/message_received.json"],

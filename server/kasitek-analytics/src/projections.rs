@@ -1092,6 +1092,9 @@ async fn rebuild_window(
             let builder = DomainBuilder::for_metric(metric)?;
             let dimensions =
                 typed_event_dimensions(builder, metric, &attributes, &subject_type, &subject_id)?;
+            let Some(value) = event_metric_value(metric, &attributes) else {
+                continue;
+            };
             let (numerator, denominator) = ratio_component(metric, &event_type, registry);
             if metric.default_aggregation == "ratio_of_sums"
                 && numerator.is_none()
@@ -1113,7 +1116,7 @@ async fn rebuild_window(
                     sqlx::Error::Protocol("reporting timezone revision is out of range".into())
                 })?,
                 dimensions,
-                value: 1.0,
+                value,
                 numerator,
                 denominator,
                 deduplication_key: deduplication_key(metric, &attributes),
@@ -1394,8 +1397,8 @@ async fn validate_projection_window(
             continue;
         }
         let (expected, source_kind) = match work.fact_kind {
-            FactKind::Event => (
-                sqlx::query_scalar::<_, i64>(
+            FactKind::Event => {
+                let source_count = sqlx::query_scalar::<_, i64>(
                     r#"SELECT COUNT(*) FROM analytics.analytics_event
                        WHERE reporting_scope_id = $1 AND occurred_at >= $2 AND occurred_at < $3
                          AND event_type = ANY($4)"#,
@@ -1405,9 +1408,32 @@ async fn validate_projection_window(
                 .bind(work.source_window_end)
                 .bind(&metric.sources)
                 .fetch_one(&mut **transaction)
-                .await?,
-                FactKind::Event,
-            ),
+                .await?;
+                let expected = if metric.default_aggregation == "weighted_average" {
+                    let rows = sqlx::query(
+                        r#"SELECT attributes FROM analytics.analytics_event
+                           WHERE reporting_scope_id = $1 AND occurred_at >= $2 AND occurred_at < $3
+                             AND event_type = ANY($4)"#,
+                    )
+                    .bind(work.reporting_scope_id)
+                    .bind(work.source_window_start)
+                    .bind(work.source_window_end)
+                    .bind(&metric.sources)
+                    .fetch_all(&mut **transaction)
+                    .await?;
+                    rows.into_iter()
+                        .filter(|row| {
+                            row.try_get::<Value, _>("attributes")
+                                .ok()
+                                .and_then(|value| event_metric_value(metric, &value))
+                                .is_some()
+                        })
+                        .count() as i64
+                } else {
+                    source_count
+                };
+                (expected, FactKind::Event)
+            }
             FactKind::Observation => (
                 sqlx::query_scalar::<_, i64>(
                     r#"SELECT COUNT(*) FROM analytics.analytics_metric_observation
@@ -1643,6 +1669,10 @@ fn typed_event_dimensions(
             required_text(attributes, "recipient_id")?;
             required_text(attributes, "channel")?;
             required_text(attributes, "status")?;
+            if metric.key == "campaign.delivery_delay_ms" {
+                require_text_fields(attributes, &["timing_kind"])?;
+                required_number(attributes, "duration_ms")?;
+            }
         }
         DomainBuilder::Inbox => {
             required_text(attributes, "conversation_id")?;
@@ -1744,6 +1774,22 @@ fn required_number(attributes: &Value, key: &str) -> Result<f64, sqlx::Error> {
         .ok_or_else(|| sqlx::Error::Protocol(format!("typed projection builder missing {key}")))
 }
 
+fn event_metric_value(metric: &MetricDefinition, attributes: &Value) -> Option<f64> {
+    if metric.default_aggregation != "weighted_average" {
+        return Some(1.0);
+    }
+    let field = metric
+        .formula
+        .split_once(',')
+        .and_then(|(_, value)| value.strip_suffix(')'))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?;
+    attributes
+        .get(field)
+        .and_then(Value::as_f64)
+        .filter(|value| value.is_finite())
+}
+
 fn deduplication_key(metric: &MetricDefinition, attributes: &Value) -> Option<String> {
     let key = match metric.deduplication.as_str() {
         "recipient" => "recipient_id",
@@ -1822,6 +1868,9 @@ fn event_dimensions(
             "responder_type" => attributes.get("responder_type").cloned(),
             "outcome" => attributes.get("outcome").cloned(),
             "failure_class" => attributes.get("failure_class").cloned(),
+            "suppression_class" => attributes.get("suppression_class").cloned(),
+            "unsubscribe_source" => attributes.get("unsubscribe_source").cloned(),
+            "timing_kind" => attributes.get("timing_kind").cloned(),
             "status" => attributes.get("status").cloned(),
             "lifecycle_action" => attributes.get("action").cloned(),
             "message_action" => attributes.get("action").cloned(),
@@ -1884,7 +1933,7 @@ pub fn hourly_window(timestamp: DateTime<Utc>) -> (DateTime<Utc>, DateTime<Utc>)
 mod tests {
     use serde_json::json;
 
-    use super::event_dimensions;
+    use super::{event_dimensions, event_metric_value};
     use crate::registry::load_registry;
 
     #[test]
@@ -1916,6 +1965,24 @@ mod tests {
         assert_eq!(dimensions["responder_type"], "agent");
         assert_eq!(dimensions["message_type"], "text");
         assert_eq!(dimensions["message_delivery_status"], "delivered");
+    }
+
+    #[test]
+    fn weighted_event_metrics_read_the_numeric_formula_field() {
+        let registry = load_registry().expect("analytics registry");
+        let metric = registry
+            .metrics
+            .iter()
+            .find(|metric| metric.key == "campaign.delivery_delay_ms")
+            .expect("Campaign timing metric");
+        assert_eq!(
+            event_metric_value(metric, &json!({"duration_ms": 4200})),
+            Some(4200.0)
+        );
+        assert_eq!(
+            event_metric_value(metric, &json!({"duration_ms": null})),
+            None
+        );
     }
 }
 

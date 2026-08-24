@@ -2027,7 +2027,8 @@ recipient outcomes.
   transition; repeated unchanged statuses remain deduplicated.
 - [x] Extend Core privacy/rollback, authenticated publisher, and reporting coverage for the read
   fact and distinct-recipient aggregation.
-- [ ] Add read-delay timing once the Campaign timing contract is introduced.
+- [x] Add read-delay timing through the shared Campaign timing contract and weighted-average
+  reporting path in execution slice 6.
 
 #### Execution slice 3 — recipient failure facts
 
@@ -2064,6 +2065,21 @@ recipient outcomes.
   coverage, authenticated publisher coverage, and signed reporting breakdowns.
 - [ ] Add retry, timing, cost, attribution, source manifests, historical reconstruction, and the
   combined mutation-to-publisher-to-projection-to-reporting E2E in later Campaign slices.
+
+#### Execution slice 6 — timing facts and numeric event aggregation
+
+- [x] Add and register `campaign.recipient.timing@1` with bounded timing kinds and a non-negative
+  duration in milliseconds; no contact, message, or provider payload data is included.
+- [x] Emit send-to-delivered, send-to-read, and delivered-to-read timing facts transactionally
+  with authoritative WhatsApp delivery/read transitions when the required timestamps exist.
+- [x] Add `campaign.delivery_delay_ms` with weighted-average aggregation and a timing-kind
+  breakdown to the overview metric set.
+- [x] Fix the shared projection/reporting path so event metrics declared as weighted averages use
+  the numeric field named by their formula instead of treating every event as value `1`.
+- [x] Add Core rollback/privacy, authenticated publisher, projection, and signed reporting
+  coverage for timing facts and numeric duration output.
+- [ ] Add retry, cost, attribution, source manifests, historical reconstruction, and the combined
+  mutation-to-publisher-to-projection-to-reporting E2E in later Campaign slices.
 
 ### Agent Platform lane: customer handoff
 
