@@ -120,6 +120,18 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     "/{id}/status",
                     web::patch().to(clients::update_client_status),
                 )
+                .route(
+                    "/{id}/assignments",
+                    web::get().to(clients::list_client_assignments),
+                )
+                .route(
+                    "/{id}/assignments",
+                    web::post().to(clients::assign_client_user),
+                )
+                .route(
+                    "/{id}/assignments/{tenant_user_id}",
+                    web::delete().to(clients::remove_client_assignment),
+                )
                 .route("/{id}/users", web::get().to(clients::list_client_users))
                 .route("/{id}/invites", web::post().to(clients::invite_client_user)),
         )

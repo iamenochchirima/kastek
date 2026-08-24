@@ -2172,8 +2172,8 @@ and reconciliation endpoint. Emit workspace/client hierarchy and status changes.
   registry bindings.
 - [x] Add workspace timezone/client override persistence, client activation/suspension/deletion
   lifecycle facts, and scope status transitions.
-- [ ] Add `tenant_client_assignments` and assignment lifecycle facts after the assignment principal
-  and management commands are implemented.
+- [x] Add `tenant_client_assignments` and assignment lifecycle facts with append-only history,
+  bounded roles, soft unassignment, and same-transaction Analytics facts.
 - [x] Add Tenant lead status-history commands and lifecycle facts before claiming qualified or
   converted lead analytics; attribution and historical reconstruction remain later slices.
 - [ ] Add Tenant source manifests, historical reconstruction, and mutation-to-reporting E2E after
@@ -2189,7 +2189,7 @@ and reconciliation endpoint. Emit workspace/client hierarchy and status changes.
 - [x] Register `tenant.client.lifecycle@1`, `tenant.clients.lifecycle_events@1`, and the bounded
   client lifecycle action dimension through the typed Tenant projection builder.
 - [x] Regenerate registry bindings and verify Tenant/Analytics compilation and registry validation.
-- [ ] Add assignment records and lead status history before claiming assigned-client or qualified /
+- [x] Add assignment records and lead status history before claiming assigned-client or qualified /
   converted lead analytics.
 
 #### Execution slice 3 — lead status history
@@ -2201,8 +2201,24 @@ and reconciliation endpoint. Emit workspace/client hierarchy and status changes.
 - [x] Extend `tenant.lead.lifecycle@1` with status-change facts and add reason/actor dimensions;
   raw lead fields and free-form notes remain excluded.
 - [x] Verify bounded status/reason helpers, registry validation, and Tenant/Analytics compilation.
-- [ ] Add tenant-client assignments, source manifests, historical reconstruction, and reporting
-  E2E after the remaining Tenant source boundaries exist.
+- [x] Add tenant-client assignments with authoritative active/revoked state, append-only history,
+  bounded role changes, management routes, and typed projection support.
+- [ ] Add Tenant source manifests, historical reconstruction, and mutation-to-reporting E2E after
+  the remaining Tenant source boundaries exist.
+
+#### Execution slice 4 — client assignments
+
+- [x] Add an operational `tenant_client_assignments` table keyed by workspace, client, and staff
+  user, with bounded assignment roles and soft revocation.
+- [x] Add append-only assignment history for assigned, unassigned, and role-changed actions.
+- [x] Add authenticated management routes for listing, assigning, changing roles, and revoking
+  client assignments; enforce workspace, client, and active staff-user boundaries.
+- [x] Emit `tenant.client.assignment@1` facts transactionally with assignment state and history;
+  Analytics receives stable identifiers and bounded roles only.
+- [x] Register assignment metrics/dimensions and route the contract through the typed Tenant
+  projection builder.
+- [x] Verify formatting, registry validation, Tenant tests, and Tenant/Analytics compilation.
+- [ ] Add Tenant manifests, source reconstruction, and full mutation-to-reporting E2E.
 
 ### Tenant Platform lane: client administration
 

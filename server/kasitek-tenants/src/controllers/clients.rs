@@ -33,6 +33,14 @@ pub struct InviteTenantClientUserRequest {
     pub role: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct CreateTenantClientAssignmentRequest {
+    #[serde(rename = "tenantUserId")]
+    pub tenant_user_id: String,
+    #[serde(rename = "assignmentRole")]
+    pub assignment_role: Option<String>,
+}
+
 #[derive(Debug, FromRow, Serialize)]
 struct TenantClientRow {
     id: String,
@@ -57,6 +65,20 @@ struct TenantClientUserRow {
     updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[derive(Debug, Serialize, sqlx::FromRow)]
+struct TenantClientAssignmentRow {
+    id: String,
+    tenant_user_id: String,
+    email: String,
+    name: Option<String>,
+    assignment_role: String,
+    status: String,
+    assigned_at: chrono::DateTime<chrono::Utc>,
+    revoked_at: Option<chrono::DateTime<chrono::Utc>>,
+    created_at: chrono::DateTime<chrono::Utc>,
+    updated_at: chrono::DateTime<chrono::Utc>,
+}
+
 fn normalize_slug(input: &str) -> String {
     let mut slug = String::with_capacity(input.len());
     let mut last_dash = false;
@@ -76,6 +98,16 @@ fn normalize_slug(input: &str) -> String {
 
 fn ensure_client_management_roles(roles: &[String]) -> Result<(), AppError> {
     middleware::require_tenant_roles(roles, &["owner", "admin", "account_manager"])
+}
+
+fn normalize_assignment_role(value: Option<&str>) -> Result<String, AppError> {
+    let role = value.unwrap_or("member").trim().to_ascii_lowercase();
+    match role.as_str() {
+        "owner" | "admin" | "member" | "viewer" => Ok(role),
+        _ => Err(AppError::BadRequest(
+            "assignmentRole must be owner, admin, member, or viewer".to_string(),
+        )),
+    }
 }
 
 async fn provision_client_user_invite(
@@ -523,5 +555,293 @@ pub async fn invite_client_user(
             "portalUrl": invite.portal_url,
             "emailSent": invite.email_sent,
         }
+    })))
+}
+
+pub async fn list_client_assignments(
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let session = middleware::extract_tenant_user_session(&req).await?;
+    ensure_client_management_roles(&session.roles)?;
+    let pool = middleware::db_pool(&req)?;
+    let tenant_client_id = path.into_inner();
+
+    let client_exists = sqlx::query_scalar::<_, i64>(
+        "SELECT 1 FROM tenant_clients WHERE id = $1 AND workspace_id = $2",
+    )
+    .bind(&tenant_client_id)
+    .bind(&session.workspace_id)
+    .fetch_optional(pool)
+    .await?
+    .is_some();
+    if !client_exists {
+        return Err(AppError::NotFound("tenant client not found".to_string()));
+    }
+
+    let assignments = sqlx::query_as::<_, TenantClientAssignmentRow>(
+        r#"
+        SELECT
+            a.id,
+            a.tenant_user_id,
+            u.email,
+            u.name,
+            a.assignment_role,
+            a.status,
+            a.assigned_at,
+            a.revoked_at,
+            a.created_at,
+            a.updated_at
+        FROM tenant_client_assignments a
+        JOIN tenant_users u ON u.id = a.tenant_user_id
+        WHERE a.workspace_id = $1 AND a.tenant_client_id = $2
+        ORDER BY a.status ASC, a.updated_at DESC, a.created_at DESC
+        "#,
+    )
+    .bind(&session.workspace_id)
+    .bind(&tenant_client_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "workspaceId": session.workspace_id,
+        "tenantClientId": tenant_client_id,
+        "assignments": assignments,
+    })))
+}
+
+pub async fn assign_client_user(
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<CreateTenantClientAssignmentRequest>,
+) -> Result<HttpResponse, AppError> {
+    let session = middleware::extract_tenant_user_session(&req).await?;
+    ensure_client_management_roles(&session.roles)?;
+    let pool = middleware::db_pool(&req)?;
+    let tenant_client_id = path.into_inner();
+    let tenant_user_id = body.tenant_user_id.trim().to_string();
+    if tenant_user_id.is_empty() {
+        return Err(AppError::BadRequest("tenantUserId is required".to_string()));
+    }
+    let assignment_role = normalize_assignment_role(body.assignment_role.as_deref())?;
+    let mut transaction = pool.begin().await?;
+
+    let client_exists = sqlx::query_scalar::<_, i64>(
+        "SELECT 1 FROM tenant_clients WHERE id = $1 AND workspace_id = $2 AND status <> 'archived'",
+    )
+    .bind(&tenant_client_id)
+    .bind(&session.workspace_id)
+    .fetch_optional(&mut *transaction)
+    .await?
+    .is_some();
+    if !client_exists {
+        return Err(AppError::NotFound(
+            "active tenant client not found".to_string(),
+        ));
+    }
+
+    let user_exists = sqlx::query_scalar::<_, i64>(
+        "SELECT 1 FROM tenant_users WHERE id = $1 AND workspace_id = $2 AND status = 'active'",
+    )
+    .bind(&tenant_user_id)
+    .bind(&session.workspace_id)
+    .fetch_optional(&mut *transaction)
+    .await?
+    .is_some();
+    if !user_exists {
+        return Err(AppError::NotFound(
+            "active workspace staff member not found".to_string(),
+        ));
+    }
+
+    let existing = sqlx::query_as::<_, (String, String, String)>(
+        r#"SELECT id, status, assignment_role
+           FROM tenant_client_assignments
+           WHERE workspace_id = $1 AND tenant_client_id = $2 AND tenant_user_id = $3
+           FOR UPDATE"#,
+    )
+    .bind(&session.workspace_id)
+    .bind(&tenant_client_id)
+    .bind(&tenant_user_id)
+    .fetch_optional(&mut *transaction)
+    .await?;
+
+    let (assignment_id, action, status) = match existing {
+        None => {
+            let assignment_id = cuid2::create_id();
+            sqlx::query(
+                r#"INSERT INTO tenant_client_assignments
+                   (id, workspace_id, tenant_client_id, tenant_user_id, assignment_role, status)
+                   VALUES ($1, $2, $3, $4, $5, 'active')"#,
+            )
+            .bind(&assignment_id)
+            .bind(&session.workspace_id)
+            .bind(&tenant_client_id)
+            .bind(&tenant_user_id)
+            .bind(&assignment_role)
+            .execute(&mut *transaction)
+            .await?;
+            (assignment_id, "assigned", "active")
+        }
+        Some((assignment_id, current_status, current_role)) if current_status == "revoked" => {
+            sqlx::query(
+                r#"UPDATE tenant_client_assignments
+                   SET assignment_role = $1, status = 'active', revoked_at = NULL,
+                       assigned_at = NOW(), updated_at = NOW()
+                   WHERE id = $2"#,
+            )
+            .bind(&assignment_role)
+            .bind(&assignment_id)
+            .execute(&mut *transaction)
+            .await?;
+            let _ = current_role;
+            (assignment_id, "assigned", "active")
+        }
+        Some((_, _, current_role)) if current_role == assignment_role => {
+            transaction.rollback().await?;
+            return Ok(HttpResponse::Ok().json(serde_json::json!({
+                "tenantClientId": tenant_client_id,
+                "tenantUserId": tenant_user_id,
+                "assignmentRole": assignment_role,
+                "status": "active",
+                "changed": false,
+            })));
+        }
+        Some((assignment_id, _, _)) => {
+            sqlx::query(
+                "UPDATE tenant_client_assignments SET assignment_role = $1, updated_at = NOW() WHERE id = $2",
+            )
+            .bind(&assignment_role)
+            .bind(&assignment_id)
+            .execute(&mut *transaction)
+            .await?;
+            (assignment_id, "role_changed", "active")
+        }
+    };
+
+    let history_id = cuid2::create_id();
+    let occurred_at = chrono::Utc::now();
+    sqlx::query(
+        r#"INSERT INTO tenant_client_assignment_history
+           (id, workspace_id, tenant_client_id, tenant_user_id, assignment_id, action,
+            assignment_role, actor_tenant_user_id, occurred_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"#,
+    )
+    .bind(&history_id)
+    .bind(&session.workspace_id)
+    .bind(&tenant_client_id)
+    .bind(&tenant_user_id)
+    .bind(&assignment_id)
+    .bind(action)
+    .bind(&assignment_role)
+    .bind(&session.tenant_user_id)
+    .bind(occurred_at)
+    .execute(&mut *transaction)
+    .await?;
+    analytics::enqueue_client_assignment_lifecycle(
+        &mut transaction,
+        &session.workspace_id,
+        &tenant_client_id,
+        &tenant_user_id,
+        &assignment_id,
+        action,
+        status,
+        &assignment_role,
+        &history_id,
+        occurred_at,
+    )
+    .await
+    .map_err(|error| AppError::Internal(format!("analytics assignment enqueue failed: {error}")))?;
+    transaction.commit().await?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "tenantClientId": tenant_client_id,
+        "tenantUserId": tenant_user_id,
+        "assignmentId": assignment_id,
+        "action": action,
+        "assignmentRole": assignment_role,
+        "status": status,
+        "changed": true,
+    })))
+}
+
+pub async fn remove_client_assignment(
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let session = middleware::extract_tenant_user_session(&req).await?;
+    ensure_client_management_roles(&session.roles)?;
+    let pool = middleware::db_pool(&req)?;
+    let (tenant_client_id, tenant_user_id) = path.into_inner();
+    let mut transaction = pool.begin().await?;
+    let existing = sqlx::query_as::<_, (String, String, String)>(
+        r#"SELECT id, status, assignment_role
+           FROM tenant_client_assignments
+           WHERE workspace_id = $1 AND tenant_client_id = $2 AND tenant_user_id = $3
+           FOR UPDATE"#,
+    )
+    .bind(&session.workspace_id)
+    .bind(&tenant_client_id)
+    .bind(&tenant_user_id)
+    .fetch_optional(&mut *transaction)
+    .await?
+    .ok_or_else(|| AppError::NotFound("client assignment not found".to_string()))?;
+    if existing.1 == "revoked" {
+        transaction.rollback().await?;
+        return Ok(HttpResponse::Ok().json(serde_json::json!({
+            "tenantClientId": tenant_client_id,
+            "tenantUserId": tenant_user_id,
+            "status": "revoked",
+            "changed": false,
+        })));
+    }
+
+    sqlx::query(
+        "UPDATE tenant_client_assignments SET status = 'revoked', revoked_at = NOW(), updated_at = NOW() WHERE id = $1",
+    )
+    .bind(&existing.0)
+    .execute(&mut *transaction)
+    .await?;
+    let history_id = cuid2::create_id();
+    let occurred_at = chrono::Utc::now();
+    sqlx::query(
+        r#"INSERT INTO tenant_client_assignment_history
+           (id, workspace_id, tenant_client_id, tenant_user_id, assignment_id, action,
+            assignment_role, actor_tenant_user_id, occurred_at)
+           VALUES ($1, $2, $3, $4, $5, 'unassigned', $6, $7, $8)"#,
+    )
+    .bind(&history_id)
+    .bind(&session.workspace_id)
+    .bind(&tenant_client_id)
+    .bind(&tenant_user_id)
+    .bind(&existing.0)
+    .bind(&existing.2)
+    .bind(&session.tenant_user_id)
+    .bind(occurred_at)
+    .execute(&mut *transaction)
+    .await?;
+    analytics::enqueue_client_assignment_lifecycle(
+        &mut transaction,
+        &session.workspace_id,
+        &tenant_client_id,
+        &tenant_user_id,
+        &existing.0,
+        "unassigned",
+        "revoked",
+        &existing.2,
+        &history_id,
+        occurred_at,
+    )
+    .await
+    .map_err(|error| AppError::Internal(format!("analytics assignment enqueue failed: {error}")))?;
+    transaction.commit().await?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "tenantClientId": tenant_client_id,
+        "tenantUserId": tenant_user_id,
+        "assignmentId": existing.0,
+        "action": "unassigned",
+        "status": "revoked",
+        "changed": true,
     })))
 }

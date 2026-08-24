@@ -32,6 +32,7 @@ definitions:
       - conversation.responses.recorded@1
       - tenant.leads.lifecycle_events@1
       - tenant.clients.lifecycle_events@1
+      - tenant.client.assignment_events@1
     default_interval: day
     scope_kinds: [core_organization, tenant_workspace, tenant_client]
     permissions: [analytics:read]

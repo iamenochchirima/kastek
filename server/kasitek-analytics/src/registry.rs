@@ -557,6 +557,20 @@ const CONTRACT_SOURCES: &[ContractSource] = &[
         )],
     },
     ContractSource {
+        path: "events/tenant/client_assignment/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/tenant/client_assignment/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/tenant/client_assignment.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/tenant/client_assignment.json"
+            )),
+        )],
+    },
+    ContractSource {
         path: "events/tenant/scope_definition/v1.schema.json",
         schema: include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),

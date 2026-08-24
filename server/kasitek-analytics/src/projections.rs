@@ -1758,6 +1758,9 @@ fn typed_event_dimensions(
                     }
                 }
                 "tenant.clients.lifecycle_events" => {}
+                "tenant.client.assignment_events" => {
+                    require_text_fields(attributes, &["tenant_user_id", "assignment_role"])?;
+                }
                 _ => {
                     return Err(sqlx::Error::Protocol(format!(
                         "unsupported Tenant metric {}",
@@ -1930,6 +1933,8 @@ fn event_dimensions(
             "incident_reason_code" => attributes.get("reason_code").cloned(),
             "tenant_client" => attributes.get("tenant_client_id").cloned(),
             "client_lifecycle_action" => attributes.get("action").cloned(),
+            "assignment_action" => attributes.get("action").cloned(),
+            "assignment_role" => attributes.get("assignment_role").cloned(),
             "lead_action" => attributes.get("action").cloned(),
             "lead_status" => attributes.get("status").cloned(),
             "lead_source" => attributes.get("source").cloned(),

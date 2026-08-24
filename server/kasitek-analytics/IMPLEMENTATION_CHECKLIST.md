@@ -895,8 +895,9 @@ checklist records implementation evidence for the current package only.
   unit coverage.
 - [x] Add workspace timezone/client overrides and client lifecycle facts with scope status
   transitions.
-- [ ] Add tenant-client assignments, source manifests, historical reconstruction, and end-to-end
-  Tenant reporting.
+- [x] Add tenant-client assignments with authoritative state, append-only history, bounded roles,
+  management routes, and transactional analytics facts.
+- [ ] Add Tenant source manifests, historical reconstruction, and end-to-end Tenant reporting.
 
 ## Tenant Platform — client lifecycle and timezone slice 2
 
@@ -906,7 +907,7 @@ checklist records implementation evidence for the current package only.
 - [x] Register the client lifecycle contract, metric, dimension, typed projection support, and
   generated bindings.
 - [x] Verify registry validation and Tenant/Analytics package compilation.
-- [ ] Add assignment records and lead status history in the next Tenant slices.
+- [x] Add assignment records and lead status history in the completed Tenant slices.
 
 ## Tenant Platform — lead status history slice 3
 
@@ -916,7 +917,19 @@ checklist records implementation evidence for the current package only.
   history-row, and Analytics outbox writes.
 - [x] Extend the lead lifecycle contract and typed projection dimensions for status changes.
 - [x] Verify bounded helper tests, registry validation, and Tenant/Analytics compilation.
-- [ ] Add tenant-client assignments, source manifests, historical reconstruction, and reporting E2E.
+- [x] Add tenant-client assignments with append-only lifecycle facts and typed projection support.
+- [ ] Add Tenant source manifests, historical reconstruction, and reporting E2E.
+
+## Tenant Platform — client assignments slice 4
+
+- [x] Add workspace/client/staff assignment state with bounded roles and soft revocation.
+- [x] Add append-only assignment history for assigned, unassigned, and role-changed actions.
+- [x] Add authenticated list, assign, role-change, and revoke commands with workspace/client/user
+  authorization boundaries.
+- [x] Emit `tenant.client.assignment@1` transactionally with the operational mutation and history.
+- [x] Register assignment metric/dimensions, projection validation, and generated bindings.
+- [x] Verify registry validation, Tenant tests, and Tenant/Analytics compilation.
+- [ ] Add Tenant source manifests, historical reconstruction, and mutation-to-reporting E2E.
 
 ## Reporting availability — slice 10
 

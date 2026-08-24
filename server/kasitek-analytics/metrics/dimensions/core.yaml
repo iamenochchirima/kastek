@@ -660,6 +660,28 @@ definitions:
     stable_key: true
     permissions: [analytics:read]
 
+  - key: assignment_action
+    type: enum
+    source: envelope.data.action
+    compatible_metrics: [tenant.client.assignment_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: assignment_role
+    type: enum
+    source: envelope.data.assignment_role
+    compatible_metrics: [tenant.client.assignment_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
   - key: lead_action
     type: enum
     source: envelope.data.action

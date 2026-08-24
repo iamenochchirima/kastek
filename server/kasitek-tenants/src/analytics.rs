@@ -156,6 +156,50 @@ pub async fn enqueue_client_lifecycle(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
+pub async fn enqueue_client_assignment_lifecycle(
+    transaction: &mut Transaction<'_, Postgres>,
+    workspace_id: &str,
+    tenant_client_id: &str,
+    tenant_user_id: &str,
+    assignment_id: &str,
+    action: &str,
+    status: &str,
+    assignment_role: &str,
+    history_id: &str,
+    occurred_at: DateTime<Utc>,
+) -> Result<EnqueueResult, ProducerError> {
+    enqueue_event(
+        transaction,
+        EventInput {
+            record_id: format!("tenant-assignment:{assignment_id}:history:{history_id}"),
+            source_domain: "assignments".to_string(),
+            source_stream_key: format!("workspace:{workspace_id}:assignments"),
+            contract_name: "tenant.client.assignment@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::TenantWorkspace,
+            scope_external_id: workspace_id.to_string(),
+            subject_type: "tenant_client_assignment".to_string(),
+            subject_id: assignment_id.to_string(),
+            occurred_at,
+            attributes: json!({
+                "tenant_client_id": tenant_client_id,
+                "tenant_user_id": tenant_user_id,
+                "action": action,
+                "status": status,
+                "assignment_role": assignment_role,
+                "occurred_at": occurred_at,
+            }),
+            correlation_id: None,
+            causation_id: None,
+            idempotency_key: Some(format!(
+                "tenant-assignment:{assignment_id}:history:{history_id}"
+            )),
+        },
+    )
+    .await
+}
+
 pub async fn enqueue_lead_created(
     transaction: &mut Transaction<'_, Postgres>,
     workspace_id: &str,

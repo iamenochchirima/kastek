@@ -1,5 +1,38 @@
 kind: metrics
 definitions:
+  - key: tenant.client.assignment_events
+    version: 1
+    domain: tenants
+    owner: tenant-platform-assignments
+    lifecycle: active
+    description: Tenant client assignment lifecycle events recorded by the Tenant Platform.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - tenant.client.assignment@1
+    formula: count(tenant.client.assignment@1)
+    eligible_population: workspace staff-to-client assignment transitions in the reporting window
+    exclusions: [staff names, contact values, credentials, unrestricted metadata]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [tenant_workspace, tenant_client]
+    dimensions: [tenant_client, assignment_action, assignment_role, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [tenant.client.assignment@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-24T00:00:00Z"
+    applicability: Tenant assignment commands emit bounded lifecycle facts
+    dependencies: []
+
   - key: tenant.clients.lifecycle_events
     version: 1
     domain: tenants

@@ -300,6 +300,14 @@
       "privacy_class": "aggregate"
     },
     {
+      "identity": "tenant.client.assignment@1",
+      "schema": "events/tenant/client_assignment/v1.schema.json",
+      "examples": ["examples/tenant/client_assignment.json"],
+      "owner": "tenant-platform-assignments",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
       "identity": "tenant.scope.definition@1",
       "schema": "events/tenant/scope_definition/v1.schema.json",
       "examples": ["examples/tenant/scope_definition.json"],
