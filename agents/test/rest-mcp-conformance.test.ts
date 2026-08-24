@@ -132,12 +132,16 @@ function isProviderWebhook(route: Route): boolean {
   return (route.path === "/v1/webhooks/telegram/:connectionId" || route.path === "/v1/webhooks/discord/:connectionId") && route.method === "POST";
 }
 
+function isPublicOAuthCallback(route: Route): boolean {
+  return route.path === "/v1/integrations/google.calendar/oauth/callback" && route.method === "GET";
+}
+
 describe("Agent REST and MCP conformance matrices", () => {
   it("guards every mounted /v1 route before parsing input or touching dependencies", async () => {
     const routes = await mountedAgentRoutes();
-    const protectedRoutes = routes.filter(({ path }) => path.startsWith("/v1/") && path !== "/v1/installation-tokens/exchange");
-    expect(routes).toHaveLength(152);
-    expect(protectedRoutes).toHaveLength(146);
+    const protectedRoutes = routes.filter((route) => route.path.startsWith("/v1/") && route.path !== "/v1/installation-tokens/exchange" && !isPublicOAuthCallback(route));
+    expect(routes).toHaveLength(164);
+    expect(protectedRoutes).toHaveLength(157);
 
     const app = buildApp({ config, pool: fakePool });
     try {
@@ -157,9 +161,10 @@ describe("Agent REST and MCP conformance matrices", () => {
       route.path.startsWith("/v1/")
       && route.path !== "/v1/installation-tokens/exchange"
       && !isProviderWebhook(route)
+      && !isPublicOAuthCallback(route)
       && !isPublicApiTransport(route),
     );
-    expect(directRoutes).toHaveLength(139);
+    expect(directRoutes).toHaveLength(150);
 
     const app = buildApp({ config: hmacConfig, pool: fakePool });
     try {

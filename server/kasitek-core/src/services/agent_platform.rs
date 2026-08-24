@@ -981,6 +981,112 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn list_integrations_catalog(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            "/v1/integrations/catalog",
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_installation_integrations(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/installations/{installation_id}/integrations"),
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn start_google_calendar_oauth(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/installations/{installation_id}/integrations/google.calendar/oauth/start"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
+    pub async fn save_integration_api_key(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        integration_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/integrations/{integration_id}/api-key"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn save_integration_local_connector(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        integration_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/installations/{installation_id}/integrations/{integration_id}/local-connector"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            Some(body),
+        )
+        .await
+    }
+
+    pub async fn disconnect_integration(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        integration_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::DELETE,
+            &format!("/v1/installations/{installation_id}/integrations/{integration_id}"),
+            organization_id,
+            actor_id,
+            &["agents:write"],
+            None,
+        )
+        .await
+    }
+
     pub async fn grant_installation_tool(
         &self,
         organization_id: &str,
@@ -2150,6 +2256,25 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn update_channel_connection(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        connection_id: &str,
+        body: Value,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::PATCH,
+            &format!("/v1/installations/{installation_id}/channels/{connection_id}"),
+            organization_id,
+            actor_id,
+            &["channels:write"],
+            Some(body),
+        )
+        .await
+    }
+
     pub async fn issue_channel_pairing(
         &self,
         organization_id: &str,
@@ -3235,6 +3360,16 @@ mod tests {
             .await
             .unwrap();
         client
+            .update_channel_connection(
+                "org-1",
+                "actor-1",
+                "install-1",
+                "connection-1",
+                body.clone(),
+            )
+            .await
+            .unwrap();
+        client
             .issue_channel_pairing("org-1", "actor-1", "install-1", "connection-1")
             .await
             .unwrap();
@@ -3276,7 +3411,7 @@ mod tests {
             .unwrap();
 
         let requests = server.await.unwrap();
-        assert_eq!(requests.len(), 79);
+        assert_eq!(requests.len(), 80);
         let expected_paths = [
             "POST /v1/system-agents/kasiai/installation HTTP/1.1",
             "GET /v1/agents HTTP/1.1",
@@ -3347,6 +3482,7 @@ mod tests {
             "POST /v1/channel-pairing/consume HTTP/1.1",
             "GET /v1/installations/install-1/channels HTTP/1.1",
             "POST /v1/installations/install-1/channels HTTP/1.1",
+            "PATCH /v1/installations/install-1/channels/connection-1 HTTP/1.1",
             "POST /v1/installations/install-1/channels/connection-1/pairing HTTP/1.1",
             "DELETE /v1/channel-bindings/binding-1 HTTP/1.1",
             "GET /v1/conversations/conversation-1?limit=20&before=cursor-1 HTTP/1.1",
@@ -3435,6 +3571,7 @@ mod tests {
             "channels:ingest", // consume_channel_pairing
             "channels:read",   // list_installation_channels
             "channels:write",  // ensure_channel_connection
+            "channels:write",  // update_channel_connection
             "channels:write",  // issue_channel_pairing
             "channels:write",  // revoke_channel_binding
             "chat:read",       // get_conversation

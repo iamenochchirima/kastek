@@ -53,7 +53,7 @@ import { verifyProviderCredential, type CredentialVerificationResult, type Crede
 import { MODEL_PROVIDERS } from "../model/types";
 import { modelProviderEnvironmentKey } from "../model/providers";
 import { installationTokenJwks, issueInstallationToken, readClientAssertionSubject, verifyClientAssertion, verifyInstallationToken } from "../auth/installation-token";
-import { createPublicKey } from "node:crypto";
+import { createHash, createPublicKey } from "node:crypto";
 import { createDefaultTools } from "../temporal/activities";
 import { validateVersionWorkflow } from "../workflows/graph";
 import { buildAgentReadiness } from "../domain/agent-readiness";
@@ -65,6 +65,14 @@ import { randomUUID } from "node:crypto";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { TelegramBotClient } from "../channels/telegram-client";
 import { TelegramChannelAdapter } from "../channels/telegram";
+import {
+  normalizeTelegramAllowedUsers,
+  normalizeWhatsappAllowedPhones,
+  telegramAllowedUsers,
+  telegramUserAllowed,
+  whatsappAllowedPhones,
+  whatsappPhoneAllowed,
+} from "../channels/access";
 import { DiscordBotClient } from "../channels/discord-client";
 import { DiscordChannelAdapter } from "../channels/discord";
 import { channelSecretsEqual, hashChannelSecret } from "../db/channel-secret-crypto";
@@ -102,6 +110,9 @@ import { ConversationActionService } from "../actions/conversation-actions";
 import { ConversationControlService } from "../actions/conversation-controls";
 import { HandoffRepository } from "../db/repositories/handoff-repository";
 import { verifyChannelApprovalActionToken, type ChannelApprovalDecision } from "../approval/channel-action";
+import { IntegrationRepository } from "../integrations/repository";
+import { IntegrationToolService } from "../integrations/service";
+import { getIntegration, listIntegrations, listToolIntegrations } from "../integrations/catalog";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -130,6 +141,8 @@ export interface AppDependencies {
   /** Product-owned entitlement/provider readiness projection for capabilities. */
   capabilityAccess?: CapabilityAccessSource;
   connectorRegistry?: ConnectorRegistry;
+  integrationRepository?: IntegrationRepository;
+  integrationTools?: IntegrationToolService;
   effectReceipts?: EffectReceiptRepository;
   approvals?: ApprovalRepository;
   /**
@@ -410,7 +423,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const conversationActions = dependencies.conversationActions ?? new ConversationActionService(handoffs, controls);
   const conversationControls = dependencies.conversationControls ?? new ConversationControlService(handoffs);
   const coreClient = new KasitekCoreReadClient(dependencies.config);
-  const toolRegistry = dependencies.toolRegistry ?? createDefaultTools(new KasitekCoreReadClient(dependencies.config), conversationActions);
+  const integrationRepository = dependencies.integrationRepository ?? new IntegrationRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
+  const integrationTools = dependencies.integrationTools ?? new IntegrationToolService(integrationRepository, dependencies.config);
+  const toolRegistry = dependencies.toolRegistry ?? createDefaultTools(coreClient, conversationActions, integrationTools);
   const capabilityAccess = dependencies.capabilityAccess ?? new UnknownCapabilityAccessSource();
   const connectorRegistry = dependencies.connectorRegistry ?? new ConnectorRegistry();
   if (connectorRegistry.list().length === 0) {
@@ -601,8 +616,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         : Promise.resolve(false),
       capabilityAccess.getForCapabilities({ organizationId: input.organizationId, capabilityNames: toolRegistry.surfaces().map((surface) => surface.name) }),
     ]);
+    const toolIntegrations = listToolIntegrations();
+    const integrationAvailability = new Map<string, boolean>(await Promise.all(toolIntegrations.map(async (integration) => [integration.id, await integrationTools.isAvailable(input.organizationId, installation.id, integration.id)] as const)));
     const capabilities = toolRegistry.surfaces().map((surface) => {
-      const dependency = dependencyMap.get(surface.name);
+      const providers = toolIntegrations.filter((integration) => integration.capabilityNames.includes(surface.name));
+      const providerConfigured = providers.length === 0 || providers.some((integration) => integrationAvailability.get(integration.id) === true);
+      const dependency = providers.length
+        ? { ...(dependencyMap.get(surface.name) ?? {}), providerAvailability: providerConfigured ? "available" as const : "not_configured" as const }
+        : dependencyMap.get(surface.name);
       const effectiveAccess = dependencyProjection(dependency, {
         granted: granted.has(surface.name),
         credentialAllowed: input.credentialScopes
@@ -621,7 +642,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         availability: effectiveAccess.available ? "available" : effectiveAccess.reasonCode,
       };
     });
-    return { installation, grants, capabilities };
+    return { installation, grants, capabilities, integrationAvailability: Object.fromEntries(integrationAvailability) };
   };
 
   const evaluateInstallationReadiness = async (input: {
@@ -656,6 +677,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const configuredConnections = [
       ...projected.grants.connectors,
       ...(knowledgeSources.length ? ["website"] : []),
+      ...Object.entries(projected.integrationAvailability).filter(([, available]) => available).map(([integrationId]) => integrationId),
     ];
     let workflowError: string | undefined;
     try {
@@ -774,6 +796,25 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 
     const adapter = new TelegramChannelAdapter();
     const event = adapter.normalizeInbound(update);
+    const allowedTelegramUsers = connection.execution_mode === "system_hosted" ? telegramAllowedUsers(connection.metadata) : [];
+    if (allowedTelegramUsers.length > 0 && !telegramUserAllowed(connection.metadata, event.externalIdentity)) {
+      request.log.info({ connectionId: connection.id, externalIdentity: event.externalIdentity }, "Telegram message ignored for a non-allowlisted user");
+      return reply.code(200).send({ ok: true, ignored: true, reason: "user_not_allowed" });
+    }
+    if (allowedTelegramUsers.length > 0) {
+      try {
+        await channels.bind({
+          organizationId: connection.organization_id,
+          installationId: connection.installation_id,
+          connectionId: connection.id,
+          externalIdentity: event.externalIdentity,
+          ownerActorId: connection.created_by,
+        });
+      } catch (error) {
+        request.log.warn({ error: error instanceof Error ? error.message : "Telegram allowlist binding failed" }, "Telegram allowlist binding failed");
+        return reply.code(200).send({ ok: true, ignored: true, reason: "user_not_allowed" });
+      }
+    }
     const messageText = typeof event.message.content.text === "string" ? event.message.content.text.trim() : "";
     if (event.approvalAction) {
       let result: { accepted: boolean } | undefined;
@@ -2249,6 +2290,134 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return { installationId: installation.id, connectors: grants.connectors.map((id) => connectorRegistry.get(id)).filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)) };
   });
 
+  app.get("/v1/integrations/catalog", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    return { integrations: listIntegrations() };
+  });
+
+  app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/integrations/google.calendar/oauth/start", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    const clientId = dependencies.config.GOOGLE_CALENDAR_CLIENT_ID;
+    const redirectUri = dependencies.config.GOOGLE_CALENDAR_REDIRECT_URI;
+    if (!clientId || !dependencies.config.GOOGLE_CALENDAR_CLIENT_SECRET || !redirectUri) return reply.code(503).send({ error: "google_calendar_oauth_not_configured" });
+    const state = randomBytes(32).toString("base64url");
+    await integrationRepository.createOAuthState({ organizationId: auth.organizationId, installationId: installation.id, integrationId: "google.calendar", stateHash: createHash("sha256").update(state).digest("hex"), redirectUri, createdBy: auth.actorId, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString() });
+    const authorizationUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    authorizationUrl.search = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, response_type: "code", access_type: "offline", prompt: "consent", scope: "https://www.googleapis.com/auth/calendar.events", state }).toString();
+    return { authorizationUrl: authorizationUrl.toString() };
+  });
+
+  app.get<{ Querystring: { code?: string; state?: string; error?: string } }>("/v1/integrations/google.calendar/oauth/callback", async (request, reply) => {
+    const state = request.query.state;
+    if (!state) return reply.code(400).send({ error: "oauth_state_missing" });
+    const stateRecord = await integrationRepository.consumeOAuthState(createHash("sha256").update(state).digest("hex"));
+    if (!stateRecord) return reply.code(400).send({ error: "oauth_state_invalid_or_expired" });
+    if (request.query.error || !request.query.code) return reply.code(400).send({ error: request.query.error ?? "oauth_code_missing" });
+    const clientId = dependencies.config.GOOGLE_CALENDAR_CLIENT_ID;
+    const clientSecret = dependencies.config.GOOGLE_CALENDAR_CLIENT_SECRET;
+    if (!clientId || !clientSecret) return reply.code(503).send({ error: "google_calendar_oauth_not_configured" });
+    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ code: request.query.code, client_id: clientId, client_secret: clientSecret, redirect_uri: stateRecord.redirect_uri, grant_type: "authorization_code" }), signal: AbortSignal.timeout(20_000) });
+    if (!tokenResponse.ok) return reply.code(502).send({ error: "google_calendar_token_exchange_failed" });
+    const token = await tokenResponse.json() as { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string };
+    if (!token.access_token) return reply.code(502).send({ error: "google_calendar_access_token_missing" });
+    const credential = await integrationRepository.storeCredential({ organizationId: stateRecord.organization_id, integrationId: "google.calendar", secret: JSON.stringify({ accessToken: token.access_token, refreshToken: token.refresh_token, expiresAt: new Date(Date.now() + (token.expires_in ?? 3_600) * 1_000).toISOString(), scope: token.scope }), label: "Google Calendar", actorId: stateRecord.created_by });
+    await integrationRepository.upsertConnection({ organizationId: stateRecord.organization_id, installationId: stateRecord.installation_id, integrationId: "google.calendar", credentialId: credential.id, status: "connected", configuration: { calendarId: "primary" }, actorId: stateRecord.created_by });
+    if (dependencies.config.AGENT_INTEGRATIONS_RETURN_URL) {
+      const returnUrl = new URL(dependencies.config.AGENT_INTEGRATIONS_RETURN_URL);
+      returnUrl.searchParams.set("integration", "google.calendar");
+      returnUrl.searchParams.set("status", "connected");
+      returnUrl.searchParams.set("installationId", stateRecord.installation_id);
+      return reply.redirect(returnUrl.toString());
+    }
+    return { integration: "google.calendar", status: "connected", installationId: stateRecord.installation_id };
+  });
+
+  app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/integrations", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    const [connections, channelConnections] = await Promise.all([
+      integrationRepository.listConnections(auth.organizationId, installation.id),
+      channels.listConnections(auth.organizationId, installation.id),
+    ]);
+    const byIntegration = new Map(connections.map((connection) => [connection.integration_id, connection]));
+    return {
+      installationId: installation.id,
+      integrations: await Promise.all(listIntegrations().map(async (integration) => {
+        if (integration.kind === "channel") {
+          const matchingConnections = channelConnections.filter((connection) => connection.channel_type === integration.channelType && connection.status !== "revoked");
+          const connection = matchingConnections.find((candidate) => candidate.status === "active") ?? matchingConnections[0];
+          const connected = connection?.status === "active";
+          return {
+            ...integration,
+            status: connected ? "connected" : connection?.status === "failed" || connection?.status === "paused" ? "unhealthy" : "not_configured",
+            available: connected,
+            hasCredential: Boolean(connection?.credential_reference),
+            connectionId: connection?.id ?? null,
+            connectionCount: matchingConnections.length,
+            configuration: connection ? { channelKey: connection.channel_key } : {},
+            healthMessage: connection?.status === "failed" ? "The channel connection failed." : null,
+            lastCheckedAt: connection?.updated_at ?? null,
+          };
+        }
+        const connection = byIntegration.get(integration.id);
+        const available = await integrationTools.isAvailable(auth.organizationId, installation.id, integration.id);
+        return {
+          ...integration,
+          status: integration.id === "internal.calendar" ? "connected" : connection?.status ?? (available ? "connected" : "not_configured"),
+          available,
+          hasCredential: Boolean(connection?.credential_id),
+          configuration: connection?.configuration ?? {},
+          healthMessage: connection?.health_message ?? null,
+          lastCheckedAt: connection?.last_checked_at ?? null,
+        };
+      })),
+    };
+  });
+
+  app.post<{ Params: { installationId: string; integrationId: string } }>("/v1/installations/:installationId/integrations/:integrationId/api-key", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    const integration = getIntegration(request.params.integrationId);
+    if (!integration || integration.kind !== "tool" || integration.auth !== "api_key") return reply.code(400).send({ error: "integration_does_not_use_api_key" });
+    const input = z.object({ apiKey: z.string().trim().min(1).max(4_000), label: z.string().trim().min(1).max(160).optional(), configuration: z.record(z.string(), z.unknown()).optional() }).parse(request.body);
+    const credential = await integrationRepository.storeCredential({ organizationId: auth.organizationId, integrationId: integration.id, secret: input.apiKey, label: input.label, actorId: auth.actorId });
+    const connection = await integrationRepository.upsertConnection({ organizationId: auth.organizationId, installationId: installation.id, integrationId: integration.id, credentialId: credential.id, status: "connected", configuration: input.configuration, actorId: auth.actorId });
+    return reply.code(201).send({ integration: { ...integration, status: connection.status, available: true, hasCredential: true, configuration: connection.configuration } });
+  });
+
+  app.post<{ Params: { installationId: string; integrationId: string } }>("/v1/installations/:installationId/integrations/:integrationId/local-connector", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    const integration = getIntegration(request.params.integrationId);
+    if (!integration || integration.kind !== "tool" || integration.auth !== "local_connector") return reply.code(400).send({ error: "integration_does_not_use_local_connector" });
+    const input = z.object({ endpoint: z.string().trim().url(), secret: z.string().trim().min(1).max(4_000), label: z.string().trim().min(1).max(160).optional() }).parse(request.body);
+    const credential = await integrationRepository.storeCredential({ organizationId: auth.organizationId, integrationId: integration.id, secret: input.secret, label: input.label, actorId: auth.actorId });
+    const connection = await integrationRepository.upsertConnection({ organizationId: auth.organizationId, installationId: installation.id, integrationId: integration.id, credentialId: credential.id, status: "connected", configuration: { endpoint: input.endpoint.replace(/\/$/, "") }, actorId: auth.actorId });
+    return reply.code(201).send({ integration: { ...integration, status: connection.status, available: true, hasCredential: true, configuration: connection.configuration } });
+  });
+
+  app.delete<{ Params: { installationId: string; integrationId: string } }>("/v1/installations/:installationId/integrations/:integrationId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const integration = getIntegration(request.params.integrationId);
+    if (!integration) return reply.code(404).send({ error: "integration_not_found" });
+    if (integration.kind !== "tool" || integration.auth === "internal") return reply.code(400).send({ error: "integration_cannot_be_disconnected_here" });
+    const connection = await integrationRepository.getConnection(auth.organizationId, request.params.installationId, integration.id);
+    await integrationRepository.disconnect({ organizationId: auth.organizationId, installationId: request.params.installationId, integrationId: integration.id });
+    if (connection?.credential_id) await integrationRepository.revokeCredential(auth.organizationId, connection.credential_id);
+    return reply.code(204).send();
+  });
+
   app.post<{ Params: { installationId: string } }>("/v1/installations/:installationId/grants/resources", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:write");
@@ -2424,6 +2593,36 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         occurredAt: z.string().datetime().optional(),
         displayName: z.string().trim().max(240).optional(),
       }).parse(request.body);
+      const inboundConnection = input.channelKey
+        ? await channels.getConnectionForInbound({
+          organizationId: auth.organizationId,
+          channelType: input.channelType,
+          channelKey: input.channelKey,
+        })
+        : null;
+      if (input.channelType === "whatsapp" && inboundConnection?.execution_mode === "system_hosted") {
+        const allowedPhones = whatsappAllowedPhones(inboundConnection.metadata);
+        if (allowedPhones.length > 0 && !whatsappPhoneAllowed(inboundConnection.metadata, input.externalIdentity)) {
+          request.log.info({ channelConnectionId: inboundConnection.id, externalIdentity: input.externalIdentity }, "WhatsApp message ignored for a non-allowlisted phone");
+          return reply.code(200).send({ ok: true, ignored: true, reason: "phone_not_allowed" });
+        }
+        if (allowedPhones.length > 0) {
+          const phone = normalizeWhatsappAllowedPhones([input.externalIdentity])[0];
+          if (!phone) return reply.code(200).send({ ok: true, ignored: true, reason: "phone_not_allowed" });
+          try {
+            await channels.bind({
+              organizationId: auth.organizationId,
+              installationId: inboundConnection.installation_id,
+              connectionId: inboundConnection.id,
+              externalIdentity: phone,
+              ownerActorId: inboundConnection.created_by,
+            });
+          } catch (error) {
+            request.log.warn({ error: error instanceof Error ? error.message : "WhatsApp allowlist binding failed" }, "WhatsApp allowlist binding failed");
+            return reply.code(200).send({ ok: true, ignored: true, reason: "phone_not_allowed" });
+          }
+        }
+      }
       input.content = parseCanonicalMessageContent(input.messageType, input.content);
       const accepted = await platformChat.acceptExternalMessage({
         organizationId: auth.organizationId,
@@ -3089,6 +3288,48 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       throw error;
     }
     return reply.code(201).send(connection);
+  });
+
+  app.patch<{ Params: { installationId: string; connectionId: string } }>("/v1/installations/:installationId/channels/:connectionId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "channels:write");
+    const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+    if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+    requireHostedInstallation(installation);
+    const connection = await channels.getConnection(auth.organizationId, request.params.connectionId);
+    if (!connection || connection.installation_id !== installation.id) return reply.code(404).send({ error: "channel_connection_not_found" });
+    if ((connection.channel_type !== "telegram" && connection.channel_type !== "whatsapp") || installation.execution_mode !== "system_hosted") {
+      return reply.code(400).send({ error: "channel_allowlist_only_for_personal_agents" });
+    }
+    const input = z.object({
+      allowedUsers: z.array(z.string().trim().regex(/^\d+$/)).max(100).optional(),
+      allowedPhones: z.array(z.string().trim().min(1).max(40)).max(100).optional(),
+    }).parse(request.body);
+    let metadata: Record<string, unknown>;
+    if (connection.channel_type === "telegram") {
+      if (!input.allowedUsers) return reply.code(400).send({ error: "allowedUsers_required" });
+      metadata = {
+        ...connection.metadata,
+        telegramAccess: {
+          ...(connection.metadata.telegramAccess && typeof connection.metadata.telegramAccess === "object" ? connection.metadata.telegramAccess as Record<string, unknown> : {}),
+          allowedUsers: normalizeTelegramAllowedUsers(input.allowedUsers),
+        },
+      };
+    } else {
+      if (!input.allowedPhones) return reply.code(400).send({ error: "allowedPhones_required" });
+      const allowedPhones = normalizeWhatsappAllowedPhones(input.allowedPhones);
+      if (input.allowedPhones.some((value) => normalizeWhatsappAllowedPhones([value]).length !== 1)) return reply.code(400).send({ error: "allowedPhones_invalid" });
+      metadata = {
+        ...connection.metadata,
+        whatsappAccess: {
+          ...(connection.metadata.whatsappAccess && typeof connection.metadata.whatsappAccess === "object" ? connection.metadata.whatsappAccess as Record<string, unknown> : {}),
+          allowedPhones,
+        },
+      };
+    }
+    const updated = await channels.updateConnection({ organizationId: auth.organizationId, connectionId: connection.id, metadata });
+    const { credential_reference: _credentialReference, webhook_secret_hash: _webhookSecretHash, ...publicConnection } = updated;
+    return reply.send(publicConnection);
   });
 
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/channels", async (request) => {

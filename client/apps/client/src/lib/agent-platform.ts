@@ -779,6 +779,34 @@ export type AgentConnector = {
   supportsReconciliation: boolean;
 };
 
+export type AgentIntegration = {
+  id: string;
+  kind: "tool" | "channel" | string;
+  runtime: "tool_registry" | "webhook" | "gateway" | "workspace_channel" | string;
+  name: string;
+  description: string;
+  category: "productivity" | "search" | "apple" | "observability" | string;
+  auth: "internal" | "oauth2" | "api_key" | "webhook" | "local_connector" | "observability" | string;
+  logo: string;
+  capabilityNames: string[];
+  requiredScopes: string[];
+  configurable: boolean;
+  status: "not_configured" | "connected" | "unhealthy" | "requires_connector" | "revoked" | string;
+  available: boolean;
+  hasCredential: boolean;
+  configuration: Record<string, unknown>;
+  channelType?: "whatsapp" | "telegram" | "discord" | string;
+  connectionId?: string | null;
+  connectionCount?: number;
+  healthMessage?: string | null;
+  lastCheckedAt?: string | null;
+};
+
+export type AgentInstallationIntegrations = {
+  installationId: string;
+  integrations: AgentIntegration[];
+};
+
 export function listAgentInstallationCapabilities(installationId: string): Promise<{ installationId: string; capabilities: AgentCapability[] }> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/capabilities`);
 }
@@ -818,6 +846,26 @@ export function grantAgentInstallationConnector(installationId: string, connecto
     method: "POST",
     body: JSON.stringify({ connectorId }),
   });
+}
+
+export function listAgentInstallationIntegrations(installationId: string): Promise<AgentInstallationIntegrations> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/integrations`);
+}
+
+export function saveAgentIntegrationApiKey(installationId: string, integrationId: string, input: { apiKey: string; label?: string }): Promise<{ integration: AgentIntegration }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/integrations/${encodeURIComponent(integrationId)}/api-key`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export function saveAgentIntegrationLocalConnector(installationId: string, integrationId: string, input: { endpoint: string; secret: string; label?: string }): Promise<{ integration: AgentIntegration }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/integrations/${encodeURIComponent(integrationId)}/local-connector`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export function startAgentGoogleCalendarOAuth(installationId: string): Promise<{ authorizationUrl: string }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/integrations/google.calendar/oauth/start`);
+}
+
+export function disconnectAgentIntegration(installationId: string, integrationId: string): Promise<unknown> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/integrations/${encodeURIComponent(integrationId)}`, { method: "DELETE" });
 }
 
 export type AgentInstallationRun = AgentRun & {
@@ -1202,6 +1250,20 @@ export function createAgentChannelConnection(installationId: string, input: { ch
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/channels`, {
     method: "POST",
     body: JSON.stringify(input),
+  });
+}
+
+export function updateAgentChannelAllowedUsers(installationId: string, connectionId: string, allowedUsers: string[]): Promise<AgentChannelConnection> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/channels/${encodeURIComponent(connectionId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ allowedUsers }),
+  });
+}
+
+export function updateAgentChannelAllowedPhones(installationId: string, connectionId: string, allowedPhones: string[]): Promise<AgentChannelConnection> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/channels/${encodeURIComponent(connectionId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ allowedPhones }),
   });
 }
 

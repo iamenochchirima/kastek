@@ -5,9 +5,9 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
-import { Archive, ArrowLeft, BookOpen, Bot, CheckCircle2, Copy, Cpu, Globe2, History, KeyRound, LayoutDashboard, MessageSquare, PlugZap, RefreshCw, Rocket, RotateCcw, Settings2, SlidersHorizontal, Sparkles, Trash2, Upload, Workflow, Wrench } from "lucide-react";
+import { Archive, ArrowLeft, BookOpen, CheckCircle2, Copy, Cpu, Globe2, History, KeyRound, LayoutDashboard, MessageSquare, PlugZap, RefreshCw, Rocket, RotateCcw, Settings2, SlidersHorizontal, Sparkles, Trash2, Upload, Workflow, Wrench } from "lucide-react";
 import type { IconType } from "react-icons";
-import { SiDiscord, SiInstagram, SiMessenger, SiModelcontextprotocol, SiSlack, SiTelegram, SiWhatsapp, SiWordpress } from "react-icons/si";
+import { SiDiscord, SiInstagram, SiMessenger, SiModelcontextprotocol, SiTelegram, SiWhatsapp } from "react-icons/si";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -28,6 +28,7 @@ import { AgentWorkflowEditor, type WorkflowGraphValue } from "./agent-workflow-e
 import { AgentChatPanel } from "./agent-chat-panel";
 import { AgentModelPicker } from "./agent-model-picker";
 import { AgentRuntimeLimits, defaultAgentRuntimeLimits, parseAgentRuntimeLimits, type AgentRuntimeLimitsValue } from "./agent-runtime-limits";
+import { AgentToolIntegrations } from "./agent-tool-integrations";
 import { listWorkspaceConnections, type WorkspaceConnection } from "@/lib/connections";
 import { apiUrl } from "@/lib/server-api";
 import {
@@ -94,6 +95,8 @@ import {
   listKasiAiChannels,
   createAgentChannelConnection,
   revokeAgentChannelConnection,
+  updateAgentChannelAllowedUsers,
+  updateAgentChannelAllowedPhones,
   issueAgentChannelPairing,
   disconnectKasiAiChannel,
   createAgentWebsiteDeployment,
@@ -102,6 +105,7 @@ import {
   setAgentWebsiteDeploymentStatus,
   type AgentChannelConnection,
   type AgentChannelBinding,
+  type AgentIntegration,
   type AgentDefinition,
   type AgentModel,
   type AgentModelCatalog,
@@ -953,7 +957,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
 
         {activeSection === "conversations" && customerConversationSurface && agent.installation_id ? <AgentConversationHistory agentId={agent.id} installationId={agent.installation_id} /> : null}
 
-        {activeSection === "integrations" && channelSurface && agent.installation_id ? <InstallationIntegrations agentId={agent.id} installationId={agent.installation_id} personal={executionMode === "system_hosted"} agentName={agent.name} onWebsiteDeploymentStateChange={setWebsiteChatConfigured} /> : null}
+        {activeSection === "integrations" && agent.installation_id ? channelSurface ? <InstallationIntegrations agentId={agent.id} installationId={agent.installation_id} personal={executionMode === "system_hosted"} agentName={agent.name} onWebsiteDeploymentStateChange={setWebsiteChatConfigured} /> : <AgentToolIntegrations installationId={agent.installation_id} /> : null}
 
         {activeSection === "deployment" && channelSurface && agent.installation_id ? <InstallationChannels installationId={agent.installation_id} personal={executionMode === "system_hosted"} /> : null}
 
@@ -1842,12 +1846,6 @@ function InstallationSchedules({ installationId }: { installationId: string }) {
   </Card>;
 }
 
-type AgentPairing = {
-  connectionId: string;
-  token: string;
-  expires_at: string;
-};
-
 function integrationProviderLabel(provider: string) {
   switch (provider.toUpperCase()) {
     case "WHATSAPP":
@@ -1891,7 +1889,6 @@ function InstallationIntegrations({ agentId, installationId, personal, agentName
   const [workspaceConnections, setWorkspaceConnections] = useState<WorkspaceConnection[]>([]);
   const [agentConnections, setAgentConnections] = useState<AgentChannelConnection[]>([]);
   const [bindings, setBindings] = useState<AgentChannelBinding[]>([]);
-  const [pairing, setPairing] = useState<AgentPairing | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1939,6 +1936,8 @@ function InstallationIntegrations({ agentId, installationId, personal, agentName
   const openWebsiteChat = () => setWebsiteChatOpen(true);
   const [telegramSetupOpen, setTelegramSetupOpen] = useState(false);
   const [discordSetupOpen, setDiscordSetupOpen] = useState(false);
+  const [whatsappSetupOpen, setWhatsappSetupOpen] = useState(false);
+  const [whatsappSetupConnection, setWhatsappSetupConnection] = useState<WorkspaceConnection | null>(null);
 
   const agentChannelFor = (connection: WorkspaceConnection) => agentConnections.find((entry) => (
     entry.channel_type === "whatsapp" && entry.status === "active"
@@ -1949,32 +1948,15 @@ function InstallationIntegrations({ agentId, installationId, personal, agentName
     ? bindings.some((binding) => binding.channel_type === "whatsapp" && binding.status === "active" && (!binding.channel_connection_id || binding.channel_connection_id === channel.id))
     : false;
 
-  const pairWhatsApp = async (connection: WorkspaceConnection) => {
-    if (!personal || busy || connection.status !== "CONNECTED") return;
-    setBusy(connection.id);
-    setPairing(null);
-    setError(null);
-    try {
-      let channel = agentChannelFor(connection);
-      if (!channel) {
-        channel = await createAgentChannelConnection(installationId, {
-          channelType: "whatsapp",
-          channelKey: connection.id,
-          metadata: {
-            configuredFrom: "agent-integrations",
-            coreConnectionId: connection.id,
-            provider: "WHATSAPP",
-          },
-        });
-        setAgentConnections((current) => [channel as AgentChannelConnection, ...current.filter((entry) => entry.id !== channel?.id)]);
-      }
-      const issued = await issueAgentChannelPairing(installationId, channel.id);
-      setPairing({ connectionId: connection.id, ...issued });
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to prepare WhatsApp pairing");
-    } finally {
-      setBusy(null);
-    }
+  const allowedWhatsappPhonesFor = (channel: AgentChannelConnection | undefined) => {
+    const access = channel?.metadata?.whatsappAccess;
+    const phones = access && typeof access === "object" ? (access as Record<string, unknown>).allowedPhones : undefined;
+    return Array.isArray(phones) ? phones.filter((value): value is string => typeof value === "string") : [];
+  };
+
+  const openWhatsAppSetup = (workspaceConnection: WorkspaceConnection) => {
+    setWhatsappSetupConnection(workspaceConnection);
+    setWhatsappSetupOpen(true);
   };
 
   const assignWhatsApp = async (connection: WorkspaceConnection) => {
@@ -2008,7 +1990,6 @@ function InstallationIntegrations({ agentId, installationId, personal, agentName
       await revokeAgentChannelConnection(installationId, channel.id);
       setAgentConnections((current) => current.filter((entry) => entry.id !== channel.id));
       setBindings((current) => current.filter((binding) => binding.channel_connection_id !== channel.id));
-      setPairing(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to remove WhatsApp from this agent");
     } finally {
@@ -2025,47 +2006,42 @@ function InstallationIntegrations({ agentId, installationId, personal, agentName
   const websiteActive = websiteDeployments.some((deployment) => deployment.status === "ACTIVE");
   const websiteStatus = websiteActive ? "Active" : websiteConfigured ? "Configured" : "Configure";
   const telegramConnection = agentConnections.find((connection) => connection.channel_type === "telegram" && connection.status === "active");
-  const telegramConnected = Boolean(telegramConnection);
-  const telegramStatus = loading ? "Checking…" : telegramConnected ? "Connected" : "Set up";
   const discordConnection = agentConnections.find((connection) => connection.channel_type === "discord" && connection.status === "active");
-  const discordConnected = Boolean(discordConnection);
-  const discordStatus = loading ? "Checking…" : discordConnected ? "Connected" : "Set up";
-  const upcomingIntegrations = [
-    ...(!personal ? [{ label: "Website Chat", description: "Add this agent to any website", icon: Globe2, iconClass: "text-[#06B6D4]", status: websiteStatus, action: "website" as const }] : []),
-    { label: "Telegram", description: "Bot messaging", icon: SiTelegram, iconClass: "text-[#229ED9]", status: telegramStatus, action: "channels" as const },
-    { label: "Discord", description: "Servers and direct messages", icon: SiDiscord, iconClass: "text-[#5865F2]", status: discordStatus, action: "discord" as const },
-    { label: "Slack", description: "Workspace messaging", icon: SiSlack, iconClass: "text-[#36C5F0]", status: "Coming soon" },
-    { label: "WordPress", description: "Use the Website Chat embed", icon: SiWordpress, iconClass: "text-[#21759B]", status: "Uses Website Chat" },
-    { label: "Custom Button", description: "Launch Website Chat from your button", icon: Bot, iconClass: "text-[#F59E0B]", status: "Uses Website Chat" },
-    { label: "Bot API", description: "Programmatic access", icon: Bot, iconClass: "text-[#8B5CF6]", status: "Developer setup" },
-    { label: "MCP", description: "Connect an AI client", icon: SiModelcontextprotocol, iconClass: "text-[#A855F7]", status: "Developer setup" },
-  ];
+  const openCatalogChannel = (integration: AgentIntegration) => {
+    if (integration.channelType === "telegram") setTelegramSetupOpen(true);
+    else if (integration.channelType === "discord") setDiscordSetupOpen(true);
+    else if (integration.channelType === "whatsapp") {
+      const workspaceConnection = linkedConnections.find((connection) => connection.status === "CONNECTED");
+      if (personal && workspaceConnection) openWhatsAppSetup(workspaceConnection);
+      else window.location.assign("/connections");
+    }
+  };
 
   return <div className="space-y-4">
     <Card>
       <CardContent className="space-y-4 p-6">
         <div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Deployment</p><h2 className="mt-1 text-lg font-semibold text-foreground">Integrations</h2><p className="mt-1 text-sm text-muted-foreground">{personal ? "Connect this personal agent to private workspace channels." : "Assign workspace channels to this agent. Everyone who messages an assigned business number will reach this agent."}</p></div>
         {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
-        {personal && pairing ? <div className="rounded-lg border border-status-attention/40 bg-status-attention-soft px-3 py-2.5" role="alert"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold text-status-attention">WhatsApp pairing token</p><code className="min-w-0 flex-1 overflow-x-auto rounded bg-background px-2 py-1 text-xs text-foreground">{pairing.token}</code><Button type="button" variant="outline" size="sm" onClick={() => void navigator.clipboard?.writeText(pairing.token)}>Copy</Button></div><p className="mt-1 text-xs text-muted-foreground">Send it to the connected business number. Expires {new Date(pairing.expires_at).toLocaleString()}.</p></div> : null}
         <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-sm font-semibold text-foreground">Connected accounts</h3><Link href="/connections" className="text-sm font-medium text-foreground underline-offset-4 hover:underline">Manage connections</Link></div>
         {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : linkedGroups.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{linkedGroups.map((group) => {
           const Icon = integrationIcon(group.provider);
           const connectedCount = group.connections.filter((connection) => connection.status === "CONNECTED").length;
           return <div key={group.provider} className="rounded-xl border border-border p-4"><div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3"><div className="rounded-lg border border-border bg-secondary p-2"><Icon className={`h-5 w-5 ${integrationIconColor(group.provider)}`} /></div><div><p className="font-medium text-foreground">{integrationProviderLabel(group.provider)}</p><p className="mt-0.5 text-xs text-muted-foreground">{connectedCount} connected {connectedCount === 1 ? "account" : "accounts"}</p></div></div><span className="flex items-center gap-1.5 text-xs text-status-success"><span className="h-1.5 w-1.5 rounded-full bg-status-success" />Active</span></div><div className="mt-4 divide-y divide-border rounded-lg border border-border/70">{group.connections.map((connection) => {
             const channel = group.provider === "WHATSAPP" ? agentChannelFor(connection) : undefined;
-            const paired = personal && activeBindingFor(channel);
+            const paired = personal && (activeBindingFor(channel) || allowedWhatsappPhonesFor(channel).length > 0);
             const assigned = !personal && channel?.status === "active";
             const available = connection.status === "CONNECTED";
-            return <div key={connection.id} className="flex items-center justify-between gap-3 px-3 py-2.5"><div className="min-w-0"><p className="truncate text-sm text-foreground">{connection.displayName}</p>{connection.handle ? <p className="truncate text-xs text-muted-foreground">{connection.handle}</p> : null}</div>{group.provider === "WHATSAPP" && available ? personal ? paired ? <div className="flex items-center gap-2"><span className="shrink-0 text-xs font-medium text-status-success">In use</span><Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => void removeWhatsApp(connection, channel)}>{busy === connection.id ? "…" : "Release"}</Button></div> : <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => void pairWhatsApp(connection)}>{busy === connection.id ? "…" : channel ? "Pair" : "Use"}</Button> : assigned ? <div className="flex items-center gap-2"><span className="shrink-0 text-xs font-medium text-status-success">Assigned</span><Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => void removeWhatsApp(connection, channel)}>{busy === connection.id ? "…" : "Remove"}</Button></div> : <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => void assignWhatsApp(connection)}>{busy === connection.id ? "…" : "Use for agent"}</Button> : <Link href="/connections" className="shrink-0 text-xs font-medium text-foreground underline-offset-4 hover:underline">Manage</Link>}</div>;
+            return <div key={connection.id} className="flex items-center justify-between gap-3 px-3 py-2.5"><div className="min-w-0"><p className="truncate text-sm text-foreground">{connection.displayName}</p>{connection.handle ? <p className="truncate text-xs text-muted-foreground">{connection.handle}</p> : null}</div>{group.provider === "WHATSAPP" && available ? personal ? paired ? <div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => openWhatsAppSetup(connection)}>Manage</Button><Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => void removeWhatsApp(connection, channel)}>{busy === connection.id ? "…" : "Release"}</Button></div> : <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => openWhatsAppSetup(connection)}>{channel ? "Configure" : "Use"}</Button> : assigned ? <div className="flex items-center gap-2"><span className="shrink-0 text-xs font-medium text-status-success">Assigned</span><Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => void removeWhatsApp(connection, channel)}>{busy === connection.id ? "…" : "Remove"}</Button></div> : <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => void assignWhatsApp(connection)}>{busy === connection.id ? "…" : "Use for agent"}</Button> : <Link href="/connections" className="shrink-0 text-xs font-medium text-foreground underline-offset-4 hover:underline">Manage</Link>}</div>;
           })}</div></div>;
         })}</div> : <div className="rounded-lg border border-dashed border-border p-4"><p className="text-sm text-muted-foreground">No connected accounts yet.</p><Link href="/connections" className="mt-2 inline-flex text-sm font-medium text-foreground underline-offset-4 hover:underline">Open connections</Link></div>}
       </CardContent>
     </Card>
     <Card>
-      <CardContent className="space-y-4 p-6"><div><h3 className="text-sm font-semibold text-foreground">Available integrations</h3><p className="mt-1 text-sm text-muted-foreground">More ways to deploy this agent.</p></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{upcomingIntegrations.map((integration) => { const Icon = integration.icon; const isWebsite = integration.action === "website"; const isDiscordSetup = integration.action === "discord"; const isChannelSetup = integration.action === "channels" || isDiscordSetup; const isActionable = isWebsite || isChannelSetup; const openIntegration = isWebsite ? openWebsiteChat : isDiscordSetup ? () => setDiscordSetupOpen(true) : isChannelSetup ? () => setTelegramSetupOpen(true) : undefined; return <div key={integration.label} role={isActionable ? "button" : undefined} tabIndex={isActionable ? 0 : undefined} onClick={openIntegration} onKeyDown={isActionable ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openIntegration?.(); } } : undefined} className={`rounded-xl border border-border p-4${isActionable ? " cursor-pointer transition-colors hover:border-primary/60 hover:bg-secondary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" : ""}`}><div className="flex items-start justify-between gap-3"><div className="rounded-lg border border-border bg-secondary p-2"><Icon className={`h-5 w-5 ${integration.iconClass}`} /></div><Badge className={`border-border bg-secondary text-muted-foreground${isChannelSetup && integration.status !== "Checking…" ? " border-status-success/30 bg-status-success-soft text-status-success" : ""}`}>{integration.status}</Badge></div><p className="mt-3 font-medium text-foreground">{integration.label}</p><p className="mt-1 text-sm text-muted-foreground">{integration.description}</p>{isWebsite ? <span className="mt-3 inline-flex text-xs font-medium text-foreground">{websiteConfigured ? "Manage Website Chat" : "Configure Website Chat"} <span aria-hidden="true" className="ml-1">→</span></span> : isDiscordSetup ? <span className="mt-3 inline-flex text-xs font-medium text-foreground">{discordConnected ? "Manage Discord" : "Connect Discord"} <span aria-hidden="true" className="ml-1">→</span></span> : isChannelSetup ? <span className="mt-3 inline-flex text-xs font-medium text-foreground">{telegramConnected ? "Manage Telegram" : "Connect Telegram"} <span aria-hidden="true" className="ml-1">→</span></span> : integration.status === "Developer setup" ? <Link href="/developers" className="mt-3 inline-flex text-xs font-medium text-foreground underline-offset-4 hover:underline">Open Developers</Link> : null}</div>; })}</div></CardContent>
+      <CardContent className="space-y-4 p-6"><div><h3 className="text-sm font-semibold text-foreground">Available integrations</h3><p className="mt-1 text-sm text-muted-foreground">More ways to deploy this agent.</p></div>{!personal ? <div role="button" tabIndex={0} onClick={openWebsiteChat} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openWebsiteChat(); } }} className="rounded-xl border border-border p-4 cursor-pointer transition-colors hover:border-primary/60 hover:bg-secondary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><div className="flex items-start justify-between gap-3"><div className="rounded-lg border border-border bg-secondary p-2"><Globe2 className="h-5 w-5 text-[#06B6D4]" /></div><Badge className="border-border bg-secondary text-muted-foreground">{websiteStatus}</Badge></div><p className="mt-3 font-medium text-foreground">Website Chat</p><p className="mt-1 text-sm text-muted-foreground">Add this agent to any website.</p><span className="mt-3 inline-flex text-xs font-medium text-foreground">{websiteConfigured ? "Manage Website Chat" : "Configure Website Chat"}<span aria-hidden="true" className="ml-1">→</span></span></div> : null}<AgentToolIntegrations installationId={installationId} embedded refreshKey={agentConnections.map((connection) => `${connection.id}:${connection.status}`).join(",")} onChannelAction={openCatalogChannel} /></CardContent>
     </Card>
     <TelegramSetupDialog open={telegramSetupOpen} onOpenChange={setTelegramSetupOpen} installationId={installationId} personal={personal} existingConnection={telegramConnection} onConnected={() => void refresh()} onDisconnected={() => void refresh()} />
     <DiscordSetupDialog open={discordSetupOpen} onOpenChange={setDiscordSetupOpen} installationId={installationId} personal={personal} existingConnection={discordConnection} onConnected={() => void refresh()} onDisconnected={() => void refresh()} />
+    {whatsappSetupConnection ? <WhatsAppAccessDialog open={whatsappSetupOpen} onOpenChange={setWhatsappSetupOpen} installationId={installationId} workspaceConnection={whatsappSetupConnection} existingConnection={agentChannelFor(whatsappSetupConnection)} onSaved={() => void refresh()} onDisconnected={() => void refresh()} /> : null}
     {!personal && websiteChatOpen ? <WebsiteChatDeployments agentId={agentId} installationId={installationId} agentName={agentName} onClose={() => { setWebsiteChatOpen(false); void refreshWebsiteDeployments(); }} /> : null}
   </div>;
 }
@@ -2224,8 +2200,93 @@ function WebsiteChatDeployments({ agentId, installationId, agentName, onClose }:
   </Dialog>;
 }
 
+function WhatsAppAccessDialog({ open, onOpenChange, installationId, workspaceConnection, existingConnection, onSaved, onDisconnected }: { open: boolean; onOpenChange: (open: boolean) => void; installationId: string; workspaceConnection: WorkspaceConnection; existingConnection?: AgentChannelConnection; onSaved?: () => void; onDisconnected?: () => void }) {
+  const [allowedPhones, setAllowedPhones] = useState("");
+  const [connection, setConnection] = useState<AgentChannelConnection | null>(existingConnection ?? null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { confirm } = useConfirmationDialog();
+
+  useEffect(() => {
+    if (!open) return;
+    setConnection(existingConnection ?? null);
+    const access = existingConnection?.metadata?.whatsappAccess;
+    const configured = access && typeof access === "object" && Array.isArray((access as Record<string, unknown>).allowedPhones)
+      ? ((access as Record<string, unknown>).allowedPhones as unknown[]).filter((value): value is string => typeof value === "string")
+      : [];
+    setAllowedPhones(configured.join(", "));
+    setError(null);
+  }, [existingConnection, open]);
+
+  const normalizedAllowedPhones = () => [...new Set(allowedPhones.split(",").map((value) => value.trim().replace(/[\s().-]/g, "").replace(/^\+/, "").replace(/^00/, "")).filter((value) => /^\d{7,15}$/.test(value)))];
+
+  const save = async () => {
+    if (busy) return;
+    const phones = normalizedAllowedPhones();
+    if (!phones.length) {
+      setError("Add at least one phone number in international format.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = connection
+        ? await updateAgentChannelAllowedPhones(installationId, connection.id, phones)
+        : await createAgentChannelConnection(installationId, {
+          channelType: "whatsapp",
+          channelKey: workspaceConnection.id,
+          metadata: {
+            configuredFrom: "agent-integrations",
+            coreConnectionId: workspaceConnection.id,
+            provider: "WHATSAPP",
+            routing: "private",
+            whatsappAccess: { allowedPhones: phones },
+          },
+        });
+      setConnection(updated);
+      setAllowedPhones(phones.join(", "));
+      onSaved?.();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to save WhatsApp access");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disconnect = async () => {
+    if (!connection || busy || !await confirm({ title: "Release WhatsApp?", description: "This stops this personal agent from receiving messages from the allowed phones.", confirmLabel: "Release", variant: "destructive" })) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await revokeAgentChannelConnection(installationId, connection.id);
+      onDisconnected?.();
+      onOpenChange(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to release WhatsApp");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="sm:max-w-md">
+      <DialogHeader>
+        <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl border border-[#25D366]/30 bg-[#25D366]/10"><SiWhatsapp className="h-5 w-5 text-[#25D366]" /></div>
+        <DialogTitle>WhatsApp access</DialogTitle>
+        <DialogDescription>{workspaceConnection.displayName}</DialogDescription>
+      </DialogHeader>
+      <div className="mt-5 space-y-4">
+        <label className="text-sm font-medium text-foreground" htmlFor="whatsapp-allowed-phones">Allowed phone(s)<Input id="whatsapp-allowed-phones" value={allowedPhones} onChange={(event) => setAllowedPhones(event.target.value)} placeholder="27821234567" className="mt-2" /><span className="mt-1 block text-xs font-normal text-muted-foreground">Use international format without +. Separate multiple numbers with commas.</span></label>
+        {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+      </div>
+      <DialogFooter className="mt-6"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>{connection ? <Button type="button" variant="destructive" disabled={busy} onClick={() => void disconnect()}>{busy ? "Releasing…" : "Release"}</Button> : null}<Button type="button" disabled={busy || !normalizedAllowedPhones().length} onClick={() => void save()}>{busy ? "Saving…" : "Save"}</Button></DialogFooter>
+    </DialogContent>
+  </Dialog>;
+}
+
 function TelegramSetupDialog({ open, onOpenChange, installationId, personal, existingConnection, onConnected, onDisconnected }: { open: boolean; onOpenChange: (open: boolean) => void; installationId: string; personal: boolean; existingConnection?: AgentChannelConnection; onConnected?: () => void; onDisconnected?: () => void }) {
   const [botToken, setBotToken] = useState("");
+  const [allowedUsers, setAllowedUsers] = useState("");
   const [connection, setConnection] = useState<AgentChannelConnection | null>(null);
   const [pairing, setPairing] = useState<{ token: string; expires_at: string; username?: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -2235,6 +2296,7 @@ function TelegramSetupDialog({ open, onOpenChange, installationId, personal, exi
 
   const reset = () => {
     setBotToken("");
+    setAllowedUsers("");
     setConnection(null);
     setPairing(null);
     setBusy(false);
@@ -2267,8 +2329,35 @@ function TelegramSetupDialog({ open, onOpenChange, installationId, personal, exi
   useEffect(() => {
     if (!open || !existingConnection || connection) return;
     setConnection(existingConnection);
-    if (personal) void issuePairing(existingConnection);
+    const access = existingConnection.metadata?.telegramAccess;
+    const configured = access && typeof access === "object" && Array.isArray((access as Record<string, unknown>).allowedUsers)
+      ? ((access as Record<string, unknown>).allowedUsers as unknown[]).filter((value): value is string => typeof value === "string")
+      : [];
+    setAllowedUsers(configured.join(", "));
   }, [connection, existingConnection, open, personal]);
+
+  const normalizedAllowedUsers = () => [...new Set(allowedUsers.split(",").map((value) => value.trim()).filter((value) => /^\d+$/.test(value)))];
+
+  const saveAllowedUsers = async () => {
+    if (!connection || busy) return;
+    const users = normalizedAllowedUsers();
+    if (!users.length) {
+      setError("Add at least one Telegram user ID.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await updateAgentChannelAllowedUsers(installationId, connection.id, users);
+      setConnection(updated);
+      setAllowedUsers(users.join(", "));
+      onConnected?.();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to save Telegram allowed users");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const connect = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -2279,12 +2368,11 @@ function TelegramSetupDialog({ open, onOpenChange, installationId, personal, exi
       const created = await createAgentChannelConnection(installationId, {
         channelType: "telegram",
         credentialSecret: botToken.trim(),
-        metadata: { configuredFrom: "telegram-setup-dialog", routing: personal ? "private" : "public" },
+        metadata: { configuredFrom: "telegram-setup-dialog", routing: personal ? "private" : "public", ...(personal ? { telegramAccess: { allowedUsers: normalizedAllowedUsers() } } : {}) },
       });
       setConnection(created);
       setBotToken("");
       onConnected?.();
-      if (personal) await issuePairing(created);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to connect Telegram");
     } finally {
@@ -2316,17 +2404,18 @@ function TelegramSetupDialog({ open, onOpenChange, installationId, personal, exi
         <DialogHeader>
           <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl border border-[#229ED9]/30 bg-[#229ED9]/10"><SiTelegram className="h-5 w-5 text-[#229ED9]" /></div>
           <DialogTitle>Connect Telegram</DialogTitle>
-          <DialogDescription>{personal ? "Connect your Telegram bot, then pair your account." : "Connect a Telegram bot for customer conversations."}</DialogDescription>
+          <DialogDescription>{personal ? "Connect your Telegram bot and restrict it to your Telegram user ID." : "Connect a Telegram bot for customer conversations."}</DialogDescription>
         </DialogHeader>
         <div className="mt-5 space-y-4">
           <div className="rounded-lg border border-border bg-secondary/30 p-3 text-sm text-muted-foreground">Create or open your bot in <a className="font-medium text-foreground underline underline-offset-4" href="https://t.me/BotFather" target="_blank" rel="noreferrer">@BotFather</a>, then paste its token here.</div>
           <label className="text-sm font-medium text-foreground" htmlFor="telegram-bot-token">Bot token<Input id="telegram-bot-token" type="password" value={botToken} onChange={(event) => setBotToken(event.target.value)} placeholder="123456:ABC…" className="mt-2" autoComplete="off" autoFocus /></label>
+          {personal ? <label className="text-sm font-medium text-foreground" htmlFor="telegram-allowed-users">Allowed user ID<Input id="telegram-allowed-users" value={allowedUsers} onChange={(event) => setAllowedUsers(event.target.value)} placeholder="123456789" className="mt-2" /><span className="mt-1 block text-xs font-normal text-muted-foreground">Use your numeric ID from @userinfobot. Separate multiple IDs with commas.</span></label> : null}
           <p className="text-xs text-muted-foreground">The token is encrypted and will not be shown again.</p>
           {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
         </div>
         <DialogFooter className="mt-6">
           <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
-          <Button type="submit" disabled={busy || !botToken.trim()}>{busy ? "Connecting…" : "Connect Telegram"}</Button>
+          <Button type="submit" disabled={busy || !botToken.trim() || (personal && !normalizedAllowedUsers().length)}>{busy ? "Connecting…" : "Connect Telegram"}</Button>
         </DialogFooter>
       </form> : <>
         <DialogHeader>
@@ -2334,8 +2423,9 @@ function TelegramSetupDialog({ open, onOpenChange, installationId, personal, exi
           <DialogTitle>Telegram connected</DialogTitle>
           <DialogDescription>{botUsername ? `@${botUsername} is connected to this agent.` : "Your Telegram bot is connected to this agent."}</DialogDescription>
         </DialogHeader>
-        {personal ? pairing ? <div className="mt-5 space-y-3"><div><p className="text-sm font-medium text-foreground">Pair your Telegram account</p><p className="mt-1 text-sm text-muted-foreground">Choose one of these options. Expires {new Date(pairing.expires_at).toLocaleString()}.</p></div><TelegramPairingActions username={pairing.username} token={pairing.token} /></div> : <div className="mt-5 space-y-3"><p className="text-sm text-muted-foreground">{pairingLoading ? "Preparing your pairing link…" : "Your bot is connected. Pairing could not be prepared yet."}</p>{error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}{!pairingLoading ? <Button type="button" variant="outline" onClick={() => void issuePairing(connection)}>Try pairing again</Button> : null}</div> : <div className="mt-5 rounded-lg border border-status-success/30 bg-status-success-soft/40 p-3 text-sm text-muted-foreground">Customer messages sent to this bot will be routed to this agent.</div>}
-        <DialogFooter className="mt-6"><Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>{personal && pairing ? "Done" : "Close"}</Button><Button type="button" variant="destructive" disabled={busy} onClick={() => void disconnect()}>{busy ? "Disconnecting…" : "Disconnect"}</Button></DialogFooter>
+        {personal ? <div className="mt-5 space-y-3"><label className="text-sm font-medium text-foreground" htmlFor="telegram-existing-allowed-users">Allowed user IDs<Input id="telegram-existing-allowed-users" value={allowedUsers} onChange={(event) => setAllowedUsers(event.target.value)} placeholder="123456789" className="mt-2" /><span className="mt-1 block text-xs font-normal text-muted-foreground">Only these Telegram users can reach this personal agent.</span></label><div className="flex flex-wrap gap-2"><Button type="button" onClick={() => void saveAllowedUsers()} disabled={busy || !normalizedAllowedUsers().length}>{busy ? "Saving…" : "Save allowed users"}</Button>{!allowedUsers.trim() ? <Button type="button" variant="outline" onClick={() => void issuePairing(connection)} disabled={pairingLoading}>{pairingLoading ? "Preparing…" : "Generate pairing code"}</Button> : null}</div>{pairing ? <div className="rounded-lg border border-status-attention/40 bg-status-attention-soft p-3"><p className="text-sm font-medium text-foreground">Temporary pairing code</p><p className="mt-1 text-xs text-muted-foreground">Use this only as a fallback. Expires {new Date(pairing.expires_at).toLocaleString()}.</p><div className="mt-2"><TelegramPairingActions username={pairing.username} token={pairing.token} /></div></div> : null}</div> : <div className="mt-5 rounded-lg border border-status-success/30 bg-status-success-soft/40 p-3 text-sm text-muted-foreground">Customer messages sent to this bot will be routed to this agent.</div>}
+        {error ? <p className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+        <DialogFooter className="mt-6"><Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>Close</Button><Button type="button" variant="destructive" disabled={busy} onClick={() => void disconnect()}>{busy ? "Disconnecting…" : "Disconnect"}</Button></DialogFooter>
       </>}
     </DialogContent>
   </Dialog>;

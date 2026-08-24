@@ -171,6 +171,20 @@ export class ChannelRepository {
     return result.rows[0] ?? null;
   }
 
+  public async getConnectionForInbound(input: { organizationId: string; channelType: string; channelKey: string }): Promise<(ChannelConnectionRecord & { execution_mode: string }) | null> {
+    const result = await query<ChannelConnectionRecord & { execution_mode: string }>(
+      this.pool,
+      `SELECT cc.*, ai.execution_mode
+       FROM channel_connections cc
+       JOIN agent_installations ai ON ai.id = cc.installation_id
+       WHERE cc.organization_id = $1 AND cc.channel_type = $2 AND cc.channel_key = $3
+         AND cc.status = 'active' AND ai.status = 'active'
+       LIMIT 1`,
+      [input.organizationId, input.channelType, input.channelKey],
+    );
+    return result.rows[0] ?? null;
+  }
+
   public async updateConnection(input: {
     organizationId: string;
     connectionId: string;

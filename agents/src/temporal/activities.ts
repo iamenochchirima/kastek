@@ -45,6 +45,9 @@ import type { RequestHumanArguments } from "../actions/conversation-actions";
 import { HandoffRepository } from "../db/repositories/handoff-repository";
 import { createChannelApprovalActionToken } from "../approval/channel-action";
 import { buildChannelApprovalPrompt } from "../approval/channel-prompt";
+import { IntegrationRepository } from "../integrations/repository";
+import { IntegrationToolService } from "../integrations/service";
+import { registerIntegrationTools } from "../integrations/tools";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -55,6 +58,7 @@ export interface ActivityOptions {
   discordClient?: DiscordBotClient;
   config?: AppConfig;
   conversationActions?: ConversationActionService;
+  integrationTools?: IntegrationToolService;
 }
 
 function pricingFromConfig(config?: AppConfig): Record<string, ModelPricing> {
@@ -67,7 +71,7 @@ function pricingFromConfig(config?: AppConfig): Record<string, ModelPricing> {
   }
 }
 
-export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversationActions?: ConversationActionService): ToolRegistry {
+export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversationActions?: ConversationActionService, integrationTools?: IntegrationToolService): ToolRegistry {
   const tools = new ToolRegistry();
   tools.register({
     name: "platform.current_time",
@@ -850,6 +854,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
       handler: async (context, args) => conversationActions.requestHuman(context, args as unknown as RequestHumanArguments),
     });
   }
+  if (integrationTools) registerIntegrationTools(tools, integrationTools);
   return tools;
 }
 
@@ -1087,7 +1092,9 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const discordClient = options.discordClient ?? (options.config ? new DiscordBotClient({ apiBaseUrl: options.config.DISCORD_API_BASE_URL, timeoutMs: options.config.DISCORD_API_TIMEOUT_MS }) : undefined);
   const conversationActions = options.conversationActions ?? new ConversationActionService(new HandoffRepository(pool), controls);
   const handoffs = new HandoffRepository(pool);
-  const tools = options.tools ?? createDefaultTools(coreClient, conversationActions);
+  const integrationRepository = options.config ? new IntegrationRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY) : undefined;
+  const integrationTools = options.integrationTools ?? (integrationRepository ? new IntegrationToolService(integrationRepository, options.config) : undefined);
+  const tools = options.tools ?? createDefaultTools(coreClient, conversationActions, integrationTools);
   return {
     async transitionRun(input) {
       await runs.transitionRun(input.runId, input.expectedStatus, input.nextStatus);

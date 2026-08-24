@@ -1544,6 +1544,32 @@ pub async fn create_channel_connection(
     Ok(HttpResponse::Created().json(response))
 }
 
+pub async fn update_channel_connection(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest(
+            "Channel update body must be an object".to_string(),
+        ));
+    }
+    let (installation_id, connection_id) = path.into_inner();
+    let response = client(config.get_ref())?
+        .update_channel_connection(
+            &organization_id,
+            &user.id,
+            installation_id.trim(),
+            connection_id.trim(),
+            body.into_inner(),
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn issue_channel_pairing(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
@@ -1906,6 +1932,94 @@ pub async fn get_installation_readiness(
         .get_installation_readiness(&organization_id, &user.id, installation_id.trim())
         .await?;
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn list_integrations_catalog(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_integrations_catalog(&organization_id, &user.id)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn list_installation_integrations(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .list_installation_integrations(&organization_id, &user.id, installation_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn start_google_calendar_oauth(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .start_google_calendar_oauth(&organization_id, &user.id, installation_id.trim())
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn save_integration_api_key(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest("Integration API key body must be an object".to_string()));
+    }
+    let (installation_id, integration_id) = path.into_inner();
+    let response = client(config.get_ref())?
+        .save_integration_api_key(&organization_id, &user.id, installation_id.trim(), integration_id.trim(), body.into_inner())
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn save_integration_local_connector(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    if !body.is_object() {
+        return Err(AppError::BadRequest("Integration connector body must be an object".to_string()));
+    }
+    let (installation_id, integration_id) = path.into_inner();
+    let response = client(config.get_ref())?
+        .save_integration_local_connector(&organization_id, &user.id, installation_id.trim(), integration_id.trim(), body.into_inner())
+        .await?;
+    Ok(HttpResponse::Created().json(response))
+}
+
+pub async fn disconnect_integration(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = management_scope(&req, pool.get_ref()).await?;
+    let (installation_id, integration_id) = path.into_inner();
+    client(config.get_ref())?
+        .disconnect_integration(&organization_id, &user.id, installation_id.trim(), integration_id.trim())
+        .await?;
+    Ok(HttpResponse::NoContent().finish())
 }
 
 pub async fn grant_installation_tool(

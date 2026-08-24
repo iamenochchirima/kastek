@@ -191,3 +191,11 @@ User-owned model credentials are stored through `/v1/credentials` as encrypted v
 Set `AGENTS_CREDENTIAL_ENCRYPTION_KEY` to a random 32-byte hex or base64 key in every API and
 worker process. API responses contain only opaque credential IDs; revoke the ID to prevent future
 model calls.
+
+Agent integrations use the same encrypted-secret boundary without adding provider-specific
+credential tables. The catalog in `src/integrations/catalog.ts` describes each provider, the
+connection API stores installation-scoped state, and `src/integrations/tools.ts` exposes provider
+operations through the existing capability registry and approval policy. Add a provider by adding
+one catalog entry, an adapter in `IntegrationToolService`, and its connection form; do not add a
+new tool execution path. The first adapters are KasiTek Calendar, Google Calendar, Tavily Search,
+and an Apple Tools local bridge.

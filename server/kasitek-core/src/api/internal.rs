@@ -219,6 +219,30 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_platform::list_installation_capabilities),
             )
             .route(
+                "/integrations/catalog",
+                web::get().to(agent_platform::list_integrations_catalog),
+            )
+            .route(
+                "/installations/{installationId}/integrations",
+                web::get().to(agent_platform::list_installation_integrations),
+            )
+            .route(
+                "/installations/{installationId}/integrations/google.calendar/oauth/start",
+                web::get().to(agent_platform::start_google_calendar_oauth),
+            )
+            .route(
+                "/installations/{installationId}/integrations/{integrationId}/api-key",
+                web::post().to(agent_platform::save_integration_api_key),
+            )
+            .route(
+                "/installations/{installationId}/integrations/{integrationId}/local-connector",
+                web::post().to(agent_platform::save_integration_local_connector),
+            )
+            .route(
+                "/installations/{installationId}/integrations/{integrationId}",
+                web::delete().to(agent_platform::disconnect_integration),
+            )
+            .route(
                 "/installations/{installationId}/readiness",
                 web::get().to(agent_platform::get_installation_readiness),
             )
@@ -442,6 +466,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route(
                 "/installations/{installationId}/channels/{connectionId}/pairing",
                 web::post().to(agent_platform::issue_channel_pairing),
+            )
+            .route(
+                "/installations/{installationId}/channels/{connectionId}",
+                web::patch().to(agent_platform::update_channel_connection),
             )
             .route(
                 "/installations/{installationId}/channels/{connectionId}",
