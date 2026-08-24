@@ -1305,7 +1305,14 @@ async fn rebuild_rollups(
                           jsonb_build_object(
                             'interval', $4,
                             'source_fact_count', COUNT(*),
-                            'builder_names', jsonb_agg(DISTINCT builder_name)
+                            'builder_names', jsonb_agg(DISTINCT builder_name),
+                            'coverage_state', CASE
+                              WHEN BOOL_AND(coverage ->> 'coverage_state' = 'observed')
+                                THEN 'observed'
+                              ELSE 'partial'
+                            END,
+                            'required_sources', $9::jsonb,
+                            'exactness', $10
                           )
                    FROM analytics.analytics_projection_contribution
                    WHERE generation_id = $1 AND source_scope_id = $2
@@ -1344,6 +1351,11 @@ async fn rebuild_rollups(
                 .bind(metric.version as i32)
                 .bind(rollup_start)
                 .bind(rollup_end)
+                .bind(
+                    serde_json::to_value(&metric.coverage.required_sources)
+                        .unwrap_or_else(|_| serde_json::Value::Array(Vec::new())),
+                )
+                .bind(&metric.exactness)
                 .execute(&mut **transaction)
                 .await?;
         }
