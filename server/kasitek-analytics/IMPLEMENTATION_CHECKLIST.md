@@ -674,8 +674,15 @@ checklist records implementation evidence for the current package only.
   work so Core workers do not need Analytics database access to select their source rows.
 - [x] Extend the Core Inbox producer fixture with manifest privacy and same-window idempotency
   assertions.
-- [ ] Add Meta historical backfill, temporal coverage, source reconciliation, projection/reporting
-  evidence, and full mutation-to-reporting E2E coverage.
+- [x] Add Meta historical source-reconstruction coverage with an honest temporal completion
+  boundary.
+- [x] Exclude historical Meta facts from live transport reconciliation counts and windows.
+- [x] Preserve Meta message dimensions in typed projections and carry source-coverage metadata
+  into reporting rollups.
+- [x] Verify authenticated Meta ingestion through projection generation to scoped reporting with
+  temporal evidence and message-dimension breakdowns.
+- [ ] Add the full Core mutation-to-source-outbox-to-publisher-to-Analytics system E2E; this
+  remains part of the shared product mutation-to-reporting gate.
 
 ## Reporting availability — slice 10
 

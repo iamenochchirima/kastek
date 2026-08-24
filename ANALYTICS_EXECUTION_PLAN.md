@@ -1943,8 +1943,16 @@ those transitions.
 - [x] Add a bounded Core Meta source-reconstruction worker that reads organization-scoped
   conversations/messages by their authoritative timestamps, derives responder markers without
   retaining provider payloads, and runs independently from live outbox delivery.
-- [ ] Add historical backfill coverage, source reconciliation, projection/reporting evidence, and
-  end-to-end mutation-to-reporting tests for Meta Inbox.
+- [x] Add historical source-reconstruction coverage with an honest temporal completion boundary
+  for Meta Inbox.
+- [x] Keep historical Meta facts out of live transport reconciliation counts and windows while
+  preserving their separate temporal evidence.
+- [x] Preserve Meta message dimensions in typed projections and carry source-coverage metadata
+  into rollups used by reporting.
+- [x] Add an authenticated ingestion-to-projection-to-reporting PostgreSQL E2E fixture covering
+  scoped grants, temporal evidence, and message-dimension breakdowns.
+- [ ] Add the full Core mutation-to-source-outbox-to-publisher-to-Analytics system E2E; this
+  remains part of the shared product mutation-to-reporting gate.
 
 #### Execution slice 3 — Core Inbox deletion facts
 
