@@ -21,6 +21,10 @@ sqlx.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 
+[dev-dependencies]
+analytics-producer = { path = "../crates/analytics-producer" }
+kasitek-core = { path = "../kasitek-core" }
+
 [[bin]]
 name = "analytics-api"
 path = "src/bin/analytics-api.rs"

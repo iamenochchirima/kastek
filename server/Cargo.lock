@@ -2266,11 +2266,13 @@ name = "kasitek-analytics"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "analytics-producer",
  "async-trait",
  "chrono",
  "dotenv",
  "jsonschema",
  "jwt-simple",
+ "kasitek-core",
  "log",
  "observability",
  "redis",

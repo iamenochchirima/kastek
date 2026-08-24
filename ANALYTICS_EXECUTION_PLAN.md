@@ -1951,8 +1951,11 @@ those transitions.
   into rollups used by reporting.
 - [x] Add an authenticated ingestion-to-projection-to-reporting PostgreSQL E2E fixture covering
   scoped grants, temporal evidence, and message-dimension breakdowns.
-- [ ] Add the full Core mutation-to-source-outbox-to-publisher-to-Analytics system E2E; this
-  remains part of the shared product mutation-to-reporting gate.
+- [x] Add the full Core mutation-to-source-outbox-to-publisher-to-Analytics system E2E; the
+  ignored PostgreSQL fixture starts the real Analytics API, invokes the transactional Core Inbox
+  producer boundary, publishes through the shared authenticated transport, and verifies Core
+  delivery state plus the persisted Analytics facts. The broader product mutation-to-reporting
+  gate remains shared work across the later vertical slices.
 
 #### Execution slice 3 — Core Inbox deletion facts
 

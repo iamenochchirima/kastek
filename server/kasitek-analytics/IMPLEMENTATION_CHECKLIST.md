@@ -443,6 +443,10 @@ checklist records implementation evidence for the current package only.
 - Core Meta reconstruction: the bounded worker reads only authorized organization rows and the two
   responder-marker fields, preserves conversation/message business timestamps, uses deterministic
   identities, and runs in the existing publisher process or an optional dedicated Core process.
+- Core Inbox system E2E: the ignored `core_inbox_system_e2e` fixture passed against the local native
+  Core and Analytics PostgreSQL databases; it started a real Analytics API, committed Core Inbox
+  producer facts to the Core outbox, published them through the authenticated shared transport,
+  and verified delivered Core rows plus non-backfilled Analytics events and privacy boundaries.
 - Publisher transport: `pnpm exec tsc --noEmit` and focused Agent analytics tests passed, including
   the authenticated TypeScript batch request contract.
 - Publisher workers: Core, Tenant Platform, and Agent Platform now expose independent local worker
@@ -681,8 +685,11 @@ checklist records implementation evidence for the current package only.
   into reporting rollups.
 - [x] Verify authenticated Meta ingestion through projection generation to scoped reporting with
   temporal evidence and message-dimension breakdowns.
-- [ ] Add the full Core mutation-to-source-outbox-to-publisher-to-Analytics system E2E; this
-  remains part of the shared product mutation-to-reporting gate.
+- [x] Add the full Core mutation-to-source-outbox-to-publisher-to-Analytics system E2E. The
+  ignored `core_inbox_system_e2e` PostgreSQL fixture starts the real Analytics API, invokes Core's
+  transactional Inbox producer boundary, publishes through the shared authenticated HTTP
+  transport, and verifies Core delivery state plus persisted Analytics facts. The broader product
+  mutation-to-reporting gate remains shared work across later vertical slices.
 
 ## Reporting availability — slice 10
 
