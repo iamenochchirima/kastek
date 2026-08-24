@@ -895,8 +895,8 @@ checklist records implementation evidence for the current package only.
   unit coverage.
 - [x] Add workspace timezone/client overrides and client lifecycle facts with scope status
   transitions.
-- [ ] Add tenant-client assignments, lead status history, source manifests, historical
-  reconstruction, and end-to-end Tenant reporting.
+- [ ] Add tenant-client assignments, source manifests, historical reconstruction, and end-to-end
+  Tenant reporting.
 
 ## Tenant Platform — client lifecycle and timezone slice 2
 
@@ -907,6 +907,16 @@ checklist records implementation evidence for the current package only.
   generated bindings.
 - [x] Verify registry validation and Tenant/Analytics package compilation.
 - [ ] Add assignment records and lead status history in the next Tenant slices.
+
+## Tenant Platform — lead status history slice 3
+
+- [x] Add append-only `tenant_lead_status_history` with bounded statuses, reason codes, actor
+  types, and source-owned actor references.
+- [x] Add tenant-user and tenant-client-user status commands with same-transaction current-row,
+  history-row, and Analytics outbox writes.
+- [x] Extend the lead lifecycle contract and typed projection dimensions for status changes.
+- [x] Verify bounded helper tests, registry validation, and Tenant/Analytics compilation.
+- [ ] Add tenant-client assignments, source manifests, historical reconstruction, and reporting E2E.
 
 ## Reporting availability — slice 10
 

@@ -2174,8 +2174,8 @@ and reconciliation endpoint. Emit workspace/client hierarchy and status changes.
   lifecycle facts, and scope status transitions.
 - [ ] Add `tenant_client_assignments` and assignment lifecycle facts after the assignment principal
   and management commands are implemented.
-- [ ] Add Tenant lead status-history commands and lifecycle facts before claiming qualified,
-  converted, attribution, or reliable historical lead analytics.
+- [x] Add Tenant lead status-history commands and lifecycle facts before claiming qualified or
+  converted lead analytics; attribution and historical reconstruction remain later slices.
 - [ ] Add Tenant source manifests, historical reconstruction, and mutation-to-reporting E2E after
   the authoritative Tenant history boundaries exist.
 
@@ -2191,6 +2191,18 @@ and reconciliation endpoint. Emit workspace/client hierarchy and status changes.
 - [x] Regenerate registry bindings and verify Tenant/Analytics compilation and registry validation.
 - [ ] Add assignment records and lead status history before claiming assigned-client or qualified /
   converted lead analytics.
+
+#### Execution slice 3 — lead status history
+
+- [x] Add append-only Tenant lead status history with bounded target statuses, reason codes, actor
+  type, and source-owned actor references; the current lead row remains the operational projection.
+- [x] Add tenant-user and tenant-client-user status commands that authorize their own scope and
+  write the history row, current status, and aggregate-safe Analytics fact in one transaction.
+- [x] Extend `tenant.lead.lifecycle@1` with status-change facts and add reason/actor dimensions;
+  raw lead fields and free-form notes remain excluded.
+- [x] Verify bounded status/reason helpers, registry validation, and Tenant/Analytics compilation.
+- [ ] Add tenant-client assignments, source manifests, historical reconstruction, and reporting
+  E2E after the remaining Tenant source boundaries exist.
 
 ### Tenant Platform lane: client administration
 

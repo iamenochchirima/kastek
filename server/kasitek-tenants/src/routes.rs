@@ -44,6 +44,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         .service(
             web::scope("/api/client")
                 .route("/leads", web::get().to(leads::list_client_leads))
+                .route(
+                    "/leads/{id}/status",
+                    web::patch().to(leads::update_client_lead_status),
+                )
                 .route("/leads/stats", web::get().to(leads::get_client_lead_stats))
                 .route("/overview", web::get().to(client_portal::get_overview))
                 .route(
@@ -112,7 +116,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             web::scope("/api/clients")
                 .route("", web::get().to(clients::list_clients))
                 .route("", web::post().to(clients::create_client))
-                .route("/{id}/status", web::patch().to(clients::update_client_status))
+                .route(
+                    "/{id}/status",
+                    web::patch().to(clients::update_client_status),
+                )
                 .route("/{id}/users", web::get().to(clients::list_client_users))
                 .route("/{id}/invites", web::post().to(clients::invite_client_user)),
         )
@@ -120,6 +127,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             web::scope("/api/leads")
                 .route("", web::get().to(leads::list_leads))
                 .route("", web::post().to(leads::create_lead))
+                .route("/{id}/status", web::patch().to(leads::update_lead_status))
                 .route("/stats", web::get().to(leads::get_lead_stats)),
         )
         .service(

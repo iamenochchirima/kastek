@@ -1750,6 +1750,12 @@ fn typed_event_dimensions(
             match metric.key.as_str() {
                 "tenant.leads.lifecycle_events" => {
                     require_text_fields(attributes, &["lead_id", "source", "score_band"])?;
+                    if attributes.get("action").and_then(Value::as_str) == Some("status_changed") {
+                        require_text_fields(
+                            attributes,
+                            &["previous_status", "reason_code", "actor_type"],
+                        )?;
+                    }
                 }
                 "tenant.clients.lifecycle_events" => {}
                 _ => {
@@ -1928,6 +1934,8 @@ fn event_dimensions(
             "lead_status" => attributes.get("status").cloned(),
             "lead_source" => attributes.get("source").cloned(),
             "lead_score_band" => attributes.get("score_band").cloned(),
+            "lead_reason_code" => attributes.get("reason_code").cloned(),
+            "lead_actor_type" => attributes.get("actor_type").cloned(),
             "handoff_channel" => attributes.get("channel_type").cloned(),
             "handoff_conversation_state" => attributes.get("conversation_state").cloned(),
             "handoff_reason" => attributes.get("reason").cloned(),

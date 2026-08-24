@@ -194,3 +194,51 @@ pub async fn enqueue_lead_created(
     )
     .await
 }
+
+#[allow(clippy::too_many_arguments)]
+pub async fn enqueue_lead_status_changed(
+    transaction: &mut Transaction<'_, Postgres>,
+    workspace_id: &str,
+    tenant_client_id: &str,
+    lead_id: &str,
+    previous_status: &str,
+    status: &str,
+    reason_code: &str,
+    actor_type: &str,
+    source: &str,
+    score_band: &str,
+    history_id: &str,
+    occurred_at: DateTime<Utc>,
+) -> Result<EnqueueResult, ProducerError> {
+    enqueue_event(
+        transaction,
+        EventInput {
+            record_id: format!("tenant-lead:{lead_id}:status:{history_id}"),
+            source_domain: "leads".to_string(),
+            source_stream_key: format!("workspace:{workspace_id}:leads"),
+            contract_name: "tenant.lead.lifecycle@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::TenantClient,
+            scope_external_id: tenant_client_id.to_string(),
+            subject_type: "tenant_lead".to_string(),
+            subject_id: lead_id.to_string(),
+            occurred_at,
+            attributes: json!({
+                "lead_id": lead_id,
+                "tenant_client_id": tenant_client_id,
+                "action": "status_changed",
+                "status": status,
+                "previous_status": previous_status,
+                "reason_code": reason_code,
+                "actor_type": actor_type,
+                "source": source,
+                "score_band": score_band,
+                "occurred_at": occurred_at,
+            }),
+            correlation_id: None,
+            causation_id: None,
+            idempotency_key: Some(format!("tenant-lead:{lead_id}:status:{history_id}")),
+        },
+    )
+    .await
+}

@@ -703,3 +703,25 @@ definitions:
     privacy_class: aggregate
     stable_key: true
     permissions: [analytics:read]
+
+  - key: lead_reason_code
+    type: enum
+    source: envelope.data.reason_code
+    compatible_metrics: [tenant.leads.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: lead_actor_type
+    type: enum
+    source: envelope.data.actor_type
+    compatible_metrics: [tenant.leads.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]

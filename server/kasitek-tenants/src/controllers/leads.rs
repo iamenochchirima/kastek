@@ -17,6 +17,13 @@ pub struct CreateLeadRequest {
     pub notes: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpdateLeadStatusRequest {
+    pub status: String,
+    #[serde(rename = "reasonCode")]
+    pub reason_code: Option<String>,
+}
+
 #[derive(Debug, FromRow, Serialize)]
 struct LeadRow {
     id: String,
@@ -120,6 +127,130 @@ fn score_band(score: i32) -> &'static str {
         50..=74 => "medium",
         _ => "high",
     }
+}
+
+fn normalize_lead_status(value: &str) -> Result<&'static str, AppError> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "new" => Ok("new"),
+        "qualified" => Ok("qualified"),
+        "converted" => Ok("converted"),
+        "lost" => Ok("lost"),
+        "disqualified" => Ok("disqualified"),
+        _ => Err(AppError::BadRequest(
+            "status must be new, qualified, converted, lost, or disqualified".to_string(),
+        )),
+    }
+}
+
+fn normalize_lead_reason(status: &str, value: Option<&str>) -> Result<&'static str, AppError> {
+    let default = match status {
+        "new" => "reopened",
+        "qualified" => "qualified",
+        "converted" => "converted",
+        "lost" => "lost",
+        "disqualified" => "disqualified",
+        _ => "manual_update",
+    };
+    let reason = value.unwrap_or(default).trim().to_ascii_lowercase();
+    match reason.as_str() {
+        "qualified" | "converted" | "lost" | "disqualified" | "reopened" | "manual_update" => {
+            Ok(match reason.as_str() {
+                "qualified" => "qualified",
+                "converted" => "converted",
+                "lost" => "lost",
+                "disqualified" => "disqualified",
+                "reopened" => "reopened",
+                _ => "manual_update",
+            })
+        }
+        _ => Err(AppError::BadRequest(
+            "reasonCode must be a bounded lead status reason".to_string(),
+        )),
+    }
+}
+
+async fn change_lead_status(
+    pool: &sqlx::PgPool,
+    workspace_id: &str,
+    tenant_client_id: Option<&str>,
+    lead_id: &str,
+    requested_status: &str,
+    reason_code: Option<&str>,
+    actor_type: &str,
+    tenant_user_id: Option<&str>,
+    client_user_id: Option<&str>,
+) -> Result<(String, String, bool), AppError> {
+    let status = normalize_lead_status(requested_status)?;
+    let reason_code = normalize_lead_reason(status, reason_code)?;
+    let mut transaction = pool.begin().await?;
+    let lead = sqlx::query_as::<_, (String, String, String, i32)>(
+        r#"SELECT status, tenant_client_id, source, score
+           FROM tenant_leads
+           WHERE id = $1 AND workspace_id = $2
+             AND ($3::TEXT IS NULL OR tenant_client_id = $3)
+           FOR UPDATE"#,
+    )
+    .bind(lead_id)
+    .bind(workspace_id)
+    .bind(tenant_client_id)
+    .fetch_optional(&mut *transaction)
+    .await?
+    .ok_or_else(|| AppError::NotFound("lead not found".to_string()))?;
+    if lead.0 == status {
+        transaction.rollback().await?;
+        return Ok((lead.1, status.to_string(), false));
+    }
+    let history_id = cuid2::create_id();
+    let occurred_at = Utc::now();
+    sqlx::query(
+        r#"INSERT INTO tenant_lead_status_history (
+             id, workspace_id, tenant_client_id, lead_id, from_status, to_status,
+             reason_code, actor_type, changed_by_tenant_user_id, changed_by_client_user_id, occurred_at
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)"#,
+    )
+    .bind(&history_id)
+    .bind(workspace_id)
+    .bind(&lead.1)
+    .bind(lead_id)
+    .bind(&lead.0)
+    .bind(status)
+    .bind(reason_code)
+    .bind(actor_type)
+    .bind(tenant_user_id)
+    .bind(client_user_id)
+    .bind(occurred_at)
+    .execute(&mut *transaction)
+    .await?;
+    sqlx::query(
+        r#"UPDATE tenant_leads SET status = $1, updated_at = $2
+           WHERE id = $3 AND workspace_id = $4"#,
+    )
+    .bind(status)
+    .bind(occurred_at)
+    .bind(lead_id)
+    .bind(workspace_id)
+    .execute(&mut *transaction)
+    .await?;
+    analytics::enqueue_lead_status_changed(
+        &mut transaction,
+        workspace_id,
+        &lead.1,
+        lead_id,
+        &lead.0,
+        status,
+        reason_code,
+        actor_type,
+        analytics_source(&lead.2),
+        score_band(lead.3),
+        &history_id,
+        occurred_at,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("analytics lead status enqueue failed: {error}"))
+    })?;
+    transaction.commit().await?;
+    Ok((lead.1, status.to_string(), true))
 }
 
 pub async fn list_leads(req: HttpRequest) -> Result<HttpResponse, AppError> {
@@ -351,6 +482,33 @@ pub async fn create_lead(
     })))
 }
 
+pub async fn update_lead_status(
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<UpdateLeadStatusRequest>,
+) -> Result<HttpResponse, AppError> {
+    let session = middleware::extract_tenant_user_session(&req).await?;
+    ensure_lead_write_roles(&session.roles)?;
+    let pool = middleware::db_pool(&req)?;
+    let (tenant_client_id, status, changed) = change_lead_status(
+        pool,
+        &session.workspace_id,
+        None,
+        &path.into_inner(),
+        &body.status,
+        body.reason_code.as_deref(),
+        "tenant_user",
+        Some(&session.tenant_user_id),
+        None,
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "tenantClientId": tenant_client_id,
+        "status": status,
+        "changed": changed
+    })))
+}
+
 pub async fn list_client_leads(req: HttpRequest) -> Result<HttpResponse, AppError> {
     let session = middleware::extract_tenant_client_user_session(&req).await?;
     let pool = middleware::db_pool(&req)?;
@@ -386,6 +544,32 @@ pub async fn list_client_leads(req: HttpRequest) -> Result<HttpResponse, AppErro
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "tenantClientId": session.tenant_client_id,
         "leads": leads
+    })))
+}
+
+pub async fn update_client_lead_status(
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<UpdateLeadStatusRequest>,
+) -> Result<HttpResponse, AppError> {
+    let session = middleware::extract_tenant_client_user_session(&req).await?;
+    let pool = middleware::db_pool(&req)?;
+    let (tenant_client_id, status, changed) = change_lead_status(
+        pool,
+        &session.workspace_id,
+        Some(&session.tenant_client_id),
+        &path.into_inner(),
+        &body.status,
+        body.reason_code.as_deref(),
+        "client_user",
+        None,
+        Some(&session.tenant_client_user_id),
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "tenantClientId": tenant_client_id,
+        "status": status,
+        "changed": changed
     })))
 }
 
@@ -436,7 +620,9 @@ pub async fn get_client_lead_stats(req: HttpRequest) -> Result<HttpResponse, App
 
 #[cfg(test)]
 mod tests {
-    use super::{analytics_source, calculate_score, score_band};
+    use super::{
+        analytics_source, calculate_score, normalize_lead_reason, normalize_lead_status, score_band,
+    };
 
     #[test]
     fn analytics_source_is_bounded() {
@@ -447,8 +633,23 @@ mod tests {
 
     #[test]
     fn score_band_does_not_export_raw_score() {
-        assert_eq!(score_band(calculate_score("manual", false, false, false)), "medium");
+        assert_eq!(
+            score_band(calculate_score("manual", false, false, false)),
+            "medium"
+        );
         assert_eq!(score_band(49), "low");
         assert_eq!(score_band(75), "high");
+    }
+
+    #[test]
+    fn lead_status_changes_use_bounded_reason_codes() {
+        assert_eq!(normalize_lead_status("qualified").unwrap(), "qualified");
+        assert_eq!(normalize_lead_reason("new", None).unwrap(), "reopened");
+        assert_eq!(
+            normalize_lead_reason("converted", Some("converted")).unwrap(),
+            "converted"
+        );
+        assert!(normalize_lead_status("in_progress").is_err());
+        assert!(normalize_lead_reason("qualified", Some("free-form")).is_err());
     }
 }

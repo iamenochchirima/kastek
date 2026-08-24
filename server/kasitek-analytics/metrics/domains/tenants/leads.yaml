@@ -55,7 +55,7 @@ definitions:
     descendant_aggregation: sum
     supported_intervals: [hour, day, week, month]
     scope_kinds: [tenant_workspace, tenant_client]
-    dimensions: [tenant_client, lead_action, lead_status, lead_source, lead_score_band]
+    dimensions: [tenant_client, lead_action, lead_status, lead_source, lead_score_band, lead_reason_code, lead_actor_type]
     permissions: [analytics:read]
     privacy_class: aggregate
     exactness: exact

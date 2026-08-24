@@ -2,7 +2,7 @@
 
 pub const REGISTRY_VERSION: &str = "20260824.1";
 pub const REGISTRY_SHA256: &str =
-    "59b18d5dc66285a358acf22a295f29a5c9b51f35d00d41b3b77f4b6cc143bb2d";
+    "36f17510db15058b295316d99c61064b064f2d4aa6e79e548044eeb77d840ada";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",
@@ -126,6 +126,8 @@ pub const DIMENSION_KEYS: &[&str] = &[
     "incident_severity",
     "installation_scope",
     "lead_action",
+    "lead_actor_type",
+    "lead_reason_code",
     "lead_score_band",
     "lead_source",
     "lead_status",
