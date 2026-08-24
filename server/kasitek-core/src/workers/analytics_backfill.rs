@@ -74,11 +74,11 @@ struct ConnectionsBackfillRow {
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-struct BackfillStats {
-    conversation_records: usize,
-    message_records: usize,
-    connection_records: usize,
-    rejected_records: usize,
+pub struct BackfillStats {
+    pub conversation_records: usize,
+    pub message_records: usize,
+    pub connection_records: usize,
+    pub rejected_records: usize,
 }
 
 pub async fn run(pool: PgPool) {
@@ -114,8 +114,14 @@ pub async fn run(pool: PgPool) {
                         process_meta_source_reconstruction(&pool, &client, &settings, &work).await
                     }
                     (CONNECTIONS_SOURCE_DOMAIN, SOURCE_RECONSTRUCTION_METHOD) => {
-                        process_connections_source_reconstruction(&pool, &client, &settings, &work)
-                            .await
+                        process_connections_source_reconstruction(
+                            &pool,
+                            &client,
+                            &settings.producer_id,
+                            settings.batch_size,
+                            &work,
+                        )
+                        .await
                     }
                     _ => Err(format!(
                         "unsupported_source_job:{}:{}",
@@ -278,12 +284,16 @@ async fn process_meta_source_reconstruction(
     Ok(stats)
 }
 
-async fn process_connections_source_reconstruction(
+pub async fn process_connections_source_reconstruction(
     pool: &PgPool,
     client: &AnalyticsIngestionClient,
-    settings: &Settings,
+    producer_id: &str,
+    batch_size: i64,
     work: &SourceBackfillWork,
 ) -> Result<BackfillStats, String> {
+    if producer_id.trim().is_empty() || !(1..=500).contains(&batch_size) {
+        return Err("invalid_source_backfill_transport_settings".to_string());
+    }
     if work.scope_external_id.trim().is_empty()
         || work.requested_range_end <= work.requested_range_start
     {
@@ -302,7 +312,7 @@ async fn process_connections_source_reconstruction(
             work.requested_range_start,
             work.requested_range_end,
             cursor,
-            settings.batch_size,
+            batch_size,
         )
         .await
         .map_err(|error| format!("load_connections_history: {error}"))?;
@@ -324,7 +334,7 @@ async fn process_connections_source_reconstruction(
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| format!("build_connections_fact: {error}"))?;
         let response = client
-            .send_backfill_batch(&settings.producer_id, &work.job_id, &records)
+            .send_backfill_batch(producer_id, &work.job_id, &records)
             .await
             .map_err(|error| format!("send_connections_batch: {error}"))?;
         if response.retryable_count > 0 {

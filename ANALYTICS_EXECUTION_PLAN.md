@@ -1734,8 +1734,11 @@ Connection metrics remain gated on Product Section 9 approval.
   privacy-filtered Core Connections event history in `analytics_outbox`, preserves original event
   envelopes and business time, uses deterministic backfill sequences, and excludes manifests from
   event reconstruction; it does not read Analytics storage or mutable connection projections.
-- [ ] Add temporal event backfill checkpoints and connect source/reconciliation coverage to reporting
-  availability before exposing customer-facing Connections analytics.
+- [x] Verify native Core worker-to-Analytics source reconstruction through authenticated job claim,
+  backfill ingestion, job completion, backfilled event persistence, and an `available` temporal
+  checkpoint with the requested `complete_through` boundary.
+- [ ] Connect source/reconciliation coverage to reporting availability before exposing customer-facing
+  Connections analytics.
 
 #### Execution slice 8 — reconciliation coverage evidence
 

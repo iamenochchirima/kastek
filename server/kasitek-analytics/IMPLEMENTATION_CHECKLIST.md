@@ -455,8 +455,9 @@ checklist records implementation evidence for the current package only.
 - Core Connections source reconstruction: Core's backfill worker now claims authenticated
   `source_reconstruction` jobs for `connections`, reads only immutable privacy-filtered Core outbox
   events, preserves their envelopes and business timestamps, excludes manifests, and uses stable
-  backfill sequences; focused Core unit tests passed. Temporal checkpoint, reporting, and worker
-  transport E2E evidence remain pending.
+  backfill sequences; focused Core unit tests passed. The native `core_connections_system_e2e`
+  backfill case also passed authenticated job claim, backfilled event persistence, job completion,
+  and `available` temporal checkpoint evidence. Reporting availability remains pending.
 - Publisher transport: `pnpm exec tsc --noEmit` and focused Agent analytics tests passed, including
   the authenticated TypeScript batch request contract.
 - Publisher workers: Core, Tenant Platform, and Agent Platform now expose independent local worker
@@ -657,8 +658,10 @@ checklist records implementation evidence for the current package only.
 - [x] Preserve the original safe envelope and business timestamp with deterministic backfill
   sequences; exclude manifest records from event reconstruction.
 - [x] Verify valid event conversion and manifest rejection in focused Core unit tests.
-- [ ] Add native worker-to-Analytics transport E2E, temporal completion checkpoint evidence, and
-  reporting availability after the source-history job reaches its finite boundary.
+- [x] Verify native worker-to-Analytics transport, authenticated job claim, backfilled event
+  persistence, job completion, and `available` temporal checkpoint evidence in the ignored
+  `core_connections_system_e2e` fixture.
+- [ ] Connect the temporal and reconciliation evidence to customer-facing Connections reporting.
 
 ## Core Connections — slice 7
 
