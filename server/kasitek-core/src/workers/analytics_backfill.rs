@@ -25,6 +25,7 @@ const DEFAULT_BATCH_SIZE: i64 = 100;
 const DEFAULT_POLL_INTERVAL_MS: u64 = 5_000;
 const META_SOURCE_DOMAIN: &str = "inbox";
 const CONNECTIONS_SOURCE_DOMAIN: &str = "connections";
+const CAMPAIGNS_SOURCE_DOMAIN: &str = "campaigns";
 const SOURCE_RECONSTRUCTION_METHOD: &str = "source_reconstruction";
 
 #[derive(Clone, Debug)]
@@ -78,6 +79,7 @@ pub struct BackfillStats {
     pub conversation_records: usize,
     pub message_records: usize,
     pub connection_records: usize,
+    pub campaign_records: usize,
     pub rejected_records: usize,
 }
 
@@ -123,6 +125,16 @@ pub async fn run(pool: PgPool) {
                         )
                         .await
                     }
+                    (CAMPAIGNS_SOURCE_DOMAIN, SOURCE_RECONSTRUCTION_METHOD) => {
+                        process_campaign_source_reconstruction(
+                            &pool,
+                            &client,
+                            &settings.producer_id,
+                            settings.batch_size,
+                            &work,
+                        )
+                        .await
+                    }
                     _ => Err(format!(
                         "unsupported_source_job:{}:{}",
                         work.source_domain, work.method
@@ -130,11 +142,12 @@ pub async fn run(pool: PgPool) {
                 };
                 match result {
                     Ok(stats) => log::info!(
-                        "[analytics-backfill] completed pass job={} conversations={} messages={} connections={} rejected={}",
+                        "[analytics-backfill] completed pass job={} conversations={} messages={} connections={} campaigns={} rejected={}",
                         work.job_id,
                         stats.conversation_records,
                         stats.message_records,
                         stats.connection_records,
+                        stats.campaign_records,
                         stats.rejected_records
                     ),
                     Err(error) => log::error!(
@@ -348,6 +361,70 @@ pub async fn process_connections_source_reconstruction(
     Ok(stats)
 }
 
+pub async fn process_campaign_source_reconstruction(
+    pool: &PgPool,
+    client: &AnalyticsIngestionClient,
+    producer_id: &str,
+    batch_size: i64,
+    work: &SourceBackfillWork,
+) -> Result<BackfillStats, String> {
+    if producer_id.trim().is_empty() || !(1..=500).contains(&batch_size) {
+        return Err("invalid_source_backfill_transport_settings".to_string());
+    }
+    if work.scope_external_id.trim().is_empty()
+        || work.requested_range_end <= work.requested_range_start
+    {
+        return Err("invalid_source_backfill_scope_or_range".to_string());
+    }
+    if work.remaining_count.is_none() {
+        return Err("source_backfill_requires_expected_count".to_string());
+    }
+
+    let mut stats = BackfillStats::default();
+    let mut cursor = None;
+    loop {
+        let rows = load_campaign_history(
+            pool,
+            &work.scope_external_id,
+            work.requested_range_start,
+            work.requested_range_end,
+            cursor,
+            batch_size,
+        )
+        .await
+        .map_err(|error| format!("load_campaign_history: {error}"))?;
+        if rows.is_empty() {
+            break;
+        }
+        let last_sequence = rows
+            .last()
+            .map(|row| row.source_sequence)
+            .expect("non-empty Campaign page has a last row");
+        let records = rows
+            .into_iter()
+            .map(|row| {
+                build_campaign_backfill_record(row).map(|record| BackfillRecord {
+                    source_sequence: backfill_source_sequence(&record.record_id),
+                    record,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("build_campaign_fact: {error}"))?;
+        let response = client
+            .send_backfill_batch(producer_id, &work.job_id, &records)
+            .await
+            .map_err(|error| format!("send_campaign_batch: {error}"))?;
+        if response.retryable_count > 0 {
+            return Err("campaign_batch_has_retryable_records".to_string());
+        }
+        stats.campaign_records += records.len();
+        stats.rejected_records += response.rejected_count;
+        cursor = Some(last_sequence);
+    }
+
+    Ok(stats)
+}
+
 async fn load_connections_history(
     pool: &PgPool,
     organization_id: &str,
@@ -393,6 +470,51 @@ async fn load_connections_history(
         .await
 }
 
+async fn load_campaign_history(
+    pool: &PgPool,
+    organization_id: &str,
+    range_start: DateTime<Utc>,
+    range_end: DateTime<Utc>,
+    cursor: Option<i64>,
+    limit: i64,
+) -> Result<Vec<ConnectionsBackfillRow>, sqlx::Error> {
+    let query = r#"
+        SELECT source_sequence,
+               outbox_id,
+               source_service,
+               source_domain,
+               source_stream_key,
+               record_category,
+               record_id,
+               contract_name,
+               schema_version,
+               scope_kind,
+               scope_external_id,
+               idempotency_key,
+               envelope,
+               payload_hash
+        FROM analytics_outbox
+        WHERE source_service = 'core'
+          AND source_domain = 'campaigns'
+          AND record_category = 'event'
+          AND source_stream_key = 'organization:' || $1 || ':campaigns'
+          AND scope_external_id = $1
+          AND NULLIF(envelope ->> 'time', '')::timestamptz >= $2
+          AND NULLIF(envelope ->> 'time', '')::timestamptz < $3
+          AND ($4::bigint IS NULL OR source_sequence > $4)
+        ORDER BY source_sequence
+        LIMIT $5
+    "#;
+    sqlx::query_as::<_, ConnectionsBackfillRow>(query)
+        .bind(organization_id)
+        .bind(range_start)
+        .bind(range_end)
+        .bind(cursor)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+}
+
 fn build_connections_backfill_record(
     row: ConnectionsBackfillRow,
 ) -> Result<AnalyticsOutboxRecord, String> {
@@ -410,6 +532,43 @@ fn build_connections_backfill_record(
             .map_err(|error| format!("invalid_record_category:{error}"))?;
     if record_category != RecordCategory::Event {
         return Err("connections_backfill_requires_event_record".to_string());
+    }
+    let scope_kind = serde_json::from_value::<ScopeKind>(Value::String(row.scope_kind))
+        .map_err(|error| format!("invalid_scope_kind:{error}"))?;
+    Ok(AnalyticsOutboxRecord {
+        outbox_id: row.outbox_id,
+        source_service: row.source_service,
+        source_domain: row.source_domain,
+        source_stream_key: row.source_stream_key,
+        record_category,
+        record_id: row.record_id,
+        contract_name: row.contract_name,
+        schema_version: row.schema_version,
+        scope_kind,
+        scope_external_id: row.scope_external_id,
+        idempotency_key: row.idempotency_key,
+        envelope: row.envelope,
+        payload_hash: row.payload_hash,
+    })
+}
+
+fn build_campaign_backfill_record(
+    row: ConnectionsBackfillRow,
+) -> Result<AnalyticsOutboxRecord, String> {
+    if row.source_service != "core" || row.source_domain != CAMPAIGNS_SOURCE_DOMAIN {
+        return Err("campaigns_source_identity_mismatch".to_string());
+    }
+    if row.source_stream_key != format!("organization:{}:campaigns", row.scope_external_id) {
+        return Err("campaigns_source_stream_mismatch".to_string());
+    }
+    if row.outbox_id.trim().is_empty() {
+        return Err("campaigns_outbox_identity_missing".to_string());
+    }
+    let record_category =
+        serde_json::from_value::<RecordCategory>(Value::String(row.record_category))
+            .map_err(|error| format!("invalid_record_category:{error}"))?;
+    if record_category != RecordCategory::Event {
+        return Err("campaigns_backfill_requires_event_record".to_string());
     }
     let scope_kind = serde_json::from_value::<ScopeKind>(Value::String(row.scope_kind))
         .map_err(|error| format!("invalid_scope_kind:{error}"))?;
@@ -569,7 +728,10 @@ mod tests {
     use chrono::Utc;
     use serde_json::json;
 
-    use super::{build_connections_backfill_record, meta_responder_type, ConnectionsBackfillRow};
+    use super::{
+        build_campaign_backfill_record, build_connections_backfill_record, meta_responder_type,
+        ConnectionsBackfillRow,
+    };
 
     #[test]
     fn meta_responder_mapping_preserves_agent_and_system_boundaries() {
@@ -650,5 +812,37 @@ mod tests {
             build_connections_backfill_record(row).expect_err("manifest must not be reconstructed"),
             "connections_backfill_requires_event_record"
         );
+    }
+
+    #[test]
+    fn campaign_backfill_accepts_only_campaign_event_streams() {
+        let row = ConnectionsBackfillRow {
+            source_sequence: 21,
+            outbox_id: "outbox-21".to_string(),
+            source_service: "core".to_string(),
+            source_domain: "campaigns".to_string(),
+            source_stream_key: "organization:org-2:campaigns".to_string(),
+            record_category: "event".to_string(),
+            record_id: "campaign-recipient:campaign-2:recipient-2:sent".to_string(),
+            contract_name: "campaign.recipient.sent@1".to_string(),
+            schema_version: 1,
+            scope_kind: "core_organization".to_string(),
+            scope_external_id: "org-2".to_string(),
+            idempotency_key: "campaign-recipient:campaign-2:recipient-2:sent".to_string(),
+            envelope: json!({
+                "type": "campaign.recipient.sent@1",
+                "source_domain": "campaigns",
+                "record_category": "event",
+                "scope_kind": "core_organization",
+                "scope_external_id": "org-2",
+                "data": { "campaign_id": "campaign-2", "recipient_id": "recipient-2" }
+            }),
+            payload_hash: "c".repeat(64),
+        };
+
+        let record = build_campaign_backfill_record(row).expect("campaign event row");
+        assert_eq!(record.record_category, RecordCategory::Event);
+        assert_eq!(record.scope_kind, ScopeKind::CoreOrganization);
+        assert_eq!(record.source_domain, "campaigns");
     }
 }

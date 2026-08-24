@@ -2095,6 +2095,19 @@ recipient outcomes.
 - [ ] Add provider retry policy, cost, attribution, source manifests, historical reconstruction,
   and the combined mutation-to-publisher-to-projection-to-reporting E2E in later slices.
 
+#### Execution slice 8 — source manifest and historical reconstruction
+
+- [x] Publish a source manifest after a successful campaign recipient population snapshot with a
+  bounded current count and explicit non-historical coverage state.
+- [x] Route authenticated Campaign source-history jobs to a Core worker that reads immutable Core
+  Campaign analytics outbox events, preserves original envelopes and business time, assigns
+  deterministic backfill sequences, and excludes manifest records.
+- [x] Keep reconstructed Campaign facts separate from live reconciliation counts and source
+  manifests.
+- [ ] Add native Campaign backfill/reconciliation and combined mutation-to-publisher-to-projection-
+  to-reporting E2E fixtures; provider pricing/cost and cross-feature attribution remain separate
+  contracts.
+
 ### Agent Platform lane: customer handoff
 
 Customer-takeover analytics applies only to a customer-facing Agent whose workflow has the

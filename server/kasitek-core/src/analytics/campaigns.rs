@@ -4,15 +4,111 @@
 //! dimensions. Callers must enqueue them through the transaction that persists the authoritative
 //! recipient transition; the Core publisher later delivers the durable outbox row to Analytics.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde_json::json;
 use sqlx::{Postgres, Transaction};
 
-use analytics_producer::{EnqueueResult, EventInput, ScopeKind};
+use analytics_producer::{EnqueueResult, EventInput, ManifestInput, ScopeKind};
 
-use super::enqueue_event;
+use super::{enqueue_event, enqueue_manifest as enqueue_source_manifest};
 
 const SOURCE_DOMAIN: &str = "campaigns";
+const MANIFEST_KEY: &str = "core.campaigns";
+const MANIFEST_REFRESH_SECONDS: i64 = 3_600;
+const SUPPORTED_CONTRACTS: &[&str] = &[
+    "campaign.recipient.sent@1",
+    "campaign.recipient.delivered@1",
+    "campaign.recipient.read@1",
+    "campaign.recipient.failed@1",
+    "campaign.recipient.blocked@1",
+    "campaign.recipient.suppressed@1",
+    "campaign.recipient.unsubscribed@1",
+    "campaign.recipient.timing@1",
+    "campaign.recipient.retry@1",
+];
+const SUPPORTED_METRICS: &[&str] = &[
+    "campaign.recipients.sent",
+    "campaign.recipients.delivered",
+    "campaign.recipients.read",
+    "campaign.recipients.failed",
+    "campaign.recipients.blocked",
+    "campaign.recipients.suppressed",
+    "campaign.recipients.unsubscribed",
+    "campaign.delivery_delay_ms",
+    "campaign.recipients.retried",
+    "campaign.delivery_rate",
+];
+const SUPPORTED_DIMENSIONS: &[&str] = &[
+    "campaign",
+    "channel",
+    "provider",
+    "status",
+    "failure_class",
+    "suppression_class",
+    "unsubscribe_source",
+    "timing_kind",
+    "retry_reason",
+];
+
+pub async fn enqueue_manifest(
+    transaction: &mut Transaction<'_, Postgres>,
+    organization_id: &str,
+    recipient_count: i64,
+    collected_at: DateTime<Utc>,
+) -> Result<EnqueueResult, analytics_producer::ProducerError> {
+    let manifest_version = collected_at
+        .timestamp()
+        .div_euclid(MANIFEST_REFRESH_SECONDS)
+        .max(1);
+    let stream = stream_key(organization_id);
+    let record_id = format!("manifest:{stream}:{MANIFEST_KEY}:{manifest_version}");
+    let result = enqueue_source_manifest(
+        transaction,
+        ManifestInput {
+            record_id,
+            source_domain: SOURCE_DOMAIN.to_string(),
+            source_stream_key: stream,
+            contract_name: "source.manifest@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::CoreOrganization,
+            scope_external_id: organization_id.to_string(),
+            manifest_key: MANIFEST_KEY.to_string(),
+            manifest_version,
+            provider: Some("meta".to_string()),
+            connection_ref: None,
+            supported_contracts: SUPPORTED_CONTRACTS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect(),
+            supported_observation_contracts: Vec::new(),
+            supported_metrics: SUPPORTED_METRICS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect(),
+            supported_dimensions: SUPPORTED_DIMENSIONS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect(),
+            expected_refresh_seconds: MANIFEST_REFRESH_SECONDS,
+            reliable_coverage_start: None,
+            highest_authoritative_source_sequence: None,
+            approved_checkpoint_count: Some(recipient_count),
+            approved_checkpoint_hash: None,
+            last_successful_collection_at: Some(collected_at),
+            last_attempted_collection_at: Some(collected_at),
+            safe_failure_code: None,
+            next_expected_at: Some(collected_at + Duration::seconds(MANIFEST_REFRESH_SECONDS)),
+            manifest_state: "active".to_string(),
+            generated_at: collected_at,
+            idempotency_key: None,
+        },
+    )
+    .await?;
+    Ok(match result {
+        EnqueueResult::Conflict { outbox_id } => EnqueueResult::Duplicate { outbox_id },
+        result => result,
+    })
+}
 
 pub async fn enqueue_recipient_sent(
     transaction: &mut Transaction<'_, Postgres>,

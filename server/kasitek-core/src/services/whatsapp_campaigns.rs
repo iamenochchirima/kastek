@@ -434,6 +434,28 @@ pub async fn create_campaign(
         transaction.commit().await?;
     }
 
+    let collected_at = Utc::now();
+    let recipient_count = sqlx::query_scalar::<_, i64>(
+        r#"SELECT COUNT(*)::bigint FROM "WhatsappCampaignRecipient" WHERE "campaignId" = $1"#,
+    )
+    .bind(&campaign_id)
+    .fetch_one(pool)
+    .await?;
+    let mut manifest_transaction = pool.begin().await?;
+    analytics::campaigns::enqueue_manifest(
+        &mut manifest_transaction,
+        org_id,
+        recipient_count,
+        collected_at,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!(
+            "Failed to queue Campaign analytics manifest: {error}"
+        ))
+    })?;
+    manifest_transaction.commit().await?;
+
     let campaign = get_campaign_row(pool, org_id, &campaign_id)
         .await?
         .ok_or_else(|| AppError::Internal("Failed to reload campaign".to_string()))?;

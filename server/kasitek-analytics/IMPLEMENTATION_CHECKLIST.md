@@ -856,6 +856,19 @@ checklist records implementation evidence for the current package only.
 - [ ] Add provider retry policy, cost, attribution, source manifests, historical reconstruction,
   and the combined mutation-to-publisher-to-projection-to-reporting E2E in later slices.
 
+## Core Campaigns — source manifest and historical reconstruction slice 8
+
+- [x] Publish a versioned source manifest from successful campaign recipient population creation,
+  with bounded current-count evidence and no historical-completeness claim.
+- [x] Reuse the immutable Core Campaign analytics outbox as the source-owned history for an
+  authenticated Campaign backfill job; preserve original envelopes and deterministic sequences.
+- [x] Keep Campaign manifests out of event reconstruction and isolate reconstructed facts from live
+  reconciliation counts.
+- [ ] Add a native Campaign backfill/reconciliation fixture and the combined mutation-to-publisher-
+  to-projection-to-reporting E2E after the Core package can compile with the current worktree.
+- [ ] Add provider pricing/cost facts and typed cross-feature attribution before claiming complete
+  Campaign performance coverage.
+
 ## Tenant Platform — scope and lead creation slice 1
 
 - [x] Publish tenant workspace scope definitions during workspace provisioning and tenant-client
