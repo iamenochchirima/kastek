@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Postgres, Transaction};
@@ -21,6 +21,15 @@ struct ConnectionState {
     updated_at: DateTime<Utc>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, sqlx::FromRow)]
+struct CapabilityState {
+    connection_id: String,
+    provider: String,
+    capability: String,
+    enabled: bool,
+    updated_at: DateTime<Utc>,
+}
+
 pub fn is_mutable_status(status: &str) -> bool {
     MUTABLE_STATUSES.contains(&status)
 }
@@ -28,14 +37,81 @@ pub fn is_mutable_status(status: &str) -> bool {
 pub async fn sync_org_connections(pool: &PgPool, org_id: &str) -> Result<(), AppError> {
     let mut tx = pool.begin().await?;
     let before = load_connection_states(&mut tx, org_id).await?;
+    let before_capabilities = load_capability_states(&mut tx, org_id).await?;
     sync_whatsapp(&mut tx, org_id).await?;
     sync_social(&mut tx, org_id).await?;
     mark_missing_sources(&mut tx, org_id).await?;
     sync_capabilities(&mut tx, org_id).await?;
+    let after_capabilities = load_capability_states(&mut tx, org_id).await?;
+    enqueue_capability_changes(&mut tx, org_id, &before_capabilities, &after_capabilities).await?;
     sync_consumers(&mut tx, org_id).await?;
     let after = load_connection_states(&mut tx, org_id).await?;
     enqueue_state_changes(&mut tx, org_id, &before, &after).await?;
     tx.commit().await?;
+    Ok(())
+}
+
+async fn load_capability_states(
+    tx: &mut Transaction<'_, Postgres>,
+    org_id: &str,
+) -> Result<BTreeMap<(String, String), CapabilityState>, AppError> {
+    let rows = sqlx::query_as::<_, CapabilityState>(
+        r#"
+        SELECT capability."connectionId" AS connection_id,
+               connection.provider,
+               capability.key AS capability,
+               capability.enabled,
+               capability."updatedAt" AT TIME ZONE 'UTC' AS updated_at
+        FROM "ExternalConnectionCapability" capability
+        INNER JOIN "ExternalConnection" connection
+            ON connection.id = capability."connectionId"
+        WHERE connection."orgId" = $1
+        ORDER BY capability."connectionId", capability.key
+        "#,
+    )
+    .bind(org_id)
+    .fetch_all(&mut **tx)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|state| {
+            (
+                (state.connection_id.clone(), state.capability.clone()),
+                state,
+            )
+        })
+        .collect())
+}
+
+async fn enqueue_capability_changes(
+    tx: &mut Transaction<'_, Postgres>,
+    org_id: &str,
+    before: &BTreeMap<(String, String), CapabilityState>,
+    after: &BTreeMap<(String, String), CapabilityState>,
+) -> Result<(), AppError> {
+    for (key, state) in after {
+        let changed = before.get(key).is_none_or(|previous| {
+            previous.enabled != state.enabled || previous.provider != state.provider
+        });
+        if !changed {
+            continue;
+        }
+        analytics::connections::enqueue_capability_lifecycle(
+            tx,
+            org_id,
+            &state.connection_id,
+            &state.provider,
+            &state.capability,
+            state.enabled,
+            state.updated_at,
+        )
+        .await
+        .map_err(|error| {
+            AppError::Internal(format!(
+                "Failed to queue Connections capability analytics fact: {error}"
+            ))
+        })?;
+    }
     Ok(())
 }
 

@@ -109,6 +109,50 @@ pub async fn enqueue_health_check(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
+pub async fn enqueue_capability_lifecycle(
+    transaction: &mut Transaction<'_, Postgres>,
+    organization_id: &str,
+    connection_id: &str,
+    provider: &str,
+    capability: &str,
+    enabled: bool,
+    occurred_at: DateTime<Utc>,
+) -> Result<EnqueueResult, analytics_producer::ProducerError> {
+    let action = if enabled { "enabled" } else { "disabled" };
+    let record_id = format!(
+        "connection:{connection_id}:capability:{capability}:{action}:{}",
+        occurred_at.timestamp_micros()
+    );
+    enqueue_event(
+        transaction,
+        EventInput {
+            record_id: record_id.clone(),
+            source_domain: SOURCE_DOMAIN.to_string(),
+            source_stream_key: stream_key(organization_id),
+            contract_name: "connection.capability.lifecycle@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::CoreOrganization,
+            scope_external_id: organization_id.to_string(),
+            subject_type: "connection".to_string(),
+            subject_id: connection_id.to_string(),
+            occurred_at,
+            attributes: json!({
+                "connection_id": connection_id,
+                "provider": provider,
+                "capability": capability,
+                "action": action,
+                "enabled": enabled,
+                "occurred_at": occurred_at,
+            }),
+            correlation_id: None,
+            causation_id: None,
+            idempotency_key: Some(record_id),
+        },
+    )
+    .await
+}
+
 pub fn lifecycle_action(status: &str) -> &'static str {
     match status {
         "CONNECTED" => "connected",

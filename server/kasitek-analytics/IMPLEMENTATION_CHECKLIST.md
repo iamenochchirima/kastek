@@ -536,9 +536,23 @@ checklist records implementation evidence for the current package only.
 - [x] Emit health-check facts transactionally with Core `ExternalConnection` health updates.
 - [x] Add an ignored PostgreSQL producer integration fixture covering both contracts, transaction
   visibility, and prohibited-field absence without leaving rows after rollback.
-- [ ] Instrument capability history, provider synchronization attempts/outcomes, rate limits,
-  incidents, source manifests, historical backfill, projections, reporting, and full product
-  mutation-to-reporting E2E in later Connections slices.
+- [ ] Instrument provider synchronization attempts/outcomes, rate limits, incidents, source
+  manifests, historical backfill, projections, reporting, and full product mutation-to-reporting
+  E2E in later Connections slices.
+
+## Core Connections — slice 2
+
+- [x] Add a versioned capability lifecycle contract with stable connection/capability identity and
+  bounded aggregate-safe fields.
+- [x] Register capability transition metrics, dimensions, overview binding, and generated registry
+  bindings.
+- [x] Compare logical capability states around Core's projection rebuild so delete/reinsert storage
+  mechanics do not create duplicate analytics transitions.
+- [x] Emit capability transitions transactionally with the Core capability projection.
+- [x] Extend the transactional privacy fixture to cover capability facts and rollback.
+- [ ] Add provider synchronization attempts/outcomes, rate limits, incidents, source manifests,
+  historical backfill, projections, reporting, and full product mutation-to-reporting E2E in later
+  Connections slices.
 
 ## Explicitly deferred
 

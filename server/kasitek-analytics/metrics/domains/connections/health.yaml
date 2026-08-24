@@ -65,3 +65,36 @@ definitions:
     effective_from: "2026-08-24T00:00:00Z"
     applicability: Core connection health checks are instrumented
     dependencies: []
+
+  - key: connection.capability_events
+    version: 1
+    domain: connections
+    owner: core-connections
+    lifecycle: active
+    description: Connection capability enablement transitions observed by Core.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - connection.capability.lifecycle@1
+    formula: count(connection.capability.lifecycle@1)
+    eligible_population: Core connection capability states created or changed by the authoritative capability projection
+    exclusions: [display names, handles, provider account identifiers, credentials, tokens, provider payloads, and raw errors]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: source_entity
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization]
+    dimensions: [provider, capability, lifecycle_action]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [connection.capability.lifecycle@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-24T00:00:00Z"
+    applicability: Core connection capability projection changes are instrumented
+    dependencies: []

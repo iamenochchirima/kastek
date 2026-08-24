@@ -2,7 +2,7 @@
 
 pub const REGISTRY_VERSION: &str = "20260822.1";
 pub const REGISTRY_SHA256: &str =
-    "cef75778393587cb50bddbb33047a4bb19352db806efdcad68d59a24148f6450";
+    "fba2fc3fce0ba15247d44a94c75d0785de8b6df9745ca36df135e7c15c8f2c25";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",
@@ -22,6 +22,7 @@ pub const CONTRACT_KEYS: &[&str] = &[
     "agent.version.lifecycle@1",
     "campaign.recipient.delivered@1",
     "campaign.recipient.sent@1",
+    "connection.capability.lifecycle@1",
     "connection.health_check@1",
     "connection.lifecycle@1",
     "conversation.lifecycle@1",
@@ -52,6 +53,7 @@ pub const METRIC_KEYS: &[&str] = &[
     "campaign.delivery_rate@1",
     "campaign.recipients.delivered@1",
     "campaign.recipients.sent@1",
+    "connection.capability_events@1",
     "connection.health_checks@1",
     "connection.lifecycle_events@1",
     "conversation.lifecycle_events@1",
@@ -130,6 +132,7 @@ pub mod metric_keys {
     pub const CAMPAIGN_DELIVERY_RATE_1: &str = "campaign.delivery_rate@1";
     pub const CAMPAIGN_RECIPIENTS_DELIVERED_1: &str = "campaign.recipients.delivered@1";
     pub const CAMPAIGN_RECIPIENTS_SENT_1: &str = "campaign.recipients.sent@1";
+    pub const CONNECTION_CAPABILITY_EVENTS_1: &str = "connection.capability_events@1";
     pub const CONNECTION_HEALTH_CHECKS_1: &str = "connection.health_checks@1";
     pub const CONNECTION_LIFECYCLE_EVENTS_1: &str = "connection.lifecycle_events@1";
     pub const CONVERSATION_LIFECYCLE_EVENTS_1: &str = "conversation.lifecycle_events@1";

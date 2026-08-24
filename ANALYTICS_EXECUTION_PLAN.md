@@ -1626,9 +1626,23 @@ Connection metrics remain gated on Product Section 9 approval.
 - [x] Emit bounded health-check facts in the same transaction as Core's ExternalConnection health
   state update, preserving the operational error only in Core.
 - [x] Add transactional producer/privacy coverage for both connection contracts.
-- [ ] Add capability history, provider synchronization attempts/outcomes, rate-limit events,
-  incident facts, source manifests, historical backfill, projections, and reporting results in
-  subsequent Connections slices.
+- [ ] Add provider synchronization attempts/outcomes, rate-limit events, incident facts, source
+  manifests, historical backfill, projections, and reporting results in subsequent Connections
+  slices.
+
+#### Execution slice 2 — capability enablement history
+
+- [x] Register a versioned capability lifecycle contract with a stable logical identity of
+  connection plus capability; exclude provider account data, credentials, tokens, metadata, and
+  provider payloads.
+- [x] Register capability transition metrics and connect them to the shared provider, capability,
+  and lifecycle dimensions and the overview metric set.
+- [x] Compare Core's capability projection before and after its delete/rebuild operation so only
+  newly observed or enabled-state-changed capabilities emit facts.
+- [x] Emit capability facts in the same Core transaction as the capability projection rebuild.
+- [x] Cover the capability contract with transactional producer and privacy tests.
+- [ ] Add authoritative provider synchronization attempt/outcome, rate-limit, incident, and
+  coverage evidence facts in later Connections slices.
 
 ### Core lane: Inbox
 

@@ -289,7 +289,7 @@ definitions:
   - key: lifecycle_action
     type: enum
     source: envelope.data.action
-    compatible_metrics: [agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.installations.lifecycle_events@1, agent.versions.lifecycle_events@1, agent.definitions.lifecycle_events@1, agent.conversations.lifecycle_events@1, conversation.lifecycle_events@1, connection.lifecycle_events@1]
+    compatible_metrics: [agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.installations.lifecycle_events@1, agent.versions.lifecycle_events@1, agent.definitions.lifecycle_events@1, agent.conversations.lifecycle_events@1, conversation.lifecycle_events@1, connection.lifecycle_events@1, connection.capability_events@1]
     filterable: true
     groupable: true
     cardinality: low
@@ -366,7 +366,7 @@ definitions:
   - key: capability
     type: string
     source: envelope.data.capability
-    compatible_metrics: [agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1]
+    compatible_metrics: [agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, connection.capability_events@1]
     filterable: true
     groupable: true
     cardinality: medium
