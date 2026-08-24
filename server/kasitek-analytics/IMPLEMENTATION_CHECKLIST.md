@@ -897,7 +897,8 @@ checklist records implementation evidence for the current package only.
   transitions.
 - [x] Add tenant-client assignments with authoritative state, append-only history, bounded roles,
   management routes, and transactional analytics facts.
-- [ ] Add Tenant source manifests, historical reconstruction, and end-to-end Tenant reporting.
+- [x] Add Tenant source manifests and source reconstruction for immutable Tenant outbox history.
+- [ ] Add end-to-end Tenant mutation-to-reporting coverage.
 
 ## Tenant Platform — client lifecycle and timezone slice 2
 
@@ -918,7 +919,8 @@ checklist records implementation evidence for the current package only.
 - [x] Extend the lead lifecycle contract and typed projection dimensions for status changes.
 - [x] Verify bounded helper tests, registry validation, and Tenant/Analytics compilation.
 - [x] Add tenant-client assignments with append-only lifecycle facts and typed projection support.
-- [ ] Add Tenant source manifests, historical reconstruction, and reporting E2E.
+- [x] Add Tenant source manifests and source reconstruction for immutable Tenant outbox history.
+- [ ] Add Tenant mutation-to-reporting reporting E2E.
 
 ## Tenant Platform — client assignments slice 4
 
@@ -929,7 +931,8 @@ checklist records implementation evidence for the current package only.
 - [x] Emit `tenant.client.assignment@1` transactionally with the operational mutation and history.
 - [x] Register assignment metric/dimensions, projection validation, and generated bindings.
 - [x] Verify registry validation, Tenant tests, and Tenant/Analytics compilation.
-- [ ] Add Tenant source manifests, historical reconstruction, and mutation-to-reporting E2E.
+- [x] Add Tenant source manifests and source reconstruction for immutable Tenant outbox history.
+- [ ] Add Tenant mutation-to-reporting E2E.
 
 ## Reporting availability — slice 10
 

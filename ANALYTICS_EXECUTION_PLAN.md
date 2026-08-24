@@ -2203,8 +2203,9 @@ and reconciliation endpoint. Emit workspace/client hierarchy and status changes.
 - [x] Verify bounded status/reason helpers, registry validation, and Tenant/Analytics compilation.
 - [x] Add tenant-client assignments with authoritative active/revoked state, append-only history,
   bounded role changes, management routes, and typed projection support.
-- [ ] Add Tenant source manifests, historical reconstruction, and mutation-to-reporting E2E after
-  the remaining Tenant source boundaries exist.
+- [x] Add Tenant source manifests and a source-owned historical reconstruction worker that replays
+  immutable Tenant outbox events and scope definitions with stable backfill identities.
+- [ ] Add Tenant mutation-to-reporting E2E after the remaining Tenant source boundaries exist.
 
 #### Execution slice 4 — client assignments
 
@@ -2218,7 +2219,8 @@ and reconciliation endpoint. Emit workspace/client hierarchy and status changes.
 - [x] Register assignment metrics/dimensions and route the contract through the typed Tenant
   projection builder.
 - [x] Verify formatting, registry validation, Tenant tests, and Tenant/Analytics compilation.
-- [ ] Add Tenant manifests, source reconstruction, and full mutation-to-reporting E2E.
+- [x] Add Tenant manifests and source reconstruction for immutable Tenant outbox history.
+- [ ] Add the full Tenant mutation-to-publisher-to-projection-to-reporting E2E.
 
 ### Tenant Platform lane: client administration
 
