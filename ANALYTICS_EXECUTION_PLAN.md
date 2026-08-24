@@ -1940,6 +1940,9 @@ those transitions.
 - [x] Add the authenticated Core-side transport contract for claiming this work and submitting
   bounded reconstructed batches, with deterministic record-identity sequences and live-cursor
   isolation.
+- [x] Add a bounded Core Meta source-reconstruction worker that reads organization-scoped
+  conversations/messages by their authoritative timestamps, derives responder markers without
+  retaining provider payloads, and runs independently from live outbox delivery.
 - [ ] Add historical backfill coverage, source reconciliation, projection/reporting evidence, and
   end-to-end mutation-to-reporting tests for Meta Inbox.
 

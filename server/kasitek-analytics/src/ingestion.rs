@@ -508,6 +508,19 @@ async fn ingest_record(
             && existing.record_id == record.record_id
             && existing.payload_hash == record.payload_hash
         {
+            if let Some(job_id) = backfill_job_id {
+                if count_duplicate_backfill_if_running(
+                    &mut transaction,
+                    authenticated,
+                    job_id,
+                    &record,
+                )
+                .await
+                .is_err()
+                {
+                    return retryable(record_id, source_sequence, "analytics_unavailable");
+                }
+            }
             if backfill_job_id.is_none()
                 && update_cursor(&mut transaction, authenticated, &record)
                     .await
@@ -2447,6 +2460,28 @@ async fn update_backfill_count(
         )
     {
         insert_backfill_coverage_checkpoint(transaction, authenticated, job_id, row).await?;
+    }
+    Ok(())
+}
+
+async fn count_duplicate_backfill_if_running(
+    transaction: &mut Transaction<'_, Postgres>,
+    authenticated: &AuthenticatedProducer,
+    job_id: &str,
+    record: &IngestionRecord,
+) -> Result<(), sqlx::Error> {
+    let row = sqlx::query(
+        "SELECT source_domain FROM analytics.analytics_backfill_job WHERE job_id = $1 AND source_service = $2 AND job_status = 'running' FOR UPDATE",
+    )
+    .bind(job_id)
+    .bind(&authenticated.source_service)
+    .fetch_optional(&mut **transaction)
+    .await?;
+    if row
+        .as_ref()
+        .is_some_and(|row| row.get::<String, _>("source_domain") == record_source_domain(record))
+    {
+        update_backfill_count(transaction, authenticated, job_id, true).await?;
     }
     Ok(())
 }

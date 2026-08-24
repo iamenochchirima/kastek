@@ -67,6 +67,7 @@ KASITEK_PROCESS=whatsapp-inbox-worker cargo run
 KASITEK_PROCESS=social-publishing-worker cargo run
 KASITEK_PROCESS=billing-reconciliation-worker cargo run
 KASITEK_PROCESS=analytics-publisher cargo run
+KASITEK_PROCESS=analytics-backfill-worker cargo run
 KASITEK_PROCESS=all-workers cargo run
 ```
 
@@ -75,7 +76,9 @@ The Analytics publisher is independently scalable and disabled unless
 `http://127.0.0.1:4300`), `ANALYTICS_CORE_PRODUCER_ID`, and `ANALYTICS_CORE_PUBLISHER_ID` in the
 Core environment. The token must match the `core` credential in the Analytics service. The worker
 claims Core's durable outbox, sends authenticated batches, applies each acknowledgement, retries
-transient failures, and reclaims expired leases.
+transient failures, and reclaims expired leases. The same process also runs the bounded Core source
+backfill loop; deploy `analytics-backfill-worker` separately when historical reconstruction needs
+independent capacity.
 
 ### Public v1 API webhooks
 

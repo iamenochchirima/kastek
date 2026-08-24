@@ -440,6 +440,9 @@ checklist records implementation evidence for the current package only.
 - Source-history transport: the shared Rust client now claims authenticated source-backfill work,
   submits bounded batches with the leased job identity, uses stable record-identity sequences, and
   keeps backfill acceptance out of live source-cursor advancement; focused wire-contract tests pass.
+- Core Meta reconstruction: the bounded worker reads only authorized organization rows and the two
+  responder-marker fields, preserves conversation/message business timestamps, uses deterministic
+  identities, and runs in the existing publisher process or an optional dedicated Core process.
 - Publisher transport: `pnpm exec tsc --noEmit` and focused Agent analytics tests passed, including
   the authenticated TypeScript batch request contract.
 - Publisher workers: Core, Tenant Platform, and Agent Platform now expose independent local worker

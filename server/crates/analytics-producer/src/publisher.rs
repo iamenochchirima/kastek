@@ -232,10 +232,11 @@ impl AnalyticsIngestionClient {
                 classify_http_status(status),
             )));
         }
-        response
+        let response = response
             .json::<BackfillBatchResponse>()
             .await
-            .map_err(|_| PublisherError::Backfill("analytics.invalid_response".to_string()))
+            .map_err(|_| PublisherError::Backfill("analytics.invalid_response".to_string()))?;
+        validate_backfill_response(records, response)
     }
 }
 
@@ -716,6 +717,65 @@ fn ingestion_record(
     }
 }
 
+fn validate_backfill_response(
+    records: &[BackfillRecord],
+    response: BackfillBatchResponse,
+) -> Result<BackfillBatchResponse, PublisherError> {
+    if response.acknowledgements.len() != records.len() {
+        return Err(PublisherError::Backfill(
+            "analytics.invalid_acknowledgement".to_string(),
+        ));
+    }
+    let expected = records
+        .iter()
+        .map(|record| (record.source_sequence, record.record.record_id.as_str()))
+        .collect::<HashMap<_, _>>();
+    if expected.len() != records.len() {
+        return Err(PublisherError::InvalidConfiguration);
+    }
+    let mut seen = HashMap::with_capacity(response.acknowledgements.len());
+    let mut counts = [0_usize; 4];
+    for acknowledgement in &response.acknowledgements {
+        let Some(expected_record_id) = expected.get(&acknowledgement.source_sequence) else {
+            return Err(PublisherError::Backfill(
+                "analytics.invalid_acknowledgement".to_string(),
+            ));
+        };
+        if *expected_record_id != acknowledgement.record_id
+            || seen.insert(acknowledgement.source_sequence, ()).is_some()
+        {
+            return Err(PublisherError::Backfill(
+                "analytics.invalid_acknowledgement".to_string(),
+            ));
+        }
+        let index = match acknowledgement.status.as_str() {
+            "accepted" => 0,
+            "duplicate" => 1,
+            "rejected" => 2,
+            "retryable" => 3,
+            _ => {
+                return Err(PublisherError::Backfill(
+                    "analytics.invalid_acknowledgement".to_string(),
+                ));
+            }
+        };
+        counts[index] += 1;
+    }
+    if counts
+        != [
+            response.accepted_count,
+            response.duplicate_count,
+            response.rejected_count,
+            response.retryable_count,
+        ]
+    {
+        return Err(PublisherError::Backfill(
+            "analytics.invalid_acknowledgement".to_string(),
+        ));
+    }
+    Ok(response)
+}
+
 #[cfg(test)]
 mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -983,7 +1043,10 @@ mod tests {
                 backfill_source_sequence("backfill-record-1")
             );
             assert_eq!(body["records"][0]["record_id"], "backfill-record-1");
-            let response_body = r#"{"accepted_count":1,"duplicate_count":0,"rejected_count":0,"retryable_count":0,"acknowledgements":[{"record_id":"backfill-record-1","source_sequence":1,"status":"accepted"}]}"#;
+            let response_body = format!(
+                r#"{{"accepted_count":1,"duplicate_count":0,"rejected_count":0,"retryable_count":0,"acknowledgements":[{{"record_id":"backfill-record-1","source_sequence":{},"status":"accepted"}}]}}"#,
+                backfill_source_sequence("backfill-record-1")
+            );
             let response = format!(
                 "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
                 response_body.len(),

@@ -8,7 +8,10 @@ use chrono::{DateTime, Duration, Utc};
 use serde_json::json;
 use sqlx::{Postgres, Row, Transaction};
 
-use analytics_producer::{EnqueueResult, EventInput, ManifestInput, ScopeKind};
+use analytics_producer::{
+    build_event, AnalyticsOutboxRecord, EnqueueResult, EventInput, ManifestInput, ProducerError,
+    ScopeKind,
+};
 
 use super::{enqueue_event, enqueue_manifest as enqueue_source_manifest};
 
@@ -100,6 +103,97 @@ pub async fn enqueue_manifest(
         EnqueueResult::Conflict { outbox_id } => EnqueueResult::Duplicate { outbox_id },
         result => result,
     })
+}
+
+/// Build the deterministic baseline fact for a persisted Meta conversation.
+///
+/// Historical reconstruction uses the same event identity and attribute shape as live Core
+/// mutations, but returns the record for the authenticated source-backfill transport instead of
+/// writing the live outbox.
+pub fn build_meta_conversation_backfill_record(
+    organization_id: &str,
+    conversation_id: &str,
+    channel: &str,
+    status: &str,
+    occurred_at: DateTime<Utc>,
+) -> Result<AnalyticsOutboxRecord, ProducerError> {
+    let record_id = format!(
+        "conversation:{conversation_id}:opened:{}",
+        occurred_at.timestamp_millis()
+    );
+    Ok(build_event(
+        &super::producer_config(),
+        EventInput {
+            record_id: record_id.clone(),
+            source_domain: SOURCE_DOMAIN.to_string(),
+            source_stream_key: stream_key(organization_id),
+            contract_name: "conversation.lifecycle@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::CoreOrganization,
+            scope_external_id: organization_id.to_string(),
+            subject_type: "conversation".to_string(),
+            subject_id: conversation_id.to_string(),
+            occurred_at,
+            attributes: conversation_attributes(
+                conversation_id,
+                channel,
+                "opened",
+                status,
+                "customer",
+                occurred_at,
+            ),
+            correlation_id: None,
+            causation_id: None,
+            idempotency_key: Some(record_id),
+        },
+    )?)
+}
+
+/// Build the deterministic baseline fact for a persisted Meta message.
+pub fn build_meta_message_backfill_record(
+    organization_id: &str,
+    message_id: &str,
+    conversation_id: &str,
+    channel: &str,
+    direction: &str,
+    responder_type: &str,
+    message_type: &str,
+    occurred_at: DateTime<Utc>,
+) -> Result<AnalyticsOutboxRecord, ProducerError> {
+    let record_id = format!(
+        "message:{message_id}:created:{}",
+        occurred_at.timestamp_millis()
+    );
+    Ok(build_event(
+        &super::producer_config(),
+        EventInput {
+            record_id: record_id.clone(),
+            source_domain: SOURCE_DOMAIN.to_string(),
+            source_stream_key: stream_key(organization_id),
+            contract_name: "conversation.message.lifecycle@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::CoreOrganization,
+            scope_external_id: organization_id.to_string(),
+            subject_type: "message".to_string(),
+            subject_id: message_id.to_string(),
+            occurred_at,
+            attributes: message_attributes(
+                message_id,
+                conversation_id,
+                channel,
+                "created",
+                direction,
+                responder_type,
+                message_type,
+                None,
+                None,
+                occurred_at,
+            ),
+            correlation_id: None,
+            causation_id: None,
+            idempotency_key: Some(record_id),
+        },
+    )?)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -280,6 +374,7 @@ fn message_attributes(
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone;
+    use serde_json::json;
 
     #[test]
     fn stream_key_is_scoped_without_customer_data() {
@@ -315,5 +410,44 @@ mod tests {
         ] {
             assert!(!object.contains_key(prohibited), "unexpected {prohibited}");
         }
+    }
+
+    #[test]
+    fn meta_backfill_builders_preserve_business_time_and_safe_dimensions() {
+        let occurred_at = chrono::Utc.with_ymd_and_hms(2025, 1, 2, 3, 4, 5).unwrap();
+        let conversation = super::build_meta_conversation_backfill_record(
+            "org-123",
+            "conversation-123",
+            "facebook",
+            "active",
+            occurred_at,
+        )
+        .unwrap();
+        assert_eq!(
+            conversation.record_id,
+            "conversation:conversation-123:opened:1735787045000"
+        );
+        assert_eq!(conversation.envelope["time"], json!(occurred_at));
+
+        let message = super::build_meta_message_backfill_record(
+            "org-123",
+            "message-123",
+            "conversation-123",
+            "facebook",
+            "inbound",
+            "customer",
+            "text",
+            occurred_at,
+        )
+        .unwrap();
+        assert_eq!(
+            message.record_id,
+            "message:message-123:created:1735787045000"
+        );
+        assert_eq!(message.envelope["time"], json!(occurred_at));
+        assert!(message.envelope["data"].get("content").is_none());
+        assert!(message.envelope["data"]
+            .get("provider_message_id")
+            .is_none());
     }
 }
