@@ -1688,8 +1688,8 @@ Connection metrics remain gated on Product Section 9 approval.
   checkpoint, while leaving reliable historical coverage and transport sequence evidence unset.
 - [x] Preserve transactional durability, privacy exclusions, and same-window idempotent
   coalescing in focused Core tests.
-- [ ] Add historical event backfill, temporal/reconciliation coverage checkpoints, reporting
-  results, and full mutation-to-reporting E2E after the Connections projection boundary exists.
+- [ ] Add historical event backfill, temporal coverage checkpoints, reporting results, and full
+  mutation-to-reporting E2E after the Connections projection boundary exists.
 
 #### Execution slice 6 — typed Connections projection boundary
 
@@ -1721,8 +1721,26 @@ Connection metrics remain gated on Product Section 9 approval.
   evidence without turning a current source population into a historical completeness claim.
 - [x] Verify accepted manifests, duplicate delivery, privacy exclusions, and incomplete-history
   semantics in the PostgreSQL ingestion fixture.
-- [ ] Add temporal event backfill/reconciliation checkpoints and connect source coverage to reporting
+- [x] Persist reconciliation-layer checkpoints only for scope-bound streams with an actual stored
+  event or observation window; empty streams do not receive fabricated temporal coverage.
+- [x] Link reconciliation checkpoints directly to their immutable reconciliation run and make
+  retries idempotent.
+- [ ] Add temporal event backfill checkpoints and connect source/reconciliation coverage to reporting
   availability before exposing customer-facing Connections analytics.
+
+#### Execution slice 8 — reconciliation coverage evidence
+
+- [x] Add an optional immutable `reconciliation_run_id` evidence link to coverage checkpoints with a
+  unique partial index so one reconciliation run can produce at most one checkpoint.
+- [x] Persist complete reconciliation as `available` and mismatched reconciliation as `partial`,
+  preserving expected, included, and excluded counts without copying raw source data.
+- [x] Derive the checkpoint window from stored event business time and observation reporting windows;
+  do not use reconciliation execution time as a fake data window.
+- [x] Preserve the historical boundary: `complete_through` is set only for a complete reconciliation
+  and does not establish reliable coverage before the earliest known fact.
+- [x] Verify complete, mismatch, duplicate-run, privacy, and empty-stream behavior in PostgreSQL.
+- [ ] Implement source reconstruction/provider-history backfill and temporal checkpoints linked to
+  backfill jobs.
 
 ### Core lane: Inbox
 

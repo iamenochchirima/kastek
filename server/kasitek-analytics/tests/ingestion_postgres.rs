@@ -475,8 +475,8 @@ async fn ingests_idempotently_tracks_cursor_and_reconciles_source_summary() {
             producer_id: authenticated.producer_id.clone(),
             source_domain: "campaigns".to_string(),
             source_stream_key: stream.clone(),
-            scope_kind: None,
-            scope_external_id: None,
+            scope_kind: Some("core_organization".to_string()),
+            scope_external_id: Some(scope_id.clone()),
             source_highest_outbox_sequence: Some(3),
             source_highest_delivered_sequence: Some(3),
             authoritative_count: Some(3),
@@ -488,6 +488,173 @@ async fn ingests_idempotently_tracks_cursor_and_reconciles_source_summary() {
     assert_eq!(reconciliation.analytics_count, 3);
     assert_eq!(reconciliation.reconciliation_status, "mismatch");
     assert_eq!(reconciliation.unresolved_quarantine_count, 1);
+    let mismatch_coverage = sqlx::query(
+        "SELECT reconciliation_run_id, coverage_layer, window_start, window_end, expected_count, included_count, excluded_count, coverage_state, complete_through FROM analytics.analytics_coverage_checkpoint WHERE reconciliation_run_id = $1",
+    )
+    .bind(&run_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        mismatch_coverage.get::<String, _>("reconciliation_run_id"),
+        run_id
+    );
+    assert_eq!(
+        mismatch_coverage.get::<String, _>("coverage_layer"),
+        "reconciliation"
+    );
+    assert_eq!(
+        mismatch_coverage.get::<chrono::DateTime<Utc>, _>("window_start"),
+        "2026-08-22T11:00:00Z"
+            .parse::<chrono::DateTime<Utc>>()
+            .unwrap()
+    );
+    assert_eq!(
+        mismatch_coverage.get::<chrono::DateTime<Utc>, _>("window_end"),
+        "2026-08-22T12:00:00.000001Z"
+            .parse::<chrono::DateTime<Utc>>()
+            .unwrap()
+    );
+    assert_eq!(
+        mismatch_coverage.get::<Option<i64>, _>("expected_count"),
+        Some(3)
+    );
+    assert_eq!(mismatch_coverage.get::<i64, _>("included_count"), 3);
+    assert_eq!(mismatch_coverage.get::<i64, _>("excluded_count"), 0);
+    assert_eq!(
+        mismatch_coverage.get::<String, _>("coverage_state"),
+        "partial"
+    );
+    assert!(mismatch_coverage
+        .get::<Option<chrono::DateTime<Utc>>, _>("complete_through")
+        .is_none());
+    let mismatch_payload: serde_json::Value = sqlx::query_scalar(
+        "SELECT to_jsonb(checkpoint) FROM analytics.analytics_coverage_checkpoint AS checkpoint WHERE reconciliation_run_id = $1",
+    )
+    .bind(&run_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(mismatch_payload.get("attributes").is_none());
+    assert!(mismatch_payload.get("connection_ref").is_none());
+
+    let clean_stream = format!("a09-clean-reconciliation:{scope_id}");
+    let clean_record_id = format!("clean-reconciliation-event-{suffix}");
+    let clean_record = event_record(
+        &clean_stream,
+        &clean_record_id,
+        1,
+        &scope_id,
+        json!({
+            "campaign_id": "clean-campaign-a09",
+            "recipient_id": "clean-recipient-a09",
+            "channel": "whatsapp",
+            "occurred_at": "2026-08-22T12:00:00Z",
+            "status": "sent"
+        }),
+    );
+    let clean_ingestion = ingest_batch(
+        &pool,
+        &authenticated,
+        IngestionBatchRequest {
+            records: vec![clean_record],
+            backfill_job_id: None,
+        },
+    )
+    .await;
+    assert!(matches!(
+        clean_ingestion.acknowledgements[0].status,
+        AcknowledgementStatus::Accepted
+    ));
+    let clean_run_id = format!("a09-clean-reconciliation-{suffix}");
+    let clean_request = ReconciliationRequest {
+        reconciliation_run_id: clean_run_id.clone(),
+        reconciliation_work_id: None,
+        producer_id: authenticated.producer_id.clone(),
+        source_domain: "campaigns".to_string(),
+        source_stream_key: clean_stream,
+        scope_kind: Some("core_organization".to_string()),
+        scope_external_id: Some(scope_id.clone()),
+        source_highest_outbox_sequence: Some(1),
+        source_highest_delivered_sequence: Some(1),
+        authoritative_count: Some(1),
+        authoritative_checksum: None,
+    };
+    let clean_reconciliation = reconcile_stream(&pool, &authenticated, clean_request.clone())
+        .await
+        .unwrap();
+    assert_eq!(clean_reconciliation.reconciliation_status, "complete");
+    let clean_coverage = sqlx::query(
+        "SELECT coverage_state, expected_count, included_count, excluded_count, complete_through FROM analytics.analytics_coverage_checkpoint WHERE reconciliation_run_id = $1",
+    )
+    .bind(&clean_run_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        clean_coverage.get::<String, _>("coverage_state"),
+        "available"
+    );
+    assert_eq!(
+        clean_coverage.get::<Option<i64>, _>("expected_count"),
+        Some(1)
+    );
+    assert_eq!(clean_coverage.get::<i64, _>("included_count"), 1);
+    assert_eq!(clean_coverage.get::<i64, _>("excluded_count"), 0);
+    assert_eq!(
+        clean_coverage.get::<Option<chrono::DateTime<Utc>>, _>("complete_through"),
+        Some(
+            "2026-08-22T12:00:00.000001Z"
+                .parse::<chrono::DateTime<Utc>>()
+                .unwrap()
+        )
+    );
+    let clean_duplicate = reconcile_stream(&pool, &authenticated, clean_request)
+        .await
+        .unwrap();
+    assert_eq!(clean_duplicate.reconciliation_status, "complete");
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM analytics.analytics_coverage_checkpoint WHERE reconciliation_run_id = $1",
+        )
+        .bind(&clean_run_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap(),
+        1
+    );
+    let empty_run_id = format!("a09-empty-reconciliation-{suffix}");
+    let empty_stream = format!("a09-empty-reconciliation:{scope_id}");
+    let empty_reconciliation = reconcile_stream(
+        &pool,
+        &authenticated,
+        ReconciliationRequest {
+            reconciliation_run_id: empty_run_id.clone(),
+            reconciliation_work_id: None,
+            producer_id: authenticated.producer_id.clone(),
+            source_domain: "campaigns".to_string(),
+            source_stream_key: empty_stream,
+            scope_kind: Some("core_organization".to_string()),
+            scope_external_id: Some(scope_id.clone()),
+            source_highest_outbox_sequence: Some(0),
+            source_highest_delivered_sequence: Some(0),
+            authoritative_count: Some(0),
+            authoritative_checksum: None,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(empty_reconciliation.reconciliation_status, "complete");
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM analytics.analytics_coverage_checkpoint WHERE reconciliation_run_id = $1",
+        )
+        .bind(empty_run_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap(),
+        0
+    );
 
     // The fact, quarantine, reconciliation, and scope rows are immutable evidence by design.
     // The test uses a unique scope and stream on every run instead of deleting that evidence.

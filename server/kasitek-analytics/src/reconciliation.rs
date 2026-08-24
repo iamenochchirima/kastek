@@ -5,6 +5,7 @@
 //! immutable receipts, quarantine, and fact counts.
 
 use actix_web::{http::header, web, HttpRequest, HttpResponse, Responder};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::{PgPool, Postgres, Row, Transaction};
@@ -236,7 +237,7 @@ pub async fn reconcile_stream(
         None
     };
     let now = chrono::Utc::now();
-    sqlx::query(
+    let run_inserted = sqlx::query(
         r#"INSERT INTO analytics.analytics_reconciliation_run (
              reconciliation_run_id, producer_id, source_service, source_domain, source_stream_key,
              reporting_scope_id, root_scope_id, source_highest_outbox_sequence,
@@ -263,13 +264,36 @@ pub async fn reconcile_stream(
     .bind(unresolved_quarantine_count)
     .bind(request.authoritative_count)
     .bind(analytics_count)
-    .bind(request.authoritative_checksum)
+    .bind(request.authoritative_checksum.as_deref())
     .bind(reconciliation_status)
     .bind(safe_failure_code)
     .bind(now)
     .execute(&mut *transaction)
     .await
     .map_err(|_| ReconciliationError::Unavailable)?;
+    if run_inserted.rows_affected() > 0 {
+        if let (Some(binding), Some(window)) = (
+            binding.as_ref(),
+            reconciliation_fact_window(&mut transaction, &request)
+                .await
+                .map_err(|_| ReconciliationError::Unavailable)?,
+        ) {
+            insert_reconciliation_coverage_checkpoint(
+                &mut transaction,
+                ReconciliationCoverageInput {
+                    request: &request,
+                    authenticated,
+                    binding,
+                    window: &window,
+                    reconciliation_status,
+                    analytics_count,
+                    observed_at: now,
+                },
+            )
+            .await
+            .map_err(|_| ReconciliationError::Unavailable)?;
+        }
+    }
     sqlx::query(
         "UPDATE analytics.analytics_source_cursor SET latest_reconciliation_at = NOW() WHERE producer_id = $1 AND source_stream_key = $2",
     )
@@ -362,4 +386,102 @@ async fn count_stream_facts(
     .bind(&request.source_stream_key)
     .fetch_one(&mut **transaction)
     .await
+}
+
+struct ReconciliationFactWindow {
+    window_start: DateTime<Utc>,
+    window_end: DateTime<Utc>,
+}
+
+async fn reconciliation_fact_window(
+    transaction: &mut Transaction<'_, Postgres>,
+    request: &ReconciliationRequest,
+) -> Result<Option<ReconciliationFactWindow>, sqlx::Error> {
+    let row = sqlx::query(
+        r#"SELECT MIN(window_start) AS window_start, MAX(window_end) AS window_end
+           FROM (
+             SELECT occurred_at AS window_start,
+                    occurred_at + INTERVAL '1 microsecond' AS window_end
+             FROM analytics.analytics_event
+             WHERE producer_id = $1 AND source_domain = $3 AND source_stream_key = $2
+             UNION ALL
+             SELECT reporting_window_start AS window_start,
+                    reporting_window_end AS window_end
+             FROM analytics.analytics_metric_observation
+             WHERE producer_id = $1 AND source_domain = $3 AND source_stream_key = $2
+           ) facts"#,
+    )
+    .bind(&request.producer_id)
+    .bind(&request.source_stream_key)
+    .bind(&request.source_domain)
+    .fetch_one(&mut **transaction)
+    .await?;
+    let window_start = row.get::<Option<DateTime<Utc>>, _>("window_start");
+    let window_end = row.get::<Option<DateTime<Utc>>, _>("window_end");
+    Ok(match (window_start, window_end) {
+        (Some(window_start), Some(window_end)) if window_end > window_start => {
+            Some(ReconciliationFactWindow {
+                window_start,
+                window_end,
+            })
+        }
+        _ => None,
+    })
+}
+
+struct ReconciliationCoverageInput<'a> {
+    request: &'a ReconciliationRequest,
+    authenticated: &'a AuthenticatedProducer,
+    binding: &'a crate::records::ScopeBinding,
+    window: &'a ReconciliationFactWindow,
+    reconciliation_status: &'a str,
+    analytics_count: i64,
+    observed_at: DateTime<Utc>,
+}
+
+async fn insert_reconciliation_coverage_checkpoint(
+    transaction: &mut Transaction<'_, Postgres>,
+    coverage: ReconciliationCoverageInput<'_>,
+) -> Result<(), sqlx::Error> {
+    let expected_count = coverage.request.authoritative_count;
+    let included_count = expected_count
+        .map(|expected| expected.min(coverage.analytics_count))
+        .unwrap_or(coverage.analytics_count);
+    let excluded_count = expected_count
+        .map(|expected| expected.saturating_sub(coverage.analytics_count))
+        .unwrap_or(0);
+    let coverage_state = match coverage.reconciliation_status {
+        "complete" => "available",
+        "mismatch" => "partial",
+        _ => "unknown",
+    };
+    let complete_through =
+        (coverage.reconciliation_status == "complete").then_some(coverage.window.window_end);
+
+    sqlx::query(
+        r#"INSERT INTO analytics.analytics_coverage_checkpoint (
+                producer_id, source_service, source_domain, reporting_scope_id, root_scope_id,
+                coverage_layer, dimension_key, window_start, window_end,
+                expected_count, included_count, excluded_count, coverage_state,
+                complete_through, projection_version, source_manifest_id,
+                reconciliation_run_id, observed_at
+            ) VALUES ($1,$2,$3,$4,$5,'reconciliation',NULL,$6,$7,$8,$9,$10,$11,$12,NULL,NULL,$13,$14)"#,
+    )
+    .bind(&coverage.request.producer_id)
+    .bind(&coverage.authenticated.source_service)
+    .bind(&coverage.request.source_domain)
+    .bind(coverage.binding.reporting_scope_id)
+    .bind(coverage.binding.root_scope_id)
+    .bind(coverage.window.window_start)
+    .bind(coverage.window.window_end)
+    .bind(expected_count)
+    .bind(included_count)
+    .bind(excluded_count)
+    .bind(coverage_state)
+    .bind(complete_through)
+    .bind(&coverage.request.reconciliation_run_id)
+    .bind(coverage.observed_at)
+    .execute(&mut **transaction)
+    .await?;
+    Ok(())
 }

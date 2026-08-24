@@ -594,8 +594,8 @@ checklist records implementation evidence for the current package only.
 - [x] Include the authoritative current `ExternalConnection` population as a bounded source
   checkpoint; do not claim a reliable historical coverage start before backfill/reconciliation.
 - [x] Add focused privacy, same-window idempotency, and coverage-boundary integration assertions.
-- [ ] Add historical event backfill, temporal/reconciliation coverage checkpoints, reporting, and
-  full product mutation-to-reporting E2E after the Connections projection boundary exists.
+- [ ] Add historical event backfill, temporal coverage checkpoints, reporting, and full product
+  mutation-to-reporting E2E after the Connections projection boundary exists.
 
 ## Core Connections — slice 6
 
@@ -614,8 +614,12 @@ checklist records implementation evidence for the current package only.
   `complete_through` and reliable historical coverage unset until backfill/reconciliation exists.
 - [x] Verify checkpoint privacy, duplicate behavior, and incomplete-history semantics in the
   PostgreSQL ingestion fixture.
-- [ ] Add temporal event backfill/reconciliation checkpoints, reporting availability, and full
-  product mutation-to-reporting E2E in later Connections slices.
+- [x] Persist scope-bound reconciliation checkpoints from stored fact windows and keep empty streams
+  from receiving fabricated temporal coverage.
+- [x] Link reconciliation checkpoints to immutable reconciliation runs and verify duplicate-run
+  idempotence, complete/mismatch states, counts, and privacy.
+- [ ] Add temporal event backfill checkpoints, reporting availability, and full product
+  mutation-to-reporting E2E in later Connections slices.
 
 ## Core Connections — slice 7
 
@@ -624,6 +628,13 @@ checklist records implementation evidence for the current package only.
   provider or connection-sensitive fields into the checkpoint.
 - [x] Verify accepted, duplicate, privacy, and incomplete-history paths.
 - [ ] Build temporal coverage from historical event backfill and reconciliation before reporting.
+
+## Core Connections — slice 8
+
+- [x] Add an optional unique `reconciliation_run_id` evidence link to coverage checkpoints.
+- [x] Persist complete and mismatched reconciliation coverage from actual event/observation windows.
+- [x] Preserve no-fabrication behavior for empty streams and no historical completeness claim.
+- [ ] Link source reconstruction/provider-history backfill completion to temporal checkpoints.
 
 ## Explicitly deferred
 
