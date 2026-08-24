@@ -152,7 +152,7 @@ export function AnalyticsPlayground() {
               <CardDescription>{report.range_start} to {report.range_end} · {report.timezone}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {metrics.length ? metrics.map((metric) => <MetricCheck key={`${metric.key}-${metric.version}`} metric={metric} />) : <AnalyticsEmptyState />}
+              {metrics.length ? metrics.map((metric) => <MetricCheck key={`${metric.key}-${metric.version}`} metric={metric} timezone={report.timezone} />) : <AnalyticsEmptyState />}
             </CardContent>
           </Card>
 
@@ -186,7 +186,7 @@ function PipelineCard({ icon, label, value, detail, state }: { icon: React.React
   return <Card><CardContent className="p-5"><div className="flex items-center justify-between gap-3 text-xs text-muted-foreground"><span className="flex items-center gap-1.5">{icon}{label}</span><AnalyticsStatusBadge state={state} /></div><div className="mt-3 text-2xl font-semibold tracking-tight">{value}</div><div className="mt-1 truncate text-xs text-muted-foreground">{detail}</div></CardContent></Card>;
 }
 
-function MetricCheck({ metric }: { metric: AnalyticsMetricResult }) {
+function MetricCheck({ metric, timezone }: { metric: AnalyticsMetricResult; timezone: string }) {
   return (
     <details className="group rounded-lg border border-border">
       <summary className="flex cursor-pointer list-none flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between [&::-webkit-details-marker]:hidden">
@@ -195,7 +195,7 @@ function MetricCheck({ metric }: { metric: AnalyticsMetricResult }) {
       </summary>
       <div className="grid gap-6 border-t border-border p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <AnalyticsTrendChart points={metric.series} label={`${metric.key} trend`} />
-        <AnalyticsMetricSeriesTable metric={metric} />
+        <AnalyticsMetricSeriesTable metric={metric} timezone={timezone} />
       </div>
       {metric.warnings.length ? <div className="border-t border-status-attention/20 bg-status-attention-soft px-4 py-3 text-xs text-status-attention">{metric.warnings.join(" · ")}</div> : null}
     </details>

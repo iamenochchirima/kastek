@@ -47,7 +47,7 @@ export function AnalyticsTrendChart({
   );
 }
 
-export function AnalyticsMetricSeriesTable({ metric }: { metric: AnalyticsMetricResult }) {
+export function AnalyticsMetricSeriesTable({ metric, timezone }: { metric: AnalyticsMetricResult; timezone?: string }) {
   if (!metric.series.length) return <AnalyticsEmptyState title="No points" />;
   const hasDenominator = metric.series.some((point) => point.denominator !== null);
 
@@ -68,7 +68,7 @@ export function AnalyticsMetricSeriesTable({ metric }: { metric: AnalyticsMetric
         <TableBody>
           {metric.series.map((point) => (
             <TableRow key={`${point.bucket_start}-${point.bucket_end}`}>
-              <TableCell>{new Date(point.bucket_start).toLocaleDateString()}</TableCell>
+              <TableCell>{new Date(point.bucket_start).toLocaleDateString(undefined, timezone ? { timeZone: timezone } : undefined)}</TableCell>
               <TableCell className="text-right font-medium">{formatValue(point.value)}{metric.unit ? ` ${metric.unit}` : ""}</TableCell>
               {hasDenominator ? <TableCell className="text-right">{formatValue(point.denominator)}</TableCell> : null}
             </TableRow>
