@@ -2,7 +2,7 @@
 
 pub const REGISTRY_VERSION: &str = "20260822.1";
 pub const REGISTRY_SHA256: &str =
-    "fba2fc3fce0ba15247d44a94c75d0785de8b6df9745ca36df135e7c15c8f2c25";
+    "d4a439d381cd12b0cba6786651650621137b78790a18d0a74c629ff9d98c2ddd";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",
@@ -25,6 +25,7 @@ pub const CONTRACT_KEYS: &[&str] = &[
     "connection.capability.lifecycle@1",
     "connection.health_check@1",
     "connection.lifecycle@1",
+    "connection.sync_attempt@1",
     "conversation.lifecycle@1",
     "conversation.message.lifecycle@1",
     "conversation.message.received@1",
@@ -56,6 +57,7 @@ pub const METRIC_KEYS: &[&str] = &[
     "connection.capability_events@1",
     "connection.health_checks@1",
     "connection.lifecycle_events@1",
+    "connection.sync_attempts@1",
     "conversation.lifecycle_events@1",
     "conversation.message.lifecycle_events@1",
     "conversation.messages.received@1",
@@ -79,6 +81,7 @@ pub const DIMENSION_KEYS: &[&str] = &[
     "channel",
     "connection_credential_status",
     "connection_health_status",
+    "connection_sync_operation",
     "connection_webhook_status",
     "conversation_channel",
     "conversation_handoff_state",
@@ -135,6 +138,7 @@ pub mod metric_keys {
     pub const CONNECTION_CAPABILITY_EVENTS_1: &str = "connection.capability_events@1";
     pub const CONNECTION_HEALTH_CHECKS_1: &str = "connection.health_checks@1";
     pub const CONNECTION_LIFECYCLE_EVENTS_1: &str = "connection.lifecycle_events@1";
+    pub const CONNECTION_SYNC_ATTEMPTS_1: &str = "connection.sync_attempts@1";
     pub const CONVERSATION_LIFECYCLE_EVENTS_1: &str = "conversation.lifecycle_events@1";
     pub const CONVERSATION_MESSAGE_LIFECYCLE_EVENTS_1: &str =
         "conversation.message.lifecycle_events@1";

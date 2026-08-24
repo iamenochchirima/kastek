@@ -7,6 +7,7 @@ use serde_json::{json, Value};
 use sha2::Sha256;
 use sqlx::PgPool;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Instant;
 
 use crate::config::AppConfig;
 use crate::db::models::SocialChannel;
@@ -1246,6 +1247,46 @@ async fn get_social_channel_private_by_id(
 }
 
 pub async fn refresh_social_channel_identity(
+    pool: &PgPool,
+    org_id: &str,
+    channel_id: &str,
+) -> Result<SocialChannel, AppError> {
+    let provider = get_social_channel_private_by_id(pool, org_id, channel_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|channel| channel.platform);
+    let attempt_id = cuid2::create_id();
+    let started_at = Instant::now();
+    let result = refresh_social_channel_identity_inner(pool, org_id, channel_id).await;
+    let (outcome, failure_class) = match result.as_ref() {
+        Ok(_) => ("succeeded", "none"),
+        Err(error) => ("failed", connections::provider_sync_failure_class(error)),
+    };
+    if let Some(provider) = provider.as_deref() {
+        if let Err(error) = connections::record_provider_sync_outcome(
+            pool,
+            org_id,
+            channel_id,
+            provider,
+            "identity_refresh",
+            &attempt_id,
+            outcome,
+            failure_class,
+            started_at.elapsed().as_millis().min(i64::MAX as u128) as i64,
+        )
+        .await
+        {
+            log::error!(
+                "failed to record {provider} social identity refresh analytics outcome: {}",
+                error
+            );
+        }
+    }
+    result
+}
+
+async fn refresh_social_channel_identity_inner(
     pool: &PgPool,
     org_id: &str,
     channel_id: &str,

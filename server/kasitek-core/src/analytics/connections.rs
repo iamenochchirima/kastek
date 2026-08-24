@@ -153,6 +153,51 @@ pub async fn enqueue_capability_lifecycle(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
+pub async fn enqueue_sync_attempt(
+    transaction: &mut Transaction<'_, Postgres>,
+    organization_id: &str,
+    connection_id: &str,
+    provider: &str,
+    attempt_id: &str,
+    operation: &str,
+    outcome: &str,
+    failure_class: &str,
+    duration_ms: i64,
+    occurred_at: DateTime<Utc>,
+) -> Result<EnqueueResult, analytics_producer::ProducerError> {
+    let record_id = format!("connection:{connection_id}:sync:{attempt_id}");
+    enqueue_event(
+        transaction,
+        EventInput {
+            record_id: record_id.clone(),
+            source_domain: SOURCE_DOMAIN.to_string(),
+            source_stream_key: stream_key(organization_id),
+            contract_name: "connection.sync_attempt@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::CoreOrganization,
+            scope_external_id: organization_id.to_string(),
+            subject_type: "connection".to_string(),
+            subject_id: connection_id.to_string(),
+            occurred_at,
+            attributes: json!({
+                "attempt_id": attempt_id,
+                "connection_id": connection_id,
+                "provider": provider,
+                "operation": operation,
+                "outcome": outcome,
+                "failure_class": failure_class,
+                "duration_ms": duration_ms,
+                "occurred_at": occurred_at,
+            }),
+            correlation_id: None,
+            causation_id: None,
+            idempotency_key: Some(record_id),
+        },
+    )
+    .await
+}
+
 pub fn lifecycle_action(status: &str) -> &'static str {
     match status {
         "CONNECTED" => "connected",

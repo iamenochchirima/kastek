@@ -6,6 +6,7 @@
 
 use serde_json::{json, Value};
 use sqlx::PgPool;
+use std::time::Instant;
 
 use crate::db::models::{WhatsappConnectionPublic, WhatsappConnectionRow};
 use crate::error::AppError;
@@ -438,6 +439,46 @@ pub async fn complete_embedded_signup(
 }
 
 pub async fn refresh_connection(
+    pool: &PgPool,
+    org_id: &str,
+    connection_id: &str,
+) -> Result<Value, AppError> {
+    let record_attempt = get_connection_row_for_org_including_inactive(pool, org_id, connection_id)
+        .await
+        .ok()
+        .flatten()
+        .is_some();
+    let attempt_id = cuid2::create_id();
+    let started_at = Instant::now();
+    let result = refresh_connection_inner(pool, org_id, connection_id).await;
+    let (outcome, failure_class) = match result.as_ref() {
+        Ok(_) => ("succeeded", "none"),
+        Err(error) => ("failed", connections::provider_sync_failure_class(error)),
+    };
+    if record_attempt {
+        if let Err(error) = connections::record_provider_sync_outcome(
+            pool,
+            org_id,
+            connection_id,
+            "WHATSAPP",
+            "connection_refresh",
+            &attempt_id,
+            outcome,
+            failure_class,
+            started_at.elapsed().as_millis().min(i64::MAX as u128) as i64,
+        )
+        .await
+        {
+            log::error!(
+                "failed to record WhatsApp connection refresh analytics outcome: {}",
+                error
+            );
+        }
+    }
+    result
+}
+
+async fn refresh_connection_inner(
     pool: &PgPool,
     org_id: &str,
     connection_id: &str,

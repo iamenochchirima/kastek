@@ -1,7 +1,7 @@
 use std::env;
 
 use kasitek_core::analytics::connections::{
-    enqueue_capability_lifecycle, enqueue_health_check, enqueue_lifecycle,
+    enqueue_capability_lifecycle, enqueue_health_check, enqueue_lifecycle, enqueue_sync_attempt,
 };
 use sqlx::{postgres::PgPoolOptions, Row};
 
@@ -55,6 +55,20 @@ async fn connection_facts_are_transactional_and_privacy_safe() {
     )
     .await
     .expect("connection capability fact should enqueue");
+    enqueue_sync_attempt(
+        &mut transaction,
+        "org_connections_a",
+        "ext_analytics-connection",
+        "WHATSAPP",
+        "sync-attempt-123",
+        "connection_refresh",
+        "succeeded",
+        "none",
+        284,
+        chrono::Utc::now(),
+    )
+    .await
+    .expect("connection synchronization fact should enqueue");
 
     let rows = sqlx::query(
         r#"
@@ -68,7 +82,7 @@ async fn connection_facts_are_transactional_and_privacy_safe() {
     .fetch_all(&mut *transaction)
     .await
     .expect("facts should be visible before commit");
-    assert_eq!(rows.len(), 3);
+    assert_eq!(rows.len(), 4);
     for row in rows {
         let envelope: serde_json::Value = row.try_get("envelope").unwrap();
         let data = envelope

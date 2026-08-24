@@ -1626,9 +1626,8 @@ Connection metrics remain gated on Product Section 9 approval.
 - [x] Emit bounded health-check facts in the same transaction as Core's ExternalConnection health
   state update, preserving the operational error only in Core.
 - [x] Add transactional producer/privacy coverage for both connection contracts.
-- [ ] Add provider synchronization attempts/outcomes, rate-limit events, incident facts, source
-  manifests, historical backfill, projections, and reporting results in subsequent Connections
-  slices.
+- [ ] Add rate-limit events, incident facts, source manifests, historical backfill, projections,
+  and reporting results in subsequent Connections slices.
 
 #### Execution slice 2 — capability enablement history
 
@@ -1641,8 +1640,25 @@ Connection metrics remain gated on Product Section 9 approval.
   newly observed or enabled-state-changed capabilities emit facts.
 - [x] Emit capability facts in the same Core transaction as the capability projection rebuild.
 - [x] Cover the capability contract with transactional producer and privacy tests.
-- [ ] Add authoritative provider synchronization attempt/outcome, rate-limit, incident, and
-  coverage evidence facts in later Connections slices.
+- [ ] Add authoritative rate-limit, incident, and coverage evidence facts in later Connections
+  slices.
+
+#### Execution slice 3 — provider synchronization outcomes
+
+- [x] Register `connection.sync_attempt@1` with an attempt reference, stable connection reference,
+  provider, operation, succeeded/failed outcome, bounded failure class, duration, and event time;
+  exclude provider payloads, credentials, account identifiers, and raw errors.
+- [x] Register `connection.sync_attempts@1` with provider, operation, outcome, and failure-class
+  dimensions and add it to the overview metric set without claiming complete provider coverage.
+- [x] Instrument the authoritative WhatsApp connection refresh and social identity refresh paths,
+  including bounded failures, while leaving existing health-check facts separate.
+- [x] Emit synchronization outcomes through the Core transactional outbox without rebuilding the
+  full connection projection for each attempt; use Core's deterministic ExternalConnection
+  reference mapping.
+- [x] Add producer/privacy coverage and bounded error-classification tests, and regenerate the
+  Rust and TypeScript registry bindings.
+- [ ] Add provider rate-limit evidence, incident lifecycle facts, manifests, historical backfill,
+  projections, reporting, and full mutation-to-reporting E2E in later Connections slices.
 
 ### Core lane: Inbox
 

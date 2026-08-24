@@ -113,7 +113,7 @@ definitions:
   - key: provider
     type: reference
     source: envelope.data.provider
-    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.delivery_rate@1, connection.lifecycle_events@1, connection.health_checks@1]
+    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.delivery_rate@1, connection.lifecycle_events@1, connection.health_checks@1, connection.sync_attempts@1]
     filterable: true
     groupable: true
     cardinality: medium
@@ -234,7 +234,7 @@ definitions:
   - key: outcome
     type: enum
     source: envelope.data.outcome
-    compatible_metrics: [agent.runs.completed@1]
+    compatible_metrics: [agent.runs.completed@1, connection.sync_attempts@1]
     filterable: true
     groupable: true
     cardinality: low
@@ -245,7 +245,7 @@ definitions:
   - key: failure_class
     type: enum
     source: envelope.data.failure_class
-    compatible_metrics: [agent.runs.failed@1, agent.tools.lifecycle_events@1, agent.effects.lifecycle_events@1]
+    compatible_metrics: [agent.runs.failed@1, agent.tools.lifecycle_events@1, agent.effects.lifecycle_events@1, connection.sync_attempts@1]
     filterable: true
     groupable: true
     cardinality: low
@@ -422,6 +422,17 @@ definitions:
     type: enum
     source: envelope.data.funding_source
     compatible_metrics: [agent.model_calls.completed@1, agent.model_calls.failed@1, agent.tokens.input@1, agent.tokens.output@1, agent.cost.usd@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: connection_sync_operation
+    type: enum
+    source: envelope.data.operation
+    compatible_metrics: [connection.sync_attempts@1]
     filterable: true
     groupable: true
     cardinality: low

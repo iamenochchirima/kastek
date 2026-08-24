@@ -194,6 +194,14 @@
       "owner": "core-connections",
       "category": "event",
       "privacy_class": "aggregate"
+    },
+    {
+      "identity": "connection.sync_attempt@1",
+      "schema": "events/connections/sync_attempt/v1.schema.json",
+      "examples": ["examples/connections/sync_attempt.json"],
+      "owner": "core-connections",
+      "category": "event",
+      "privacy_class": "aggregate"
     }
   ]
 }

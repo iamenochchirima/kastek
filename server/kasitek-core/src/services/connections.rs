@@ -661,6 +661,57 @@ pub async fn record_source_health(
     .await
 }
 
+pub fn provider_sync_failure_class(error: &AppError) -> &'static str {
+    match error.code() {
+        "unauthorized" => "authentication",
+        "unsupported_principal" | "forbidden" => "authorization",
+        "rate_limited" => "rate_limited",
+        "service_unavailable" | "bad_gateway" | "gateway_timeout" => "provider_unavailable",
+        "bad_request" => "provider_rejected",
+        "not_found" => "not_found",
+        "internal_error" => "internal",
+        _ => "unknown",
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn record_provider_sync_outcome(
+    pool: &PgPool,
+    org_id: &str,
+    source_id: &str,
+    provider: &str,
+    operation: &str,
+    attempt_id: &str,
+    outcome: &str,
+    failure_class: &str,
+    duration_ms: i64,
+) -> Result<(), AppError> {
+    let mut tx = pool.begin().await?;
+    // ExternalConnection IDs are intentionally deterministic (`ext_<source-id>`) so a provider
+    // attempt can be recorded without rebuilding the full connection projection on every refresh.
+    let connection_id = format!("ext_{source_id}");
+    analytics::connections::enqueue_sync_attempt(
+        &mut tx,
+        org_id,
+        &connection_id,
+        provider,
+        attempt_id,
+        operation,
+        outcome,
+        failure_class,
+        duration_ms.clamp(0, 86_400_000),
+        Utc::now(),
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!(
+            "Failed to queue Connections synchronization analytics fact: {error}"
+        ))
+    })?;
+    tx.commit().await?;
+    Ok(())
+}
+
 pub async fn record_synced_source_health(
     pool: &PgPool,
     org_id: &str,
@@ -734,7 +785,11 @@ pub async fn record_synced_source_health(
 
 #[cfg(test)]
 mod tests {
-    use super::{is_mutable_status, list_connections, source_is_connected, update_status};
+    use super::{
+        is_mutable_status, list_connections, provider_sync_failure_class, source_is_connected,
+        update_status,
+    };
+    use crate::error::AppError;
 
     #[test]
     fn only_explicit_lifecycle_actions_are_mutable() {
@@ -743,6 +798,26 @@ mod tests {
         assert!(is_mutable_status("REVOKED"));
         assert!(!is_mutable_status("CONNECTING"));
         assert!(!is_mutable_status("NEEDS_ATTENTION"));
+    }
+
+    #[test]
+    fn provider_sync_errors_are_reduced_to_bounded_classes() {
+        assert_eq!(
+            provider_sync_failure_class(&AppError::Unauthorized),
+            "authentication"
+        );
+        assert_eq!(
+            provider_sync_failure_class(&AppError::TooManyRequests("retry".to_string())),
+            "rate_limited"
+        );
+        assert_eq!(
+            provider_sync_failure_class(&AppError::BadRequest("provider rejected".to_string())),
+            "provider_rejected"
+        );
+        assert_eq!(
+            provider_sync_failure_class(&AppError::Internal("secret detail".to_string())),
+            "internal"
+        );
     }
 
     #[tokio::test]

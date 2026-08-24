@@ -536,9 +536,8 @@ checklist records implementation evidence for the current package only.
 - [x] Emit health-check facts transactionally with Core `ExternalConnection` health updates.
 - [x] Add an ignored PostgreSQL producer integration fixture covering both contracts, transaction
   visibility, and prohibited-field absence without leaving rows after rollback.
-- [ ] Instrument provider synchronization attempts/outcomes, rate limits, incidents, source
-  manifests, historical backfill, projections, reporting, and full product mutation-to-reporting
-  E2E in later Connections slices.
+- [ ] Instrument provider rate limits, incidents, source manifests, historical backfill,
+  projections, reporting, and full product mutation-to-reporting E2E in later Connections slices.
 
 ## Core Connections — slice 2
 
@@ -550,9 +549,24 @@ checklist records implementation evidence for the current package only.
   mechanics do not create duplicate analytics transitions.
 - [x] Emit capability transitions transactionally with the Core capability projection.
 - [x] Extend the transactional privacy fixture to cover capability facts and rollback.
-- [ ] Add provider synchronization attempts/outcomes, rate limits, incidents, source manifests,
-  historical backfill, projections, reporting, and full product mutation-to-reporting E2E in later
-  Connections slices.
+- [ ] Add provider rate limits, incidents, source manifests, historical backfill, projections,
+  reporting, and full product mutation-to-reporting E2E in later Connections slices.
+
+## Core Connections — slice 3
+
+- [x] Add `connection.sync_attempt@1` with stable connection/attempt references, provider,
+  operation, outcome, bounded failure class, duration, and event time; raw provider details and
+  credentials remain excluded.
+- [x] Register `connection.sync_attempts@1`, its operation dimension, shared outcome/failure
+  dimensions, and the overview metric-set binding; generated registry bindings are current.
+- [x] Instrument WhatsApp connection refresh and social identity refresh at their real async error
+  boundaries, recording both success and failure outcomes without changing API error responses.
+- [x] Record the facts through the Core outbox using deterministic `ExternalConnection` references,
+  avoiding a full connection projection rebuild for every provider attempt.
+- [x] Extend the ignored PostgreSQL producer/privacy fixture and add bounded provider error-class
+  unit coverage.
+- [ ] Add rate-limit evidence, incident facts, source manifests, historical backfill, projections,
+  reporting, and full product mutation-to-reporting E2E in later Connections slices.
 
 ## Explicitly deferred
 
