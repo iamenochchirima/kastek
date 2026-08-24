@@ -9,7 +9,7 @@ use analytics_producer::{
     AnalyticsOutboxRecord, EnqueueResult, EventInput, ManifestInput, ObservationInput,
     ProducerConfig, ProducerError, ScopeDefinitionInput,
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde_json::json;
 use sqlx::{Postgres, Transaction};
 
@@ -59,6 +59,193 @@ pub async fn enqueue_manifest(
 ) -> Result<EnqueueResult, ProducerError> {
     let record = build_manifest(&producer_config(), input)?;
     enqueue_record(transaction, &record).await
+}
+
+const MANIFEST_REFRESH_SECONDS: i64 = 3_600;
+const TENANT_SCOPE_CONTRACTS: &[&str] = &["tenant.scope.definition@1"];
+const TENANT_CLIENT_CONTRACTS: &[&str] =
+    &["tenant.scope.definition@1", "tenant.client.lifecycle@1"];
+const TENANT_LEAD_CONTRACTS: &[&str] = &["tenant.lead.lifecycle@1"];
+const TENANT_ASSIGNMENT_CONTRACTS: &[&str] = &["tenant.client.assignment@1"];
+const TENANT_CLIENT_METRICS: &[&str] = &["tenant.clients.lifecycle_events"];
+const TENANT_LEAD_METRICS: &[&str] = &["tenant.leads.lifecycle_events"];
+const TENANT_ASSIGNMENT_METRICS: &[&str] = &["tenant.client.assignment_events"];
+const TENANT_SCOPE_DIMENSIONS: &[&str] = &[];
+const TENANT_CLIENT_DIMENSIONS: &[&str] = &["tenant_client", "client_lifecycle_action", "status"];
+const TENANT_LEAD_DIMENSIONS: &[&str] = &[
+    "tenant_client",
+    "lead_action",
+    "lead_status",
+    "lead_source",
+    "lead_score_band",
+    "lead_reason_code",
+    "lead_actor_type",
+];
+const TENANT_ASSIGNMENT_DIMENSIONS: &[&str] = &[
+    "tenant_client",
+    "assignment_action",
+    "assignment_role",
+    "status",
+];
+
+pub async fn workspace_event_count(
+    transaction: &mut Transaction<'_, Postgres>,
+    source_stream_key: &str,
+) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar(
+        r#"SELECT COUNT(*)::bigint
+           FROM analytics_outbox
+           WHERE source_service = 'tenant-platform'
+             AND source_stream_key = $1
+             AND record_category = 'event'"#,
+    )
+    .bind(source_stream_key)
+    .fetch_one(&mut **transaction)
+    .await
+}
+
+async fn enqueue_domain_manifest(
+    transaction: &mut Transaction<'_, Postgres>,
+    workspace_id: &str,
+    source_domain: &str,
+    stream_key: &str,
+    manifest_key: &str,
+    supported_contracts: &[&str],
+    supported_metrics: &[&str],
+    supported_dimensions: &[&str],
+    approved_checkpoint_count: i64,
+    collected_at: DateTime<Utc>,
+) -> Result<EnqueueResult, ProducerError> {
+    let manifest_version = collected_at
+        .timestamp()
+        .div_euclid(MANIFEST_REFRESH_SECONDS)
+        .max(1);
+    enqueue_manifest(
+        transaction,
+        ManifestInput {
+            record_id: format!("manifest:{stream_key}:{manifest_key}:{manifest_version}"),
+            source_domain: source_domain.to_string(),
+            source_stream_key: stream_key.to_string(),
+            contract_name: "source.manifest@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::TenantWorkspace,
+            scope_external_id: workspace_id.to_string(),
+            manifest_key: manifest_key.to_string(),
+            manifest_version,
+            provider: None,
+            connection_ref: None,
+            supported_contracts: supported_contracts
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect(),
+            supported_observation_contracts: Vec::new(),
+            supported_metrics: supported_metrics
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect(),
+            supported_dimensions: supported_dimensions
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect(),
+            expected_refresh_seconds: MANIFEST_REFRESH_SECONDS,
+            reliable_coverage_start: None,
+            highest_authoritative_source_sequence: None,
+            approved_checkpoint_count: Some(approved_checkpoint_count),
+            approved_checkpoint_hash: None,
+            last_successful_collection_at: Some(collected_at),
+            last_attempted_collection_at: Some(collected_at),
+            safe_failure_code: None,
+            next_expected_at: Some(collected_at + Duration::seconds(MANIFEST_REFRESH_SECONDS)),
+            manifest_state: "active".to_string(),
+            generated_at: collected_at,
+            idempotency_key: None,
+        },
+    )
+    .await
+}
+
+pub async fn enqueue_scope_manifest(
+    transaction: &mut Transaction<'_, Postgres>,
+    workspace_id: &str,
+    scope_count: i64,
+    collected_at: DateTime<Utc>,
+) -> Result<EnqueueResult, ProducerError> {
+    enqueue_domain_manifest(
+        transaction,
+        workspace_id,
+        "scopes",
+        &format!("workspace:{workspace_id}:scopes"),
+        "tenant.scopes",
+        TENANT_SCOPE_CONTRACTS,
+        &[],
+        TENANT_SCOPE_DIMENSIONS,
+        scope_count,
+        collected_at,
+    )
+    .await
+}
+
+pub async fn enqueue_client_manifest(
+    transaction: &mut Transaction<'_, Postgres>,
+    workspace_id: &str,
+    event_count: i64,
+    collected_at: DateTime<Utc>,
+) -> Result<EnqueueResult, ProducerError> {
+    enqueue_domain_manifest(
+        transaction,
+        workspace_id,
+        "clients",
+        &format!("workspace:{workspace_id}:clients"),
+        "tenant.clients",
+        TENANT_CLIENT_CONTRACTS,
+        TENANT_CLIENT_METRICS,
+        TENANT_CLIENT_DIMENSIONS,
+        event_count,
+        collected_at,
+    )
+    .await
+}
+
+pub async fn enqueue_lead_manifest(
+    transaction: &mut Transaction<'_, Postgres>,
+    workspace_id: &str,
+    event_count: i64,
+    collected_at: DateTime<Utc>,
+) -> Result<EnqueueResult, ProducerError> {
+    enqueue_domain_manifest(
+        transaction,
+        workspace_id,
+        "leads",
+        &format!("workspace:{workspace_id}:leads"),
+        "tenant.leads",
+        TENANT_LEAD_CONTRACTS,
+        TENANT_LEAD_METRICS,
+        TENANT_LEAD_DIMENSIONS,
+        event_count,
+        collected_at,
+    )
+    .await
+}
+
+pub async fn enqueue_assignment_manifest(
+    transaction: &mut Transaction<'_, Postgres>,
+    workspace_id: &str,
+    event_count: i64,
+    collected_at: DateTime<Utc>,
+) -> Result<EnqueueResult, ProducerError> {
+    enqueue_domain_manifest(
+        transaction,
+        workspace_id,
+        "assignments",
+        &format!("workspace:{workspace_id}:assignments"),
+        "tenant.assignments",
+        TENANT_ASSIGNMENT_CONTRACTS,
+        TENANT_ASSIGNMENT_METRICS,
+        TENANT_ASSIGNMENT_DIMENSIONS,
+        event_count,
+        collected_at,
+    )
+    .await
 }
 
 pub async fn enqueue_workspace_scope_definition(

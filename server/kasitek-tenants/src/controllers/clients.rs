@@ -353,6 +353,21 @@ pub async fn create_client(
             "analytics client lifecycle enqueue failed: {error}"
         ))
     })?;
+    let client_event_count = analytics::workspace_event_count(
+        &mut transaction,
+        &format!("workspace:{}:clients", session.workspace_id),
+    )
+    .await?;
+    analytics::enqueue_client_manifest(
+        &mut transaction,
+        &session.workspace_id,
+        client_event_count,
+        occurred_at,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("analytics client manifest enqueue failed: {error}"))
+    })?;
     transaction.commit().await?;
 
     let (_, admin_invite) = provision_client_user_invite(
@@ -463,6 +478,21 @@ pub async fn update_client_status(
         AppError::Internal(format!(
             "analytics client lifecycle enqueue failed: {error}"
         ))
+    })?;
+    let client_event_count = analytics::workspace_event_count(
+        &mut transaction,
+        &format!("workspace:{}:clients", session.workspace_id),
+    )
+    .await?;
+    analytics::enqueue_client_manifest(
+        &mut transaction,
+        &session.workspace_id,
+        client_event_count,
+        occurred_at,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("analytics client manifest enqueue failed: {error}"))
     })?;
     transaction.commit().await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({
@@ -752,6 +782,23 @@ pub async fn assign_client_user(
     )
     .await
     .map_err(|error| AppError::Internal(format!("analytics assignment enqueue failed: {error}")))?;
+    let assignment_event_count = analytics::workspace_event_count(
+        &mut transaction,
+        &format!("workspace:{}:assignments", session.workspace_id),
+    )
+    .await?;
+    analytics::enqueue_assignment_manifest(
+        &mut transaction,
+        &session.workspace_id,
+        assignment_event_count,
+        occurred_at,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!(
+            "analytics assignment manifest enqueue failed: {error}"
+        ))
+    })?;
     transaction.commit().await?;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
@@ -834,6 +881,23 @@ pub async fn remove_client_assignment(
     )
     .await
     .map_err(|error| AppError::Internal(format!("analytics assignment enqueue failed: {error}")))?;
+    let assignment_event_count = analytics::workspace_event_count(
+        &mut transaction,
+        &format!("workspace:{}:assignments", session.workspace_id),
+    )
+    .await?;
+    analytics::enqueue_assignment_manifest(
+        &mut transaction,
+        &session.workspace_id,
+        assignment_event_count,
+        occurred_at,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!(
+            "analytics assignment manifest enqueue failed: {error}"
+        ))
+    })?;
     transaction.commit().await?;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({

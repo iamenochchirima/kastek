@@ -249,6 +249,21 @@ async fn change_lead_status(
     .map_err(|error| {
         AppError::Internal(format!("analytics lead status enqueue failed: {error}"))
     })?;
+    let lead_event_count = analytics::workspace_event_count(
+        &mut transaction,
+        &format!("workspace:{workspace_id}:leads"),
+    )
+    .await?;
+    analytics::enqueue_lead_manifest(
+        &mut transaction,
+        workspace_id,
+        lead_event_count,
+        occurred_at,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("analytics lead manifest enqueue failed: {error}"))
+    })?;
     transaction.commit().await?;
     Ok((lead.1, status.to_string(), true))
 }
@@ -463,6 +478,21 @@ pub async fn create_lead(
     )
     .await
     .map_err(|error| AppError::Internal(format!("analytics lead event enqueue failed: {error}")))?;
+    let lead_event_count = analytics::workspace_event_count(
+        &mut transaction,
+        &format!("workspace:{}:leads", session.workspace_id),
+    )
+    .await?;
+    analytics::enqueue_lead_manifest(
+        &mut transaction,
+        &session.workspace_id,
+        lead_event_count,
+        Utc::now(),
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("analytics lead manifest enqueue failed: {error}"))
+    })?;
     transaction.commit().await?;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({

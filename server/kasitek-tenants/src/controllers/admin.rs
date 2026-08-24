@@ -1165,6 +1165,13 @@ pub async fn create_workspace(
     .map_err(|error| {
         AppError::Internal(format!("analytics workspace scope enqueue failed: {error}"))
     })?;
+    analytics::enqueue_scope_manifest(&mut tx, &workspace_id, 1, now)
+        .await
+        .map_err(|error| {
+            AppError::Internal(format!(
+                "analytics workspace manifest enqueue failed: {error}"
+            ))
+        })?;
 
     tx.commit().await?;
     let admin_invite = crate::controllers::admin_invites::issue_admin_invite(
