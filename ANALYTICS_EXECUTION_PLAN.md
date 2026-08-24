@@ -2081,6 +2081,20 @@ recipient outcomes.
 - [ ] Add retry, cost, attribution, source manifests, historical reconstruction, and the combined
   mutation-to-publisher-to-projection-to-reporting E2E in later Campaign slices.
 
+#### Execution slice 7 — retry attempts
+
+- [x] Add durable `attemptCount` and `lastAttemptAt` fields to Core Campaign recipients with a
+  forward-only database migration and matching Prisma model fields.
+- [x] Increment the attempt count when a queued recipient is claimed for provider delivery.
+- [x] Enable the existing `retry_failed` campaign action only for inactive campaigns, transition
+  failed recipients back to `QUEUED`, resume the campaign, and publish the operational update.
+- [x] Add transactional `campaign.recipient.retry@1` facts with bounded reason and attempt number;
+  delivery outcomes remain separate facts for each status transition.
+- [x] Add retry count reporting, retry-reason compatibility, rollback/privacy coverage, and the
+  authenticated publisher/reporting fixture coverage.
+- [ ] Add provider retry policy, cost, attribution, source manifests, historical reconstruction,
+  and the combined mutation-to-publisher-to-projection-to-reporting E2E in later slices.
+
 ### Agent Platform lane: customer handoff
 
 Customer-takeover analytics applies only to a customer-facing Agent whose workflow has the

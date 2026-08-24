@@ -2116,6 +2116,8 @@ model WhatsappCampaignRecipient {
   deliveredAt  DateTime?
   readAt       DateTime?
   failedAt     DateTime?
+  attemptCount Int              @default(0)
+  lastAttemptAt DateTime?
   errorCode    String?
   errorMessage String?   @db.Text
 

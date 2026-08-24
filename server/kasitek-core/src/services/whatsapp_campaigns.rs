@@ -736,13 +736,72 @@ pub async fn retry_failed_campaign(
     org_id: &str,
     campaign_id: &str,
 ) -> Result<Value, AppError> {
-    let _campaign = get_campaign_row(pool, org_id, campaign_id)
+    let campaign = get_campaign_row(pool, org_id, campaign_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Campaign not found".to_string()))?;
-    Err(AppError::BadRequest(
-        "Retrying FAILED recipients is disabled to prevent duplicate sends in the same campaign"
-            .to_string(),
-    ))
+    if matches!(campaign.status.as_str(), "SENDING" | "SCHEDULED") {
+        return Err(AppError::BadRequest(
+            "Pause the active campaign before retrying failed recipients".to_string(),
+        ));
+    }
+    let occurred_at = Utc::now();
+    let mut transaction = pool.begin().await?;
+    let recipients = sqlx::query_as::<_, (String, i32)>(
+        r#"
+        UPDATE "WhatsappCampaignRecipient"
+        SET status = 'QUEUED'::"WhatsappRecipientStatus",
+            "errorCode" = NULL,
+            "errorMessage" = NULL,
+            "updatedAt" = NOW()
+        WHERE "campaignId" = $1
+          AND status = 'FAILED'::"WhatsappRecipientStatus"
+        RETURNING id, "attemptCount" + 1 AS attempt_number
+        "#,
+    )
+    .bind(campaign_id)
+    .fetch_all(&mut *transaction)
+    .await?;
+    if recipients.is_empty() {
+        transaction.rollback().await?;
+        return Err(AppError::BadRequest(
+            "This campaign has no failed recipients to retry".to_string(),
+        ));
+    }
+    for (recipient_id, attempt_number) in &recipients {
+        analytics::campaigns::enqueue_recipient_retry(
+            &mut transaction,
+            org_id,
+            campaign_id,
+            recipient_id,
+            "whatsapp",
+            "meta",
+            *attempt_number,
+            "manual",
+            occurred_at,
+        )
+        .await
+        .map_err(|error| {
+            AppError::Internal(format!("Failed to queue Campaign analytics fact: {error}"))
+        })?;
+    }
+    sqlx::query(
+        r#"UPDATE "WhatsappCampaign"
+           SET status = 'SENDING'::"WhatsappCampaignStatus",
+               "completedAt" = NULL,
+               "updatedAt" = NOW()
+           WHERE id = $1"#,
+    )
+    .bind(campaign_id)
+    .execute(&mut *transaction)
+    .await?;
+    transaction.commit().await?;
+    recompute_campaign_stats(pool, campaign_id).await?;
+    publish_campaign_updated(pool, &campaign.user_id, campaign_id).await?;
+    Ok(json!({
+        "campaignId": campaign_id,
+        "retriedRecipients": recipients.len(),
+        "status": "SENDING"
+    }))
 }
 
 pub async fn repair_campaign_status(
@@ -1158,6 +1217,8 @@ async fn claim_queued_campaign_recipient(
         r#"
         UPDATE "WhatsappCampaignRecipient" r
         SET status = 'PROCESSING'::"WhatsappRecipientStatus",
+            "attemptCount" = "attemptCount" + 1,
+            "lastAttemptAt" = NOW(),
             "errorCode" = NULL,
             "errorMessage" = NULL,
             "updatedAt" = NOW()
@@ -1259,7 +1320,9 @@ async fn process_claimed_campaign_recipient(
                "snapshotLocation" AS snapshot_location, "snapshotListLabel" AS snapshot_list_label,
                "snapshotMetadata" AS snapshot_metadata,
                "waMessageId" AS wa_message_id, "sentAt" AT TIME ZONE 'UTC' AS sent_at, "deliveredAt" AT TIME ZONE 'UTC' AS delivered_at,
-               "readAt" AT TIME ZONE 'UTC' AS read_at, "failedAt" AT TIME ZONE 'UTC' AS failed_at, "errorCode" AS error_code,
+               "readAt" AT TIME ZONE 'UTC' AS read_at, "failedAt" AT TIME ZONE 'UTC' AS failed_at,
+               "attemptCount" AS attempt_count, "lastAttemptAt" AT TIME ZONE 'UTC' AS last_attempt_at,
+               "errorCode" AS error_code,
                "errorMessage" AS error_message, "createdAt" AT TIME ZONE 'UTC' AS created_at, "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         FROM "WhatsappCampaignRecipient"
         WHERE id = $1

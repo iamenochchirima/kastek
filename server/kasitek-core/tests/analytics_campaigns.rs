@@ -3,8 +3,8 @@ use std::env;
 use chrono::Utc;
 use kasitek_core::analytics::campaigns::{
     enqueue_recipient_blocked, enqueue_recipient_delivered, enqueue_recipient_failed,
-    enqueue_recipient_read, enqueue_recipient_sent, enqueue_recipient_suppressed,
-    enqueue_recipient_timing, enqueue_recipient_unsubscribed,
+    enqueue_recipient_read, enqueue_recipient_retry, enqueue_recipient_sent,
+    enqueue_recipient_suppressed, enqueue_recipient_timing, enqueue_recipient_unsubscribed,
 };
 use sqlx::{postgres::PgPoolOptions, Row};
 
@@ -113,6 +113,19 @@ async fn campaign_delivery_facts_are_transactional_and_privacy_safe() {
     )
     .await
     .expect("timing fact should enqueue");
+    enqueue_recipient_retry(
+        &mut transaction,
+        "org_campaigns_a",
+        "campaign-analytics",
+        "recipient-failed",
+        "whatsapp",
+        "meta",
+        2,
+        "manual",
+        Utc::now(),
+    )
+    .await
+    .expect("retry fact should enqueue");
 
     let rows = sqlx::query(
         r#"
@@ -126,7 +139,7 @@ async fn campaign_delivery_facts_are_transactional_and_privacy_safe() {
     .fetch_all(&mut *transaction)
     .await
     .expect("campaign facts should be visible before commit");
-    assert_eq!(rows.len(), 8);
+    assert_eq!(rows.len(), 9);
     for row in rows {
         let record_id: String = row.try_get("record_id").unwrap();
         let envelope: serde_json::Value = row.try_get("envelope").unwrap();
@@ -151,6 +164,7 @@ async fn campaign_delivery_facts_are_transactional_and_privacy_safe() {
                 || record_id.ends_with(":suppressed")
                 || record_id.ends_with(":unsubscribed")
                 || record_id.ends_with(":timing:send_to_delivered")
+                || record_id.ends_with(":retry:2")
         );
         if record_id.ends_with(":failed") {
             assert_eq!(
@@ -178,6 +192,15 @@ async fn campaign_delivery_facts_are_transactional_and_privacy_safe() {
             assert_eq!(
                 data.get("duration_ms").and_then(|value| value.as_i64()),
                 Some(4200)
+            );
+        } else if record_id.ends_with(":retry:2") {
+            assert_eq!(
+                data.get("attempt_number").and_then(|value| value.as_i64()),
+                Some(2)
+            );
+            assert_eq!(
+                data.get("retry_reason").and_then(|value| value.as_str()),
+                Some("manual")
             );
         } else {
             assert!(data.get("failure_class").is_none());

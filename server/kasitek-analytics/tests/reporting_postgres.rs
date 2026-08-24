@@ -655,6 +655,29 @@ async fn insert_fixture(
     .execute(&mut **transaction)
     .await
     .expect("timing rollup");
+    sqlx::query(
+        r#"INSERT INTO analytics.analytics_projection_rollup (
+             generation_id, projection_name, projection_version, metric_key, metric_version,
+             target_scope_id, source_scope_id, root_scope_id, interval, bucket_start, bucket_end,
+             timezone_name, timezone_revision, dimensions, value_count, value_sum,
+             source_high_watermark, coverage
+           ) VALUES ($1,$2,$3,'campaign.recipients.retried',1,$4,$4,$4,'day',$5,$6,'UTC',1,
+                     '{"retry_reason":"manual"}'::jsonb,1,1,10,$7)"#,
+    )
+    .bind(generation_id)
+    .bind(PROJECTION_NAME)
+    .bind(PROJECTION_VERSION)
+    .bind(scope_id)
+    .bind(bucket_start)
+    .bind(bucket_end)
+    .bind(json!({
+        "source_fact_count": 1,
+        "coverage_state": "observed",
+        "required_sources": ["campaign.recipient.retry@1"]
+    }))
+    .execute(&mut **transaction)
+    .await
+    .expect("retry rollup");
 
     (scope_id, generation_id)
 }
@@ -821,6 +844,7 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
                 "campaign.recipients.suppressed@1".to_string(),
                 "campaign.recipients.unsubscribed@1".to_string(),
                 "campaign.delivery_delay_ms@1".to_string(),
+                "campaign.recipients.retried@1".to_string(),
                 "campaign.delivery_rate@1".to_string(),
             ],
             comparison: None,
@@ -829,7 +853,7 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
     )
     .await
     .expect("Campaign delivery report response");
-    assert_eq!(delivery_response.metrics.len(), 8);
+    assert_eq!(delivery_response.metrics.len(), 9);
     assert_eq!(delivery_response.metrics[0].series[0].value, Some(1.0));
     assert_eq!(delivery_response.metrics[1].series[0].value, Some(1.0));
     assert_eq!(delivery_response.metrics[2].series[0].value, Some(1.0));
@@ -837,7 +861,8 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
     assert_eq!(delivery_response.metrics[4].series[0].value, Some(1.0));
     assert_eq!(delivery_response.metrics[5].series[0].value, Some(1.0));
     assert_eq!(delivery_response.metrics[6].series[0].value, Some(4200.0));
-    assert_eq!(delivery_response.metrics[7].series[0].value, Some(0.5));
+    assert_eq!(delivery_response.metrics[7].series[0].value, Some(1.0));
+    assert_eq!(delivery_response.metrics[8].series[0].value, Some(0.5));
     assert_eq!(
         delivery_response.metrics[0].coverage.required_sources,
         vec!["campaign.recipient.delivered@1".to_string()]
@@ -868,6 +893,10 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
     );
     assert_eq!(
         delivery_response.metrics[7].coverage.required_sources,
+        vec!["campaign.recipient.retry@1".to_string()]
+    );
+    assert_eq!(
+        delivery_response.metrics[8].coverage.required_sources,
         vec![
             "campaign.recipient.sent@1".to_string(),
             "campaign.recipient.delivered@1".to_string()

@@ -237,6 +237,10 @@ pub struct WhatsappCampaignRecipientRow {
     pub read_at: Option<DateTime<Utc>>,
     #[sqlx(rename = "failed_at")]
     pub failed_at: Option<DateTime<Utc>>,
+    #[sqlx(rename = "attempt_count")]
+    pub attempt_count: i32,
+    #[sqlx(rename = "last_attempt_at")]
+    pub last_attempt_at: Option<DateTime<Utc>>,
     #[sqlx(rename = "error_code")]
     pub error_code: Option<String>,
     #[sqlx(rename = "error_message")]

@@ -224,6 +224,8 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
                "deliveredAt" AT TIME ZONE 'UTC' AS delivered_at,
                "readAt" AT TIME ZONE 'UTC' AS read_at,
                "failedAt" AT TIME ZONE 'UTC' AS failed_at,
+               "attemptCount" AS attempt_count,
+               "lastAttemptAt" AT TIME ZONE 'UTC' AS last_attempt_at,
                "errorCode" AS error_code,
                "errorMessage" AS error_message,
                "createdAt" AT TIME ZONE 'UTC' AS created_at,

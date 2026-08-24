@@ -229,6 +229,50 @@ pub async fn enqueue_recipient_timing(
     .await
 }
 
+pub async fn enqueue_recipient_retry(
+    transaction: &mut Transaction<'_, Postgres>,
+    organization_id: &str,
+    campaign_id: &str,
+    recipient_id: &str,
+    channel: &str,
+    provider: &str,
+    attempt_number: i32,
+    retry_reason: &str,
+    occurred_at: DateTime<Utc>,
+) -> Result<EnqueueResult, analytics_producer::ProducerError> {
+    let record_id =
+        format!("campaign-recipient:{campaign_id}:{recipient_id}:retry:{attempt_number}");
+    enqueue_event(
+        transaction,
+        EventInput {
+            record_id: record_id.clone(),
+            source_domain: SOURCE_DOMAIN.to_string(),
+            source_stream_key: stream_key(organization_id),
+            contract_name: "campaign.recipient.retry@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::CoreOrganization,
+            scope_external_id: organization_id.to_string(),
+            subject_type: "campaign_recipient".to_string(),
+            subject_id: recipient_id.to_string(),
+            occurred_at,
+            attributes: json!({
+                "campaign_id": campaign_id,
+                "recipient_id": recipient_id,
+                "channel": channel,
+                "provider": provider,
+                "occurred_at": occurred_at,
+                "status": "retry_queued",
+                "attempt_number": attempt_number,
+                "retry_reason": retry_reason,
+            }),
+            correlation_id: None,
+            causation_id: None,
+            idempotency_key: Some(record_id),
+        },
+    )
+    .await
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn enqueue_recipient_delivery(
     transaction: &mut Transaction<'_, Postgres>,

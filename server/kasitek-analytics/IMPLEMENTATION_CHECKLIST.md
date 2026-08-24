@@ -841,6 +841,21 @@ checklist records implementation evidence for the current package only.
 - [ ] Add retry, cost, attribution, source manifests, historical reconstruction, and the combined
   mutation-to-publisher-to-projection-to-reporting E2E in later Campaign slices.
 
+## Core Campaigns — retry attempts slice 7
+
+- [x] Add forward-only Core database migration and Prisma fields for recipient attempt count and
+  last attempt time.
+- [x] Increment recipient attempts at the queue claim boundary so the count covers every provider
+  send attempt, including a retried send.
+- [x] Enable inactive-campaign manual retry with transactional failed-to-queued mutation,
+  campaign resume, and operational update publication.
+- [x] Add and register `campaign.recipient.retry@1` with bounded retry reason and attempt number;
+  retry facts do not contain provider errors or contact values.
+- [x] Add retry metric/dimension compatibility, generated bindings, Core rollback/privacy,
+  authenticated publisher, and signed reporting coverage.
+- [ ] Add provider retry policy, cost, attribution, source manifests, historical reconstruction,
+  and the combined mutation-to-publisher-to-projection-to-reporting E2E in later slices.
+
 ## Reporting availability — slice 10
 
 - [x] Evaluate temporal and reconciliation checkpoints by registered metric domain and authorized

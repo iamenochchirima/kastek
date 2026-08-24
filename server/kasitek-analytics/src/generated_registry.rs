@@ -2,7 +2,7 @@
 
 pub const REGISTRY_VERSION: &str = "20260824.1";
 pub const REGISTRY_SHA256: &str =
-    "8bb3471c0b0b07001d933852ba66b822ef8f4b3fd55a4d4a9c256226f9eb427a";
+    "de49816505ab82750fbf5a35973805749d6298800ba3559e20e143b45e397020";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",
@@ -24,6 +24,7 @@ pub const CONTRACT_KEYS: &[&str] = &[
     "campaign.recipient.delivered@1",
     "campaign.recipient.failed@1",
     "campaign.recipient.read@1",
+    "campaign.recipient.retry@1",
     "campaign.recipient.sent@1",
     "campaign.recipient.suppressed@1",
     "campaign.recipient.timing@1",
@@ -66,6 +67,7 @@ pub const METRIC_KEYS: &[&str] = &[
     "campaign.recipients.delivered@1",
     "campaign.recipients.failed@1",
     "campaign.recipients.read@1",
+    "campaign.recipients.retried@1",
     "campaign.recipients.sent@1",
     "campaign.recipients.suppressed@1",
     "campaign.recipients.unsubscribed@1",
@@ -130,6 +132,7 @@ pub const DIMENSION_KEYS: &[&str] = &[
     "readiness_credential_status",
     "readiness_workflow_status",
     "responder_type",
+    "retry_reason",
     "status",
     "suppression_class",
     "timing_kind",
@@ -169,6 +172,7 @@ pub mod metric_keys {
     pub const CAMPAIGN_RECIPIENTS_DELIVERED_1: &str = "campaign.recipients.delivered@1";
     pub const CAMPAIGN_RECIPIENTS_FAILED_1: &str = "campaign.recipients.failed@1";
     pub const CAMPAIGN_RECIPIENTS_READ_1: &str = "campaign.recipients.read@1";
+    pub const CAMPAIGN_RECIPIENTS_RETRIED_1: &str = "campaign.recipients.retried@1";
     pub const CAMPAIGN_RECIPIENTS_SENT_1: &str = "campaign.recipients.sent@1";
     pub const CAMPAIGN_RECIPIENTS_SUPPRESSED_1: &str = "campaign.recipients.suppressed@1";
     pub const CAMPAIGN_RECIPIENTS_UNSUBSCRIBED_1: &str = "campaign.recipients.unsubscribed@1";

@@ -91,7 +91,7 @@ definitions:
   - key: campaign
     type: reference
     source: envelope.data.campaign_id
-    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.recipients.read@1, campaign.recipients.failed@1, campaign.recipients.blocked@1, campaign.recipients.suppressed@1, campaign.recipients.unsubscribed@1, campaign.delivery_delay_ms@1, campaign.delivery_rate@1]
+    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.recipients.read@1, campaign.recipients.failed@1, campaign.recipients.blocked@1, campaign.recipients.suppressed@1, campaign.recipients.unsubscribed@1, campaign.delivery_delay_ms@1, campaign.recipients.retried@1, campaign.delivery_rate@1]
     filterable: true
     groupable: true
     cardinality: medium
@@ -102,7 +102,7 @@ definitions:
   - key: channel
     type: enum
     source: envelope.data.channel
-    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.recipients.read@1, campaign.recipients.failed@1, campaign.recipients.blocked@1, campaign.recipients.suppressed@1, campaign.recipients.unsubscribed@1, campaign.delivery_delay_ms@1, campaign.delivery_rate@1]
+    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.recipients.read@1, campaign.recipients.failed@1, campaign.recipients.blocked@1, campaign.recipients.suppressed@1, campaign.recipients.unsubscribed@1, campaign.delivery_delay_ms@1, campaign.recipients.retried@1, campaign.delivery_rate@1]
     filterable: true
     groupable: true
     cardinality: low
@@ -113,7 +113,7 @@ definitions:
   - key: provider
     type: reference
     source: envelope.data.provider
-    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.recipients.read@1, campaign.recipients.failed@1, campaign.recipients.blocked@1, campaign.recipients.suppressed@1, campaign.recipients.unsubscribed@1, campaign.delivery_delay_ms@1, campaign.delivery_rate@1, connection.lifecycle_events@1, connection.health_checks@1, connection.sync_attempts@1, connection.rate_limit_encounters@1, connection.incidents@1]
+    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.recipients.read@1, campaign.recipients.failed@1, campaign.recipients.blocked@1, campaign.recipients.suppressed@1, campaign.recipients.unsubscribed@1, campaign.delivery_delay_ms@1, campaign.recipients.retried@1, campaign.delivery_rate@1, connection.lifecycle_events@1, connection.health_checks@1, connection.sync_attempts@1, connection.rate_limit_encounters@1, connection.incidents@1]
     filterable: true
     groupable: true
     cardinality: medium
@@ -363,10 +363,21 @@ definitions:
     stable_key: true
     permissions: [analytics:read]
 
+  - key: retry_reason
+    type: enum
+    source: envelope.data.retry_reason
+    compatible_metrics: [campaign.recipients.retried@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
   - key: status
     type: enum
     source: envelope.data.status
-    compatible_metrics: [agent.runs.completed@1, agent.runs.failed@1, agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.versions.lifecycle_events@1, agent.definitions.lifecycle_events@1, agent.readiness.evaluations@1, agent.conversations.lifecycle_events@1, campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.recipients.read@1, campaign.recipients.failed@1, campaign.recipients.blocked@1, campaign.recipients.suppressed@1, campaign.recipients.unsubscribed@1, campaign.delivery_delay_ms@1, conversation.lifecycle_events@1, conversation.messages.received@1, conversation.responses.recorded@1, connection.lifecycle_events@1, connection.health_checks@1]
+    compatible_metrics: [agent.runs.completed@1, agent.runs.failed@1, agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.versions.lifecycle_events@1, agent.definitions.lifecycle_events@1, agent.readiness.evaluations@1, agent.conversations.lifecycle_events@1, campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.recipients.read@1, campaign.recipients.failed@1, campaign.recipients.blocked@1, campaign.recipients.suppressed@1, campaign.recipients.unsubscribed@1, campaign.delivery_delay_ms@1, campaign.recipients.retried@1, conversation.lifecycle_events@1, conversation.messages.received@1, conversation.responses.recorded@1, connection.lifecycle_events@1, connection.health_checks@1]
     filterable: true
     groupable: true
     cardinality: low

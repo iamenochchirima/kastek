@@ -17,8 +17,8 @@ use kasitek_analytics::{
 };
 use kasitek_core::analytics::campaigns::{
     enqueue_recipient_blocked, enqueue_recipient_delivered, enqueue_recipient_failed,
-    enqueue_recipient_read, enqueue_recipient_sent, enqueue_recipient_suppressed,
-    enqueue_recipient_timing, enqueue_recipient_unsubscribed,
+    enqueue_recipient_read, enqueue_recipient_retry, enqueue_recipient_sent,
+    enqueue_recipient_suppressed, enqueue_recipient_timing, enqueue_recipient_unsubscribed,
 };
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -262,6 +262,19 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         )
         .await
         .expect("Campaign timing fact should enqueue");
+        enqueue_recipient_retry(
+            &mut transaction,
+            &organization_id,
+            &campaign_id,
+            &format!("recipient-failed-system-e2e-{unique_suffix}"),
+            "whatsapp",
+            "meta",
+            2,
+            "manual",
+            failed_at,
+        )
+        .await
+        .expect("Campaign retry fact should enqueue");
         transaction
             .commit()
             .await
@@ -292,8 +305,8 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
             .await
             .expect("Core publisher should deliver Campaign facts to Analytics");
         assert!(
-            stats.delivered >= 8,
-            "expected eight Campaign facts: {stats:?}"
+            stats.delivered >= 9,
+            "expected nine Campaign facts: {stats:?}"
         );
 
         let delivered: i64 = sqlx::query_scalar(
@@ -306,7 +319,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         .fetch_one(&core_pool)
         .await
         .expect("Core Campaign delivery state");
-        assert_eq!(delivered, 8);
+        assert_eq!(delivered, 9);
 
         let rows = sqlx::query(
             r#"SELECT event_type, source_service, source_record_id, attributes, backfilled
@@ -318,7 +331,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         .fetch_all(&analytics_pool)
         .await
         .expect("Analytics Campaign facts");
-        assert_eq!(rows.len(), 8);
+        assert_eq!(rows.len(), 9);
         let mut event_types = Vec::new();
         for row in rows {
             let event_type: String = row.get("event_type");
@@ -371,6 +384,16 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
                     Some(4200)
                 );
             }
+            if event_type == "campaign.recipient.retry@1" {
+                assert_eq!(
+                    attributes.get("attempt_number").and_then(Value::as_i64),
+                    Some(2)
+                );
+                assert_eq!(
+                    attributes.get("retry_reason").and_then(Value::as_str),
+                    Some("manual")
+                );
+            }
             for prohibited in [
                 "phone_number",
                 "email",
@@ -394,6 +417,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
                 "campaign.recipient.delivered@1".to_string(),
                 "campaign.recipient.failed@1".to_string(),
                 "campaign.recipient.read@1".to_string(),
+                "campaign.recipient.retry@1".to_string(),
                 "campaign.recipient.sent@1".to_string(),
                 "campaign.recipient.suppressed@1".to_string(),
                 "campaign.recipient.timing@1".to_string(),
