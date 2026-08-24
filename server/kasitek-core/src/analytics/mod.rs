@@ -4,6 +4,7 @@
 //! perform network I/O; the source outbox is the durability boundary and a later publisher sends
 //! leased rows to the private Analytics ingestion API.
 
+pub mod campaigns;
 pub mod connections;
 pub mod inbox;
 

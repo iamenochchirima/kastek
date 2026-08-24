@@ -222,6 +222,7 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
     .await?
     {
         if recipient.status != next_status {
+            let mut status_transaction = pool.begin().await?;
             sqlx::query(
                 r#"
                 UPDATE "WhatsappCampaignRecipient"
@@ -240,8 +241,30 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
             .bind(failure_code.as_deref())
             .bind(failure_message.as_deref())
             .bind(&recipient.id)
-            .execute(pool)
+            .execute(&mut *status_transaction)
             .await?;
+            if next_status == "DELIVERED" {
+                let organization_id = sqlx::query_scalar::<_, String>(
+                    r#"SELECT "orgId" FROM "WhatsappCampaign" WHERE id = $1 LIMIT 1"#,
+                )
+                .bind(&recipient.campaign_id)
+                .fetch_one(&mut *status_transaction)
+                .await?;
+                analytics::campaigns::enqueue_recipient_delivered(
+                    &mut status_transaction,
+                    &organization_id,
+                    &recipient.campaign_id,
+                    &recipient.id,
+                    "whatsapp",
+                    "meta",
+                    timestamp,
+                )
+                .await
+                .map_err(|error| {
+                    AppError::Internal(format!("Failed to queue Campaign analytics fact: {error}"))
+                })?;
+            }
+            status_transaction.commit().await?;
             if next_status == "FAILED" {
                 let campaign = sqlx::query_as::<_, WhatsappCampaignRow>(
                     r#"

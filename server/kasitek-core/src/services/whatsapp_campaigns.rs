@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 use sqlx::{PgPool, Row};
 use std::collections::HashMap;
 
+use crate::analytics;
 use crate::db::models::{
     WhatsappCampaignCreateRequest, WhatsappCampaignRecipientDetailRow,
     WhatsappCampaignRecipientRow, WhatsappCampaignRow, WhatsappConnectionRow, WhatsappContactRow,
@@ -1306,6 +1307,8 @@ async fn process_claimed_campaign_recipient(
     .flatten();
 
     if let Some(existing_message_id) = existing_send_message_id {
+        let occurred_at = Utc::now();
+        let mut transaction = pool.begin().await?;
         sqlx::query(
             r#"
             UPDATE "WhatsappCampaignRecipient"
@@ -1320,8 +1323,22 @@ async fn process_claimed_campaign_recipient(
         )
         .bind(existing_message_id)
         .bind(recipient_id)
-        .execute(pool)
+        .execute(&mut *transaction)
         .await?;
+        analytics::campaigns::enqueue_recipient_sent(
+            &mut transaction,
+            org_id,
+            &recipient.campaign_id,
+            recipient_id,
+            "whatsapp",
+            "meta",
+            occurred_at,
+        )
+        .await
+        .map_err(|error| {
+            AppError::Internal(format!("Failed to queue Campaign analytics fact: {error}"))
+        })?;
+        transaction.commit().await?;
 
         recompute_campaign_stats(pool, &recipient.campaign_id).await?;
         return Ok(Some((
@@ -1422,6 +1439,8 @@ async fn process_claimed_campaign_recipient(
     .await
     {
         Ok((message_id, raw)) => {
+            let occurred_at = Utc::now();
+            let mut transaction = pool.begin().await?;
             sqlx::query(
                 r#"
                 UPDATE "WhatsappCampaignRecipient"
@@ -1436,13 +1455,13 @@ async fn process_claimed_campaign_recipient(
             )
             .bind(&message_id)
             .bind(recipient_id)
-            .execute(pool)
+            .execute(&mut *transaction)
             .await?;
             sqlx::query(
                 r#"UPDATE "WhatsappContact" SET "lastMarketingSent" = NOW(), "updatedAt" = NOW() WHERE id = $1"#,
             )
             .bind(&contact.id)
-            .execute(pool)
+            .execute(&mut *transaction)
             .await?;
             sqlx::query(
                 r#"
@@ -1470,8 +1489,22 @@ async fn process_claimed_campaign_recipient(
                 "bodyParameters": body_parameters
             }))
             .bind(raw)
-            .execute(pool)
+            .execute(&mut *transaction)
             .await?;
+            analytics::campaigns::enqueue_recipient_sent(
+                &mut transaction,
+                org_id,
+                &campaign.id,
+                recipient_id,
+                "whatsapp",
+                "meta",
+                occurred_at,
+            )
+            .await
+            .map_err(|error| {
+                AppError::Internal(format!("Failed to queue Campaign analytics fact: {error}"))
+            })?;
+            transaction.commit().await?;
 
             billing::record_meter_usage(
                 pool,

@@ -1989,6 +1989,31 @@ those transitions.
 - [ ] Complete the remaining Core Inbox-owned conversation and message facts; do not make Agent
   Platform the owner of Core Inbox conversations.
 
+### Core Campaigns lane
+
+Campaign delivery analytics remains a Core Campaigns responsibility. Campaign recipient rows and
+provider send/webhook transitions remain operationally authoritative; Analytics receives only
+stable campaign/recipient references, bounded channel/provider values, event time, and the normalized
+sent or delivered status.
+
+#### Execution slice 1 — recipient sent and delivered facts
+
+- [x] Reuse the registered `campaign.recipient.sent@1` and
+  `campaign.recipient.delivered@1` contracts and their existing delivery metrics.
+- [x] Add a transactional Core Campaigns producer with an organization-scoped campaigns stream,
+  stable campaign-recipient event identities, and no contact values, message content, credentials,
+  tokens, or unrestricted provider payloads.
+- [x] Emit the sent fact in the same transaction as the authoritative provider-send success
+  transition, including the existing-send recovery path.
+- [x] Emit the delivered fact in the same transaction as the authoritative WhatsApp delivery
+  webhook transition; repeated unchanged delivery statuses do not emit another fact.
+- [x] Add Core producer privacy and rollback coverage against the local Analytics outbox migration.
+- [ ] Add campaign source manifests, historical reconstruction, and reliable coverage boundaries.
+- [ ] Add transactional campaign failure, retry, suppression/eligibility, cost, and complete
+  provider-outcome facts before claiming complete Campaign performance coverage.
+- [ ] Add authenticated Core mutation-to-publisher-to-Analytics projection and reporting E2E for
+  the Campaign delivery metrics.
+
 ### Agent Platform lane: customer handoff
 
 Customer-takeover analytics applies only to a customer-facing Agent whose workflow has the

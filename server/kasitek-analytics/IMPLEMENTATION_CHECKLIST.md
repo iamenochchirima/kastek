@@ -746,6 +746,20 @@ checklist records implementation evidence for the current package only.
   transport, and verifies Core delivery state plus persisted Analytics facts. The broader product
   mutation-to-reporting gate remains shared work across later vertical slices.
 
+## Core Campaigns — recipient delivery slice 1
+
+- [x] Reuse the registered `campaign.recipient.sent@1` and
+  `campaign.recipient.delivered@1` contracts and existing delivery metrics.
+- [x] Add organization-scoped Core Campaigns producer helpers with stable campaign-recipient
+  identities and bounded campaign, recipient, channel, provider, status, and event-time fields.
+- [x] Emit sent facts transactionally with provider-send success, including existing-send recovery.
+- [x] Emit delivered facts transactionally with WhatsApp delivery webhook state changes and avoid
+  duplicates for unchanged status writes.
+- [x] Add Core producer privacy/rollback coverage in `analytics_campaigns`.
+- [ ] Add source manifests, source reconstruction, failure/retry/eligibility facts, and complete
+  Campaign performance coverage in later Campaign slices.
+- [ ] Add the authenticated Core mutation-to-publisher-to-Analytics reporting E2E.
+
 ## Reporting availability — slice 10
 
 - [x] Evaluate temporal and reconciliation checkpoints by registered metric domain and authorized
