@@ -9,6 +9,7 @@ import { Pause, Plus, RefreshCw, Search, Square, Zap } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { MotionReveal } from "@/components/ui/motion-reveal";
+import { CAMPAIGN_ANALYTICS_METRICS, FeatureAnalyticsPanel } from "@/components/analytics/feature-analytics-panel";
 
 type Campaign = {
   id: string;
@@ -134,6 +135,8 @@ export default function CampaignsPageClient({
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
+
+        <FeatureAnalyticsPanel title="Campaign" description="Delivery and recipient reporting." metricKeys={CAMPAIGN_ANALYTICS_METRICS} />
 
         {filteredCampaigns.length === 0 ? (
           <MotionReveal delay={0.08}><Card>

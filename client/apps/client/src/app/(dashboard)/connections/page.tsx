@@ -11,6 +11,7 @@ import {
   PageHeaderDescription,
   PageHeaderTitle,
 } from "@/components/ui/page-header";
+import { CONNECTION_ANALYTICS_METRICS, FeatureAnalyticsPanel } from "@/components/analytics/feature-analytics-panel";
 
 export const metadata = {
   title: "Connections | KasiTek",
@@ -93,6 +94,8 @@ export default async function ConnectionsPage({
             <a href="/connections" className="shrink-0 text-lg leading-none" aria-label="Dismiss message">×</a>
           </div>
         ) : null}
+
+        <FeatureAnalyticsPanel title="Connection" description="Lifecycle and health reporting." metricKeys={CONNECTION_ANALYTICS_METRICS} />
 
         <WhatsappEmbeddedSignupCard connections={whatsappResponse.connections} hidden />
 

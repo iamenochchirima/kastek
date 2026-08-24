@@ -33,7 +33,7 @@ their dependencies are approved.
 - [x] UI-01. Authenticated customer reporting gateways — approved; implemented
 - [x] UI-02. Shared analytics client and visualization contract — approved; implemented
 - [x] UI-03. Protected local Analytics Playground — approved; implemented
-- [x] UI-04. Feature dashboards for Campaigns, Connections, and Inbox — approved
+- [x] UI-04. Feature dashboards for Campaigns, Connections, and Inbox — approved; implemented
 - [x] UI-05. Tenant workspace and tenant-client analytics — approved
 - [x] UI-06. Per-Agent Analytics with conditional customer handoff reporting — approved
 - [x] UI-07. Main Overview derived from feature reporting contracts — approved
@@ -41,7 +41,7 @@ their dependencies are approved.
 
 ## UI execution track — customer reporting and visual validation
 
-**Status:** The UI track is approved. UI-01 through UI-03 are implemented; UI-04 is the next
+**Status:** The UI track is approved. UI-01 through UI-04 are implemented; UI-05 is the next
 implementation slice. Later slices remain ordered behind the shared reporting contract and
 authorization boundary.
 
@@ -120,6 +120,14 @@ the report's generation and coverage metadata. Production requests are rejected 
 Replace legacy browser-computed analytics with explicit reporting-backed screens, starting with
 Campaigns, Connections, and Inbox. Show only metrics whose source contracts and availability state
 are defined, with drilldowns returning to the owning feature surface.
+
+**Implemented package:** `feature-analytics-panel.tsx` is the shared feature adapter. Campaigns,
+Connections, and Inbox request only their registered campaign, connection, and conversation metric
+identities through the authenticated product gateway. Each surface renders registry descriptions,
+latest values, report-period series, freshness, coverage, exactness, warnings, and unavailable
+states while retaining its existing operational controls and feature-owned data. Series dates use
+the reporting timezone returned by Analytics; no feature dashboard computes analytics by scanning
+operational records in the browser.
 
 ### UI-05 — tenant workspace and tenant-client analytics
 
