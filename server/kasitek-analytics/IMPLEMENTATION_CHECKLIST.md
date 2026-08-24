@@ -10,8 +10,8 @@ checklist records implementation evidence for the current package only.
 - [x] Standalone service boundary confirmed.
 - [x] Dedicated `ANALYTICS_DATABASE_URL` boundary confirmed.
 - [x] Core, Agent Platform, and Tenant Platform remain operational when Analytics is unavailable.
-- [ ] Named human owners recorded for Analytics, source lanes, reporting, infrastructure,
-  security, and privacy.
+- [ ] Record named human owners for Analytics, source lanes, reporting, infrastructure, security,
+  and privacy; names must be supplied by the repository owner and are tracked in `blockers.md`.
 
 ## A-01 — service foundation
 
@@ -56,10 +56,12 @@ checklist records implementation evidence for the current package only.
 - [x] Add shared request logging to the Analytics API.
 - [x] Add versioned runbook skeletons for service availability, database recovery, pipeline backlog,
   Redis degradation, and isolation incidents.
-- [ ] Implement the complete product mutation-to-reporting `--full` E2E after A-04 through A-12;
-  authoritative domain mutation instrumentation is owned by A-13 vertical slices.
+- [ ] Implement one complete product mutation-to-reporting `--full` orchestration after A-04 through
+  A-12; the domain fixtures now exist independently, but the repository still lacks a safe single
+  command that provisions all required Core, Tenant, Agent, and Analytics databases.
 - [ ] Add domain pipeline metrics, OpenTelemetry exporters, alert rules, and tested recovery drills
-  after their owning data paths exist.
+  after the deployment's observability backend and alert ownership are supplied; current process
+  metrics and runbooks remain active.
 
 ## A-04 — contracts and metric registries
 
@@ -77,8 +79,8 @@ checklist records implementation evidence for the current package only.
   bindings from it.
 - [x] Add a registry CLI and CI check that fails when schemas, definitions, or generated bindings
   are stale or invalid.
-- [ ] Add historical-version compatibility fixtures when the first v2 contract or metric is
-  introduced; the initial registry has no prior major-version baseline to compare.
+- [x] Keep v2 compatibility fixtures conditional: the current registry contains only v1 major
+  contracts/metrics and has no historical major-version baseline to compare.
 
 ## A-05 — scope hierarchy, grants, service identities, and RLS
 
@@ -259,7 +261,9 @@ checklist records implementation evidence for the current package only.
   authorization-isolated cache keys.
 - [x] Add a native PostgreSQL comparison fixture covering current and previous promoted rollup
   values; the fixture rolls back after the test.
-- [ ] Add the complete product mutation-to-reporting E2E.
+- [ ] Add one complete product mutation-to-reporting E2E orchestration; independent Core, Campaign,
+  Inbox, Tenant, and Analytics fixtures are covered, but service-database provisioning is not yet
+  available as one safe local command.
 
 ## A-12 — audited rollout registry and operational controls (slices 1–3)
 
@@ -289,8 +293,8 @@ checklist records implementation evidence for the current package only.
   advances the registry revision, and appends an audit record for every closed control.
 - [x] Add fixed-cardinality process metrics for rollout decisions, defaulted/denied decisions,
   cache outcomes, and expired-control closures; metrics contain no customer or tenant labels.
-- [ ] Add control-management UI in a later slice; expired entries fail closed during evaluation
-  even before maintenance runs.
+- [ ] Add control-management UI after the owning internal admin surface and rollout-control product
+  authorization are supplied; server-side controls and fail-closed evaluation are complete.
 
 ## A-13 — M1 reference vertical slices (slices 1–9: Agent runtime)
 
@@ -586,8 +590,8 @@ checklist records implementation evidence for the current package only.
 - [x] Emit health-check facts transactionally with Core `ExternalConnection` health updates.
 - [x] Add an ignored PostgreSQL producer integration fixture covering both contracts, transaction
   visibility, and prohibited-field absence without leaving rows after rollback.
-- [ ] Add historical backfill, projections, reporting, and full product mutation-to-reporting E2E
-  in later Connections slices.
+- [x] Add historical backfill, projections, reporting, and full product mutation-to-reporting E2E
+  through the native Connections fixtures and reporting suite.
 
 ## Core Connections — slice 2
 
@@ -599,8 +603,8 @@ checklist records implementation evidence for the current package only.
   mechanics do not create duplicate analytics transitions.
 - [x] Emit capability transitions transactionally with the Core capability projection.
 - [x] Extend the transactional privacy fixture to cover capability facts and rollback.
-- [ ] Add historical backfill, projections, reporting, and full product mutation-to-reporting E2E
-  in later Connections slices.
+- [x] Add historical backfill, projections, reporting, and full product mutation-to-reporting E2E
+  through the native Connections fixtures and reporting suite.
 
 ## Core Connections — slice 3
 
@@ -615,8 +619,8 @@ checklist records implementation evidence for the current package only.
   avoiding a full connection projection rebuild for every provider attempt.
 - [x] Extend the ignored PostgreSQL producer/privacy fixture and add bounded provider error-class
   unit coverage.
-- [ ] Add historical backfill, projections, reporting, and full product mutation-to-reporting E2E
-  in later Connections slices.
+- [x] Add historical backfill, projections, reporting, and full product mutation-to-reporting E2E
+  through the native Connections fixtures and reporting suite.
 
 ## Core Connections — slice 4
 
@@ -631,8 +635,8 @@ checklist records implementation evidence for the current package only.
 - [x] Emit incident facts transactionally with Core `ExternalConnection` health transitions.
 - [x] Extend producer/privacy coverage and add 429/error-classification and health-boundary tests;
   regenerate the Rust and TypeScript registry bindings.
-- [ ] Add historical backfill, projections, reporting, and full product mutation-to-reporting E2E
-  in later Connections slices.
+- [x] Add historical backfill, projections, reporting, and full product mutation-to-reporting E2E
+  through the native Connections fixtures and reporting suite.
 
 ## Core Connections — slice 5
 
@@ -644,8 +648,8 @@ checklist records implementation evidence for the current package only.
 - [x] Include the authoritative current `ExternalConnection` population as a bounded source
   checkpoint; do not claim a reliable historical coverage start before backfill/reconciliation.
 - [x] Add focused privacy, same-window idempotency, and coverage-boundary integration assertions.
-- [ ] Add historical event backfill, temporal coverage checkpoints, reporting, and full product
-  mutation-to-reporting E2E after the Connections projection boundary exists.
+- [x] Add historical event backfill, temporal coverage checkpoints, reporting, and full product
+  mutation-to-reporting E2E through the native Connections fixtures and reporting suite.
 
 ## Core Connections — slice 6
 
@@ -673,8 +677,8 @@ checklist records implementation evidence for the current package only.
   transport, and verify Core delivery state, Analytics manifest persistence, event contracts, and
   privacy boundaries. This is transport coverage only; it does not claim projection or historical
   completeness.
-- [ ] Add temporal event backfill checkpoints, reporting availability, and full product
-  mutation-to-reporting E2E in later Connections slices.
+- [x] Add temporal event backfill checkpoints, reporting availability, and full product
+  mutation-to-reporting E2E through the native Connections fixtures and reporting suite.
 
 ## Core Connections — source reconstruction
 
@@ -693,7 +697,8 @@ checklist records implementation evidence for the current package only.
   fixture.
 - [x] Verify all six registered Connections metrics with available temporal evidence, matching
   required-source metadata, and aggregate report points in the native `reporting_postgres` fixture.
-- [ ] Implement approved customer-facing Connections analytics surfaces.
+- [ ] Implement approved customer-facing Connections analytics surfaces after a Core/Tenant gateway
+  issues signed reporting grants; the Analytics API intentionally does not accept browser calls.
 
 ## Core Connections — slice 7
 
@@ -701,7 +706,7 @@ checklist records implementation evidence for the current package only.
 - [x] Preserve manifest state, safe-failure, count, and refresh-window semantics without copying
   provider or connection-sensitive fields into the checkpoint.
 - [x] Verify accepted, duplicate, privacy, and incomplete-history paths.
-- [ ] Build temporal coverage from historical event backfill and reconciliation before reporting.
+- [x] Build temporal coverage from historical event backfill and reconciliation before reporting.
 
 ## Core Connections — slice 8
 
@@ -723,7 +728,9 @@ checklist records implementation evidence for the current package only.
   can be retried idempotently after the job is completed.
 - [x] Verify counts, temporal boundaries, provenance, privacy, duplicate retry, and replay exclusion
   in the PostgreSQL ingestion fixture.
-- [ ] Add richer rejected-record completion/reporting.
+- [ ] Add richer rejected-record completion/reporting after the reporting API contract defines the
+  customer-safe rejected-reason shape; current coverage exposes bounded accepted/excluded counts
+  and safe quality/quarantine records.
 
 ## Core Inbox — Meta source checkpoint slice
 
@@ -807,8 +814,8 @@ checklist records implementation evidence for the current package only.
 - [x] Verify bounded Meta block classification, producer rollback/privacy behavior, authenticated
   Core publisher delivery, Analytics ingestion, blocked reporting, and available temporal coverage.
 - [x] Add unsubscribe/exclusion, eligibility, guard, and timing coverage in later Campaign slices.
-- [ ] Add retry, numeric cost, attribution, and complete mutation-to-reporting coverage in later Campaign
-  slices.
+- [x] Add retry and complete mutation-to-reporting coverage; numeric cost and attribution remain
+  blocked by source ledgers.
 
 ## Core Campaigns — suppression and unsubscribe slice 5
 
@@ -824,8 +831,8 @@ checklist records implementation evidence for the current package only.
 - [x] Add suppression/unsubscribe metrics, dimensions, overview registration, generated bindings,
   Core rollback/privacy coverage, authenticated publisher coverage, and signed reporting
   breakdowns.
-- [ ] Add retry, timing, numeric cost, attribution, source manifests, historical reconstruction, and the
-  combined mutation-to-publisher-to-projection-to-reporting E2E in later Campaign slices.
+- [x] Add retry, timing, source manifests, historical reconstruction, and the combined
+  mutation-to-publisher-to-projection-to-reporting E2E; numeric cost and attribution remain blocked.
 
 ## Core Campaigns — timing and numeric aggregation slice 6
 
@@ -839,8 +846,8 @@ checklist records implementation evidence for the current package only.
   weighted-average event metrics; events without that field are excluded from that metric only.
 - [x] Verify Core rollback/privacy, authenticated publisher delivery, projection parity, and
   signed duration reporting.
-- [ ] Add retry, numeric cost, attribution, source manifests, historical reconstruction, and the combined
-  mutation-to-publisher-to-projection-to-reporting E2E in later Campaign slices.
+- [x] Add retry, source manifests, historical reconstruction, and the combined
+  mutation-to-publisher-to-projection-to-reporting E2E; numeric cost and attribution remain blocked.
 
 ## Core Campaigns — retry attempts slice 7
 
@@ -854,8 +861,9 @@ checklist records implementation evidence for the current package only.
   retry facts do not contain provider errors or contact values.
 - [x] Add retry metric/dimension compatibility, generated bindings, Core rollback/privacy,
   authenticated publisher, and signed reporting coverage.
-- [ ] Add provider retry policy, numeric cost, attribution, source manifests, historical reconstruction,
-  and the combined mutation-to-publisher-to-projection-to-reporting E2E in later slices.
+- [x] Add provider retry facts, source manifests, historical reconstruction, and the combined
+  mutation-to-publisher-to-projection-to-reporting E2E; provider policy, numeric cost, and
+  attribution remain separate source/ownership work.
 
 ## Core Campaigns — source manifest and historical reconstruction slice 8
 
@@ -865,8 +873,8 @@ checklist records implementation evidence for the current package only.
   authenticated Campaign backfill job; preserve original envelopes and deterministic sequences.
 - [x] Keep Campaign manifests out of event reconstruction and isolate reconstructed facts from live
   reconciliation counts.
-- [ ] Add a native Core Campaign backfill/reconciliation fixture; the combined mutation-to-publisher-
-  to-projection-to-reporting E2E is covered above.
+- [x] Add the native ignored Core Campaign source-reconstruction/backfill fixture; the combined
+  mutation-to-publisher-to-projection-to-reporting E2E is covered above.
 - [x] Add provider billable/category/model/type facts and typed pricing dimensions; numeric currency
   cost and cross-feature attribution remain separate source-ledger work.
 

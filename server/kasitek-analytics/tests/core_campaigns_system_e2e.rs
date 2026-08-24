@@ -26,6 +26,7 @@ use kasitek_core::analytics::campaigns::{
     enqueue_recipient_retry, enqueue_recipient_sent, enqueue_recipient_suppressed,
     enqueue_recipient_timing, enqueue_recipient_unsubscribed,
 };
+use kasitek_core::workers::analytics_backfill::process_campaign_source_reconstruction;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
@@ -620,5 +621,130 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         .await
         .expect("analytics API task should join")
         .expect("analytics API should stop cleanly");
+    result
+}
+
+#[tokio::test]
+#[ignore = "requires clean Core and Analytics PostgreSQL databases; starts an in-process Analytics API"]
+async fn core_campaign_source_reconstruction_reconciles_immutable_outbox_history() {
+    let core_pool = PgPoolOptions::new()
+        .max_connections(4)
+        .connect(&required_url("DATABASE_URL"))
+        .await
+        .expect("Core PostgreSQL should be reachable");
+    let analytics_config = analytics_config(required_url("ANALYTICS_DATABASE_URL"));
+    let analytics_pool = PgPoolOptions::new()
+        .max_connections(8)
+        .connect(&analytics_config.database_url)
+        .await
+        .expect("Analytics PostgreSQL should be reachable");
+
+    let unique_suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default();
+    let organization_id = format!("core-campaigns-backfill-e2e-{unique_suffix}");
+    let campaign_id = format!("campaign-backfill-e2e-{unique_suffix}");
+    let recipient_id = format!("recipient-backfill-e2e-{unique_suffix}");
+    let job_id = format!("campaign-backfill-job-{unique_suffix}");
+    let scope_id = create_scope(&analytics_pool, &organization_id).await;
+    let (endpoint, server_handle, server_task) =
+        start_analytics_api(analytics_pool.clone(), &analytics_config);
+    let result = async {
+        let occurred_at = Utc::now();
+        let range_start = occurred_at - Duration::minutes(1);
+        let range_end = occurred_at + Duration::minutes(1);
+        let mut transaction = core_pool.begin().await.expect("Core transaction");
+        enqueue_recipient_sent(
+            &mut transaction,
+            &organization_id,
+            &campaign_id,
+            &recipient_id,
+            "whatsapp",
+            "meta",
+            occurred_at,
+        )
+        .await
+        .expect("Campaign source fact should enqueue");
+        transaction
+            .commit()
+            .await
+            .expect("Campaign source fact should commit");
+
+        sqlx::query(
+            r#"INSERT INTO analytics.analytics_backfill_job (
+                 job_id, source_service, source_domain, reporting_scope_id, root_scope_id,
+                 requested_range_start, requested_range_end, contract_version,
+                 projection_version, method, job_status, remaining_count,
+                 requesting_actor_type, requesting_actor_id, authorization_grant_id
+               ) VALUES ($1, 'core', 'campaigns', $2, $2, $3, $4, 'campaigns.v1',
+                         'campaigns.v1', 'source_reconstruction', 'queued', 1,
+                         'system', $1, $1)"#,
+        )
+        .bind(&job_id)
+        .bind(scope_id)
+        .bind(range_start)
+        .bind(range_end)
+        .execute(&analytics_pool)
+        .await
+        .expect("Campaign source backfill job");
+
+        let client =
+            AnalyticsIngestionClient::new(endpoint, INGESTION_TOKEN, StdDuration::from_secs(10))
+                .expect("Campaign backfill client");
+        let work = client
+            .claim_source_backfill_work()
+            .await
+            .expect("Campaign source backfill claim")
+            .expect("Campaign source backfill work");
+        assert_eq!(work.job_id, job_id);
+        assert_eq!(work.source_domain, "campaigns");
+        assert_eq!(work.scope_external_id, organization_id);
+
+        let stats =
+            process_campaign_source_reconstruction(&core_pool, &client, PRODUCER_ID, 1, &work)
+                .await
+                .expect("Campaign source reconstruction");
+        assert_eq!(stats.campaign_records, 1);
+        assert_eq!(stats.rejected_records, 0);
+
+        let job = sqlx::query(
+            r#"SELECT job_status, scanned_count, accepted_count, rejected_count, remaining_count
+               FROM analytics.analytics_backfill_job WHERE job_id = $1"#,
+        )
+        .bind(&job_id)
+        .fetch_one(&analytics_pool)
+        .await
+        .expect("completed Campaign source backfill job");
+        assert_eq!(job.get::<String, _>("job_status"), "completed");
+        assert_eq!(job.get::<i64, _>("scanned_count"), 1);
+        assert_eq!(job.get::<i64, _>("accepted_count"), 1);
+        assert_eq!(job.get::<i64, _>("rejected_count"), 0);
+        assert_eq!(job.get::<i64, _>("remaining_count"), 0);
+
+        let event = sqlx::query(
+            r#"SELECT event_type, source_record_id, origin, backfilled, attributes
+               FROM analytics.analytics_event WHERE source_record_id = $1"#,
+        )
+        .bind(format!(
+            "campaign-recipient:{campaign_id}:{recipient_id}:sent"
+        ))
+        .fetch_one(&analytics_pool)
+        .await
+        .expect("reconstructed Campaign event");
+        assert_eq!(
+            event.get::<String, _>("event_type"),
+            "campaign.recipient.sent@1"
+        );
+        assert_eq!(event.get::<String, _>("origin"), "kasitek://core");
+        assert!(event.get::<bool, _>("backfilled"));
+        let attributes: Value = event.get("attributes");
+        assert!(attributes.get("email").is_none());
+        assert!(attributes.get("phone_number").is_none());
+    }
+    .await;
+
+    server_handle.stop(true).await;
+    server_task
+        .await
+        .expect("Analytics API task should join")
+        .expect("Analytics API should stop cleanly");
     result
 }

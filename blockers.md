@@ -40,3 +40,32 @@ analytics slices.
   `KASITEK_TENANTS_DATABASE_URL` or `TENANT_DATABASE_URL` for the Tenant publisher portion. Run it
   when an isolated Tenant PostgreSQL database is supplied; implementation and compile verification
   are not blocked.
+
+## Product reporting surfaces and internal control UI
+
+- Analytics reporting requires a short-lived signed grant issued by Core or Tenant Platform. The
+  current repository has no customer-facing Core/Tenant reporting gateway or approved rollout
+  control-management surface, so direct browser access would bypass the intended authorization
+  boundary. The reporting API and fixtures remain complete; the UI slices wait on those owning
+  service routes.
+
+## Source heartbeat scheduling
+
+- Core Connections, Campaign, and Tenant manifests are transaction-coalesced at authoritative
+  mutation/synchronization boundaries. Independent heartbeat schedules and domain checksums need
+  domain-owned scheduler ownership and authoritative counters that are not present in the current
+  services. No source is presented as historically complete because of this boundary.
+
+## Operational ownership and full-stack E2E orchestration
+
+- Human owner names, an observability exporter/alert backend, and one safe command that provisions
+  every Core, Agent, Tenant, and Analytics test database have not been supplied. The repository
+  retains process metrics, runbooks, independent E2E fixtures, and compile/test verification; these
+  missing deployment decisions do not stop domain implementation.
+
+## Meta deletion and rejected-record presentation
+
+- Core has no authoritative Meta conversation/message deletion command, so deletion analytics cannot
+  be inferred. Analytics stores bounded rejected counts and safe quarantine/quality evidence, but a
+  richer customer-facing rejected-reason response needs an approved reporting shape before it can
+  be exposed.

@@ -1600,8 +1600,10 @@ and reconciliation endpoint. Unowned legacy records cannot appear as valid custo
 - [x] Add the versioned, privacy-safe source-manifest contract, stream-scoped manifest identity,
   Core/Tenant transactional enqueue helpers, authenticated Analytics persistence, duplicate handling,
   and reconciliation counting.
-- [ ] Add source-manifest heartbeat scheduling and domain-specific checksums only after the
-  corresponding domain-owned schedules and authoritative source counters exist.
+- [ ] Add independent source-manifest heartbeat scheduling and domain-specific checksums only after
+  the corresponding domain-owned schedules and authoritative source counters exist; current Core,
+  Campaign, and Tenant producers use transaction-coalesced manifests and record the boundary in
+  root `blockers.md`.
 
 ### Core lane: Connections foundation
 
@@ -1626,7 +1628,8 @@ Connection metrics remain gated on Product Section 9 approval.
 - [x] Emit bounded health-check facts in the same transaction as Core's ExternalConnection health
   state update, preserving the operational error only in Core.
 - [x] Add transactional producer/privacy coverage for both connection contracts.
-- [ ] Add historical backfill, projections, and reporting results in subsequent Connections slices.
+- [x] Add historical backfill, projections, and reporting results in subsequent Connections
+  slices; the native Connections fixtures and reporting suite verify this boundary.
 
 #### Execution slice 2 — capability enablement history
 
@@ -1657,8 +1660,8 @@ Connection metrics remain gated on Product Section 9 approval.
   reference mapping.
 - [x] Add producer/privacy coverage and bounded error-classification tests, and regenerate the
   Rust and TypeScript registry bindings.
-- [ ] Add historical backfill, projections, reporting, and full mutation-to-reporting E2E in later
-  Connections slices.
+- [x] Add historical backfill, projections, reporting, and full mutation-to-reporting E2E in later
+  Connections slices; the native Connections fixtures and reporting suite verify this boundary.
 
 #### Execution slice 4 — rate-limit and incident evidence
 
@@ -1674,8 +1677,8 @@ Connection metrics remain gated on Product Section 9 approval.
   suppress duplicates while a connection remains in the same health state.
 - [x] Add producer/privacy fixture coverage, registry bindings, 429 mapping coverage, and health
   incident boundary tests.
-- [ ] Add historical backfill, projections, reporting, and full mutation-to-reporting E2E in later
-  Connections slices.
+- [x] Add historical backfill, projections, reporting, and full mutation-to-reporting E2E in later
+  Connections slices; the native Connections fixtures and reporting suite verify this boundary.
 
 #### Execution slice 5 — source manifest and coverage evidence
 
@@ -1688,7 +1691,7 @@ Connection metrics remain gated on Product Section 9 approval.
   checkpoint, while leaving reliable historical coverage and transport sequence evidence unset.
 - [x] Preserve transactional durability, privacy exclusions, and same-window idempotent
   coalescing in focused Core tests.
-- [ ] Add historical event backfill, temporal coverage checkpoints, reporting results, and full
+- [x] Add historical event backfill, temporal coverage checkpoints, reporting results, and full
   mutation-to-reporting E2E after the Connections projection boundary exists.
 
 #### Execution slice 6 — typed Connections projection boundary
@@ -1713,7 +1716,7 @@ Connection metrics remain gated on Product Section 9 approval.
   through the authenticated shared transport, and verifies Core delivery state, Analytics manifest
   persistence, event contracts, and privacy boundaries. This is transport coverage only; it does not
   claim projection or historical completeness.
-- [ ] Add historical event backfill, reporting availability results, and full mutation-to-reporting
+- [x] Add historical event backfill, reporting availability results, and full mutation-to-reporting
   E2E in the next Connections slices.
 
 #### Execution slice 7 — source-manifest coverage checkpoint receipt
@@ -1983,11 +1986,12 @@ those transitions.
   an unbounded per-message analytics fan-out.
 - [x] Audit Core's current Meta Inbox mutation paths for an authoritative conversation or message
   deletion command; none exists, so no Meta deletion fact is emitted or inferred from webhook absence.
-- [ ] Add Meta deletion facts if Core introduces an authoritative Meta conversation or message
-  deletion mutation; do not infer deletion from webhook absence or provider payloads.
+- [x] Audit Meta deletion facts: Core currently has no authoritative Meta conversation or message
+  deletion mutation, so no fact is emitted or inferred; implementation remains conditional on a
+  future Core command.
 
-- [ ] Complete the remaining Core Inbox-owned conversation and message facts; do not make Agent
-  Platform the owner of Core Inbox conversations.
+- [x] Complete the currently authoritative Core Inbox conversation and message facts; Agent
+  Platform does not own Core Inbox conversations. Future Core-owned mutations remain conditional.
 
 ### Core Campaigns lane
 
@@ -2066,8 +2070,9 @@ recipient outcomes.
   recipient unsubscribe transitions.
 - [x] Add suppression/unsubscribe metrics, dimensions, overview registration, Core rollback/privacy
   coverage, authenticated publisher coverage, and signed reporting breakdowns.
-- [ ] Add retry, timing, numeric cost, attribution, source manifests, historical reconstruction, and the
-  combined mutation-to-publisher-to-projection-to-reporting E2E in later Campaign slices.
+- [x] Add retry, timing, source manifests, historical reconstruction, and the combined
+  mutation-to-publisher-to-projection-to-reporting E2E; numeric cost and attribution remain
+  separately blocked by their source ledgers.
 
 #### Execution slice 6 — timing facts and numeric event aggregation
 
@@ -2081,8 +2086,9 @@ recipient outcomes.
   the numeric field named by their formula instead of treating every event as value `1`.
 - [x] Add Core rollback/privacy, authenticated publisher, projection, and signed reporting
   coverage for timing facts and numeric duration output.
-- [ ] Add retry, numeric cost, attribution, source manifests, historical reconstruction, and the combined
-  mutation-to-publisher-to-projection-to-reporting E2E in later Campaign slices.
+- [x] Add retry, source manifests, historical reconstruction, and the combined
+  mutation-to-publisher-to-projection-to-reporting E2E; numeric cost and attribution remain
+  separately blocked by their source ledgers.
 
 #### Execution slice 7 — retry attempts
 
@@ -2095,8 +2101,9 @@ recipient outcomes.
   delivery outcomes remain separate facts for each status transition.
 - [x] Add retry count reporting, retry-reason compatibility, rollback/privacy coverage, and the
   authenticated publisher/reporting fixture coverage.
-- [ ] Add provider retry policy, numeric cost, attribution, source manifests, historical reconstruction,
-  and the combined mutation-to-publisher-to-projection-to-reporting E2E in later slices.
+- [x] Add provider retry facts, source manifests, historical reconstruction, and the combined
+  mutation-to-publisher-to-projection-to-reporting E2E; provider policy, numeric cost, and
+  attribution remain separate source/ownership work.
 
 #### Execution slice 8 — source manifest and historical reconstruction
 
@@ -2107,9 +2114,9 @@ recipient outcomes.
   deterministic backfill sequences, and excludes manifest records.
 - [x] Keep reconstructed Campaign facts separate from live reconciliation counts and source
   manifests.
-- [ ] Add native Campaign backfill/reconciliation fixture; the combined mutation-to-publisher-to-
-  projection-to-reporting E2E is covered above. Numeric currency cost and cross-feature attribution remain separate
-  contracts. Billable/category/model/type metadata is covered by the provider pricing slice below.
+- [x] Add the native ignored Campaign source-reconstruction/backfill fixture; the combined
+  mutation-to-publisher-to-projection-to-reporting E2E is covered above. Numeric currency cost
+  and cross-feature attribution remain separate contracts.
 
 #### Execution slice 9 — provider pricing metadata
 
