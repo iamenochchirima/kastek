@@ -175,6 +175,37 @@ fn is_blocked_failure(code: Option<&str>, message: Option<&str>) -> bool {
             .unwrap_or(false)
 }
 
+#[derive(Debug, Clone)]
+struct WhatsappPricingDetails {
+    billable: bool,
+    category: String,
+    model: Option<String>,
+    pricing_type: Option<String>,
+}
+
+fn bounded_provider_value(value: Option<&Value>) -> Option<String> {
+    let value = value?.as_str()?.trim();
+    if value.is_empty()
+        || value.len() > 64
+        || !value.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '_' | '-' | '.')
+        })
+    {
+        return None;
+    }
+    Some(value.to_string())
+}
+
+fn parse_status_pricing_details(status_payload: &Value) -> Option<WhatsappPricingDetails> {
+    let pricing = status_payload.get("pricing")?.as_object()?;
+    Some(WhatsappPricingDetails {
+        billable: pricing.get("billable")?.as_bool()?,
+        category: bounded_provider_value(pricing.get("category"))?,
+        model: bounded_provider_value(pricing.get("pricing_model")),
+        pricing_type: bounded_provider_value(pricing.get("type")),
+    })
+}
+
 async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppError> {
     let Some(message_id) = status_payload.get("id").and_then(|v| v.as_str()) else {
         return Ok(());
@@ -197,6 +228,7 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
     } else {
         (None, None)
     };
+    let pricing = parse_status_pricing_details(status_payload);
     let next_status = if provider_status == "FAILED"
         && is_blocked_failure(failure_code.as_deref(), failure_message.as_deref())
     {
@@ -471,6 +503,54 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
             {
                 publish_campaign_updated(pool, &user_id, &recipient.campaign_id).await?;
             }
+        }
+        if let Some(pricing) = pricing {
+            let mut pricing_transaction = pool.begin().await?;
+            let organization_id = sqlx::query_scalar::<_, String>(
+                r#"SELECT "orgId" FROM "WhatsappCampaign" WHERE id = $1 LIMIT 1"#,
+            )
+            .bind(&recipient.campaign_id)
+            .fetch_one(&mut *pricing_transaction)
+            .await?;
+            sqlx::query(
+                r#"
+                UPDATE "WhatsappSendEvent"
+                SET "whatsappPricingBillable" = $1,
+                    "whatsappPricingCategory" = $2,
+                    "whatsappPricingModel" = $3,
+                    "whatsappPricingType" = $4
+                WHERE "campaignId" = $5 AND "recipientId" = $6 AND "whatsappMessageId" = $7
+                "#,
+            )
+            .bind(pricing.billable)
+            .bind(&pricing.category)
+            .bind(pricing.model.as_deref())
+            .bind(pricing.pricing_type.as_deref())
+            .bind(&recipient.campaign_id)
+            .bind(&recipient.id)
+            .bind(message_id)
+            .execute(&mut *pricing_transaction)
+            .await?;
+            analytics::campaigns::enqueue_recipient_pricing(
+                &mut pricing_transaction,
+                &organization_id,
+                &recipient.campaign_id,
+                &recipient.id,
+                "whatsapp",
+                "meta",
+                pricing.billable,
+                &pricing.category,
+                pricing.model.as_deref(),
+                pricing.pricing_type.as_deref(),
+                timestamp,
+            )
+            .await
+            .map_err(|error| {
+                AppError::Internal(format!(
+                    "Failed to queue Campaign pricing analytics fact: {error}"
+                ))
+            })?;
+            pricing_transaction.commit().await?;
         }
         return Ok(());
     }
@@ -1083,7 +1163,7 @@ mod tests {
 
     use super::{
         approval_acknowledgement, external_connection_routing_key, get_inbound_approval_token,
-        is_blocked_failure, is_opt_out_message,
+        is_blocked_failure, is_opt_out_message, parse_status_pricing_details,
     };
 
     #[test]
@@ -1134,6 +1214,35 @@ mod tests {
             Some("131047"),
             Some("Temporary failure")
         ));
+    }
+
+    #[test]
+    fn extracts_bounded_whatsapp_pricing_metadata() {
+        let pricing = parse_status_pricing_details(&json!({
+            "pricing": {
+                "billable": true,
+                "category": "marketing",
+                "pricing_model": "CBP",
+                "type": "regular"
+            }
+        }))
+        .expect("pricing metadata");
+        assert!(pricing.billable);
+        assert_eq!(pricing.category, "marketing");
+        assert_eq!(pricing.model.as_deref(), Some("CBP"));
+        assert_eq!(pricing.pricing_type.as_deref(), Some("regular"));
+    }
+
+    #[test]
+    fn rejects_unbounded_or_incomplete_whatsapp_pricing_metadata() {
+        assert!(parse_status_pricing_details(&json!({
+            "pricing": { "billable": true, "category": "marketing/category" }
+        }))
+        .is_none());
+        assert!(parse_status_pricing_details(&json!({
+            "pricing": { "category": "marketing" }
+        }))
+        .is_none());
     }
 
     #[test]

@@ -297,6 +297,39 @@ definitions:
     applicability: campaign retry transitions emit durable retry facts
     dependencies: []
 
+  - key: campaign.recipients.pricing_recorded
+    version: 1
+    domain: campaigns
+    owner: core-campaigns
+    lifecycle: active
+    description: Campaign recipients for which the provider returned pricing metadata.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - campaign.recipient.pricing@1
+    formula: count_distinct(campaign.recipient.pricing@1, recipient_id)
+    eligible_population: campaign recipients with provider pricing metadata in the reporting window
+    exclusions: [test recipients, pricing facts without a category]
+    time_semantics: event_time
+    default_aggregation: distinct_count
+    temporal_aggregation: distinct_count
+    comparison: previous_period
+    deduplication: recipient
+    descendant_aggregation: deduplicated
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace]
+    dimensions: [campaign, channel, provider, pricing_billable, pricing_category, pricing_model, pricing_type, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [campaign.recipient.pricing@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-24T00:00:00Z"
+    applicability: WhatsApp provider status payloads include pricing metadata
+    dependencies: []
+
   - key: campaign.delivery_rate
     version: 1
     domain: campaigns

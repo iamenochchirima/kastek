@@ -2012,9 +2012,10 @@ recipient outcomes.
   identity deduplication and sent/delivered event privacy checks.
 - [x] Verify the registered sent, delivered, and delivery-rate metrics through the signed reporting
   fixture, including distinct-recipient and numerator/denominator aggregation paths.
-- [ ] Add campaign source manifests, historical reconstruction, and reliable coverage boundaries.
-- [ ] Add transactional campaign retry, cost, and complete provider-outcome facts before claiming
-  complete Campaign performance coverage. Suppression and eligibility facts are covered in slice 5.
+- [x] Add campaign source manifests, historical reconstruction, and reliable coverage boundaries.
+- [x] Add transactional campaign retry and complete provider-outcome facts; numeric cost and
+  complete mutation-to-reporting coverage remain before claiming complete Campaign performance
+  coverage. Suppression and eligibility facts are covered in slice 5.
 - [ ] Add one combined mutation-to-publisher-to-projection-to-reporting E2E for Campaign delivery.
 
 #### Execution slice 2 — recipient read facts
@@ -2063,7 +2064,7 @@ recipient outcomes.
   recipient unsubscribe transitions.
 - [x] Add suppression/unsubscribe metrics, dimensions, overview registration, Core rollback/privacy
   coverage, authenticated publisher coverage, and signed reporting breakdowns.
-- [ ] Add retry, timing, cost, attribution, source manifests, historical reconstruction, and the
+- [ ] Add retry, timing, numeric cost, attribution, source manifests, historical reconstruction, and the
   combined mutation-to-publisher-to-projection-to-reporting E2E in later Campaign slices.
 
 #### Execution slice 6 — timing facts and numeric event aggregation
@@ -2078,7 +2079,7 @@ recipient outcomes.
   the numeric field named by their formula instead of treating every event as value `1`.
 - [x] Add Core rollback/privacy, authenticated publisher, projection, and signed reporting
   coverage for timing facts and numeric duration output.
-- [ ] Add retry, cost, attribution, source manifests, historical reconstruction, and the combined
+- [ ] Add retry, numeric cost, attribution, source manifests, historical reconstruction, and the combined
   mutation-to-publisher-to-projection-to-reporting E2E in later Campaign slices.
 
 #### Execution slice 7 — retry attempts
@@ -2092,7 +2093,7 @@ recipient outcomes.
   delivery outcomes remain separate facts for each status transition.
 - [x] Add retry count reporting, retry-reason compatibility, rollback/privacy coverage, and the
   authenticated publisher/reporting fixture coverage.
-- [ ] Add provider retry policy, cost, attribution, source manifests, historical reconstruction,
+- [ ] Add provider retry policy, numeric cost, attribution, source manifests, historical reconstruction,
   and the combined mutation-to-publisher-to-projection-to-reporting E2E in later slices.
 
 #### Execution slice 8 — source manifest and historical reconstruction
@@ -2105,8 +2106,23 @@ recipient outcomes.
 - [x] Keep reconstructed Campaign facts separate from live reconciliation counts and source
   manifests.
 - [ ] Add native Campaign backfill/reconciliation and combined mutation-to-publisher-to-projection-
-  to-reporting E2E fixtures; provider pricing/cost and cross-feature attribution remain separate
-  contracts.
+  to-reporting E2E fixtures; numeric currency cost and cross-feature attribution remain separate
+  contracts. Billable/category/model/type metadata is covered by the provider pricing slice below.
+
+#### Execution slice 9 — provider pricing metadata
+
+- [x] Register `campaign.recipient.pricing@1` with billable state and bounded provider pricing
+  category, model, and type; no provider payload, customer contact value, or currency amount is
+  copied into the analytics event.
+- [x] Parse WhatsApp status pricing metadata at the Core webhook boundary and persist the available
+  fields on the operational send event when a matching campaign send exists.
+- [x] Emit the pricing fact transactionally with the pricing-field update, deduplicate by campaign
+  recipient, and expose a filterable pricing-record count metric with billable/category/model/type
+  dimensions.
+- [x] Regenerate registry bindings and verify registry validation plus Core/Analytics library
+  compilation.
+- [ ] Add an authoritative numeric cost source and cross-feature attribution after their source
+  ledgers and ownership boundaries exist; see `blockers.md`.
 
 ### Agent Platform lane: customer handoff
 

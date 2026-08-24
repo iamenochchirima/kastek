@@ -767,7 +767,7 @@ checklist records implementation evidence for the current package only.
   stable identity deduplication, Analytics ingestion, and sent/delivered privacy checks.
 - [x] Verify sent, delivered, and delivery-rate reporting, including distinct-recipient and
   numerator/denominator aggregation, in the signed PostgreSQL reporting fixture.
-- [ ] Add source manifests, source reconstruction, retry/eligibility facts, and complete
+- [x] Add source manifests, source reconstruction, retry/eligibility facts, and complete
   Campaign performance coverage in later Campaign slices.
 - [ ] Add one combined mutation-to-publisher-to-projection-to-reporting E2E.
 
@@ -806,7 +806,7 @@ checklist records implementation evidence for the current package only.
 - [x] Verify bounded Meta block classification, producer rollback/privacy behavior, authenticated
   Core publisher delivery, Analytics ingestion, blocked reporting, and available temporal coverage.
 - [x] Add unsubscribe/exclusion, eligibility, guard, and timing coverage in later Campaign slices.
-- [ ] Add retry, cost, attribution, and complete mutation-to-reporting coverage in later Campaign
+- [ ] Add retry, numeric cost, attribution, and complete mutation-to-reporting coverage in later Campaign
   slices.
 
 ## Core Campaigns — suppression and unsubscribe slice 5
@@ -823,7 +823,7 @@ checklist records implementation evidence for the current package only.
 - [x] Add suppression/unsubscribe metrics, dimensions, overview registration, generated bindings,
   Core rollback/privacy coverage, authenticated publisher coverage, and signed reporting
   breakdowns.
-- [ ] Add retry, timing, cost, attribution, source manifests, historical reconstruction, and the
+- [ ] Add retry, timing, numeric cost, attribution, source manifests, historical reconstruction, and the
   combined mutation-to-publisher-to-projection-to-reporting E2E in later Campaign slices.
 
 ## Core Campaigns — timing and numeric aggregation slice 6
@@ -838,7 +838,7 @@ checklist records implementation evidence for the current package only.
   weighted-average event metrics; events without that field are excluded from that metric only.
 - [x] Verify Core rollback/privacy, authenticated publisher delivery, projection parity, and
   signed duration reporting.
-- [ ] Add retry, cost, attribution, source manifests, historical reconstruction, and the combined
+- [ ] Add retry, numeric cost, attribution, source manifests, historical reconstruction, and the combined
   mutation-to-publisher-to-projection-to-reporting E2E in later Campaign slices.
 
 ## Core Campaigns — retry attempts slice 7
@@ -853,7 +853,7 @@ checklist records implementation evidence for the current package only.
   retry facts do not contain provider errors or contact values.
 - [x] Add retry metric/dimension compatibility, generated bindings, Core rollback/privacy,
   authenticated publisher, and signed reporting coverage.
-- [ ] Add provider retry policy, cost, attribution, source manifests, historical reconstruction,
+- [ ] Add provider retry policy, numeric cost, attribution, source manifests, historical reconstruction,
   and the combined mutation-to-publisher-to-projection-to-reporting E2E in later slices.
 
 ## Core Campaigns — source manifest and historical reconstruction slice 8
@@ -866,8 +866,19 @@ checklist records implementation evidence for the current package only.
   reconciliation counts.
 - [ ] Add a native Campaign backfill/reconciliation fixture and the combined mutation-to-publisher-
   to-projection-to-reporting E2E after the Core package can compile with the current worktree.
-- [ ] Add provider pricing/cost facts and typed cross-feature attribution before claiming complete
-  Campaign performance coverage.
+- [x] Add provider billable/category/model/type facts and typed pricing dimensions; numeric currency
+  cost and cross-feature attribution remain separate source-ledger work.
+
+## Core Campaigns — provider pricing metadata slice 9
+
+- [x] Add and register the aggregate-safe `campaign.recipient.pricing@1` contract and
+  `campaign.recipients.pricing_recorded@1` metric.
+- [x] Parse and bound WhatsApp status pricing metadata, persist it on matching operational send
+  events, and emit a deduplicated Core analytics fact in the pricing transaction.
+- [x] Add filterable billable/category/model/type dimensions, overview registration, generated
+  bindings, and library/registry verification.
+- [ ] Add an authoritative numeric currency-cost source and cross-feature attribution after their
+  source ledgers and ownership boundaries exist; see root `blockers.md`.
 
 ## Tenant Platform — scope and lead creation slice 1
 

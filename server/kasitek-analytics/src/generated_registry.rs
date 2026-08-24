@@ -2,7 +2,7 @@
 
 pub const REGISTRY_VERSION: &str = "20260824.1";
 pub const REGISTRY_SHA256: &str =
-    "10034c62cf0c8d84b8be01727843a0ddd1793a7e4ccb88af1ba7be71428ba774";
+    "1e911cebb5e5269d6022d564cb8490a689b03c21fe05600e6855dadfc2acbcab";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",
@@ -23,6 +23,7 @@ pub const CONTRACT_KEYS: &[&str] = &[
     "campaign.recipient.blocked@1",
     "campaign.recipient.delivered@1",
     "campaign.recipient.failed@1",
+    "campaign.recipient.pricing@1",
     "campaign.recipient.read@1",
     "campaign.recipient.retry@1",
     "campaign.recipient.sent@1",
@@ -68,6 +69,7 @@ pub const METRIC_KEYS: &[&str] = &[
     "campaign.recipients.blocked@1",
     "campaign.recipients.delivered@1",
     "campaign.recipients.failed@1",
+    "campaign.recipients.pricing_recorded@1",
     "campaign.recipients.read@1",
     "campaign.recipients.retried@1",
     "campaign.recipients.sent@1",
@@ -133,6 +135,10 @@ pub const DIMENSION_KEYS: &[&str] = &[
     "model",
     "model_provider",
     "outcome",
+    "pricing_billable",
+    "pricing_category",
+    "pricing_model",
+    "pricing_type",
     "provider",
     "rate_limit_scope",
     "readiness_blocker_set",
@@ -179,6 +185,8 @@ pub mod metric_keys {
     pub const CAMPAIGN_RECIPIENTS_BLOCKED_1: &str = "campaign.recipients.blocked@1";
     pub const CAMPAIGN_RECIPIENTS_DELIVERED_1: &str = "campaign.recipients.delivered@1";
     pub const CAMPAIGN_RECIPIENTS_FAILED_1: &str = "campaign.recipients.failed@1";
+    pub const CAMPAIGN_RECIPIENTS_PRICING_RECORDED_1: &str =
+        "campaign.recipients.pricing_recorded@1";
     pub const CAMPAIGN_RECIPIENTS_READ_1: &str = "campaign.recipients.read@1";
     pub const CAMPAIGN_RECIPIENTS_RETRIED_1: &str = "campaign.recipients.retried@1";
     pub const CAMPAIGN_RECIPIENTS_SENT_1: &str = "campaign.recipients.sent@1";

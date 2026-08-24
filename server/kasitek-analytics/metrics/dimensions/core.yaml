@@ -91,7 +91,7 @@ definitions:
   - key: campaign
     type: reference
     source: envelope.data.campaign_id
-    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.recipients.read@1, campaign.recipients.failed@1, campaign.recipients.blocked@1, campaign.recipients.suppressed@1, campaign.recipients.unsubscribed@1, campaign.delivery_delay_ms@1, campaign.recipients.retried@1, campaign.delivery_rate@1]
+    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.recipients.read@1, campaign.recipients.failed@1, campaign.recipients.blocked@1, campaign.recipients.suppressed@1, campaign.recipients.unsubscribed@1, campaign.delivery_delay_ms@1, campaign.recipients.retried@1, campaign.recipients.pricing_recorded@1, campaign.delivery_rate@1]
     filterable: true
     groupable: true
     cardinality: medium
@@ -102,7 +102,7 @@ definitions:
   - key: channel
     type: enum
     source: envelope.data.channel
-    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.recipients.read@1, campaign.recipients.failed@1, campaign.recipients.blocked@1, campaign.recipients.suppressed@1, campaign.recipients.unsubscribed@1, campaign.delivery_delay_ms@1, campaign.recipients.retried@1, campaign.delivery_rate@1]
+    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.recipients.read@1, campaign.recipients.failed@1, campaign.recipients.blocked@1, campaign.recipients.suppressed@1, campaign.recipients.unsubscribed@1, campaign.delivery_delay_ms@1, campaign.recipients.retried@1, campaign.recipients.pricing_recorded@1, campaign.delivery_rate@1]
     filterable: true
     groupable: true
     cardinality: low
@@ -113,7 +113,7 @@ definitions:
   - key: provider
     type: reference
     source: envelope.data.provider
-    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.recipients.read@1, campaign.recipients.failed@1, campaign.recipients.blocked@1, campaign.recipients.suppressed@1, campaign.recipients.unsubscribed@1, campaign.delivery_delay_ms@1, campaign.recipients.retried@1, campaign.delivery_rate@1, connection.lifecycle_events@1, connection.health_checks@1, connection.sync_attempts@1, connection.rate_limit_encounters@1, connection.incidents@1]
+    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.recipients.read@1, campaign.recipients.failed@1, campaign.recipients.blocked@1, campaign.recipients.suppressed@1, campaign.recipients.unsubscribed@1, campaign.delivery_delay_ms@1, campaign.recipients.retried@1, campaign.recipients.pricing_recorded@1, campaign.delivery_rate@1, connection.lifecycle_events@1, connection.health_checks@1, connection.sync_attempts@1, connection.rate_limit_encounters@1, connection.incidents@1]
     filterable: true
     groupable: true
     cardinality: medium
@@ -367,6 +367,50 @@ definitions:
     type: enum
     source: envelope.data.retry_reason
     compatible_metrics: [campaign.recipients.retried@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: pricing_billable
+    type: enum
+    source: envelope.data.billable
+    compatible_metrics: [campaign.recipients.pricing_recorded@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: pricing_category
+    type: enum
+    source: envelope.data.pricing_category
+    compatible_metrics: [campaign.recipients.pricing_recorded@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: pricing_model
+    type: enum
+    source: envelope.data.pricing_model
+    compatible_metrics: [campaign.recipients.pricing_recorded@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: pricing_type
+    type: enum
+    source: envelope.data.pricing_type
+    compatible_metrics: [campaign.recipients.pricing_recorded@1]
     filterable: true
     groupable: true
     cardinality: low

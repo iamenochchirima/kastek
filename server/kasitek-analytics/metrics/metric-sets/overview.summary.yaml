@@ -17,6 +17,7 @@ definitions:
       - campaign.recipients.unsubscribed@1
       - campaign.delivery_delay_ms@1
       - campaign.recipients.retried@1
+      - campaign.recipients.pricing_recorded@1
       - campaign.delivery_rate@1
       - connection.lifecycle_events@1
       - connection.health_checks@1

@@ -25,6 +25,7 @@ const SUPPORTED_CONTRACTS: &[&str] = &[
     "campaign.recipient.unsubscribed@1",
     "campaign.recipient.timing@1",
     "campaign.recipient.retry@1",
+    "campaign.recipient.pricing@1",
 ];
 const SUPPORTED_METRICS: &[&str] = &[
     "campaign.recipients.sent",
@@ -36,6 +37,7 @@ const SUPPORTED_METRICS: &[&str] = &[
     "campaign.recipients.unsubscribed",
     "campaign.delivery_delay_ms",
     "campaign.recipients.retried",
+    "campaign.recipients.pricing_recorded",
     "campaign.delivery_rate",
 ];
 const SUPPORTED_DIMENSIONS: &[&str] = &[
@@ -48,6 +50,10 @@ const SUPPORTED_DIMENSIONS: &[&str] = &[
     "unsubscribe_source",
     "timing_kind",
     "retry_reason",
+    "pricing_billable",
+    "pricing_category",
+    "pricing_model",
+    "pricing_type",
 ];
 
 pub async fn enqueue_manifest(
@@ -361,6 +367,59 @@ pub async fn enqueue_recipient_retry(
                 "attempt_number": attempt_number,
                 "retry_reason": retry_reason,
             }),
+            correlation_id: None,
+            causation_id: None,
+            idempotency_key: Some(record_id),
+        },
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn enqueue_recipient_pricing(
+    transaction: &mut Transaction<'_, Postgres>,
+    organization_id: &str,
+    campaign_id: &str,
+    recipient_id: &str,
+    channel: &str,
+    provider: &str,
+    billable: bool,
+    pricing_category: &str,
+    pricing_model: Option<&str>,
+    pricing_type: Option<&str>,
+    occurred_at: DateTime<Utc>,
+) -> Result<EnqueueResult, analytics_producer::ProducerError> {
+    let record_id = format!("campaign-recipient:{campaign_id}:{recipient_id}:pricing");
+    let mut attributes = json!({
+        "campaign_id": campaign_id,
+        "recipient_id": recipient_id,
+        "channel": channel,
+        "provider": provider,
+        "occurred_at": occurred_at,
+        "status": "pricing_recorded",
+        "billable": billable,
+        "pricing_category": pricing_category,
+    });
+    if let Some(value) = pricing_model {
+        attributes["pricing_model"] = json!(value);
+    }
+    if let Some(value) = pricing_type {
+        attributes["pricing_type"] = json!(value);
+    }
+    enqueue_event(
+        transaction,
+        EventInput {
+            record_id: record_id.clone(),
+            source_domain: SOURCE_DOMAIN.to_string(),
+            source_stream_key: stream_key(organization_id),
+            contract_name: "campaign.recipient.pricing@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::CoreOrganization,
+            scope_external_id: organization_id.to_string(),
+            subject_type: "campaign_recipient".to_string(),
+            subject_id: recipient_id.to_string(),
+            occurred_at,
+            attributes,
             correlation_id: None,
             causation_id: None,
             idempotency_key: Some(record_id),

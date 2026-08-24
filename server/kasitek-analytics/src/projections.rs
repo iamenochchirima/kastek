@@ -1676,6 +1676,14 @@ fn typed_event_dimensions(
                 require_text_fields(attributes, &["timing_kind"])?;
                 required_number(attributes, "duration_ms")?;
             }
+            if metric.key == "campaign.recipients.pricing_recorded" {
+                require_text_fields(attributes, &["pricing_category"])?;
+                if !attributes.get("billable").is_some_and(Value::is_boolean) {
+                    return Err(sqlx::Error::Protocol(
+                        "typed projection builder missing billable".to_string(),
+                    ));
+                }
+            }
         }
         DomainBuilder::Inbox => {
             required_text(attributes, "conversation_id")?;
@@ -1893,6 +1901,17 @@ fn event_dimensions(
             "suppression_class" => attributes.get("suppression_class").cloned(),
             "unsubscribe_source" => attributes.get("unsubscribe_source").cloned(),
             "timing_kind" => attributes.get("timing_kind").cloned(),
+            "pricing_billable" => {
+                attributes
+                    .get("billable")
+                    .and_then(Value::as_bool)
+                    .map(|value| {
+                        Value::String(if value { "billable" } else { "non_billable" }.to_string())
+                    })
+            }
+            "pricing_category" => attributes.get("pricing_category").cloned(),
+            "pricing_model" => attributes.get("pricing_model").cloned(),
+            "pricing_type" => attributes.get("pricing_type").cloned(),
             "status" => attributes.get("status").cloned(),
             "lifecycle_action" => attributes.get("action").cloned(),
             "message_action" => attributes.get("action").cloned(),

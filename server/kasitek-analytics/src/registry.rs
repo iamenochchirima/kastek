@@ -375,6 +375,20 @@ const CONTRACT_SOURCES: &[ContractSource] = &[
         )],
     },
     ContractSource {
+        path: "events/campaign/recipient_pricing/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/campaign/recipient_pricing/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/campaign/recipient_pricing.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/campaign/recipient_pricing.json"
+            )),
+        )],
+    },
+    ContractSource {
         path: "events/inbox/message_received/v1.schema.json",
         schema: include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),

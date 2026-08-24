@@ -16,3 +16,11 @@ analytics slices.
 - Native `redis-server` and `redis-cli` are not installed in this environment. Docker is
   intentionally not used for local development. Redis remains an optional, non-authoritative cache,
   so PostgreSQL-backed analytics implementation and verification continue without it.
+
+## Provider currency cost
+
+- The current Core/Meta status boundary exposes billable state and bounded pricing category, model,
+  and type, but no authoritative currency amount or currency code. Campaign analytics now records
+  the available pricing metadata and reports pricing-record counts. A numeric cost metric must wait
+  for a source-of-truth amount from the provider payload or a Core billing/usage ledger; no value is
+  inferred from billable state.
