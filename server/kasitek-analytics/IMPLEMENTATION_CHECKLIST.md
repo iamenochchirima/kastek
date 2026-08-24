@@ -689,9 +689,13 @@ checklist records implementation evidence for the current package only.
   when the final authorized source-reconstruction record is rejected.
 - [x] Preserve exact-duplicate retries after completion and exclude fact replay/projection rebuild
   from source temporal-completeness evidence.
+- [x] Sanitize malformed failure fields and use a deterministic digest identity before quarantine;
+  malformed values and raw payloads are not copied into failure evidence.
+- [x] Require producer identity matching and a locked authenticated source-service job before
+  counting structural rejections; producer mismatches and unauthorized jobs remain uncounted.
 - [x] Verify source metadata states and rejected completion evidence in unit and PostgreSQL tests.
-- [ ] Extend counted rejection to structurally invalid or pre-authorization records only after a
-  durable source-side identity/quarantine contract can associate them with a specific job.
+- [x] Verify structurally invalid source-backfill rejection, sanitized quarantine identity, and
+  partial temporal evidence in the PostgreSQL ingestion fixture.
 
 ## Explicitly deferred
 

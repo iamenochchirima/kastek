@@ -983,6 +983,188 @@ async fn rejected_source_backfill_record_persists_partial_temporal_coverage() {
 }
 
 #[tokio::test]
+async fn structurally_invalid_source_backfill_record_is_safely_quarantined_and_counted() {
+    let Some(pool) = pool().await else { return };
+    let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default();
+    let scope_external_id = format!("a09-structural-backfill-org-{suffix}");
+    let stream = format!("core:structural-backfill:{suffix}");
+    let job_id = format!("a09-structural-source-reconstruction-{suffix}");
+    let range_start = "2026-08-22T11:00:00Z"
+        .parse::<chrono::DateTime<Utc>>()
+        .unwrap();
+    let range_end = "2026-08-22T13:00:00Z"
+        .parse::<chrono::DateTime<Utc>>()
+        .unwrap();
+    let scope_id: i64 = sqlx::query_scalar(
+        r#"INSERT INTO analytics.reporting_scope (
+             scope_kind, owning_source_service, external_source_id, status, reporting_timezone
+           ) VALUES ('core_organization','core',$1,'active','UTC')
+           RETURNING scope_id"#,
+    )
+    .bind(&scope_external_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let authenticated = AuthenticatedProducer {
+        source_service: "core".to_string(),
+        producer_id: "core-customer-analytics".to_string(),
+    };
+    sqlx::query(
+        r#"INSERT INTO analytics.analytics_backfill_job (
+             job_id, source_service, source_domain, reporting_scope_id, root_scope_id,
+             requested_range_start, requested_range_end, contract_version, method,
+             job_status, remaining_count, requesting_actor_type, requesting_actor_id,
+             authorization_grant_id, started_at
+           ) VALUES ($1,'core','campaigns',$2,$2,$3,$4,'campaign.recipient.sent@1',
+                     'source_reconstruction','running',1,'test','analytics-postgres-test',$5,NOW())"#,
+    )
+    .bind(&job_id)
+    .bind(scope_id)
+    .bind(range_start)
+    .bind(range_end)
+    .bind(format!("grant-{job_id}"))
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let mut record = event_record(
+        &stream,
+        "structurally-invalid-record",
+        0,
+        &scope_external_id,
+        json!({
+            "campaign_id": "campaign-structural-backfill-a09",
+            "recipient_id": "recipient-structural-backfill-a09",
+            "channel": "whatsapp",
+            "occurred_at": "2026-08-22T12:00:00Z",
+            "status": "sent"
+        }),
+    );
+    record.source_stream_key = String::new();
+    record.record_id = String::new();
+    record.contract_name = String::new();
+    record.schema_version = 0;
+    let response = ingest_batch(
+        &pool,
+        &authenticated,
+        IngestionBatchRequest {
+            records: vec![record],
+            backfill_job_id: Some(job_id.clone()),
+        },
+    )
+    .await;
+    assert!(matches!(
+        response.acknowledgements[0].status,
+        AcknowledgementStatus::Rejected
+    ));
+    assert_eq!(
+        response.acknowledgements[0].error_code.as_deref(),
+        Some("invalid_record_identity")
+    );
+
+    let job = sqlx::query(
+        "SELECT job_status, scanned_count, accepted_count, rejected_count, remaining_count FROM analytics.analytics_backfill_job WHERE job_id = $1",
+    )
+    .bind(&job_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(job.get::<String, _>("job_status"), "completed");
+    assert_eq!(job.get::<i64, _>("scanned_count"), 1);
+    assert_eq!(job.get::<i64, _>("accepted_count"), 0);
+    assert_eq!(job.get::<i64, _>("rejected_count"), 1);
+    assert_eq!(job.get::<Option<i64>, _>("remaining_count"), Some(0));
+
+    let failure = sqlx::query(
+        "SELECT source_domain, source_stream_key, source_sequence, record_identity, schema_version, payload_hash FROM analytics.analytics_ingestion_failure WHERE producer_id = $1 AND safe_error_code = 'invalid_record_identity' AND source_stream_key LIKE 'invalid:%' ORDER BY failure_id DESC LIMIT 1",
+    )
+    .bind(&authenticated.producer_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(failure.get::<String, _>("source_domain"), "campaigns");
+    assert!(failure
+        .get::<String, _>("source_stream_key")
+        .starts_with("invalid:"));
+    assert_eq!(failure.get::<Option<i64>, _>("source_sequence"), Some(0));
+    assert!(failure
+        .get::<String, _>("record_identity")
+        .starts_with("invalid:"));
+    assert!(failure.get::<Option<i32>, _>("schema_version").is_none());
+    assert!(failure.get::<Option<String>, _>("payload_hash").is_some());
+
+    let coverage = sqlx::query(
+        "SELECT included_count, excluded_count, coverage_state, complete_through FROM analytics.analytics_coverage_checkpoint WHERE backfill_job_id = $1",
+    )
+    .bind(&job_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(coverage.get::<i64, _>("included_count"), 0);
+    assert_eq!(coverage.get::<i64, _>("excluded_count"), 1);
+    assert_eq!(coverage.get::<String, _>("coverage_state"), "partial");
+    assert!(coverage
+        .get::<Option<chrono::DateTime<Utc>>, _>("complete_through")
+        .is_none());
+
+    let mismatch_job_id = format!("a09-structural-mismatch-{suffix}");
+    sqlx::query(
+        r#"INSERT INTO analytics.analytics_backfill_job (
+             job_id, source_service, source_domain, reporting_scope_id, root_scope_id,
+             requested_range_start, requested_range_end, contract_version, method,
+             job_status, remaining_count, requesting_actor_type, requesting_actor_id,
+             authorization_grant_id, started_at
+           ) VALUES ($1,'core','campaigns',$2,$2,$3,$4,'campaign.recipient.sent@1',
+                     'source_reconstruction','running',1,'test','analytics-postgres-test',$5,NOW())"#,
+    )
+    .bind(&mismatch_job_id)
+    .bind(scope_id)
+    .bind(range_start)
+    .bind(range_end)
+    .bind(format!("grant-{mismatch_job_id}"))
+    .execute(&pool)
+    .await
+    .unwrap();
+    let mut mismatched_record = event_record(
+        &stream,
+        "producer-mismatch-record",
+        0,
+        &scope_external_id,
+        json!({
+            "campaign_id": "campaign-structural-backfill-a09",
+            "recipient_id": "recipient-producer-mismatch-a09",
+            "channel": "whatsapp",
+            "occurred_at": "2026-08-22T12:00:00Z",
+            "status": "sent"
+        }),
+    );
+    mismatched_record.producer_id = "another-producer".to_string();
+    let mismatch_response = ingest_batch(
+        &pool,
+        &authenticated,
+        IngestionBatchRequest {
+            records: vec![mismatched_record],
+            backfill_job_id: Some(mismatch_job_id.clone()),
+        },
+    )
+    .await;
+    assert_eq!(
+        mismatch_response.acknowledgements[0].error_code.as_deref(),
+        Some("producer_not_authorized")
+    );
+    let mismatch_job = sqlx::query(
+        "SELECT job_status, scanned_count, rejected_count FROM analytics.analytics_backfill_job WHERE job_id = $1",
+    )
+    .bind(&mismatch_job_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(mismatch_job.get::<String, _>("job_status"), "running");
+    assert_eq!(mismatch_job.get::<i64, _>("scanned_count"), 0);
+    assert_eq!(mismatch_job.get::<i64, _>("rejected_count"), 0);
+}
+
+#[tokio::test]
 async fn scope_definition_ingestion_creates_a_receipt_and_is_idempotent() {
     let Some(pool) = pool().await else { return };
     let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default();

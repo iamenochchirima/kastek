@@ -373,13 +373,27 @@ async fn ingest_record(
         || record.contract_name.trim().is_empty()
         || record.schema_version <= 0
     {
-        return rejected("invalid_record_identity");
+        return reject_structurally_invalid_record(
+            pool,
+            authenticated,
+            backfill_job_id,
+            record,
+            "invalid_record_identity",
+        )
+        .await;
     }
     if serde_json::to_vec(&record)
         .map(|bytes| bytes.len() > MAX_RECORD_BYTES)
         .unwrap_or(true)
     {
-        return rejected("record_too_large");
+        return reject_structurally_invalid_record(
+            pool,
+            authenticated,
+            backfill_job_id,
+            record,
+            "record_too_large",
+        )
+        .await;
     }
 
     let validation = validate_record(&record, authenticated);
@@ -410,11 +424,24 @@ async fn ingest_record(
     let validated = match validation {
         Ok(validated) => validated,
         Err(failure) => {
-            let _ = record_failure(&mut transaction, &record, authenticated, &failure, None).await;
+            let result = record_rejection_with_backfill_authorization(
+                &mut transaction,
+                &record,
+                authenticated,
+                &failure,
+                None,
+                backfill_job_id,
+            )
+            .await;
+            let rejection_code = match result {
+                Ok(Some(code)) => code,
+                Ok(None) => failure.code,
+                Err(_) => return retryable(record_id, source_sequence, "analytics_unavailable"),
+            };
             if transaction.commit().await.is_err() {
                 return retryable(record_id, source_sequence, "analytics_unavailable");
             }
-            return rejected(failure.code);
+            return rejected(rejection_code);
         }
     };
 
@@ -426,18 +453,48 @@ async fn ingest_record(
             code: "record_category_not_permitted",
             class: FailureClass::Permanent,
         };
-        let _ = record_failure(&mut transaction, &record, authenticated, &failure, None).await;
-        let _ = transaction.commit().await;
-        return rejected(failure.code);
+        let result = record_rejection_with_backfill_authorization(
+            &mut transaction,
+            &record,
+            authenticated,
+            &failure,
+            None,
+            backfill_job_id,
+        )
+        .await;
+        let rejection_code = match result {
+            Ok(Some(code)) => code,
+            Ok(None) => failure.code,
+            Err(_) => return retryable(record_id, source_sequence, "analytics_unavailable"),
+        };
+        if transaction.commit().await.is_err() {
+            return retryable(record_id, source_sequence, "analytics_unavailable");
+        }
+        return rejected(rejection_code);
     }
     if !json_array_contains(&producer.permitted_scope_kinds, &record.scope_kind) {
         let failure = ValidationFailure {
             code: "scope_kind_not_permitted",
             class: FailureClass::Permanent,
         };
-        let _ = record_failure(&mut transaction, &record, authenticated, &failure, None).await;
-        let _ = transaction.commit().await;
-        return rejected(failure.code);
+        let result = record_rejection_with_backfill_authorization(
+            &mut transaction,
+            &record,
+            authenticated,
+            &failure,
+            None,
+            backfill_job_id,
+        )
+        .await;
+        let rejection_code = match result {
+            Ok(Some(code)) => code,
+            Ok(None) => failure.code,
+            Err(_) => return retryable(record_id, source_sequence, "analytics_unavailable"),
+        };
+        if transaction.commit().await.is_err() {
+            return retryable(record_id, source_sequence, "analytics_unavailable");
+        }
+        return rejected(rejection_code);
     }
 
     let existing = match find_existing_identity(&mut transaction, &record).await {
@@ -519,6 +576,7 @@ async fn ingest_record(
                     &failure,
                     None,
                     backfill_job_id,
+                    None,
                 )
                 .await
                 .is_err()
@@ -582,6 +640,7 @@ async fn ingest_record(
                 &failure,
                 None,
                 backfill_job_id,
+                None,
             )
             .await
             .is_err()
@@ -898,6 +957,61 @@ async fn ingest_record(
         status: AcknowledgementStatus::Accepted,
         error_code: None,
     }
+}
+
+async fn reject_structurally_invalid_record(
+    pool: &PgPool,
+    authenticated: &AuthenticatedProducer,
+    backfill_job_id: Option<&str>,
+    record: IngestionRecord,
+    code: &'static str,
+) -> IngestionAcknowledgement {
+    let record_id = record.record_id.clone();
+    let source_sequence = record.source_sequence;
+    let rejected = |code: &'static str| IngestionAcknowledgement {
+        record_id: record_id.clone(),
+        source_sequence,
+        status: AcknowledgementStatus::Rejected,
+        error_code: Some(code.to_string()),
+    };
+    let mut transaction = match pool.begin().await {
+        Ok(transaction) => transaction,
+        Err(_) => {
+            return retryable(record_id, source_sequence, "analytics_unavailable");
+        }
+    };
+    let producer = match load_producer(&mut transaction, &record.producer_id).await {
+        Ok(Some(producer)) => producer,
+        Ok(None) => return rejected("producer_not_registered"),
+        Err(_) => {
+            return retryable(record_id, source_sequence, "analytics_unavailable");
+        }
+    };
+    if !producer.active || producer.source_service != authenticated.source_service {
+        return rejected("producer_not_authorized");
+    }
+    let failure = ValidationFailure {
+        code,
+        class: FailureClass::Permanent,
+    };
+    let result = record_rejection_with_backfill_authorization(
+        &mut transaction,
+        &record,
+        authenticated,
+        &failure,
+        None,
+        backfill_job_id,
+    )
+    .await;
+    let rejection_code = match result {
+        Ok(Some(code)) => code,
+        Ok(None) => failure.code,
+        Err(_) => return retryable(record_id, source_sequence, "analytics_unavailable"),
+    };
+    if transaction.commit().await.is_err() {
+        return retryable(record_id, source_sequence, "analytics_unavailable");
+    }
+    rejected(rejection_code)
 }
 
 fn parse_repair_context(request: &HttpRequest) -> Result<Option<RepairContext>, &'static str> {
@@ -2104,6 +2218,68 @@ async fn record_failure(
     failure: &ValidationFailure,
     binding: Option<&ScopeBinding>,
 ) -> Result<(), sqlx::Error> {
+    record_failure_with_source_domain(transaction, record, authenticated, failure, binding, None)
+        .await
+}
+
+struct FailureStorageIdentity {
+    source_domain: String,
+    source_stream_key: String,
+    source_sequence: Option<i64>,
+    record_identity: String,
+    schema_version: Option<i32>,
+    payload_hash: Option<String>,
+}
+
+fn failure_storage_identity(
+    record: &IngestionRecord,
+    source_domain_override: Option<&str>,
+) -> FailureStorageIdentity {
+    let digest = hex_sha256(&serde_json::to_vec(record).unwrap_or_default());
+    let fallback_identity = format!("invalid:{digest}");
+    let source_domain = source_domain_override
+        .filter(|value| is_bounded_nonempty(value, 256))
+        .map(str::to_string)
+        .or_else(|| {
+            let value = record_source_domain(record);
+            is_bounded_nonempty(&value, 256).then_some(value)
+        })
+        .unwrap_or_else(|| "unknown".to_string());
+    let source_stream_key = if is_bounded_nonempty(&record.source_stream_key, 512) {
+        record.source_stream_key.clone()
+    } else {
+        fallback_identity.clone()
+    };
+    let record_identity = if is_bounded_nonempty(&record.record_id, 512) {
+        record.record_id.clone()
+    } else {
+        fallback_identity
+    };
+    FailureStorageIdentity {
+        source_domain,
+        source_stream_key,
+        source_sequence: (record.source_sequence >= 0).then_some(record.source_sequence),
+        record_identity,
+        schema_version: (record.schema_version > 0).then_some(record.schema_version),
+        payload_hash: validate_sha256_hex(&record.payload_hash)
+            .ok()
+            .map(|_| record.payload_hash.clone()),
+    }
+}
+
+fn is_bounded_nonempty(value: &str, max_length: usize) -> bool {
+    !value.trim().is_empty() && value.len() <= max_length
+}
+
+async fn record_failure_with_source_domain(
+    transaction: &mut Transaction<'_, Postgres>,
+    record: &IngestionRecord,
+    authenticated: &AuthenticatedProducer,
+    failure: &ValidationFailure,
+    binding: Option<&ScopeBinding>,
+    source_domain_override: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    let identity = failure_storage_identity(record, source_domain_override);
     let updated = sqlx::query(
         r#"UPDATE analytics.analytics_ingestion_failure
            SET attempt_count = attempt_count + 1, last_seen_at = NOW()
@@ -2113,12 +2289,8 @@ async fn record_failure(
     )
     .bind(&record.producer_id)
     .bind(record.record_category.as_str())
-    .bind(&record.record_id)
-    .bind(
-        validate_sha256_hex(&record.payload_hash)
-            .ok()
-            .map(|_| record.payload_hash.as_str()),
-    )
+    .bind(&identity.record_identity)
+    .bind(identity.payload_hash.as_deref())
     .bind(failure.code)
     .execute(&mut **transaction)
     .await?;
@@ -2134,19 +2306,15 @@ async fn record_failure(
     )
     .bind(&record.producer_id)
     .bind(&authenticated.source_service)
-    .bind(record_source_domain(record))
-    .bind(&record.source_stream_key)
-    .bind(record.source_sequence)
+    .bind(identity.source_domain)
+    .bind(identity.source_stream_key)
+    .bind(identity.source_sequence)
     .bind(record.record_category.as_str())
-    .bind(&record.record_id)
+    .bind(identity.record_identity)
     .bind(binding.map(|binding| binding.reporting_scope_id))
     .bind(binding.map(|binding| binding.root_scope_id))
-    .bind(record.schema_version)
-    .bind(
-        validate_sha256_hex(&record.payload_hash)
-            .ok()
-            .map(|_| record.payload_hash.as_str()),
-    )
+    .bind(identity.schema_version)
+    .bind(identity.payload_hash)
     .bind(failure.class.as_str())
     .bind(failure.code)
     .execute(&mut **transaction)
@@ -2161,8 +2329,17 @@ async fn record_rejected_backfill_outcome(
     failure: &ValidationFailure,
     binding: Option<&ScopeBinding>,
     backfill_job_id: Option<&str>,
+    source_domain_override: Option<&str>,
 ) -> Result<(), sqlx::Error> {
-    record_failure(transaction, record, authenticated, failure, binding).await?;
+    record_failure_with_source_domain(
+        transaction,
+        record,
+        authenticated,
+        failure,
+        binding,
+        source_domain_override,
+    )
+    .await?;
     if backfill_job_id.is_some() && !matches!(failure.class, FailureClass::Retryable) {
         update_backfill_count(
             transaction,
@@ -2175,13 +2352,52 @@ async fn record_rejected_backfill_outcome(
     Ok(())
 }
 
+async fn record_rejection_with_backfill_authorization(
+    transaction: &mut Transaction<'_, Postgres>,
+    record: &IngestionRecord,
+    authenticated: &AuthenticatedProducer,
+    failure: &ValidationFailure,
+    binding: Option<&ScopeBinding>,
+    backfill_job_id: Option<&str>,
+) -> Result<Option<&'static str>, sqlx::Error> {
+    let source_domain = if let Some(job_id) = backfill_job_id {
+        match validate_backfill_job(transaction, job_id, authenticated).await {
+            Ok(source_domain) => Some(source_domain),
+            Err(backfill_failure) => {
+                record_failure(
+                    transaction,
+                    record,
+                    authenticated,
+                    &backfill_failure,
+                    binding,
+                )
+                .await?;
+                return Ok(Some(backfill_failure.code));
+            }
+        }
+    } else {
+        None
+    };
+    record_rejected_backfill_outcome(
+        transaction,
+        record,
+        authenticated,
+        failure,
+        binding,
+        backfill_job_id,
+        source_domain.as_deref(),
+    )
+    .await?;
+    Ok(None)
+}
+
 async fn validate_backfill_job(
     transaction: &mut Transaction<'_, Postgres>,
     job_id: &str,
     authenticated: &AuthenticatedProducer,
-) -> Result<(), ValidationFailure> {
+) -> Result<String, ValidationFailure> {
     let row = sqlx::query(
-        "SELECT source_service, job_status FROM analytics.analytics_backfill_job WHERE job_id = $1 FOR UPDATE",
+        "SELECT source_service, source_domain, job_status FROM analytics.analytics_backfill_job WHERE job_id = $1 FOR UPDATE",
     )
     .bind(job_id)
     .fetch_optional(&mut **transaction)
@@ -2196,7 +2412,7 @@ async fn validate_backfill_job(
             class: FailureClass::Permanent,
         });
     }
-    Ok(())
+    Ok(row.get("source_domain"))
 }
 
 async fn update_backfill_count(

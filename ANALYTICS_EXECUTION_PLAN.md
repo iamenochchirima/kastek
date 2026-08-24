@@ -1804,12 +1804,16 @@ Connection metrics remain gated on Product Section 9 approval.
   `complete_through` when the final authorized source-reconstruction record is rejected.
 - [x] Preserve exact-duplicate retry behavior after job completion and keep `fact_replay` and
   `projection_rebuild` outside source temporal-completeness evidence.
+- [x] Sanitize malformed stream, identity, sequence, schema, domain, and payload fields before
+  writing quarantine evidence; raw malformed values and payloads are not copied into the failure
+  table.
+- [x] Require the authenticated producer ID and locked source-service backfill job before counting
+  a structural rejection; producer mismatches and unauthorized jobs remain uncounted.
 - [x] Verify registered-source matching, missing/mismatched projection metadata, rejected counts,
   partial coverage, and completion-boundary behavior in unit and PostgreSQL tests.
-- [ ] Extend the same counted-rejection boundary to structurally invalid or pre-authorization
-  records only after a durable source-side identity/quarantine contract can prove that those
-  attempts belong to the job; do not decrement a job from an unauthenticated or unidentifiable
-  payload.
+- [x] Extend the counted-rejection boundary to structurally invalid records only after the
+  authenticated job is locked; malformed values use a deterministic digest identity and never
+  become trusted source identifiers.
 
 ### Core lane: Inbox
 
