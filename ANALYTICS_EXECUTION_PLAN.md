@@ -1739,8 +1739,10 @@ Connection metrics remain gated on Product Section 9 approval.
   checkpoint with the requested `complete_through` boundary.
 - [x] Verify one authorized Connections lifecycle report from reconstructed fact through typed
   projection, required-source validation, temporal coverage, and provider/lifecycle dimensions.
-- [ ] Complete reporting availability evidence for all registered Connections metrics and expose the
-  approved customer-facing Connections analytics surfaces.
+- [x] Verify all six registered Connections metrics report as available after the same temporal
+  backfill boundary, with each metric's required source and one aggregate series present.
+- [ ] Expose the approved customer-facing Connections analytics surfaces after Product Section 9
+  approval and the remaining UI scope is implemented.
 
 #### Execution slice 8 — reconciliation coverage evidence
 

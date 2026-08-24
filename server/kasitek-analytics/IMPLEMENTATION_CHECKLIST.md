@@ -461,8 +461,8 @@ checklist records implementation evidence for the current package only.
 - Core Connections reporting: the native `reporting_postgres` fixture passed a reconstructed
   lifecycle event through ingestion and the typed projection into an authorized report with
   `available` temporal coverage, required-source evidence, and provider/lifecycle dimensions.
-  Coverage for the remaining Connections metrics and approved customer-facing surfaces remains
-  pending.
+-  The same fixture now verifies all six registered Connections metrics as available after the
+  temporal boundary. Approved customer-facing surfaces remain pending.
 - Publisher transport: `pnpm exec tsc --noEmit` and focused Agent analytics tests passed, including
   the authenticated TypeScript batch request contract.
 - Publisher workers: Core, Tenant Platform, and Agent Platform now expose independent local worker
@@ -669,8 +669,9 @@ checklist records implementation evidence for the current package only.
 - [x] Verify one authorized lifecycle report with temporal evidence, required-source validation,
   typed projection state, and provider/lifecycle dimensions in the native `reporting_postgres`
   fixture.
-- [ ] Complete reporting coverage for all registered Connections metrics and approved
-  customer-facing surfaces.
+- [x] Verify all six registered Connections metrics with available temporal evidence, matching
+  required-source metadata, and aggregate report points in the native `reporting_postgres` fixture.
+- [ ] Implement approved customer-facing Connections analytics surfaces.
 
 ## Core Connections — slice 7
 

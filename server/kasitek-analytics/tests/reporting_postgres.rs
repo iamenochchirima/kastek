@@ -153,6 +153,55 @@ fn connections_lifecycle_record(
     }
 }
 
+fn connections_event_record(
+    stream: &str,
+    record_id: &str,
+    sequence: i64,
+    scope_external_id: &str,
+    contract_name: &str,
+    data: serde_json::Value,
+    occurred_at: chrono::DateTime<Utc>,
+) -> IngestionRecord {
+    let schema_name = match contract_name {
+        "connection.lifecycle@1" => "lifecycle",
+        "connection.health_check@1" => "health_check",
+        "connection.capability.lifecycle@1" => "capability_lifecycle",
+        "connection.sync_attempt@1" => "sync_attempt",
+        "connection.rate_limit@1" => "rate_limit",
+        "connection.incident.lifecycle@1" => "incident_lifecycle",
+        _ => panic!("unsupported Connections fixture contract: {contract_name}"),
+    };
+    IngestionRecord {
+        producer_id: "core-customer-analytics".to_string(),
+        source_stream_key: stream.to_string(),
+        source_sequence: sequence,
+        record_category: kasitek_analytics::records::RecordCategory::Event,
+        record_id: record_id.to_string(),
+        contract_name: contract_name.to_string(),
+        schema_version: 1,
+        scope_kind: "core_organization".to_string(),
+        scope_external_id: scope_external_id.to_string(),
+        payload_hash: canonical_payload_sha256(&data).expect("Connections fixture payload hash"),
+        envelope: json!({
+            "specversion": "1.0",
+            "id": format!("00000000-0000-4000-8000-{sequence:012}"),
+            "source": "kasitek://core",
+            "type": contract_name,
+            "subject": "connection:ext-connections-reporting-all",
+            "time": occurred_at,
+            "datacontenttype": "application/json",
+            "dataschema": format!("https://kasitek.co.za/analytics/contracts/events/connections/{schema_name}/v1.schema.json"),
+            "source_service": "core",
+            "source_domain": "connections",
+            "record_category": "event",
+            "scope_kind": "core_organization",
+            "scope_external_id": scope_external_id,
+            "idempotency_key": format!("connections-reporting-all:{record_id}"),
+            "data": data,
+        }),
+    }
+}
+
 async fn insert_fixture(
     transaction: &mut Transaction<'_, Postgres>,
     registry_sha256: &str,
@@ -878,4 +927,299 @@ async fn connections_backfill_projects_and_reports_with_lifecycle_dimensions() {
         .rollback()
         .await
         .expect("rollback Connections report transaction");
+}
+
+#[tokio::test]
+async fn all_connections_metrics_report_after_backfill_projection_completion() {
+    let Some(pool) = pool().await else { return };
+    let registry = load_registry().expect("registry");
+    let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default();
+    let scope_external_id = format!("connections-all-reporting-org-{suffix}");
+    let stream = format!("organization:{scope_external_id}:connections");
+    let backfill_job_id = format!("connections-all-reporting-backfill-{suffix}");
+    let grant_id = format!("connections-all-reporting-grant-{suffix}");
+    let scope_id: i64 = sqlx::query_scalar(
+        r#"INSERT INTO analytics.reporting_scope (
+             scope_kind, owning_source_service, external_source_id, status, reporting_timezone
+           ) VALUES ('core_organization', 'core', $1, 'active', 'UTC')
+           RETURNING scope_id"#,
+    )
+    .bind(&scope_external_id)
+    .fetch_one(&pool)
+    .await
+    .expect("all Connections reporting scope");
+    let range_start = Utc.with_ymd_and_hms(2026, 8, 24, 14, 0, 0).unwrap();
+    let range_end = range_start + Duration::hours(1);
+    let grant_time = Utc::now().with_nanosecond(0).expect("grant timestamp");
+    let grant = ReportingGrant {
+        grant_id: grant_id.clone(),
+        issuer: "kasitek-core".to_string(),
+        audience: "kasitek-analytics-reporting".to_string(),
+        principal_type: PrincipalType::User,
+        principal_id: "connections-all-reporting-user".to_string(),
+        scope_id,
+        root_scope_id: scope_id,
+        descendant_mode: DescendantMode::None,
+        explicit_descendant_scope_ids: Vec::new(),
+        permissions: BTreeSet::from(["analytics:read".to_string()]),
+        metric_keys: Vec::new(),
+        dimension_keys: Vec::new(),
+        policy_version: "v1".to_string(),
+        issued_at: grant_time,
+        not_before: grant_time,
+        expires_at: grant_time + Duration::seconds(60),
+        correlation_id: Some("connections-all-reporting-e2e".to_string()),
+        revoked_at: None,
+    };
+
+    let mut setup = pool.begin().await.expect("all Connections setup");
+    sqlx::query(
+        r#"INSERT INTO analytics.reporting_grant (
+             grant_id, issuer_service_identity_id, audience, principal_type, principal_id,
+             scope_id, root_scope_id, descendant_mode, explicit_descendant_scope_ids,
+             permissions, metric_keys, dimension_keys, policy_version, issued_at, not_before,
+             expires_at, correlation_id
+           ) VALUES ($1,'core','kasitek-analytics-reporting','user',$2,$3,$3,'none',
+                     '[]'::jsonb,$4,'[]'::jsonb,'[]'::jsonb,'v1',$5,$5,$6,$7)"#,
+    )
+    .bind(&grant_id)
+    .bind(&grant.principal_id)
+    .bind(scope_id)
+    .bind(json!(["analytics:read"]))
+    .bind(grant_time)
+    .bind(grant.expires_at)
+    .bind(grant.correlation_id.as_deref())
+    .execute(&mut *setup)
+    .await
+    .expect("all Connections reporting grant");
+    sqlx::query(
+        r#"INSERT INTO analytics.analytics_backfill_job (
+             job_id, source_service, source_domain, reporting_scope_id, root_scope_id,
+             requested_range_start, requested_range_end, contract_version, method,
+             job_status, remaining_count, requesting_actor_type, requesting_actor_id,
+             authorization_grant_id, started_at
+           ) VALUES ($1,'core','connections',$2,$2,$3,$4,'connections.v1',
+                     'source_reconstruction','running',6,'test','connections-all-reporting-e2e',
+                     $5,NOW())"#,
+    )
+    .bind(&backfill_job_id)
+    .bind(scope_id)
+    .bind(range_start)
+    .bind(range_end)
+    .bind(&grant_id)
+    .execute(&mut *setup)
+    .await
+    .expect("all Connections source backfill job");
+    setup.commit().await.expect("all Connections setup commit");
+
+    let event_specs = [
+        (
+            "connection.lifecycle@1",
+            json!({
+                "connection_id": "ext-connections-reporting-all",
+                "provider": "WHATSAPP",
+                "action": "connected",
+                "status": "CONNECTED",
+                "credential_status": "ACTIVE",
+                "health_status": "HEALTHY",
+                "webhook_status": "ACTIVE",
+                "occurred_at": range_start,
+            }),
+        ),
+        (
+            "connection.health_check@1",
+            json!({
+                "connection_id": "ext-connections-reporting-all",
+                "provider": "WHATSAPP",
+                "status": "CONNECTED",
+                "health_status": "HEALTHY",
+                "credential_status": "ACTIVE",
+                "webhook_status": "ACTIVE",
+                "check_result": "healthy",
+                "occurred_at": range_start + Duration::seconds(1),
+            }),
+        ),
+        (
+            "connection.capability.lifecycle@1",
+            json!({
+                "connection_id": "ext-connections-reporting-all",
+                "provider": "WHATSAPP",
+                "capability": "MESSAGING_INBOUND",
+                "action": "enabled",
+                "enabled": true,
+                "occurred_at": range_start + Duration::seconds(2),
+            }),
+        ),
+        (
+            "connection.sync_attempt@1",
+            json!({
+                "attempt_id": "connections-all-attempt",
+                "connection_id": "ext-connections-reporting-all",
+                "provider": "WHATSAPP",
+                "operation": "connection_refresh",
+                "outcome": "succeeded",
+                "failure_class": "none",
+                "duration_ms": 120,
+                "occurred_at": range_start + Duration::seconds(3),
+            }),
+        ),
+        (
+            "connection.rate_limit@1",
+            json!({
+                "connection_id": "ext-connections-reporting-all",
+                "provider": "WHATSAPP",
+                "operation": "connection_refresh",
+                "rate_limit_scope": "provider",
+                "retry_after_seconds": 30,
+                "observed_at": range_start + Duration::seconds(4),
+            }),
+        ),
+        (
+            "connection.incident.lifecycle@1",
+            json!({
+                "connection_id": "ext-connections-reporting-all",
+                "provider": "WHATSAPP",
+                "incident_key": "connection_health",
+                "action": "opened",
+                "severity": "critical",
+                "reason_code": "provider_health_failed",
+                "occurred_at": range_start + Duration::seconds(5),
+            }),
+        ),
+    ];
+    let records = event_specs
+        .iter()
+        .enumerate()
+        .map(|(index, (contract_name, data))| {
+            connections_event_record(
+                &stream,
+                &format!("connections-all-reporting-{index}-{suffix}"),
+                9_200_001 + index as i64,
+                &scope_external_id,
+                contract_name,
+                data.clone(),
+                range_start + Duration::seconds(index as i64),
+            )
+        })
+        .collect::<Vec<_>>();
+    let record_ids = records
+        .iter()
+        .map(|record| record.record_id.clone())
+        .collect::<Vec<_>>();
+    let authenticated = AuthenticatedProducer {
+        source_service: "core".to_string(),
+        producer_id: "core-customer-analytics".to_string(),
+    };
+    let response = ingest_batch(
+        &pool,
+        &authenticated,
+        IngestionBatchRequest {
+            records,
+            backfill_job_id: Some(backfill_job_id),
+        },
+    )
+    .await;
+    assert_eq!(response.accepted_count, 6);
+    assert_eq!(response.rejected_count, 0);
+
+    sqlx::query(
+        r#"UPDATE analytics.analytics_projection_work
+           SET priority = 1
+           WHERE min_source_storage_id = (
+                     SELECT MIN(storage_id) FROM analytics.analytics_event WHERE event_id = ANY($1)
+                 )
+             AND max_source_storage_id = (
+                     SELECT MAX(storage_id) FROM analytics.analytics_event WHERE event_id = ANY($1)
+                 )"#,
+    )
+    .bind(&record_ids)
+    .execute(&pool)
+    .await
+    .expect("prioritize all Connections projection work");
+
+    let mut projected = false;
+    for _ in 0..32 {
+        let _ = projections::process_once(&pool, &registry, "connections-all-reporting-e2e", 60)
+            .await
+            .expect("all Connections projection pass");
+        let contribution_count: i64 = sqlx::query_scalar(
+            r#"SELECT COUNT(*)
+               FROM analytics.analytics_projection_contribution
+               WHERE source_storage_id IN (
+                   SELECT storage_id FROM analytics.analytics_event WHERE event_id = ANY($1)
+               )"#,
+        )
+        .bind(&record_ids)
+        .fetch_one(&pool)
+        .await
+        .expect("all Connections contribution count");
+        if contribution_count >= 6 {
+            projected = true;
+            break;
+        }
+    }
+    assert!(
+        projected,
+        "all Connections events should reach the projection"
+    );
+
+    let mut transaction = pool
+        .begin()
+        .await
+        .expect("all Connections report transaction");
+    let authorized = authorize_transaction(&mut transaction, &grant, scope_id)
+        .await
+        .expect("authorized all Connections reporting scope");
+    let report = execute_report(
+        &mut transaction,
+        &registry,
+        &grant,
+        &authorized,
+        &ReportQueryRequest {
+            reporting_scope_id: scope_id,
+            range_start,
+            range_end,
+            timezone: "UTC".to_string(),
+            interval: Some("hour".to_string()),
+            metrics: vec![
+                "connection.lifecycle_events@1".to_string(),
+                "connection.health_checks@1".to_string(),
+                "connection.capability_events@1".to_string(),
+                "connection.sync_attempts@1".to_string(),
+                "connection.rate_limit_encounters@1".to_string(),
+                "connection.incidents@1".to_string(),
+            ],
+            metric_set: None,
+            breakdowns: Vec::new(),
+            filters: Default::default(),
+            include_descendants: false,
+            comparison: None,
+        },
+    )
+    .await
+    .expect("all Connections report");
+    assert_eq!(report.metrics.len(), 6);
+    let expected_sources = [
+        "connection.lifecycle@1",
+        "connection.health_check@1",
+        "connection.capability.lifecycle@1",
+        "connection.sync_attempt@1",
+        "connection.rate_limit@1",
+        "connection.incident.lifecycle@1",
+    ];
+    for (metric, expected_source) in report.metrics.iter().zip(expected_sources) {
+        assert_eq!(metric.availability.state, "available", "{}", metric.key);
+        assert_eq!(metric.coverage.state, "available", "{}", metric.key);
+        assert_eq!(metric.coverage.evidence_layer.as_deref(), Some("temporal"));
+        assert_eq!(metric.coverage.window_start, Some(range_start));
+        assert_eq!(metric.coverage.window_end, Some(range_end));
+        assert_eq!(metric.coverage.complete_through, Some(range_end));
+        assert_eq!(metric.coverage.required_sources, vec![expected_source]);
+        assert_eq!(metric.series.len(), 1, "{}", metric.key);
+        assert_eq!(metric.series[0].value, Some(1.0), "{}", metric.key);
+    }
+    transaction
+        .rollback()
+        .await
+        .expect("rollback all Connections report transaction");
 }
