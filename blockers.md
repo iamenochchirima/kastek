@@ -31,3 +31,12 @@ analytics slices.
   this environment has no `DATABASE_URL` for an isolated Core PostgreSQL database. The Analytics
   URL alone is insufficient to run the Core publisher portion safely. Execute the fixture when a
   disposable Core database is supplied; this does not block library or registry verification.
+
+## Tenant system E2E runtime database
+
+- The ignored Tenant mutation-to-publisher-to-projection-to-reporting fixture compiles and covers
+  workspace/client scope definitions, client/lead/assignment facts, source manifests, privacy
+  boundaries, projection, and reporting. This environment does not provide a disposable
+  `KASITEK_TENANTS_DATABASE_URL` or `TENANT_DATABASE_URL` for the Tenant publisher portion. Run it
+  when an isolated Tenant PostgreSQL database is supplied; implementation and compile verification
+  are not blocked.

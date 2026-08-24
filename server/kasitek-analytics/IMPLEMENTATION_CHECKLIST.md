@@ -898,7 +898,8 @@ checklist records implementation evidence for the current package only.
 - [x] Add tenant-client assignments with authoritative state, append-only history, bounded roles,
   management routes, and transactional analytics facts.
 - [x] Add Tenant source manifests and source reconstruction for immutable Tenant outbox history.
-- [ ] Add end-to-end Tenant mutation-to-reporting coverage.
+- [x] Add the ignored Tenant mutation-to-publisher-to-projection-to-reporting fixture with privacy
+  and scope assertions; runtime requires disposable Tenant and Analytics databases.
 
 ## Tenant Platform — client lifecycle and timezone slice 2
 
@@ -920,7 +921,8 @@ checklist records implementation evidence for the current package only.
 - [x] Verify bounded helper tests, registry validation, and Tenant/Analytics compilation.
 - [x] Add tenant-client assignments with append-only lifecycle facts and typed projection support.
 - [x] Add Tenant source manifests and source reconstruction for immutable Tenant outbox history.
-- [ ] Add Tenant mutation-to-reporting reporting E2E.
+- [x] Add the ignored Tenant mutation-to-publisher-to-projection-to-reporting fixture; runtime
+  execution is recorded in root `blockers.md`.
 
 ## Tenant Platform — client assignments slice 4
 
@@ -932,7 +934,8 @@ checklist records implementation evidence for the current package only.
 - [x] Register assignment metric/dimensions, projection validation, and generated bindings.
 - [x] Verify registry validation, Tenant tests, and Tenant/Analytics compilation.
 - [x] Add Tenant source manifests and source reconstruction for immutable Tenant outbox history.
-- [ ] Add Tenant mutation-to-reporting E2E.
+- [x] Add the ignored Tenant mutation-to-publisher-to-projection-to-reporting fixture; runtime
+  execution is recorded in root `blockers.md`.
 
 ## Reporting availability — slice 10
 

@@ -2176,8 +2176,9 @@ and reconciliation endpoint. Emit workspace/client hierarchy and status changes.
   bounded roles, soft unassignment, and same-transaction Analytics facts.
 - [x] Add Tenant lead status-history commands and lifecycle facts before claiming qualified or
   converted lead analytics; attribution and historical reconstruction remain later slices.
-- [ ] Add Tenant source manifests, historical reconstruction, and mutation-to-reporting E2E after
-  the authoritative Tenant history boundaries exist.
+- [x] Add the ignored Tenant mutation-to-publisher-to-projection-to-reporting E2E fixture with
+  privacy assertions and workspace/client scope coverage; runtime execution requires disposable
+  Tenant and Analytics databases.
 
 #### Execution slice 2 — client lifecycle and reporting timezone
 
@@ -2205,7 +2206,8 @@ and reconciliation endpoint. Emit workspace/client hierarchy and status changes.
   bounded role changes, management routes, and typed projection support.
 - [x] Add Tenant source manifests and a source-owned historical reconstruction worker that replays
   immutable Tenant outbox events and scope definitions with stable backfill identities.
-- [ ] Add Tenant mutation-to-reporting E2E after the remaining Tenant source boundaries exist.
+- [x] Add the ignored Tenant mutation-to-publisher-to-projection-to-reporting E2E fixture; runtime
+  execution requires a disposable Tenant and Analytics database.
 
 #### Execution slice 4 — client assignments
 
@@ -2220,7 +2222,8 @@ and reconciliation endpoint. Emit workspace/client hierarchy and status changes.
   projection builder.
 - [x] Verify formatting, registry validation, Tenant tests, and Tenant/Analytics compilation.
 - [x] Add Tenant manifests and source reconstruction for immutable Tenant outbox history.
-- [ ] Add the full Tenant mutation-to-publisher-to-projection-to-reporting E2E.
+- [x] Add the full Tenant mutation-to-publisher-to-projection-to-reporting E2E fixture; runtime
+  execution is recorded in root `blockers.md` until a disposable Tenant database is supplied.
 
 ### Tenant Platform lane: client administration
 
