@@ -64,6 +64,57 @@ fn event_record(
     }
 }
 
+fn inbox_message_event_record(
+    stream: &str,
+    record_id: &str,
+    sequence: i64,
+    scope_external_id: &str,
+    message_id: &str,
+    occurred_at: &str,
+) -> IngestionRecord {
+    let data = json!({
+        "message_id": message_id,
+        "conversation_id": "meta-conversation-a09",
+        "channel": "facebook",
+        "action": "created",
+        "direction": "inbound",
+        "responder_type": "customer",
+        "message_type": "text",
+        "delivery_status": null,
+        "response_time_ms": null,
+        "occurred_at": occurred_at,
+    });
+    IngestionRecord {
+        producer_id: "core-customer-analytics".to_string(),
+        source_stream_key: stream.to_string(),
+        source_sequence: sequence,
+        record_category: kasitek_analytics::records::RecordCategory::Event,
+        record_id: record_id.to_string(),
+        contract_name: "conversation.message.lifecycle@1".to_string(),
+        schema_version: 1,
+        scope_kind: "core_organization".to_string(),
+        scope_external_id: scope_external_id.to_string(),
+        payload_hash: canonical_payload_sha256(&data).unwrap(),
+        envelope: json!({
+            "specversion": "1.0",
+            "id": format!("00000000-0000-4000-8000-{:012}", sequence),
+            "source": "kasitek://core",
+            "type": "conversation.message.lifecycle@1",
+            "subject": format!("message:{message_id}"),
+            "time": occurred_at,
+            "datacontenttype": "application/json",
+            "dataschema": "https://kasitek.co.za/analytics/contracts/events/inbox/conversation_message_lifecycle/v1.schema.json",
+            "source_service": "core",
+            "source_domain": "inbox",
+            "record_category": "event",
+            "scope_kind": "core_organization",
+            "scope_external_id": scope_external_id,
+            "idempotency_key": format!("test:{record_id}:{sequence}"),
+            "data": data,
+        }),
+    }
+}
+
 fn observation_record(
     stream: &str,
     record_id: &str,
@@ -875,6 +926,157 @@ async fn source_backfill_completion_persists_temporal_coverage_and_replay_does_n
         .await
         .unwrap(),
         0
+    );
+}
+
+#[tokio::test]
+async fn reconciliation_excludes_meta_history_from_live_transport_counts() {
+    let Some(pool) = pool().await else { return };
+    let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default();
+    let scope_external_id = format!("a09-meta-reconciliation-org-{suffix}");
+    let stream = format!("organization:{scope_external_id}:inbox");
+    let backfill_job_id = format!("a09-meta-reconciliation-backfill-{suffix}");
+    let reconciliation_run_id = format!("a09-meta-reconciliation-run-{suffix}");
+    let occurred_at = "2026-08-22T12:00:00Z";
+    let range_start = "2026-08-22T11:00:00Z"
+        .parse::<chrono::DateTime<Utc>>()
+        .unwrap();
+    let range_end = "2026-08-22T13:00:00Z"
+        .parse::<chrono::DateTime<Utc>>()
+        .unwrap();
+    let scope_id: i64 = sqlx::query_scalar(
+        r#"INSERT INTO analytics.reporting_scope (
+             scope_kind, owning_source_service, external_source_id, status, reporting_timezone
+           ) VALUES ('core_organization','core',$1,'active','UTC')
+           RETURNING scope_id"#,
+    )
+    .bind(&scope_external_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        r#"INSERT INTO analytics.analytics_backfill_job (
+             job_id, source_service, source_domain, reporting_scope_id, root_scope_id,
+             requested_range_start, requested_range_end, contract_version, method,
+             job_status, remaining_count, requesting_actor_type, requesting_actor_id,
+             authorization_grant_id, started_at
+           ) VALUES ($1,'core','inbox',$2,$2,$3,$4,'conversation.message.lifecycle@1',
+                     'source_reconstruction','running',1,'test','analytics-postgres-test',$5,NOW())"#,
+    )
+    .bind(&backfill_job_id)
+    .bind(scope_id)
+    .bind(range_start)
+    .bind(range_end)
+    .bind(format!("grant-{backfill_job_id}"))
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let authenticated = AuthenticatedProducer {
+        source_service: "core".to_string(),
+        producer_id: "core-customer-analytics".to_string(),
+    };
+    let backfilled = inbox_message_event_record(
+        &stream,
+        &format!("meta-history-message-{suffix}"),
+        9_000_001,
+        &scope_external_id,
+        &format!("meta-history-message-{suffix}"),
+        occurred_at,
+    );
+    let backfilled_response = ingest_batch(
+        &pool,
+        &authenticated,
+        IngestionBatchRequest {
+            records: vec![backfilled],
+            backfill_job_id: Some(backfill_job_id.clone()),
+        },
+    )
+    .await;
+    assert!(matches!(
+        backfilled_response.acknowledgements[0].status,
+        AcknowledgementStatus::Accepted
+    ));
+
+    let live = inbox_message_event_record(
+        &stream,
+        &format!("meta-live-message-{suffix}"),
+        1,
+        &scope_external_id,
+        &format!("meta-live-message-{suffix}"),
+        occurred_at,
+    );
+    let live_response = ingest_batch(
+        &pool,
+        &authenticated,
+        IngestionBatchRequest {
+            records: vec![live],
+            backfill_job_id: None,
+        },
+    )
+    .await;
+    assert!(matches!(
+        live_response.acknowledgements[0].status,
+        AcknowledgementStatus::Accepted
+    ));
+
+    let reconciliation = reconcile_stream(
+        &pool,
+        &authenticated,
+        ReconciliationRequest {
+            reconciliation_run_id: reconciliation_run_id.clone(),
+            reconciliation_work_id: None,
+            producer_id: authenticated.producer_id.clone(),
+            source_domain: "inbox".to_string(),
+            source_stream_key: stream,
+            scope_kind: Some("core_organization".to_string()),
+            scope_external_id: Some(scope_external_id),
+            source_highest_outbox_sequence: Some(1),
+            source_highest_delivered_sequence: Some(1),
+            authoritative_count: Some(1),
+            authoritative_checksum: None,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(reconciliation.reconciliation_status, "complete");
+    assert_eq!(reconciliation.analytics_count, 1);
+    assert_eq!(reconciliation.analytics_highest_received_sequence, 1);
+    assert_eq!(reconciliation.analytics_highest_contiguous_sequence, 1);
+    assert_eq!(reconciliation.missing_sequence_ranges, json!([]));
+
+    let coverage = sqlx::query(
+        "SELECT coverage_layer, window_start, window_end, expected_count, included_count, excluded_count, coverage_state, complete_through FROM analytics.analytics_coverage_checkpoint WHERE reconciliation_run_id = $1",
+    )
+    .bind(&reconciliation_run_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        coverage.get::<String, _>("coverage_layer"),
+        "reconciliation"
+    );
+    assert_eq!(
+        coverage.get::<chrono::DateTime<Utc>, _>("window_start"),
+        occurred_at.parse::<chrono::DateTime<Utc>>().unwrap()
+    );
+    assert_eq!(
+        coverage.get::<chrono::DateTime<Utc>, _>("window_end"),
+        "2026-08-22T12:00:00.000001Z"
+            .parse::<chrono::DateTime<Utc>>()
+            .unwrap()
+    );
+    assert_eq!(coverage.get::<Option<i64>, _>("expected_count"), Some(1));
+    assert_eq!(coverage.get::<i64, _>("included_count"), 1);
+    assert_eq!(coverage.get::<i64, _>("excluded_count"), 0);
+    assert_eq!(coverage.get::<String, _>("coverage_state"), "available");
+    assert_eq!(
+        coverage.get::<Option<chrono::DateTime<Utc>>, _>("complete_through"),
+        Some(
+            "2026-08-22T12:00:00.000001Z"
+                .parse::<chrono::DateTime<Utc>>()
+                .unwrap()
+        )
     );
 }
 

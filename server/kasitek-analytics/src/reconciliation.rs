@@ -370,10 +370,10 @@ async fn count_stream_facts(
     sqlx::query_scalar(
         r#"SELECT COUNT(*) FROM (
              SELECT storage_id FROM analytics.analytics_event
-             WHERE producer_id = $1 AND source_stream_key = $2
+             WHERE producer_id = $1 AND source_stream_key = $2 AND backfilled = FALSE
              UNION ALL
              SELECT storage_id FROM analytics.analytics_metric_observation
-             WHERE producer_id = $1 AND source_stream_key = $2
+             WHERE producer_id = $1 AND source_stream_key = $2 AND backfilled = FALSE
              UNION ALL
              SELECT storage_id FROM analytics.analytics_scope_definition_receipt
              WHERE producer_id = $1 AND source_stream_key = $2
@@ -404,11 +404,13 @@ async fn reconciliation_fact_window(
                     occurred_at + INTERVAL '1 microsecond' AS window_end
              FROM analytics.analytics_event
              WHERE producer_id = $1 AND source_domain = $3 AND source_stream_key = $2
+               AND backfilled = FALSE
              UNION ALL
              SELECT reporting_window_start AS window_start,
                     reporting_window_end AS window_end
              FROM analytics.analytics_metric_observation
              WHERE producer_id = $1 AND source_domain = $3 AND source_stream_key = $2
+               AND backfilled = FALSE
            ) facts"#,
     )
     .bind(&request.producer_id)
