@@ -73,7 +73,7 @@ export function AnalyticsPlayground() {
         {
           ...createAnalyticsDateRange({ days: 7, timezone: nextCatalog.timezone }),
           interval: "day",
-          metric_set: "overview.summary",
+          metric_set: "overview.summary@1",
           include_descendants: false,
         },
         { path: analyticsGatewayPaths().query },
