@@ -328,6 +328,10 @@ pub struct CoverageSummary {
     pub state: String,
     pub included_points: usize,
     pub expected_points: Option<usize>,
+    pub evidence_layer: Option<String>,
+    pub window_start: Option<DateTime<Utc>>,
+    pub window_end: Option<DateTime<Utc>>,
+    pub complete_through: Option<DateTime<Utc>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -358,6 +362,26 @@ struct SourceAvailability {
     state: String,
     reason: Option<String>,
     latest_timestamp: Option<DateTime<Utc>>,
+}
+
+#[derive(Clone, Debug)]
+struct CoverageAvailability {
+    state: String,
+    reason: Option<String>,
+    evidence_layer: Option<String>,
+    window_start: Option<DateTime<Utc>>,
+    window_end: Option<DateTime<Utc>>,
+    complete_through: Option<DateTime<Utc>>,
+    observed_at: Option<DateTime<Utc>>,
+}
+
+struct CoverageCheckpointInput {
+    evidence_layer: String,
+    window_start: DateTime<Utc>,
+    window_end: DateTime<Utc>,
+    coverage_state: String,
+    complete_through: Option<DateTime<Utc>>,
+    observed_at: DateTime<Utc>,
 }
 
 #[derive(Clone)]
@@ -1054,6 +1078,14 @@ pub async fn execute_report(
     let generation = load_generation(transaction, scope.requested_scope_id).await?;
     let source_availability =
         load_source_availability(transaction, &scope.authorized_scope_ids, &metrics).await?;
+    let coverage_availability = load_coverage_availability(
+        transaction,
+        &scope.authorized_scope_ids,
+        &metrics,
+        request.range_start,
+        request.range_end,
+    )
+    .await?;
 
     let mut results = Vec::with_capacity(metrics.len());
     let mut comparison_results = Vec::with_capacity(metrics.len());
@@ -1067,17 +1099,17 @@ pub async fn execute_report(
                 reason: Some("no source state has been recorded for this metric".to_string()),
                 latest_timestamp: None,
             });
+        let coverage = coverage_availability
+            .get(&metric.domain)
+            .cloned()
+            .unwrap_or_else(|| unknown_coverage("no temporal coverage evidence has been recorded"));
         global_data_as_of = max_datetime(global_data_as_of, source.latest_timestamp);
         let mut warnings = Vec::new();
         let mut series = Vec::new();
-        let mut coverage_state = if source.state == "available" {
-            "available"
-        } else {
-            "partial"
-        };
+        let mut coverage_state = coverage.state.clone();
         if let Some(generation) = &generation {
             if generation.registry_sha256 != registry.sha256 {
-                coverage_state = "stale";
+                coverage_state = "stale".to_string();
                 warnings.push(
                     "projection generation was built from a different metric registry".to_string(),
                 );
@@ -1105,7 +1137,7 @@ pub async fn execute_report(
             )
             .await?;
         } else {
-            coverage_state = "unknown";
+            coverage_state = "unknown".to_string();
             warnings.push("no promoted projection generation is available".to_string());
         }
         let comparison_series = if let (Some(generation), Some(&(range_start, range_end))) =
@@ -1134,17 +1166,15 @@ pub async fn execute_report(
             global_data_as_of,
             series.iter().map(|point| point.bucket_end).max(),
         );
-        let reported_state = if source.state == "not_instrumented" && !series.is_empty() {
-            "available".to_string()
-        } else {
-            source.state.clone()
-        };
+        let reported_state =
+            report_availability_state(&source.state, &coverage_state, !series.is_empty());
         if reported_state != "available" {
             warnings.push(
-                source
+                coverage
                     .reason
                     .clone()
-                    .unwrap_or_else(|| format!("source availability is {}", source.state)),
+                    .or_else(|| source.reason.clone())
+                    .unwrap_or_else(|| format!("report availability is {reported_state}")),
             );
         }
         results.push(MetricResult {
@@ -1173,6 +1203,10 @@ pub async fn execute_report(
                     &request.range_end,
                     &interval,
                 )),
+                evidence_layer: coverage.evidence_layer,
+                window_start: coverage.window_start,
+                window_end: coverage.window_end,
+                complete_through: coverage.complete_through,
             },
             freshness: FreshnessSummary {
                 state: source.state.clone(),
@@ -1512,6 +1546,269 @@ async fn load_source_availability(
         }
     }
     Ok(output)
+}
+
+async fn load_coverage_availability(
+    transaction: &mut Transaction<'_, Postgres>,
+    scope_ids: &[i64],
+    metrics: &[&MetricDefinition],
+    range_start: DateTime<Utc>,
+    range_end: DateTime<Utc>,
+) -> Result<HashMap<String, CoverageAvailability>, ReportingError> {
+    let mut domains = metrics
+        .iter()
+        .map(|metric| metric.domain.clone())
+        .collect::<Vec<_>>();
+    domains.sort();
+    domains.dedup();
+    if scope_ids.is_empty() || domains.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let checkpoint_rows = sqlx::query(
+        r#"SELECT source_domain, reporting_scope_id, coverage_layer, window_start, window_end,
+                  coverage_state, complete_through, observed_at
+           FROM analytics.analytics_coverage_checkpoint
+           WHERE reporting_scope_id = ANY($1::bigint[])
+             AND source_domain = ANY($2::text[])
+             AND window_end > $3
+             AND window_start < $4
+             AND coverage_layer IN ('temporal', 'reconciliation')
+           ORDER BY source_domain, reporting_scope_id,
+                    CASE coverage_layer WHEN 'temporal' THEN 2 ELSE 1 END DESC,
+                    observed_at DESC"#,
+    )
+    .bind(scope_ids)
+    .bind(&domains)
+    .bind(range_start)
+    .bind(range_end)
+    .fetch_all(&mut **transaction)
+    .await?;
+
+    let mut checkpoints: HashMap<(String, i64), CoverageAvailability> = HashMap::new();
+    for row in checkpoint_rows {
+        let domain: String = row.try_get("source_domain")?;
+        let scope_id: i64 = row.try_get("reporting_scope_id")?;
+        let candidate = coverage_checkpoint_candidate(
+            CoverageCheckpointInput {
+                evidence_layer: row.try_get("coverage_layer")?,
+                window_start: row.try_get("window_start")?,
+                window_end: row.try_get("window_end")?,
+                coverage_state: row.try_get("coverage_state")?,
+                complete_through: row.try_get("complete_through")?,
+                observed_at: row.try_get("observed_at")?,
+            },
+            range_start,
+            range_end,
+        );
+        let key = (domain, scope_id);
+        let replace = checkpoints
+            .get(&key)
+            .map(|current| coverage_candidate_is_better(&candidate, current))
+            .unwrap_or(true);
+        if replace {
+            checkpoints.insert(key, candidate);
+        }
+    }
+
+    let active_backfill_rows = sqlx::query(
+        r#"SELECT source_domain, reporting_scope_id, requested_range_start, requested_range_end
+           FROM analytics.analytics_backfill_job
+           WHERE reporting_scope_id = ANY($1::bigint[])
+             AND source_domain = ANY($2::text[])
+             AND job_status IN ('queued', 'running', 'paused')
+             AND requested_range_end > $3
+             AND requested_range_start < $4"#,
+    )
+    .bind(scope_ids)
+    .bind(&domains)
+    .bind(range_start)
+    .bind(range_end)
+    .fetch_all(&mut **transaction)
+    .await?;
+    let active_backfills: HashMap<(String, i64), CoverageAvailability> = active_backfill_rows
+        .into_iter()
+        .map(|row| {
+            let domain = row.try_get::<String, _>("source_domain")?;
+            let scope_id = row.try_get::<i64, _>("reporting_scope_id")?;
+            Ok::<_, sqlx::Error>((
+                (domain, scope_id),
+                CoverageAvailability {
+                    state: "backfilling".to_string(),
+                    reason: Some("historical backfill is in progress".to_string()),
+                    evidence_layer: Some("backfill".to_string()),
+                    window_start: Some(row.try_get("requested_range_start")?),
+                    window_end: Some(row.try_get("requested_range_end")?),
+                    complete_through: None,
+                    observed_at: None,
+                },
+            ))
+        })
+        .collect::<Result<_, _>>()?;
+
+    let mut output = HashMap::new();
+    for domain in domains {
+        let mut per_scope = Vec::with_capacity(scope_ids.len());
+        for scope_id in scope_ids {
+            if let Some(backfill) = active_backfills.get(&(domain.clone(), *scope_id)) {
+                per_scope.push(backfill.clone());
+            } else if let Some(checkpoint) = checkpoints.get(&(domain.clone(), *scope_id)) {
+                per_scope.push(checkpoint.clone());
+            } else {
+                per_scope.push(unknown_coverage("requested range has no temporal evidence"));
+            }
+        }
+        output.insert(domain, combine_scope_coverage(per_scope));
+    }
+    Ok(output)
+}
+
+fn coverage_checkpoint_candidate(
+    input: CoverageCheckpointInput,
+    range_start: DateTime<Utc>,
+    range_end: DateTime<Utc>,
+) -> CoverageAvailability {
+    let state = if input.coverage_state == "available"
+        && input.window_start <= range_start
+        && input.window_end >= range_end
+        && input
+            .complete_through
+            .is_some_and(|complete_through| complete_through >= range_end)
+    {
+        "available"
+    } else if input.coverage_state == "stale" {
+        "stale"
+    } else if input.coverage_state == "unavailable" {
+        "unavailable"
+    } else {
+        "partial"
+    };
+    let reason = match state {
+        "available" => None,
+        "stale" => Some("temporal coverage evidence is stale".to_string()),
+        "unavailable" => Some("temporal coverage evidence is unavailable".to_string()),
+        _ => Some("temporal coverage does not fully cover the requested range".to_string()),
+    };
+    CoverageAvailability {
+        state: state.to_string(),
+        reason,
+        evidence_layer: Some(input.evidence_layer),
+        window_start: Some(input.window_start),
+        window_end: Some(input.window_end),
+        complete_through: input.complete_through,
+        observed_at: Some(input.observed_at),
+    }
+}
+
+fn coverage_candidate_is_better(
+    candidate: &CoverageAvailability,
+    current: &CoverageAvailability,
+) -> bool {
+    let candidate_layer = coverage_layer_rank(candidate.evidence_layer.as_deref());
+    let current_layer = coverage_layer_rank(current.evidence_layer.as_deref());
+    (candidate_layer, candidate.observed_at) > (current_layer, current.observed_at)
+}
+
+fn combine_scope_coverage(scopes: Vec<CoverageAvailability>) -> CoverageAvailability {
+    let has_available = scopes.iter().any(|coverage| coverage.state == "available");
+    let has_unknown = scopes.iter().any(|coverage| coverage.state == "unknown");
+    let state = if scopes
+        .iter()
+        .any(|coverage| coverage.state == "backfilling")
+    {
+        "backfilling"
+    } else if scopes
+        .iter()
+        .any(|coverage| coverage.state == "unavailable")
+    {
+        "unavailable"
+    } else if scopes.iter().any(|coverage| coverage.state == "stale") {
+        "stale"
+    } else if scopes.iter().any(|coverage| coverage.state == "partial")
+        || (has_available && has_unknown)
+    {
+        "partial"
+    } else if has_available {
+        "available"
+    } else {
+        "unknown"
+    }
+    .to_string();
+    let reason = scopes
+        .iter()
+        .find(|coverage| coverage.state == state)
+        .and_then(|coverage| coverage.reason.clone())
+        .or_else(|| {
+            (state == "partial").then(|| "one or more authorized scopes are incomplete".to_string())
+        });
+    let evidence_layer = scopes
+        .iter()
+        .filter_map(|coverage| coverage.evidence_layer.as_deref())
+        .collect::<HashSet<_>>();
+    let evidence_layer = match evidence_layer.len() {
+        0 => None,
+        1 => evidence_layer.into_iter().next().map(str::to_string),
+        _ => Some("mixed".to_string()),
+    };
+    let window_start = scopes
+        .iter()
+        .filter_map(|coverage| coverage.window_start)
+        .max();
+    let window_end = scopes
+        .iter()
+        .filter_map(|coverage| coverage.window_end)
+        .min();
+    let complete_through = scopes
+        .iter()
+        .filter_map(|coverage| coverage.complete_through)
+        .min();
+    CoverageAvailability {
+        state,
+        reason,
+        evidence_layer,
+        window_start,
+        window_end,
+        complete_through,
+        observed_at: None,
+    }
+}
+
+fn unknown_coverage(reason: &str) -> CoverageAvailability {
+    CoverageAvailability {
+        state: "unknown".to_string(),
+        reason: Some(reason.to_string()),
+        evidence_layer: None,
+        window_start: None,
+        window_end: None,
+        complete_through: None,
+        observed_at: None,
+    }
+}
+
+fn coverage_layer_rank(layer: Option<&str>) -> u8 {
+    match layer {
+        Some("temporal") => 2,
+        Some("reconciliation") => 1,
+        _ => 0,
+    }
+}
+
+fn report_availability_state(source_state: &str, coverage_state: &str, has_series: bool) -> String {
+    if coverage_state == "backfilling" {
+        return "backfilling".to_string();
+    }
+    if source_state == "available" {
+        return match coverage_state {
+            "available" => "available".to_string(),
+            "stale" => "stale".to_string(),
+            "unavailable" => "unavailable".to_string(),
+            _ => "partial".to_string(),
+        };
+    }
+    if source_state == "not_instrumented" && has_series && coverage_state == "available" {
+        return "available".to_string();
+    }
+    source_state.to_string()
 }
 
 struct SeriesQuery<'a> {
@@ -1889,6 +2186,61 @@ mod tests {
             include_descendants: false,
             comparison: None,
         }
+    }
+
+    #[test]
+    fn temporal_coverage_requires_a_complete_boundary_for_available_state() {
+        let range_start = Utc.with_ymd_and_hms(2026, 8, 1, 0, 0, 0).unwrap();
+        let range_end = range_start + Duration::days(1);
+        let available = coverage_checkpoint_candidate(
+            CoverageCheckpointInput {
+                evidence_layer: "temporal".to_string(),
+                window_start: range_start,
+                window_end: range_end,
+                coverage_state: "available".to_string(),
+                complete_through: Some(range_end),
+                observed_at: range_end,
+            },
+            range_start,
+            range_end,
+        );
+        assert_eq!(available.state, "available");
+
+        let incomplete = coverage_checkpoint_candidate(
+            CoverageCheckpointInput {
+                evidence_layer: "temporal".to_string(),
+                window_start: range_start,
+                window_end: range_end,
+                coverage_state: "available".to_string(),
+                complete_through: None,
+                observed_at: range_end,
+            },
+            range_start,
+            range_end,
+        );
+        assert_eq!(incomplete.state, "partial");
+    }
+
+    #[test]
+    fn missing_authorized_scope_coverage_downgrades_the_aggregate() {
+        let unknown = unknown_coverage("unused");
+        let mut complete = unknown.clone();
+        complete.state = "available".to_string();
+        complete.evidence_layer = Some("temporal".to_string());
+        let combined = combine_scope_coverage(vec![complete, unknown]);
+        assert_eq!(combined.state, "partial");
+        assert_eq!(
+            report_availability_state("available", &combined.state, true),
+            "partial"
+        );
+    }
+
+    #[test]
+    fn active_backfill_dominates_completed_coverage() {
+        assert_eq!(
+            report_availability_state("available", "backfilling", true),
+            "backfilling"
+        );
     }
 
     fn config(public_key: Option<&str>) -> AnalyticsConfig {

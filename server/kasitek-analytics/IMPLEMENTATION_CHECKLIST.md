@@ -649,7 +649,19 @@ checklist records implementation evidence for the current package only.
   can be retried idempotently after the job is completed.
 - [x] Verify counts, temporal boundaries, provenance, privacy, duplicate retry, and replay exclusion
   in the PostgreSQL ingestion fixture.
-- [ ] Add richer rejected-record completion/reporting and reporting-availability integration.
+- [ ] Add richer rejected-record completion/reporting.
+
+## Reporting availability — slice 10
+
+- [x] Evaluate temporal and reconciliation checkpoints by registered metric domain and authorized
+  scope; do not use source-manifest windows as historical temporal completeness.
+- [x] Require both requested-range containment and `complete_through` before returning temporal
+  coverage as `available`.
+- [x] Report overlapping queued, running, and paused source-history jobs as `backfilling`.
+- [x] Downgrade multi-scope results when an authorized scope is missing coverage evidence.
+- [x] Return evidence layer, evidence window, and completion boundary in metric coverage metadata.
+- [x] Verify available, partial, backfilling, missing-scope, and incomplete-boundary paths.
+- [ ] Add projection/dimension coverage evaluation and richer rejected-record completion evidence.
 
 ## Explicitly deferred
 

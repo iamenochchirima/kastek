@@ -1754,8 +1754,25 @@ Connection metrics remain gated on Product Section 9 approval.
   now-completed job to authorize a second count or checkpoint.
 - [x] Verify completion counts, temporal window, producer provenance, privacy, duplicate retry, and
   replay exclusion in PostgreSQL.
-- [ ] Add richer source-side rejected-record completion/reporting and expose coverage through the
-  reporting availability API in the next slice.
+- [ ] Add richer source-side rejected-record completion/reporting; reporting availability is
+  implemented in the next execution slice.
+
+#### Execution slice 10 — reporting availability evidence
+
+- [x] Load temporal and reconciliation coverage by registered metric domain and authorized scope;
+  source-manifest coverage remains separate from temporal report completeness.
+- [x] Require a requested range to be inside an `available` checkpoint with a `complete_through`
+  boundary before reporting temporal coverage as `available`.
+- [x] Surface active queued, running, and paused source-history backfills as `backfilling` for
+  overlapping metric domains and ranges.
+- [x] Aggregate authorized scope evidence conservatively: missing child evidence prevents an
+  apparently complete parent result and produces `partial` coverage.
+- [x] Include evidence layer, evidence window, and `complete_through` in each metric's reporting
+  coverage metadata.
+- [x] Verify available, partial, backfilling, missing-scope, and incomplete-boundary behavior in
+  unit and PostgreSQL reporting tests.
+- [ ] Add projection/dimension coverage evaluation and richer rejected-record completion evidence
+  before exports, alerts, and customer surfaces consume the metadata.
 
 ### Core lane: Inbox
 

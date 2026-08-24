@@ -275,6 +275,25 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
             kind: "previous_period".to_string(),
         }),
     };
+    let coverage_start = request.range_start;
+    let coverage_end = request.range_end;
+    for domain in ["agents", "campaigns"] {
+        sqlx::query(
+            r#"INSERT INTO analytics.analytics_coverage_checkpoint (
+                 producer_id, source_service, source_domain, reporting_scope_id, root_scope_id,
+                 coverage_layer, window_start, window_end, included_count, coverage_state,
+                 complete_through, observed_at
+               ) VALUES ('core-customer-analytics','core',$1,$2,$2,'temporal',$3,$4,1,
+                         'available',$4,NOW())"#,
+        )
+        .bind(domain)
+        .bind(scope_id)
+        .bind(coverage_start)
+        .bind(coverage_end)
+        .execute(&mut *transaction)
+        .await
+        .expect("temporal coverage checkpoint");
+    }
     let authorized = authorize_transaction(&mut transaction, &grant, scope_id)
         .await
         .expect("authorized scope");
@@ -285,6 +304,14 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
     assert_eq!(response.metrics.len(), 2);
     assert_eq!(response.metrics[0].series[0].value, Some(3.0));
     assert_eq!(response.metrics[1].series[0].value, Some(2.0));
+    for metric in &response.metrics {
+        assert_eq!(metric.availability.state, "available");
+        assert_eq!(metric.coverage.state, "available");
+        assert_eq!(metric.coverage.evidence_layer.as_deref(), Some("temporal"));
+        assert_eq!(metric.coverage.window_start, Some(coverage_start));
+        assert_eq!(metric.coverage.window_end, Some(coverage_end));
+        assert_eq!(metric.coverage.complete_through, Some(coverage_end));
+    }
     let comparison = response.comparison.expect("comparison response");
     assert_eq!(comparison.kind, "previous_period");
     assert_eq!(comparison.range_end, request.range_start);
@@ -293,5 +320,42 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
         Duration::days(1)
     );
     assert_eq!(comparison.metrics[0].series[0].value, Some(1.0));
+
+    let backfill_job_id = format!(
+        "reporting-backfill-{}",
+        Utc::now().timestamp_nanos_opt().unwrap_or_default()
+    );
+    sqlx::query(
+        r#"INSERT INTO analytics.analytics_backfill_job (
+             job_id, source_service, source_domain, reporting_scope_id, root_scope_id,
+             requested_range_start, requested_range_end, contract_version, method,
+             job_status, remaining_count, requesting_actor_type, requesting_actor_id,
+             authorization_grant_id, started_at
+           ) VALUES ($1,'core','campaigns',$2,$2,$3,$4,'campaign.recipient.sent@1',
+                     'source_reconstruction','running',1,'test','reporting-postgres',
+                     'reporting-backfill-grant',NOW())"#,
+    )
+    .bind(&backfill_job_id)
+    .bind(scope_id)
+    .bind(coverage_start)
+    .bind(coverage_end)
+    .execute(&mut *transaction)
+    .await
+    .expect("active backfill job");
+    let backfilling_response =
+        execute_report(&mut transaction, &registry, &grant, &authorized, &request)
+            .await
+            .expect("backfilling report response");
+    let campaign_metric = backfilling_response
+        .metrics
+        .iter()
+        .find(|metric| metric.key == "campaign.recipients.sent")
+        .expect("campaign metric");
+    assert_eq!(campaign_metric.availability.state, "backfilling");
+    assert_eq!(campaign_metric.coverage.state, "backfilling");
+    assert_eq!(
+        campaign_metric.coverage.evidence_layer.as_deref(),
+        Some("backfill")
+    );
     transaction.rollback().await.expect("rollback test fixture");
 }
