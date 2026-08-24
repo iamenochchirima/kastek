@@ -478,6 +478,35 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         .expect("Campaign source manifest");
         assert_eq!(manifest_count, 1);
 
+        let manifest_id: i64 = sqlx::query_scalar(
+            r#"SELECT manifest_id
+               FROM analytics.analytics_source_manifest
+               WHERE source_service = 'core' AND source_stream_key = $1
+               ORDER BY manifest_id DESC LIMIT 1"#,
+        )
+        .bind(&stream_key)
+        .fetch_one(&analytics_pool)
+        .await
+        .expect("Campaign source manifest id");
+        sqlx::query(
+            r#"INSERT INTO analytics.analytics_coverage_checkpoint (
+                 producer_id, source_service, source_domain, reporting_scope_id, root_scope_id,
+                 coverage_layer, window_start, window_end, expected_count, included_count,
+                 excluded_count, coverage_state, complete_through, projection_version,
+                 source_manifest_id, observed_at
+               ) VALUES ($1, 'core', 'campaigns', $2, $2, 'temporal', $3, $4, 10, 10,
+                         0, 'available', $4, 'campaigns.v1', $5, $6)"#,
+        )
+        .bind(PRODUCER_ID)
+        .bind(reporting_scope_id)
+        .bind(sent_at - Duration::seconds(2))
+        .bind(unsubscribed_at + Duration::seconds(2))
+        .bind(manifest_id)
+        .bind(Utc::now())
+        .execute(&analytics_pool)
+        .await
+        .expect("Campaign temporal coverage checkpoint");
+
         let (min_storage_id, max_storage_id): (i64, i64) = sqlx::query_as(
             r#"SELECT MIN(storage_id), MAX(storage_id)
                FROM analytics.analytics_event
@@ -507,7 +536,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         .expect("Campaign projection work");
         let registry = load_registry().expect("Campaign E2E registry");
         let mut projected = false;
-        for _ in 0..16 {
+        for _ in 0..64 {
             let _ = projections::process_once(
                 &analytics_pool,
                 &registry,
@@ -516,14 +545,26 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
             )
             .await
             .expect("Campaign projection pass");
-            let status: String = sqlx::query_scalar(
-                "SELECT work_status FROM analytics.analytics_projection_work WHERE work_id = $1",
+            let status: (String, String, Option<String>) = sqlx::query_as(
+                r#"SELECT work.work_status, checkpoint.processing_status,
+                          generation.generation_status
+                   FROM analytics.analytics_projection_work AS work
+                   JOIN analytics.analytics_projection_checkpoint AS checkpoint
+                     ON checkpoint.projection_name = work.projection_name
+                    AND checkpoint.projection_version = work.projection_version
+                    AND checkpoint.reporting_scope_id = work.reporting_scope_id
+                   LEFT JOIN analytics.analytics_projection_generation AS generation
+                     ON generation.generation_id = checkpoint.generation_id
+                   WHERE work.work_id = $1"#,
             )
             .bind(projection_work_id)
             .fetch_one(&analytics_pool)
             .await
             .expect("Campaign projection status");
-            if status == "completed" {
+            if status.0 == "completed"
+                && status.1 == "idle"
+                && status.2.as_deref() == Some("promoted")
+            {
                 projected = true;
                 break;
             }
@@ -552,7 +593,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         .expect("Campaign reporting grant");
         let grant = ReportingGrant {
             grant_id,
-            issuer: "core".to_string(),
+            issuer: "kasitek-core".to_string(),
             audience: "kasitek-analytics-reporting".to_string(),
             principal_type: PrincipalType::User,
             principal_id: "campaign-system-e2e-user".to_string(),

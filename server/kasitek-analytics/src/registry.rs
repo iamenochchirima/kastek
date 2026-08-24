@@ -1516,11 +1516,11 @@ mod tests {
     #[test]
     fn repository_registry_is_valid_and_deterministic() {
         let registry = load_registry().expect("repository registry should validate");
-        assert_eq!(registry.contracts.len(), 36);
-        assert_eq!(registry.metrics.len(), 41);
-        assert_eq!(registry.dimensions.len(), 59);
+        assert_eq!(registry.contracts.len(), 39);
+        assert_eq!(registry.metrics.len(), 44);
+        assert_eq!(registry.dimensions.len(), 68);
         assert_eq!(registry.metric_sets.len(), 2);
-        assert_eq!(registry.metric_keys().len(), 41);
+        assert_eq!(registry.metric_keys().len(), 44);
         assert!(!registry.sha256.is_empty());
     }
 

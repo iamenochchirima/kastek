@@ -4,16 +4,33 @@
 -- The transaction is rolled back so the fixture does not become application data.
 BEGIN;
 
+INSERT INTO analytics.reporting_scope (
+    scope_kind, owning_source_service, external_source_id, status, reporting_timezone
+) VALUES ('tenant_workspace', 'tenant-platform', 'a06-workspace', 'active', 'UTC')
+RETURNING scope_id AS root_scope_id \gset a06_
+
+INSERT INTO analytics.reporting_scope (
+    scope_kind, owning_source_service, external_source_id, parent_scope_id,
+    status, reporting_timezone
+) VALUES ('tenant_client', 'tenant-platform', 'a06-client-one', :a06_root_scope_id, 'active', 'UTC')
+RETURNING scope_id AS client_one_scope_id \gset a06_
+
+INSERT INTO analytics.reporting_scope (
+    scope_kind, owning_source_service, external_source_id, parent_scope_id,
+    status, reporting_timezone
+) VALUES ('tenant_client', 'tenant-platform', 'a06-client-two', :a06_root_scope_id, 'active', 'UTC')
+RETURNING scope_id AS client_two_scope_id \gset a06_
+
 INSERT INTO analytics.analytics_event (
     producer_id, source_service, source_domain, source_stream_key, source_sequence,
     event_id, event_type, schema_version, reporting_scope_id, root_scope_id,
     subject_type, subject_id, occurred_at, origin, attributes, payload_hash
 ) VALUES
     ('tenant-platform-customer-analytics', 'tenant-platform', 'campaigns', 'tenant:client-one', 100,
-     'a06-event-client-one', 'campaign.recipient_sent@1', 1, 5, 4,
+     'a06-event-client-one', 'campaign.recipient.sent@1', 1, :a06_client_one_scope_id, :a06_root_scope_id,
      'recipient', 'recipient-one', NOW(), 'a06-test', '{"channel":"whatsapp"}', repeat('a', 64)),
     ('tenant-platform-customer-analytics', 'tenant-platform', 'campaigns', 'tenant:client-two', 100,
-     'a06-event-client-two', 'campaign.recipient_sent@1', 1, 6, 4,
+     'a06-event-client-two', 'campaign.recipient.sent@1', 1, :a06_client_two_scope_id, :a06_root_scope_id,
      'recipient', 'recipient-two', NOW(), 'a06-test', '{"channel":"whatsapp"}', repeat('b', 64));
 
 INSERT INTO analytics.analytics_metric_observation (
@@ -23,7 +40,7 @@ INSERT INTO analytics.analytics_metric_observation (
     observed_at, synchronization_run_id, dimensions, source_evidence, payload_hash
 ) VALUES (
     'tenant-platform-customer-analytics', 'tenant-platform', 'campaigns', 'tenant:client-one', 101,
-    'a06-observation-client-one', 1, 5, 4, 'meta', 'campaign.delivery_rate',
+    'a06-observation-client-one', 1, :a06_client_one_scope_id, :a06_root_scope_id, 'meta', 'campaign.delivery_rate',
     0.75, 'ratio', NOW() - INTERVAL '1 hour', NOW(), NOW(), 'a06-sync-1',
     '{"channel":"whatsapp"}', '{"source":"a06-test"}', repeat('c', 64)
 );
@@ -32,7 +49,7 @@ INSERT INTO analytics.analytics_source_state (
     producer_id, source_service, source_domain, source_stream_key, reporting_scope_id, root_scope_id,
     metric_scope, availability_state, expected_refresh_seconds, latest_source_sequence
 ) VALUES (
-    'tenant-platform-customer-analytics', 'tenant-platform', 'campaigns', 'tenant:client-one', 5, 4,
+    'tenant-platform-customer-analytics', 'tenant-platform', 'campaigns', 'tenant:client-one', :a06_client_one_scope_id, :a06_root_scope_id,
     'campaign.delivery_rate', 'available', 900, 101
 );
 
@@ -50,7 +67,7 @@ INSERT INTO analytics.analytics_ingestion_failure (
     quarantine_status
 ) VALUES (
     'tenant-platform-customer-analytics', 'tenant-platform', 'campaigns', 'tenant:client-one', 102,
-    'event', 'a06-quarantined-event', 5, 4, 1, repeat('d', 64), 'permanent',
+    'event', 'a06-quarantined-event', :a06_client_one_scope_id, :a06_root_scope_id, 1, repeat('d', 64), 'permanent',
     'contract.invalid', 'Contract validation failed', 'quarantined'
 ) RETURNING failure_id \gset
 
@@ -67,8 +84,8 @@ INSERT INTO analytics.analytics_source_manifest (
     manifest_state, payload_hash, generated_at
 ) VALUES (
     'tenant-platform-customer-analytics', 'tenant-platform', 'campaigns', 'tenant:client-one',
-    'tenant:client-one:campaigns', 1, 5, 4,
-    ARRAY['events/campaign/recipient_sent/v1'], ARRAY['observations/meta/campaign.delivery_rate/v1'],
+    'tenant:client-one:campaigns', 1, :a06_client_one_scope_id, :a06_root_scope_id,
+    ARRAY['campaign.recipient.sent@1'], ARRAY['campaign.delivery_rate@1'],
     ARRAY['campaign.delivery_rate'], ARRAY['channel'], 900, NOW() - INTERVAL '30 days', 101,
     NOW(), NOW(), 'active', repeat('e', 64), NOW()
 ) RETURNING manifest_id \gset
@@ -78,7 +95,7 @@ INSERT INTO analytics.analytics_coverage_checkpoint (
     coverage_layer, dimension_key, window_start, window_end, expected_count, included_count,
     excluded_count, coverage_state, complete_through, projection_version, source_manifest_id, observed_at
 ) VALUES (
-    'tenant-platform-customer-analytics', 'tenant-platform', 'campaigns', 5, 4,
+    'tenant-platform-customer-analytics', 'tenant-platform', 'campaigns', :a06_client_one_scope_id, :a06_root_scope_id,
     'source', 'channel', NOW() - INTERVAL '1 hour', NOW(), 1, 1, 0, 'available', NOW(),
     'campaigns.v1', :manifest_id, NOW()
 );
@@ -90,7 +107,7 @@ INSERT INTO analytics.analytics_reconciliation_run (
     missing_sequence_ranges, reconciliation_status, started_at, completed_at
 ) VALUES (
     'a06-reconciliation-1', 'tenant-platform-customer-analytics', 'tenant-platform', 'campaigns',
-    'tenant:client-one', 5, 4, 101, 101, 101, 101, '[]', 'complete', NOW() - INTERVAL '1 minute', NOW()
+    'tenant:client-one', :a06_client_one_scope_id, :a06_root_scope_id, 101, 101, 101, 101, '[]', 'complete', NOW() - INTERVAL '1 minute', NOW()
 );
 
 INSERT INTO analytics.analytics_quality_issue (
@@ -98,7 +115,7 @@ INSERT INTO analytics.analytics_quality_issue (
     reporting_scope_id, root_scope_id, safe_summary
 ) VALUES (
     'a06:client-one:campaigns:contract', 'contract.invalid', 'warning', 'open',
-    'tenant-platform-customer-analytics', 'tenant-platform', 'campaigns', 5, 4,
+    'tenant-platform-customer-analytics', 'tenant-platform', 'campaigns', :a06_client_one_scope_id, :a06_root_scope_id,
     'A safe contract quality issue'
 );
 
@@ -107,7 +124,7 @@ INSERT INTO analytics.analytics_backfill_job (
     requested_range_start, requested_range_end, contract_version, projection_version, method,
     job_status, requesting_actor_type, requesting_actor_id, authorization_grant_id
 ) VALUES (
-    'a06-backfill-1', 'tenant-platform', 'campaigns', 5, 4, NOW() - INTERVAL '1 day', NOW(),
+    'a06-backfill-1', 'tenant-platform', 'campaigns', :a06_client_one_scope_id, :a06_root_scope_id, NOW() - INTERVAL '1 day', NOW(),
     'campaigns.v1', 'campaigns.projection.v1', 'fact_replay', 'queued',
     'service_identity', 'analytics-operator', 'a05-grant'
 );
@@ -116,31 +133,39 @@ INSERT INTO analytics.analytics_projection_generation (
     projection_name, projection_version, reporting_scope_id, root_scope_id, shard_key,
     generation_number, generation_status, metric_registry_sha256, created_by_type, created_by_id
 ) VALUES (
-    'campaigns.delivery', 'v1', 5, 4, 'default', 1, 'building', repeat('f', 64),
+    'campaigns.delivery', 'v1', :a06_client_one_scope_id, :a06_root_scope_id, 'default', 1, 'building', repeat('f', 64),
     'service_identity', 'analytics-worker'
 ) RETURNING generation_id \gset
 
 INSERT INTO analytics.analytics_projection_checkpoint (
     projection_name, projection_version, reporting_scope_id, root_scope_id, shard_key,
     generation_id, processing_status
-) VALUES ('campaigns.delivery', 'v1', 5, 4, 'default', :generation_id, 'idle');
+) VALUES ('campaigns.delivery', 'v1', :a06_client_one_scope_id, :a06_root_scope_id, 'default', :generation_id, 'idle');
 
 INSERT INTO analytics.analytics_audit_record (
     chain_name, previous_record_hash, record_hash, principal_type, principal_id,
     reporting_scope_id, root_scope_id, operation, outcome
-) VALUES ('customer-access', NULL, repeat('1', 64), 'user', 'user-one', 5, 4, 'report.read', 'allowed');
+) VALUES ('customer-access', NULL, repeat('1', 64), 'user', 'user-one', :a06_client_one_scope_id, :a06_root_scope_id, 'report.read', 'allowed');
 
 INSERT INTO analytics.analytics_audit_record (
     chain_name, previous_record_hash, record_hash, principal_type, principal_id,
     reporting_scope_id, root_scope_id, operation, outcome
-) VALUES ('customer-access', repeat('1', 64), repeat('2', 64), 'user', 'user-two', 6, 4, 'report.read', 'allowed');
+) VALUES ('customer-access', repeat('1', 64), repeat('2', 64), 'user', 'user-two', :a06_client_two_scope_id, :a06_root_scope_id, 'report.read', 'allowed');
 
 INSERT INTO analytics.analytics_audit_checkpoint (
     chain_name, through_sequence, last_record_hash, signature_algorithm, checkpoint_status
 ) VALUES ('customer-access', 2, repeat('2', 64), 'pending', 'pending');
 
 DO $$
+DECLARE
+    client_scope_id BIGINT;
+    root_scope_id BIGINT;
 BEGIN
+    SELECT scope.scope_id, scope.root_scope_id
+    INTO client_scope_id, root_scope_id
+    FROM analytics.reporting_scope AS scope
+    WHERE scope.external_source_id = 'a06-client-one';
+
     BEGIN
         UPDATE analytics.analytics_event
         SET attributes = '{"mutated":true}'::jsonb
@@ -156,7 +181,7 @@ BEGIN
         INSERT INTO analytics.analytics_audit_record (
             chain_name, previous_record_hash, record_hash, principal_type, principal_id,
             reporting_scope_id, root_scope_id, operation, outcome
-        ) VALUES ('customer-access', repeat('9', 64), repeat('3', 64), 'user', 'user-three', 5, 4, 'report.read', 'allowed');
+        ) VALUES ('customer-access', repeat('9', 64), repeat('3', 64), 'user', 'user-three', client_scope_id, root_scope_id, 'report.read', 'allowed');
         RAISE EXCEPTION 'audit chain trigger did not reject a broken chain';
     EXCEPTION WHEN OTHERS THEN
         IF position('does not continue' IN lower(SQLERRM)) = 0 THEN
@@ -168,7 +193,7 @@ $$;
 
 ALTER TABLE analytics.analytics_event FORCE ROW LEVEL SECURITY;
 ALTER TABLE analytics.analytics_audit_record FORCE ROW LEVEL SECURITY;
-SELECT analytics.set_authorization_context(ARRAY[5]::BIGINT[], 'a06-grant');
+SELECT analytics.set_authorization_context(ARRAY[:a06_client_one_scope_id]::BIGINT[], 'a06-grant');
 
 DO $$
 DECLARE

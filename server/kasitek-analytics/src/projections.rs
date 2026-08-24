@@ -1688,7 +1688,11 @@ fn typed_event_dimensions(
         DomainBuilder::Inbox => {
             required_text(attributes, "conversation_id")?;
             required_text(attributes, "channel")?;
-            required_text(attributes, "responder_type")?;
+            if metric.key == "conversation.lifecycle_events" {
+                required_text(attributes, "actor_type")?;
+            } else {
+                required_text(attributes, "responder_type")?;
+            }
         }
         DomainBuilder::Connections => {
             required_text(attributes, "connection_id")?;
@@ -1989,7 +1993,7 @@ pub fn hourly_window(timestamp: DateTime<Utc>) -> (DateTime<Utc>, DateTime<Utc>)
 mod tests {
     use serde_json::json;
 
-    use super::{event_dimensions, event_metric_value};
+    use super::{event_dimensions, event_metric_value, typed_event_dimensions, DomainBuilder};
     use crate::registry::load_registry;
 
     #[test]
@@ -2021,6 +2025,31 @@ mod tests {
         assert_eq!(dimensions["responder_type"], "agent");
         assert_eq!(dimensions["message_type"], "text");
         assert_eq!(dimensions["message_delivery_status"], "delivered");
+    }
+
+    #[test]
+    fn inbox_conversation_lifecycle_uses_actor_type_validation() {
+        let registry = load_registry().expect("analytics registry");
+        let metric = registry
+            .metrics
+            .iter()
+            .find(|metric| metric.key == "conversation.lifecycle_events")
+            .expect("Inbox conversation metric");
+
+        typed_event_dimensions(
+            DomainBuilder::Inbox,
+            metric,
+            &json!({
+                "conversation_id": "conversation-1",
+                "channel": "facebook",
+                "action": "opened",
+                "status": "active",
+                "actor_type": "customer"
+            }),
+            "conversation",
+            "conversation-1",
+        )
+        .expect("conversation lifecycle should validate without responder_type");
     }
 
     #[test]

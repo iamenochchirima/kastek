@@ -55,7 +55,7 @@ fn analytics_config(database_url: String) -> AnalyticsConfig {
         rollout_admin_producers: Vec::new(),
         reporting_public_key: None,
         reporting_public_keys_json: None,
-        reporting_issuers: vec!["tenant-platform".to_string()],
+        reporting_issuers: vec!["kasitek-tenant-platform".to_string()],
         reporting_audience: "kasitek-analytics-reporting".to_string(),
         ingestion_credentials: vec![IngestionCredential {
             source_service: SOURCE_SERVICE.to_string(),
@@ -284,7 +284,7 @@ async fn tenant_mutation_outbox_publisher_projection_and_reporting_work_end_to_e
                         "tenant_client_id": client_id,
                         "action": "created",
                         "status": "new",
-                        "source": "website",
+                        "source": "web_chat",
                         "score_band": "medium",
                         "occurred_at": occurred_at,
                     }),
@@ -356,7 +356,7 @@ async fn tenant_mutation_outbox_publisher_projection_and_reporting_work_end_to_e
                 build_manifest(
                     &source_config,
                     ManifestInput {
-                        record_id: format!("manifest:{source_stream_key}:{unique_suffix}"),
+                        record_id: format!("manifest:{source_stream_key}:{manifest_key}:1"),
                         source_domain: source_domain.to_string(),
                         source_stream_key,
                         contract_name: "source.manifest@1".to_string(),
@@ -417,7 +417,7 @@ async fn tenant_mutation_outbox_publisher_projection_and_reporting_work_end_to_e
         let stats = publish_outbox_once(&tenant_pool, &client, &settings, Utc::now())
             .await
             .expect("Tenant publisher should deliver facts");
-        assert_eq!(stats.delivered, 7, "unexpected Tenant delivery stats: {stats:?}");
+        assert_eq!(stats.delivered, 8, "unexpected Tenant delivery stats: {stats:?}");
 
         let event_count: i64 = sqlx::query_scalar(
             r#"SELECT COUNT(*) FROM analytics.analytics_event
@@ -429,6 +429,15 @@ async fn tenant_mutation_outbox_publisher_projection_and_reporting_work_end_to_e
         .await
         .expect("Tenant Analytics event count");
         assert_eq!(event_count, 1);
+        let client_reporting_scope_id: i64 = sqlx::query_scalar(
+            r#"SELECT scope_id
+               FROM analytics.reporting_scope
+               WHERE scope_kind = 'tenant_client' AND external_source_id = $1"#,
+        )
+        .bind(&client_id)
+        .fetch_one(&analytics_pool)
+        .await
+        .expect("Tenant client reporting scope");
         let privacy_attributes: Value = sqlx::query_scalar(
             r#"SELECT attributes FROM analytics.analytics_event
                WHERE source_service = $1 AND event_type = 'tenant.lead.lifecycle@1'"#,
@@ -439,6 +448,24 @@ async fn tenant_mutation_outbox_publisher_projection_and_reporting_work_end_to_e
         .expect("Tenant lead attributes");
         assert!(privacy_attributes.get("email").is_none());
         assert!(privacy_attributes.get("name").is_none());
+
+        sqlx::query(
+            r#"INSERT INTO analytics.analytics_coverage_checkpoint (
+                 producer_id, source_service, source_domain, reporting_scope_id, root_scope_id,
+                 coverage_layer, window_start, window_end, expected_count, included_count,
+                 excluded_count, coverage_state, complete_through, projection_version, observed_at
+               ) VALUES ($1, 'tenant-platform', 'tenants', $2, $3, 'temporal', $4, $5, 1, 1,
+                         0, 'available', $5, 'tenants.v1', $6)"#,
+        )
+        .bind(PRODUCER_ID)
+        .bind(client_reporting_scope_id)
+        .bind(reporting_scope_id)
+        .bind(occurred_at - Duration::seconds(2))
+        .bind(occurred_at + Duration::seconds(2))
+        .bind(Utc::now())
+        .execute(&analytics_pool)
+        .await
+        .expect("Tenant temporal coverage checkpoint");
 
         let (min_storage_id, max_storage_id): (i64, i64) = sqlx::query_as(
             r#"SELECT MIN(storage_id), MAX(storage_id)
@@ -454,11 +481,12 @@ async fn tenant_mutation_outbox_publisher_projection_and_reporting_work_end_to_e
                  projection_name, projection_version, fact_kind, reporting_scope_id, root_scope_id,
                  source_window_start, source_window_end, min_source_storage_id, max_source_storage_id,
                  priority, work_status
-               ) VALUES ($1,$2,'event',$3,$3,$4,$5,$6,$7,1,'pending')
+               ) VALUES ($1,$2,'event',$3,$4,$5,$6,$7,$8,1,'pending')
                RETURNING work_id"#,
         )
         .bind(PROJECTION_NAME)
         .bind(PROJECTION_VERSION)
+        .bind(client_reporting_scope_id)
         .bind(reporting_scope_id)
         .bind(occurred_at - Duration::seconds(1))
         .bind(occurred_at + Duration::seconds(1))
@@ -469,7 +497,7 @@ async fn tenant_mutation_outbox_publisher_projection_and_reporting_work_end_to_e
         .expect("Tenant projection work");
         let registry = load_registry().expect("Tenant E2E registry");
         let mut projected = false;
-        for _ in 0..16 {
+        for _ in 0..64 {
             let _ = projections::process_once(
                 &analytics_pool,
                 &registry,
@@ -478,14 +506,26 @@ async fn tenant_mutation_outbox_publisher_projection_and_reporting_work_end_to_e
             )
             .await
             .expect("Tenant projection pass");
-            let status: String = sqlx::query_scalar(
-                "SELECT work_status FROM analytics.analytics_projection_work WHERE work_id = $1",
+            let status: (String, String, Option<String>) = sqlx::query_as(
+                r#"SELECT work.work_status, checkpoint.processing_status,
+                          generation.generation_status
+                   FROM analytics.analytics_projection_work AS work
+                   JOIN analytics.analytics_projection_checkpoint AS checkpoint
+                     ON checkpoint.projection_name = work.projection_name
+                    AND checkpoint.projection_version = work.projection_version
+                    AND checkpoint.reporting_scope_id = work.reporting_scope_id
+                   LEFT JOIN analytics.analytics_projection_generation AS generation
+                     ON generation.generation_id = checkpoint.generation_id
+                   WHERE work.work_id = $1"#,
             )
             .bind(projection_work_id)
             .fetch_one(&analytics_pool)
             .await
             .expect("Tenant projection status");
-            if status == "completed" {
+            if status.0 == "completed"
+                && status.1 == "idle"
+                && status.2.as_deref() == Some("promoted")
+            {
                 projected = true;
                 break;
             }
@@ -501,9 +541,10 @@ async fn tenant_mutation_outbox_publisher_projection_and_reporting_work_end_to_e
                  permissions, metric_keys, dimension_keys, policy_version, issued_at, not_before,
                  expires_at, correlation_id
                ) VALUES ($1,'tenant-platform','kasitek-analytics-reporting','user','tenant-e2e-user',
-                         $2,$2,'none','[]'::jsonb,$3,'[]'::jsonb,'[]'::jsonb,'v1',$4,$4,$5,$6)"#,
+                         $2,$3,'none','[]'::jsonb,$4,'[]'::jsonb,'[]'::jsonb,'v1',$5,$5,$6,$7)"#,
         )
         .bind(&grant_id)
+        .bind(client_reporting_scope_id)
         .bind(reporting_scope_id)
         .bind(serde_json::json!(["analytics:read"]))
         .bind(grant_time)
@@ -514,11 +555,11 @@ async fn tenant_mutation_outbox_publisher_projection_and_reporting_work_end_to_e
         .expect("Tenant reporting grant");
         let grant = ReportingGrant {
             grant_id,
-            issuer: "tenant-platform".to_string(),
+            issuer: "kasitek-tenant-platform".to_string(),
             audience: "kasitek-analytics-reporting".to_string(),
             principal_type: PrincipalType::User,
             principal_id: "tenant-e2e-user".to_string(),
-            scope_id: reporting_scope_id,
+            scope_id: client_reporting_scope_id,
             root_scope_id: reporting_scope_id,
             descendant_mode: DescendantMode::None,
             explicit_descendant_scope_ids: Vec::new(),
@@ -536,7 +577,7 @@ async fn tenant_mutation_outbox_publisher_projection_and_reporting_work_end_to_e
         let authorized = authorize_transaction(
             &mut report_transaction,
             &grant,
-            reporting_scope_id,
+            client_reporting_scope_id,
         )
         .await
         .expect("Tenant report authorization");
@@ -546,7 +587,7 @@ async fn tenant_mutation_outbox_publisher_projection_and_reporting_work_end_to_e
             &grant,
             &authorized,
             &ReportQueryRequest {
-                reporting_scope_id,
+                reporting_scope_id: client_reporting_scope_id,
                 range_start: occurred_at - Duration::seconds(1),
                 range_end: occurred_at + Duration::seconds(1),
                 timezone: "UTC".to_string(),

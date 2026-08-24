@@ -450,7 +450,7 @@ async fn insert_reconciliation_coverage_checkpoint(
         .map(|expected| expected.min(coverage.analytics_count))
         .unwrap_or(coverage.analytics_count);
     let excluded_count = expected_count
-        .map(|expected| expected.saturating_sub(coverage.analytics_count))
+        .map(|expected| expected.saturating_sub(coverage.analytics_count).max(0))
         .unwrap_or(0);
     let coverage_state = match coverage.reconciliation_status {
         "complete" => "available",

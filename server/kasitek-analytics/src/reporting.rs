@@ -1950,7 +1950,7 @@ async fn query_metric_series(
         "r.metric_version = $5".to_string(),
         "r.target_scope_id = $6".to_string(),
         "r.interval = $7".to_string(),
-        "r.bucket_start >= $8".to_string(),
+        "r.bucket_end > $8".to_string(),
         "r.bucket_start < $9".to_string(),
     ];
     if query_spec.include_descendants {

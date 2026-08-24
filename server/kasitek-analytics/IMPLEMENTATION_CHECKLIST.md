@@ -151,8 +151,8 @@ checklist records implementation evidence for the current package only.
 - [x] Extend Core and Tenant outbox constraints and Analytics producer permissions for manifests.
 - [x] Run shared Rust unit tests and PostgreSQL outbox integration using a temporary table so no
   test rows remain in the Core database.
-- [x] Apply the Core outbox SQL migration locally and validate the Tenant migration transactionally
-  in an isolated schema; the configured Tenant development endpoint was unavailable.
+- [x] Apply the Core outbox SQL migration locally and apply the real Tenant SQLx migrations to an
+  isolated native PostgreSQL database.
 - [x] Attach the shared authenticated batch HTTP transport; authoritative domain mutations remain
   owned by the later vertical-slice packages.
 
@@ -261,9 +261,10 @@ checklist records implementation evidence for the current package only.
   authorization-isolated cache keys.
 - [x] Add a native PostgreSQL comparison fixture covering current and previous promoted rollup
   values; the fixture rolls back after the test.
-- [ ] Add one complete product mutation-to-reporting E2E orchestration; independent Core, Campaign,
-  Inbox, Tenant, and Analytics fixtures are covered, but service-database provisioning is not yet
-  available as one safe local command.
+- [ ] Add one complete product mutation-to-reporting E2E orchestration; native disposable Core,
+  Tenant, and Analytics databases and the independent Core Campaign, Inbox, and Tenant fixtures
+  are covered, but the repository still lacks one safe command that provisions every required Core,
+  Agent, Tenant, and Analytics database and runs the complete cross-service suite.
 
 ## A-12 — audited rollout registry and operational controls (slices 1–3)
 
@@ -369,6 +370,16 @@ checklist records implementation evidence for the current package only.
 
 ## Verification evidence
 
+- Current native PostgreSQL verification (2026-08-24): isolated Core, Tenant, and Analytics
+  databases were created locally and migrated with the real Core SQL, Tenant SQLx, and Analytics
+  migration paths. The ignored Core Connections, Core Inbox, Core Campaigns, and Tenant mutation-
+  to-publisher-to-projection-to-reporting E2E fixtures all passed against those databases.
+- Current Analytics verification (2026-08-24): 62 library tests, 6 ingestion PostgreSQL tests,
+  2 projection PostgreSQL tests, 1 maintenance PostgreSQL test, 5 reporting PostgreSQL tests,
+  and 1 rollout PostgreSQL test passed. The canonical registry check passed with 39 contracts,
+  44 metrics, 68 dimensions, 2 metric sets, and SHA-256
+  `d74695d552cfbd40d71b83b089b0e7b0ed0a2a1dbfd96c71077bd244d9ccf4a8`.
+
 - `cargo fmt --manifest-path server/kasitek-analytics/Cargo.toml -- --check`
 - `cargo test --manifest-path server/kasitek-analytics/Cargo.toml` — 5 tests passed.
 - `cargo clippy --manifest-path server/kasitek-analytics/Cargo.toml --all-targets --all-features -- -D warnings`
@@ -421,9 +432,9 @@ checklist records implementation evidence for the current package only.
 - A-07: PostgreSQL `outbox_postgres` integration passed against the local Core database using a
   temporary `analytics_outbox`; enqueue duplicate/conflict detection, lease claim, retry reclaim,
   and accepted delivery all passed without persistent fixtures.
-- A-07: Core `sql/20260822030000_analytics_outbox.sql` applied successfully; the Tenant migration
-  parsed and created its full table/trigger shape inside a rolled-back isolated schema because the
-  configured Tenant endpoint was unavailable.
+- A-07: Core `sql/20260822030000_analytics_outbox.sql` and the manifest outbox SQL applied
+  successfully; the real Tenant binary startup applied all embedded migrations to the isolated
+  native Tenant database and shut down cleanly.
 - A-07: Core transactional SQL smoke test passed: immutable envelope mutation was rejected, a row
   was leased and acknowledged delivered, and the transaction rolled back its fixture.
 - A-08: `pnpm exec tsc --noEmit` passed in `agents`; focused Vitest producer, migration, and
@@ -437,9 +448,8 @@ checklist records implementation evidence for the current package only.
 - A-09: `cargo fmt --all`, strict Analytics Clippy, Analytics package binary tests, and
   `cargo check --workspace` passed; the package contains credential, cursor, envelope, and
   registry validation coverage.
-- A-09: 30 Analytics library tests passed with the unrelated handoff-contract registry-count test
-  excluded; that existing test currently expects six contracts while the user's uncommitted
-  handoff contract changes make the registry contain seven.
+- A-09: 62 Analytics library tests passed, including the current handoff-contract registry counts;
+  the canonical registry assertions now match 39 contracts, 44 metrics, and 68 dimensions.
 - A-09: `cargo test -p kasitek-analytics --test ingestion_postgres -- --nocapture` passed against
   the local native Analytics PostgreSQL database, covering accepted events and observations,
   immutable scope receipts, identical duplicates, identity-conflict quarantine, cursor/source
@@ -473,7 +483,8 @@ checklist records implementation evidence for the current package only.
   events, preserves their envelopes and business timestamps, excludes manifests, and uses stable
   backfill sequences; focused Core unit tests passed. The native `core_connections_system_e2e`
   backfill case also passed authenticated job claim, backfilled event persistence, job completion,
-  and `available` temporal checkpoint evidence. Reporting availability remains pending.
+  and `available` temporal checkpoint evidence. Reporting availability is verified by the separate
+  native reporting fixture below.
 - Core Connections reporting: the native `reporting_postgres` fixture passed a reconstructed
   lifecycle event through ingestion and the typed projection into an authorized report with
   `available` temporal coverage, required-source evidence, and provider/lifecycle dimensions.
@@ -777,7 +788,7 @@ checklist records implementation evidence for the current package only.
 - [x] Add source manifests, source reconstruction, retry/eligibility facts, and complete
   Campaign performance coverage in later Campaign slices.
 - [x] Add the ignored combined mutation-to-publisher-to-projection-to-reporting Campaign E2E;
-  runtime requires disposable Core and Analytics URLs recorded in root `blockers.md`.
+  the fixture runs against disposable native Core and Analytics databases.
 
 ## Core Campaigns — recipient read slice 2
 
@@ -907,7 +918,7 @@ checklist records implementation evidence for the current package only.
   management routes, and transactional analytics facts.
 - [x] Add Tenant source manifests and source reconstruction for immutable Tenant outbox history.
 - [x] Add the ignored Tenant mutation-to-publisher-to-projection-to-reporting fixture with privacy
-  and scope assertions; runtime requires disposable Tenant and Analytics databases.
+  and scope assertions; the fixture runs against disposable native Tenant and Analytics databases.
 
 ## Tenant Platform — client lifecycle and timezone slice 2
 
@@ -1002,7 +1013,8 @@ checklist records implementation evidence for the current package only.
 - A-13 scheduler dispatch/missed-run facts, campaign, and Tenant M1 slices remain deferred until
   their authoritative source mutations or evaluation workers exist.
 - A-04 historical compatibility fixtures until a second major contract or metric version exists
-- Complete product mutation-to-reporting E2E until the source-domain vertical slices exist
+- One complete product mutation-to-reporting E2E orchestration until all service-database
+  provisioning, Agent coverage, and run ownership are defined in one safe local command
 - A-06 signed audit checkpoint production/verification until the controlled signing boundary exists
 - A-07/A-08 authoritative domain mutation instrumentation until the applicable reference vertical
   slices exist
