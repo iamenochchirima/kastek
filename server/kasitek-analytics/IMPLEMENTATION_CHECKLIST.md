@@ -447,6 +447,11 @@ checklist records implementation evidence for the current package only.
   Core and Analytics PostgreSQL databases; it started a real Analytics API, committed Core Inbox
   producer facts to the Core outbox, published them through the authenticated shared transport,
   and verified delivered Core rows plus non-backfilled Analytics events and privacy boundaries.
+- Core Connections system E2E: the ignored `core_connections_system_e2e` fixture passed against the
+  local native Core and Analytics PostgreSQL databases; it committed all six Core Connections fact
+  contracts plus the source manifest to the Core outbox, published them through the authenticated
+  shared transport, and verified delivered rows, manifest persistence, event contracts, and privacy
+  boundaries. Projection, historical completeness, and reporting remain separate pending slices.
 - Publisher transport: `pnpm exec tsc --noEmit` and focused Agent analytics tests passed, including
   the authenticated TypeScript batch request contract.
 - Publisher workers: Core, Tenant Platform, and Agent Platform now expose independent local worker
@@ -630,6 +635,11 @@ checklist records implementation evidence for the current package only.
   from receiving fabricated temporal coverage.
 - [x] Link reconciliation checkpoints to immutable reconciliation runs and verify duplicate-run
   idempotence, complete/mismatch states, counts, and privacy.
+- [x] Add the ignored `core_connections_system_e2e` fixture: invoke all six transactional Core
+  Connections fact producers and the source manifest, publish through the authenticated shared
+  transport, and verify Core delivery state, Analytics manifest persistence, event contracts, and
+  privacy boundaries. This is transport coverage only; it does not claim projection or historical
+  completeness.
 - [ ] Add temporal event backfill checkpoints, reporting availability, and full product
   mutation-to-reporting E2E in later Connections slices.
 

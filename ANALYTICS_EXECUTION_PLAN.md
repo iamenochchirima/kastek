@@ -1708,6 +1708,11 @@ Connection metrics remain gated on Product Section 9 approval.
   checkpoint.
 - [x] Preserve the source boundary honestly: the checkpoint reports the approved current population
   and refresh window, while `complete_through` and reliable historical coverage remain unset.
+- [x] Add the full Core Connections mutation-boundary transport E2E: the ignored PostgreSQL fixture
+  invokes all six transactional Core Connections fact producers plus the source manifest, publishes
+  through the authenticated shared transport, and verifies Core delivery state, Analytics manifest
+  persistence, event contracts, and privacy boundaries. This is transport coverage only; it does not
+  claim projection or historical completeness.
 - [ ] Add historical event backfill, reporting availability results, and full mutation-to-reporting
   E2E in the next Connections slices.
 
@@ -1965,6 +1970,8 @@ those transitions.
   message type, without retaining content, customer identifiers, or provider IDs.
 - [x] Keep bulk message cleanup represented by the conversation deletion fact rather than creating
   an unbounded per-message analytics fan-out.
+- [x] Audit Core's current Meta Inbox mutation paths for an authoritative conversation or message
+  deletion command; none exists, so no Meta deletion fact is emitted or inferred from webhook absence.
 - [ ] Add Meta deletion facts if Core introduces an authoritative Meta conversation or message
   deletion mutation; do not infer deletion from webhook absence or provider payloads.
 
