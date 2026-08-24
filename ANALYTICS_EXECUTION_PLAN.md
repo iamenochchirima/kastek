@@ -2008,11 +2008,14 @@ sent or delivered status.
 - [x] Emit the delivered fact in the same transaction as the authoritative WhatsApp delivery
   webhook transition; repeated unchanged delivery statuses do not emit another fact.
 - [x] Add Core producer privacy and rollback coverage against the local Analytics outbox migration.
+- [x] Add the authenticated Core outbox-to-publisher-to-Analytics ingestion E2E, including stable
+  identity deduplication and sent/delivered event privacy checks.
+- [x] Verify the registered sent, delivered, and delivery-rate metrics through the signed reporting
+  fixture, including distinct-recipient and numerator/denominator aggregation paths.
 - [ ] Add campaign source manifests, historical reconstruction, and reliable coverage boundaries.
 - [ ] Add transactional campaign failure, retry, suppression/eligibility, cost, and complete
   provider-outcome facts before claiming complete Campaign performance coverage.
-- [ ] Add authenticated Core mutation-to-publisher-to-Analytics projection and reporting E2E for
-  the Campaign delivery metrics.
+- [ ] Add one combined mutation-to-publisher-to-projection-to-reporting E2E for Campaign delivery.
 
 ### Agent Platform lane: customer handoff
 

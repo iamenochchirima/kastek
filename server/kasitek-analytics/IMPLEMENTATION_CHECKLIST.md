@@ -475,6 +475,11 @@ checklist records implementation evidence for the current package only.
   `available` temporal coverage, required-source evidence, and provider/lifecycle dimensions.
 -  The same fixture now verifies all six registered Connections metrics as available after the
   temporal boundary. Approved customer-facing surfaces remain pending.
+- Core Campaign delivery: the ignored `core_campaigns_system_e2e` fixture passed against the local
+  native Core and Analytics PostgreSQL databases; it published deduplicated sent/delivered facts
+  through the authenticated Analytics API and verified persisted privacy-safe event rows.
+- Campaign reporting: the native `reporting_postgres` fixture now verifies delivered distinct
+  counting and delivery-rate numerator/denominator reporting with available temporal coverage.
 - Customer handoff reporting: the native `reporting_postgres` fixture accepted three bounded
   customer-service handoff lifecycle facts, projected them with Agent-definition and handoff-state
   dimensions, and returned an authorized report with available temporal coverage.
@@ -756,9 +761,13 @@ checklist records implementation evidence for the current package only.
 - [x] Emit delivered facts transactionally with WhatsApp delivery webhook state changes and avoid
   duplicates for unchanged status writes.
 - [x] Add Core producer privacy/rollback coverage in `analytics_campaigns`.
+- [x] Add the ignored `core_campaigns_system_e2e` fixture for authenticated Core outbox publishing,
+  stable identity deduplication, Analytics ingestion, and sent/delivered privacy checks.
+- [x] Verify sent, delivered, and delivery-rate reporting, including distinct-recipient and
+  numerator/denominator aggregation, in the signed PostgreSQL reporting fixture.
 - [ ] Add source manifests, source reconstruction, failure/retry/eligibility facts, and complete
   Campaign performance coverage in later Campaign slices.
-- [ ] Add the authenticated Core mutation-to-publisher-to-Analytics reporting E2E.
+- [ ] Add one combined mutation-to-publisher-to-projection-to-reporting E2E.
 
 ## Reporting availability — slice 10
 
