@@ -1,8 +1,8 @@
 use actix_web::web;
 
 use crate::controllers::{
-    admin, admin_invites, agents, auth, client_auth, client_portal, clients, conversations,
-    dashboard, email_settings, health, leads, session, usage, workspace,
+    admin, admin_invites, agents, analytics, auth, client_auth, client_portal, clients,
+    conversations, dashboard, email_settings, health, leads, session, usage, workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -43,6 +43,11 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         )
         .service(
             web::scope("/api/client")
+                .route(
+                    "/analytics/catalog",
+                    web::get().to(analytics::client_catalog),
+                )
+                .route("/analytics/query", web::post().to(analytics::client_query))
                 .route("/leads", web::get().to(leads::list_client_leads))
                 .route(
                     "/leads/{id}/status",
@@ -62,6 +67,11 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     "/conversations/{id}/messages",
                     web::get().to(client_portal::list_messages),
                 ),
+        )
+        .service(
+            web::scope("/api/analytics")
+                .route("/catalog", web::get().to(analytics::workspace_catalog))
+                .route("/query", web::post().to(analytics::workspace_query)),
         )
         .service(
             web::scope("/api/workspace")

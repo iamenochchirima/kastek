@@ -161,6 +161,14 @@ pub struct TenantServerConfig {
     pub resend_api_key: Option<String>,
     pub resend_from_email: String,
     pub shared_email_domain: String,
+    /// Private Analytics reporting gateway settings. The browser never receives these values.
+    pub analytics_reporting_url: String,
+    pub analytics_reporting_private_key: Option<String>,
+    pub analytics_reporting_key_id: Option<String>,
+    pub analytics_reporting_resolver_token: Option<String>,
+    pub analytics_reporting_issuer: String,
+    pub analytics_reporting_audience: String,
+    pub analytics_reporting_timeout_ms: u32,
 }
 
 impl TenantServerConfig {
@@ -268,6 +276,21 @@ impl TenantServerConfig {
             .trim()
             .trim_matches('.')
             .to_ascii_lowercase();
+        let analytics_reporting_url =
+            env_string_or("ANALYTICS_REPORTING_URL", "http://127.0.0.1:4300");
+        let analytics_reporting_private_key = env_optional("ANALYTICS_REPORTING_PRIVATE_KEY");
+        let analytics_reporting_key_id = env_optional("ANALYTICS_REPORTING_KEY_ID");
+        let analytics_reporting_resolver_token = env_optional("ANALYTICS_REPORTING_RESOLVER_TOKEN");
+        let analytics_reporting_issuer =
+            env_string_or("ANALYTICS_REPORTING_ISSUER", "kasitek-tenant-platform");
+        let analytics_reporting_audience = env_string_or(
+            "ANALYTICS_REPORTING_AUDIENCE",
+            "kasitek-analytics-reporting",
+        );
+        let analytics_reporting_timeout_ms = env_optional("ANALYTICS_REPORTING_TIMEOUT_MS")
+            .and_then(|value| value.parse::<u32>().ok())
+            .unwrap_or(5_000)
+            .clamp(250, 120_000);
 
         Ok(Self {
             port,
@@ -292,6 +315,13 @@ impl TenantServerConfig {
             resend_api_key,
             resend_from_email,
             shared_email_domain,
+            analytics_reporting_url,
+            analytics_reporting_private_key,
+            analytics_reporting_key_id,
+            analytics_reporting_resolver_token,
+            analytics_reporting_issuer,
+            analytics_reporting_audience,
+            analytics_reporting_timeout_ms,
         })
     }
 

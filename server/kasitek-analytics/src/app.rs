@@ -2,6 +2,7 @@ use actix_web::web;
 
 use crate::{
     contracts::ProcessKind, health, ingestion, maintenance, reconciliation, reporting, rollout,
+    scope_resolution,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig, process: ProcessKind) {
@@ -28,6 +29,7 @@ pub fn configure(cfg: &mut web::ServiceConfig, process: ProcessKind) {
                 .route(web::get().to(maintenance::backfill_work_handler)),
         );
         reporting::configure(cfg);
+        scope_resolution::configure(cfg);
         rollout::configure(cfg);
     }
 }

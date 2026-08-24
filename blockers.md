@@ -5,11 +5,11 @@ analytics slices.
 
 ## Current worktree compile failure
 
-- `server/kasitek-core/src/services/social_insights.rs:425` currently calls
-  `Value::as_i64()` without passing the value to the method. This is part of unrelated dirty
-  social-insights work, so it is not changed here. Core library checks can pass from an earlier
-  incremental build, but fresh Core test builds and Analytics tests that include Core are blocked
-  until that unrelated line is corrected.
+- The current unrelated dirty credit-ledger work changes
+  `server/kasitek-core/src/services/credits.rs` without updating its callers and row shape. A
+  fresh `cargo test -p kasitek-core --lib` reports mismatched `reserve_credits` and
+  `capture_credits` calls plus missing `ReservationRow.pricing_version` fields. These files are
+  outside the Analytics UI slice and are intentionally unchanged.
 
 ## Provider currency cost
 
@@ -19,13 +19,12 @@ analytics slices.
   for a source-of-truth amount from the provider payload or a Core billing/usage ledger; no value is
   inferred from billable state.
 
-## Product reporting surfaces and internal control UI
+## Remaining product reporting surfaces and internal control UI
 
-- Analytics reporting requires a short-lived signed grant issued by Core or Tenant Platform. The
-  current repository has no customer-facing Core/Tenant reporting gateway or approved rollout
-  control-management surface, so direct browser access would bypass the intended authorization
-  boundary. The reporting API and fixtures remain complete; the UI slices wait on those owning
-  service routes.
+- UI-01 now provides authenticated Core and Tenant catalog/report gateways and an authenticated
+  Analytics scope resolver. The remaining UI slices still need the shared frontend client, local
+  playground, feature dashboards, tenant/client views, per-agent views, overview composition, and
+  browser E2E. Direct browser access to Analytics remains intentionally unsupported.
 
 ## Source heartbeat scheduling
 

@@ -17,6 +17,7 @@ pub struct AnalyticsConfig {
     pub reporting_public_keys_json: Option<String>,
     pub reporting_issuers: Vec<String>,
     pub reporting_audience: String,
+    pub reporting_resolver_credentials: Vec<ReportingResolverCredential>,
     pub ingestion_credentials: Vec<IngestionCredential>,
     pub database_max_connections: u32,
     pub database_acquire_timeout_ms: u64,
@@ -33,10 +34,22 @@ pub struct IngestionCredential {
     pub token_sha256: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReportingResolverCredential {
+    pub source_service: String,
+    pub token_sha256: String,
+}
+
 #[derive(Debug, Deserialize)]
 struct RawIngestionCredential {
     source_service: String,
     producer_id: String,
+    token: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawReportingResolverCredential {
+    source_service: String,
     token: String,
 }
 
@@ -85,6 +98,9 @@ impl AnalyticsConfig {
             get("ANALYTICS_REPORTING_AUDIENCE"),
             "kasitek-analytics-reporting",
         );
+        let reporting_resolver_credentials = parse_reporting_resolver_credentials(optional(get(
+            "ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON",
+        )))?;
         let ingestion_credentials =
             parse_ingestion_credentials(optional(get("ANALYTICS_INGESTION_CREDENTIALS_JSON")))?;
         let database_max_connections = parse_u32(
@@ -119,6 +135,7 @@ impl AnalyticsConfig {
             reporting_public_keys_json,
             reporting_issuers,
             reporting_audience,
+            reporting_resolver_credentials,
             ingestion_credentials,
             database_max_connections,
             database_acquire_timeout_ms,
@@ -172,6 +189,43 @@ fn parse_ingestion_credentials(
         });
     }
     Ok(credentials)
+}
+
+fn parse_reporting_resolver_credentials(
+    value: Option<String>,
+) -> Result<Vec<ReportingResolverCredential>, ConfigError> {
+    let Some(value) = value else {
+        return Ok(Vec::new());
+    };
+    let raw =
+        serde_json::from_str::<Vec<RawReportingResolverCredential>>(&value).map_err(|error| {
+            ConfigError::Invalid {
+                variable: "ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON",
+                value: error.to_string(),
+            }
+        })?;
+    let mut seen = HashSet::new();
+    raw.into_iter()
+        .map(|credential| {
+            let source_service = credential.source_service.trim().to_string();
+            if source_service.is_empty() || credential.token.trim().is_empty() {
+                return Err(ConfigError::Invalid {
+                    variable: "ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON",
+                    value: "source_service and token are required".to_string(),
+                });
+            }
+            if !seen.insert(source_service.clone()) {
+                return Err(ConfigError::Invalid {
+                    variable: "ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON",
+                    value: format!("duplicate source_service {source_service}"),
+                });
+            }
+            Ok(ReportingResolverCredential {
+                source_service,
+                token_sha256: hex_sha256(credential.token.trim().as_bytes()),
+            })
+        })
+        .collect()
 }
 
 pub(crate) fn hex_sha256(value: &[u8]) -> String {
@@ -300,6 +354,7 @@ mod tests {
             ]
         );
         assert_eq!(config.reporting_audience, "kasitek-analytics-reporting");
+        assert!(config.reporting_resolver_credentials.is_empty());
         assert!(config.ingestion_credentials.is_empty());
         assert_eq!(config.database_max_connections, 10);
         assert_eq!(config.database_acquire_timeout_ms, 5_000);
@@ -369,6 +424,26 @@ mod tests {
         );
         assert_eq!(config.reporting_issuers, vec!["core", "tenant-platform"]);
         assert_eq!(config.reporting_audience, "reports");
+    }
+
+    #[test]
+    fn hashes_source_bound_reporting_resolver_credentials() {
+        let config = config(&[
+            ("ANALYTICS_DATABASE_URL", "postgres://localhost/analytics"),
+            (
+                "ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON",
+                r#"[{"source_service":"core","token":"secret"}]"#,
+            ),
+        ]);
+        assert_eq!(config.reporting_resolver_credentials.len(), 1);
+        assert_eq!(
+            config.reporting_resolver_credentials[0].source_service,
+            "core"
+        );
+        assert_eq!(
+            config.reporting_resolver_credentials[0].token_sha256,
+            super::hex_sha256(b"secret")
+        );
     }
 
     #[test]

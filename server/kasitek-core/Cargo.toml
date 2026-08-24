@@ -46,6 +46,7 @@ observability = { path = "../crates/observability" }
 types = { path = "../crates/types" }
 actions = { path = "../crates/actions" }
 analytics-producer = { path = "../crates/analytics-producer" }
+analytics-reporting = { path = "../crates/analytics-reporting" }
 execution = { path = "../crates/execution" }
 semver.workspace = true
 jwt-simple = "0.11"

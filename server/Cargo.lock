@@ -351,6 +351,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "analytics-reporting"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "jwt-simple",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "uuid",
+]
+
+[[package]]
 name = "android_system_properties"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2294,6 +2307,7 @@ dependencies = [
  "actix-multipart",
  "actix-web",
  "analytics-producer",
+ "analytics-reporting",
  "async-stream",
  "async-trait",
  "base64 0.22.1",
@@ -2337,6 +2351,7 @@ dependencies = [
  "actix-cors",
  "actix-web",
  "analytics-producer",
+ "analytics-reporting",
  "bcrypt",
  "chrono",
  "config",

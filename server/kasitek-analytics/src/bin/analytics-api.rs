@@ -9,6 +9,7 @@ use kasitek_analytics::{
     metrics::{MetricsAccess, ProcessMetrics},
     reporting::{ReportingAuthenticator, ReportingCache},
     rollout::{RolloutAuthenticator, RolloutDecisionCache},
+    scope_resolution::ScopeResolverAuthenticator,
 };
 
 fn load_dotenv() {
@@ -37,6 +38,9 @@ async fn main() -> Result<(), AnalyticsError> {
         ReportingAuthenticator::from_config(&config).map_err(AnalyticsError::ReportingConfig)?,
     );
     let reporting_cache = web::Data::new(ReportingCache::from_config(&config));
+    let scope_resolver_access = web::Data::new(ScopeResolverAuthenticator::new(
+        config.reporting_resolver_credentials.clone(),
+    ));
     let rollout_access = web::Data::new(RolloutAuthenticator::from_config(&config));
     let rollout_cache = web::Data::new(RolloutDecisionCache::from_config(&config));
     let bind_address = (config.api_host.clone(), config.api_port);
@@ -55,6 +59,7 @@ async fn main() -> Result<(), AnalyticsError> {
             .app_data(ingestion_access.clone())
             .app_data(reporting_access.clone())
             .app_data(reporting_cache.clone())
+            .app_data(scope_resolver_access.clone())
             .app_data(rollout_access.clone())
             .app_data(rollout_cache.clone())
             .app_data(registry_access.clone())

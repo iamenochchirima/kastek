@@ -205,6 +205,13 @@ mod tests {
             twilio_voice_webhook_url: None,
             twilio_browser_twiml_url: None,
             twilio_inbound_fallback_number: None,
+            analytics_reporting_url: "http://localhost:4300".to_string(),
+            analytics_reporting_private_key: None,
+            analytics_reporting_key_id: None,
+            analytics_reporting_resolver_token: None,
+            analytics_reporting_issuer: "kasitek-core".to_string(),
+            analytics_reporting_audience: "kasitek-analytics-reporting".to_string(),
+            analytics_reporting_timeout_ms: 5_000,
         }
     }
 

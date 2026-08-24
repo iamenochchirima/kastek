@@ -1,6 +1,7 @@
 pub mod admin;
 pub mod admin_invites;
 pub mod agents;
+pub mod analytics;
 pub mod auth;
 pub mod client_auth;
 pub mod client_portal;

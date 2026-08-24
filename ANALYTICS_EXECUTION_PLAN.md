@@ -30,6 +30,104 @@ their dependencies are approved.
 - [x] E8. Projection, rollup, caching, and scale-out strategy — approved
 - [x] E9. Testing, performance targets, monitoring, and operational runbooks — approved
 - [x] E10. Deployment phases, feature flags, acceptance criteria, and implementation backlog — approved
+- [x] UI-01. Authenticated customer reporting gateways — approved; implemented
+- [x] UI-02. Shared analytics client and visualization contract — approved
+- [x] UI-03. Protected local Analytics Playground — approved
+- [x] UI-04. Feature dashboards for Campaigns, Connections, and Inbox — approved
+- [x] UI-05. Tenant workspace and tenant-client analytics — approved
+- [x] UI-06. Per-Agent Analytics with conditional customer handoff reporting — approved
+- [x] UI-07. Main Overview derived from feature reporting contracts — approved
+- [x] UI-08. Legacy migration, visual verification, and browser E2E — approved
+
+## UI execution track — customer reporting and visual validation
+
+**Status:** The UI track is approved. UI-01 is implemented; UI-02 is the next implementation
+slice. Later slices remain ordered behind the shared reporting contract and authorization boundary.
+
+This track makes the collected customer facts visible through authenticated product APIs. The
+browser never calls the Analytics service directly and never receives a reporting grant or an
+analytics database identifier. Core and Tenant resolve the signed-in user's scope and permissions,
+issue a short-lived reporting grant, call the Analytics reporting API, and return a safe product
+response. Feature screens are built from explicit domain reports rather than browser-side scans of
+operational endpoints.
+
+### UI-01 — authenticated customer reporting gateways
+
+Build the first Core and Tenant reporting gateway surface for catalog and report requests. The
+gateway must:
+
+- authenticate the product session using the existing Core or Tenant middleware;
+- resolve the active organization, tenant workspace, or tenant client from server-side session and
+  role context;
+- resolve the Analytics reporting scope through an authenticated internal boundary rather than
+  trusting a browser-supplied numeric scope ID;
+- issue a short-lived, least-privilege signed grant with issuer, audience, principal, scope,
+  descendant policy, metric/dimension permissions, expiry, and correlation ID;
+- call explicit Analytics catalog/report endpoints and return their availability, freshness,
+  coverage, and exact/estimated metadata unchanged;
+- map Analytics unavailability and upstream failures to a stable product response without leaking
+  credentials or internal storage details;
+- enforce tenant workspace/client isolation and reject scope, role, or grant mismatches.
+
+The first contract is intentionally narrow: catalog plus the existing structured report query
+contract. It does not expose a free-form query language, direct Analytics URLs, or direct database
+access to the browser.
+
+**Implemented package:** `analytics-reporting` now owns the shared grant/client contract;
+`kasitek-analytics` owns the source-bound internal scope resolver; Core exposes
+`/api/analytics/catalog` and `/api/analytics/query`; Tenant Platform exposes workspace equivalents
+plus `/api/client/analytics/catalog` and `/api/client/analytics/query`. Product gateways keep
+session, membership, role, and client isolation decisions in their owning service, pass only
+short-lived grants to Analytics, redact Analytics' internal numeric scope ID, and map upstream
+unavailability to product-safe errors. The local stack launcher passes the Analytics environment to
+Core, Tenant, and their analytics publisher processes so the private boundary can be configured from
+one ignored local file.
+
+### UI-02 — shared analytics client and visualization contract
+
+Create the shared frontend Analytics client, response types, loading/error/unavailable states,
+freshness and coverage presentation, date-range/timezone handling, and reusable chart/table
+primitives. Keep feature-specific metric meaning in the server-side registry and keep UI adapters
+thin so new fields and domains can be added without rewriting every dashboard.
+
+### UI-03 — protected local Analytics Playground
+
+Add a development-only, authenticated playground that drives real source mutations, transactional
+outboxes, publishers, ingestion, projection workers, and reporting gateways. It must show pipeline
+status and generated data without allowing direct Analytics inserts or production exposure. Include
+end-to-end checks for unavailable services, replay, freshness, and scope isolation.
+
+### UI-04 — feature dashboards
+
+Replace legacy browser-computed analytics with explicit reporting-backed screens, starting with
+Campaigns, Connections, and Inbox. Show only metrics whose source contracts and availability state
+are defined, with drilldowns returning to the owning feature surface.
+
+### UI-05 — tenant workspace and tenant-client analytics
+
+Add workspace-admin and tenant-client reporting surfaces using the same contracts and visualization
+components. Workspace totals may aggregate authorized child clients; client users receive only their
+client scope. Test role, assignment, and cross-client isolation explicitly.
+
+### UI-06 — per-Agent Analytics
+
+Add per-agent reporting for common agent facts: runs, outcomes, latency, model usage, tool activity,
+errors, schedules, versions, and installation health. Handoff/request-human metrics appear only for
+customer-service agents that were created with handoff functionality; they are not a universal
+agent metric. Include the agent's reporting scope and missing-source state in the response.
+
+### UI-07 — main Overview
+
+Build the overview after feature reports exist. Its cards, trends, attention states, and insights
+must be composed from approved feature reporting contracts, not become a second source of metric
+definitions. Add explicit links to the feature and agent reports that explain each aggregate.
+
+### UI-08 — migration, visual verification, and browser E2E
+
+Migrate legacy analytics routes only after parity is demonstrated, preserve operational screens that
+are not analytics reports, and add browser E2E for Core users, Tenant users, tenant clients, scope
+isolation, unavailable data, responsive layouts, and the protected playground. Keep legacy routes
+until the replacement is verified and then remove or redirect them deliberately.
 
 ## E1 — Execution architecture and data boundaries
 

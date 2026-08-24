@@ -58,6 +58,14 @@ pub struct AppConfig {
     pub twilio_voice_webhook_url: Option<String>,
     pub twilio_browser_twiml_url: Option<String>,
     pub twilio_inbound_fallback_number: Option<String>,
+    /// Private Analytics reporting gateway settings. The browser never receives these values.
+    pub analytics_reporting_url: String,
+    pub analytics_reporting_private_key: Option<String>,
+    pub analytics_reporting_key_id: Option<String>,
+    pub analytics_reporting_resolver_token: Option<String>,
+    pub analytics_reporting_issuer: String,
+    pub analytics_reporting_audience: String,
+    pub analytics_reporting_timeout_ms: u32,
 }
 
 impl AppConfig {
@@ -176,6 +184,20 @@ impl AppConfig {
             twilio_voice_webhook_url: env_optional("TWILIO_VOICE_WEBHOOK_URL"),
             twilio_browser_twiml_url: env_optional("TWILIO_BROWSER_TWIML_URL"),
             twilio_inbound_fallback_number: env_optional("TWILIO_INBOUND_FALLBACK_NUMBER"),
+            analytics_reporting_url: env_string_or(
+                "ANALYTICS_REPORTING_URL",
+                "http://127.0.0.1:4300",
+            ),
+            analytics_reporting_private_key: env_optional("ANALYTICS_REPORTING_PRIVATE_KEY"),
+            analytics_reporting_key_id: env_optional("ANALYTICS_REPORTING_KEY_ID"),
+            analytics_reporting_resolver_token: env_optional("ANALYTICS_REPORTING_RESOLVER_TOKEN"),
+            analytics_reporting_issuer: env_string_or("ANALYTICS_REPORTING_ISSUER", "kasitek-core"),
+            analytics_reporting_audience: env_string_or(
+                "ANALYTICS_REPORTING_AUDIENCE",
+                "kasitek-analytics-reporting",
+            ),
+            analytics_reporting_timeout_ms: env_u32_or("ANALYTICS_REPORTING_TIMEOUT_MS", 5_000)
+                .clamp(250, 120_000),
         })
     }
 

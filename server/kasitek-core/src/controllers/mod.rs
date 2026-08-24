@@ -11,6 +11,7 @@ pub mod admin_web_services;
 pub mod agent_internal;
 pub mod agent_platform;
 pub mod ai;
+pub mod analytics;
 pub mod auth;
 pub mod billing;
 pub mod bookings;

@@ -8,6 +8,7 @@ default-run = "kasitek-tenants"
 actix-cors.workspace = true
 actix-web.workspace = true
 analytics-producer = { path = "../crates/analytics-producer" }
+analytics-reporting = { path = "../crates/analytics-reporting" }
 bcrypt = "0.15"
 chrono.workspace = true
 config = { path = "../crates/config" }

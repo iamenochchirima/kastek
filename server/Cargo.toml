@@ -8,6 +8,7 @@ members = [
     "crates/observability",
     "crates/actions",
     "crates/analytics-producer",
+    "crates/analytics-reporting",
     "crates/execution",
     "crates/types",
 ]

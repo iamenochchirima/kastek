@@ -22,6 +22,7 @@ pub mod registry;
 pub mod reporting;
 pub mod rollout;
 pub mod scope;
+pub mod scope_resolution;
 pub mod worker;
 
 use std::time::Duration;
