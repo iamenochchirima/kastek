@@ -1811,6 +1811,10 @@ fn event_dimensions(
             "failure_class" => attributes.get("failure_class").cloned(),
             "status" => attributes.get("status").cloned(),
             "lifecycle_action" => attributes.get("action").cloned(),
+            "message_action" => attributes.get("action").cloned(),
+            "message_direction" => attributes.get("direction").cloned(),
+            "message_type" => attributes.get("message_type").cloned(),
+            "message_delivery_status" => attributes.get("delivery_status").cloned(),
             "connection_health_status" => attributes.get("health_status").cloned(),
             "connection_credential_status" => attributes.get("credential_status").cloned(),
             "connection_webhook_status" => attributes.get("webhook_status").cloned(),
@@ -1855,6 +1859,45 @@ fn utc_hour(timestamp: DateTime<Utc>) -> DateTime<Utc> {
 pub fn hourly_window(timestamp: DateTime<Utc>) -> (DateTime<Utc>, DateTime<Utc>) {
     let start = utc_hour(timestamp);
     (start, start + ChronoDuration::hours(1))
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::event_dimensions;
+    use crate::registry::load_registry;
+
+    #[test]
+    fn inbox_projection_preserves_message_dimensions() {
+        let registry = load_registry().expect("analytics registry");
+        let metric = registry
+            .metrics
+            .iter()
+            .find(|metric| metric.key == "conversation.message.lifecycle_events")
+            .expect("Inbox message metric");
+        let dimensions = event_dimensions(
+            metric,
+            &json!({
+                "conversation_id": "conversation-1",
+                "channel": "facebook",
+                "action": "delivery_updated",
+                "direction": "outbound",
+                "responder_type": "agent",
+                "message_type": "text",
+                "delivery_status": "delivered"
+            }),
+            "message",
+            "message-1",
+        );
+
+        assert_eq!(dimensions["conversation_channel"], "facebook");
+        assert_eq!(dimensions["message_action"], "delivery_updated");
+        assert_eq!(dimensions["message_direction"], "outbound");
+        assert_eq!(dimensions["responder_type"], "agent");
+        assert_eq!(dimensions["message_type"], "text");
+        assert_eq!(dimensions["message_delivery_status"], "delivered");
+    }
 }
 
 #[allow(dead_code)]
