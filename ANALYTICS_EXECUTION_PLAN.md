@@ -1737,8 +1737,10 @@ Connection metrics remain gated on Product Section 9 approval.
 - [x] Verify native Core worker-to-Analytics source reconstruction through authenticated job claim,
   backfill ingestion, job completion, backfilled event persistence, and an `available` temporal
   checkpoint with the requested `complete_through` boundary.
-- [ ] Connect source/reconciliation coverage to reporting availability before exposing customer-facing
-  Connections analytics.
+- [x] Verify one authorized Connections lifecycle report from reconstructed fact through typed
+  projection, required-source validation, temporal coverage, and provider/lifecycle dimensions.
+- [ ] Complete reporting availability evidence for all registered Connections metrics and expose the
+  approved customer-facing Connections analytics surfaces.
 
 #### Execution slice 8 — reconciliation coverage evidence
 

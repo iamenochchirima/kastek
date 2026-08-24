@@ -458,6 +458,11 @@ checklist records implementation evidence for the current package only.
   backfill sequences; focused Core unit tests passed. The native `core_connections_system_e2e`
   backfill case also passed authenticated job claim, backfilled event persistence, job completion,
   and `available` temporal checkpoint evidence. Reporting availability remains pending.
+- Core Connections reporting: the native `reporting_postgres` fixture passed a reconstructed
+  lifecycle event through ingestion and the typed projection into an authorized report with
+  `available` temporal coverage, required-source evidence, and provider/lifecycle dimensions.
+  Coverage for the remaining Connections metrics and approved customer-facing surfaces remains
+  pending.
 - Publisher transport: `pnpm exec tsc --noEmit` and focused Agent analytics tests passed, including
   the authenticated TypeScript batch request contract.
 - Publisher workers: Core, Tenant Platform, and Agent Platform now expose independent local worker
@@ -661,7 +666,11 @@ checklist records implementation evidence for the current package only.
 - [x] Verify native worker-to-Analytics transport, authenticated job claim, backfilled event
   persistence, job completion, and `available` temporal checkpoint evidence in the ignored
   `core_connections_system_e2e` fixture.
-- [ ] Connect the temporal and reconciliation evidence to customer-facing Connections reporting.
+- [x] Verify one authorized lifecycle report with temporal evidence, required-source validation,
+  typed projection state, and provider/lifecycle dimensions in the native `reporting_postgres`
+  fixture.
+- [ ] Complete reporting coverage for all registered Connections metrics and approved
+  customer-facing surfaces.
 
 ## Core Connections — slice 7
 
