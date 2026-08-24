@@ -868,6 +868,121 @@ async fn source_backfill_completion_persists_temporal_coverage_and_replay_does_n
 }
 
 #[tokio::test]
+async fn rejected_source_backfill_record_persists_partial_temporal_coverage() {
+    let Some(pool) = pool().await else { return };
+    let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default();
+    let job_scope_external_id = format!("a09-rejected-backfill-org-{suffix}");
+    let deleted_scope_external_id = format!("a09-deleted-backfill-org-{suffix}");
+    let stream = format!("core:rejected-backfill:{suffix}");
+    let job_id = format!("a09-rejected-source-reconstruction-{suffix}");
+    let range_start = "2026-08-22T11:00:00Z"
+        .parse::<chrono::DateTime<Utc>>()
+        .unwrap();
+    let range_end = "2026-08-22T13:00:00Z"
+        .parse::<chrono::DateTime<Utc>>()
+        .unwrap();
+    let job_scope_id: i64 = sqlx::query_scalar(
+        r#"INSERT INTO analytics.reporting_scope (
+             scope_kind, owning_source_service, external_source_id, status, reporting_timezone
+           ) VALUES ('core_organization','core',$1,'active','UTC')
+           RETURNING scope_id"#,
+    )
+    .bind(&job_scope_external_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        r#"INSERT INTO analytics.reporting_scope (
+             scope_kind, owning_source_service, external_source_id, status, reporting_timezone
+           ) VALUES ('core_organization','core',$1,'deleted','UTC')"#,
+    )
+    .bind(&deleted_scope_external_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let authenticated = AuthenticatedProducer {
+        source_service: "core".to_string(),
+        producer_id: "core-customer-analytics".to_string(),
+    };
+    sqlx::query(
+        r#"INSERT INTO analytics.analytics_backfill_job (
+             job_id, source_service, source_domain, reporting_scope_id, root_scope_id,
+             requested_range_start, requested_range_end, contract_version, method,
+             job_status, remaining_count, requesting_actor_type, requesting_actor_id,
+             authorization_grant_id, started_at
+           ) VALUES ($1,'core','campaigns',$2,$2,$3,$4,'campaign.recipient.sent@1',
+                     'source_reconstruction','running',1,'test','analytics-postgres-test',$5,NOW())"#,
+    )
+    .bind(&job_id)
+    .bind(job_scope_id)
+    .bind(range_start)
+    .bind(range_end)
+    .bind(format!("grant-{job_id}"))
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let record = event_record(
+        &stream,
+        &format!("backfill-rejected-event-{suffix}"),
+        1,
+        &deleted_scope_external_id,
+        json!({
+            "campaign_id": "campaign-rejected-backfill-a09",
+            "recipient_id": "recipient-rejected-backfill-a09",
+            "channel": "whatsapp",
+            "occurred_at": "2026-08-22T12:00:00Z",
+            "status": "sent"
+        }),
+    );
+    let response = ingest_batch(
+        &pool,
+        &authenticated,
+        IngestionBatchRequest {
+            records: vec![record],
+            backfill_job_id: Some(job_id.clone()),
+        },
+    )
+    .await;
+    assert!(matches!(
+        response.acknowledgements[0].status,
+        AcknowledgementStatus::Rejected
+    ));
+    assert_eq!(
+        response.acknowledgements[0].error_code.as_deref(),
+        Some("scope_unavailable")
+    );
+
+    let job = sqlx::query(
+        "SELECT job_status, scanned_count, accepted_count, rejected_count, remaining_count FROM analytics.analytics_backfill_job WHERE job_id = $1",
+    )
+    .bind(&job_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(job.get::<String, _>("job_status"), "completed");
+    assert_eq!(job.get::<i64, _>("scanned_count"), 1);
+    assert_eq!(job.get::<i64, _>("accepted_count"), 0);
+    assert_eq!(job.get::<i64, _>("rejected_count"), 1);
+    assert_eq!(job.get::<Option<i64>, _>("remaining_count"), Some(0));
+
+    let coverage = sqlx::query(
+        "SELECT expected_count, included_count, excluded_count, coverage_state, complete_through FROM analytics.analytics_coverage_checkpoint WHERE backfill_job_id = $1",
+    )
+    .bind(&job_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(coverage.get::<Option<i64>, _>("expected_count"), Some(1));
+    assert_eq!(coverage.get::<i64, _>("included_count"), 0);
+    assert_eq!(coverage.get::<i64, _>("excluded_count"), 1);
+    assert_eq!(coverage.get::<String, _>("coverage_state"), "partial");
+    assert!(coverage
+        .get::<Option<chrono::DateTime<Utc>>, _>("complete_through")
+        .is_none());
+}
+
+#[tokio::test]
 async fn scope_definition_ingestion_creates_a_receipt_and_is_idempotent() {
     let Some(pool) = pool().await else { return };
     let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default();

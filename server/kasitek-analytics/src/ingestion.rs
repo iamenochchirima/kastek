@@ -512,9 +512,20 @@ async fn ingest_record(
         {
             Ok(()) => {}
             Err(failure) => {
-                let _ =
-                    record_failure(&mut transaction, &record, authenticated, &failure, None).await;
-                let _ = transaction.commit().await;
+                if record_rejected_backfill_outcome(
+                    &mut transaction,
+                    &record,
+                    authenticated,
+                    &failure,
+                    None,
+                    backfill_job_id,
+                )
+                .await
+                .is_err()
+                    || transaction.commit().await.is_err()
+                {
+                    return retryable(record_id, source_sequence, "analytics_unavailable");
+                }
                 if matches!(failure.class, FailureClass::Retryable) {
                     return retryable(record_id, source_sequence, failure.code);
                 }
@@ -564,8 +575,20 @@ async fn ingest_record(
     {
         Ok(resolution) => resolution,
         Err(failure) => {
-            let _ = record_failure(&mut transaction, &record, authenticated, &failure, None).await;
-            let _ = transaction.commit().await;
+            if record_rejected_backfill_outcome(
+                &mut transaction,
+                &record,
+                authenticated,
+                &failure,
+                None,
+                backfill_job_id,
+            )
+            .await
+            .is_err()
+                || transaction.commit().await.is_err()
+            {
+                return retryable(record_id, source_sequence, "analytics_unavailable");
+            }
             if matches!(failure.class, FailureClass::Retryable) {
                 return retryable(record_id, source_sequence, failure.code);
             }
@@ -2128,6 +2151,27 @@ async fn record_failure(
     .bind(failure.code)
     .execute(&mut **transaction)
     .await?;
+    Ok(())
+}
+
+async fn record_rejected_backfill_outcome(
+    transaction: &mut Transaction<'_, Postgres>,
+    record: &IngestionRecord,
+    authenticated: &AuthenticatedProducer,
+    failure: &ValidationFailure,
+    binding: Option<&ScopeBinding>,
+    backfill_job_id: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    record_failure(transaction, record, authenticated, failure, binding).await?;
+    if backfill_job_id.is_some() && !matches!(failure.class, FailureClass::Retryable) {
+        update_backfill_count(
+            transaction,
+            authenticated,
+            backfill_job_id.expect("backfill job was checked"),
+            false,
+        )
+        .await?;
+    }
     Ok(())
 }
 

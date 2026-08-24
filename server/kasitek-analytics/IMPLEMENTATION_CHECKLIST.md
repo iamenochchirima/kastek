@@ -661,7 +661,8 @@ checklist records implementation evidence for the current package only.
 - [x] Downgrade multi-scope results when an authorized scope is missing coverage evidence.
 - [x] Return evidence layer, evidence window, and completion boundary in metric coverage metadata.
 - [x] Verify available, partial, backfilling, missing-scope, and incomplete-boundary paths.
-- [ ] Add richer rejected-record completion evidence.
+- [x] Add richer rejected-record completion evidence in slice 12; pre-authorization records remain
+  outside the counted boundary until durable identity evidence exists.
 
 ## Reporting coverage layers — slice 11
 
@@ -673,7 +674,24 @@ checklist records implementation evidence for the current package only.
   as partial dimension coverage without exposing raw identities.
 - [x] Return projection state, dimension state, and missing-dimension point counts.
 - [x] Verify projection and dimension coverage states in unit and PostgreSQL reporting fixtures.
-- [ ] Reconcile per-metric required-source metadata and rejected-record completion.
+
+## Reporting and backfill evidence — slice 12
+
+- [x] Return each metric's registered `coverage.required_sources` in reporting coverage metadata.
+- [x] Compare persisted projection-row coverage metadata with the registered required-source set;
+  report `available`, `partial`, or `unknown` source evidence without treating metric values as
+  proof of source completeness; contradictory metadata downgrades the overall report to partial.
+- [x] Count permanent downstream source-backfill rejections only after the authenticated job is
+  locked and authorized, in the same transaction as the ingestion failure receipt.
+- [x] Keep retryable failures out of rejected-count completion so transient storage/scope failures
+  remain retryable and do not create false completion evidence.
+- [x] Persist a partial temporal checkpoint with included/excluded counts and no `complete_through`
+  when the final authorized source-reconstruction record is rejected.
+- [x] Preserve exact-duplicate retries after completion and exclude fact replay/projection rebuild
+  from source temporal-completeness evidence.
+- [x] Verify source metadata states and rejected completion evidence in unit and PostgreSQL tests.
+- [ ] Extend counted rejection to structurally invalid or pre-authorization records only after a
+  durable source-side identity/quarantine contract can associate them with a specific job.
 
 ## Explicitly deferred
 

@@ -1754,8 +1754,8 @@ Connection metrics remain gated on Product Section 9 approval.
   now-completed job to authorize a second count or checkpoint.
 - [x] Verify completion counts, temporal window, producer provenance, privacy, duplicate retry, and
   replay exclusion in PostgreSQL.
-- [ ] Add richer source-side rejected-record completion/reporting; reporting availability is
-  implemented in the next execution slice.
+- [x] Add the safe source-side rejected-record completion boundary in execution slice 12; records
+  rejected before job authorization remain outside the count until identity evidence is durable.
 
 #### Execution slice 10 — reporting availability evidence
 
@@ -1771,8 +1771,8 @@ Connection metrics remain gated on Product Section 9 approval.
   coverage metadata.
 - [x] Verify available, partial, backfilling, missing-scope, and incomplete-boundary behavior in
   unit and PostgreSQL reporting tests.
-- [ ] Add richer rejected-record completion evidence before exports, alerts, and customer surfaces
-  consume all coverage metadata.
+- [x] Add richer rejected-record completion evidence in execution slice 12 before exports, alerts,
+  and customer surfaces consume all coverage metadata.
 
 #### Execution slice 11 — projection and dimension coverage
 
@@ -1787,8 +1787,29 @@ Connection metrics remain gated on Product Section 9 approval.
   metadata alongside the temporal evidence window.
 - [x] Verify idle, rebuilding, missing-generation, no-breakdown, and missing-dimension behavior in
   unit and PostgreSQL reporting tests.
-- [ ] Reconcile per-metric required-source projection metadata and rejected-record completion before
-  exports, alerts, and customer surfaces consume all coverage layers.
+
+#### Execution slice 12 — required-source evidence and rejected backfill completion
+
+- [x] Read each metric's registered `coverage.required_sources` and expose it in the metric
+  coverage response; do not infer source completeness from a metric's display value.
+- [x] Validate projection-row coverage metadata against the registered required-source set and
+  return `available`, `partial`, or `unknown` evidence when metadata is consistent, incomplete,
+  or absent. Keep this source-evidence state separate from projection checkpoint state and
+  downgrade an otherwise available report to `partial` when the metadata is contradictory.
+- [x] Count a permanent source-backfill rejection only after the authenticated backfill job has
+  been locked and authorized, writing the failure receipt and rejected count in one transaction.
+- [x] Do not consume a backfill record for retryable storage/scope failures; retain the retryable
+  acknowledgement and avoid overstating completion.
+- [x] Produce a partial temporal checkpoint with `included_count`, `excluded_count`, and no
+  `complete_through` when the final authorized source-reconstruction record is rejected.
+- [x] Preserve exact-duplicate retry behavior after job completion and keep `fact_replay` and
+  `projection_rebuild` outside source temporal-completeness evidence.
+- [x] Verify registered-source matching, missing/mismatched projection metadata, rejected counts,
+  partial coverage, and completion-boundary behavior in unit and PostgreSQL tests.
+- [ ] Extend the same counted-rejection boundary to structurally invalid or pre-authorization
+  records only after a durable source-side identity/quarantine contract can prove that those
+  attempts belong to the job; do not decrement a job from an unauthenticated or unidentifiable
+  payload.
 
 ### Core lane: Inbox
 

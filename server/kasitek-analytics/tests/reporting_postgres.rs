@@ -120,7 +120,11 @@ async fn insert_fixture(
     .bind(scope_id)
     .bind(bucket_start)
     .bind(bucket_end)
-    .bind(json!({"source_fact_count": 3}))
+    .bind(json!({
+        "source_fact_count": 3,
+        "coverage_state": "observed",
+        "required_sources": ["agent.run.completed@1"]
+    }))
     .execute(&mut **transaction)
     .await
     .expect("count rollup");
@@ -139,7 +143,11 @@ async fn insert_fixture(
     .bind(scope_id)
     .bind(bucket_start - Duration::days(1))
     .bind(bucket_start)
-    .bind(json!({"source_fact_count": 1}))
+    .bind(json!({
+        "source_fact_count": 1,
+        "coverage_state": "observed",
+        "required_sources": ["agent.run.completed@1"]
+    }))
     .execute(&mut **transaction)
     .await
     .expect("previous count rollup");
@@ -167,7 +175,11 @@ async fn insert_fixture(
         .bind(bucket_start + Duration::hours(12))
         .bind(bucket_start + Duration::hours(13))
         .bind(deduplication_key)
-        .bind(json!({"source_fact_count": 1}))
+        .bind(json!({
+            "source_fact_count": 1,
+            "coverage_state": "observed",
+            "required_sources": ["campaign.recipient.sent@1"]
+        }))
         .execute(&mut **transaction)
         .await
         .expect("distinct contribution");
@@ -308,6 +320,7 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
         assert_eq!(metric.availability.state, "available");
         assert_eq!(metric.coverage.state, "available");
         assert_eq!(metric.coverage.projection_state, "available");
+        assert_eq!(metric.coverage.projection_source_state, "available");
         assert_eq!(metric.coverage.dimension_state, "not_requested");
         assert_eq!(metric.coverage.missing_dimension_points, 0);
         assert_eq!(metric.coverage.evidence_layer.as_deref(), Some("temporal"));
@@ -315,6 +328,14 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
         assert_eq!(metric.coverage.window_end, Some(coverage_end));
         assert_eq!(metric.coverage.complete_through, Some(coverage_end));
     }
+    assert_eq!(
+        response.metrics[0].coverage.required_sources,
+        vec!["agent.run.completed@1".to_string()]
+    );
+    assert_eq!(
+        response.metrics[1].coverage.required_sources,
+        vec!["campaign.recipient.sent@1".to_string()]
+    );
     let dimension_response = execute_report(
         &mut transaction,
         &registry,
@@ -335,6 +356,10 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
         .expect("dimension metric");
     assert_eq!(dimension_metric.coverage.dimension_state, "partial");
     assert_eq!(dimension_metric.coverage.missing_dimension_points, 1);
+    assert_eq!(
+        dimension_metric.coverage.projection_source_state,
+        "available"
+    );
     let comparison = response.comparison.expect("comparison response");
     assert_eq!(comparison.kind, "previous_period");
     assert_eq!(comparison.range_end, request.range_start);

@@ -333,6 +333,8 @@ pub struct CoverageSummary {
     pub window_end: Option<DateTime<Utc>>,
     pub complete_through: Option<DateTime<Utc>>,
     pub projection_state: String,
+    pub projection_source_state: String,
+    pub required_sources: Vec<String>,
     pub dimension_state: String,
     pub missing_dimension_points: usize,
 }
@@ -1109,6 +1111,7 @@ pub async fn execute_report(
         global_data_as_of = max_datetime(global_data_as_of, source.latest_timestamp);
         let mut warnings = Vec::new();
         let mut series = Vec::new();
+        let mut projection_source_state = "unknown".to_string();
         let mut coverage_state = coverage.state.clone();
         if let Some(generation) = &generation {
             if generation.registry_sha256 != registry.sha256 {
@@ -1123,7 +1126,7 @@ pub async fn execute_report(
                     generation.processing_status
                 ));
             }
-            series = query_metric_series(
+            let queried_series = query_metric_series(
                 transaction,
                 SeriesQuery {
                     generation_id: generation.generation_id,
@@ -1139,6 +1142,8 @@ pub async fn execute_report(
                 },
             )
             .await?;
+            projection_source_state = queried_series.projection_source_state;
+            series = queried_series.points;
         } else {
             coverage_state = "unknown".to_string();
             warnings.push("no promoted projection generation is available".to_string());
@@ -1162,6 +1167,7 @@ pub async fn execute_report(
                 },
             )
             .await?
+            .points
         } else {
             Vec::new()
         };
@@ -1172,12 +1178,16 @@ pub async fn execute_report(
         let projection_state = projection_coverage_state(generation.as_ref());
         let (dimension_state, missing_dimension_points) =
             dimension_coverage_state(&series, &breakdowns);
-        let reported_state = report_availability_state(
+        let mut reported_state = report_availability_state(
             &source.state,
             &coverage_state,
             &projection_state,
             !series.is_empty(),
         );
+        if reported_state == "available" && projection_source_state == "partial" {
+            reported_state = "partial".to_string();
+            warnings.push("projection source coverage metadata is partial".to_string());
+        }
         if reported_state != "available" {
             warnings.push(
                 coverage
@@ -1218,6 +1228,8 @@ pub async fn execute_report(
                 window_end: coverage.window_end,
                 complete_through: coverage.complete_through,
                 projection_state,
+                projection_source_state,
+                required_sources: metric.coverage.required_sources.clone(),
                 dimension_state,
                 missing_dimension_points,
             },
@@ -1849,6 +1861,33 @@ fn projection_coverage_state(generation: Option<&GenerationInfo>) -> String {
     }
 }
 
+fn projection_source_coverage_state(
+    coverage_values: &[Value],
+    required_sources: &[String],
+) -> String {
+    if coverage_values.is_empty() {
+        return "unknown".to_string();
+    }
+    let required_sources = required_sources.iter().cloned().collect::<BTreeSet<_>>();
+    if coverage_values.iter().all(|coverage| {
+        coverage.get("coverage_state").and_then(Value::as_str) == Some("observed")
+            && coverage
+                .get("required_sources")
+                .and_then(Value::as_array)
+                .and_then(|sources| {
+                    sources
+                        .iter()
+                        .map(|source| Value::as_str(source).map(str::to_string))
+                        .collect::<Option<BTreeSet<_>>>()
+                })
+                .is_some_and(|sources| sources == required_sources)
+    }) {
+        "available".to_string()
+    } else {
+        "partial".to_string()
+    }
+}
+
 fn dimension_coverage_state(
     series: &[ReportPoint],
     requested_dimensions: &[String],
@@ -1890,10 +1929,15 @@ struct SeriesQuery<'a> {
     filters: &'a BTreeMap<String, Vec<String>>,
 }
 
+struct SeriesResult {
+    points: Vec<ReportPoint>,
+    projection_source_state: String,
+}
+
 async fn query_metric_series(
     transaction: &mut Transaction<'_, Postgres>,
     query_spec: SeriesQuery<'_>,
-) -> Result<Vec<ReportPoint>, ReportingError> {
+) -> Result<SeriesResult, ReportingError> {
     if query_spec.metric.default_aggregation == "distinct_count" {
         return query_distinct_metric_series(transaction, &query_spec).await;
     }
@@ -1935,7 +1979,7 @@ async fn query_metric_series(
         _ => "SUM(r.value_sum)::double precision".to_string(),
     };
     let sql = format!(
-        "SELECT r.bucket_start, r.bucket_end, {projection} AS dimensions, {value_expression} AS value, SUM(r.numerator)::double precision AS numerator, SUM(r.denominator)::double precision AS denominator FROM analytics.analytics_projection_rollup AS r WHERE {} GROUP BY {group_by} ORDER BY r.bucket_start, dimensions LIMIT {}",
+        "SELECT r.bucket_start, r.bucket_end, {projection} AS dimensions, {value_expression} AS value, SUM(r.numerator)::double precision AS numerator, SUM(r.denominator)::double precision AS denominator, jsonb_agg(r.coverage) AS coverage FROM analytics.analytics_projection_rollup AS r WHERE {} GROUP BY {group_by} ORDER BY r.bucket_start, dimensions LIMIT {}",
         where_clauses.join(" AND "),
         MAX_POINTS + 1
     );
@@ -1961,8 +2005,16 @@ async fn query_metric_series(
             "query would return more than {MAX_POINTS} points"
         )));
     }
-    rows.into_iter()
+    let mut coverage_values = Vec::with_capacity(rows.len());
+    let points = rows
+        .into_iter()
         .map(|row| {
+            let coverage: Value = row.try_get("coverage")?;
+            if let Some(values) = coverage.as_array() {
+                coverage_values.extend(values.iter().cloned());
+            } else {
+                coverage_values.push(coverage);
+            }
             Ok(ReportPoint {
                 bucket_start: row.try_get("bucket_start")?,
                 bucket_end: row.try_get("bucket_end")?,
@@ -1972,13 +2024,20 @@ async fn query_metric_series(
                 denominator: row.try_get("denominator")?,
             })
         })
-        .collect()
+        .collect::<Result<Vec<_>, sqlx::Error>>()?;
+    Ok(SeriesResult {
+        points,
+        projection_source_state: projection_source_coverage_state(
+            &coverage_values,
+            &query_spec.metric.coverage.required_sources,
+        ),
+    })
 }
 
 async fn query_distinct_metric_series(
     transaction: &mut Transaction<'_, Postgres>,
     query_spec: &SeriesQuery<'_>,
-) -> Result<Vec<ReportPoint>, ReportingError> {
+) -> Result<SeriesResult, ReportingError> {
     let projection = dimensions_projection("c", query_spec.breakdowns);
     let (bucket_start, bucket_end) = contribution_bucket_expressions(query_spec.interval);
     let mut where_clauses = vec![
@@ -2009,7 +2068,7 @@ async fn query_distinct_metric_series(
         ));
     }
     let sql = format!(
-        "SELECT {bucket_start} AS bucket_start, {bucket_end} AS bucket_end, {projection} AS dimensions, COUNT(DISTINCT c.deduplication_key)::double precision AS value, NULL::double precision AS numerator, NULL::double precision AS denominator FROM analytics.analytics_projection_contribution AS c WHERE {} GROUP BY 1, 2, 3 ORDER BY 1, 3 LIMIT {}",
+        "SELECT {bucket_start} AS bucket_start, {bucket_end} AS bucket_end, {projection} AS dimensions, COUNT(DISTINCT c.deduplication_key)::double precision AS value, NULL::double precision AS numerator, NULL::double precision AS denominator, jsonb_agg(c.coverage) AS coverage FROM analytics.analytics_projection_contribution AS c WHERE {} GROUP BY 1, 2, 3 ORDER BY 1, 3 LIMIT {}",
         where_clauses.join(" AND "),
         MAX_POINTS + 1
     );
@@ -2034,8 +2093,16 @@ async fn query_distinct_metric_series(
             "query would return more than {MAX_POINTS} points"
         )));
     }
-    rows.into_iter()
+    let mut coverage_values = Vec::with_capacity(rows.len());
+    let points = rows
+        .into_iter()
         .map(|row| {
+            let coverage: Value = row.try_get("coverage")?;
+            if let Some(values) = coverage.as_array() {
+                coverage_values.extend(values.iter().cloned());
+            } else {
+                coverage_values.push(coverage);
+            }
             Ok(ReportPoint {
                 bucket_start: row.try_get("bucket_start")?,
                 bucket_end: row.try_get("bucket_end")?,
@@ -2045,7 +2112,14 @@ async fn query_distinct_metric_series(
                 denominator: None,
             })
         })
-        .collect()
+        .collect::<Result<Vec<_>, sqlx::Error>>()?;
+    Ok(SeriesResult {
+        points,
+        projection_source_state: projection_source_coverage_state(
+            &coverage_values,
+            &query_spec.metric.coverage.required_sources,
+        ),
+    })
 }
 
 fn contribution_bucket_expressions(interval: &str) -> (String, String) {
@@ -2326,6 +2400,34 @@ mod tests {
         rebuilding.processing_status = "rebuilding".to_string();
         assert_eq!(projection_coverage_state(Some(&rebuilding)), "partial");
         assert_eq!(projection_coverage_state(None), "unknown");
+    }
+
+    #[test]
+    fn projection_source_coverage_requires_observed_matching_metadata() {
+        let required = vec!["agent.run.completed@1".to_string()];
+        let observed = json!({
+            "coverage_state": "observed",
+            "required_sources": ["agent.run.completed@1"]
+        });
+        assert_eq!(
+            projection_source_coverage_state(&[observed], &required),
+            "available"
+        );
+        assert_eq!(
+            projection_source_coverage_state(&[json!({"coverage_state": "observed"})], &required),
+            "partial"
+        );
+        assert_eq!(
+            projection_source_coverage_state(
+                &[json!({
+                    "coverage_state": "observed",
+                    "required_sources": ["other.source@1"]
+                })],
+                &required
+            ),
+            "partial"
+        );
+        assert_eq!(projection_source_coverage_state(&[], &required), "unknown");
     }
 
     #[test]
