@@ -11,12 +11,6 @@ analytics slices.
   incremental build, but fresh Core test builds and Analytics tests that include Core are blocked
   until that unrelated line is corrected.
 
-## Local Redis integration
-
-- Native `redis-server` and `redis-cli` are not installed in this environment. Docker is
-  intentionally not used for local development. Redis remains an optional, non-authoritative cache,
-  so PostgreSQL-backed analytics implementation and verification continue without it.
-
 ## Provider currency cost
 
 - The current Core/Meta status boundary exposes billable state and bounded pricing category, model,

@@ -2646,6 +2646,31 @@ mod tests {
         cache.write("missing", &sample_response(), 10).await;
     }
 
+    #[tokio::test]
+    async fn configured_redis_cache_backend_round_trips() {
+        let Ok(redis_url) = std::env::var("ANALYTICS_REDIS_URL") else {
+            return;
+        };
+        if redis_url.trim().is_empty() {
+            return;
+        }
+
+        let client = redis::Client::open(redis_url).expect("configured Redis URL");
+        let backend = RedisCacheBackend::new(client);
+        let key = format!("kasitek:test:analytics-cache:{}", std::process::id());
+        backend
+            .set(&key, "redis-round-trip", 30)
+            .await
+            .expect("Redis cache write");
+        assert_eq!(
+            backend.get(&key).await.expect("Redis cache read"),
+            Some("redis-round-trip".to_string())
+        );
+
+        let mut connection = backend.connection().await.expect("Redis connection");
+        let _: () = connection.del(&key).await.expect("Redis cache cleanup");
+    }
+
     #[actix_web::test]
     async fn reporting_routes_reject_requests_without_a_signed_grant() {
         let registry = crate::registry::load_registry().expect("registry");

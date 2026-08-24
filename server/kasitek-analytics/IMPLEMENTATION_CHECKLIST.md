@@ -43,7 +43,8 @@ checklist records implementation evidence for the current package only.
 - [x] Keep the default local stack on the Analytics API only; worker and migration are explicit.
 - [x] Run package tests, Clippy, workspace check, shell syntax, Compose config, and diff checks.
 - [x] Run native PostgreSQL migration, backup, and restore against isolated Analytics databases.
-- [ ] Run Redis integration; native Redis is not installed here and cache remains non-authoritative.
+- [x] Run the Redis integration against a native local Redis server; cache remains optional and
+  non-authoritative when disabled or unavailable.
 
 ## A-03 — CI, E2E, observability, and runbooks
 
@@ -374,11 +375,14 @@ checklist records implementation evidence for the current package only.
   databases were created locally and migrated with the real Core SQL, Tenant SQLx, and Analytics
   migration paths. The ignored Core Connections, Core Inbox, Core Campaigns, and Tenant mutation-
   to-publisher-to-projection-to-reporting E2E fixtures all passed against those databases.
-- Current Analytics verification (2026-08-24): 62 library tests, 6 ingestion PostgreSQL tests,
+- Current Analytics verification (2026-08-24): 63 library tests, 6 ingestion PostgreSQL tests,
   2 projection PostgreSQL tests, 1 maintenance PostgreSQL test, 5 reporting PostgreSQL tests,
   and 1 rollout PostgreSQL test passed. The canonical registry check passed with 39 contracts,
   44 metrics, 68 dimensions, 2 metric sets, and SHA-256
   `d74695d552cfbd40d71b83b089b0e7b0ed0a2a1dbfd96c71077bd244d9ccf4a8`.
+- Current native Redis verification (2026-08-24): Redis 7.0.15 was started on `127.0.0.1:6379`
+  without Docker; the real Redis cache backend round-trip passed, and the Connections, Inbox,
+  Campaigns, and Tenant system E2E fixtures passed with `ANALYTICS_REDIS_URL` enabled.
 
 - `cargo fmt --manifest-path server/kasitek-analytics/Cargo.toml -- --check`
 - `cargo test --manifest-path server/kasitek-analytics/Cargo.toml` — 5 tests passed.
@@ -1004,8 +1008,6 @@ checklist records implementation evidence for the current package only.
 
 ## Explicitly deferred
 
-- A-02 native Redis integration until a native Redis server is available; Redis is not yet used by
-  the foundation runtime.
 - A-03 complete product mutation-to-reporting E2E, domain OpenTelemetry exporters, alert rules, and
   tested recovery drills
 - A-12 control-management UI remains deferred; evaluation is database-authoritative and expired

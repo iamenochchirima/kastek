@@ -45,7 +45,7 @@ fn analytics_config(database_url: String) -> AnalyticsConfig {
         api_host: "127.0.0.1".to_string(),
         api_port: 0,
         database_url,
-        redis_url: None,
+        redis_url: env::var("ANALYTICS_REDIS_URL").ok(),
         metrics_token: None,
         rollout_admin_producers: Vec::new(),
         reporting_public_key: None,
