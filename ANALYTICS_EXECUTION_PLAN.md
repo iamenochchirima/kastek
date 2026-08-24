@@ -32,7 +32,7 @@ their dependencies are approved.
 - [x] E10. Deployment phases, feature flags, acceptance criteria, and implementation backlog — approved
 - [x] UI-01. Authenticated customer reporting gateways — approved; implemented
 - [x] UI-02. Shared analytics client and visualization contract — approved; implemented
-- [x] UI-03. Protected local Analytics Playground — approved
+- [x] UI-03. Protected local Analytics Playground — approved; implemented
 - [x] UI-04. Feature dashboards for Campaigns, Connections, and Inbox — approved
 - [x] UI-05. Tenant workspace and tenant-client analytics — approved
 - [x] UI-06. Per-Agent Analytics with conditional customer handoff reporting — approved
@@ -41,7 +41,7 @@ their dependencies are approved.
 
 ## UI execution track — customer reporting and visual validation
 
-**Status:** The UI track is approved. UI-01 and UI-02 are implemented; UI-03 is the next
+**Status:** The UI track is approved. UI-01 through UI-03 are implemented; UI-04 is the next
 implementation slice. Later slices remain ordered behind the shared reporting contract and
 authorization boundary.
 
@@ -105,6 +105,15 @@ Add a development-only, authenticated playground that drives real source mutatio
 outboxes, publishers, ingestion, projection workers, and reporting gateways. It must show pipeline
 status and generated data without allowing direct Analytics inserts or production exposure. Include
 end-to-end checks for unavailable services, replay, freshness, and scope isolation.
+
+**Implemented package:** `analytics/playground` is available only in development builds and requires
+the authenticated Core dashboard session. It loads the scoped `overview.summary` report through the
+Core reporting gateway, displays projection generation, data-as-of, metric availability, freshness,
+coverage, and report series, and exposes the existing WhatsApp connection-health operation as a safe
+source activity trigger. That Core operation remains responsible for the transactional outbox fact;
+the browser never calls Analytics directly, writes Analytics data, or supplies an internal scope ID.
+The playground keeps worker replay and maintenance boundaries internal and shows their effect through
+the report's generation and coverage metadata. Production requests are rejected at the page boundary.
 
 ### UI-04 — feature dashboards
 
