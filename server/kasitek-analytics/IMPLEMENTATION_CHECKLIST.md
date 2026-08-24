@@ -661,7 +661,19 @@ checklist records implementation evidence for the current package only.
 - [x] Downgrade multi-scope results when an authorized scope is missing coverage evidence.
 - [x] Return evidence layer, evidence window, and completion boundary in metric coverage metadata.
 - [x] Verify available, partial, backfilling, missing-scope, and incomplete-boundary paths.
-- [ ] Add projection/dimension coverage evaluation and richer rejected-record completion evidence.
+- [ ] Add richer rejected-record completion evidence.
+
+## Reporting coverage layers — slice 11
+
+- [x] Map promoted projection checkpoint status to projection coverage state without conflating it
+  with temporal completeness.
+- [x] Mark missing-generation, failed, and active projection states as `unknown`, `unavailable`,
+  and `partial` respectively.
+- [x] Evaluate requested breakdown values from authorized report points and count missing values
+  as partial dimension coverage without exposing raw identities.
+- [x] Return projection state, dimension state, and missing-dimension point counts.
+- [x] Verify projection and dimension coverage states in unit and PostgreSQL reporting fixtures.
+- [ ] Reconcile per-metric required-source metadata and rejected-record completion.
 
 ## Explicitly deferred
 

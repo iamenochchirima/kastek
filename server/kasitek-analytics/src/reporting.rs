@@ -332,6 +332,9 @@ pub struct CoverageSummary {
     pub window_start: Option<DateTime<Utc>>,
     pub window_end: Option<DateTime<Utc>>,
     pub complete_through: Option<DateTime<Utc>>,
+    pub projection_state: String,
+    pub dimension_state: String,
+    pub missing_dimension_points: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -1166,8 +1169,15 @@ pub async fn execute_report(
             global_data_as_of,
             series.iter().map(|point| point.bucket_end).max(),
         );
-        let reported_state =
-            report_availability_state(&source.state, &coverage_state, !series.is_empty());
+        let projection_state = projection_coverage_state(generation.as_ref());
+        let (dimension_state, missing_dimension_points) =
+            dimension_coverage_state(&series, &breakdowns);
+        let reported_state = report_availability_state(
+            &source.state,
+            &coverage_state,
+            &projection_state,
+            !series.is_empty(),
+        );
         if reported_state != "available" {
             warnings.push(
                 coverage
@@ -1207,6 +1217,9 @@ pub async fn execute_report(
                 window_start: coverage.window_start,
                 window_end: coverage.window_end,
                 complete_through: coverage.complete_through,
+                projection_state,
+                dimension_state,
+                missing_dimension_points,
             },
             freshness: FreshnessSummary {
                 state: source.state.clone(),
@@ -1793,22 +1806,75 @@ fn coverage_layer_rank(layer: Option<&str>) -> u8 {
     }
 }
 
-fn report_availability_state(source_state: &str, coverage_state: &str, has_series: bool) -> String {
+fn report_availability_state(
+    source_state: &str,
+    coverage_state: &str,
+    projection_state: &str,
+    has_series: bool,
+) -> String {
     if coverage_state == "backfilling" {
         return "backfilling".to_string();
     }
+    if projection_state == "unavailable" {
+        return "unavailable".to_string();
+    }
     if source_state == "available" {
-        return match coverage_state {
-            "available" => "available".to_string(),
-            "stale" => "stale".to_string(),
-            "unavailable" => "unavailable".to_string(),
-            _ => "partial".to_string(),
+        return if projection_state != "available" {
+            "partial".to_string()
+        } else {
+            match coverage_state {
+                "available" => "available".to_string(),
+                "stale" => "stale".to_string(),
+                "unavailable" => "unavailable".to_string(),
+                _ => "partial".to_string(),
+            }
         };
     }
-    if source_state == "not_instrumented" && has_series && coverage_state == "available" {
+    if source_state == "not_instrumented"
+        && has_series
+        && coverage_state == "available"
+        && projection_state == "available"
+    {
         return "available".to_string();
     }
     source_state.to_string()
+}
+
+fn projection_coverage_state(generation: Option<&GenerationInfo>) -> String {
+    match generation.map(|generation| generation.processing_status.as_str()) {
+        None => "unknown".to_string(),
+        Some("idle") => "available".to_string(),
+        Some("failed") => "unavailable".to_string(),
+        Some(_) => "partial".to_string(),
+    }
+}
+
+fn dimension_coverage_state(
+    series: &[ReportPoint],
+    requested_dimensions: &[String],
+) -> (String, usize) {
+    if requested_dimensions.is_empty() {
+        return ("not_requested".to_string(), 0);
+    }
+    if series.is_empty() {
+        return ("unknown".to_string(), 0);
+    }
+    let missing_points = series
+        .iter()
+        .filter(|point| {
+            requested_dimensions.iter().any(|dimension| {
+                point
+                    .dimensions
+                    .get(dimension)
+                    .is_none_or(serde_json::Value::is_null)
+            })
+        })
+        .count();
+    if missing_points == 0 {
+        ("available".to_string(), 0)
+    } else {
+        ("partial".to_string(), missing_points)
+    }
 }
 
 struct SeriesQuery<'a> {
@@ -2230,7 +2296,7 @@ mod tests {
         let combined = combine_scope_coverage(vec![complete, unknown]);
         assert_eq!(combined.state, "partial");
         assert_eq!(
-            report_availability_state("available", &combined.state, true),
+            report_availability_state("available", &combined.state, "available", true),
             "partial"
         );
     }
@@ -2238,8 +2304,51 @@ mod tests {
     #[test]
     fn active_backfill_dominates_completed_coverage() {
         assert_eq!(
-            report_availability_state("available", "backfilling", true),
+            report_availability_state("available", "backfilling", "available", true),
             "backfilling"
+        );
+        assert_eq!(
+            report_availability_state("available", "available", "unavailable", true),
+            "unavailable"
+        );
+    }
+
+    #[test]
+    fn projection_processing_status_maps_to_a_separate_layer_state() {
+        let generation = GenerationInfo {
+            generation_id: 1,
+            projection_version: PROJECTION_VERSION.to_string(),
+            registry_sha256: "registry".to_string(),
+            processing_status: "idle".to_string(),
+        };
+        assert_eq!(projection_coverage_state(Some(&generation)), "available");
+        let mut rebuilding = generation.clone();
+        rebuilding.processing_status = "rebuilding".to_string();
+        assert_eq!(projection_coverage_state(Some(&rebuilding)), "partial");
+        assert_eq!(projection_coverage_state(None), "unknown");
+    }
+
+    #[test]
+    fn missing_requested_dimension_values_are_partial() {
+        let point = ReportPoint {
+            bucket_start: Utc.with_ymd_and_hms(2026, 8, 1, 0, 0, 0).unwrap(),
+            bucket_end: Utc.with_ymd_and_hms(2026, 8, 2, 0, 0, 0).unwrap(),
+            dimensions: json!({"channel": null}),
+            value: Some(1.0),
+            numerator: None,
+            denominator: None,
+        };
+        assert_eq!(
+            dimension_coverage_state(&[point], &["channel".to_string()]),
+            ("partial".to_string(), 1)
+        );
+        assert_eq!(
+            dimension_coverage_state(&[], &["channel".to_string()]),
+            ("unknown".to_string(), 0)
+        );
+        assert_eq!(
+            dimension_coverage_state(&[], &[]),
+            ("not_requested".to_string(), 0)
         );
     }
 

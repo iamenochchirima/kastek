@@ -307,11 +307,34 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
     for metric in &response.metrics {
         assert_eq!(metric.availability.state, "available");
         assert_eq!(metric.coverage.state, "available");
+        assert_eq!(metric.coverage.projection_state, "available");
+        assert_eq!(metric.coverage.dimension_state, "not_requested");
+        assert_eq!(metric.coverage.missing_dimension_points, 0);
         assert_eq!(metric.coverage.evidence_layer.as_deref(), Some("temporal"));
         assert_eq!(metric.coverage.window_start, Some(coverage_start));
         assert_eq!(metric.coverage.window_end, Some(coverage_end));
         assert_eq!(metric.coverage.complete_through, Some(coverage_end));
     }
+    let dimension_response = execute_report(
+        &mut transaction,
+        &registry,
+        &grant,
+        &authorized,
+        &ReportQueryRequest {
+            metrics: vec!["campaign.recipients.sent@1".to_string()],
+            breakdowns: vec!["channel".to_string()],
+            comparison: None,
+            ..request.clone()
+        },
+    )
+    .await
+    .expect("dimension report response");
+    let dimension_metric = dimension_response
+        .metrics
+        .first()
+        .expect("dimension metric");
+    assert_eq!(dimension_metric.coverage.dimension_state, "partial");
+    assert_eq!(dimension_metric.coverage.missing_dimension_points, 1);
     let comparison = response.comparison.expect("comparison response");
     assert_eq!(comparison.kind, "previous_period");
     assert_eq!(comparison.range_end, request.range_start);

@@ -1771,8 +1771,24 @@ Connection metrics remain gated on Product Section 9 approval.
   coverage metadata.
 - [x] Verify available, partial, backfilling, missing-scope, and incomplete-boundary behavior in
   unit and PostgreSQL reporting tests.
-- [ ] Add projection/dimension coverage evaluation and richer rejected-record completion evidence
-  before exports, alerts, and customer surfaces consume the metadata.
+- [ ] Add richer rejected-record completion evidence before exports, alerts, and customer surfaces
+  consume all coverage metadata.
+
+#### Execution slice 11 — projection and dimension coverage
+
+- [x] Derive projection-layer state from the authorized promoted generation checkpoint: idle is
+  `available`, active rebuild/processing is `partial`, failed processing is `unavailable`, and no
+  generation is `unknown`.
+- [x] Keep projection-layer state separate from temporal completeness; a processed projection does
+  not claim that the source range is historically complete.
+- [x] Evaluate requested breakdown values from the authorized report points and mark missing values
+  as `partial` without exposing unauthorized dimension identities.
+- [x] Return projection state, dimension state, and missing-dimension point counts in coverage
+  metadata alongside the temporal evidence window.
+- [x] Verify idle, rebuilding, missing-generation, no-breakdown, and missing-dimension behavior in
+  unit and PostgreSQL reporting tests.
+- [ ] Reconcile per-metric required-source projection metadata and rejected-record completion before
+  exports, alerts, and customer surfaces consume all coverage layers.
 
 ### Core lane: Inbox
 
