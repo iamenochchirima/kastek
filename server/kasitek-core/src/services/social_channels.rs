@@ -80,17 +80,6 @@ pub fn platform_capabilities(platform: &str) -> Value {
             "supportsVariants": true,
             "media": { "images": { "supported": false, "maxCount": 0 }, "videos": { "supported": false, "maxCount": 0 } },
         }),
-        "WHATSAPP_STATUS" => json!({
-            "canPublish": true,
-            "supportsManualPublish": false,
-            "supportsMediaUpload": false,
-            "supportsComments": false,
-            "supportsDMs": false,
-            "supportsAnalytics": false,
-            "supportsInbox": false,
-            "supportsVariants": false,
-            "media": { "images": { "supported": false, "maxCount": 0 }, "videos": { "supported": false, "maxCount": 0 } },
-        }),
         _ => json!({
             "canPublish": false,
             "supportsManualPublish": false,

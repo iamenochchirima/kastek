@@ -249,8 +249,8 @@ template/list/connection references, and WhatsApp provider pricing fields.
 Content currently provides posts, variants, media, scheduling, per-platform publish jobs, provider
 post IDs, delivery snapshots, errors, and provider webhook storage. The current analytics page
 mostly counts records in the browser and does not yet provide reliable provider performance data.
-The code declares analytics support for Meta, Instagram, LinkedIn, and X; Threads, TikTok, Bluesky,
-and WhatsApp Status are not currently treated as analytics-capable.
+The code declares analytics support for Meta, Instagram, LinkedIn, and X; Threads, TikTok, and
+Bluesky are not currently treated as analytics-capable.
 
 ### Required Content additions
 

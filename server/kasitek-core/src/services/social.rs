@@ -65,7 +65,6 @@ const SOCIAL_PLATFORMS: &[&str] = &[
     "BLUESKY",
     "LINKEDIN",
     "X",
-    "WHATSAPP_STATUS",
 ];
 const SOCIAL_CHANNEL_STATUSES: &[&str] = &["CONNECTED", "DISCONNECTED", "NEEDS_REAUTH"];
 const SOCIAL_POST_STATUSES: &[&str] = &["DRAFT", "SCHEDULED", "PROCESSING", "PUBLISHED", "FAILED"];
@@ -2343,6 +2342,12 @@ pub async fn execute_social_publish_job(
 
     if job.status == "CANCELED" {
         return Err(AppError::BadRequest("Publish job is canceled".to_string()));
+    }
+
+    if !is_valid_platform(&job.platform) {
+        return Err(AppError::BadRequest(
+            "Unsupported social platform".to_string(),
+        ));
     }
 
     if job.status == "PUBLISHED" && job.external_post_id.is_some() {

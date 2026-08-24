@@ -69,7 +69,6 @@ Kasitek Labs' social media strategy is designed to build Enoch's personal brand 
 | Facebook | Secondary | Durban and SA SMB owners, local business communities | Community presence, social proof, retargeting |
 | Instagram | Secondary | Visual SMB owners in hospitality, aesthetics, and food | Brand aesthetic, product visuals, KasiSocial case studies |
 | X | Tertiary | Tech and AI community, developers, startup ecosystem | Build in public, AI commentary, technical positioning |
-| WhatsApp Status | Local | Existing network, warm leads, local business owners | Soft nurture and direct conversion |
 
 ### Content Pillars
 
@@ -90,7 +89,6 @@ Kasitek Labs' social media strategy is designed to build Enoch's personal brand 
 | Wednesday | LinkedIn | Long-form build-in-public story | Build in Public |
 | Thursday | X | Short AI commentary | African Tech Perspective |
 | Friday | LinkedIn + Facebook | Product showcase or weekly wrap-up | Kasitek Product |
-| Daily | WhatsApp Status | Casual behind-the-scenes updates | Mixed |
 
 ### Monthly Content Formula
 
@@ -118,7 +116,6 @@ Kasitek Labs' social media strategy is designed to build Enoch's personal brand 
 | Post impressions per week | 1,000+ | 5,000+ |
 | Inbound DMs from content | 5/month | 20/month |
 | Demo requests from social | 2/month | 8/month |
-| WhatsApp Status views per day | 50+ | 150+ |
 
 ## Source Note
 

@@ -50,13 +50,6 @@ pub(crate) async fn delete_post_from_provider(
             "TikTok does not currently expose a delete endpoint through the Content Posting API; delete the post in TikTok".to_string(),
         ));
     }
-    if platform == "WHATSAPP_STATUS" {
-        return Err(AppError::BadRequest(
-            "WhatsApp Status posts cannot currently be deleted through the connected API"
-                .to_string(),
-        ));
-    }
-
     let access_token = decrypt_social_secret(access_token_encrypted)?;
     let client = reqwest::Client::new();
     match platform {

@@ -25,8 +25,7 @@ export type SocialPlatform =
   | "TIKTOK"
   | "BLUESKY"
   | "LINKEDIN"
-  | "X"
-  | "WHATSAPP_STATUS";
+  | "X";
 
 export type SocialChannelStatus = "CONNECTED" | "DISCONNECTED" | "NEEDS_REAUTH";
 export type SocialPostStatus = "DRAFT" | "SCHEDULED" | "PROCESSING" | "PUBLISHED" | "FAILED";
@@ -144,7 +143,6 @@ export const SOCIAL_PLATFORM_ORDER: SocialPlatform[] = [
   "BLUESKY",
   "LINKEDIN",
   "X",
-  "WHATSAPP_STATUS",
 ];
 
 const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
@@ -225,17 +223,6 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
     supportsVariants: true,
     media: { images: { supported: false, maxCount: 0 }, videos: { supported: false, maxCount: 0 } },
   },
-  WHATSAPP_STATUS: {
-    canPublish: true,
-    supportsManualPublish: false,
-    supportsMediaUpload: true,
-    supportsComments: false,
-    supportsDMs: false,
-    supportsAnalytics: false,
-    supportsInbox: false,
-    supportsVariants: false,
-    media: { images: { supported: false, maxCount: 0 }, videos: { supported: false, maxCount: 0 } },
-  },
 };
 
 export const SOCIAL_POST_STATUSES: SocialPostStatus[] = [
@@ -254,7 +241,7 @@ export function getPlatformLabel(platform: SocialPlatform) {
   if (platform === "BLUESKY") return "Bluesky";
   if (platform === "LINKEDIN") return "LinkedIn";
   if (platform === "X") return "X";
-  return "WhatsApp Status";
+  return platform;
 }
 
 export function getPlatformDescription(platform: SocialPlatform) {
@@ -265,7 +252,7 @@ export function getPlatformDescription(platform: SocialPlatform) {
   if (platform === "BLUESKY") return "Conversational updates and community-led brand discussion.";
   if (platform === "LINKEDIN") return "Professional updates and authority content.";
   if (platform === "X") return "Fast-moving commentary, launches, and live updates.";
-  return "Short-form reminders and high-visibility status content.";
+  return "";
 }
 
 export function getPlatformIcon(platform: SocialPlatform): IconType {

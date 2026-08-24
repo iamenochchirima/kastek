@@ -21,7 +21,6 @@ export type PlatformIcon = IconType;
 export function getPlatformBrandIcon(platform: string): PlatformIcon | null {
   switch (platform.toUpperCase()) {
     case "WHATSAPP":
-    case "WHATSAPP_STATUS":
       return SiWhatsapp;
     case "MESSENGER":
       return SiMessenger;
@@ -57,7 +56,6 @@ export function getPlatformBrandIcon(platform: string): PlatformIcon | null {
 export function getPlatformBrandColor(platform: string) {
   switch (platform.toUpperCase()) {
     case "WHATSAPP":
-    case "WHATSAPP_STATUS":
       return "!text-[#25D366]";
     case "MESSENGER":
     case "FACEBOOK":
