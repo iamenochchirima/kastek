@@ -2016,7 +2016,9 @@ recipient outcomes.
 - [x] Add transactional campaign retry and complete provider-outcome facts; numeric cost and
   complete mutation-to-reporting coverage remain before claiming complete Campaign performance
   coverage. Suppression and eligibility facts are covered in slice 5.
-- [ ] Add one combined mutation-to-publisher-to-projection-to-reporting E2E for Campaign delivery.
+- [x] Add one ignored combined mutation-to-publisher-to-projection-to-reporting E2E for Campaign
+  delivery, including manifest and pricing assertions; runtime requires the disposable Core and
+  Analytics URLs recorded in `blockers.md`.
 
 #### Execution slice 2 — recipient read facts
 
@@ -2105,8 +2107,8 @@ recipient outcomes.
   deterministic backfill sequences, and excludes manifest records.
 - [x] Keep reconstructed Campaign facts separate from live reconciliation counts and source
   manifests.
-- [ ] Add native Campaign backfill/reconciliation and combined mutation-to-publisher-to-projection-
-  to-reporting E2E fixtures; numeric currency cost and cross-feature attribution remain separate
+- [ ] Add native Campaign backfill/reconciliation fixture; the combined mutation-to-publisher-to-
+  projection-to-reporting E2E is covered above. Numeric currency cost and cross-feature attribution remain separate
   contracts. Billable/category/model/type metadata is covered by the provider pricing slice below.
 
 #### Execution slice 9 — provider pricing metadata

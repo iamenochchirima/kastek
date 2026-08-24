@@ -24,3 +24,10 @@ analytics slices.
   the available pricing metadata and reports pricing-record counts. A numeric cost metric must wait
   for a source-of-truth amount from the provider payload or a Core billing/usage ledger; no value is
   inferred from billable state.
+
+## Campaign system E2E runtime database
+
+- The combined Campaign mutation-to-reporting fixture now compiles and is ignored by design, but
+  this environment has no `DATABASE_URL` for an isolated Core PostgreSQL database. The Analytics
+  URL alone is insufficient to run the Core publisher portion safely. Execute the fixture when a
+  disposable Core database is supplied; this does not block library or registry verification.

@@ -769,7 +769,8 @@ checklist records implementation evidence for the current package only.
   numerator/denominator aggregation, in the signed PostgreSQL reporting fixture.
 - [x] Add source manifests, source reconstruction, retry/eligibility facts, and complete
   Campaign performance coverage in later Campaign slices.
-- [ ] Add one combined mutation-to-publisher-to-projection-to-reporting E2E.
+- [x] Add the ignored combined mutation-to-publisher-to-projection-to-reporting Campaign E2E;
+  runtime requires disposable Core and Analytics URLs recorded in root `blockers.md`.
 
 ## Core Campaigns — recipient read slice 2
 
@@ -864,8 +865,8 @@ checklist records implementation evidence for the current package only.
   authenticated Campaign backfill job; preserve original envelopes and deterministic sequences.
 - [x] Keep Campaign manifests out of event reconstruction and isolate reconstructed facts from live
   reconciliation counts.
-- [ ] Add a native Campaign backfill/reconciliation fixture and the combined mutation-to-publisher-
-  to-projection-to-reporting E2E after the Core package can compile with the current worktree.
+- [ ] Add a native Core Campaign backfill/reconciliation fixture; the combined mutation-to-publisher-
+  to-projection-to-reporting E2E is covered above.
 - [x] Add provider billable/category/model/type facts and typed pricing dimensions; numeric currency
   cost and cross-feature attribution remain separate source-ledger work.
 

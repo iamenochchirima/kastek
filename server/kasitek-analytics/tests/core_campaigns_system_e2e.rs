@@ -1,4 +1,4 @@
-use std::{env, net::TcpListener, time::Duration as StdDuration};
+use std::{collections::BTreeSet, env, net::TcpListener, time::Duration as StdDuration};
 
 use actix_web::{web, App, HttpServer};
 use analytics_producer::{
@@ -11,14 +11,20 @@ use kasitek_analytics::{
     contracts::ProcessKind,
     ingestion::IngestionAuthenticator,
     metrics::{MetricsAccess, ProcessMetrics},
+    projections::{self, PROJECTION_NAME, PROJECTION_VERSION},
     registry::load_registry,
-    reporting::{ReportingAuthenticator, ReportingCache},
+    reporting::{
+        authorize_transaction, execute_report, ReportQueryRequest, ReportingAuthenticator,
+        ReportingCache,
+    },
     rollout::{RolloutAuthenticator, RolloutDecisionCache},
+    scope::{DescendantMode, PrincipalType, ReportingGrant},
 };
 use kasitek_core::analytics::campaigns::{
-    enqueue_recipient_blocked, enqueue_recipient_delivered, enqueue_recipient_failed,
-    enqueue_recipient_read, enqueue_recipient_retry, enqueue_recipient_sent,
-    enqueue_recipient_suppressed, enqueue_recipient_timing, enqueue_recipient_unsubscribed,
+    enqueue_manifest, enqueue_recipient_blocked, enqueue_recipient_delivered,
+    enqueue_recipient_failed, enqueue_recipient_pricing, enqueue_recipient_read,
+    enqueue_recipient_retry, enqueue_recipient_sent, enqueue_recipient_suppressed,
+    enqueue_recipient_timing, enqueue_recipient_unsubscribed,
 };
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -111,16 +117,18 @@ fn start_analytics_api(
     (format!("http://{address}"), handle, task)
 }
 
-async fn create_scope(pool: &PgPool, external_id: &str) {
+async fn create_scope(pool: &PgPool, external_id: &str) -> i64 {
     sqlx::query(
         r#"INSERT INTO analytics.reporting_scope (
                scope_kind, owning_source_service, external_source_id, status, reporting_timezone
-           ) VALUES ('core_organization', 'core', $1, 'active', 'UTC')"#,
+           ) VALUES ('core_organization', 'core', $1, 'active', 'UTC')
+           RETURNING scope_id"#,
     )
     .bind(external_id)
-    .execute(pool)
+    .fetch_one(pool)
     .await
-    .expect("Campaign E2E reporting scope");
+    .expect("Campaign E2E reporting scope")
+    .get("scope_id")
 }
 
 #[tokio::test]
@@ -144,7 +152,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
     let sent_recipient_id = format!("recipient-sent-system-e2e-{unique_suffix}");
     let delivered_recipient_id = format!("recipient-delivered-system-e2e-{unique_suffix}");
     let stream_key = format!("organization:{organization_id}:campaigns");
-    create_scope(&analytics_pool, &organization_id).await;
+    let reporting_scope_id = create_scope(&analytics_pool, &organization_id).await;
 
     let (endpoint, server_handle, server_task) =
         start_analytics_api(analytics_pool.clone(), &analytics_config);
@@ -275,6 +283,24 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         )
         .await
         .expect("Campaign retry fact should enqueue");
+        enqueue_recipient_pricing(
+            &mut transaction,
+            &organization_id,
+            &campaign_id,
+            &delivered_recipient_id,
+            "whatsapp",
+            "meta",
+            true,
+            "marketing",
+            Some("CBP"),
+            Some("regular"),
+            delivered_at,
+        )
+        .await
+        .expect("Campaign pricing fact should enqueue");
+        enqueue_manifest(&mut transaction, &organization_id, 2, sent_at)
+            .await
+            .expect("Campaign source manifest should enqueue");
         transaction
             .commit()
             .await
@@ -305,8 +331,8 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
             .await
             .expect("Core publisher should deliver Campaign facts to Analytics");
         assert!(
-            stats.delivered >= 9,
-            "expected nine Campaign facts: {stats:?}"
+            stats.delivered >= 11,
+            "expected ten Campaign facts and one manifest: {stats:?}"
         );
 
         let delivered: i64 = sqlx::query_scalar(
@@ -319,7 +345,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         .fetch_one(&core_pool)
         .await
         .expect("Core Campaign delivery state");
-        assert_eq!(delivered, 9);
+        assert_eq!(delivered, 11);
 
         let rows = sqlx::query(
             r#"SELECT event_type, source_service, source_record_id, attributes, backfilled
@@ -331,7 +357,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         .fetch_all(&analytics_pool)
         .await
         .expect("Analytics Campaign facts");
-        assert_eq!(rows.len(), 9);
+        assert_eq!(rows.len(), 10);
         let mut event_types = Vec::new();
         for row in rows {
             let event_type: String = row.get("event_type");
@@ -394,6 +420,21 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
                     Some("manual")
                 );
             }
+            if event_type == "campaign.recipient.pricing@1" {
+                assert_eq!(attributes.get("billable").and_then(Value::as_bool), Some(true));
+                assert_eq!(
+                    attributes.get("pricing_category").and_then(Value::as_str),
+                    Some("marketing")
+                );
+                assert_eq!(
+                    attributes.get("pricing_model").and_then(Value::as_str),
+                    Some("CBP")
+                );
+                assert_eq!(
+                    attributes.get("pricing_type").and_then(Value::as_str),
+                    Some("regular")
+                );
+            }
             for prohibited in [
                 "phone_number",
                 "email",
@@ -416,6 +457,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
                 "campaign.recipient.blocked@1".to_string(),
                 "campaign.recipient.delivered@1".to_string(),
                 "campaign.recipient.failed@1".to_string(),
+                "campaign.recipient.pricing@1".to_string(),
                 "campaign.recipient.read@1".to_string(),
                 "campaign.recipient.retry@1".to_string(),
                 "campaign.recipient.sent@1".to_string(),
@@ -424,6 +466,152 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
                 "campaign.recipient.unsubscribed@1".to_string()
             ]
         );
+
+        let manifest_count: i64 = sqlx::query_scalar(
+            r#"SELECT COUNT(*) FROM analytics.analytics_source_manifest
+               WHERE source_service = 'core' AND source_stream_key = $1"#,
+        )
+        .bind(&stream_key)
+        .fetch_one(&analytics_pool)
+        .await
+        .expect("Campaign source manifest");
+        assert_eq!(manifest_count, 1);
+
+        let (min_storage_id, max_storage_id): (i64, i64) = sqlx::query_as(
+            r#"SELECT MIN(storage_id), MAX(storage_id)
+               FROM analytics.analytics_event
+               WHERE source_service = 'core' AND source_stream_key = $1"#,
+        )
+        .bind(&stream_key)
+        .fetch_one(&analytics_pool)
+        .await
+        .expect("Campaign event storage bounds");
+        let projection_work_id: i64 = sqlx::query_scalar(
+            r#"INSERT INTO analytics.analytics_projection_work (
+                 projection_name, projection_version, fact_kind, reporting_scope_id, root_scope_id,
+                 source_window_start, source_window_end, min_source_storage_id, max_source_storage_id,
+                 priority, work_status
+               ) VALUES ($1,$2,'event',$3,$3,$4,$5,$6,$7,1,'pending')
+               RETURNING work_id"#,
+        )
+        .bind(PROJECTION_NAME)
+        .bind(PROJECTION_VERSION)
+        .bind(reporting_scope_id)
+        .bind(sent_at - Duration::seconds(1))
+        .bind(unsubscribed_at + Duration::seconds(1))
+        .bind(min_storage_id)
+        .bind(max_storage_id)
+        .fetch_one(&analytics_pool)
+        .await
+        .expect("Campaign projection work");
+        let registry = load_registry().expect("Campaign E2E registry");
+        let mut projected = false;
+        for _ in 0..16 {
+            let _ = projections::process_once(
+                &analytics_pool,
+                &registry,
+                "core-campaigns-system-e2e-projection",
+                60,
+            )
+            .await
+            .expect("Campaign projection pass");
+            let status: String = sqlx::query_scalar(
+                "SELECT work_status FROM analytics.analytics_projection_work WHERE work_id = $1",
+            )
+            .bind(projection_work_id)
+            .fetch_one(&analytics_pool)
+            .await
+            .expect("Campaign projection status");
+            if status == "completed" {
+                projected = true;
+                break;
+            }
+        }
+        assert!(projected, "Campaign projection work did not complete");
+
+        let grant_id = format!("campaign-reporting-grant-{unique_suffix}");
+        let grant_time = Utc::now();
+        sqlx::query(
+            r#"INSERT INTO analytics.reporting_grant (
+                 grant_id, issuer_service_identity_id, audience, principal_type, principal_id,
+                 scope_id, root_scope_id, descendant_mode, explicit_descendant_scope_ids,
+                 permissions, metric_keys, dimension_keys, policy_version, issued_at, not_before,
+                 expires_at, correlation_id
+               ) VALUES ($1,'core','kasitek-analytics-reporting','user','campaign-system-e2e-user',
+                         $2,$2,'none','[]'::jsonb,$3,'[]'::jsonb,'[]'::jsonb,'v1',$4,$4,$5,$6)"#,
+        )
+        .bind(&grant_id)
+        .bind(reporting_scope_id)
+        .bind(serde_json::json!(["analytics:read"]))
+        .bind(grant_time)
+        .bind(grant_time + Duration::minutes(1))
+        .bind("campaign-system-e2e")
+        .execute(&analytics_pool)
+        .await
+        .expect("Campaign reporting grant");
+        let grant = ReportingGrant {
+            grant_id,
+            issuer: "core".to_string(),
+            audience: "kasitek-analytics-reporting".to_string(),
+            principal_type: PrincipalType::User,
+            principal_id: "campaign-system-e2e-user".to_string(),
+            scope_id: reporting_scope_id,
+            root_scope_id: reporting_scope_id,
+            descendant_mode: DescendantMode::None,
+            explicit_descendant_scope_ids: Vec::new(),
+            permissions: BTreeSet::from(["analytics:read".to_string()]),
+            metric_keys: Vec::new(),
+            dimension_keys: Vec::new(),
+            policy_version: "v1".to_string(),
+            issued_at: grant_time,
+            not_before: grant_time,
+            expires_at: grant_time + Duration::minutes(1),
+            correlation_id: Some("campaign-system-e2e".to_string()),
+            revoked_at: None,
+        };
+        let mut report_transaction = analytics_pool
+            .begin()
+            .await
+            .expect("Campaign report transaction");
+        let authorized = authorize_transaction(
+            &mut report_transaction,
+            &grant,
+            reporting_scope_id,
+        )
+        .await
+        .expect("Campaign report authorization");
+        let report = execute_report(
+            &mut report_transaction,
+            &registry,
+            &grant,
+            &authorized,
+            &ReportQueryRequest {
+                reporting_scope_id,
+                range_start: sent_at - Duration::seconds(1),
+                range_end: unsubscribed_at + Duration::seconds(1),
+                timezone: "UTC".to_string(),
+                interval: Some("hour".to_string()),
+                metrics: vec!["campaign.recipients.pricing_recorded@1".to_string()],
+                metric_set: None,
+                breakdowns: vec!["pricing_category".to_string(), "pricing_billable".to_string()],
+                filters: Default::default(),
+                include_descendants: false,
+                comparison: None,
+            },
+        )
+        .await
+        .expect("Campaign pricing report");
+        let metric = &report.metrics[0];
+        assert_eq!(metric.availability.state, "available");
+        assert_eq!(metric.coverage.state, "available");
+        assert_eq!(metric.series.len(), 1);
+        assert_eq!(metric.series[0].value, Some(1.0));
+        assert_eq!(metric.series[0].dimensions["pricing_category"], "marketing");
+        assert_eq!(metric.series[0].dimensions["pricing_billable"], "billable");
+        report_transaction
+            .rollback()
+            .await
+            .expect("Campaign report rollback");
     }
     .await;
 
