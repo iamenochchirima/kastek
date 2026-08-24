@@ -106,7 +106,32 @@ pub async fn enqueue_recipient_failed(
         "failed",
         "campaign.recipient.failed@1",
         occurred_at,
-        Some(failure_class),
+        Some(("failure_class", failure_class)),
+    )
+    .await
+}
+
+pub async fn enqueue_recipient_blocked(
+    transaction: &mut Transaction<'_, Postgres>,
+    organization_id: &str,
+    campaign_id: &str,
+    recipient_id: &str,
+    channel: &str,
+    provider: &str,
+    block_class: &str,
+    occurred_at: DateTime<Utc>,
+) -> Result<EnqueueResult, analytics_producer::ProducerError> {
+    enqueue_recipient_delivery(
+        transaction,
+        organization_id,
+        campaign_id,
+        recipient_id,
+        channel,
+        provider,
+        "blocked",
+        "campaign.recipient.blocked@1",
+        occurred_at,
+        Some(("block_class", block_class)),
     )
     .await
 }
@@ -122,7 +147,7 @@ async fn enqueue_recipient_delivery(
     status: &str,
     contract_name: &str,
     occurred_at: DateTime<Utc>,
-    failure_class: Option<&str>,
+    classification: Option<(&str, &str)>,
 ) -> Result<EnqueueResult, analytics_producer::ProducerError> {
     let record_id = format!("campaign-recipient:{campaign_id}:{recipient_id}:{status}");
     let mut attributes = json!({
@@ -133,8 +158,8 @@ async fn enqueue_recipient_delivery(
         "occurred_at": occurred_at,
         "status": status,
     });
-    if let Some(failure_class) = failure_class {
-        attributes["failure_class"] = json!(failure_class);
+    if let Some((key, value)) = classification {
+        attributes[key] = json!(value);
     }
     enqueue_event(
         transaction,

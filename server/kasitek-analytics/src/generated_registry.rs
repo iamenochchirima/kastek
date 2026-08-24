@@ -2,7 +2,7 @@
 
 pub const REGISTRY_VERSION: &str = "20260824.1";
 pub const REGISTRY_SHA256: &str =
-    "4a4ddc8789c4bf79d29112cfec59408648fec2335b99b84074588a7b83df7616";
+    "9d7d1b276804f1a1ffa389775377094f6ec9e12da05ba0fd5d22ed8ed753dfc4";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",
@@ -20,6 +20,7 @@ pub const CONTRACT_KEYS: &[&str] = &[
     "agent.schedule.lifecycle@1",
     "agent.tool_invocation.lifecycle@1",
     "agent.version.lifecycle@1",
+    "campaign.recipient.blocked@1",
     "campaign.recipient.delivered@1",
     "campaign.recipient.failed@1",
     "campaign.recipient.read@1",
@@ -57,6 +58,7 @@ pub const METRIC_KEYS: &[&str] = &[
     "agent.tools.lifecycle_events@1",
     "agent.versions.lifecycle_events@1",
     "campaign.delivery_rate@1",
+    "campaign.recipients.blocked@1",
     "campaign.recipients.delivered@1",
     "campaign.recipients.failed@1",
     "campaign.recipients.read@1",
@@ -85,6 +87,7 @@ pub const DIMENSION_KEYS: &[&str] = &[
     "agent_owner_type",
     "agent_version",
     "approval_actor_type",
+    "block_class",
     "campaign",
     "capability",
     "channel",
@@ -152,6 +155,7 @@ pub mod metric_keys {
     pub const AGENT_TOOLS_LIFECYCLE_EVENTS_1: &str = "agent.tools.lifecycle_events@1";
     pub const AGENT_VERSIONS_LIFECYCLE_EVENTS_1: &str = "agent.versions.lifecycle_events@1";
     pub const CAMPAIGN_DELIVERY_RATE_1: &str = "campaign.delivery_rate@1";
+    pub const CAMPAIGN_RECIPIENTS_BLOCKED_1: &str = "campaign.recipients.blocked@1";
     pub const CAMPAIGN_RECIPIENTS_DELIVERED_1: &str = "campaign.recipients.delivered@1";
     pub const CAMPAIGN_RECIPIENTS_FAILED_1: &str = "campaign.recipients.failed@1";
     pub const CAMPAIGN_RECIPIENTS_READ_1: &str = "campaign.recipients.read@1";

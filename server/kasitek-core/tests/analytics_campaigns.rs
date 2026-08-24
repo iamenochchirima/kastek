@@ -2,8 +2,8 @@ use std::env;
 
 use chrono::Utc;
 use kasitek_core::analytics::campaigns::{
-    enqueue_recipient_delivered, enqueue_recipient_failed, enqueue_recipient_read,
-    enqueue_recipient_sent,
+    enqueue_recipient_blocked, enqueue_recipient_delivered, enqueue_recipient_failed,
+    enqueue_recipient_read, enqueue_recipient_sent,
 };
 use sqlx::{postgres::PgPoolOptions, Row};
 
@@ -63,6 +63,18 @@ async fn campaign_delivery_facts_are_transactional_and_privacy_safe() {
     )
     .await
     .expect("failed fact should enqueue");
+    enqueue_recipient_blocked(
+        &mut transaction,
+        "org_campaigns_a",
+        "campaign-analytics",
+        "recipient-blocked",
+        "whatsapp",
+        "meta",
+        "provider_blocked",
+        Utc::now(),
+    )
+    .await
+    .expect("blocked fact should enqueue");
 
     let rows = sqlx::query(
         r#"
@@ -76,7 +88,7 @@ async fn campaign_delivery_facts_are_transactional_and_privacy_safe() {
     .fetch_all(&mut *transaction)
     .await
     .expect("campaign facts should be visible before commit");
-    assert_eq!(rows.len(), 4);
+    assert_eq!(rows.len(), 5);
     for row in rows {
         let record_id: String = row.try_get("record_id").unwrap();
         let envelope: serde_json::Value = row.try_get("envelope").unwrap();
@@ -97,14 +109,21 @@ async fn campaign_delivery_facts_are_transactional_and_privacy_safe() {
                 || record_id.ends_with(":delivered")
                 || record_id.ends_with(":read")
                 || record_id.ends_with(":failed")
+                || record_id.ends_with(":blocked")
         );
         if record_id.ends_with(":failed") {
             assert_eq!(
                 data.get("failure_class").and_then(|value| value.as_str()),
                 Some("provider_rejected")
             );
+        } else if record_id.ends_with(":blocked") {
+            assert_eq!(
+                data.get("block_class").and_then(|value| value.as_str()),
+                Some("provider_blocked")
+            );
         } else {
             assert!(data.get("failure_class").is_none());
+            assert!(data.get("block_class").is_none());
         }
         for prohibited in [
             "phone_number",

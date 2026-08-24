@@ -476,11 +476,12 @@ checklist records implementation evidence for the current package only.
 -  The same fixture now verifies all six registered Connections metrics as available after the
   temporal boundary. Approved customer-facing surfaces remain pending.
 - Core Campaign delivery: the ignored `core_campaigns_system_e2e` fixture passed against the local
-  native Core and Analytics PostgreSQL databases; it published deduplicated sent/delivered/read/failed
-  facts through the authenticated Analytics API and verified persisted privacy-safe event rows.
+  native Core and Analytics PostgreSQL databases; it published deduplicated sent/delivered/read/failed/
+  blocked facts through the authenticated Analytics API and verified persisted privacy-safe event rows.
 - Campaign reporting: the native `reporting_postgres` fixture now verifies delivered distinct
-  counting, read distinct counting, failed distinct counting with `failure_class` breakdown, and
-  delivery-rate numerator/denominator reporting with available temporal coverage.
+  counting, read distinct counting, failed and blocked distinct counting with `failure_class` and
+  `block_class` breakdowns, and delivery-rate numerator/denominator reporting with available temporal
+  coverage.
 - Customer handoff reporting: the native `reporting_postgres` fixture accepted three bounded
   customer-service handoff lifecycle facts, projected them with Agent-definition and handoff-state
   dimensions, and returned an authorized report with available temporal coverage.
@@ -766,7 +767,7 @@ checklist records implementation evidence for the current package only.
   stable identity deduplication, Analytics ingestion, and sent/delivered privacy checks.
 - [x] Verify sent, delivered, and delivery-rate reporting, including distinct-recipient and
   numerator/denominator aggregation, in the signed PostgreSQL reporting fixture.
-- [ ] Add source manifests, source reconstruction, failure/retry/eligibility facts, and complete
+- [ ] Add source manifests, source reconstruction, retry/eligibility facts, and complete
   Campaign performance coverage in later Campaign slices.
 - [ ] Add one combined mutation-to-publisher-to-projection-to-reporting E2E.
 
@@ -791,7 +792,20 @@ checklist records implementation evidence for the current package only.
   transaction as the authoritative recipient failure transition. Blocked outcomes remain excluded.
 - [x] Verify producer rollback/privacy behavior, authenticated Core publisher delivery, Analytics
   ingestion, failure-class reporting, and available temporal coverage in PostgreSQL tests.
-- [ ] Add read-delay, blocked, retry, eligibility, unsubscribe/exclusion, guard, and completed
+- [ ] Add read-delay, retry, eligibility, unsubscribe/exclusion, guard, and completed
+  mutation-to-reporting coverage in later Campaign slices.
+
+## Core Campaigns — recipient blocked slice 4
+
+- [x] Add and register `campaign.recipient.blocked@1` with aggregate-safe bounded block classes;
+  `raw_error` and provider payloads remain prohibited.
+- [x] Add `campaign.recipients.blocked@1` with distinct-recipient aggregation, block-class
+  compatibility, and overview metric-set registration.
+- [x] Emit provider-send and Meta webhook blocked facts in the same Core database transaction as
+  the authoritative blocked recipient transition; blocked outcomes remain separate from failures.
+- [x] Verify bounded Meta block classification, producer rollback/privacy behavior, authenticated
+  Core publisher delivery, Analytics ingestion, blocked reporting, and available temporal coverage.
+- [ ] Add unsubscribe/exclusion, retry, eligibility, guard, timing, cost, attribution, and complete
   mutation-to-reporting coverage in later Campaign slices.
 
 ## Reporting availability — slice 10

@@ -1615,6 +1615,21 @@ async fn process_claimed_campaign_recipient(
                 .map_err(|error| {
                     AppError::Internal(format!("Failed to queue Campaign analytics fact: {error}"))
                 })?;
+            } else {
+                analytics::campaigns::enqueue_recipient_blocked(
+                    &mut transaction,
+                    org_id,
+                    &campaign.id,
+                    recipient_id,
+                    "whatsapp",
+                    "meta",
+                    "provider_blocked",
+                    occurred_at,
+                )
+                .await
+                .map_err(|error| {
+                    AppError::Internal(format!("Failed to queue Campaign analytics fact: {error}"))
+                })?;
             }
             transaction.commit().await?;
 

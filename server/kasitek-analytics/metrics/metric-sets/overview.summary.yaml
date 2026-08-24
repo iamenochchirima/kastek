@@ -12,6 +12,7 @@ definitions:
       - campaign.recipients.delivered@1
       - campaign.recipients.read@1
       - campaign.recipients.failed@1
+      - campaign.recipients.blocked@1
       - campaign.delivery_rate@1
       - connection.lifecycle_events@1
       - connection.health_checks@1

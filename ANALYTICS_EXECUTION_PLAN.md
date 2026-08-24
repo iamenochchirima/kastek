@@ -1993,8 +1993,8 @@ those transitions.
 
 Campaign delivery analytics remains a Core Campaigns responsibility. Campaign recipient rows and
 provider send/webhook transitions remain operationally authoritative; Analytics receives only
-stable campaign/recipient references, bounded channel/provider values, event time, and the normalized
-sent or delivered status.
+stable campaign/recipient references, bounded channel/provider values, event time, and normalized
+recipient outcomes.
 
 #### Execution slice 1 — recipient sent and delivered facts
 
@@ -2013,7 +2013,7 @@ sent or delivered status.
 - [x] Verify the registered sent, delivered, and delivery-rate metrics through the signed reporting
   fixture, including distinct-recipient and numerator/denominator aggregation paths.
 - [ ] Add campaign source manifests, historical reconstruction, and reliable coverage boundaries.
-- [ ] Add transactional campaign failure, retry, suppression/eligibility, cost, and complete
+- [ ] Add transactional campaign retry, suppression/eligibility, cost, and complete
   provider-outcome facts before claiming complete Campaign performance coverage.
 - [ ] Add one combined mutation-to-publisher-to-projection-to-reporting E2E for Campaign delivery.
 
@@ -2037,7 +2037,17 @@ sent or delivered status.
   WhatsApp provider `FAILED` webhook transitions.
 - [x] Extend Core privacy/rollback, authenticated publisher, and reporting coverage for failure
   facts and the `failure_class` breakdown.
-- [ ] Add block, unsubscribe, retry, eligibility, guard, and read-delay facts in later slices.
+
+#### Execution slice 4 — recipient blocked facts
+
+- [x] Add and register `campaign.recipient.blocked@1` with a separate bounded `block_class`; blocked
+  outcomes are not included in failure metrics.
+- [x] Emit blocked facts transactionally for Core provider-send failures and Meta webhook failures;
+  known Meta block signals are normalized to `BLOCKED` before the operational transition is saved.
+- [x] Extend Core privacy/rollback, authenticated publisher, and reporting coverage for blocked facts
+  and the `block_class` breakdown.
+- [ ] Add unsubscribe/exclusion, retry, eligibility, guard, timing, cost, and attribution facts in
+  later Campaign slices.
 
 ### Agent Platform lane: customer handoff
 

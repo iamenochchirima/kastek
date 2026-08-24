@@ -168,11 +168,18 @@ fn parse_status_failure_details(status_payload: &Value) -> (Option<String>, Opti
     (code, message)
 }
 
+fn is_blocked_failure(code: Option<&str>, message: Option<&str>) -> bool {
+    matches!(code, Some("131026") | Some("131048"))
+        || message
+            .map(|value| value.to_ascii_lowercase().contains("blocked"))
+            .unwrap_or(false)
+}
+
 async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppError> {
     let Some(message_id) = status_payload.get("id").and_then(|v| v.as_str()) else {
         return Ok(());
     };
-    let next_status = match status_payload.get("status").and_then(|v| v.as_str()) {
+    let provider_status = match status_payload.get("status").and_then(|v| v.as_str()) {
         Some("sent") => "SENT",
         Some("delivered") => "DELIVERED",
         Some("read") => "READ",
@@ -185,10 +192,17 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
         .and_then(|v| v.parse::<i64>().ok())
         .and_then(|secs| chrono::DateTime::<Utc>::from_timestamp(secs, 0))
         .unwrap_or_else(Utc::now);
-    let (failure_code, failure_message) = if next_status == "FAILED" {
+    let (failure_code, failure_message) = if provider_status == "FAILED" {
         parse_status_failure_details(status_payload)
     } else {
         (None, None)
+    };
+    let next_status = if provider_status == "FAILED"
+        && is_blocked_failure(failure_code.as_deref(), failure_message.as_deref())
+    {
+        "BLOCKED"
+    } else {
+        provider_status
     };
     log::info!(
         "[whatsapp-status] received message_id={} next_status={} timestamp={} code={:?} message={:?}",
@@ -230,8 +244,8 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
                     "deliveredAt" = CASE WHEN $1 = 'DELIVERED' THEN $2 ELSE "deliveredAt" END,
                     "readAt" = CASE WHEN $1 = 'READ' THEN $2 ELSE "readAt" END,
                     "failedAt" = CASE WHEN $1 IN ('FAILED','BLOCKED') THEN $2 ELSE "failedAt" END,
-                    "errorCode" = CASE WHEN $1 = 'FAILED' THEN $3 ELSE "errorCode" END,
-                    "errorMessage" = CASE WHEN $1 = 'FAILED' THEN $4 ELSE "errorMessage" END,
+                    "errorCode" = CASE WHEN $1 IN ('FAILED','BLOCKED') THEN $3 ELSE "errorCode" END,
+                    "errorMessage" = CASE WHEN $1 IN ('FAILED','BLOCKED') THEN $4 ELSE "errorMessage" END,
                     "updatedAt" = NOW()
                 WHERE id = $5
                 "#,
@@ -243,7 +257,7 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
             .bind(&recipient.id)
             .execute(&mut *status_transaction)
             .await?;
-            if matches!(next_status, "DELIVERED" | "READ" | "FAILED") {
+            if matches!(next_status, "DELIVERED" | "READ" | "FAILED" | "BLOCKED") {
                 let organization_id = sqlx::query_scalar::<_, String>(
                     r#"SELECT "orgId" FROM "WhatsappCampaign" WHERE id = $1 LIMIT 1"#,
                 )
@@ -288,6 +302,19 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
                         )
                         .await
                     }
+                    "BLOCKED" => {
+                        analytics::campaigns::enqueue_recipient_blocked(
+                            &mut status_transaction,
+                            &organization_id,
+                            &recipient.campaign_id,
+                            &recipient.id,
+                            "whatsapp",
+                            "meta",
+                            "provider_blocked",
+                            timestamp,
+                        )
+                        .await
+                    }
                     _ => unreachable!("status was checked before analytics publication"),
                 };
                 result.map_err(|error| {
@@ -295,7 +322,7 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
                 })?;
             }
             status_transaction.commit().await?;
-            if next_status == "FAILED" {
+            if matches!(next_status, "FAILED" | "BLOCKED") {
                 let campaign = sqlx::query_as::<_, WhatsappCampaignRow>(
                     r#"
                     SELECT c.id, c."userId" AS user_id, c."orgId" AS org_id, c."connectionId" AS connection_id, c."templateId" AS template_id,
@@ -330,7 +357,7 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
                             status, "whatsappMessageId", "responsePayload", "errorCode", "errorMessage", "createdAt"
                         )
                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-                                'FAILED'::"WhatsappRecipientStatus", $9, $10, $11, $12, NOW())
+                                CAST($9 AS "WhatsappRecipientStatus"), $10, $11, $12, $13, NOW())
                         "#,
                     )
                     .bind(cuid2::create_id())
@@ -341,6 +368,7 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
                     .bind(&recipient.contact_id)
                     .bind(&phone)
                     .bind(&campaign.template_name)
+                    .bind(next_status)
                     .bind(message_id)
                     .bind(status_payload)
                     .bind(failure_code.as_deref())
@@ -975,7 +1003,7 @@ mod tests {
 
     use super::{
         approval_acknowledgement, external_connection_routing_key, get_inbound_approval_token,
-        is_opt_out_message,
+        is_blocked_failure, is_opt_out_message,
     };
 
     #[test]
@@ -1016,6 +1044,16 @@ mod tests {
         assert!(!is_opt_out_message(None));
         assert!(!is_opt_out_message(Some("stop please")));
         assert!(!is_opt_out_message(Some("hello")));
+    }
+
+    #[test]
+    fn classifies_only_bounded_provider_block_signals() {
+        assert!(is_blocked_failure(Some("131026"), None));
+        assert!(is_blocked_failure(None, Some("Recipient is blocked")));
+        assert!(!is_blocked_failure(
+            Some("131047"),
+            Some("Temporary failure")
+        ));
     }
 
     #[test]

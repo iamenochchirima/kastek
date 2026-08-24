@@ -16,8 +16,8 @@ use kasitek_analytics::{
     rollout::{RolloutAuthenticator, RolloutDecisionCache},
 };
 use kasitek_core::analytics::campaigns::{
-    enqueue_recipient_delivered, enqueue_recipient_failed, enqueue_recipient_read,
-    enqueue_recipient_sent,
+    enqueue_recipient_blocked, enqueue_recipient_delivered, enqueue_recipient_failed,
+    enqueue_recipient_read, enqueue_recipient_sent,
 };
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -152,6 +152,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         let delivered_at = sent_at + Duration::seconds(1);
         let read_at = delivered_at + Duration::seconds(1);
         let failed_at = read_at + Duration::seconds(1);
+        let blocked_at = failed_at + Duration::seconds(1);
         let mut transaction = core_pool.begin().await.expect("Core transaction");
         enqueue_recipient_sent(
             &mut transaction,
@@ -209,6 +210,18 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         )
         .await
         .expect("Campaign failed fact should enqueue");
+        enqueue_recipient_blocked(
+            &mut transaction,
+            &organization_id,
+            &campaign_id,
+            &delivered_recipient_id,
+            "whatsapp",
+            "meta",
+            "provider_blocked",
+            blocked_at,
+        )
+        .await
+        .expect("Campaign blocked fact should enqueue");
         transaction
             .commit()
             .await
@@ -239,8 +252,8 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
             .await
             .expect("Core publisher should deliver Campaign facts to Analytics");
         assert!(
-            stats.delivered >= 4,
-            "expected four Campaign facts: {stats:?}"
+            stats.delivered >= 5,
+            "expected five Campaign facts: {stats:?}"
         );
 
         let delivered: i64 = sqlx::query_scalar(
@@ -253,7 +266,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         .fetch_one(&core_pool)
         .await
         .expect("Core Campaign delivery state");
-        assert_eq!(delivered, 4);
+        assert_eq!(delivered, 5);
 
         let rows = sqlx::query(
             r#"SELECT event_type, source_service, source_record_id, attributes, backfilled
@@ -265,7 +278,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         .fetch_all(&analytics_pool)
         .await
         .expect("Analytics Campaign facts");
-        assert_eq!(rows.len(), 4);
+        assert_eq!(rows.len(), 5);
         let mut event_types = Vec::new();
         for row in rows {
             let event_type: String = row.get("event_type");
@@ -290,6 +303,12 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
                     Some("provider_rejected")
                 );
             }
+            if event_type == "campaign.recipient.blocked@1" {
+                assert_eq!(
+                    attributes.get("block_class").and_then(Value::as_str),
+                    Some("provider_blocked")
+                );
+            }
             for prohibited in [
                 "phone_number",
                 "email",
@@ -309,6 +328,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         assert_eq!(
             event_types,
             vec![
+                "campaign.recipient.blocked@1".to_string(),
                 "campaign.recipient.delivered@1".to_string(),
                 "campaign.recipient.failed@1".to_string(),
                 "campaign.recipient.read@1".to_string(),
