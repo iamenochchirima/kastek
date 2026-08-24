@@ -1730,6 +1730,10 @@ Connection metrics remain gated on Product Section 9 approval.
   event or observation window; empty streams do not receive fabricated temporal coverage.
 - [x] Link reconciliation checkpoints directly to their immutable reconciliation run and make
   retries idempotent.
+- [x] Add a Core Connections source-reconstruction worker that reads only the immutable,
+  privacy-filtered Core Connections event history in `analytics_outbox`, preserves original event
+  envelopes and business time, uses deterministic backfill sequences, and excludes manifests from
+  event reconstruction; it does not read Analytics storage or mutable connection projections.
 - [ ] Add temporal event backfill checkpoints and connect source/reconciliation coverage to reporting
   availability before exposing customer-facing Connections analytics.
 

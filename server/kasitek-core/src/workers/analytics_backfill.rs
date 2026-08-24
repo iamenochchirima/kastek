@@ -1,16 +1,20 @@
 //! Core-owned source reconstruction for authenticated Analytics backfill jobs.
 //!
 //! This worker reads only the authoritative Core rows needed for the leased source boundary. It
-//! never reads Analytics storage, never sends message content or provider identifiers, and never
-//! uses the live outbox. Re-running a range is safe because the record identities and source
+//! never reads Analytics storage and never sends message content or provider identifiers. For
+//! Connections, the immutable Core analytics outbox is the source-owned event history because the
+//! operational connection projection stores current state only; the worker never mutates or claims
+//! those source rows. Re-running a range is safe because the record identities and source
 //! sequences are deterministic.
 
 use std::{env, time::Duration};
 
 use analytics_producer::{
-    backfill_source_sequence, AnalyticsIngestionClient, BackfillRecord, SourceBackfillWork,
+    backfill_source_sequence, AnalyticsIngestionClient, AnalyticsOutboxRecord, BackfillRecord,
+    RecordCategory, ScopeKind, SourceBackfillWork,
 };
 use chrono::{DateTime, Utc};
+use serde_json::Value;
 use sqlx::{FromRow, PgPool};
 
 use crate::analytics;
@@ -20,6 +24,7 @@ const DEFAULT_PRODUCER_ID: &str = "core-customer-analytics";
 const DEFAULT_BATCH_SIZE: i64 = 100;
 const DEFAULT_POLL_INTERVAL_MS: u64 = 5_000;
 const META_SOURCE_DOMAIN: &str = "inbox";
+const CONNECTIONS_SOURCE_DOMAIN: &str = "connections";
 const SOURCE_RECONSTRUCTION_METHOD: &str = "source_reconstruction";
 
 #[derive(Clone, Debug)]
@@ -50,10 +55,29 @@ struct MetaMessageBackfillRow {
     occurred_at: DateTime<Utc>,
 }
 
+#[derive(Debug, FromRow)]
+struct ConnectionsBackfillRow {
+    source_sequence: i64,
+    outbox_id: String,
+    source_service: String,
+    source_domain: String,
+    source_stream_key: String,
+    record_category: String,
+    record_id: String,
+    contract_name: String,
+    schema_version: i32,
+    scope_kind: String,
+    scope_external_id: String,
+    idempotency_key: String,
+    envelope: Value,
+    payload_hash: String,
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 struct BackfillStats {
     conversation_records: usize,
     message_records: usize,
+    connection_records: usize,
     rejected_records: usize,
 }
 
@@ -85,37 +109,33 @@ pub async fn run(pool: PgPool) {
     loop {
         match client.claim_source_backfill_work().await {
             Ok(Some(work)) => {
-                if work.source_domain != META_SOURCE_DOMAIN
-                    || work.method != SOURCE_RECONSTRUCTION_METHOD
-                {
-                    log::warn!(
-                        "[analytics-backfill] unsupported source job={} domain={} method={}",
-                        work.job_id,
-                        work.source_domain,
-                        work.method
-                    );
-                } else {
-                    match process_meta_source_reconstruction(
-                        &pool,
-                        &client,
-                        &settings,
-                        &work,
-                    )
-                    .await
-                    {
-                        Ok(stats) => log::info!(
-                            "[analytics-backfill] completed pass job={} conversations={} messages={} rejected={}",
-                            work.job_id,
-                            stats.conversation_records,
-                            stats.message_records,
-                            stats.rejected_records
-                        ),
-                        Err(error) => log::error!(
-                            "[analytics-backfill] pass failed job={} error={}",
-                            work.job_id,
-                            error
-                        ),
+                let result = match (work.source_domain.as_str(), work.method.as_str()) {
+                    (META_SOURCE_DOMAIN, SOURCE_RECONSTRUCTION_METHOD) => {
+                        process_meta_source_reconstruction(&pool, &client, &settings, &work).await
                     }
+                    (CONNECTIONS_SOURCE_DOMAIN, SOURCE_RECONSTRUCTION_METHOD) => {
+                        process_connections_source_reconstruction(&pool, &client, &settings, &work)
+                            .await
+                    }
+                    _ => Err(format!(
+                        "unsupported_source_job:{}:{}",
+                        work.source_domain, work.method
+                    )),
+                };
+                match result {
+                    Ok(stats) => log::info!(
+                        "[analytics-backfill] completed pass job={} conversations={} messages={} connections={} rejected={}",
+                        work.job_id,
+                        stats.conversation_records,
+                        stats.message_records,
+                        stats.connection_records,
+                        stats.rejected_records
+                    ),
+                    Err(error) => log::error!(
+                        "[analytics-backfill] pass failed job={} error={}",
+                        work.job_id,
+                        error
+                    ),
                 }
             }
             Ok(None) => {}
@@ -258,6 +278,148 @@ async fn process_meta_source_reconstruction(
     Ok(stats)
 }
 
+async fn process_connections_source_reconstruction(
+    pool: &PgPool,
+    client: &AnalyticsIngestionClient,
+    settings: &Settings,
+    work: &SourceBackfillWork,
+) -> Result<BackfillStats, String> {
+    if work.scope_external_id.trim().is_empty()
+        || work.requested_range_end <= work.requested_range_start
+    {
+        return Err("invalid_source_backfill_scope_or_range".to_string());
+    }
+    if work.remaining_count.is_none() {
+        return Err("source_backfill_requires_expected_count".to_string());
+    }
+
+    let mut stats = BackfillStats::default();
+    let mut cursor = None;
+    loop {
+        let rows = load_connections_history(
+            pool,
+            &work.scope_external_id,
+            work.requested_range_start,
+            work.requested_range_end,
+            cursor,
+            settings.batch_size,
+        )
+        .await
+        .map_err(|error| format!("load_connections_history: {error}"))?;
+        if rows.is_empty() {
+            break;
+        }
+        let last_sequence = rows
+            .last()
+            .map(|row| row.source_sequence)
+            .expect("non-empty Connections page has a last row");
+        let records = rows
+            .into_iter()
+            .map(|row| {
+                build_connections_backfill_record(row).map(|record| BackfillRecord {
+                    source_sequence: backfill_source_sequence(&record.record_id),
+                    record,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("build_connections_fact: {error}"))?;
+        let response = client
+            .send_backfill_batch(&settings.producer_id, &work.job_id, &records)
+            .await
+            .map_err(|error| format!("send_connections_batch: {error}"))?;
+        if response.retryable_count > 0 {
+            return Err("connections_batch_has_retryable_records".to_string());
+        }
+        stats.connection_records += records.len();
+        stats.rejected_records += response.rejected_count;
+        cursor = Some(last_sequence);
+    }
+
+    Ok(stats)
+}
+
+async fn load_connections_history(
+    pool: &PgPool,
+    organization_id: &str,
+    range_start: DateTime<Utc>,
+    range_end: DateTime<Utc>,
+    cursor: Option<i64>,
+    limit: i64,
+) -> Result<Vec<ConnectionsBackfillRow>, sqlx::Error> {
+    let query = r#"
+        SELECT source_sequence,
+               outbox_id,
+               source_service,
+               source_domain,
+               source_stream_key,
+               record_category,
+               record_id,
+               contract_name,
+               schema_version,
+               scope_kind,
+               scope_external_id,
+               idempotency_key,
+               envelope,
+               payload_hash
+        FROM analytics_outbox
+        WHERE source_service = 'core'
+          AND source_domain = 'connections'
+          AND record_category = 'event'
+          AND source_stream_key = 'organization:' || $1 || ':connections'
+          AND scope_external_id = $1
+          AND NULLIF(envelope ->> 'time', '')::timestamptz >= $2
+          AND NULLIF(envelope ->> 'time', '')::timestamptz < $3
+          AND ($4::bigint IS NULL OR source_sequence > $4)
+        ORDER BY source_sequence
+        LIMIT $5
+    "#;
+    sqlx::query_as::<_, ConnectionsBackfillRow>(query)
+        .bind(organization_id)
+        .bind(range_start)
+        .bind(range_end)
+        .bind(cursor)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+}
+
+fn build_connections_backfill_record(
+    row: ConnectionsBackfillRow,
+) -> Result<AnalyticsOutboxRecord, String> {
+    if row.source_service != "core" || row.source_domain != CONNECTIONS_SOURCE_DOMAIN {
+        return Err("connections_source_identity_mismatch".to_string());
+    }
+    if row.source_stream_key != format!("organization:{}:connections", row.scope_external_id) {
+        return Err("connections_source_stream_mismatch".to_string());
+    }
+    if row.outbox_id.trim().is_empty() {
+        return Err("connections_outbox_identity_missing".to_string());
+    }
+    let record_category =
+        serde_json::from_value::<RecordCategory>(Value::String(row.record_category))
+            .map_err(|error| format!("invalid_record_category:{error}"))?;
+    if record_category != RecordCategory::Event {
+        return Err("connections_backfill_requires_event_record".to_string());
+    }
+    let scope_kind = serde_json::from_value::<ScopeKind>(Value::String(row.scope_kind))
+        .map_err(|error| format!("invalid_scope_kind:{error}"))?;
+    Ok(AnalyticsOutboxRecord {
+        outbox_id: row.outbox_id,
+        source_service: row.source_service,
+        source_domain: row.source_domain,
+        source_stream_key: row.source_stream_key,
+        record_category,
+        record_id: row.record_id,
+        contract_name: row.contract_name,
+        schema_version: row.schema_version,
+        scope_kind,
+        scope_external_id: row.scope_external_id,
+        idempotency_key: row.idempotency_key,
+        envelope: row.envelope,
+        payload_hash: row.payload_hash,
+    })
+}
+
 async fn load_meta_conversations(
     pool: &PgPool,
     organization_id: &str,
@@ -393,7 +555,11 @@ fn env_u64(name: &str, default: u64) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::meta_responder_type;
+    use analytics_producer::{RecordCategory, ScopeKind};
+    use chrono::Utc;
+    use serde_json::json;
+
+    use super::{build_connections_backfill_record, meta_responder_type, ConnectionsBackfillRow};
 
     #[test]
     fn meta_responder_mapping_preserves_agent_and_system_boundaries() {
@@ -401,5 +567,78 @@ mod tests {
         assert_eq!(meta_responder_type("bot", Some("run-1"), None), "agent");
         assert_eq!(meta_responder_type("bot", None, Some("template")), "system");
         assert_eq!(meta_responder_type("bot", None, None), "human");
+    }
+
+    #[test]
+    fn connections_backfill_reuses_only_the_immutable_safe_event_envelope() {
+        let row = ConnectionsBackfillRow {
+            source_sequence: 12,
+            outbox_id: "outbox-12".to_string(),
+            source_service: "core".to_string(),
+            source_domain: "connections".to_string(),
+            source_stream_key: "organization:org-1:connections".to_string(),
+            record_category: "event".to_string(),
+            record_id: "connection:ext-1:lifecycle:connected:12".to_string(),
+            contract_name: "connection.lifecycle@1".to_string(),
+            schema_version: 1,
+            scope_kind: "core_organization".to_string(),
+            scope_external_id: "org-1".to_string(),
+            idempotency_key: "connection:ext-1:lifecycle:connected:12".to_string(),
+            envelope: json!({
+                "specversion": "1.0",
+                "id": "event-12",
+                "source": "kasitek://core",
+                "type": "connection.lifecycle@1",
+                "subject": "connection:ext-1",
+                "time": Utc::now(),
+                "datacontenttype": "application/json",
+                "dataschema": "https://kasitek.co.za/analytics/contracts/events/connections/lifecycle/v1.schema.json",
+                "source_service": "core",
+                "source_domain": "connections",
+                "record_category": "event",
+                "scope_kind": "core_organization",
+                "scope_external_id": "org-1",
+                "idempotency_key": "connection:ext-1:lifecycle:connected:12",
+                "data": {
+                    "connection_id": "ext-1",
+                    "provider": "WHATSAPP",
+                    "action": "connected",
+                    "status": "CONNECTED"
+                }
+            }),
+            payload_hash: "a".repeat(64),
+        };
+
+        let record = build_connections_backfill_record(row).expect("safe event row");
+        assert_eq!(record.record_category, RecordCategory::Event);
+        assert_eq!(record.scope_kind, ScopeKind::CoreOrganization);
+        assert_eq!(record.source_domain, "connections");
+        assert_eq!(record.record_id, "connection:ext-1:lifecycle:connected:12");
+        assert_eq!(record.envelope["data"]["provider"], "WHATSAPP");
+    }
+
+    #[test]
+    fn connections_backfill_rejects_non_event_source_rows() {
+        let row = ConnectionsBackfillRow {
+            source_sequence: 13,
+            outbox_id: "outbox-13".to_string(),
+            source_service: "core".to_string(),
+            source_domain: "connections".to_string(),
+            source_stream_key: "organization:org-1:connections".to_string(),
+            record_category: "manifest".to_string(),
+            record_id: "manifest:connections:13".to_string(),
+            contract_name: "source.manifest@1".to_string(),
+            schema_version: 1,
+            scope_kind: "core_organization".to_string(),
+            scope_external_id: "org-1".to_string(),
+            idempotency_key: "manifest:connections:13".to_string(),
+            envelope: json!({}),
+            payload_hash: "b".repeat(64),
+        };
+
+        assert_eq!(
+            build_connections_backfill_record(row).expect_err("manifest must not be reconstructed"),
+            "connections_backfill_requires_event_record"
+        );
     }
 }

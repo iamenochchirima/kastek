@@ -452,6 +452,11 @@ checklist records implementation evidence for the current package only.
   contracts plus the source manifest to the Core outbox, published them through the authenticated
   shared transport, and verified delivered rows, manifest persistence, event contracts, and privacy
   boundaries. Projection, historical completeness, and reporting remain separate pending slices.
+- Core Connections source reconstruction: Core's backfill worker now claims authenticated
+  `source_reconstruction` jobs for `connections`, reads only immutable privacy-filtered Core outbox
+  events, preserves their envelopes and business timestamps, excludes manifests, and uses stable
+  backfill sequences; focused Core unit tests passed. Temporal checkpoint, reporting, and worker
+  transport E2E evidence remain pending.
 - Publisher transport: `pnpm exec tsc --noEmit` and focused Agent analytics tests passed, including
   the authenticated TypeScript batch request contract.
 - Publisher workers: Core, Tenant Platform, and Agent Platform now expose independent local worker
@@ -642,6 +647,18 @@ checklist records implementation evidence for the current package only.
   completeness.
 - [ ] Add temporal event backfill checkpoints, reporting availability, and full product
   mutation-to-reporting E2E in later Connections slices.
+
+## Core Connections — source reconstruction
+
+- [x] Claim `connections` `source_reconstruction` work through the existing authenticated worker
+  boundary.
+- [x] Read immutable Core Connections event history from the Core `analytics_outbox`, not Analytics
+  storage or mutable `ExternalConnection` state.
+- [x] Preserve the original safe envelope and business timestamp with deterministic backfill
+  sequences; exclude manifest records from event reconstruction.
+- [x] Verify valid event conversion and manifest rejection in focused Core unit tests.
+- [ ] Add native worker-to-Analytics transport E2E, temporal completion checkpoint evidence, and
+  reporting availability after the source-history job reaches its finite boundary.
 
 ## Core Connections — slice 7
 
