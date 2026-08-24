@@ -562,7 +562,7 @@ export class HandoffRepository {
         conversation: conversation.rows[0],
         actorType: "user",
         actorId: input.actorId,
-        payload: { status: "pending", resolution: "released", resolutionCode: resolution },
+        payload: { status: "pending", resolution: "released", resolutionCode: "released" },
       });
       return { handoff: handoff.rows[0], conversation: conversation.rows[0], changed: true };
     });
@@ -1092,6 +1092,7 @@ export class HandoffRepository {
       installation_id: input.handoff.installation_id,
       agent_definition_id: input.handoff.agent_definition_id,
       agent_version_id: input.handoff.agent_version_id,
+      agent_audience: "customer_service",
       run_id: input.handoff.run_id,
       channel_type: input.handoff.channel_type,
       action,
@@ -1106,8 +1107,18 @@ export class HandoffRepository {
     };
     if (typeof input.payload.messageId === "string") analyticsAttributes.message_id = input.payload.messageId;
     if (typeof input.payload.deliveryStatus === "string") analyticsAttributes.delivery_status = input.payload.deliveryStatus;
-    if (typeof input.payload.resolutionCode === "string") analyticsAttributes.resolution_code = input.payload.resolutionCode;
-    else if (typeof input.payload.resolution === "string") analyticsAttributes.resolution_code = input.payload.resolution;
+    const resolutionCode = action === "continued"
+      ? "continued_with_agent"
+      : action === "resolved"
+        ? "resolved"
+        : action === "released"
+          ? "released"
+          : action === "expired"
+            ? "deadline"
+            : action === "cancelled"
+              ? "run_cancelled"
+              : undefined;
+    if (resolutionCode) analyticsAttributes.resolution_code = resolutionCode;
     const auditMetadata: Record<string, unknown> = {
       handoff_id: input.handoff.id,
       conversation_id: input.conversation.id,

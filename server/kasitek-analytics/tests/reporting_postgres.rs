@@ -202,6 +202,69 @@ fn connections_event_record(
     }
 }
 
+fn handoff_event_record(
+    stream: &str,
+    record_id: &str,
+    sequence: i64,
+    scope_external_id: &str,
+    action: &str,
+    status: &str,
+    conversation_state: &str,
+    actor_type: &str,
+    resolution_code: Option<&str>,
+    occurred_at: chrono::DateTime<Utc>,
+) -> IngestionRecord {
+    let mut data = json!({
+        "handoff_id": "handoff-reporting-1",
+        "conversation_id": "conversation-reporting-1",
+        "installation_id": "installation-reporting-1",
+        "agent_definition_id": "agent-reporting-1",
+        "agent_version_id": "version-reporting-1",
+        "agent_audience": "customer_service",
+        "run_id": "run-reporting-1",
+        "channel_type": "whatsapp",
+        "action": action,
+        "status": status,
+        "reason": "customer_requested",
+        "priority": "urgent",
+        "actor_type": actor_type,
+        "conversation_state": conversation_state,
+        "occurred_at": occurred_at,
+    });
+    if let Some(value) = resolution_code {
+        data["resolution_code"] = json!(value);
+    }
+    IngestionRecord {
+        producer_id: "agent-platform-customer-analytics".to_string(),
+        source_stream_key: stream.to_string(),
+        source_sequence: sequence,
+        record_category: kasitek_analytics::records::RecordCategory::Event,
+        record_id: record_id.to_string(),
+        contract_name: "agent.handoff.lifecycle@1".to_string(),
+        schema_version: 1,
+        scope_kind: "core_organization".to_string(),
+        scope_external_id: scope_external_id.to_string(),
+        payload_hash: canonical_payload_sha256(&data).expect("handoff event payload hash"),
+        envelope: json!({
+            "specversion": "1.0",
+            "id": format!("00000000-0000-4000-8000-{sequence:012}"),
+            "source": "kasitek://agent-platform",
+            "type": "agent.handoff.lifecycle@1",
+            "subject": "handoff:handoff-reporting-1",
+            "time": occurred_at,
+            "datacontenttype": "application/json",
+            "dataschema": "https://kasitek.co.za/analytics/contracts/events/agent/handoff_lifecycle/v1.schema.json",
+            "source_service": "agent-platform",
+            "source_domain": "agents",
+            "record_category": "event",
+            "scope_kind": "core_organization",
+            "scope_external_id": scope_external_id,
+            "idempotency_key": format!("handoff-reporting:{record_id}"),
+            "data": data,
+        }),
+    }
+}
+
 async fn insert_fixture(
     transaction: &mut Transaction<'_, Postgres>,
     registry_sha256: &str,
@@ -1222,4 +1285,222 @@ async fn all_connections_metrics_report_after_backfill_projection_completion() {
         .rollback()
         .await
         .expect("rollback all Connections report transaction");
+}
+
+#[tokio::test]
+async fn customer_handoff_lifecycle_projects_and_reports_with_safe_dimensions() {
+    let Some(pool) = pool().await else { return };
+    let registry = load_registry().expect("registry");
+    let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default();
+    let scope_external_id = format!("handoff-reporting-org-{suffix}");
+    let stream = format!("organization:{scope_external_id}:handoffs");
+    let grant_id = format!("handoff-reporting-grant-{suffix}");
+    let backfill_job_id = format!("handoff-reporting-backfill-{suffix}");
+    let scope_id: i64 = sqlx::query_scalar(
+        r#"INSERT INTO analytics.reporting_scope (
+             scope_kind, owning_source_service, external_source_id, status, reporting_timezone
+           ) VALUES ('core_organization', 'agent-platform', $1, 'active', 'UTC')
+           RETURNING scope_id"#,
+    )
+    .bind(&scope_external_id)
+    .fetch_one(&pool)
+    .await
+    .expect("handoff reporting scope");
+    let range_start = Utc.with_ymd_and_hms(2026, 8, 24, 12, 0, 0).unwrap();
+    let range_end = range_start + Duration::hours(1);
+    let grant_time = Utc::now().with_nanosecond(0).expect("grant timestamp");
+    let grant = ReportingGrant {
+        grant_id: grant_id.clone(),
+        issuer: "kasitek-agent-platform".to_string(),
+        audience: "kasitek-analytics-reporting".to_string(),
+        principal_type: PrincipalType::User,
+        principal_id: "handoff-reporting-user".to_string(),
+        scope_id,
+        root_scope_id: scope_id,
+        descendant_mode: DescendantMode::None,
+        explicit_descendant_scope_ids: Vec::new(),
+        permissions: BTreeSet::from(["analytics:read".to_string()]),
+        metric_keys: Vec::new(),
+        dimension_keys: Vec::new(),
+        policy_version: "v1".to_string(),
+        issued_at: grant_time,
+        not_before: grant_time,
+        expires_at: grant_time + Duration::seconds(60),
+        correlation_id: Some("handoff-reporting-e2e".to_string()),
+        revoked_at: None,
+    };
+
+    let mut setup = pool.begin().await.expect("handoff reporting setup");
+    sqlx::query(
+        r#"INSERT INTO analytics.reporting_grant (
+             grant_id, issuer_service_identity_id, audience, principal_type, principal_id,
+             scope_id, root_scope_id, descendant_mode, explicit_descendant_scope_ids,
+             permissions, metric_keys, dimension_keys, policy_version, issued_at, not_before,
+             expires_at, correlation_id
+           ) VALUES ($1,'agent-platform','kasitek-analytics-reporting','user',$2,$3,$3,'none',
+                     '[]'::jsonb,$4,'[]'::jsonb,'[]'::jsonb,'v1',$5,$5,$6,$7)"#,
+    )
+    .bind(&grant_id)
+    .bind(&grant.principal_id)
+    .bind(scope_id)
+    .bind(json!(["analytics:read"]))
+    .bind(grant_time)
+    .bind(grant.expires_at)
+    .bind(grant.correlation_id.as_deref())
+    .execute(&mut *setup)
+    .await
+    .expect("handoff reporting grant");
+    sqlx::query(
+        r#"INSERT INTO analytics.analytics_backfill_job (
+             job_id, source_service, source_domain, reporting_scope_id, root_scope_id,
+             requested_range_start, requested_range_end, contract_version, method,
+             job_status, remaining_count, requesting_actor_type, requesting_actor_id,
+             authorization_grant_id, started_at
+           ) VALUES ($1,'agent-platform','agents',$2,$2,$3,$4,'agent.handoff.lifecycle@1',
+                     'source_reconstruction','running',3,'test','handoff-reporting-e2e',
+                     $5,NOW())"#,
+    )
+    .bind(&backfill_job_id)
+    .bind(scope_id)
+    .bind(range_start)
+    .bind(range_end)
+    .bind(&grant_id)
+    .execute(&mut *setup)
+    .await
+    .expect("handoff source backfill job");
+    setup.commit().await.expect("handoff setup commit");
+
+    let records = [
+        ("requested", "pending", "handoff_requested", "agent", None),
+        ("first_human_response", "sent", "human_owned", "user", None),
+        ("resolved", "resolved", "resolved", "user", Some("resolved")),
+    ]
+    .into_iter()
+    .enumerate()
+    .map(
+        |(index, (action, status, conversation_state, actor_type, resolution_code))| {
+            handoff_event_record(
+                &stream,
+                &format!("handoff-reporting-{index}-{suffix}"),
+                9_300_001 + index as i64,
+                &scope_external_id,
+                action,
+                status,
+                conversation_state,
+                actor_type,
+                resolution_code,
+                range_start + Duration::seconds(index as i64 * 10),
+            )
+        },
+    )
+    .collect::<Vec<_>>();
+    let record_ids = records
+        .iter()
+        .map(|record| record.record_id.clone())
+        .collect::<Vec<_>>();
+    let authenticated = AuthenticatedProducer {
+        source_service: "agent-platform".to_string(),
+        producer_id: "agent-platform-customer-analytics".to_string(),
+    };
+    let response = ingest_batch(
+        &pool,
+        &authenticated,
+        IngestionBatchRequest {
+            records,
+            backfill_job_id: Some(backfill_job_id),
+        },
+    )
+    .await;
+    assert_eq!(response.accepted_count, 3);
+    assert_eq!(response.rejected_count, 0);
+
+    sqlx::query(
+        r#"UPDATE analytics.analytics_projection_work
+           SET priority = 1
+           WHERE min_source_storage_id = (
+                     SELECT MIN(storage_id) FROM analytics.analytics_event WHERE event_id = ANY($1)
+                 )
+             AND max_source_storage_id = (
+                     SELECT MAX(storage_id) FROM analytics.analytics_event WHERE event_id = ANY($1)
+                 )"#,
+    )
+    .bind(&record_ids)
+    .execute(&pool)
+    .await
+    .expect("prioritize handoff projection work");
+    let mut projected = false;
+    for _ in 0..32 {
+        let _ = projections::process_once(&pool, &registry, "handoff-reporting-e2e", 60)
+            .await
+            .expect("handoff projection pass");
+        let contribution_count: i64 = sqlx::query_scalar(
+            r#"SELECT COUNT(*)
+               FROM analytics.analytics_projection_contribution
+               WHERE source_storage_id IN (
+                   SELECT storage_id FROM analytics.analytics_event WHERE event_id = ANY($1)
+               ) AND metric_key = 'agent.handoffs.lifecycle_events'"#,
+        )
+        .bind(&record_ids)
+        .fetch_one(&pool)
+        .await
+        .expect("handoff contribution count");
+        if contribution_count >= 3 {
+            projected = true;
+            break;
+        }
+    }
+    assert!(
+        projected,
+        "handoff events should reach the Agent projection"
+    );
+
+    let mut transaction = pool.begin().await.expect("handoff report transaction");
+    let authorized = authorize_transaction(&mut transaction, &grant, scope_id)
+        .await
+        .expect("authorized handoff reporting scope");
+    let report = execute_report(
+        &mut transaction,
+        &registry,
+        &grant,
+        &authorized,
+        &ReportQueryRequest {
+            reporting_scope_id: scope_id,
+            range_start,
+            range_end,
+            timezone: "UTC".to_string(),
+            interval: Some("hour".to_string()),
+            metrics: vec!["agent.handoffs.lifecycle_events@1".to_string()],
+            metric_set: None,
+            breakdowns: vec![
+                "agent_definition".to_string(),
+                "handoff_conversation_state".to_string(),
+            ],
+            filters: Default::default(),
+            include_descendants: false,
+            comparison: None,
+        },
+    )
+    .await
+    .expect("handoff report");
+    let metric = &report.metrics[0];
+    assert_eq!(metric.availability.state, "available");
+    assert_eq!(metric.coverage.state, "available");
+    assert_eq!(metric.coverage.evidence_layer.as_deref(), Some("temporal"));
+    assert_eq!(metric.coverage.window_start, Some(range_start));
+    assert_eq!(metric.coverage.window_end, Some(range_end));
+    assert_eq!(metric.coverage.complete_through, Some(range_end));
+    assert_eq!(metric.coverage.dimension_state, "available");
+    assert_eq!(metric.coverage.missing_dimension_points, 0);
+    assert_eq!(
+        metric.coverage.required_sources,
+        vec!["agent.handoff.lifecycle@1"]
+    );
+    assert_eq!(metric.series.len(), 3);
+    assert!(metric.series.iter().all(|series| {
+        series.dimensions["agent_definition"] == "agent-reporting-1" && series.value == Some(1.0)
+    }));
+    transaction
+        .rollback()
+        .await
+        .expect("rollback handoff report transaction");
 }

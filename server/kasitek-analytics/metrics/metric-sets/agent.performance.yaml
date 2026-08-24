@@ -22,6 +22,7 @@ definitions:
       - agent.definitions.lifecycle_events@1
       - agent.readiness.evaluations@1
       - agent.conversations.lifecycle_events@1
+      - agent.handoffs.lifecycle_events@1
       - agent.conversation_messages.lifecycle_events@1
       - agent.conversation.response_time_ms@1
     default_interval: day

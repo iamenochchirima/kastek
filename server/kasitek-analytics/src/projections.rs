@@ -1810,11 +1810,12 @@ fn event_dimensions(
     let mut dimensions = Map::new();
     for key in &metric.dimensions {
         let value = match key.as_str() {
-            "agent_definition" if subject_type == "agent_definition" => {
-                Some(Value::String(subject_id.to_string()))
-            }
+            "agent_definition" => attributes.get("agent_definition_id").cloned().or_else(|| {
+                (subject_type == "agent_definition").then(|| Value::String(subject_id.to_string()))
+            }),
             "agent_version" => attributes.get("agent_version_id").cloned(),
             "agent_installation" => attributes.get("installation_id").cloned(),
+            "agent_audience" => attributes.get("agent_audience").cloned(),
             "campaign" => attributes.get("campaign_id").cloned(),
             "channel" | "conversation_channel" => attributes.get("channel").cloned(),
             "provider" => attributes.get("provider").cloned(),
@@ -1835,6 +1836,12 @@ fn event_dimensions(
             "rate_limit_scope" => attributes.get("rate_limit_scope").cloned(),
             "incident_severity" => attributes.get("severity").cloned(),
             "incident_reason_code" => attributes.get("reason_code").cloned(),
+            "handoff_channel" => attributes.get("channel_type").cloned(),
+            "handoff_conversation_state" => attributes.get("conversation_state").cloned(),
+            "handoff_reason" => attributes.get("reason").cloned(),
+            "handoff_priority" => attributes.get("priority").cloned(),
+            "handoff_actor_type" => attributes.get("actor_type").cloned(),
+            "handoff_resolution_code" => attributes.get("resolution_code").cloned(),
             _ => None,
         };
         if let Some(value) = value.filter(is_safe_dimension_value) {

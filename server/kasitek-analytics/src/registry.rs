@@ -1335,16 +1335,17 @@ impl fmt::Display for RegistrySnapshot {
 
 #[cfg(test)]
 mod tests {
-    use super::load_registry;
+    use super::{load_registry, validate_registered_contract};
+    use serde_json::json;
 
     #[test]
     fn repository_registry_is_valid_and_deterministic() {
         let registry = load_registry().expect("repository registry should validate");
         assert_eq!(registry.contracts.len(), 27);
-        assert_eq!(registry.metrics.len(), 32);
-        assert_eq!(registry.dimensions.len(), 43);
+        assert_eq!(registry.metrics.len(), 33);
+        assert_eq!(registry.dimensions.len(), 49);
         assert_eq!(registry.metric_sets.len(), 2);
-        assert_eq!(registry.metric_keys().len(), 32);
+        assert_eq!(registry.metric_keys().len(), 33);
         assert!(!registry.sha256.is_empty());
     }
 
@@ -1355,5 +1356,84 @@ mod tests {
             .check_generated_bindings()
             .expect("generated bindings should be current");
         assert_eq!(crate::generated_registry::REGISTRY_SHA256, registry.sha256);
+    }
+
+    #[test]
+    fn handoff_contract_accepts_every_bounded_repository_lifecycle_value() {
+        let cases = [
+            ("requested", "pending", "handoff_requested", "agent", None),
+            ("claimed", "claimed", "human_owned", "user", None),
+            ("first_human_response", "sent", "human_owned", "user", None),
+            ("human_message", "sent", "human_owned", "user", None),
+            (
+                "continued",
+                "resolved",
+                "agent_active",
+                "user",
+                Some("continued_with_agent"),
+            ),
+            ("resolved", "resolved", "resolved", "user", Some("resolved")),
+            (
+                "released",
+                "pending",
+                "handoff_requested",
+                "user",
+                Some("released"),
+            ),
+            ("expired", "expired", "expired", "system", Some("deadline")),
+            (
+                "cancelled",
+                "cancelled",
+                "cancelled",
+                "agent",
+                Some("run_cancelled"),
+            ),
+        ];
+        for (action, status, conversation_state, actor_type, resolution_code) in cases {
+            let mut data = json!({
+                "handoff_id": "handoff-1",
+                "conversation_id": "conversation-1",
+                "installation_id": "installation-1",
+                "agent_definition_id": "agent-1",
+                "agent_version_id": "version-1",
+                "agent_audience": "customer_service",
+                "run_id": "run-1",
+                "channel_type": "whatsapp",
+                "action": action,
+                "status": status,
+                "reason": "customer_requested",
+                "priority": "normal",
+                "actor_type": actor_type,
+                "conversation_state": conversation_state,
+                "occurred_at": "2026-08-24T10:00:00Z"
+            });
+            if let Some(value) = resolution_code {
+                data["resolution_code"] = json!(value);
+            }
+            validate_registered_contract("agent.handoff.lifecycle@1", &data)
+                .unwrap_or_else(|error| panic!("{action} should validate: {error}"));
+        }
+    }
+
+    #[test]
+    fn handoff_contract_rejects_free_form_resolution_text() {
+        let data = json!({
+            "handoff_id": "handoff-1",
+            "conversation_id": "conversation-1",
+            "installation_id": "installation-1",
+            "agent_definition_id": "agent-1",
+            "agent_version_id": "version-1",
+            "agent_audience": "customer_service",
+            "channel_type": "platform",
+            "action": "released",
+            "status": "pending",
+            "reason": "customer_requested",
+            "priority": "normal",
+            "actor_type": "user",
+            "conversation_state": "handoff_requested",
+            "resolution_code": "operator wrote a private note",
+            "occurred_at": "2026-08-24T10:00:00Z"
+        });
+        assert!(validate_registered_contract("agent.handoff.lifecycle@1", &data).is_err());
     }
 }

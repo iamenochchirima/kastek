@@ -351,6 +351,18 @@ checklist records implementation evidence for the current package only.
   template, and system definition paths, including the terminal deletion fact before dependent
   data is removed and avoiding unchanged metadata-update duplicates.
 
+### A-13 — Customer handoff analytics completion
+
+- [x] Keep handoff analytics scoped to customer-service Agents and customer conversations; generic
+  human waits and non-handoff Agents do not emit this contract.
+- [x] Align the registered handoff lifecycle schema with all repository-emitted actions, sent
+  statuses, and bounded resolution codes.
+- [x] Add `agent.handoffs.lifecycle_events@1` with safe lifecycle dimensions and include it in the
+  Agent performance metric set.
+- [x] Verify attribute-based Agent-definition projection, ingestion, temporal coverage,
+  authorization, and reporting with
+  `customer_handoff_lifecycle_projects_and_reports_with_safe_dimensions`.
+
 ## Verification evidence
 
 - `cargo fmt --manifest-path server/kasitek-analytics/Cargo.toml -- --check`
@@ -451,7 +463,7 @@ checklist records implementation evidence for the current package only.
   local native Core and Analytics PostgreSQL databases; it committed all six Core Connections fact
   contracts plus the source manifest to the Core outbox, published them through the authenticated
   shared transport, and verified delivered rows, manifest persistence, event contracts, and privacy
-  boundaries. Projection, historical completeness, and reporting remain separate pending slices.
+  boundaries. Projection, historical completeness, and reporting are verified in separate slices.
 - Core Connections source reconstruction: Core's backfill worker now claims authenticated
   `source_reconstruction` jobs for `connections`, reads only immutable privacy-filtered Core outbox
   events, preserves their envelopes and business timestamps, excludes manifests, and uses stable
@@ -463,6 +475,9 @@ checklist records implementation evidence for the current package only.
   `available` temporal coverage, required-source evidence, and provider/lifecycle dimensions.
 -  The same fixture now verifies all six registered Connections metrics as available after the
   temporal boundary. Approved customer-facing surfaces remain pending.
+- Customer handoff reporting: the native `reporting_postgres` fixture accepted three bounded
+  customer-service handoff lifecycle facts, projected them with Agent-definition and handoff-state
+  dimensions, and returned an authorized report with available temporal coverage.
 - Publisher transport: `pnpm exec tsc --noEmit` and focused Agent analytics tests passed, including
   the authenticated TypeScript batch request contract.
 - Publisher workers: Core, Tenant Platform, and Agent Platform now expose independent local worker

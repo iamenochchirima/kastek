@@ -3,7 +3,7 @@ definitions:
   - key: agent_definition
     type: reference
     source: envelope.subject.agent_definition_id
-    compatible_metrics: [agent.runs.completed@1, agent.runs.failed@1, agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.installations.lifecycle_events@1, agent.versions.lifecycle_events@1, agent.definitions.lifecycle_events@1, agent.readiness.evaluations@1, agent.conversations.lifecycle_events@1, agent.conversation_messages.lifecycle_events@1, agent.conversation.response_time_ms@1]
+    compatible_metrics: [agent.runs.completed@1, agent.runs.failed@1, agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.installations.lifecycle_events@1, agent.versions.lifecycle_events@1, agent.definitions.lifecycle_events@1, agent.readiness.evaluations@1, agent.conversations.lifecycle_events@1, agent.handoffs.lifecycle_events@1, agent.conversation_messages.lifecycle_events@1, agent.conversation.response_time_ms@1]
     filterable: true
     groupable: true
     cardinality: medium
@@ -14,7 +14,7 @@ definitions:
   - key: agent_version
     type: reference
     source: envelope.data.agent_version_id
-    compatible_metrics: [agent.runs.completed@1, agent.runs.failed@1, agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.installations.lifecycle_events@1, agent.versions.lifecycle_events@1, agent.readiness.evaluations@1, agent.conversations.lifecycle_events@1, agent.conversation_messages.lifecycle_events@1, agent.conversation.response_time_ms@1]
+    compatible_metrics: [agent.runs.completed@1, agent.runs.failed@1, agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.installations.lifecycle_events@1, agent.versions.lifecycle_events@1, agent.readiness.evaluations@1, agent.conversations.lifecycle_events@1, agent.handoffs.lifecycle_events@1, agent.conversation_messages.lifecycle_events@1, agent.conversation.response_time_ms@1]
     filterable: true
     groupable: true
     cardinality: medium
@@ -25,7 +25,7 @@ definitions:
   - key: agent_installation
     type: reference
     source: envelope.data.installation_id
-    compatible_metrics: [agent.runs.completed@1, agent.runs.failed@1, agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.installations.lifecycle_events@1, agent.readiness.evaluations@1, agent.conversations.lifecycle_events@1, agent.conversation_messages.lifecycle_events@1, agent.conversation.response_time_ms@1]
+    compatible_metrics: [agent.runs.completed@1, agent.runs.failed@1, agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.installations.lifecycle_events@1, agent.readiness.evaluations@1, agent.conversations.lifecycle_events@1, agent.handoffs.lifecycle_events@1, agent.conversation_messages.lifecycle_events@1, agent.conversation.response_time_ms@1]
     filterable: true
     groupable: true
     cardinality: high
@@ -58,7 +58,7 @@ definitions:
   - key: agent_audience
     type: enum
     source: envelope.data.agent_audience
-    compatible_metrics: [agent.installations.lifecycle_events@1, agent.definitions.lifecycle_events@1, agent.conversations.lifecycle_events@1, agent.conversation_messages.lifecycle_events@1, agent.conversation.response_time_ms@1]
+    compatible_metrics: [agent.installations.lifecycle_events@1, agent.definitions.lifecycle_events@1, agent.conversations.lifecycle_events@1, agent.handoffs.lifecycle_events@1, agent.conversation_messages.lifecycle_events@1, agent.conversation.response_time_ms@1]
     filterable: true
     groupable: true
     cardinality: low
@@ -158,6 +158,72 @@ definitions:
     type: enum
     source: envelope.data.handoff_state
     compatible_metrics: [agent.conversations.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: handoff_channel
+    type: enum
+    source: envelope.data.channel_type
+    compatible_metrics: [agent.handoffs.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: handoff_conversation_state
+    type: enum
+    source: envelope.data.conversation_state
+    compatible_metrics: [agent.handoffs.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: handoff_reason
+    type: enum
+    source: envelope.data.reason
+    compatible_metrics: [agent.handoffs.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: handoff_priority
+    type: enum
+    source: envelope.data.priority
+    compatible_metrics: [agent.handoffs.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: handoff_actor_type
+    type: enum
+    source: envelope.data.actor_type
+    compatible_metrics: [agent.handoffs.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: handoff_resolution_code
+    type: enum
+    source: envelope.data.resolution_code
+    compatible_metrics: [agent.handoffs.lifecycle_events@1]
     filterable: true
     groupable: true
     cardinality: low

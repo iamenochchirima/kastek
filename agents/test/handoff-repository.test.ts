@@ -108,7 +108,25 @@ describe("handoff repository lifecycle", () => {
         const sql = text.replace(/\s+/g, " ").trim();
         if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") return { rows: [] };
         if (sql.includes("FROM agent_handoff_requests") && sql.includes("FOR UPDATE")) return { rows: [handoff] };
+        if (sql.includes("FROM conversations c") && sql.includes("JOIN agent_definitions ad")) {
+          return {
+            rows: [{
+              conversation_id: conversation.id,
+              organization_id: conversation.organization_id,
+              installation_id: conversation.installation_id,
+              conversation_kind: conversation.conversation_kind,
+              channel_type: conversation.channel_type,
+              status: conversation.status,
+              handoff_state: conversation.handoff_state,
+              agent_definition_id: handoff.agent_definition_id,
+              agent_version_id: handoff.agent_version_id,
+              agent_audience: "customer_service",
+            }],
+          };
+        }
         if (sql.includes("FROM conversations WHERE organization_id")) return { rows: [conversation] };
+        if (sql.includes("SELECT participant_type FROM participants")) return { rows: [{ participant_type: "staff" }] };
+        if (sql.includes("GREATEST(0") && sql.includes("FROM messages m")) return { rows: [{ response_time_ms: null }] };
         if (sql.includes("SELECT EXISTS (")) return { rows: [{ exists: false }] };
         if (sql.includes("FROM messages") && sql.includes("provider_message_id")) return { rows: [] };
         if (sql.includes("INSERT INTO participants")) return { rows: [{ id: message.participant_id }] };

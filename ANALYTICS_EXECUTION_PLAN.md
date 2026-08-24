@@ -1999,6 +1999,21 @@ Add dedicated request, reason, queue entry, claim, human response, resolution, r
 return-to-Agent history. The generic `awaiting_human` workflow state does not classify every human
 wait as customer takeover.
 
+#### Execution slice 2 — dedicated customer handoff
+
+- [x] Reuse the existing customer-service handoff repository boundary; ordinary personal, test, and
+  non-handoff Agents remain outside this contract.
+- [x] Align every repository-emitted handoff action and status with the versioned Analytics schema,
+  including first human response and bounded resolution codes.
+- [x] Keep release, expiry, and cancellation explanations out of Analytics; emit only bounded
+  resolution codes and preserve operational detail in the Agent Platform audit history.
+- [x] Add the customer-handoff lifecycle metric and bounded channel, state, reason, priority, actor,
+  and resolution dimensions to the Agent reporting set.
+- [x] Project handoff agent references from safe event attributes when the handoff subject is not an
+  Agent-definition subject.
+- [x] Verify ingestion, typed projection, temporal coverage, authorization, and customer-facing
+  reporting with the native PostgreSQL handoff E2E.
+
 ### Tenant Platform lane: scope and authorization
 
 First publish workspace and tenant-client scopes, add workspace timezone and an optional client
