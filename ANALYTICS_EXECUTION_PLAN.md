@@ -34,14 +34,14 @@ their dependencies are approved.
 - [x] UI-02. Shared analytics client and visualization contract — approved; implemented
 - [x] UI-03. Protected local Analytics Playground — approved; implemented
 - [x] UI-04. Feature dashboards for Campaigns, Connections, and Inbox — approved; implemented
-- [x] UI-05. Tenant workspace and tenant-client analytics — approved
+- [x] UI-05. Tenant workspace and tenant-client analytics — approved; implemented
 - [x] UI-06. Per-Agent Analytics with conditional customer handoff reporting — approved
 - [x] UI-07. Main Overview derived from feature reporting contracts — approved
 - [x] UI-08. Legacy migration, visual verification, and browser E2E — approved
 
 ## UI execution track — customer reporting and visual validation
 
-**Status:** The UI track is approved. UI-01 through UI-04 are implemented; UI-05 is the next
+**Status:** The UI track is approved. UI-01 through UI-05 are implemented; UI-06 is the next
 implementation slice. Later slices remain ordered behind the shared reporting contract and
 authorization boundary.
 
@@ -134,6 +134,14 @@ operational records in the browser.
 Add workspace-admin and tenant-client reporting surfaces using the same contracts and visualization
 components. Workspace totals may aggregate authorized child clients; client users receive only their
 client scope. Test role, assignment, and cross-client isolation explicitly.
+
+**Implemented package:** the tenant portal now uses `tenant-analytics.ts` and
+`tenant-analytics-panel.tsx` for both audiences. Workspace Reporting uses `/api/analytics/*` and
+requests descendant totals only for roles that the Tenant gateway authorizes; tenant-client Overview
+uses `/api/client/analytics/*` with descendants disabled. Both surfaces use the versioned
+`overview.summary@1` registry contract and display scope kind, generation, data-as-of, metric
+availability, freshness, coverage, warnings, and period values. No client-facing response exposes
+the internal Analytics scope ID or permits a client session to request workspace data.
 
 ### UI-06 — per-Agent Analytics
 

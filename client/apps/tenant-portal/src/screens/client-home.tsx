@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useTenantContext } from "@/lib/tenant-context-provider";
+import { TenantAnalyticsPanel } from "@/components/tenant-analytics-panel";
 
 export default function ClientHomeScreen() {
   const { data: overview, isLoading: loadingOverview } = useGetClientOverview();
@@ -92,6 +93,8 @@ export default function ClientHomeScreen() {
               </>
             )}
           </div>
+
+          <TenantAnalyticsPanel audience="client" />
 
           <Card>
             <CardHeader>

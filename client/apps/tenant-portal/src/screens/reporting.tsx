@@ -18,6 +18,8 @@ import { getListReportingDashboardsQueryKey } from "@workspace/api-client-react"
 import { Badge } from "@/components/ui/badge";
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { TENANT_ROUTE_ACCESS } from "@/lib/tenant-access";
+import { TenantAnalyticsPanel } from "@/components/tenant-analytics-panel";
+import { useAuth } from "@/lib/auth";
 
 const createDashboardSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -31,6 +33,7 @@ export default function Reporting() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedDashboardId, setSelectedDashboardId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const { data: dashboards, isLoading: loadingDashboards } = useListReportingDashboards();
   const createDashboard = useCreateReportingDashboard();
@@ -71,6 +74,7 @@ export default function Reporting() {
     <ProtectedRoute allowedRoles={TENANT_ROUTE_ACCESS.reporting}>
       <Layout>
         <div className="p-8 space-y-8 animate-in fade-in duration-500">
+          <TenantAnalyticsPanel audience="workspace" includeDescendants={user?.roles.some((role) => ["owner", "admin", "account_manager"].includes(role))} />
           <div className="flex justify-between items-end">
             <div>
               <h1 className="text-3xl font-bold tracking-tight">Client Reporting</h1>
