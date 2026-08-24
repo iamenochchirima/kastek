@@ -1937,6 +1937,9 @@ those transitions.
   an authenticated source reconstruction or approved provider-history import completes.
 - [x] Include the authorized reporting scope's external organization ID in leased source-history
   work so Core can reconstruct only the requested organization without querying Analytics storage.
+- [x] Add the authenticated Core-side transport contract for claiming this work and submitting
+  bounded reconstructed batches, with deterministic record-identity sequences and live-cursor
+  isolation.
 - [ ] Add historical backfill coverage, source reconciliation, projection/reporting evidence, and
   end-to-end mutation-to-reporting tests for Meta Inbox.
 

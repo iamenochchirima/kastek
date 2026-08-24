@@ -18,10 +18,12 @@ use uuid::Uuid;
 mod publisher;
 
 pub use publisher::{
-    list_outbox_reconciliation_summaries, publish_outbox_once, reconcile_outbox_once,
-    AnalyticsIngestionClient, AnalyticsPublisherSettings, OutboxReconciliationSummary,
+    backfill_source_sequence, list_outbox_reconciliation_summaries, publish_outbox_once,
+    reconcile_outbox_once, AnalyticsIngestionClient, AnalyticsPublisherSettings,
+    BackfillAcknowledgement, BackfillBatchResponse, BackfillRecord, OutboxReconciliationSummary,
     PublishStats, PublisherError, ReconciliationCursor, ReconciliationRequest,
-    ReconciliationResponse, ReconciliationStats, MAX_RECONCILIATION_STREAMS,
+    ReconciliationResponse, ReconciliationStats, SourceBackfillWork, BACKFILL_WORK_PATH,
+    MAX_RECONCILIATION_STREAMS,
 };
 
 pub const CORE_SOURCE_SERVICE: &str = "core";

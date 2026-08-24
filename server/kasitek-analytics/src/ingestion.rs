@@ -508,9 +508,10 @@ async fn ingest_record(
             && existing.record_id == record.record_id
             && existing.payload_hash == record.payload_hash
         {
-            if update_cursor(&mut transaction, authenticated, &record)
-                .await
-                .is_err()
+            if backfill_job_id.is_none()
+                && update_cursor(&mut transaction, authenticated, &record)
+                    .await
+                    .is_err()
             {
                 return retryable(record_id, source_sequence, "analytics_unavailable");
             }
@@ -590,9 +591,10 @@ async fn ingest_record(
                 return rejected(failure.code);
             }
         }
-        if update_cursor(&mut transaction, authenticated, &record)
-            .await
-            .is_err()
+        if backfill_job_id.is_none()
+            && update_cursor(&mut transaction, authenticated, &record)
+                .await
+                .is_err()
         {
             return retryable(record_id, source_sequence, "analytics_unavailable");
         }
@@ -743,9 +745,10 @@ async fn ingest_record(
         {
             return retryable(record_id, source_sequence, "analytics_unavailable");
         }
-        if update_cursor(&mut transaction, authenticated, &record)
-            .await
-            .is_err()
+        if backfill_job_id.is_none()
+            && update_cursor(&mut transaction, authenticated, &record)
+                .await
+                .is_err()
         {
             return retryable(record_id, source_sequence, "analytics_unavailable");
         }
@@ -926,9 +929,10 @@ async fn ingest_record(
     {
         return retryable(record_id, source_sequence, "analytics_unavailable");
     }
-    if update_cursor(&mut transaction, authenticated, &record)
-        .await
-        .is_err()
+    if backfill_job_id.is_none()
+        && update_cursor(&mut transaction, authenticated, &record)
+            .await
+            .is_err()
     {
         return retryable(record_id, source_sequence, "analytics_unavailable");
     }

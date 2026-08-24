@@ -194,6 +194,8 @@ checklist records implementation evidence for the current package only.
   including parent-before-child readiness and controlled reparent rejection.
 - [x] Update highest-received, highest-contiguous, and merged known-gap cursor state in the same
   transaction as each accepted or duplicate record.
+- [x] Exclude authenticated source-history backfill records from live source-cursor advancement;
+  their stable identity sequences are used only for idempotent fact identity and receipt storage.
 - [x] Update provider observation source health in the same transaction as the observation fact.
 - [x] Add authenticated producer reconciliation summaries and persist mismatch, gap, count, and
   unresolved-quarantine evidence in `analytics_reconciliation_run`.
@@ -435,6 +437,9 @@ checklist records implementation evidence for the current package only.
 - Publisher transport: shared Rust wire-contract tests passed, including authenticated request
   headers, bounded batch shape, per-record acknowledgement matching, transient HTTP failure
   classification, and malformed-ack retry behavior.
+- Source-history transport: the shared Rust client now claims authenticated source-backfill work,
+  submits bounded batches with the leased job identity, uses stable record-identity sequences, and
+  keeps backfill acceptance out of live source-cursor advancement; focused wire-contract tests pass.
 - Publisher transport: `pnpm exec tsc --noEmit` and focused Agent analytics tests passed, including
   the authenticated TypeScript batch request contract.
 - Publisher workers: Core, Tenant Platform, and Agent Platform now expose independent local worker

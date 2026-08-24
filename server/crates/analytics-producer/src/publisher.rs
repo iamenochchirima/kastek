@@ -11,6 +11,7 @@ use chrono::{DateTime, Utc};
 use reqwest::{header, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Row};
 use thiserror::Error;
 use uuid::Uuid;
@@ -22,6 +23,7 @@ use crate::{
 
 const INGESTION_PATH: &str = "/internal/ingest/v1/batch";
 const RECONCILIATION_PATH: &str = "/internal/reconciliation/v1/summary";
+pub const BACKFILL_WORK_PATH: &str = "/internal/backfill/v1/work";
 pub const MAX_RECONCILIATION_STREAMS: i64 = 500;
 
 #[derive(Clone)]
@@ -104,6 +106,7 @@ impl AnalyticsIngestionClient {
                     envelope: row.envelope.clone(),
                 })
                 .collect(),
+            backfill_job_id: None,
         };
         let response = self
             .client
@@ -153,6 +156,100 @@ impl AnalyticsIngestionClient {
             .await
             .map_err(|_| PublisherError::Reconciliation("analytics.invalid_response".to_string()))
     }
+
+    /// Claim source-owned historical reconstruction work from Analytics.
+    ///
+    /// The bearer credential identifies the producer and source service. No producer identity is
+    /// accepted in the request body, so a source worker can only receive work authorized for its
+    /// own source boundary.
+    pub async fn claim_source_backfill_work(
+        &self,
+    ) -> Result<Option<SourceBackfillWork>, PublisherError> {
+        let response = self
+            .client
+            .get(format!("{}{}", self.endpoint, BACKFILL_WORK_PATH))
+            .header(header::AUTHORIZATION, format!("Bearer {}", self.token))
+            .send()
+            .await
+            .map_err(|_| PublisherError::Backfill("analytics.transport_unavailable".to_string()))?;
+
+        if response.status() == StatusCode::NO_CONTENT {
+            return Ok(None);
+        }
+        let status = response.status();
+        if !status.is_success() {
+            return Err(PublisherError::Backfill(transport_error_code(
+                classify_http_status(status),
+            )));
+        }
+        response
+            .json::<SourceBackfillWork>()
+            .await
+            .map(Some)
+            .map_err(|_| PublisherError::Backfill("analytics.invalid_response".to_string()))
+    }
+
+    /// Send reconstructed source facts through the normal authenticated ingestion validator.
+    ///
+    /// Backfill records are explicitly tagged with the leased job. Analytics uses that tag to
+    /// update job progress while keeping these records out of the live source sequence cursor.
+    pub async fn send_backfill_batch(
+        &self,
+        producer_id: &str,
+        job_id: &str,
+        records: &[BackfillRecord],
+    ) -> Result<BackfillBatchResponse, PublisherError> {
+        if producer_id.trim().is_empty()
+            || job_id.trim().is_empty()
+            || records.is_empty()
+            || records.len() > MAX_OUTBOX_BATCH_SIZE as usize
+            || records.iter().any(|record| {
+                record.source_sequence != backfill_source_sequence(&record.record.record_id)
+            })
+        {
+            return Err(PublisherError::InvalidConfiguration);
+        }
+
+        let request = IngestionBatchRequest {
+            records: records
+                .iter()
+                .map(|record| ingestion_record(producer_id, &record.record, record.source_sequence))
+                .collect(),
+            backfill_job_id: Some(job_id.to_string()),
+        };
+        let response = self
+            .client
+            .post(format!("{}{}", self.endpoint, INGESTION_PATH))
+            .header(header::AUTHORIZATION, format!("Bearer {}", self.token))
+            .json(&request)
+            .send()
+            .await
+            .map_err(|_| PublisherError::Backfill("analytics.transport_unavailable".to_string()))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            return Err(PublisherError::Backfill(transport_error_code(
+                classify_http_status(status),
+            )));
+        }
+        response
+            .json::<BackfillBatchResponse>()
+            .await
+            .map_err(|_| PublisherError::Backfill("analytics.invalid_response".to_string()))
+    }
+}
+
+/// Return a stable positive sequence for a reconstructed record.
+///
+/// Live source sequences are allocated by the source outbox. Backfill records do not participate
+/// in that cursor, so they use a deterministic record-identity namespace instead. This keeps a
+/// retry, or a later overlapping backfill job, idempotent without reusing page-local sequences.
+pub fn backfill_source_sequence(record_id: &str) -> i64 {
+    let digest = Sha256::digest(format!("kasitek.analytics.backfill:{record_id}").as_bytes());
+    let mut bytes = [0_u8; 8];
+    bytes.copy_from_slice(&digest[..8]);
+    let sequence = u64::from_be_bytes(bytes) & i64::MAX as u64;
+    i64::try_from(sequence.max(1)).expect("masked backfill sequence fits in i64")
 }
 
 #[derive(Debug, Error)]
@@ -163,6 +260,8 @@ pub enum PublisherError {
     ClientBuild,
     #[error("analytics reconciliation request failed: {0}")]
     Reconciliation(String),
+    #[error("analytics source backfill request failed: {0}")]
+    Backfill(String),
     #[error(transparent)]
     Producer(#[from] ProducerError),
 }
@@ -228,6 +327,31 @@ pub struct PublishStats {
     pub quarantined: usize,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+pub struct SourceBackfillWork {
+    pub job_id: String,
+    pub source_service: String,
+    pub source_domain: String,
+    pub reporting_scope_id: i64,
+    pub root_scope_id: i64,
+    pub scope_external_id: String,
+    pub requested_range_start: DateTime<Utc>,
+    pub requested_range_end: DateTime<Utc>,
+    pub contract_version: String,
+    pub projection_version: Option<String>,
+    pub method: String,
+    pub job_status: String,
+    pub checkpoint: Value,
+    pub remaining_count: Option<i64>,
+    pub lease_expires_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug)]
+pub struct BackfillRecord {
+    pub source_sequence: i64,
+    pub record: crate::AnalyticsOutboxRecord,
+}
+
 #[derive(Debug)]
 enum TransportError {
     Retryable(&'static str),
@@ -238,6 +362,8 @@ enum TransportError {
 #[serde(deny_unknown_fields)]
 struct IngestionBatchRequest {
     records: Vec<IngestionRecord>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    backfill_job_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -267,6 +393,23 @@ struct IngestionBatchResponse {
     #[allow(dead_code)]
     retryable_count: usize,
     acknowledgements: Vec<IngestionAcknowledgement>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct BackfillBatchResponse {
+    pub accepted_count: usize,
+    pub duplicate_count: usize,
+    pub rejected_count: usize,
+    pub retryable_count: usize,
+    pub acknowledgements: Vec<BackfillAcknowledgement>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct BackfillAcknowledgement {
+    pub record_id: String,
+    pub source_sequence: i64,
+    pub status: String,
+    pub error_code: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -546,6 +689,33 @@ fn classify_http_status(status: StatusCode) -> TransportError {
     TransportError::Permanent(format!("analytics.http_{}", status.as_u16()))
 }
 
+fn transport_error_code(error: TransportError) -> String {
+    match error {
+        TransportError::Retryable(code) => code.to_string(),
+        TransportError::Permanent(code) => code,
+    }
+}
+
+fn ingestion_record(
+    producer_id: &str,
+    record: &crate::AnalyticsOutboxRecord,
+    source_sequence: i64,
+) -> IngestionRecord {
+    IngestionRecord {
+        producer_id: producer_id.to_string(),
+        source_stream_key: record.source_stream_key.clone(),
+        source_sequence,
+        record_category: record.record_category.as_str().to_string(),
+        record_id: record.record_id.clone(),
+        contract_name: record.contract_name.clone(),
+        schema_version: record.schema_version,
+        scope_kind: record.scope_kind.as_str().to_string(),
+        scope_external_id: record.scope_external_id.clone(),
+        payload_hash: record.payload_hash.clone(),
+        envelope: record.envelope.clone(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -575,6 +745,27 @@ mod tests {
             next_attempt_at: Utc::now(),
             lease_owner: Some("publisher".to_string()),
             lease_expires_at: Some(Utc::now()),
+        }
+    }
+
+    fn backfill_record(record_id: &str) -> BackfillRecord {
+        BackfillRecord {
+            source_sequence: backfill_source_sequence(record_id),
+            record: crate::AnalyticsOutboxRecord {
+                outbox_id: format!("backfill-{record_id}"),
+                source_service: "core".to_string(),
+                source_domain: "inbox".to_string(),
+                source_stream_key: "organization:org-1:inbox".to_string(),
+                record_category: crate::RecordCategory::Event,
+                record_id: record_id.to_string(),
+                contract_name: "conversation.message.lifecycle@1".to_string(),
+                schema_version: 1,
+                scope_kind: crate::ScopeKind::CoreOrganization,
+                scope_external_id: "org-1".to_string(),
+                idempotency_key: record_id.to_string(),
+                envelope: json!({"id": record_id}),
+                payload_hash: "hash".to_string(),
+            },
         }
     }
 
@@ -620,6 +811,14 @@ mod tests {
         };
         let outcomes = response_outcomes(&rows, response, Utc::now(), RetryPolicy::default());
         assert!(matches!(outcomes[0], DeliveryOutcome::Retryable { .. }));
+    }
+
+    #[test]
+    fn backfill_source_sequences_are_stable_and_positive() {
+        let first = backfill_source_sequence("record-1");
+        assert!(first > 0);
+        assert_eq!(first, backfill_source_sequence("record-1"));
+        assert_ne!(first, backfill_source_sequence("record-2"));
     }
 
     #[test]
@@ -676,6 +875,7 @@ mod tests {
                 serde_json::from_slice(&request[body_start..body_start + content_length]).unwrap();
             assert_eq!(body["records"][0]["producer_id"], "core-customer-analytics");
             assert_eq!(body["records"][0]["source_sequence"], 7);
+            assert!(body.get("backfill_job_id").is_none());
             let response_body = r#"{"accepted_count":1,"duplicate_count":0,"rejected_count":0,"retryable_count":0,"acknowledgements":[{"record_id":"record-1","source_sequence":7,"status":"accepted"}]}"#;
             let response = format!(
                 "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
@@ -696,6 +896,118 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.acknowledgements.len(), 1);
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn client_claims_authenticated_source_backfill_work() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            let mut buffer = [0_u8; 4096];
+            loop {
+                let read = socket.read(&mut buffer).await.unwrap();
+                request.extend_from_slice(&buffer[..read]);
+                if request.windows(4).any(|window| window == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let headers = String::from_utf8_lossy(&request);
+            assert!(headers.starts_with("GET /internal/backfill/v1/work HTTP/1.1"));
+            assert!(headers
+                .lines()
+                .any(|line| line.eq_ignore_ascii_case("authorization: bearer test-token")));
+            let response_body = r#"{"job_id":"job-1","source_service":"core","source_domain":"inbox","reporting_scope_id":4,"root_scope_id":4,"scope_external_id":"org-1","requested_range_start":"2025-01-01T00:00:00Z","requested_range_end":"2025-02-01T00:00:00Z","contract_version":"inbox.meta@1","projection_version":"meta.v1","method":"source_reconstruction","job_status":"running","checkpoint":{},"remaining_count":12,"lease_expires_at":"2025-02-01T00:05:00Z"}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                response_body.len(),
+                response_body
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+
+        let client = AnalyticsIngestionClient::new(
+            format!("http://{}", address),
+            "test-token",
+            Duration::from_secs(2),
+        )
+        .unwrap();
+        let work = client.claim_source_backfill_work().await.unwrap().unwrap();
+        assert_eq!(work.job_id, "job-1");
+        assert_eq!(work.scope_external_id, "org-1");
+        assert_eq!(work.remaining_count, Some(12));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn client_posts_authenticated_backfill_batch_with_job_identity() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            let mut buffer = [0_u8; 4096];
+            let (body_start, content_length) = loop {
+                let read = socket.read(&mut buffer).await.unwrap();
+                request.extend_from_slice(&buffer[..read]);
+                if let Some(index) = request.windows(4).position(|window| window == b"\r\n\r\n") {
+                    let body_start = index + 4;
+                    let headers = String::from_utf8_lossy(&request[..index]);
+                    let content_length = headers
+                        .lines()
+                        .find_map(|line| {
+                            line.to_ascii_lowercase()
+                                .strip_prefix("content-length: ")
+                                .map(str::to_string)
+                        })
+                        .unwrap()
+                        .parse::<usize>()
+                        .unwrap();
+                    if request.len() >= body_start + content_length {
+                        break (body_start, content_length);
+                    }
+                }
+            };
+            let headers = String::from_utf8_lossy(&request[..body_start]);
+            assert!(headers.starts_with("POST /internal/ingest/v1/batch HTTP/1.1"));
+            assert!(headers
+                .lines()
+                .any(|line| line.eq_ignore_ascii_case("authorization: bearer test-token")));
+            let body: Value =
+                serde_json::from_slice(&request[body_start..body_start + content_length]).unwrap();
+            assert_eq!(body["backfill_job_id"], "job-1");
+            assert_eq!(
+                body["records"][0]["source_sequence"],
+                backfill_source_sequence("backfill-record-1")
+            );
+            assert_eq!(body["records"][0]["record_id"], "backfill-record-1");
+            let response_body = r#"{"accepted_count":1,"duplicate_count":0,"rejected_count":0,"retryable_count":0,"acknowledgements":[{"record_id":"backfill-record-1","source_sequence":1,"status":"accepted"}]}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                response_body.len(),
+                response_body
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+
+        let client = AnalyticsIngestionClient::new(
+            format!("http://{}", address),
+            "test-token",
+            Duration::from_secs(2),
+        )
+        .unwrap();
+        let response = client
+            .send_backfill_batch(
+                "core-customer-analytics",
+                "job-1",
+                &[backfill_record("backfill-record-1")],
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.accepted_count, 1);
+        assert_eq!(response.acknowledgements[0].status, "accepted");
         server.await.unwrap();
     }
 

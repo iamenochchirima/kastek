@@ -739,6 +739,17 @@ async fn source_backfill_completion_persists_temporal_coverage_and_replay_does_n
         source_response.acknowledgements[0].status,
         AcknowledgementStatus::Accepted
     ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM analytics.analytics_source_cursor WHERE producer_id = $1 AND source_stream_key = $2",
+        )
+        .bind(&authenticated.producer_id)
+        .bind(&stream)
+        .fetch_one(&pool)
+        .await
+        .unwrap(),
+        0
+    );
 
     let job = sqlx::query(
         "SELECT job_status, scanned_count, accepted_count, rejected_count, remaining_count FROM analytics.analytics_backfill_job WHERE job_id = $1",
