@@ -1929,6 +1929,12 @@ those transitions.
   delivery-backfill facts from the authoritative Core mutations and webhook receipt paths.
 - [x] Preserve Meta channel and message-type dimensions while keeping content, customer
   identifiers, provider IDs, credentials, and raw provider payloads out of analytics attributes.
+- [x] Emit a Meta-specific `source.manifest@1` checkpoint from successful Core message mutation
+  transactions, with the current organization-scoped Meta message population and declared
+  contracts, metrics, and dimensions.
+- [x] Keep the Meta source checkpoint event-driven, immutable, same-window idempotent, and
+  explicitly non-historical: `reliable_coverage_start` and temporal completion remain unset until
+  an authenticated source reconstruction or approved provider-history import completes.
 - [ ] Add historical backfill coverage, source reconciliation, projection/reporting evidence, and
   end-to-end mutation-to-reporting tests for Meta Inbox.
 

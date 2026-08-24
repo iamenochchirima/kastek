@@ -651,6 +651,22 @@ checklist records implementation evidence for the current package only.
   in the PostgreSQL ingestion fixture.
 - [ ] Add richer rejected-record completion/reporting.
 
+## Core Inbox — Meta source checkpoint slice
+
+- [x] Add a Meta-specific `source.manifest@1` producer builder with the registered Core Inbox
+  contracts, metrics, and dimensions; keep provider and operational identifiers out of the
+  manifest payload.
+- [x] Emit the checkpoint from Meta message creation, send, retry, delivery, read, and provider
+  delivery-backfill mutation transactions using the current organization-scoped Meta message
+  population as the bounded source checkpoint.
+- [x] Coalesce repeated observations in the immutable refresh window and preserve the explicit
+  no-history boundary: `reliable_coverage_start` remains unset until a source reconstruction or
+  approved provider-history import completes.
+- [x] Extend the Core Inbox producer fixture with manifest privacy and same-window idempotency
+  assertions.
+- [ ] Add Meta historical backfill, temporal coverage, source reconciliation, projection/reporting
+  evidence, and full mutation-to-reporting E2E coverage.
+
 ## Reporting availability — slice 10
 
 - [x] Evaluate temporal and reconciliation checkpoints by registered metric domain and authorized

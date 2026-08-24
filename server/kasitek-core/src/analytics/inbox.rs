@@ -4,15 +4,103 @@
 //! same transaction that persists the Inbox mutation; publication is deliberately left to the
 //! Core analytics publisher.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde_json::json;
 use sqlx::{Postgres, Row, Transaction};
 
-use analytics_producer::{EnqueueResult, EventInput, ScopeKind};
+use analytics_producer::{EnqueueResult, EventInput, ManifestInput, ScopeKind};
 
-use super::enqueue_event;
+use super::{enqueue_event, enqueue_manifest as enqueue_source_manifest};
 
 const SOURCE_DOMAIN: &str = "inbox";
+const META_MANIFEST_KEY: &str = "core.inbox.meta";
+const META_MANIFEST_REFRESH_SECONDS: i64 = 3_600;
+const META_SUPPORTED_CONTRACTS: &[&str] = &[
+    "conversation.lifecycle@1",
+    "conversation.message.lifecycle@1",
+];
+const META_SUPPORTED_METRICS: &[&str] = &[
+    "conversation.lifecycle_events",
+    "conversation.message.lifecycle_events",
+    "conversation.response_time_ms",
+];
+const META_SUPPORTED_DIMENSIONS: &[&str] = &[
+    "conversation_channel",
+    "lifecycle_action",
+    "status",
+    "message_action",
+    "message_direction",
+    "responder_type",
+    "message_type",
+    "message_delivery_status",
+];
+
+/// Enqueue an organization-scoped Meta Inbox source checkpoint.
+///
+/// The checkpoint describes the current persisted Meta message population observed by Core. It
+/// is useful for source reconciliation, but it deliberately does not claim historical coverage:
+/// `reliable_coverage_start` stays unset until an authenticated source reconstruction or approved
+/// provider-history import has completed.
+pub async fn enqueue_manifest(
+    transaction: &mut Transaction<'_, Postgres>,
+    organization_id: &str,
+    message_count: i64,
+    collected_at: DateTime<Utc>,
+) -> Result<EnqueueResult, analytics_producer::ProducerError> {
+    let manifest_version = collected_at
+        .timestamp()
+        .div_euclid(META_MANIFEST_REFRESH_SECONDS)
+        .max(1);
+    let source_stream_key = stream_key(organization_id);
+    let record_id = format!("manifest:{source_stream_key}:{META_MANIFEST_KEY}:{manifest_version}");
+    let result = enqueue_source_manifest(
+        transaction,
+        ManifestInput {
+            record_id,
+            source_domain: SOURCE_DOMAIN.to_string(),
+            source_stream_key,
+            contract_name: "source.manifest@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::CoreOrganization,
+            scope_external_id: organization_id.to_string(),
+            manifest_key: META_MANIFEST_KEY.to_string(),
+            manifest_version,
+            provider: Some("meta".to_string()),
+            connection_ref: None,
+            supported_contracts: META_SUPPORTED_CONTRACTS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect(),
+            supported_observation_contracts: Vec::new(),
+            supported_metrics: META_SUPPORTED_METRICS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect(),
+            supported_dimensions: META_SUPPORTED_DIMENSIONS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect(),
+            expected_refresh_seconds: META_MANIFEST_REFRESH_SECONDS,
+            reliable_coverage_start: None,
+            highest_authoritative_source_sequence: None,
+            approved_checkpoint_count: Some(message_count),
+            approved_checkpoint_hash: None,
+            last_successful_collection_at: Some(collected_at),
+            last_attempted_collection_at: Some(collected_at),
+            safe_failure_code: None,
+            next_expected_at: Some(collected_at + Duration::seconds(META_MANIFEST_REFRESH_SECONDS)),
+            manifest_state: "active".to_string(),
+            generated_at: collected_at,
+            idempotency_key: None,
+        },
+    )
+    .await?;
+
+    Ok(match result {
+        EnqueueResult::Conflict { outbox_id } => EnqueueResult::Duplicate { outbox_id },
+        result => result,
+    })
+}
 
 #[allow(clippy::too_many_arguments)]
 pub async fn enqueue_conversation_lifecycle(

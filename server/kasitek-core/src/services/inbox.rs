@@ -828,6 +828,7 @@ pub async fn send_conversation_message(
     .map_err(|error| {
         AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
     })?;
+    enqueue_meta_source_manifest(&mut transaction, org_id, occurred_at).await?;
     transaction.commit().await?;
     if let Some(target) = reply_target.as_ref() {
         message_domain::create_reference(
@@ -920,6 +921,7 @@ pub async fn retry_conversation_message(
     .map_err(|error| {
         AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
     })?;
+    enqueue_meta_source_manifest(&mut transaction, org_id, occurred_at).await?;
     transaction.commit().await?;
     let reply_to_provider_message_id = sqlx::query_scalar::<_, Option<String>>(
         r#"
@@ -1003,6 +1005,7 @@ async fn deliver_meta_text_message(
                 "Failed to queue Inbox analytics fact: {analytics_error}"
             ))
         })?;
+        enqueue_meta_source_manifest(&mut transaction, org_id, occurred_at).await?;
         transaction.commit().await?;
         publish_message_updated(pool, message_id).await?;
     }
@@ -1118,6 +1121,7 @@ async fn try_deliver_meta_text_message(
     .map_err(|error| {
         AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
     })?;
+    enqueue_meta_source_manifest(&mut transaction, org_id, occurred_at).await?;
     transaction.commit().await?;
 
     // The HTTP response is the sender's immediate acknowledgement. Realtime
@@ -1498,6 +1502,12 @@ pub async fn process_meta_webhook_payload(
             .bind(if is_echo { 0 } else { 1 })
             .bind(&conversation_id)
             .execute(&mut *transaction)
+            .await?;
+            enqueue_meta_source_manifest(
+                &mut transaction,
+                channel.org_id.as_deref().unwrap_or_default(),
+                occurred_at,
+            )
             .await?;
             transaction.commit().await?;
             for attachment in &attachments {
@@ -1985,10 +1995,12 @@ async fn enqueue_meta_message_lifecycle(
     delivery_status: Option<&str>,
     occurred_at: chrono::DateTime<Utc>,
 ) -> Result<(), AppError> {
+    let mut organization_id = None;
     for message in load_meta_message_analytics_rows(transaction, message_ids).await? {
         let Some(org_id) = message.org_id.as_deref() else {
             continue;
         };
+        organization_id = Some(org_id.to_string());
         let direction = if message.sender == "customer" {
             "inbound"
         } else {
@@ -2018,6 +2030,40 @@ async fn enqueue_meta_message_lifecycle(
             AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
         })?;
     }
+    if let Some(organization_id) = organization_id {
+        enqueue_meta_source_manifest(transaction, &organization_id, occurred_at).await?;
+    }
+    Ok(())
+}
+
+async fn enqueue_meta_source_manifest(
+    transaction: &mut Transaction<'_, Postgres>,
+    organization_id: &str,
+    collected_at: chrono::DateTime<Utc>,
+) -> Result<(), AppError> {
+    if organization_id.trim().is_empty() {
+        return Ok(());
+    }
+    let message_count = sqlx::query_scalar::<_, i64>(
+        r#"
+        SELECT COUNT(*)::bigint
+        FROM "Message" message
+        JOIN "Conversation" conversation
+          ON conversation.id = message."conversationId"
+        WHERE conversation."orgId" = $1
+          AND conversation.channel IN ('facebook', 'instagram')
+        "#,
+    )
+    .bind(organization_id)
+    .fetch_one(&mut **transaction)
+    .await?;
+    analytics::inbox::enqueue_manifest(transaction, organization_id, message_count, collected_at)
+        .await
+        .map_err(|error| {
+            AppError::Internal(format!(
+                "Failed to queue Meta Inbox source manifest: {error}"
+            ))
+        })?;
     Ok(())
 }
 
@@ -2285,6 +2331,12 @@ async fn sync_missing_meta_outbound_message(
     .bind(&conversation_id)
     .bind(timestamp)
     .execute(&mut *transaction)
+    .await?;
+    enqueue_meta_source_manifest(
+        &mut transaction,
+        channel.org_id.as_deref().unwrap_or_default(),
+        timestamp,
+    )
     .await?;
     transaction.commit().await?;
     for attachment in &attachments {
