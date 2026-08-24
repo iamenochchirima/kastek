@@ -1739,8 +1739,23 @@ Connection metrics remain gated on Product Section 9 approval.
 - [x] Preserve the historical boundary: `complete_through` is set only for a complete reconciliation
   and does not establish reliable coverage before the earliest known fact.
 - [x] Verify complete, mismatch, duplicate-run, privacy, and empty-stream behavior in PostgreSQL.
-- [ ] Implement source reconstruction/provider-history backfill and temporal checkpoints linked to
-  backfill jobs.
+
+#### Execution slice 9 — source-history backfill coverage
+
+- [x] Add an optional unique `backfill_job_id` evidence link to coverage checkpoints.
+- [x] Persist a temporal checkpoint in the same ingestion transaction when an authenticated
+  source-reconstruction or provider-history backfill reaches its finite completion boundary.
+- [x] Bind checkpoint producer and source service to the authenticated producer identity; derive
+  domain, scope, requested window, and counts from the authorized backfill job.
+- [x] Set `complete_through` only when the completed job has no rejected records; preserve a
+  `partial` checkpoint when rejected records are recorded.
+- [x] Exclude `fact_replay` and `projection_rebuild` from temporal source-completeness evidence.
+- [x] Allow an exact duplicate retry of a final record after job completion without requiring the
+  now-completed job to authorize a second count or checkpoint.
+- [x] Verify completion counts, temporal window, producer provenance, privacy, duplicate retry, and
+  replay exclusion in PostgreSQL.
+- [ ] Add richer source-side rejected-record completion/reporting and expose coverage through the
+  reporting availability API in the next slice.
 
 ### Core lane: Inbox
 

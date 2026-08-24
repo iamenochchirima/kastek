@@ -662,6 +662,212 @@ async fn ingests_idempotently_tracks_cursor_and_reconciles_source_summary() {
 }
 
 #[tokio::test]
+async fn source_backfill_completion_persists_temporal_coverage_and_replay_does_not() {
+    let Some(pool) = pool().await else { return };
+    let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default();
+    let scope_external_id = format!("a09-backfill-org-{suffix}");
+    let stream = format!("core:backfill:{scope_external_id}");
+    let source_reconstruction_job_id = format!("a09-source-reconstruction-{suffix}");
+    let fact_replay_job_id = format!("a09-fact-replay-{suffix}");
+    let range_start = "2026-08-22T11:00:00Z"
+        .parse::<chrono::DateTime<Utc>>()
+        .unwrap();
+    let range_end = "2026-08-22T13:00:00Z"
+        .parse::<chrono::DateTime<Utc>>()
+        .unwrap();
+    let scope_id: i64 = sqlx::query_scalar(
+        r#"INSERT INTO analytics.reporting_scope (
+             scope_kind, owning_source_service, external_source_id, status, reporting_timezone
+           ) VALUES ('core_organization','core',$1,'active','UTC')
+           RETURNING scope_id"#,
+    )
+    .bind(&scope_external_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let authenticated = AuthenticatedProducer {
+        source_service: "core".to_string(),
+        producer_id: "core-customer-analytics".to_string(),
+    };
+    for (job_id, method) in [
+        (&source_reconstruction_job_id, "source_reconstruction"),
+        (&fact_replay_job_id, "fact_replay"),
+    ] {
+        sqlx::query(
+            r#"INSERT INTO analytics.analytics_backfill_job (
+                 job_id, source_service, source_domain, reporting_scope_id, root_scope_id,
+                 requested_range_start, requested_range_end, contract_version, method,
+                 job_status, remaining_count, requesting_actor_type, requesting_actor_id,
+                 authorization_grant_id, started_at
+               ) VALUES ($1,'core','campaigns',$2,$2,$3,$4,'campaign.recipient.sent@1',$5,
+                         'running',1,'test','analytics-postgres-test',$6,NOW())"#,
+        )
+        .bind(job_id)
+        .bind(scope_id)
+        .bind(range_start)
+        .bind(range_end)
+        .bind(method)
+        .bind(format!("grant-{job_id}"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+
+    let source_record = event_record(
+        &stream,
+        &format!("backfill-source-event-{suffix}"),
+        1,
+        &scope_external_id,
+        json!({
+            "campaign_id": "campaign-backfill-a09",
+            "recipient_id": "recipient-backfill-a09",
+            "channel": "whatsapp",
+            "occurred_at": "2026-08-22T12:00:00Z",
+            "status": "sent"
+        }),
+    );
+    let source_response = ingest_batch(
+        &pool,
+        &authenticated,
+        IngestionBatchRequest {
+            records: vec![source_record.clone()],
+            backfill_job_id: Some(source_reconstruction_job_id.clone()),
+        },
+    )
+    .await;
+    assert!(matches!(
+        source_response.acknowledgements[0].status,
+        AcknowledgementStatus::Accepted
+    ));
+
+    let job = sqlx::query(
+        "SELECT job_status, scanned_count, accepted_count, rejected_count, remaining_count FROM analytics.analytics_backfill_job WHERE job_id = $1",
+    )
+    .bind(&source_reconstruction_job_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(job.get::<String, _>("job_status"), "completed");
+    assert_eq!(job.get::<i64, _>("scanned_count"), 1);
+    assert_eq!(job.get::<i64, _>("accepted_count"), 1);
+    assert_eq!(job.get::<i64, _>("rejected_count"), 0);
+    assert_eq!(job.get::<Option<i64>, _>("remaining_count"), Some(0));
+
+    let coverage = sqlx::query(
+        "SELECT producer_id, source_service, source_domain, reporting_scope_id, root_scope_id, coverage_layer, window_start, window_end, expected_count, included_count, excluded_count, coverage_state, complete_through, source_manifest_id, reconciliation_run_id FROM analytics.analytics_coverage_checkpoint WHERE backfill_job_id = $1",
+    )
+    .bind(&source_reconstruction_job_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        coverage.get::<String, _>("producer_id"),
+        authenticated.producer_id
+    );
+    assert_eq!(
+        coverage.get::<String, _>("source_service"),
+        authenticated.source_service
+    );
+    assert_eq!(coverage.get::<String, _>("source_domain"), "campaigns");
+    assert_eq!(coverage.get::<i64, _>("reporting_scope_id"), scope_id);
+    assert_eq!(coverage.get::<i64, _>("root_scope_id"), scope_id);
+    assert_eq!(coverage.get::<String, _>("coverage_layer"), "temporal");
+    assert_eq!(
+        coverage.get::<chrono::DateTime<Utc>, _>("window_start"),
+        range_start
+    );
+    assert_eq!(
+        coverage.get::<chrono::DateTime<Utc>, _>("window_end"),
+        range_end
+    );
+    assert_eq!(coverage.get::<Option<i64>, _>("expected_count"), Some(1));
+    assert_eq!(coverage.get::<i64, _>("included_count"), 1);
+    assert_eq!(coverage.get::<i64, _>("excluded_count"), 0);
+    assert_eq!(coverage.get::<String, _>("coverage_state"), "available");
+    assert_eq!(
+        coverage.get::<Option<chrono::DateTime<Utc>>, _>("complete_through"),
+        Some(range_end)
+    );
+    assert!(coverage
+        .get::<Option<i64>, _>("source_manifest_id")
+        .is_none());
+    assert!(coverage
+        .get::<Option<String>, _>("reconciliation_run_id")
+        .is_none());
+
+    let coverage_payload: serde_json::Value = sqlx::query_scalar(
+        "SELECT to_jsonb(checkpoint) FROM analytics.analytics_coverage_checkpoint AS checkpoint WHERE backfill_job_id = $1",
+    )
+    .bind(&source_reconstruction_job_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(coverage_payload.get("connection_ref").is_none());
+    assert!(coverage_payload.get("provider_account_ref").is_none());
+
+    let duplicate_response = ingest_batch(
+        &pool,
+        &authenticated,
+        IngestionBatchRequest {
+            records: vec![source_record],
+            backfill_job_id: Some(source_reconstruction_job_id.clone()),
+        },
+    )
+    .await;
+    assert!(matches!(
+        duplicate_response.acknowledgements[0].status,
+        AcknowledgementStatus::Duplicate
+    ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM analytics.analytics_coverage_checkpoint WHERE backfill_job_id = $1",
+        )
+        .bind(&source_reconstruction_job_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap(),
+        1
+    );
+
+    let replay_record = event_record(
+        &stream,
+        &format!("backfill-replay-event-{suffix}"),
+        2,
+        &scope_external_id,
+        json!({
+            "campaign_id": "campaign-backfill-a09",
+            "recipient_id": "recipient-replay-a09",
+            "channel": "whatsapp",
+            "occurred_at": "2026-08-22T12:00:00Z",
+            "status": "sent"
+        }),
+    );
+    let replay_response = ingest_batch(
+        &pool,
+        &authenticated,
+        IngestionBatchRequest {
+            records: vec![replay_record],
+            backfill_job_id: Some(fact_replay_job_id.clone()),
+        },
+    )
+    .await;
+    assert!(matches!(
+        replay_response.acknowledgements[0].status,
+        AcknowledgementStatus::Accepted
+    ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM analytics.analytics_coverage_checkpoint WHERE backfill_job_id = $1",
+        )
+        .bind(&fact_replay_job_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap(),
+        0
+    );
+}
+
+#[tokio::test]
 async fn scope_definition_ingestion_creates_a_receipt_and_is_idempotent() {
     let Some(pool) = pool().await else { return };
     let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default();

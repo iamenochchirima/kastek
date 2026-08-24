@@ -440,14 +440,6 @@ async fn ingest_record(
         return rejected(failure.code);
     }
 
-    if let Some(job_id) = backfill_job_id {
-        if let Err(failure) = validate_backfill_job(&mut transaction, job_id, authenticated).await {
-            let _ = record_failure(&mut transaction, &record, authenticated, &failure, None).await;
-            let _ = transaction.commit().await;
-            return rejected(failure.code);
-        }
-    }
-
     let existing = match find_existing_identity(&mut transaction, &record).await {
         Ok(existing) => existing,
         Err(_) => {
@@ -492,6 +484,14 @@ async fn ingest_record(
         return rejected(failure.code);
     }
 
+    if let Some(job_id) = backfill_job_id {
+        if let Err(failure) = validate_backfill_job(&mut transaction, job_id, authenticated).await {
+            let _ = record_failure(&mut transaction, &record, authenticated, &failure, None).await;
+            let _ = transaction.commit().await;
+            return rejected(failure.code);
+        }
+    }
+
     if let ValidatedPayload::ScopeDefinition {
         parent_scope_external_id,
         reporting_timezone,
@@ -528,7 +528,7 @@ async fn ingest_record(
             return retryable(record_id, source_sequence, "analytics_unavailable");
         }
         if let Some(job_id) = backfill_job_id {
-            if update_backfill_count(&mut transaction, job_id, true)
+            if update_backfill_count(&mut transaction, authenticated, job_id, true)
                 .await
                 .is_err()
             {
@@ -668,7 +668,7 @@ async fn ingest_record(
             return retryable(record_id, source_sequence, "analytics_unavailable");
         }
         if let Some(job_id) = backfill_job_id {
-            if update_backfill_count(&mut transaction, job_id, true)
+            if update_backfill_count(&mut transaction, authenticated, job_id, true)
                 .await
                 .is_err()
             {
@@ -851,7 +851,7 @@ async fn ingest_record(
         return retryable(record_id, source_sequence, "analytics_unavailable");
     }
     if let Some(job_id) = backfill_job_id {
-        if update_backfill_count(&mut transaction, job_id, true)
+        if update_backfill_count(&mut transaction, authenticated, job_id, true)
             .await
             .is_err()
         {
@@ -2157,6 +2157,7 @@ async fn validate_backfill_job(
 
 async fn update_backfill_count(
     transaction: &mut Transaction<'_, Postgres>,
+    authenticated: &AuthenticatedProducer,
     job_id: &str,
     accepted: bool,
 ) -> Result<(), sqlx::Error> {
@@ -2166,12 +2167,69 @@ async fn update_backfill_count(
         "rejected_count"
     };
     let query = format!(
-        "UPDATE analytics.analytics_backfill_job SET scanned_count = scanned_count + 1, {column} = {column} + 1, remaining_count = CASE WHEN remaining_count IS NULL THEN NULL ELSE GREATEST(remaining_count - 1, 0) END, job_status = CASE WHEN remaining_count IS NOT NULL AND remaining_count <= 1 THEN 'completed' ELSE job_status END, completed_at = CASE WHEN remaining_count IS NOT NULL AND remaining_count <= 1 THEN NOW() ELSE completed_at END, lease_owner = CASE WHEN remaining_count IS NOT NULL AND remaining_count <= 1 THEN NULL ELSE lease_owner END, lease_expires_at = CASE WHEN remaining_count IS NOT NULL AND remaining_count <= 1 THEN NULL ELSE lease_expires_at END WHERE job_id = $1"
+        "UPDATE analytics.analytics_backfill_job SET scanned_count = scanned_count + 1, {column} = {column} + 1, remaining_count = CASE WHEN remaining_count IS NULL THEN NULL ELSE GREATEST(remaining_count - 1, 0) END, job_status = CASE WHEN remaining_count IS NOT NULL AND remaining_count <= 1 THEN 'completed' ELSE job_status END, completed_at = CASE WHEN remaining_count IS NOT NULL AND remaining_count <= 1 THEN NOW() ELSE completed_at END, lease_owner = CASE WHEN remaining_count IS NOT NULL AND remaining_count <= 1 THEN NULL ELSE lease_owner END, lease_expires_at = CASE WHEN remaining_count IS NOT NULL AND remaining_count <= 1 THEN NULL ELSE lease_expires_at END WHERE job_id = $1 RETURNING source_domain, reporting_scope_id, root_scope_id, requested_range_start, requested_range_end, method, job_status, scanned_count, accepted_count, rejected_count, completed_at"
     );
-    sqlx::query(&query)
+    let row = sqlx::query(&query)
         .bind(job_id)
-        .execute(&mut **transaction)
-        .await?;
+        .fetch_optional(&mut **transaction)
+        .await?
+        .ok_or(sqlx::Error::RowNotFound)?;
+    let method: String = row.get("method");
+    let job_status: String = row.get("job_status");
+    if job_status == "completed"
+        && matches!(
+            method.as_str(),
+            "source_reconstruction" | "provider_history_import"
+        )
+    {
+        insert_backfill_coverage_checkpoint(transaction, authenticated, job_id, row).await?;
+    }
+    Ok(())
+}
+
+async fn insert_backfill_coverage_checkpoint(
+    transaction: &mut Transaction<'_, Postgres>,
+    authenticated: &AuthenticatedProducer,
+    job_id: &str,
+    row: sqlx::postgres::PgRow,
+) -> Result<(), sqlx::Error> {
+    let rejected_count: i64 = row.get("rejected_count");
+    let coverage_state = if rejected_count == 0 {
+        "available"
+    } else {
+        "partial"
+    };
+    let complete_through =
+        (rejected_count == 0).then(|| row.get::<DateTime<Utc>, _>("requested_range_end"));
+    let observed_at = row
+        .get::<Option<DateTime<Utc>>, _>("completed_at")
+        .unwrap_or_else(Utc::now);
+
+    sqlx::query(
+        r#"INSERT INTO analytics.analytics_coverage_checkpoint (
+                producer_id, source_service, source_domain, reporting_scope_id, root_scope_id,
+                coverage_layer, dimension_key, window_start, window_end,
+                expected_count, included_count, excluded_count, coverage_state,
+                complete_through, projection_version, source_manifest_id,
+                reconciliation_run_id, backfill_job_id, observed_at
+            ) VALUES ($1,$2,$3,$4,$5,'temporal',NULL,$6,$7,$8,$9,$10,$11,$12,NULL,NULL,NULL,$13,$14)"#,
+    )
+    .bind(&authenticated.producer_id)
+    .bind(&authenticated.source_service)
+    .bind(row.get::<String, _>("source_domain"))
+    .bind(row.get::<i64, _>("reporting_scope_id"))
+    .bind(row.get::<i64, _>("root_scope_id"))
+    .bind(row.get::<DateTime<Utc>, _>("requested_range_start"))
+    .bind(row.get::<DateTime<Utc>, _>("requested_range_end"))
+    .bind(row.get::<i64, _>("scanned_count"))
+    .bind(row.get::<i64, _>("accepted_count"))
+    .bind(rejected_count)
+    .bind(coverage_state)
+    .bind(complete_through)
+    .bind(job_id)
+    .bind(observed_at)
+    .execute(&mut **transaction)
+    .await?;
     Ok(())
 }
 

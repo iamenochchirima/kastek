@@ -634,7 +634,22 @@ checklist records implementation evidence for the current package only.
 - [x] Add an optional unique `reconciliation_run_id` evidence link to coverage checkpoints.
 - [x] Persist complete and mismatched reconciliation coverage from actual event/observation windows.
 - [x] Preserve no-fabrication behavior for empty streams and no historical completeness claim.
-- [ ] Link source reconstruction/provider-history backfill completion to temporal checkpoints.
+
+## Core Connections — slice 9
+
+- [x] Add an optional unique `backfill_job_id` evidence link to coverage checkpoints.
+- [x] Create temporal coverage only when authenticated source reconstruction or provider-history
+  ingestion completes a finite backfill job in the same transaction as the final accepted record.
+- [x] Derive producer, source service, source domain, scope, requested window, and counts from the
+  authenticated identity and authorized job; do not trust producer-supplied provenance fields.
+- [x] Set `available` and `complete_through` only when no records were rejected; retain `partial`
+  coverage when the completion boundary contains rejected records.
+- [x] Do not create source-completeness checkpoints for `fact_replay` or `projection_rebuild`.
+- [x] Move backfill authorization after exact-duplicate detection so a lost final acknowledgment
+  can be retried idempotently after the job is completed.
+- [x] Verify counts, temporal boundaries, provenance, privacy, duplicate retry, and replay exclusion
+  in the PostgreSQL ingestion fixture.
+- [ ] Add richer rejected-record completion/reporting and reporting-availability integration.
 
 ## Explicitly deferred
 
