@@ -5,7 +5,7 @@ use sqlx::FromRow;
 use std::collections::BTreeSet;
 use tokio::net::lookup_host;
 
-use crate::{error::AppError, middleware};
+use crate::{analytics, error::AppError, middleware};
 
 fn hosted_workspace_domain(
     workspace_slug: &str,
@@ -1134,6 +1134,12 @@ pub async fn create_workspace(
     .bind(scopes)
     .execute(&mut *tx)
     .await?;
+
+    analytics::enqueue_workspace_scope_definition(&mut tx, &workspace_id, now.timestamp_millis())
+        .await
+        .map_err(|error| {
+            AppError::Internal(format!("analytics workspace scope enqueue failed: {error}"))
+        })?;
 
     tx.commit().await?;
     let admin_invite = crate::controllers::admin_invites::issue_admin_invite(

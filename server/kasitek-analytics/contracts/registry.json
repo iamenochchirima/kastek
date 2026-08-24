@@ -274,6 +274,22 @@
       "owner": "core-connections",
       "category": "event",
       "privacy_class": "aggregate"
+    },
+    {
+      "identity": "tenant.lead.lifecycle@1",
+      "schema": "events/tenant/lead_lifecycle/v1.schema.json",
+      "examples": ["examples/tenant/lead_lifecycle.json"],
+      "owner": "tenant-platform-leads",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "tenant.scope.definition@1",
+      "schema": "events/tenant/scope_definition/v1.schema.json",
+      "examples": ["examples/tenant/scope_definition.json"],
+      "owner": "tenant-platform",
+      "category": "scope_definition",
+      "privacy_class": "aggregate"
     }
   ]
 }

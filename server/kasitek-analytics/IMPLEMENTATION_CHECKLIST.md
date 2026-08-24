@@ -856,6 +856,21 @@ checklist records implementation evidence for the current package only.
 - [ ] Add provider retry policy, cost, attribution, source manifests, historical reconstruction,
   and the combined mutation-to-publisher-to-projection-to-reporting E2E in later slices.
 
+## Tenant Platform — scope and lead creation slice 1
+
+- [x] Publish tenant workspace scope definitions during workspace provisioning and tenant-client
+  scope definitions during client creation through the transactional Tenant outbox.
+- [x] Register the tenant scope-definition and lead lifecycle contracts with aggregate-safe schemas;
+  lead personal data, contact values, company, and notes are excluded.
+- [x] Emit lead-created facts in the same transaction as the authoritative Tenant lead insert,
+  using bounded source categories and score bands.
+- [x] Register tenant lead lifecycle metrics and dimensions, route them through the typed
+  `tenants.v1` projection builder, and regenerate bindings.
+- [x] Verify registry validation, Tenant and Analytics package compilation, and privacy-safe helper
+  unit coverage.
+- [ ] Add workspace timezone/client overrides, tenant-client assignments, client lifecycle facts,
+  lead status history, source manifests, historical reconstruction, and end-to-end reporting.
+
 ## Reporting availability — slice 10
 
 - [x] Evaluate temporal and reconciliation checkpoints by registered metric domain and authorized

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/tenant/lead_lifecycle/v1.schema.json",
+  "title": "Tenant lead lifecycle attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["lead_id", "tenant_client_id", "action", "status", "source", "score_band", "occurred_at"],
+  "properties": {
+    "lead_id": { "type": "string", "minLength": 1 },
+    "tenant_client_id": { "type": "string", "minLength": 1 },
+    "action": { "type": "string", "enum": ["created"] },
+    "status": { "type": "string", "enum": ["new", "qualified", "converted", "lost", "disqualified"] },
+    "source": { "type": "string", "enum": ["voice", "whatsapp", "instagram", "web_chat", "email", "manual", "other"] },
+    "score_band": { "type": "string", "enum": ["low", "medium", "high"] },
+    "occurred_at": { "type": "string", "format": "date-time" }
+  },
+  "x-kasitek": {
+    "identity": "tenant.lead.lifecycle@1",
+    "owner": "tenant-platform-leads",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["name", "email", "phone", "company", "notes", "customer_identifier", "message_body"]
+  }
+}

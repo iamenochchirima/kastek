@@ -579,6 +579,7 @@ enum DomainBuilder {
     Campaigns,
     Connections,
     Inbox,
+    Tenants,
 }
 
 impl DomainBuilder {
@@ -588,6 +589,7 @@ impl DomainBuilder {
             "campaigns" => Ok(Self::Campaigns),
             "connections" => Ok(Self::Connections),
             "inbox" => Ok(Self::Inbox),
+            "tenants" => Ok(Self::Tenants),
             domain => Err(sqlx::Error::Protocol(format!(
                 "no typed projection builder for domain {domain}"
             ))),
@@ -600,6 +602,7 @@ impl DomainBuilder {
             Self::Campaigns => "campaigns.v1",
             Self::Connections => "connections.v1",
             Self::Inbox => "inbox.v1",
+            Self::Tenants => "tenants.v1",
         }
     }
 }
@@ -1532,7 +1535,7 @@ async fn validate_projection_window(
     }
     Ok(serde_json::json!({
         "status": "passed",
-        "builder_count": 3,
+        "builder_count": 5,
         "metrics_checked": metrics_checked,
         "expected_source_facts": expected_source_facts,
         "contribution_rows": contribution_rows,
@@ -1734,6 +1737,25 @@ fn typed_event_dimensions(
                 }
             }
         }
+        DomainBuilder::Tenants => {
+            require_text_fields(
+                attributes,
+                &[
+                    "lead_id",
+                    "tenant_client_id",
+                    "action",
+                    "status",
+                    "source",
+                    "score_band",
+                ],
+            )?;
+            if metric.key != "tenant.leads.lifecycle_events" {
+                return Err(sqlx::Error::Protocol(format!(
+                    "unsupported Tenant metric {}",
+                    metric.key
+                )));
+            }
+        }
     }
     Ok(event_dimensions(
         metric,
@@ -1885,6 +1907,11 @@ fn event_dimensions(
             "rate_limit_scope" => attributes.get("rate_limit_scope").cloned(),
             "incident_severity" => attributes.get("severity").cloned(),
             "incident_reason_code" => attributes.get("reason_code").cloned(),
+            "tenant_client" => attributes.get("tenant_client_id").cloned(),
+            "lead_action" => attributes.get("action").cloned(),
+            "lead_status" => attributes.get("status").cloned(),
+            "lead_source" => attributes.get("source").cloned(),
+            "lead_score_band" => attributes.get("score_band").cloned(),
             "handoff_channel" => attributes.get("channel_type").cloned(),
             "handoff_conversation_state" => attributes.get("conversation_state").cloned(),
             "handoff_reason" => attributes.get("reason").cloned(),

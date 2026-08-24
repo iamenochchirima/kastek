@@ -3,7 +3,7 @@ use chrono::{Datelike, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use crate::{error::AppError, middleware};
+use crate::{analytics, error::AppError, middleware};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateLeadRequest {
@@ -100,6 +100,26 @@ fn calculate_score(source: &str, has_phone: bool, has_company: bool, notes: bool
     }
 
     score.clamp(0, 100)
+}
+
+fn analytics_source(source: &str) -> &'static str {
+    match source {
+        "voice" => "voice",
+        "whatsapp" => "whatsapp",
+        "instagram" => "instagram",
+        "web_chat" => "web_chat",
+        "email" => "email",
+        "manual" => "manual",
+        _ => "other",
+    }
+}
+
+fn score_band(score: i32) -> &'static str {
+    match score {
+        0..=49 => "low",
+        50..=74 => "medium",
+        _ => "high",
+    }
 }
 
 pub async fn list_leads(req: HttpRequest) -> Result<HttpResponse, AppError> {
@@ -265,6 +285,7 @@ pub async fn create_lead(
     );
     let lead_id = cuid2::create_id();
 
+    let mut transaction = pool.begin().await?;
     sqlx::query(
         r#"
         INSERT INTO tenant_leads (
@@ -297,8 +318,21 @@ pub async fn create_lead(
     .bind(&source)
     .bind(score)
     .bind(normalize_optional(&body.notes))
-    .execute(pool)
+    .execute(&mut *transaction)
     .await?;
+
+    analytics::enqueue_lead_created(
+        &mut transaction,
+        &session.workspace_id,
+        body.tenant_client_id.trim(),
+        &lead_id,
+        analytics_source(&source),
+        score_band(score),
+        Utc::now(),
+    )
+    .await
+    .map_err(|error| AppError::Internal(format!("analytics lead event enqueue failed: {error}")))?;
+    transaction.commit().await?;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "lead": {
@@ -398,4 +432,23 @@ pub async fn get_client_lead_stats(req: HttpRequest) -> Result<HttpResponse, App
             "byStatus": by_status,
         }
     })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{analytics_source, calculate_score, score_band};
+
+    #[test]
+    fn analytics_source_is_bounded() {
+        assert_eq!(analytics_source("whatsapp"), "whatsapp");
+        assert_eq!(analytics_source("paid_search"), "other");
+        assert_eq!(analytics_source(""), "other");
+    }
+
+    #[test]
+    fn score_band_does_not_export_raw_score() {
+        assert_eq!(score_band(calculate_score("manual", false, false, false)), "medium");
+        assert_eq!(score_band(49), "low");
+        assert_eq!(score_band(75), "high");
+    }
 }

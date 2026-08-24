@@ -6,6 +6,7 @@
     "domains/campaigns/delivery.yaml",
     "domains/connections/health.yaml",
     "domains/inbox/conversations.yaml",
+    "domains/tenants/leads.yaml",
     "dimensions/core.yaml",
     "metric-sets/overview.summary.yaml",
     "metric-sets/agent.performance.yaml"

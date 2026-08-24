@@ -1,0 +1,34 @@
+kind: metrics
+definitions:
+  - key: tenant.leads.lifecycle_events
+    version: 1
+    domain: tenants
+    owner: tenant-platform-leads
+    lifecycle: active
+    description: Tenant lead lifecycle events recorded by the authoritative Tenant Platform.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - tenant.lead.lifecycle@1
+    formula: count(tenant.lead.lifecycle@1)
+    eligible_population: tenant leads with an emitted lifecycle event in the reporting window
+    exclusions: [lead personal data, test records not emitted by Tenant Platform]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: none
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [tenant_workspace, tenant_client]
+    dimensions: [tenant_client, lead_action, lead_status, lead_source, lead_score_band]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [tenant.lead.lifecycle@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-24T00:00:00Z"
+    applicability: Tenant lead lifecycle commands emit aggregate-safe lifecycle facts
+    dependencies: []

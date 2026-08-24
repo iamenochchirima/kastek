@@ -2,7 +2,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use crate::{config::AppConfig, controllers::client_auth, error::AppError, middleware};
+use crate::{analytics, config::AppConfig, controllers::client_auth, error::AppError, middleware};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateTenantClientRequest {
@@ -239,6 +239,7 @@ pub async fn create_client(
     }
 
     let id = cuid2::create_id();
+    let mut transaction = pool.begin().await?;
     let result = sqlx::query(
         r#"
         INSERT INTO tenant_clients (
@@ -263,7 +264,7 @@ pub async fn create_client(
             .map(|value| value.trim())
             .filter(|value| !value.is_empty()),
     )
-    .execute(pool)
+    .execute(&mut *transaction)
     .await;
 
     if result.is_err() {
@@ -271,6 +272,18 @@ pub async fn create_client(
             "client slug already exists for this workspace".to_string(),
         ));
     }
+
+    analytics::enqueue_client_scope_definition(
+        &mut transaction,
+        &session.workspace_id,
+        &id,
+        chrono::Utc::now().timestamp_millis(),
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("analytics client scope enqueue failed: {error}"))
+    })?;
+    transaction.commit().await?;
 
     let (_, admin_invite) = provision_client_user_invite(
         pool,

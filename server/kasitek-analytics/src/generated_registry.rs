@@ -2,7 +2,7 @@
 
 pub const REGISTRY_VERSION: &str = "20260824.1";
 pub const REGISTRY_SHA256: &str =
-    "de49816505ab82750fbf5a35973805749d6298800ba3559e20e143b45e397020";
+    "10034c62cf0c8d84b8be01727843a0ddd1793a7e4ccb88af1ba7be71428ba774";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",
@@ -39,6 +39,8 @@ pub const CONTRACT_KEYS: &[&str] = &[
     "conversation.message.lifecycle@1",
     "conversation.message.received@1",
     "conversation.response.recorded@1",
+    "tenant.lead.lifecycle@1",
+    "tenant.scope.definition@1",
 ];
 
 pub const METRIC_KEYS: &[&str] = &[
@@ -82,6 +84,7 @@ pub const METRIC_KEYS: &[&str] = &[
     "conversation.messages.received@1",
     "conversation.response_time_ms@1",
     "conversation.responses.recorded@1",
+    "tenant.leads.lifecycle_events@1",
 ];
 
 pub const DIMENSION_KEYS: &[&str] = &[
@@ -117,6 +120,10 @@ pub const DIMENSION_KEYS: &[&str] = &[
     "incident_reason_code",
     "incident_severity",
     "installation_scope",
+    "lead_action",
+    "lead_score_band",
+    "lead_source",
+    "lead_status",
     "lifecycle_action",
     "message_action",
     "message_delivery_status",
@@ -135,6 +142,7 @@ pub const DIMENSION_KEYS: &[&str] = &[
     "retry_reason",
     "status",
     "suppression_class",
+    "tenant_client",
     "timing_kind",
     "tool_name",
     "tool_risk_class",
@@ -188,4 +196,5 @@ pub mod metric_keys {
     pub const CONVERSATION_MESSAGES_RECEIVED_1: &str = "conversation.messages.received@1";
     pub const CONVERSATION_RESPONSE_TIME_MS_1: &str = "conversation.response_time_ms@1";
     pub const CONVERSATION_RESPONSES_RECORDED_1: &str = "conversation.responses.recorded@1";
+    pub const TENANT_LEADS_LIFECYCLE_EVENTS_1: &str = "tenant.leads.lifecycle_events@1";
 }

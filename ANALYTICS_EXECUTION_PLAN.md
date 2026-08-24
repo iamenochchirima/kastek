@@ -2126,6 +2126,26 @@ First publish workspace and tenant-client scopes, add workspace timezone and an 
 override, add `tenant_client_assignments`, and add Tenant's outbox, publisher, source manifests,
 and reconciliation endpoint. Emit workspace/client hierarchy and status changes.
 
+#### Execution slice 1 — workspace/client scope and lead creation facts
+
+- [x] Publish a tenant workspace scope definition during workspace provisioning and a child tenant
+  client scope definition during client creation through the Tenant transactional outbox.
+- [x] Register the tenant scope-definition identity and keep the scope payload limited to hierarchy,
+  timezone, status, and monotonic source version fields.
+- [x] Register `tenant.lead.lifecycle@1` and `tenant.leads.lifecycle_events@1` with bounded source,
+  status, action, and score-band dimensions; names, contact values, company, and notes remain
+  outside Analytics.
+- [x] Emit the lead-created fact in the same Tenant database transaction as the authoritative lead
+  insert, scoped to the tenant client and compatible with workspace/client reporting.
+- [x] Route Tenant lead events through a typed `tenants.v1` projection builder and regenerate the
+  registry bindings.
+- [ ] Add workspace timezone/client override persistence, `tenant_client_assignments`, client
+  activation/suspension/deletion lifecycle facts, and scope status transitions.
+- [ ] Add Tenant lead status-history commands and lifecycle facts before claiming qualified,
+  converted, attribution, or reliable historical lead analytics.
+- [ ] Add Tenant source manifests, historical reconstruction, and mutation-to-reporting E2E after
+  the authoritative Tenant history boundaries exist.
+
 ### Tenant Platform lane: client administration
 
 Tenant Platform owns client creation, activation, suspension, deletion workflow, client-user

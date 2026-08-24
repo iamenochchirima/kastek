@@ -29,6 +29,7 @@ definitions:
       - conversation.response_time_ms@1
       - conversation.messages.received@1
       - conversation.responses.recorded@1
+      - tenant.leads.lifecycle_events@1
     default_interval: day
     scope_kinds: [core_organization, tenant_workspace, tenant_client]
     permissions: [analytics:read]
