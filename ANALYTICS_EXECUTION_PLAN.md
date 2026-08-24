@@ -31,7 +31,7 @@ their dependencies are approved.
 - [x] E9. Testing, performance targets, monitoring, and operational runbooks — approved
 - [x] E10. Deployment phases, feature flags, acceptance criteria, and implementation backlog — approved
 - [x] UI-01. Authenticated customer reporting gateways — approved; implemented
-- [x] UI-02. Shared analytics client and visualization contract — approved
+- [x] UI-02. Shared analytics client and visualization contract — approved; implemented
 - [x] UI-03. Protected local Analytics Playground — approved
 - [x] UI-04. Feature dashboards for Campaigns, Connections, and Inbox — approved
 - [x] UI-05. Tenant workspace and tenant-client analytics — approved
@@ -41,8 +41,9 @@ their dependencies are approved.
 
 ## UI execution track — customer reporting and visual validation
 
-**Status:** The UI track is approved. UI-01 is implemented; UI-02 is the next implementation
-slice. Later slices remain ordered behind the shared reporting contract and authorization boundary.
+**Status:** The UI track is approved. UI-01 and UI-02 are implemented; UI-03 is the next
+implementation slice. Later slices remain ordered behind the shared reporting contract and
+authorization boundary.
 
 This track makes the collected customer facts visible through authenticated product APIs. The
 browser never calls the Analytics service directly and never receives a reporting grant or an
@@ -89,6 +90,14 @@ Create the shared frontend Analytics client, response types, loading/error/unava
 freshness and coverage presentation, date-range/timezone handling, and reusable chart/table
 primitives. Keep feature-specific metric meaning in the server-side registry and keep UI adapters
 thin so new fields and domains can be added without rewriting every dashboard.
+
+**Implemented package:** `client/apps/client/src/lib/analytics.ts` now owns the typed catalog/report
+contract, relative Core/Tenant gateway paths, safe request errors, date-range creation, and explicit
+timezone normalization. Shared components under `client/apps/client/src/components/analytics/` own
+loading, empty, error/unavailable, freshness, coverage, metric-card, trend, and series-table states.
+The existing Analytics route now shows the authenticated reporting catalog status while the legacy
+content dashboard remains available for the UI-04 migration. No browser component calls the
+Analytics service directly or supplies an internal numeric reporting scope.
 
 ### UI-03 — protected local Analytics Playground
 
