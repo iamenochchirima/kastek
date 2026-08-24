@@ -113,7 +113,7 @@ definitions:
   - key: provider
     type: reference
     source: envelope.data.provider
-    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.delivery_rate@1, connection.lifecycle_events@1, connection.health_checks@1, connection.sync_attempts@1]
+    compatible_metrics: [campaign.recipients.sent@1, campaign.recipients.delivered@1, campaign.delivery_rate@1, connection.lifecycle_events@1, connection.health_checks@1, connection.sync_attempts@1, connection.rate_limit_encounters@1, connection.incidents@1]
     filterable: true
     groupable: true
     cardinality: medium
@@ -289,7 +289,7 @@ definitions:
   - key: lifecycle_action
     type: enum
     source: envelope.data.action
-    compatible_metrics: [agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.installations.lifecycle_events@1, agent.versions.lifecycle_events@1, agent.definitions.lifecycle_events@1, agent.conversations.lifecycle_events@1, conversation.lifecycle_events@1, connection.lifecycle_events@1, connection.capability_events@1]
+    compatible_metrics: [agent.tools.lifecycle_events@1, agent.approvals.lifecycle_events@1, agent.effects.lifecycle_events@1, agent.schedules.lifecycle_events@1, agent.installations.lifecycle_events@1, agent.versions.lifecycle_events@1, agent.definitions.lifecycle_events@1, agent.conversations.lifecycle_events@1, conversation.lifecycle_events@1, connection.lifecycle_events@1, connection.capability_events@1, connection.incidents@1]
     filterable: true
     groupable: true
     cardinality: low
@@ -433,6 +433,39 @@ definitions:
     type: enum
     source: envelope.data.operation
     compatible_metrics: [connection.sync_attempts@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: rate_limit_scope
+    type: enum
+    source: envelope.data.rate_limit_scope
+    compatible_metrics: [connection.rate_limit_encounters@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: incident_severity
+    type: enum
+    source: envelope.data.severity
+    compatible_metrics: [connection.incidents@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: incident_reason_code
+    type: enum
+    source: envelope.data.reason_code
+    compatible_metrics: [connection.incidents@1]
     filterable: true
     groupable: true
     cardinality: low

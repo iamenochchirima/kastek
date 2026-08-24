@@ -116,6 +116,11 @@ impl AppError {
             Self::Internal(_) => "internal_error",
         }
     }
+
+    pub fn provider_http_failure(status: reqwest::StatusCode) -> Option<Self> {
+        (status == reqwest::StatusCode::TOO_MANY_REQUESTS)
+            .then(|| Self::TooManyRequests("Provider rate limit exceeded".to_string()))
+    }
 }
 
 #[cfg(test)]
@@ -146,6 +151,14 @@ mod tests {
             actix_web::http::StatusCode::TOO_MANY_REQUESTS
         );
         assert_eq!(response.headers().get("retry-after").unwrap(), "60");
+    }
+
+    #[test]
+    fn provider_429s_use_the_stable_rate_limit_error() {
+        let error = AppError::provider_http_failure(reqwest::StatusCode::TOO_MANY_REQUESTS)
+            .expect("429 should map to a rate-limit error");
+        assert_eq!(error.code(), "rate_limited");
+        assert!(AppError::provider_http_failure(reqwest::StatusCode::BAD_GATEWAY).is_none());
     }
 }
 

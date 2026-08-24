@@ -15,6 +15,8 @@ definitions:
       - connection.health_checks@1
       - connection.capability_events@1
       - connection.sync_attempts@1
+      - connection.rate_limit_encounters@1
+      - connection.incidents@1
       - conversation.lifecycle_events@1
       - conversation.message.lifecycle_events@1
       - conversation.response_time_ms@1

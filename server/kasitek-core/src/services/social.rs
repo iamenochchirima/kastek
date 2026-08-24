@@ -420,6 +420,9 @@ pub(crate) async fn fetch_json<T: serde::de::DeserializeOwned>(
     let status = response.status();
     let body = response.text().await?;
     if !status.is_success() {
+        if let Some(error) = AppError::provider_http_failure(status) {
+            return Err(error);
+        }
         let parsed: Option<Value> = serde_json::from_str(&body).ok();
         let message = parsed
             .as_ref()

@@ -1626,8 +1626,8 @@ Connection metrics remain gated on Product Section 9 approval.
 - [x] Emit bounded health-check facts in the same transaction as Core's ExternalConnection health
   state update, preserving the operational error only in Core.
 - [x] Add transactional producer/privacy coverage for both connection contracts.
-- [ ] Add rate-limit events, incident facts, source manifests, historical backfill, projections,
-  and reporting results in subsequent Connections slices.
+- [ ] Add source manifests, historical backfill, projections, and reporting results in subsequent
+  Connections slices.
 
 #### Execution slice 2 — capability enablement history
 
@@ -1640,8 +1640,7 @@ Connection metrics remain gated on Product Section 9 approval.
   newly observed or enabled-state-changed capabilities emit facts.
 - [x] Emit capability facts in the same Core transaction as the capability projection rebuild.
 - [x] Cover the capability contract with transactional producer and privacy tests.
-- [ ] Add authoritative rate-limit, incident, and coverage evidence facts in later Connections
-  slices.
+- [ ] Add authoritative coverage evidence facts in later Connections slices.
 
 #### Execution slice 3 — provider synchronization outcomes
 
@@ -1657,8 +1656,25 @@ Connection metrics remain gated on Product Section 9 approval.
   reference mapping.
 - [x] Add producer/privacy coverage and bounded error-classification tests, and regenerate the
   Rust and TypeScript registry bindings.
-- [ ] Add provider rate-limit evidence, incident lifecycle facts, manifests, historical backfill,
-  projections, reporting, and full mutation-to-reporting E2E in later Connections slices.
+- [ ] Add source manifests, historical backfill, projections, reporting, and full
+  mutation-to-reporting E2E in later Connections slices.
+
+#### Execution slice 4 — rate-limit and incident evidence
+
+- [x] Preserve provider HTTP 429 responses as a stable Core rate-limited error instead of
+  collapsing them into a generic provider rejection; do not export the provider response body.
+- [x] Register `connection.rate_limit@1` and `connection.rate_limit_encounters@1` with provider,
+  operation, bounded scope, and optional bounded retry metadata; coverage remains partial.
+- [x] Emit a rate-limit fact beside the failed synchronization outcome in the same Core outbox
+  transaction for instrumented connection refresh operations.
+- [x] Register `connection.incident.lifecycle@1` and `connection.incidents@1` for customer-visible
+  connection health openings and recoveries with bounded severity and reason codes.
+- [x] Emit incident facts transactionally with `ExternalConnection` health state transitions and
+  suppress duplicates while a connection remains in the same health state.
+- [x] Add producer/privacy fixture coverage, registry bindings, 429 mapping coverage, and health
+  incident boundary tests.
+- [ ] Add source manifests, historical backfill, projections, reporting, and full
+  mutation-to-reporting E2E in later Connections slices.
 
 ### Core lane: Inbox
 

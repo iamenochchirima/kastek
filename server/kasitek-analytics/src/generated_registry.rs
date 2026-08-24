@@ -2,7 +2,7 @@
 
 pub const REGISTRY_VERSION: &str = "20260822.1";
 pub const REGISTRY_SHA256: &str =
-    "d4a439d381cd12b0cba6786651650621137b78790a18d0a74c629ff9d98c2ddd";
+    "1abad73ae6fc00b0e1e7097d53804b7756fcfa4230acb846dd0ad587fae6ba6a";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",
@@ -24,7 +24,9 @@ pub const CONTRACT_KEYS: &[&str] = &[
     "campaign.recipient.sent@1",
     "connection.capability.lifecycle@1",
     "connection.health_check@1",
+    "connection.incident.lifecycle@1",
     "connection.lifecycle@1",
+    "connection.rate_limit@1",
     "connection.sync_attempt@1",
     "conversation.lifecycle@1",
     "conversation.message.lifecycle@1",
@@ -56,7 +58,9 @@ pub const METRIC_KEYS: &[&str] = &[
     "campaign.recipients.sent@1",
     "connection.capability_events@1",
     "connection.health_checks@1",
+    "connection.incidents@1",
     "connection.lifecycle_events@1",
+    "connection.rate_limit_encounters@1",
     "connection.sync_attempts@1",
     "conversation.lifecycle_events@1",
     "conversation.message.lifecycle_events@1",
@@ -88,6 +92,8 @@ pub const DIMENSION_KEYS: &[&str] = &[
     "effect_reconciliation",
     "failure_class",
     "funding_source",
+    "incident_reason_code",
+    "incident_severity",
     "installation_scope",
     "lifecycle_action",
     "message_action",
@@ -99,6 +105,7 @@ pub const DIMENSION_KEYS: &[&str] = &[
     "model_provider",
     "outcome",
     "provider",
+    "rate_limit_scope",
     "readiness_blocker_set",
     "readiness_credential_status",
     "readiness_workflow_status",
@@ -137,7 +144,9 @@ pub mod metric_keys {
     pub const CAMPAIGN_RECIPIENTS_SENT_1: &str = "campaign.recipients.sent@1";
     pub const CONNECTION_CAPABILITY_EVENTS_1: &str = "connection.capability_events@1";
     pub const CONNECTION_HEALTH_CHECKS_1: &str = "connection.health_checks@1";
+    pub const CONNECTION_INCIDENTS_1: &str = "connection.incidents@1";
     pub const CONNECTION_LIFECYCLE_EVENTS_1: &str = "connection.lifecycle_events@1";
+    pub const CONNECTION_RATE_LIMIT_ENCOUNTERS_1: &str = "connection.rate_limit_encounters@1";
     pub const CONNECTION_SYNC_ATTEMPTS_1: &str = "connection.sync_attempts@1";
     pub const CONVERSATION_LIFECYCLE_EVENTS_1: &str = "conversation.lifecycle_events@1";
     pub const CONVERSATION_MESSAGE_LIFECYCLE_EVENTS_1: &str =

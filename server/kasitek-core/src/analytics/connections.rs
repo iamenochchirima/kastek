@@ -198,6 +198,96 @@ pub async fn enqueue_sync_attempt(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
+pub async fn enqueue_rate_limit(
+    transaction: &mut Transaction<'_, Postgres>,
+    organization_id: &str,
+    connection_id: &str,
+    provider: &str,
+    operation: &str,
+    rate_limit_scope: &str,
+    retry_after_seconds: Option<i64>,
+    observed_at: DateTime<Utc>,
+) -> Result<EnqueueResult, analytics_producer::ProducerError> {
+    let record_id = format!(
+        "connection:{connection_id}:rate-limit:{operation}:{}",
+        observed_at.timestamp_micros()
+    );
+    enqueue_event(
+        transaction,
+        EventInput {
+            record_id: record_id.clone(),
+            source_domain: SOURCE_DOMAIN.to_string(),
+            source_stream_key: stream_key(organization_id),
+            contract_name: "connection.rate_limit@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::CoreOrganization,
+            scope_external_id: organization_id.to_string(),
+            subject_type: "connection".to_string(),
+            subject_id: connection_id.to_string(),
+            occurred_at: observed_at,
+            attributes: json!({
+                "connection_id": connection_id,
+                "provider": provider,
+                "operation": operation,
+                "rate_limit_scope": rate_limit_scope,
+                "retry_after_seconds": retry_after_seconds,
+                "observed_at": observed_at,
+            }),
+            correlation_id: None,
+            causation_id: None,
+            idempotency_key: Some(record_id),
+        },
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn enqueue_incident_lifecycle(
+    transaction: &mut Transaction<'_, Postgres>,
+    organization_id: &str,
+    connection_id: &str,
+    provider: &str,
+    incident_key: &str,
+    action: &str,
+    severity: &str,
+    reason_code: &str,
+    occurred_at: DateTime<Utc>,
+) -> Result<EnqueueResult, analytics_producer::ProducerError> {
+    let record_id = format!(
+        "connection:{connection_id}:incident:{incident_key}:{action}:{}",
+        occurred_at.timestamp_micros()
+    );
+    enqueue_event(
+        transaction,
+        EventInput {
+            record_id: record_id.clone(),
+            source_domain: SOURCE_DOMAIN.to_string(),
+            source_stream_key: stream_key(organization_id),
+            contract_name: "connection.incident.lifecycle@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::CoreOrganization,
+            scope_external_id: organization_id.to_string(),
+            subject_type: "connection".to_string(),
+            subject_id: connection_id.to_string(),
+            occurred_at,
+            attributes: json!({
+                "connection_id": connection_id,
+                "provider": provider,
+                "incident_key": incident_key,
+                "action": action,
+                "severity": severity,
+                "reason_code": reason_code,
+                "occurred_at": occurred_at,
+            }),
+            correlation_id: None,
+            causation_id: None,
+            idempotency_key: Some(record_id),
+        },
+    )
+    .await
+}
+
 pub fn lifecycle_action(status: &str) -> &'static str {
     match status {
         "CONNECTED" => "connected",

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/connections/rate_limit/v1.schema.json",
+  "title": "Core provider connection rate-limit attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection_id",
+    "provider",
+    "operation",
+    "rate_limit_scope",
+    "observed_at"
+  ],
+  "properties": {
+    "connection_id": { "type": "string", "minLength": 1 },
+    "provider": { "type": "string", "pattern": "^[A-Z][A-Z0-9_-]{0,63}$" },
+    "operation": { "type": "string", "pattern": "^[a-z][a-z0-9_.-]{0,63}$" },
+    "rate_limit_scope": { "type": "string", "enum": ["provider", "connection", "organization", "unknown"] },
+    "retry_after_seconds": { "type": ["integer", "null"], "minimum": 0, "maximum": 86400 },
+    "observed_at": { "type": "string", "format": "date-time" }
+  },
+  "x-kasitek": {
+    "identity": "connection.rate_limit@1",
+    "owner": "core-connections",
+    "privacy_class": "aggregate",
+    "prohibited_fields": [
+      "display_name",
+      "handle",
+      "external_account_id",
+      "metadata",
+      "last_error",
+      "error_message",
+      "credential",
+      "token",
+      "provider_payload"
+    ]
+  }
+}

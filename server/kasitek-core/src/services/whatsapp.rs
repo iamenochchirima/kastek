@@ -147,6 +147,9 @@ pub(crate) async fn fetch_graph_json<T: serde::de::DeserializeOwned>(
     let status = response.status();
     let body = response.text().await?;
     if !status.is_success() {
+        if let Some(error) = AppError::provider_http_failure(status) {
+            return Err(error);
+        }
         let parsed = serde_json::from_str::<GraphErrorEnvelope>(&body).ok();
         let message = parsed
             .and_then(|value| value.error.and_then(|err| err.message))

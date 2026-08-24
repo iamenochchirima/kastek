@@ -536,8 +536,8 @@ checklist records implementation evidence for the current package only.
 - [x] Emit health-check facts transactionally with Core `ExternalConnection` health updates.
 - [x] Add an ignored PostgreSQL producer integration fixture covering both contracts, transaction
   visibility, and prohibited-field absence without leaving rows after rollback.
-- [ ] Instrument provider rate limits, incidents, source manifests, historical backfill,
-  projections, reporting, and full product mutation-to-reporting E2E in later Connections slices.
+- [ ] Instrument source manifests, historical backfill, projections, reporting, and full product
+  mutation-to-reporting E2E in later Connections slices.
 
 ## Core Connections — slice 2
 
@@ -549,8 +549,8 @@ checklist records implementation evidence for the current package only.
   mechanics do not create duplicate analytics transitions.
 - [x] Emit capability transitions transactionally with the Core capability projection.
 - [x] Extend the transactional privacy fixture to cover capability facts and rollback.
-- [ ] Add provider rate limits, incidents, source manifests, historical backfill, projections,
-  reporting, and full product mutation-to-reporting E2E in later Connections slices.
+- [ ] Add source manifests, historical backfill, projections, reporting, and full product
+  mutation-to-reporting E2E in later Connections slices.
 
 ## Core Connections — slice 3
 
@@ -565,8 +565,24 @@ checklist records implementation evidence for the current package only.
   avoiding a full connection projection rebuild for every provider attempt.
 - [x] Extend the ignored PostgreSQL producer/privacy fixture and add bounded provider error-class
   unit coverage.
-- [ ] Add rate-limit evidence, incident facts, source manifests, historical backfill, projections,
-  reporting, and full product mutation-to-reporting E2E in later Connections slices.
+- [ ] Add source manifests, historical backfill, projections, reporting, and full product
+  mutation-to-reporting E2E in later Connections slices.
+
+## Core Connections — slice 4
+
+- [x] Map provider HTTP 429 responses to Core's stable rate-limited error without exporting raw
+  provider response bodies.
+- [x] Add `connection.rate_limit@1` and `connection.rate_limit_encounters@1` with bounded provider,
+  operation, scope, and retry metadata.
+- [x] Emit rate-limit facts in the same outbox transaction as failed sync outcomes for instrumented
+  connection refresh operations.
+- [x] Add `connection.incident.lifecycle@1` and `connection.incidents@1` for health incident
+  openings and recoveries with duplicate suppression at unchanged health states.
+- [x] Emit incident facts transactionally with Core `ExternalConnection` health transitions.
+- [x] Extend producer/privacy coverage and add 429/error-classification and health-boundary tests;
+  regenerate the Rust and TypeScript registry bindings.
+- [ ] Add source manifests, historical backfill, projections, reporting, and full product
+  mutation-to-reporting E2E in later Connections slices.
 
 ## Explicitly deferred
 

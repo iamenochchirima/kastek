@@ -202,6 +202,22 @@
       "owner": "core-connections",
       "category": "event",
       "privacy_class": "aggregate"
+    },
+    {
+      "identity": "connection.rate_limit@1",
+      "schema": "events/connections/rate_limit/v1.schema.json",
+      "examples": ["examples/connections/rate_limit.json"],
+      "owner": "core-connections",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "connection.incident.lifecycle@1",
+      "schema": "events/connections/incident_lifecycle/v1.schema.json",
+      "examples": ["examples/connections/incident_lifecycle.json"],
+      "owner": "core-connections",
+      "category": "event",
+      "privacy_class": "aggregate"
     }
   ]
 }

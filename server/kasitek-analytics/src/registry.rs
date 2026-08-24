@@ -388,6 +388,34 @@ const CONTRACT_SOURCES: &[ContractSource] = &[
             )),
         )],
     },
+    ContractSource {
+        path: "events/connections/rate_limit/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/connections/rate_limit/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/connections/rate_limit.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/connections/rate_limit.json"
+            )),
+        )],
+    },
+    ContractSource {
+        path: "events/connections/incident_lifecycle/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/connections/incident_lifecycle/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/connections/incident_lifecycle.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/connections/incident_lifecycle.json"
+            )),
+        )],
+    },
 ];
 
 const METRIC_SOURCES: &[MetricSource] = &[
@@ -1312,11 +1340,11 @@ mod tests {
     #[test]
     fn repository_registry_is_valid_and_deterministic() {
         let registry = load_registry().expect("repository registry should validate");
-        assert_eq!(registry.contracts.len(), 25);
-        assert_eq!(registry.metrics.len(), 30);
-        assert_eq!(registry.dimensions.len(), 40);
+        assert_eq!(registry.contracts.len(), 27);
+        assert_eq!(registry.metrics.len(), 32);
+        assert_eq!(registry.dimensions.len(), 43);
         assert_eq!(registry.metric_sets.len(), 2);
-        assert_eq!(registry.metric_keys().len(), 30);
+        assert_eq!(registry.metric_keys().len(), 32);
         assert!(!registry.sha256.is_empty());
     }
 

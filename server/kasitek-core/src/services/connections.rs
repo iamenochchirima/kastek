@@ -690,6 +690,7 @@ pub async fn record_provider_sync_outcome(
     // ExternalConnection IDs are intentionally deterministic (`ext_<source-id>`) so a provider
     // attempt can be recorded without rebuilding the full connection projection on every refresh.
     let connection_id = format!("ext_{source_id}");
+    let occurred_at = Utc::now();
     analytics::connections::enqueue_sync_attempt(
         &mut tx,
         org_id,
@@ -700,7 +701,7 @@ pub async fn record_provider_sync_outcome(
         outcome,
         failure_class,
         duration_ms.clamp(0, 86_400_000),
-        Utc::now(),
+        occurred_at,
     )
     .await
     .map_err(|error| {
@@ -708,8 +709,39 @@ pub async fn record_provider_sync_outcome(
             "Failed to queue Connections synchronization analytics fact: {error}"
         ))
     })?;
+    if failure_class == "rate_limited" {
+        analytics::connections::enqueue_rate_limit(
+            &mut tx,
+            org_id,
+            &connection_id,
+            provider,
+            operation,
+            "provider",
+            None,
+            occurred_at,
+        )
+        .await
+        .map_err(|error| {
+            AppError::Internal(format!(
+                "Failed to queue Connections rate-limit analytics fact: {error}"
+            ))
+        })?;
+    }
     tx.commit().await?;
     Ok(())
+}
+
+pub fn health_incident_transition(
+    previous_health_status: Option<&str>,
+    healthy: bool,
+) -> Option<(&'static str, &'static str)> {
+    match (previous_health_status, healthy) {
+        (Some("NEEDS_ATTENTION"), true) => Some(("resolved", "provider_health_recovered")),
+        (previous, false) if previous != Some("NEEDS_ATTENTION") => {
+            Some(("opened", "provider_health_failed"))
+        }
+        _ => None,
+    }
 }
 
 pub async fn record_synced_source_health(
@@ -722,6 +754,19 @@ pub async fn record_synced_source_health(
     error: Option<&str>,
 ) -> Result<(), AppError> {
     let mut tx = pool.begin().await?;
+    let previous_health_status = sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT "healthStatus"
+        FROM "ExternalConnection"
+        WHERE "orgId" = $1 AND "sourceType" = $2 AND "sourceId" = $3
+        FOR UPDATE
+        "#,
+    )
+    .bind(org_id)
+    .bind(source_type)
+    .bind(source_id)
+    .fetch_optional(&mut *tx)
+    .await?;
     let state = sqlx::query_as::<_, ConnectionState>(
         r#"
         UPDATE "ExternalConnection"
@@ -760,6 +805,27 @@ pub async fn record_synced_source_health(
 
     if let Some(state) = state {
         let occurred_at = state.last_checked_at.unwrap_or(state.updated_at);
+        if let Some((action, reason_code)) =
+            health_incident_transition(previous_health_status.as_deref(), healthy)
+        {
+            analytics::connections::enqueue_incident_lifecycle(
+                &mut tx,
+                org_id,
+                &state.id,
+                &state.provider,
+                "connection_health",
+                action,
+                "critical",
+                reason_code,
+                occurred_at,
+            )
+            .await
+            .map_err(|analytics_error| {
+                AppError::Internal(format!(
+                    "Failed to queue Connections incident analytics fact: {analytics_error}"
+                ))
+            })?;
+        }
         analytics::connections::enqueue_health_check(
             &mut tx,
             org_id,
@@ -786,8 +852,8 @@ pub async fn record_synced_source_health(
 #[cfg(test)]
 mod tests {
     use super::{
-        is_mutable_status, list_connections, provider_sync_failure_class, source_is_connected,
-        update_status,
+        health_incident_transition, is_mutable_status, list_connections,
+        provider_sync_failure_class, source_is_connected, update_status,
     };
     use crate::error::AppError;
 
@@ -818,6 +884,23 @@ mod tests {
             provider_sync_failure_class(&AppError::Internal("secret detail".to_string())),
             "internal"
         );
+    }
+
+    #[test]
+    fn health_incidents_only_emit_on_state_boundaries() {
+        assert_eq!(
+            health_incident_transition(Some("HEALTHY"), false),
+            Some(("opened", "provider_health_failed"))
+        );
+        assert_eq!(
+            health_incident_transition(Some("NEEDS_ATTENTION"), true),
+            Some(("resolved", "provider_health_recovered"))
+        );
+        assert_eq!(
+            health_incident_transition(Some("NEEDS_ATTENTION"), false),
+            None
+        );
+        assert_eq!(health_incident_transition(Some("UNKNOWN"), true), None);
     }
 
     #[tokio::test]
