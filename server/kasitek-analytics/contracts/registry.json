@@ -292,6 +292,14 @@
       "privacy_class": "aggregate"
     },
     {
+      "identity": "tenant.client.lifecycle@1",
+      "schema": "events/tenant/client_lifecycle/v1.schema.json",
+      "examples": ["examples/tenant/client_lifecycle.json"],
+      "owner": "tenant-platform-clients",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
       "identity": "tenant.scope.definition@1",
       "schema": "events/tenant/scope_definition/v1.schema.json",
       "examples": ["examples/tenant/scope_definition.json"],

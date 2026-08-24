@@ -1746,22 +1746,18 @@ fn typed_event_dimensions(
             }
         }
         DomainBuilder::Tenants => {
-            require_text_fields(
-                attributes,
-                &[
-                    "lead_id",
-                    "tenant_client_id",
-                    "action",
-                    "status",
-                    "source",
-                    "score_band",
-                ],
-            )?;
-            if metric.key != "tenant.leads.lifecycle_events" {
-                return Err(sqlx::Error::Protocol(format!(
-                    "unsupported Tenant metric {}",
-                    metric.key
-                )));
+            require_text_fields(attributes, &["tenant_client_id", "action", "status"])?;
+            match metric.key.as_str() {
+                "tenant.leads.lifecycle_events" => {
+                    require_text_fields(attributes, &["lead_id", "source", "score_band"])?;
+                }
+                "tenant.clients.lifecycle_events" => {}
+                _ => {
+                    return Err(sqlx::Error::Protocol(format!(
+                        "unsupported Tenant metric {}",
+                        metric.key
+                    )))
+                }
             }
         }
     }
@@ -1927,6 +1923,7 @@ fn event_dimensions(
             "incident_severity" => attributes.get("severity").cloned(),
             "incident_reason_code" => attributes.get("reason_code").cloned(),
             "tenant_client" => attributes.get("tenant_client_id").cloned(),
+            "client_lifecycle_action" => attributes.get("action").cloned(),
             "lead_action" => attributes.get("action").cloned(),
             "lead_status" => attributes.get("status").cloned(),
             "lead_source" => attributes.get("source").cloned(),

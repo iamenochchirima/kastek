@@ -641,11 +641,22 @@ definitions:
   - key: tenant_client
     type: reference
     source: envelope.data.tenant_client_id
-    compatible_metrics: [tenant.leads.lifecycle_events@1]
+    compatible_metrics: [tenant.clients.lifecycle_events@1, tenant.leads.lifecycle_events@1]
     filterable: true
     groupable: true
     cardinality: medium
     privacy_class: restricted
+    stable_key: true
+    permissions: [analytics:read]
+
+  - key: client_lifecycle_action
+    type: enum
+    source: envelope.data.action
+    compatible_metrics: [tenant.clients.lifecycle_events@1]
+    filterable: true
+    groupable: true
+    cardinality: low
+    privacy_class: aggregate
     stable_key: true
     permissions: [analytics:read]
 

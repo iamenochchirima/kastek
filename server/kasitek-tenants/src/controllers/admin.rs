@@ -197,7 +197,25 @@ pub struct CreateWorkspaceBody {
     admin_email: String,
     #[serde(rename = "primaryColor")]
     primary_color: Option<String>,
+    #[serde(rename = "reportingTimezone")]
+    reporting_timezone: Option<String>,
     domain: Option<String>,
+}
+
+pub(crate) fn normalize_reporting_timezone(value: Option<&str>) -> Result<String, AppError> {
+    let value = value.unwrap_or("UTC").trim();
+    if value.is_empty()
+        || value.len() > 64
+        || value.chars().any(char::is_whitespace)
+        || !value.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '/' | '_' | '-' | '+')
+        })
+    {
+        return Err(AppError::BadRequest(
+            "reportingTimezone must be a valid timezone identifier".to_string(),
+        ));
+    }
+    Ok(value.to_string())
 }
 
 pub async fn list_workspaces(req: HttpRequest) -> Result<HttpResponse, AppError> {
@@ -1059,16 +1077,18 @@ pub async fn create_workspace(
     ]);
     let now = Utc::now();
     let hosted_domain = hosted_workspace_domain(&slug, config.platform_base_domain.as_deref());
+    let reporting_timezone = normalize_reporting_timezone(body.reporting_timezone.as_deref())?;
 
     let mut tx = pool.begin().await?;
 
     sqlx::query(
-        r#"INSERT INTO workspaces (id, slug, display_name, status, created_at, updated_at)
-           VALUES ($1, $2, $3, 'active', NOW(), NOW())"#,
+        r#"INSERT INTO workspaces (id, slug, display_name, status, reporting_timezone, created_at, updated_at)
+           VALUES ($1, $2, $3, 'active', $4, NOW(), NOW())"#,
     )
     .bind(&workspace_id)
     .bind(&slug)
     .bind(workspace_name)
+    .bind(&reporting_timezone)
     .execute(&mut *tx)
     .await?;
 
@@ -1135,11 +1155,16 @@ pub async fn create_workspace(
     .execute(&mut *tx)
     .await?;
 
-    analytics::enqueue_workspace_scope_definition(&mut tx, &workspace_id, now.timestamp_millis())
-        .await
-        .map_err(|error| {
-            AppError::Internal(format!("analytics workspace scope enqueue failed: {error}"))
-        })?;
+    analytics::enqueue_workspace_scope_definition(
+        &mut tx,
+        &workspace_id,
+        now.timestamp_millis(),
+        &reporting_timezone,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("analytics workspace scope enqueue failed: {error}"))
+    })?;
 
     tx.commit().await?;
     let admin_invite = crate::controllers::admin_invites::issue_admin_invite(

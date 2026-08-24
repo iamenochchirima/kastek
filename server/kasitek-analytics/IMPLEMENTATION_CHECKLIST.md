@@ -893,8 +893,20 @@ checklist records implementation evidence for the current package only.
   `tenants.v1` projection builder, and regenerate bindings.
 - [x] Verify registry validation, Tenant and Analytics package compilation, and privacy-safe helper
   unit coverage.
-- [ ] Add workspace timezone/client overrides, tenant-client assignments, client lifecycle facts,
-  lead status history, source manifests, historical reconstruction, and end-to-end reporting.
+- [x] Add workspace timezone/client overrides and client lifecycle facts with scope status
+  transitions.
+- [ ] Add tenant-client assignments, lead status history, source manifests, historical
+  reconstruction, and end-to-end Tenant reporting.
+
+## Tenant Platform — client lifecycle and timezone slice 2
+
+- [x] Persist workspace reporting timezone and optional client override with a UTC default.
+- [x] Add active/suspended/archived client status mutation and publish matching scope/lifecycle
+  facts transactionally without client names, metadata, or external references.
+- [x] Register the client lifecycle contract, metric, dimension, typed projection support, and
+  generated bindings.
+- [x] Verify registry validation and Tenant/Analytics package compilation.
+- [ ] Add assignment records and lead status history in the next Tenant slices.
 
 ## Reporting availability — slice 10
 

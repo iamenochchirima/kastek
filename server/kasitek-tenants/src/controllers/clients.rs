@@ -2,7 +2,13 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use crate::{analytics, config::AppConfig, controllers::client_auth, error::AppError, middleware};
+use crate::{
+    analytics,
+    config::AppConfig,
+    controllers::{admin::normalize_reporting_timezone, client_auth},
+    error::AppError,
+    middleware,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateTenantClientRequest {
@@ -11,6 +17,13 @@ pub struct CreateTenantClientRequest {
     pub external_ref: Option<String>,
     #[serde(rename = "adminEmail")]
     pub admin_email: String,
+    #[serde(rename = "reportingTimezone")]
+    pub reporting_timezone: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateTenantClientStatusRequest {
+    pub status: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -237,6 +250,12 @@ pub async fn create_client(
             "adminEmail must be a valid email address".to_string(),
         ));
     }
+    let reporting_timezone = body
+        .reporting_timezone
+        .as_deref()
+        .map(|value| normalize_reporting_timezone(Some(value)))
+        .transpose()?
+        .unwrap_or_else(|| "UTC".to_string());
 
     let id = cuid2::create_id();
     let mut transaction = pool.begin().await?;
@@ -248,10 +267,11 @@ pub async fn create_client(
             name,
             slug,
             external_ref,
+            reporting_timezone,
             created_at,
             updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
         "#,
     )
     .bind(&id)
@@ -264,6 +284,7 @@ pub async fn create_client(
             .map(|value| value.trim())
             .filter(|value| !value.is_empty()),
     )
+    .bind(&reporting_timezone)
     .execute(&mut *transaction)
     .await;
 
@@ -273,15 +294,32 @@ pub async fn create_client(
         ));
     }
 
+    let occurred_at = chrono::Utc::now();
     analytics::enqueue_client_scope_definition(
         &mut transaction,
         &session.workspace_id,
         &id,
-        chrono::Utc::now().timestamp_millis(),
+        occurred_at.timestamp_millis(),
+        &reporting_timezone,
+        "active",
     )
     .await
     .map_err(|error| {
         AppError::Internal(format!("analytics client scope enqueue failed: {error}"))
+    })?;
+    analytics::enqueue_client_lifecycle(
+        &mut transaction,
+        &session.workspace_id,
+        &id,
+        "created",
+        "active",
+        occurred_at,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!(
+            "analytics client lifecycle enqueue failed: {error}"
+        ))
     })?;
     transaction.commit().await?;
 
@@ -314,6 +352,91 @@ pub async fn create_client(
             "portalUrl": admin_invite.portal_url,
             "expiresAt": admin_invite.expires_at,
         }
+    })))
+}
+
+pub async fn update_client_status(
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<UpdateTenantClientStatusRequest>,
+) -> Result<HttpResponse, AppError> {
+    let session = middleware::extract_tenant_user_session(&req).await?;
+    ensure_client_management_roles(&session.roles)?;
+    let pool = middleware::db_pool(&req)?;
+    let client_id = path.into_inner();
+    let requested_status = body.status.trim().to_ascii_lowercase();
+    let (operational_status, analytics_status, action) = match requested_status.as_str() {
+        "active" => ("active", "active", "activated"),
+        "suspended" => ("suspended", "suspended", "suspended"),
+        "archived" | "deleted" => ("archived", "deleted", "deleted"),
+        _ => {
+            return Err(AppError::BadRequest(
+                "status must be active, suspended, or archived".to_string(),
+            ))
+        }
+    };
+    let mut transaction = pool.begin().await?;
+    let client = sqlx::query_as::<_, (String, String)>(
+        r#"SELECT c.status, COALESCE(c.reporting_timezone, w.reporting_timezone)
+           FROM tenant_clients c
+           JOIN workspaces w ON w.id = c.workspace_id
+           WHERE c.id = $1 AND c.workspace_id = $2
+           FOR UPDATE"#,
+    )
+    .bind(&client_id)
+    .bind(&session.workspace_id)
+    .fetch_optional(&mut *transaction)
+    .await?
+    .ok_or_else(|| AppError::NotFound("tenant client not found".to_string()))?;
+    if client.0 == operational_status {
+        transaction.rollback().await?;
+        return Ok(HttpResponse::Ok().json(serde_json::json!({
+            "clientId": client_id,
+            "status": requested_status,
+            "changed": false
+        })));
+    }
+    sqlx::query(
+        r#"UPDATE tenant_clients SET status = $1, updated_at = NOW()
+           WHERE id = $2 AND workspace_id = $3"#,
+    )
+    .bind(operational_status)
+    .bind(&client_id)
+    .bind(&session.workspace_id)
+    .execute(&mut *transaction)
+    .await?;
+    let occurred_at = chrono::Utc::now();
+    analytics::enqueue_client_scope_definition(
+        &mut transaction,
+        &session.workspace_id,
+        &client_id,
+        occurred_at.timestamp_millis(),
+        &client.1,
+        analytics_status,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("analytics client scope enqueue failed: {error}"))
+    })?;
+    analytics::enqueue_client_lifecycle(
+        &mut transaction,
+        &session.workspace_id,
+        &client_id,
+        action,
+        analytics_status,
+        occurred_at,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!(
+            "analytics client lifecycle enqueue failed: {error}"
+        ))
+    })?;
+    transaction.commit().await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "clientId": client_id,
+        "status": requested_status,
+        "changed": true
     })))
 }
 

@@ -112,6 +112,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             web::scope("/api/clients")
                 .route("", web::get().to(clients::list_clients))
                 .route("", web::post().to(clients::create_client))
+                .route("/{id}/status", web::patch().to(clients::update_client_status))
                 .route("/{id}/users", web::get().to(clients::list_client_users))
                 .route("/{id}/invites", web::post().to(clients::invite_client_user)),
         )

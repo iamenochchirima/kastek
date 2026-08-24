@@ -65,6 +65,7 @@ pub async fn enqueue_workspace_scope_definition(
     transaction: &mut Transaction<'_, Postgres>,
     workspace_id: &str,
     source_version: i64,
+    reporting_timezone: &str,
 ) -> Result<EnqueueResult, ProducerError> {
     enqueue_scope_definition(
         transaction,
@@ -77,7 +78,7 @@ pub async fn enqueue_workspace_scope_definition(
             scope_kind: ScopeKind::TenantWorkspace,
             scope_external_id: workspace_id.to_string(),
             parent_scope_external_id: None,
-            reporting_timezone: "UTC".to_string(),
+            reporting_timezone: reporting_timezone.to_string(),
             status: "active".to_string(),
             source_version,
             idempotency_key: Some(format!(
@@ -93,6 +94,8 @@ pub async fn enqueue_client_scope_definition(
     workspace_id: &str,
     tenant_client_id: &str,
     source_version: i64,
+    reporting_timezone: &str,
+    status: &str,
 ) -> Result<EnqueueResult, ProducerError> {
     enqueue_scope_definition(
         transaction,
@@ -105,11 +108,48 @@ pub async fn enqueue_client_scope_definition(
             scope_kind: ScopeKind::TenantClient,
             scope_external_id: tenant_client_id.to_string(),
             parent_scope_external_id: Some(workspace_id.to_string()),
-            reporting_timezone: "UTC".to_string(),
-            status: "active".to_string(),
+            reporting_timezone: reporting_timezone.to_string(),
+            status: status.to_string(),
             source_version,
             idempotency_key: Some(format!(
                 "tenant-scope:client:{tenant_client_id}:{source_version}"
+            )),
+        },
+    )
+    .await
+}
+
+pub async fn enqueue_client_lifecycle(
+    transaction: &mut Transaction<'_, Postgres>,
+    workspace_id: &str,
+    tenant_client_id: &str,
+    action: &str,
+    status: &str,
+    occurred_at: DateTime<Utc>,
+) -> Result<EnqueueResult, ProducerError> {
+    enqueue_event(
+        transaction,
+        EventInput {
+            record_id: format!("tenant-client:{tenant_client_id}:lifecycle:{action}:{occurred_at}"),
+            source_domain: "clients".to_string(),
+            source_stream_key: format!("workspace:{workspace_id}:clients"),
+            contract_name: "tenant.client.lifecycle@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::TenantWorkspace,
+            scope_external_id: workspace_id.to_string(),
+            subject_type: "tenant_client".to_string(),
+            subject_id: tenant_client_id.to_string(),
+            occurred_at,
+            attributes: json!({
+                "tenant_client_id": tenant_client_id,
+                "action": action,
+                "status": status,
+                "occurred_at": occurred_at,
+            }),
+            correlation_id: None,
+            causation_id: None,
+            idempotency_key: Some(format!(
+                "tenant-client:{tenant_client_id}:lifecycle:{action}:{occurred_at}"
             )),
         },
     )

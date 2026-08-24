@@ -2170,12 +2170,27 @@ and reconciliation endpoint. Emit workspace/client hierarchy and status changes.
   insert, scoped to the tenant client and compatible with workspace/client reporting.
 - [x] Route Tenant lead events through a typed `tenants.v1` projection builder and regenerate the
   registry bindings.
-- [ ] Add workspace timezone/client override persistence, `tenant_client_assignments`, client
-  activation/suspension/deletion lifecycle facts, and scope status transitions.
+- [x] Add workspace timezone/client override persistence, client activation/suspension/deletion
+  lifecycle facts, and scope status transitions.
+- [ ] Add `tenant_client_assignments` and assignment lifecycle facts after the assignment principal
+  and management commands are implemented.
 - [ ] Add Tenant lead status-history commands and lifecycle facts before claiming qualified,
   converted, attribution, or reliable historical lead analytics.
 - [ ] Add Tenant source manifests, historical reconstruction, and mutation-to-reporting E2E after
   the authoritative Tenant history boundaries exist.
+
+#### Execution slice 2 — client lifecycle and reporting timezone
+
+- [x] Persist a workspace reporting timezone and optional tenant-client override with a safe UTC
+  default; publish the effective timezone in scope definitions.
+- [x] Add the Tenant client status command for active, suspended, and archived/deleted states;
+  persist the operational state and publish scope status plus an aggregate-safe lifecycle fact in
+  the same transaction.
+- [x] Register `tenant.client.lifecycle@1`, `tenant.clients.lifecycle_events@1`, and the bounded
+  client lifecycle action dimension through the typed Tenant projection builder.
+- [x] Regenerate registry bindings and verify Tenant/Analytics compilation and registry validation.
+- [ ] Add assignment records and lead status history before claiming assigned-client or qualified /
+  converted lead analytics.
 
 ### Tenant Platform lane: client administration
 

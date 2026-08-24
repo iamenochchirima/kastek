@@ -2,7 +2,7 @@
 
 pub const REGISTRY_VERSION: &str = "20260824.1";
 pub const REGISTRY_SHA256: &str =
-    "1e911cebb5e5269d6022d564cb8490a689b03c21fe05600e6855dadfc2acbcab";
+    "59b18d5dc66285a358acf22a295f29a5c9b51f35d00d41b3b77f4b6cc143bb2d";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",
@@ -40,6 +40,7 @@ pub const CONTRACT_KEYS: &[&str] = &[
     "conversation.message.lifecycle@1",
     "conversation.message.received@1",
     "conversation.response.recorded@1",
+    "tenant.client.lifecycle@1",
     "tenant.lead.lifecycle@1",
     "tenant.scope.definition@1",
 ];
@@ -86,6 +87,7 @@ pub const METRIC_KEYS: &[&str] = &[
     "conversation.messages.received@1",
     "conversation.response_time_ms@1",
     "conversation.responses.recorded@1",
+    "tenant.clients.lifecycle_events@1",
     "tenant.leads.lifecycle_events@1",
 ];
 
@@ -104,6 +106,7 @@ pub const DIMENSION_KEYS: &[&str] = &[
     "campaign",
     "capability",
     "channel",
+    "client_lifecycle_action",
     "connection_credential_status",
     "connection_health_status",
     "connection_sync_operation",
@@ -204,5 +207,6 @@ pub mod metric_keys {
     pub const CONVERSATION_MESSAGES_RECEIVED_1: &str = "conversation.messages.received@1";
     pub const CONVERSATION_RESPONSE_TIME_MS_1: &str = "conversation.response_time_ms@1";
     pub const CONVERSATION_RESPONSES_RECORDED_1: &str = "conversation.responses.recorded@1";
+    pub const TENANT_CLIENTS_LIFECYCLE_EVENTS_1: &str = "tenant.clients.lifecycle_events@1";
     pub const TENANT_LEADS_LIFECYCLE_EVENTS_1: &str = "tenant.leads.lifecycle_events@1";
 }
