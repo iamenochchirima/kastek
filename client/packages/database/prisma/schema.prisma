@@ -23,6 +23,8 @@ model Organization {
   socialChannelConnections       SocialChannelConnection[]
   socialPosts                    SocialPost[]
   socialPublishJobs              SocialPublishJob[]
+  socialPostInsightObservations  SocialPostInsightObservation[]
+  socialPostInsightSyncStates    SocialPostInsightSyncState[]
   contentMediaAssets             ContentMediaAsset[]
   whatsappConnections            WhatsappConnection[]
   whatsappContacts               WhatsappContact[]
@@ -1790,6 +1792,7 @@ model SocialPost {
   variants    SocialPostVariant[]
   publishJobs SocialPublishJob[]
   media       SocialPostMedia[]
+  insightObservations SocialPostInsightObservation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1845,6 +1848,7 @@ model SocialPublishJob {
   errorMessage   String?                @db.Text
   metadata       Json?
   deliverySnapshot Json?
+  insightObservations SocialPostInsightObservation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1855,6 +1859,62 @@ model SocialPublishJob {
   @@index([variantId])
   @@index([channelConnectionId])
   @@index([scheduledFor])
+}
+
+model SocialPostInsightObservation {
+  id String @id @default(cuid())
+
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  postId String
+  post   SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  publishJobId String
+  publishJob   SocialPublishJob @relation(fields: [publishJobId], references: [id], onDelete: Cascade)
+
+  platform          SocialPlatform
+  metricKey         String
+  value             BigInt?
+  availability      String @default("available")
+  providerMetricKey String?
+  observationKey    String @unique
+  observedAt        DateTime
+  fetchedAt         DateTime @default(now())
+  windowStart       DateTime?
+  windowEnd         DateTime?
+  adapterVersion    String
+  metadata          Json?
+  createdAt         DateTime @default(now())
+
+  @@index([orgId, postId, platform, observedAt])
+  @@index([publishJobId, metricKey, observedAt])
+  @@index([orgId, platform, metricKey, observedAt])
+  @@index([availability, fetchedAt])
+}
+
+model SocialPostInsightSyncState {
+  id String @id @default(cuid())
+
+  orgId String
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  platform SocialPlatform
+  status String @default("IDLE")
+  retryable Boolean @default(false)
+  consecutiveFailures Int @default(0)
+  lastAttemptAt DateTime?
+  lastSuccessAt DateTime?
+  nextRetryAt DateTime?
+  lastErrorCode String?
+  lastErrorMessage String? @db.Text
+  metadata Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, platform])
+  @@index([status, nextRetryAt])
+  @@index([orgId, platform, lastAttemptAt])
 }
 
 model ContentMediaAsset {

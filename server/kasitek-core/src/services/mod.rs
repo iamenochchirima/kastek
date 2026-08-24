@@ -24,6 +24,7 @@ pub mod push;
 pub mod realtime;
 pub mod social;
 pub mod social_channels;
+pub mod social_insights;
 pub mod social_oauth;
 pub mod social_posts;
 pub mod social_provider_connections;

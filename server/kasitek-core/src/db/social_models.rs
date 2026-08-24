@@ -132,6 +132,56 @@ pub struct SocialPublishJobRow {
     pub updated_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct SocialPostInsightObservationRow {
+    pub id: String,
+    #[sqlx(rename = "org_id")]
+    pub org_id: String,
+    #[sqlx(rename = "post_id")]
+    pub post_id: String,
+    #[sqlx(rename = "publish_job_id")]
+    pub publish_job_id: String,
+    pub platform: String,
+    #[sqlx(rename = "metric_key")]
+    pub metric_key: String,
+    pub value: Option<i64>,
+    pub availability: String,
+    #[sqlx(rename = "provider_metric_key")]
+    pub provider_metric_key: Option<String>,
+    #[sqlx(rename = "observation_key")]
+    pub observation_key: String,
+    #[sqlx(rename = "observed_at")]
+    pub observed_at: DateTime<Utc>,
+    #[sqlx(rename = "fetched_at")]
+    pub fetched_at: DateTime<Utc>,
+    #[sqlx(rename = "window_start")]
+    pub window_start: Option<DateTime<Utc>>,
+    #[sqlx(rename = "window_end")]
+    pub window_end: Option<DateTime<Utc>>,
+    #[sqlx(rename = "adapter_version")]
+    pub adapter_version: String,
+    pub metadata: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct SocialPostInsightSyncStateRow {
+    pub platform: String,
+    pub status: String,
+    pub retryable: bool,
+    #[sqlx(rename = "consecutive_failures")]
+    pub consecutive_failures: i32,
+    #[sqlx(rename = "last_attempt_at")]
+    pub last_attempt_at: Option<DateTime<Utc>>,
+    #[sqlx(rename = "last_success_at")]
+    pub last_success_at: Option<DateTime<Utc>>,
+    #[sqlx(rename = "next_retry_at")]
+    pub next_retry_at: Option<DateTime<Utc>>,
+    #[sqlx(rename = "last_error_code")]
+    pub last_error_code: Option<String>,
+    #[sqlx(rename = "last_error_message")]
+    pub last_error_message: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct SocialPost {
     #[serde(flatten)]

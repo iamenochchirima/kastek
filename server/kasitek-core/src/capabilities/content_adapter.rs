@@ -4,10 +4,11 @@ use sqlx::PgPool;
 use std::collections::HashMap;
 
 use crate::{
+    config::AppConfig,
     db::models::{SocialPost, SocialPostUpsertRequest},
     error::AppError,
     identity::request_context::RequestContext,
-    services::{social, social_posts},
+    services::{social, social_insights, social_posts},
 };
 
 const SUPPORTED_PLATFORMS: [&str; 7] = [
@@ -200,6 +201,25 @@ pub async fn get_activity(
     post_id: &str,
 ) -> Result<Option<serde_json::Value>, AppError> {
     social_posts::get_social_post_activity(pool, &context.organization_id, post_id).await
+}
+
+pub async fn get_insights(
+    pool: &PgPool,
+    context: &RequestContext,
+    post_id: &str,
+    filters: &social_insights::SocialPostInsightsFilters,
+) -> Result<Option<social_insights::SocialPostInsights>, AppError> {
+    social_insights::get_social_post_insights(pool, &context.organization_id, post_id, filters)
+        .await
+}
+
+pub async fn list_insights(
+    pool: &PgPool,
+    context: &RequestContext,
+    filters: &social_insights::SocialPostInsightsFilters,
+    limit: i64,
+) -> Result<social_insights::SocialPostInsightsReport, AppError> {
+    social_insights::list_social_post_insights(pool, &context.organization_id, filters, limit).await
 }
 
 pub async fn create_draft(
@@ -528,6 +548,44 @@ pub async fn delete_post(
     }
     let deleted = social::delete_social_post(pool, &context.organization_id, post_id).await?;
     Ok(serde_json::json!({ "postId": post_id, "deleted": deleted }))
+}
+
+/// Delete the provider copies of a published post. This is deliberately a
+/// separate capability from local draft deletion so an agent cannot silently
+/// turn a draft-cleanup request into a social-platform effect.
+pub async fn delete_published_post(
+    pool: &PgPool,
+    config: &AppConfig,
+    context: &RequestContext,
+    post_id: &str,
+    platform: &str,
+) -> Result<social::SocialPostDeletionResult, AppError> {
+    if context.idempotency_key.is_none() {
+        return Err(AppError::BadRequest(
+            "idempotency-key is required for published content deletion".to_string(),
+        ));
+    }
+    let post = social::get_social_post(pool, &context.organization_id, post_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Content post not found".to_string()))?;
+    if !post
+        .publish_jobs
+        .iter()
+        .any(|job| job.status == "PUBLISHED")
+    {
+        return Err(AppError::Conflict(
+            "This content post has no published social-platform copy to delete".to_string(),
+        ));
+    }
+
+    social::delete_social_post_from_platform(
+        pool,
+        config,
+        &context.organization_id,
+        post_id,
+        platform,
+    )
+    .await
 }
 
 #[cfg(test)]

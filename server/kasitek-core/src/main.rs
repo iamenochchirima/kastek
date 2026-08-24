@@ -22,6 +22,7 @@ fn spawn_background_workers(pool: sqlx::PgPool, config: AppConfig) {
 
     tokio::spawn(workers::whatsapp_inbox::run(pool.clone()));
     tokio::spawn(workers::social_publishing::run(pool.clone()));
+    tokio::spawn(workers::social_insights::run(pool.clone()));
     tokio::spawn(workers::whatsapp_campaigns::run(pool.clone()));
     tokio::spawn(workers::public_webhooks::run(pool.clone()));
     tokio::spawn(workers::billing_reconciliation::run(pool, config));
@@ -48,6 +49,11 @@ async fn main() -> std::io::Result<()> {
         Some("social-publishing-worker") => {
             log::info!("starting social publishing worker");
             workers::social_publishing::run(db_pool).await;
+            return Ok(());
+        }
+        Some("social-insights-worker") => {
+            log::info!("starting social insights worker");
+            workers::social_insights::run(db_pool).await;
             return Ok(());
         }
         Some("whatsapp-marketing-worker") => {
@@ -88,6 +94,7 @@ async fn main() -> std::io::Result<()> {
             tokio::join!(
                 workers::whatsapp_inbox::run(db_pool.clone()),
                 workers::social_publishing::run(db_pool.clone()),
+                workers::social_insights::run(db_pool.clone()),
                 workers::whatsapp_campaigns::run(db_pool.clone()),
                 workers::public_webhooks::run(db_pool.clone()),
                 workers::billing_reconciliation::run(db_pool.clone(), config.clone()),

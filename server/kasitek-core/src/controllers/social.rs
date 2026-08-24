@@ -24,6 +24,34 @@ struct SocialPostDeleteRequest {
     delete_from_platforms: Option<bool>,
 }
 
+#[derive(Debug, Default, Deserialize)]
+pub struct SocialPostInsightsQuery {
+    pub platform: Option<String>,
+    pub metrics: Option<String>,
+    #[serde(rename = "publishedFrom", alias = "published_from")]
+    pub published_from: Option<String>,
+    #[serde(rename = "publishedTo", alias = "published_to")]
+    pub published_to: Option<String>,
+    pub limit: Option<i64>,
+}
+
+fn parse_social_insights_filters(
+    query: &SocialPostInsightsQuery,
+) -> Result<social::SocialPostInsightsFilters, AppError> {
+    let filters = social::parse_insights_filters(
+        query.platform.as_deref(),
+        query.metrics.as_deref(),
+        query.published_from.as_deref(),
+        query.published_to.as_deref(),
+    )?;
+    if let Some(platform) = filters.platform.as_deref() {
+        if !social::is_valid_platform(platform) {
+            return Err(AppError::BadRequest("Invalid social platform".to_string()));
+        }
+    }
+    Ok(filters)
+}
+
 async fn require_social_access(
     pool: &PgPool,
     req: &HttpRequest,
@@ -317,6 +345,57 @@ pub async fn get_post_activity(
         .await?
         .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
     Ok(HttpResponse::Ok().json(activity))
+}
+
+pub async fn list_post_insights(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    query: web::Query<SocialPostInsightsQuery>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    let filters = parse_social_insights_filters(&query)?;
+    let report = social::list_social_post_insights(
+        pool.get_ref(),
+        &org_id,
+        &filters,
+        query.limit.unwrap_or(50),
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(report))
+}
+
+pub async fn get_post_insights(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    query: web::Query<SocialPostInsightsQuery>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    let filters = parse_social_insights_filters(&query)?;
+    let insights =
+        social::get_social_post_insights(pool.get_ref(), &org_id, &path.into_inner(), &filters)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
+    Ok(HttpResponse::Ok().json(insights))
+}
+
+pub async fn refresh_post_insights(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    query: web::Query<SocialPostInsightsQuery>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = require_social_access(pool.get_ref(), &req, &user.id).await?;
+    let post_id = path.into_inner();
+    let filters = parse_social_insights_filters(&query)?;
+    social::force_sync_social_post_insights(pool.get_ref(), &org_id, Some(&post_id), 1).await?;
+    let insights = social::get_social_post_insights(pool.get_ref(), &org_id, &post_id, &filters)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
+    Ok(HttpResponse::Ok().json(insights))
 }
 
 pub async fn update_post(

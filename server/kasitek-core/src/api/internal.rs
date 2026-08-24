@@ -25,6 +25,18 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_internal::get_workspace_status),
             )
             .route(
+                "/connections",
+                web::get().to(agent_internal::list_workspace_connections),
+            )
+            .route(
+                "/connections/status",
+                web::patch().to(agent_internal::update_workspace_connection_status),
+            )
+            .route(
+                "/connections/{id}/status",
+                web::patch().to(agent_internal::update_workspace_connection_status_by_id),
+            )
+            .route(
                 "/workspace/report",
                 web::get().to(agent_internal::get_workspace_report),
             )
@@ -66,6 +78,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_internal::list_content_posts),
             )
             .route(
+                "/content/posts/insights",
+                web::get().to(agent_internal::list_content_post_insights),
+            )
+            .route(
                 "/content/posts",
                 web::post().to(agent_internal::create_content_draft),
             )
@@ -78,12 +94,20 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_internal::get_content_post),
             )
             .route(
+                "/content/posts/{id}/insights",
+                web::get().to(agent_internal::get_content_post_insights),
+            )
+            .route(
                 "/content/posts/{id}",
                 web::patch().to(agent_internal::update_content_draft),
             )
             .route(
                 "/content/posts/{id}/publish",
                 web::post().to(agent_internal::publish_content_post),
+            )
+            .route(
+                "/content/posts/{id}/delete-published",
+                web::post().to(agent_internal::delete_published_content_post),
             )
             .route(
                 "/content/posts/{id}/schedule",

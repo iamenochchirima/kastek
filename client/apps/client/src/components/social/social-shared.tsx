@@ -135,6 +135,68 @@ export type SocialPost = {
   publishJobs?: SocialPublishJob[];
 };
 
+export type SocialPostInsightMetric = {
+  metricKey: "impressions" | "reach" | "likes" | "comments" | "shares" | "clicks" | "video_views" | string;
+  value: number | null;
+  availability: "available" | "not_reported" | "not_authorized" | "not_configured" | "not_synced" | "unsupported" | "temporarily_unavailable" | string;
+  providerMetricKey: string | null;
+  observedAt: string;
+  fetchedAt: string;
+  windowStart: string | null;
+  windowEnd: string | null;
+  previousValue: number | null;
+  absoluteChange: number | null;
+  percentageChange: number | null;
+  history: Array<{
+    value: number | null;
+    availability: string;
+    observedAt: string;
+    fetchedAt: string;
+  }>;
+};
+
+export type SocialPostPlatformInsights = {
+  platform: SocialPlatform;
+  publishedAt: string | null;
+  dataStatus: "available" | "not_synced" | string;
+  syncStatus: string;
+  syncRetryable: boolean;
+  syncAttemptCount: number;
+  lastSyncAt: string | null;
+  nextRetryAt: string | null;
+  syncErrorCode: string | null;
+  metrics: SocialPostInsightMetric[];
+};
+
+export type SocialPostInsights = {
+  postId: string;
+  title: string | null;
+  contentPreview: string;
+  publishedAt: string | null;
+  platforms: SocialPostPlatformInsights[];
+  generatedAt: string;
+};
+
+export type SocialPostInsightsReport = {
+  posts: SocialPostInsights[];
+  totalPosts: number;
+  hasMore: boolean;
+  aggregates: Array<{
+    platform: SocialPlatform;
+    metricKey: string;
+    totalValue: number;
+    postsWithValue: number;
+  }>;
+  coverage: Array<{
+    platform: SocialPlatform;
+    postCount: number;
+    syncedPostCount: number;
+    reportedMetricCount: number;
+    availableMetricCount: number;
+  }>;
+  generatedAt: string;
+};
+
 export const SOCIAL_PLATFORM_ORDER: SocialPlatform[] = [
   "FACEBOOK",
   "INSTAGRAM",
@@ -174,7 +236,7 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
     supportsMediaUpload: false,
     supportsComments: false,
     supportsDMs: false,
-    supportsAnalytics: false,
+    supportsAnalytics: true,
     supportsInbox: false,
     supportsVariants: true,
     media: { images: { supported: false, maxCount: 0 }, videos: { supported: false, maxCount: 0 } },
@@ -185,7 +247,7 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
     supportsMediaUpload: true,
     supportsComments: false,
     supportsDMs: false,
-    supportsAnalytics: false,
+    supportsAnalytics: true,
     supportsInbox: false,
     supportsVariants: true,
     media: { images: { supported: true, maxCount: 1 }, videos: { supported: true, maxCount: 1 } },
@@ -196,7 +258,7 @@ const PLATFORM_CAPABILITIES: Record<SocialPlatform, PlatformCapabilities> = {
     supportsMediaUpload: false,
     supportsComments: false,
     supportsDMs: false,
-    supportsAnalytics: false,
+    supportsAnalytics: true,
     supportsInbox: false,
     supportsVariants: true,
     media: { images: { supported: false, maxCount: 0 }, videos: { supported: false, maxCount: 0 } },

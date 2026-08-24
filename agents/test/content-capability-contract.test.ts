@@ -93,6 +93,30 @@ describe("content capability contract", () => {
     expect(registry.validateArguments("kasitek.core.inbox_messages_list", { conversationId: "conversation-1", limit: 0 })).toBe(false);
     expect(registry.validateArguments("kasitek.core.bookings_list", { limit: 200 })).toBe(true);
     expect(registry.validateArguments("kasitek.core.campaigns_list", { limit: 201 })).toBe(false);
+    expect(registry.validateArguments("kasitek.core.content_post_delete_published", { postId: "post-1", platform: "THREADS" })).toBe(true);
+    expect(registry.validateArguments("kasitek.core.content_post_delete_published", { postId: "post-1" })).toBe(false);
+
+    expect(registry.get("kasitek.core.connections_list")?.manifest).toMatchObject({
+      ownerService: "kasitek-core",
+      requiredScope: "connections.read",
+      execution: "immediate",
+      approval: "none",
+    });
+    expect(registry.validateArguments("kasitek.core.connections_list", { provider: "FACEBOOK", limit: 200 })).toBe(true);
+    expect(registry.validateArguments("kasitek.core.connections_list", { limit: 201 })).toBe(false);
+
+    const connectionStatus = registry.get("kasitek.core.connection_status_update");
+    expect(connectionStatus?.manifest).toMatchObject({
+      ownerService: "kasitek-core",
+      requiredScope: "connections.write",
+      resourceSelector: { type: "connection", argument: "displayName" },
+      execution: "durable",
+      idempotency: "required",
+      approval: "always",
+    });
+    expect(connectionStatus?.requiresApproval).toBe(true);
+    expect(registry.validateArguments("kasitek.core.connection_status_update", { provider: "FACEBOOK", displayName: "KasiTek", status: "DISCONNECTED" })).toBe(true);
+    expect(registry.validateArguments("kasitek.core.connection_status_update", { provider: "FACEBOOK", displayName: "KasiTek", status: "CONNECTED" })).toBe(false);
   });
 
   it("keeps every content capability owned, scoped, redacted, and classified", () => {
@@ -100,12 +124,15 @@ describe("content capability contract", () => {
     expect(manifests.map((manifest) => manifest.name)).toEqual([
       "kasitek.core.content_posts_list",
       "kasitek.core.content_post_get",
+      "kasitek.core.content_posts_insights_report",
+      "kasitek.core.content_post_insights",
       "kasitek.core.content_post_update",
       "kasitek.core.content_post_draft",
       "kasitek.core.content_post_publish",
       "kasitek.core.content_post_schedule",
       "kasitek.core.content_post_unschedule",
       "kasitek.core.content_post_delete",
+      "kasitek.core.content_post_delete_published",
     ]);
 
     for (const manifest of manifests) {
@@ -114,7 +141,7 @@ describe("content capability contract", () => {
       expect(manifest.manifest.auditClassification).toMatch(/^(restricted|full)$/);
       expect(manifest.manifest.redaction.every((entry) => entry.length > 0)).toBe(true);
       if (manifest.name !== "kasitek.core.content_post_delete") expect(manifest.manifest.redaction.length).toBeGreaterThan(0);
-      if (manifest.name.endsWith("_publish") || manifest.name.endsWith("_schedule") || manifest.name.endsWith("_unschedule") || manifest.name.endsWith("_delete")) {
+      if (manifest.name.endsWith("_publish") || manifest.name.endsWith("_schedule") || manifest.name.endsWith("_unschedule") || manifest.name.includes("_delete")) {
         expect(manifest.manifest).toMatchObject({ execution: "durable", idempotency: "required", approval: "always" });
         expect(manifest.requiresApproval).toBe(true);
       } else {
@@ -132,10 +159,14 @@ describe("content capability contract", () => {
     expect(kasiaiContentTools).toEqual([
       "kasitek.core.content_posts_list",
       "kasitek.core.content_post_get",
+      "kasitek.core.content_posts_insights_report",
+      "kasitek.core.content_post_insights",
       "kasitek.core.content_post_draft",
       "kasitek.core.content_post_update",
       "kasitek.core.content_post_publish",
       "kasitek.core.content_post_schedule",
+      "kasitek.core.content_post_delete",
+      "kasitek.core.content_post_delete_published",
     ]);
     for (const name of kasiaiContentTools) expect(registered.has(name)).toBe(true);
   });

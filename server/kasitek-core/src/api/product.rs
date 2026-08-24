@@ -239,9 +239,15 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .service(
                 web::scope("/posts")
                     .route("", web::get().to(social::list_posts))
+                    .route("/insights", web::get().to(social::list_post_insights))
                     .route("", web::post().to(social::create_post))
                     .route("/{id}", web::get().to(social::get_post))
                     .route("/{id}/activity", web::get().to(social::get_post_activity))
+                    .route("/{id}/insights", web::get().to(social::get_post_insights))
+                    .route(
+                        "/{id}/insights/refresh",
+                        web::post().to(social::refresh_post_insights),
+                    )
                     .route("/{id}", web::patch().to(social::update_post))
                     .route("/{id}", web::delete().to(social::delete_post))
                     .route("/{id}/publish", web::post().to(social::publish_post)),

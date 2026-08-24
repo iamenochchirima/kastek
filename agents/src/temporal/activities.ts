@@ -135,6 +135,93 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     },
   });
   tools.register({
+    name: "kasitek.core.connections_list",
+    version: "1.0.0",
+    description: "List connected workspace accounts with provider names, account labels, health, webhook state, and enabled areas without credentials.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 15_000,
+    inputSchema: {
+      type: "object",
+      properties: {
+        provider: { type: "string", minLength: 1, maxLength: 80 },
+        status: { type: "string", minLength: 1, maxLength: 40 },
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+      },
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: "object",
+      properties: { organizationId: { type: "string" }, connections: { type: "array" } },
+      required: ["organizationId", "connections"],
+      additionalProperties: false,
+    },
+    manifest: {
+      ownerService: "kasitek-core",
+      requiredScope: "connections.read",
+      execution: "immediate",
+      idempotency: "not_applicable",
+      approval: "none",
+      auditClassification: "restricted",
+      redaction: ["connections.metadata", "connections.lastError", "connections.credentials"],
+    },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
+      return coreClient.listWorkspaceConnections(context, {
+        provider: typeof args.provider === "string" ? args.provider : undefined,
+        status: typeof args.status === "string" ? args.status : undefined,
+        limit: typeof args.limit === "number" ? args.limit : undefined,
+      });
+    },
+  });
+  tools.register({
+    name: "kasitek.core.connection_status_update",
+    version: "1.0.0",
+    description: "Disconnect or revoke a connected workspace account after user approval.",
+    riskClass: "external-effect",
+    requiresApproval: true,
+    timeoutMs: 20_000,
+    inputSchema: {
+      type: "object",
+      properties: {
+        provider: { type: "string", minLength: 1, maxLength: 80 },
+        displayName: { type: "string", minLength: 1, maxLength: 240 },
+        handle: { type: "string", minLength: 1, maxLength: 160 },
+        status: { type: "string", enum: ["DISCONNECTED", "REVOKED"] },
+      },
+      required: ["provider", "displayName", "status"],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: "object",
+      properties: { connection: { type: "object" } },
+      required: ["connection"],
+      additionalProperties: false,
+    },
+    manifest: {
+      ownerService: "kasitek-core",
+      requiredScope: "connections.write",
+      resourceSelector: { type: "connection", argument: "displayName" },
+      execution: "durable",
+      idempotency: "required",
+      approval: "always",
+      auditClassification: "restricted",
+      redaction: ["connection.metadata", "connection.lastError", "connection.credentials"],
+    },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
+      return coreClient.updateWorkspaceConnectionStatus(
+        context,
+        {
+          provider: String(args.provider),
+          displayName: String(args.displayName),
+          handle: typeof args.handle === "string" ? args.handle : undefined,
+        },
+        String(args.status) as "DISCONNECTED" | "REVOKED",
+      );
+    },
+  });
+  tools.register({
     name: "kasitek.core.workspace_report",
     version: "1.0.0",
     description: "Read organization-scoped workspace reporting aggregates without contact values, message bodies, or provider credentials.",
@@ -623,6 +710,73 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     },
   });
   tools.register({
+    name: "kasitek.core.content_posts_insights_report",
+    version: "1.0.0",
+    description: "Report provider-reported performance for published workspace posts.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 15_000,
+    inputSchema: {
+      type: "object",
+      properties: {
+        platform: { type: "string", minLength: 1, maxLength: 80 },
+        metrics: { type: "array", items: { type: "string", minLength: 1, maxLength: 40 }, minItems: 1, maxItems: 7 },
+        publishedFrom: { type: "string", minLength: 1, maxLength: 80 },
+        publishedTo: { type: "string", minLength: 1, maxLength: 80 },
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+      },
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: "object",
+      properties: { posts: { type: "array" }, totalPosts: { type: "integer" }, hasMore: { type: "boolean" }, aggregates: { type: "array" }, coverage: { type: "array" }, generatedAt: { type: "string" } },
+      required: ["posts", "totalPosts", "hasMore", "aggregates", "coverage", "generatedAt"],
+      additionalProperties: false,
+    },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.read", execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: ["posts.providerPostId", "posts.connectionId", "posts.providerPayload"] },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
+      return coreClient.listContentPostInsights(context, {
+        platform: typeof args.platform === "string" ? args.platform : undefined,
+        metrics: Array.isArray(args.metrics) ? args.metrics.filter((metric): metric is string => typeof metric === "string") : undefined,
+        publishedFrom: typeof args.publishedFrom === "string" ? args.publishedFrom : undefined,
+        publishedTo: typeof args.publishedTo === "string" ? args.publishedTo : undefined,
+        limit: typeof args.limit === "number" ? args.limit : undefined,
+      });
+    },
+  });
+  tools.register({
+    name: "kasitek.core.content_post_insights",
+    version: "1.0.0",
+    description: "Read provider-reported performance and growth for one published workspace post.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 15_000,
+    inputSchema: {
+      type: "object",
+      properties: {
+        postId: { type: "string", minLength: 1, maxLength: 160 },
+        platform: { type: "string", minLength: 1, maxLength: 80 },
+        metrics: { type: "array", items: { type: "string", minLength: 1, maxLength: 40 }, minItems: 1, maxItems: 7 },
+      },
+      required: ["postId"],
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object", required: ["postId", "platforms", "generatedAt"], additionalProperties: true },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.read", resourceSelector: { type: "content_post", argument: "postId" }, execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: ["providerPostId", "connectionId", "providerPayload"] },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
+      return coreClient.getContentPostInsights(
+        context,
+        String(args.postId),
+        {
+          platform: typeof args.platform === "string" ? args.platform : undefined,
+          metrics: Array.isArray(args.metrics) ? args.metrics.filter((metric): metric is string => typeof metric === "string") : undefined,
+        },
+      );
+    },
+  });
+  tools.register({
     name: "kasitek.core.content_post_update",
     version: "1.0.0",
     description: "Update a workspace content draft without publishing it. Use media assetId values from attached workspace media to keep user-provided images on the draft.",
@@ -815,6 +969,47 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
       return coreClient.deleteContentPost(context, String(args.postId));
     },
   });
+  tools.register({
+    name: "kasitek.core.content_post_delete_published",
+    version: "1.0.0",
+    description: "Delete a published post from one connected social platform after user approval.",
+    riskClass: "external-effect",
+    requiresApproval: true,
+    timeoutMs: 60_000,
+    inputSchema: {
+      type: "object",
+      properties: {
+        postId: { type: "string", minLength: 1, maxLength: 160 },
+        platform: { type: "string", minLength: 1, maxLength: 80 },
+      },
+      required: ["postId", "platform"],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: "object",
+      properties: {
+        success: { type: "boolean" },
+        localDeleted: { type: "boolean" },
+        providerResults: { type: "array" },
+      },
+      required: ["success", "localDeleted", "providerResults"],
+      additionalProperties: false,
+    },
+    manifest: {
+      ownerService: "kasitek-core",
+      requiredScope: "content.publish",
+      resourceSelector: { type: "content_post", argument: "postId" },
+      execution: "durable",
+      idempotency: "required",
+      approval: "always",
+      auditClassification: "full",
+      redaction: ["providerResults.externalPostId", "providerResults.message"],
+    },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
+      return coreClient.deletePublishedContentPost(context, String(args.postId), String(args.platform));
+    },
+  });
   if (conversationActions) {
     tools.register({
       name: "conversation.request_human",
@@ -877,6 +1072,7 @@ const contentPreviewCapabilities = new Set([
   "kasitek.core.content_post_schedule",
   "kasitek.core.content_post_unschedule",
   "kasitek.core.content_post_delete",
+  "kasitek.core.content_post_delete_published",
 ]);
 
 const campaignPreviewCapabilities = new Set([
@@ -976,6 +1172,14 @@ export function projectContentApprovalOperation(
         postId,
         fromStatus,
         targetStatus: "DELETED",
+      };
+    case "kasitek.core.content_post_delete_published":
+      return {
+        type: "delete_published",
+        postId,
+        fromStatus,
+        ...(boundedPreviewString(argumentsValue.platform, 80) ? { platform: boundedPreviewString(argumentsValue.platform, 80) } : {}),
+        targetStatus: "DELETED_FROM_PLATFORMS",
       };
     default:
       return { type: "unknown", postId, fromStatus };

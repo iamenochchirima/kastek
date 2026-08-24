@@ -4,7 +4,7 @@
 //! workers are service principals, so they authenticate with a dedicated
 //! bearer token and must provide the organisation they are acting for. Every
 //! operation is scoped by that organisation in the service layer. Read tools
-//! and the explicit channel-delivery transport are the only exposed actions.
+//! and a small set of explicit, approval-gated actions are exposed here.
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use futures_util::StreamExt;
@@ -22,7 +22,35 @@ use crate::error::AppError;
 use crate::identity::internal_delegation;
 use crate::identity::request_context::RequestContext;
 use crate::services::whatsapp::WhatsappReplyButton;
-use crate::services::{content_media, customers, website, whatsapp};
+use crate::services::{connections, content_media, customers, website, whatsapp};
+
+#[derive(Debug, Default, Deserialize)]
+pub struct AgentContentInsightsQuery {
+    pub platform: Option<String>,
+    pub metrics: Option<String>,
+    #[serde(rename = "publishedFrom", alias = "published_from")]
+    pub published_from: Option<String>,
+    #[serde(rename = "publishedTo", alias = "published_to")]
+    pub published_to: Option<String>,
+    pub limit: Option<i64>,
+}
+
+fn parse_agent_insights_filters(
+    query: &AgentContentInsightsQuery,
+) -> Result<crate::services::social::SocialPostInsightsFilters, AppError> {
+    let filters = crate::services::social::parse_insights_filters(
+        query.platform.as_deref(),
+        query.metrics.as_deref(),
+        query.published_from.as_deref(),
+        query.published_to.as_deref(),
+    )?;
+    if let Some(platform) = filters.platform.as_deref() {
+        if !crate::services::social::is_valid_platform(platform) {
+            return Err(AppError::BadRequest("Invalid social platform".to_string()));
+        }
+    }
+    Ok(filters)
+}
 
 async fn require_internal_agent(
     config: &AppConfig,
@@ -208,6 +236,186 @@ pub async fn get_workspace_status(
             "status": row.get::<String, _>("status"),
             "count": row.get::<i64, _>("count"),
         })).collect::<Vec<_>>(),
+    })))
+}
+
+/// Return individual connected accounts without provider metadata, errors, or
+/// credentials. This is the agent-facing projection used when a user asks
+/// which page, channel, or account is connected.
+fn agent_connection_summary(
+    connection: &crate::db::models::ExternalConnection,
+) -> serde_json::Value {
+    json!({
+        "provider": connection.provider,
+        "displayName": connection.display_name,
+        "handle": connection.handle,
+        "status": connection.status,
+        "credentialStatus": connection.credential_status,
+        "healthStatus": connection.health_status,
+        "webhookStatus": connection.webhook_status,
+        "lastCheckedAt": connection.last_checked_at,
+        "capabilities": connection.capabilities,
+        "consumers": connection.consumers,
+    })
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AgentConnectionListQuery {
+    pub provider: Option<String>,
+    pub status: Option<String>,
+    pub limit: Option<u16>,
+}
+
+impl AgentConnectionListQuery {
+    fn bounded_limit(&self) -> Result<usize, AppError> {
+        match self.limit {
+            None => Ok(100),
+            Some(value) if (1..=200).contains(&value) => Ok(value as usize),
+            Some(_) => Err(AppError::BadRequest(
+                "limit must be between 1 and 200".to_string(),
+            )),
+        }
+    }
+}
+
+/// List the organisation's connected provider accounts. The service layer
+/// refreshes the connection projection before returning it, so this includes
+/// account-level health and webhook state rather than only aggregate counts.
+pub async fn list_workspace_connections(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<AgentConnectionListQuery>,
+) -> Result<HttpResponse, AppError> {
+    let (organization_id, actor_id) =
+        require_internal_agent(config.get_ref(), &req, "kasitek.core.connections_list").await?;
+    let provider = query
+        .provider
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let status = query
+        .status
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let limit = query.bounded_limit()?;
+    let connections = connections::list_connections(pool.get_ref(), &organization_id)
+        .await?
+        .into_iter()
+        .filter(|connection| {
+            provider.is_none_or(|value| connection.provider.eq_ignore_ascii_case(value))
+                && status.is_none_or(|value| connection.status.eq_ignore_ascii_case(value))
+        })
+        .take(limit)
+        .map(|connection| agent_connection_summary(&connection))
+        .collect::<Vec<_>>();
+
+    log::info!(
+        "agent core read tool=connections.list org_id={} actor_id={} count={}",
+        organization_id,
+        actor_id,
+        connections.len()
+    );
+    Ok(HttpResponse::Ok().json(json!({
+        "organizationId": organization_id,
+        "connections": connections,
+    })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AgentConnectionStatusUpdateRequest {
+    pub status: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentConnectionIdentityStatusUpdateRequest {
+    pub provider: String,
+    pub display_name: String,
+    pub handle: Option<String>,
+    pub status: String,
+}
+
+/// Apply only explicit disconnect/revoke transitions from the agent boundary.
+/// Reconnection and OAuth remain UI-owned flows, while this write is always
+/// approval-gated by the agent capability registry.
+pub async fn update_workspace_connection_status(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<AgentConnectionIdentityStatusUpdateRequest>,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.connection_status_update",
+    )
+    .await?;
+    let status = body.status.trim().to_ascii_uppercase();
+    if !matches!(status.as_str(), "DISCONNECTED" | "REVOKED") {
+        return Err(AppError::BadRequest(
+            "Agent connection status must be DISCONNECTED or REVOKED".to_string(),
+        ));
+    }
+    let connection = connections::update_status_by_identity(
+        pool.get_ref(),
+        &context.organization_id,
+        &body.provider,
+        &body.display_name,
+        body.handle.as_deref(),
+        &status,
+    )
+    .await?;
+
+    log::info!(
+        "agent core write tool=connections.status_update org_id={} actor_id={} provider={} display_name={} status={}",
+        context.organization_id,
+        context.principal.id,
+        body.provider,
+        body.display_name,
+        status
+    );
+    Ok(HttpResponse::Ok().json(json!({
+        "connection": agent_connection_summary(&connection),
+    })))
+}
+
+pub async fn update_workspace_connection_status_by_id(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<AgentConnectionStatusUpdateRequest>,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.connection_status_update",
+    )
+    .await?;
+    let status = body.status.trim().to_ascii_uppercase();
+    if !matches!(status.as_str(), "DISCONNECTED" | "REVOKED") {
+        return Err(AppError::BadRequest(
+            "Agent connection status must be DISCONNECTED or REVOKED".to_string(),
+        ));
+    }
+    let connection = connections::update_status(
+        pool.get_ref(),
+        &context.organization_id,
+        &path.into_inner(),
+        &status,
+    )
+    .await?;
+
+    log::info!(
+        "agent core write tool=connections.status_update org_id={} actor_id={} status={}",
+        context.organization_id,
+        context.principal.id,
+        status
+    );
+    Ok(HttpResponse::Ok().json(json!({
+        "connection": agent_connection_summary(&connection),
     })))
 }
 
@@ -594,6 +802,50 @@ pub async fn get_content_post(
     Ok(HttpResponse::Ok().json(json!({ "post": post })))
 }
 
+pub async fn list_content_post_insights(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<AgentContentInsightsQuery>,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.content_posts_insights_report",
+    )
+    .await?;
+    let filters = parse_agent_insights_filters(&query)?;
+    let report = content_adapter::list_insights(
+        pool.get_ref(),
+        &context,
+        &filters,
+        query.limit.unwrap_or(50),
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(report))
+}
+
+pub async fn get_content_post_insights(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    query: web::Query<AgentContentInsightsQuery>,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.content_post_insights",
+    )
+    .await?;
+    let filters = parse_agent_insights_filters(&query)?;
+    let insights =
+        content_adapter::get_insights(pool.get_ref(), &context, &path.into_inner(), &filters)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Content post not found".to_string()))?;
+    Ok(HttpResponse::Ok().json(insights))
+}
+
 pub async fn create_content_draft(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
@@ -829,6 +1081,35 @@ pub async fn delete_content_post(
     Ok(HttpResponse::Ok().json(result))
 }
 
+pub async fn delete_published_content_post(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<AgentContentDeletePublishedRequest>,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.content_post_delete_published",
+    )
+    .await?;
+    let result = content_adapter::delete_published_post(
+        pool.get_ref(),
+        config.get_ref(),
+        &context,
+        &path.into_inner(),
+        &body.platform,
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(result))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AgentContentDeletePublishedRequest {
+    pub platform: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentChannelDeliveryRequest {
@@ -903,7 +1184,14 @@ pub async fn deliver_channel_message(
 
 #[cfg(test)]
 mod tests {
-    use super::{bounded_agent_contact_limit, bounded_agent_template_limit, AgentCollectionQuery};
+    use chrono::Utc;
+    use serde_json::json;
+
+    use super::{
+        agent_connection_summary, bounded_agent_contact_limit, bounded_agent_template_limit,
+        AgentCollectionQuery,
+    };
+    use crate::db::models::ExternalConnection;
 
     #[test]
     fn agent_collection_limits_are_bounded_without_silent_clamping() {
@@ -943,5 +1231,34 @@ mod tests {
         assert!(bounded_agent_template_limit(Some(0)).is_err());
         assert!(bounded_agent_template_limit(Some(201)).is_err());
         assert!(bounded_agent_template_limit(Some(-1)).is_err());
+    }
+
+    #[test]
+    fn agent_connection_summary_omits_raw_identifiers() {
+        let now = Utc::now();
+        let summary = agent_connection_summary(&ExternalConnection {
+            id: "ext_internal_connection".to_string(),
+            provider: "FACEBOOK".to_string(),
+            external_account_id: Some("provider-account-raw-id".to_string()),
+            display_name: "KasiTek".to_string(),
+            handle: Some("@kasitek".to_string()),
+            status: "CONNECTED".to_string(),
+            credential_status: "ACTIVE".to_string(),
+            health_status: "HEALTHY".to_string(),
+            webhook_status: "UNKNOWN".to_string(),
+            last_checked_at: Some(now),
+            last_error: None,
+            metadata: Some(json!({ "secret": "never expose" })),
+            capabilities: json!([]),
+            consumers: json!([]),
+            created_at: now,
+            updated_at: now,
+        });
+
+        assert_eq!(summary["provider"], "FACEBOOK");
+        assert_eq!(summary["displayName"], "KasiTek");
+        assert!(summary.get("id").is_none());
+        assert!(summary.get("externalAccountId").is_none());
+        assert!(summary.get("metadata").is_none());
     }
 }

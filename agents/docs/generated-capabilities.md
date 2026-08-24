@@ -126,6 +126,127 @@ Read connection providers and health statuses for the current KasiTek workspace.
   "additionalProperties": false
 }
 ```
+## kasitek.core.connections_list (1.0.0)
+
+List connected workspace accounts with provider names, account labels, health, webhook state, and enabled areas without credentials.
+
+- Owner: `kasitek-core`
+- Permission: `connections.read` (Connections Read permission)
+- Risk: `read`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 15000ms
+- Audit: `restricted`; redacts: `connections.metadata`, `connections.lastError`, `connections.credentials`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "provider": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "status": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "organizationId": {
+      "type": "string"
+    },
+    "connections": {
+      "type": "array"
+    }
+  },
+  "required": [
+    "organizationId",
+    "connections"
+  ],
+  "additionalProperties": false
+}
+```
+## kasitek.core.connection_status_update (1.0.0)
+
+Disconnect or revoke a connected workspace account after user approval.
+
+- Owner: `kasitek-core`
+- Permission: `connections.write` (Connections Write permission)
+- Risk: `external-effect`; execution: `durable`; approval: `always`
+- Idempotency: `required`; timeout: 20000ms
+- Resource scope: `connection`
+- Audit: `restricted`; redacts: `connection.metadata`, `connection.lastError`, `connection.credentials`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "provider": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "handle": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "DISCONNECTED",
+        "REVOKED"
+      ]
+    }
+  },
+  "required": [
+    "provider",
+    "displayName",
+    "status"
+  ],
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "connection": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "connection"
+  ],
+  "additionalProperties": false
+}
+```
 ## kasitek.core.workspace_report (1.0.0)
 
 Read organization-scoped workspace reporting aggregates without contact values, message bodies, or provider credentials.
@@ -968,6 +1089,151 @@ Read one workspace-owned content post and its safe publication status.
   "additionalProperties": true
 }
 ```
+## kasitek.core.content_posts_insights_report (1.0.0)
+
+Report provider-reported performance for published workspace posts.
+
+- Owner: `kasitek-core`
+- Permission: `content.read` (Content Read permission)
+- Risk: `read`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 15000ms
+- Audit: `restricted`; redacts: `posts.providerPostId`, `posts.connectionId`, `posts.providerPayload`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "platform": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "metrics": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40
+      },
+      "minItems": 1,
+      "maxItems": 7
+    },
+    "publishedFrom": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "publishedTo": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    }
+  },
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "posts": {
+      "type": "array"
+    },
+    "totalPosts": {
+      "type": "integer"
+    },
+    "hasMore": {
+      "type": "boolean"
+    },
+    "aggregates": {
+      "type": "array"
+    },
+    "coverage": {
+      "type": "array"
+    },
+    "generatedAt": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "posts",
+    "totalPosts",
+    "hasMore",
+    "aggregates",
+    "coverage",
+    "generatedAt"
+  ],
+  "additionalProperties": false
+}
+```
+## kasitek.core.content_post_insights (1.0.0)
+
+Read provider-reported performance and growth for one published workspace post.
+
+- Owner: `kasitek-core`
+- Permission: `content.read` (Content Read permission)
+- Risk: `read`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 15000ms
+- Resource scope: `content_post`
+- Audit: `restricted`; redacts: `providerPostId`, `connectionId`, `providerPayload`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "postId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "platform": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "metrics": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40
+      },
+      "minItems": 1,
+      "maxItems": 7
+    }
+  },
+  "required": [
+    "postId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "required": [
+    "postId",
+    "platforms",
+    "generatedAt"
+  ],
+  "additionalProperties": true
+}
+```
 ## kasitek.core.content_post_update (1.0.0)
 
 Update a workspace content draft without publishing it. Use media assetId values from attached workspace media to keep user-provided images on the draft.
@@ -1375,6 +1641,66 @@ Delete an unpublished content draft or schedule.
   "required": [
     "postId",
     "deleted"
+  ],
+  "additionalProperties": false
+}
+```
+## kasitek.core.content_post_delete_published (1.0.0)
+
+Delete a published post from one connected social platform after user approval.
+
+- Owner: `kasitek-core`
+- Permission: `content.publish` (Content Publish permission)
+- Risk: `external-effect`; execution: `durable`; approval: `always`
+- Idempotency: `required`; timeout: 60000ms
+- Resource scope: `content_post`
+- Audit: `full`; redacts: `providerResults.externalPostId`, `providerResults.message`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "postId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "platform": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    }
+  },
+  "required": [
+    "postId",
+    "platform"
+  ],
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "success": {
+      "type": "boolean"
+    },
+    "localDeleted": {
+      "type": "boolean"
+    },
+    "providerResults": {
+      "type": "array"
+    }
+  },
+  "required": [
+    "success",
+    "localDeleted",
+    "providerResults"
   ],
   "additionalProperties": false
 }

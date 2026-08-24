@@ -109,13 +109,14 @@ pub fn build_linkedin_authorize_url(config: &AppConfig, state: &str) -> Result<S
         "{}/api/social/oauth/linkedin/callback",
         social_app_url(config)
     );
-    let scope = "openid profile email w_member_social";
+    let scope = std::env::var("AUTH_LINKEDIN_SCOPES")
+        .unwrap_or_else(|_| "openid profile email w_member_social".to_string());
     Ok(format!(
         "{LINKEDIN_AUTHORIZE_URL}?response_type=code&client_id={}&redirect_uri={}&state={}&scope={}",
         urlencoding::encode(&client_id),
         urlencoding::encode(&redirect_uri),
         urlencoding::encode(state),
-        urlencoding::encode(scope),
+        urlencoding::encode(&scope),
     ))
 }
 

@@ -23,6 +23,24 @@ export interface CoreWorkspaceStatus {
   connections: Array<{ provider: string; status: string; count: number }>;
 }
 
+export interface CoreWorkspaceConnection {
+  provider: string;
+  displayName: string;
+  handle?: string | null;
+  status: string;
+  credentialStatus: string;
+  healthStatus: string;
+  webhookStatus: string;
+  lastCheckedAt?: string | null;
+  capabilities?: unknown;
+  consumers?: unknown;
+}
+
+export interface CoreWorkspaceConnections {
+  organizationId: string;
+  connections: CoreWorkspaceConnection[];
+}
+
 export interface CoreWorkspaceReport {
   organizationId: string;
   connections: { total: number; byStatus: Array<{ status: string; count: number }> };
@@ -145,6 +163,67 @@ export interface CoreContentPosts {
   posts: CoreContentPost[];
 }
 
+export interface CoreContentPostInsightMetric {
+  metricKey: string;
+  value?: number | null;
+  availability: string;
+  providerMetricKey?: string | null;
+  observedAt: string;
+  fetchedAt: string;
+  windowStart?: string | null;
+  windowEnd?: string | null;
+  previousValue?: number | null;
+  absoluteChange?: number | null;
+  percentageChange?: number | null;
+}
+
+export interface CoreContentPostPlatformInsights {
+  platform: string;
+  publishedAt?: string | null;
+  dataStatus: string;
+  metrics: CoreContentPostInsightMetric[];
+}
+
+export interface CoreContentPostInsights {
+  postId: string;
+  title?: string | null;
+  contentPreview: string;
+  publishedAt?: string | null;
+  platforms: CoreContentPostPlatformInsights[];
+  generatedAt: string;
+}
+
+export interface CoreContentPostInsightsReport {
+  posts: CoreContentPostInsights[];
+  totalPosts: number;
+  hasMore: boolean;
+  aggregates: Array<{
+    platform: string;
+    metricKey: string;
+    totalValue: number;
+    postsWithValue: number;
+  }>;
+  coverage: Array<{
+    platform: string;
+    postCount: number;
+    syncedPostCount: number;
+    reportedMetricCount: number;
+    availableMetricCount: number;
+  }>;
+  generatedAt: string;
+}
+
+export interface CorePublishedPostDeletionResult {
+  success: boolean;
+  localDeleted: boolean;
+  providerResults: Array<{
+    platform: string;
+    externalPostId?: string | null;
+    status: string;
+    message?: string | null;
+  }>;
+}
+
 export interface CoreContentMediaAsset {
   id: string;
   kind: "IMAGE" | "VIDEO";
@@ -263,6 +342,38 @@ export class KasitekCoreReadClient {
 
   public async getWorkspaceStatus(context: ToolInvocationContext): Promise<CoreWorkspaceStatus> {
     return this.getJson<CoreWorkspaceStatus>(context, "/api/internal/agents/v1/workspace/status", "Workspace status");
+  }
+
+  public async listWorkspaceConnections(
+    context: ToolInvocationContext,
+    input: { provider?: string; status?: string; limit?: number } = {},
+  ): Promise<CoreWorkspaceConnections> {
+    const params = new URLSearchParams();
+    if (input.provider) params.set("provider", input.provider);
+    if (input.status) params.set("status", input.status);
+    if (input.limit !== undefined) params.set("limit", String(input.limit));
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return this.getJson<CoreWorkspaceConnections>(
+      context,
+      `/api/internal/agents/v1/connections${suffix}`,
+      "Workspace connections",
+    );
+  }
+
+  public async updateWorkspaceConnectionStatus(
+    context: ToolInvocationContext,
+    selector: { provider: string; displayName: string; handle?: string },
+    status: "DISCONNECTED" | "REVOKED",
+  ): Promise<{ connection: CoreWorkspaceConnection }> {
+    return this.requestJson<{ connection: CoreWorkspaceConnection }>(
+      context,
+      "/api/internal/agents/v1/connections/status",
+      "Workspace connection status",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ ...selector, status }),
+      },
+    );
   }
 
   public async getWorkspaceReport(context: ToolInvocationContext): Promise<CoreWorkspaceReport> {
@@ -416,6 +527,46 @@ export class KasitekCoreReadClient {
     return this.getJson<{ post: CoreContentPost }>(context, `/api/internal/agents/v1/content/posts/${encodeURIComponent(postId)}`, "Content post");
   }
 
+  public async listContentPostInsights(
+    context: ToolInvocationContext,
+    options?: {
+      platform?: string;
+      metrics?: string[];
+      publishedFrom?: string;
+      publishedTo?: string;
+      limit?: number;
+    },
+  ): Promise<CoreContentPostInsightsReport> {
+    const params = new URLSearchParams();
+    if (options?.platform?.trim()) params.set("platform", options.platform.trim());
+    if (options?.metrics?.length) params.set("metrics", options.metrics.join(","));
+    if (options?.publishedFrom?.trim()) params.set("publishedFrom", options.publishedFrom.trim());
+    if (options?.publishedTo?.trim()) params.set("publishedTo", options.publishedTo.trim());
+    if (options?.limit !== undefined) params.set("limit", String(options.limit));
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return this.getJson<CoreContentPostInsightsReport>(
+      context,
+      `/api/internal/agents/v1/content/posts/insights${suffix}`,
+      "Content post insights",
+    );
+  }
+
+  public async getContentPostInsights(
+    context: ToolInvocationContext,
+    postId: string,
+    options?: { platform?: string; metrics?: string[] },
+  ): Promise<CoreContentPostInsights> {
+    const params = new URLSearchParams();
+    if (options?.platform?.trim()) params.set("platform", options.platform.trim());
+    if (options?.metrics?.length) params.set("metrics", options.metrics.join(","));
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return this.getJson<CoreContentPostInsights>(
+      context,
+      `/api/internal/agents/v1/content/posts/${encodeURIComponent(postId)}/insights${suffix}`,
+      "Content post insights",
+    );
+  }
+
   public async updateContentDraft(context: ToolInvocationContext, postId: string, input: CoreContentUpdateInput): Promise<{ post: CoreContentPost }> {
     return this.requestJson<{ post: CoreContentPost }>(context, `/api/internal/agents/v1/content/posts/${encodeURIComponent(postId)}`, "Content draft update", {
       method: "PATCH",
@@ -475,6 +626,19 @@ export class KasitekCoreReadClient {
     return this.requestJson<{ postId: string; deleted: boolean }>(context, `/api/internal/agents/v1/content/posts/${encodeURIComponent(postId)}`, "Content delete", {
       method: "DELETE",
     });
+  }
+
+  public async deletePublishedContentPost(
+    context: ToolInvocationContext,
+    postId: string,
+    platform: string,
+  ): Promise<CorePublishedPostDeletionResult> {
+    return this.requestJson<CorePublishedPostDeletionResult>(
+      context,
+      `/api/internal/agents/v1/content/posts/${encodeURIComponent(postId)}/delete-published`,
+      "Published content delete",
+      { method: "POST", body: JSON.stringify({ platform }) },
+    );
   }
 
   public async deliverChannelMessage(input: {
@@ -572,6 +736,8 @@ export class KasitekCoreReadClient {
     if (routePath.includes("/customers/")) return "kasitek.core.customer_get";
     if (routePath.includes("workspace/report")) return "kasitek.core.workspace_report";
     if (routePath.includes("workspace/status")) return "kasitek.core.workspace_status";
+    if (method === "PATCH" && routePath.includes("/connections/") && routePath.endsWith("/status")) return "kasitek.core.connection_status_update";
+    if (routePath.endsWith("/connections")) return "kasitek.core.connections_list";
     if (routePath.includes("bookings/services")) return "kasitek.core.booking_services_list";
     if (routePath.includes("/bookings/") && !routePath.endsWith("/bookings/services")) return "kasitek.core.booking_get";
     if (routePath.endsWith("/bookings")) return "kasitek.core.bookings_list";
@@ -587,8 +753,11 @@ export class KasitekCoreReadClient {
     if (method === "POST" && routePath.endsWith("/content/posts")) return "kasitek.core.content_post_draft";
     if (method === "POST" && routePath.endsWith("/content/media")) return "kasitek.core.content_media_upload";
     if (routePath.endsWith("/content/posts")) return "kasitek.core.content_posts_list";
+    if (routePath.endsWith("/content/posts/insights")) return "kasitek.core.content_posts_insights_report";
+    if (routePath.endsWith("/insights") && routePath.includes("/content/posts/")) return "kasitek.core.content_post_insights";
     if (method === "PATCH" && routePath.includes("/content/posts/")) return "kasitek.core.content_post_update";
     if (routePath.includes("/content/posts/") && routePath.endsWith("/publish")) return "kasitek.core.content_post_publish";
+    if (method === "POST" && routePath.includes("/content/posts/") && routePath.endsWith("/delete-published")) return "kasitek.core.content_post_delete_published";
     if (routePath.includes("/content/posts/") && routePath.endsWith("/schedule")) return "kasitek.core.content_post_schedule";
     if (routePath.includes("/content/posts/") && routePath.endsWith("/unschedule")) return "kasitek.core.content_post_unschedule";
     if (method === "DELETE" && routePath.includes("/content/posts/")) return "kasitek.core.content_post_delete";
@@ -598,7 +767,7 @@ export class KasitekCoreReadClient {
   }
 
   private idempotencyKeyFor(path: string, method: string | undefined, context: CoreRequestContext, body?: BodyInit | null): string | undefined {
-    const capability = path.endsWith("/content/posts") && body ? "kasitek.core.content_post_draft" : path.includes("/content/posts/") && path.endsWith("/publish") ? "kasitek.core.content_post_publish" : path.includes("/content/posts/") && path.endsWith("/schedule") ? "kasitek.core.content_post_schedule" : path.includes("/content/posts/") && path.endsWith("/unschedule") ? "kasitek.core.content_post_unschedule" : method === "DELETE" && path.includes("/content/posts/") ? "kasitek.core.content_post_delete" : method === "PATCH" && path.includes("/contacts/") ? "kasitek.core.contact_update" : method === "POST" && path.includes("/inbox/conversations/") && path.endsWith("/read") ? "kasitek.core.inbox_conversation_mark_read" : method === "PATCH" && path.includes("/inbox/conversations/") ? "kasitek.core.inbox_conversation_update" : path.includes("channels/deliver") ? "kasitek.core.channel_deliver" : undefined;
+    const capability = path.endsWith("/content/posts") && body ? "kasitek.core.content_post_draft" : path.includes("/content/posts/") && path.endsWith("/publish") ? "kasitek.core.content_post_publish" : method === "POST" && path.includes("/content/posts/") && path.endsWith("/delete-published") ? "kasitek.core.content_post_delete_published" : path.includes("/content/posts/") && path.endsWith("/schedule") ? "kasitek.core.content_post_schedule" : path.includes("/content/posts/") && path.endsWith("/unschedule") ? "kasitek.core.content_post_unschedule" : method === "DELETE" && path.includes("/content/posts/") ? "kasitek.core.content_post_delete" : method === "PATCH" && path.includes("/connections/") && path.endsWith("/status") ? "kasitek.core.connection_status_update" : method === "PATCH" && path.includes("/contacts/") ? "kasitek.core.contact_update" : method === "POST" && path.includes("/inbox/conversations/") && path.endsWith("/read") ? "kasitek.core.inbox_conversation_mark_read" : method === "PATCH" && path.includes("/inbox/conversations/") ? "kasitek.core.inbox_conversation_update" : path.includes("channels/deliver") ? "kasitek.core.channel_deliver" : undefined;
     if (!capability) return undefined;
     const bodyText = typeof body === "string" ? body : "";
     return `${context.runId}:${capability}:${createHash("sha256").update(bodyText).digest("hex")}`;
@@ -624,7 +793,7 @@ export class KasitekCoreReadClient {
         invocationId: `${context.runId}:${capability}`,
         correlationId: context.correlationId,
         audience: this.config.KASITEK_CORE_DELEGATION_AUDIENCE,
-      idempotencyKey: capability === "kasitek.core.channel_deliver" || capability === "kasitek.core.content_post_draft" || capability === "kasitek.core.content_post_publish" || capability === "kasitek.core.content_post_schedule" || capability === "kasitek.core.content_post_unschedule" || capability === "kasitek.core.content_post_delete" ? `${context.runId}:${capability}:${argumentsHash ?? "empty"}` : undefined,
+        idempotencyKey: capability === "kasitek.core.channel_deliver" || capability === "kasitek.core.content_post_draft" || capability === "kasitek.core.content_post_publish" || capability === "kasitek.core.content_post_delete_published" || capability === "kasitek.core.content_post_schedule" || capability === "kasitek.core.content_post_unschedule" || capability === "kasitek.core.content_post_delete" || capability === "kasitek.core.connection_status_update" ? `${context.runId}:${capability}:${argumentsHash ?? "empty"}` : undefined,
         argumentsHash,
       });
     }

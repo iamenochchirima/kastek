@@ -29,6 +29,7 @@ import {
   SOCIAL_PLATFORM_ORDER,
   type SocialPlatform,
   type SocialPost,
+  type SocialPostInsights,
   type SocialPublishJob,
   formatDateTime,
   getPlatformCapabilities,
@@ -71,10 +72,29 @@ function eventLabel(event: SocialPostActivityEvent) {
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
+function insightStatusLabel(status: string) {
+  if (status === "available") return "Updated";
+  if (status === "not_synced") return "Awaiting sync";
+  if (status === "not_authorized") return "Reconnect required";
+  if (status === "not_configured") return "Not configured";
+  if (status === "temporarily_unavailable") return "Retry later";
+  if (status === "unsupported") return "Not provided";
+  return "Unavailable";
+}
+
+function platformInsightStatus(platform: { dataStatus: string; syncStatus: string }) {
+  if (platform.syncStatus === "RETRYABLE_FAILURE") return "Retry scheduled";
+  if (platform.syncStatus === "NOT_AUTHORIZED") return "Reconnect required";
+  if (platform.syncStatus === "NOT_CONFIGURED") return "Not configured";
+  return insightStatusLabel(platform.dataStatus);
+}
+
 export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost }) {
   const router = useRouter();
   const [post, setPost] = useState(initialPost);
   const [events, setEvents] = useState<SocialPostActivityEvent[]>([]);
+  const [insights, setInsights] = useState<SocialPostInsights | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
   const [activityLoading, setActivityLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -110,6 +130,30 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
       })
       .finally(() => {
         if (!cancelled) setActivityLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [post.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setInsightsLoading(true);
+    void fetch(apiUrl(`/api/social/posts/${post.id}/insights`), {
+      credentials: "include",
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        const payload = await response.json() as SocialPostInsights & { error?: string };
+        if (!response.ok) throw new Error(payload.error || "Failed to load post insights");
+        if (!cancelled) setInsights(payload);
+      })
+      .catch((caught) => {
+        if (!cancelled) setError(caught instanceof Error ? caught.message : "Failed to load post insights");
+      })
+      .finally(() => {
+        if (!cancelled) setInsightsLoading(false);
       });
 
     return () => {
@@ -171,6 +215,24 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
       if (response.ok) setEvents(payload.events || []);
     } catch {
       // The post action result remains useful even if the activity refresh is unavailable.
+    }
+  }
+
+  async function refreshPostInsights() {
+    setBusyKey("insights");
+    setError("");
+    try {
+      const response = await fetch(apiUrl(`/api/social/posts/${post.id}/insights/refresh`), {
+        method: "POST",
+        credentials: "include",
+      });
+      const payload = await response.json() as SocialPostInsights & { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Failed to refresh post insights");
+      setInsights(payload);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to refresh post insights");
+    } finally {
+      setBusyKey(null);
     }
   }
 
@@ -322,8 +384,17 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Overview</CardTitle>
-                <CardDescription>Important dates and delivery totals.</CardDescription>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <CardTitle>Overview</CardTitle>
+                    <CardDescription>Important dates and delivery totals.</CardDescription>
+                  </div>
+                  {post.status === "PUBLISHED" ? (
+                    <Button size="sm" variant="outline" onClick={() => void refreshPostInsights()} disabled={busyKey === "insights"}>
+                      {busyKey === "insights" ? "Refreshing..." : "Refresh insights"}
+                    </Button>
+                  ) : null}
+                </div>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
                 <div className="flex items-start justify-between gap-4"><span className="text-muted-foreground">Created</span><span className="text-right text-foreground">{formatDateTime(post.createdAt)}</span></div>
@@ -331,6 +402,35 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
                 <div className="flex items-start justify-between gap-4"><span className="text-muted-foreground">Scheduled</span><span className="text-right text-foreground">{formatDateTime(post.scheduledFor)}</span></div>
                 <div className="flex items-start justify-between gap-4"><span className="text-muted-foreground">Published</span><span className="text-right text-foreground">{formatDateTime(post.publishedAt)}</span></div>
                 <div className="flex items-start justify-between gap-4"><span className="text-muted-foreground">Destinations</span><span className="text-right text-foreground">{publishedJobs} of {post.publishJobs?.length || post.channels.length} published</span></div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Post insights</CardTitle>
+                <CardDescription>Provider metrics and change since the previous observation.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {insightsLoading ? <p className="text-sm text-muted-foreground">Loading insights...</p> : insights?.platforms.length ? insights.platforms.map((platform) => (
+                  <div key={platform.platform} className="rounded-xl border border-border bg-secondary/20 p-3">
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span className="font-medium">{getPlatformLabel(platform.platform)}</span>
+                      <span className="text-xs text-muted-foreground">{platformInsightStatus(platform)}</span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-3">
+                      {["impressions", "reach", "likes", "comments", "shares", "clicks", "video_views"].map((key) => {
+                        const metric = platform.metrics.find((item) => item.metricKey === key);
+                        return (
+                          <div key={key}>
+                            <div className="text-muted-foreground">{key.replace("_", " ")}</div>
+                            <div className="mt-1 font-medium">{metric?.value === null || metric?.value === undefined ? "—" : metric.value.toLocaleString("en-ZA")}</div>
+                            {metric?.percentageChange !== null && metric?.percentageChange !== undefined ? <div className={metric.percentageChange >= 0 ? "text-status-success" : "text-destructive"}>{metric.percentageChange >= 0 ? "+" : ""}{metric.percentageChange.toFixed(1)}%</div> : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )) : <p className="text-sm text-muted-foreground">No observations yet.</p>}
               </CardContent>
             </Card>
 

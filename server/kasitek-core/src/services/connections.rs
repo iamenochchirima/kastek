@@ -419,7 +419,7 @@ async fn sync_capabilities(
                 ('TEMPLATES_MANAGE', 'feature.templates.manage', ARRAY['WHATSAPP']),
                 ('AGENT_CHANNEL', 'feature.agents.manage', ARRAY['WHATSAPP', 'FACEBOOK', 'INSTAGRAM']),
                 ('SOCIAL_PUBLISH', 'feature.content.publish', ARRAY['FACEBOOK', 'INSTAGRAM', 'THREADS', 'TIKTOK', 'BLUESKY', 'LINKEDIN', 'X']),
-                ('SOCIAL_ANALYTICS', 'feature.analytics.view', ARRAY['FACEBOOK', 'INSTAGRAM', 'LINKEDIN', 'X']),
+                ('SOCIAL_ANALYTICS', 'feature.analytics.view', ARRAY['FACEBOOK', 'INSTAGRAM', 'THREADS', 'TIKTOK', 'BLUESKY', 'LINKEDIN', 'X']),
                 ('COMMENTS_MANAGE', 'feature.content.manage', ARRAY['FACEBOOK', 'INSTAGRAM', 'X']),
                 ('MEDIA_PUBLISH', 'feature.content.publish', ARRAY['FACEBOOK', 'INSTAGRAM', 'TIKTOK', 'LINKEDIN', 'X']),
                 ('CALLS_INBOUND', NULL::text, ARRAY['TWILIO']),
@@ -621,6 +621,42 @@ pub async fn update_status(
         .into_iter()
         .find(|connection| connection.id == id)
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))
+}
+
+pub async fn update_status_by_identity(
+    pool: &PgPool,
+    org_id: &str,
+    provider: &str,
+    display_name: &str,
+    handle: Option<&str>,
+    status: &str,
+) -> Result<ExternalConnection, AppError> {
+    let ids = sqlx::query_scalar::<_, String>(
+        r#"SELECT id
+           FROM "ExternalConnection"
+           WHERE "orgId" = $1
+             AND LOWER(provider) = LOWER($2)
+             AND LOWER("displayName") = LOWER($3)
+             AND ($4::text IS NULL OR LOWER(COALESCE(handle, '')) = LOWER($4))
+           ORDER BY id"#,
+    )
+    .bind(org_id)
+    .bind(provider.trim())
+    .bind(display_name.trim())
+    .bind(handle.map(str::trim).filter(|value| !value.is_empty()))
+    .fetch_all(pool)
+    .await?;
+
+    let id = match ids.as_slice() {
+        [] => return Err(AppError::NotFound("Connection not found".to_string())),
+        [id] => id,
+        _ => {
+            return Err(AppError::BadRequest(
+                "Multiple connections match; specify the account handle".to_string(),
+            ));
+        }
+    };
+    update_status(pool, org_id, id, status).await
 }
 
 pub async fn source_is_connected(

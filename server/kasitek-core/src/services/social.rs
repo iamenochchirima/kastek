@@ -83,6 +83,11 @@ pub use super::social_channels::{
     create_social_channel, delete_social_channel, get_social_channel, list_social_channels,
     update_social_channel,
 };
+pub use super::social_insights::{
+    force_sync_social_post_insights, get_social_post_insights, list_social_post_insights,
+    parse_insights_filters, sync_all_social_post_insights, sync_social_post_insights,
+    SocialPostInsights, SocialPostInsightsFilters, SocialPostInsightsReport,
+};
 pub use super::social_provider_connections::{
     upsert_bluesky_oauth_connection_for_org, upsert_instagram_connection_for_org,
     upsert_linkedin_connection_for_org, upsert_meta_connections_for_org,
@@ -2060,16 +2065,53 @@ pub async fn delete_social_post_from_platforms(
     org_id: &str,
     post_id: &str,
 ) -> Result<SocialPostDeletionResult, AppError> {
+    delete_social_post_from_platforms_internal(pool, config, org_id, post_id, None).await
+}
+
+pub async fn delete_social_post_from_platform(
+    pool: &PgPool,
+    config: &AppConfig,
+    org_id: &str,
+    post_id: &str,
+    platform: &str,
+) -> Result<SocialPostDeletionResult, AppError> {
+    let platform = platform.trim().to_ascii_uppercase();
+    if platform.is_empty() {
+        return Err(AppError::BadRequest(
+            "A social platform is required for published-post deletion".to_string(),
+        ));
+    }
+    delete_social_post_from_platforms_internal(pool, config, org_id, post_id, Some(&platform)).await
+}
+
+async fn delete_social_post_from_platforms_internal(
+    pool: &PgPool,
+    config: &AppConfig,
+    org_id: &str,
+    post_id: &str,
+    target_platform: Option<&str>,
+) -> Result<SocialPostDeletionResult, AppError> {
     let post = social_posts::get_social_post(pool, org_id, post_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
-    let mut provider_results = Vec::new();
-
-    for job in post
+    let published_jobs = post
         .publish_jobs
         .iter()
-        .filter(|job| job.status == "PUBLISHED")
-    {
+        .filter(|job| {
+            job.status == "PUBLISHED"
+                && target_platform
+                    .map(|platform| job.platform.eq_ignore_ascii_case(platform))
+                    .unwrap_or(true)
+        })
+        .collect::<Vec<_>>();
+    if target_platform.is_some() && published_jobs.is_empty() {
+        return Err(AppError::NotFound(
+            "No published post was found for the requested social platform".to_string(),
+        ));
+    }
+    let mut provider_results = Vec::new();
+
+    for job in &published_jobs {
         let external_post_id = job.external_post_id.clone();
         let mut result = SocialPostProviderDeletionResult {
             platform: job.platform.clone(),
@@ -2139,6 +2181,37 @@ pub async fn delete_social_post_from_platforms(
             local_deleted: false,
             provider_results,
         });
+    }
+
+    if target_platform.is_some() {
+        for job in &published_jobs {
+            sqlx::query(
+                r#"UPDATE "SocialPublishJob"
+                   SET status = 'CANCELED'::"SocialPublishJobStatus",
+                       "errorMessage" = $2,
+                       "updatedAt" = NOW()
+                   WHERE id = $1 AND "postId" = $3 AND status = 'PUBLISHED'::"SocialPublishJobStatus""#,
+            )
+            .bind(&job.id)
+            .bind(format!("Deleted from {} through KasiTek", job.platform))
+            .bind(post_id)
+            .execute(pool)
+            .await?;
+        }
+        let remaining_published_jobs = sqlx::query_scalar::<_, i64>(
+            r#"SELECT COUNT(*) FROM "SocialPublishJob"
+               WHERE "postId" = $1 AND status = 'PUBLISHED'::"SocialPublishJobStatus""#,
+        )
+        .bind(post_id)
+        .fetch_one(pool)
+        .await?;
+        if remaining_published_jobs > 0 {
+            return Ok(SocialPostDeletionResult {
+                success: true,
+                local_deleted: false,
+                provider_results,
+            });
+        }
     }
 
     let local_deleted = social_posts::delete_social_post(pool, org_id, post_id).await?;

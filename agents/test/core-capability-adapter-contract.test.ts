@@ -25,6 +25,8 @@ const post = { id: "post-1", content: "Contract test", channels: ["threads"], st
 const cases = [
   { name: "kasitek.core.customer_get", method: "getCustomer", args: { customerId: "customer-1" }, output: { customer: { id: "customer-1" } } },
   { name: "kasitek.core.workspace_status", method: "getWorkspaceStatus", args: {}, output: { organizationId: context.organizationId, connections: [] } },
+  { name: "kasitek.core.connections_list", method: "listWorkspaceConnections", args: { provider: "FACEBOOK", limit: 25 }, output: { organizationId: context.organizationId, connections: [] } },
+  { name: "kasitek.core.connection_status_update", method: "updateWorkspaceConnectionStatus", args: { provider: "FACEBOOK", displayName: "KasiTek", status: "DISCONNECTED" }, output: { connection: { provider: "FACEBOOK", displayName: "KasiTek", status: "DISCONNECTED" } }, requiresApproval: true },
   {
     name: "kasitek.core.workspace_report",
     method: "getWorkspaceReport",
@@ -54,12 +56,15 @@ const cases = [
   { name: "kasitek.core.inbox_conversation_mark_read", method: "markInboxConversationRead", args: { conversationId: "conversation-1" }, output: { success: true }, requiresApproval: true },
   { name: "kasitek.core.content_posts_list", method: "listContentPosts", args: {}, output: { posts: [] } },
   { name: "kasitek.core.content_post_get", method: "getContentPost", args: { postId: "post-1" }, output: { post } },
+  { name: "kasitek.core.content_posts_insights_report", method: "listContentPostInsights", args: {}, output: { posts: [], totalPosts: 0, hasMore: false, aggregates: [], coverage: [], generatedAt: "2030-01-01T00:00:00.000Z" } },
+  { name: "kasitek.core.content_post_insights", method: "getContentPostInsights", args: { postId: "post-1" }, output: { postId: "post-1", platforms: [], generatedAt: "2030-01-01T00:00:00.000Z" } },
   { name: "kasitek.core.content_post_update", method: "updateContentDraft", args: { postId: "post-1", content: "Updated" }, output: { post: { ...post, content: "Updated" } } },
   { name: "kasitek.core.content_post_draft", method: "createContentDraft", args: { content: "Draft", channels: ["threads"] }, output: { post: { ...post, id: "post-2" } } },
   { name: "kasitek.core.content_post_publish", method: "publishContentPost", args: { postId: "post-1", platform: "threads" }, output: { post: { ...post, status: "PUBLISHED" }, result: { status: "accepted" } }, requiresApproval: true },
   { name: "kasitek.core.content_post_schedule", method: "scheduleContentPost", args: { postId: "post-1", scheduledFor: "2030-01-01T12:00:00.000Z" }, output: { post: { ...post, status: "SCHEDULED" }, status: "SCHEDULED" }, requiresApproval: true },
   { name: "kasitek.core.content_post_unschedule", method: "unscheduleContentPost", args: { postId: "post-1" }, output: { post, status: "DRAFT" }, requiresApproval: true },
   { name: "kasitek.core.content_post_delete", method: "deleteContentPost", args: { postId: "post-1" }, output: { postId: "post-1", deleted: true }, requiresApproval: true },
+  { name: "kasitek.core.content_post_delete_published", method: "deletePublishedContentPost", args: { postId: "post-1", platform: "THREADS" }, output: { success: true, localDeleted: true, providerResults: [{ platform: "THREADS", status: "DELETED" }] }, requiresApproval: true },
 ] as const;
 
 describe("core-owned capability adapter contract", () => {
