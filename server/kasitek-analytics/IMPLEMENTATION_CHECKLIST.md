@@ -476,10 +476,11 @@ checklist records implementation evidence for the current package only.
 -  The same fixture now verifies all six registered Connections metrics as available after the
   temporal boundary. Approved customer-facing surfaces remain pending.
 - Core Campaign delivery: the ignored `core_campaigns_system_e2e` fixture passed against the local
-  native Core and Analytics PostgreSQL databases; it published deduplicated sent/delivered facts
+  native Core and Analytics PostgreSQL databases; it published deduplicated sent/delivered/read facts
   through the authenticated Analytics API and verified persisted privacy-safe event rows.
 - Campaign reporting: the native `reporting_postgres` fixture now verifies delivered distinct
-  counting and delivery-rate numerator/denominator reporting with available temporal coverage.
+  counting, read distinct counting, and delivery-rate numerator/denominator reporting with available
+  temporal coverage.
 - Customer handoff reporting: the native `reporting_postgres` fixture accepted three bounded
   customer-service handoff lifecycle facts, projected them with Agent-definition and handoff-state
   dimensions, and returned an authorized report with available temporal coverage.
@@ -768,6 +769,19 @@ checklist records implementation evidence for the current package only.
 - [ ] Add source manifests, source reconstruction, failure/retry/eligibility facts, and complete
   Campaign performance coverage in later Campaign slices.
 - [ ] Add one combined mutation-to-publisher-to-projection-to-reporting E2E.
+
+## Core Campaigns — recipient read slice 2
+
+- [x] Add and register `campaign.recipient.read@1` with a fixed read status and aggregate-safe
+  attributes; generated Rust and TypeScript bindings are current.
+- [x] Add `campaign.recipients.read@1` to the overview metric set and compatible campaign
+  dimensions.
+- [x] Emit read facts transactionally with Core's WhatsApp `READ` recipient transition and avoid
+  duplicates for unchanged status writes.
+- [x] Extend Core rollback/privacy, authenticated publisher E2E, and signed reporting coverage for
+  the read fact and distinct-recipient aggregation.
+- [ ] Add read-delay timing and the remaining failure, block, unsubscribe, retry, eligibility, and
+  guard facts in later Campaign slices.
 
 ## Reporting availability — slice 10
 

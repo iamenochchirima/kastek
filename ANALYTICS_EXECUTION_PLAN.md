@@ -2017,6 +2017,19 @@ sent or delivered status.
   provider-outcome facts before claiming complete Campaign performance coverage.
 - [ ] Add one combined mutation-to-publisher-to-projection-to-reporting E2E for Campaign delivery.
 
+#### Execution slice 2 — recipient read facts
+
+- [x] Add `campaign.recipient.read@1` with the existing bounded campaign, recipient, channel,
+  provider, event-time, and fixed `read` status shape.
+- [x] Register `campaign.recipients.read@1`, add it to the overview metric set, and regenerate
+  the Rust/TypeScript registry bindings.
+- [x] Emit the read fact in the same transaction as Core's authoritative WhatsApp `READ` status
+  transition; repeated unchanged statuses remain deduplicated.
+- [x] Extend Core privacy/rollback, authenticated publisher, and reporting coverage for the read
+  fact and distinct-recipient aggregation.
+- [ ] Add read-delay timing once the Campaign timing contract is introduced.
+- [ ] Add failure, block, unsubscribe, retry, eligibility, and guard facts in later slices.
+
 ### Agent Platform lane: customer handoff
 
 Customer-takeover analytics applies only to a customer-facing Agent whose workflow has the

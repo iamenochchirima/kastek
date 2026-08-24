@@ -15,7 +15,9 @@ use kasitek_analytics::{
     reporting::{ReportingAuthenticator, ReportingCache},
     rollout::{RolloutAuthenticator, RolloutDecisionCache},
 };
-use kasitek_core::analytics::campaigns::{enqueue_recipient_delivered, enqueue_recipient_sent};
+use kasitek_core::analytics::campaigns::{
+    enqueue_recipient_delivered, enqueue_recipient_read, enqueue_recipient_sent,
+};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
@@ -147,6 +149,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
     let result = async {
         let sent_at = Utc::now();
         let delivered_at = sent_at + Duration::seconds(1);
+        let read_at = delivered_at + Duration::seconds(1);
         let mut transaction = core_pool.begin().await.expect("Core transaction");
         enqueue_recipient_sent(
             &mut transaction,
@@ -181,6 +184,17 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         )
         .await
         .expect("Campaign delivered fact should enqueue");
+        enqueue_recipient_read(
+            &mut transaction,
+            &organization_id,
+            &campaign_id,
+            &delivered_recipient_id,
+            "whatsapp",
+            "meta",
+            read_at,
+        )
+        .await
+        .expect("Campaign read fact should enqueue");
         transaction
             .commit()
             .await
@@ -211,8 +225,8 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
             .await
             .expect("Core publisher should deliver Campaign facts to Analytics");
         assert!(
-            stats.delivered >= 2,
-            "expected two Campaign facts: {stats:?}"
+            stats.delivered >= 3,
+            "expected three Campaign facts: {stats:?}"
         );
 
         let delivered: i64 = sqlx::query_scalar(
@@ -225,7 +239,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         .fetch_one(&core_pool)
         .await
         .expect("Core Campaign delivery state");
-        assert_eq!(delivered, 2);
+        assert_eq!(delivered, 3);
 
         let rows = sqlx::query(
             r#"SELECT event_type, source_service, source_record_id, attributes, backfilled
@@ -237,7 +251,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         .fetch_all(&analytics_pool)
         .await
         .expect("Analytics Campaign facts");
-        assert_eq!(rows.len(), 2);
+        assert_eq!(rows.len(), 3);
         let mut event_types = Vec::new();
         for row in rows {
             let event_type: String = row.get("event_type");
@@ -276,6 +290,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
             event_types,
             vec![
                 "campaign.recipient.delivered@1".to_string(),
+                "campaign.recipient.read@1".to_string(),
                 "campaign.recipient.sent@1".to_string()
             ]
         );

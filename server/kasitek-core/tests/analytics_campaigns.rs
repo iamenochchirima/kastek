@@ -1,7 +1,9 @@
 use std::env;
 
 use chrono::Utc;
-use kasitek_core::analytics::campaigns::{enqueue_recipient_delivered, enqueue_recipient_sent};
+use kasitek_core::analytics::campaigns::{
+    enqueue_recipient_delivered, enqueue_recipient_read, enqueue_recipient_sent,
+};
 use sqlx::{postgres::PgPoolOptions, Row};
 
 #[tokio::test]
@@ -37,6 +39,17 @@ async fn campaign_delivery_facts_are_transactional_and_privacy_safe() {
     )
     .await
     .expect("delivered fact should enqueue");
+    enqueue_recipient_read(
+        &mut transaction,
+        "org_campaigns_a",
+        "campaign-analytics",
+        "recipient-delivered",
+        "whatsapp",
+        "meta",
+        Utc::now(),
+    )
+    .await
+    .expect("read fact should enqueue");
 
     let rows = sqlx::query(
         r#"
@@ -50,7 +63,7 @@ async fn campaign_delivery_facts_are_transactional_and_privacy_safe() {
     .fetch_all(&mut *transaction)
     .await
     .expect("campaign facts should be visible before commit");
-    assert_eq!(rows.len(), 2);
+    assert_eq!(rows.len(), 3);
     for row in rows {
         let record_id: String = row.try_get("record_id").unwrap();
         let envelope: serde_json::Value = row.try_get("envelope").unwrap();
@@ -66,7 +79,11 @@ async fn campaign_delivery_facts_are_transactional_and_privacy_safe() {
             data.get("provider").and_then(|value| value.as_str()),
             Some("meta")
         );
-        assert!(record_id.ends_with(":sent") || record_id.ends_with(":delivered"));
+        assert!(
+            record_id.ends_with(":sent")
+                || record_id.ends_with(":delivered")
+                || record_id.ends_with(":read")
+        );
         for prohibited in [
             "phone_number",
             "email",

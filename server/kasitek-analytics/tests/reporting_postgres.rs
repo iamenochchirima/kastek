@@ -366,11 +366,18 @@ async fn insert_fixture(
     .await
     .expect("previous count rollup");
 
-    for (metric_key, value_sum, coverage_sources) in [(
-        "campaign.recipients.delivered",
-        1.0_f64,
-        json!(["campaign.recipient.delivered@1"]),
-    )] {
+    for (metric_key, value_sum, coverage_sources) in [
+        (
+            "campaign.recipients.delivered",
+            1.0_f64,
+            json!(["campaign.recipient.delivered@1"]),
+        ),
+        (
+            "campaign.recipients.read",
+            1.0_f64,
+            json!(["campaign.recipient.read@1"]),
+        ),
+    ] {
         sqlx::query(
             r#"INSERT INTO analytics.analytics_projection_rollup (
                  generation_id, projection_name, projection_version, metric_key, metric_version,
@@ -480,6 +487,30 @@ async fn insert_fixture(
     .execute(&mut **transaction)
     .await
     .expect("delivered contribution");
+    sqlx::query(
+        r#"INSERT INTO analytics.analytics_projection_contribution (
+             generation_id, projection_name, projection_version, metric_key, metric_version,
+             source_kind, source_storage_id, target_scope_id, source_scope_id, root_scope_id,
+             bucket_start, bucket_end, timezone_name, timezone_revision, dimensions,
+             deduplication_key, builder_name, value_count, value_sum, source_high_watermark,
+             coverage
+           ) VALUES ($1,$2,$3,'campaign.recipients.read',1,'event',15,$4,$4,$4,
+                     $5,$6,'UTC',1,'{}'::jsonb,'recipient-1','campaign.read',1,1,10,$7)"#,
+    )
+    .bind(generation_id)
+    .bind(PROJECTION_NAME)
+    .bind(PROJECTION_VERSION)
+    .bind(scope_id)
+    .bind(bucket_start + Duration::hours(12))
+    .bind(bucket_start + Duration::hours(13))
+    .bind(json!({
+        "source_fact_count": 1,
+        "coverage_state": "observed",
+        "required_sources": ["campaign.recipient.read@1"]
+    }))
+    .execute(&mut **transaction)
+    .await
+    .expect("read contribution");
 
     (scope_id, generation_id)
 }
@@ -640,6 +671,7 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
         &ReportQueryRequest {
             metrics: vec![
                 "campaign.recipients.delivered@1".to_string(),
+                "campaign.recipients.read@1".to_string(),
                 "campaign.delivery_rate@1".to_string(),
             ],
             comparison: None,
@@ -648,15 +680,20 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
     )
     .await
     .expect("Campaign delivery report response");
-    assert_eq!(delivery_response.metrics.len(), 2);
+    assert_eq!(delivery_response.metrics.len(), 3);
     assert_eq!(delivery_response.metrics[0].series[0].value, Some(1.0));
-    assert_eq!(delivery_response.metrics[1].series[0].value, Some(0.5));
+    assert_eq!(delivery_response.metrics[1].series[0].value, Some(1.0));
+    assert_eq!(delivery_response.metrics[2].series[0].value, Some(0.5));
     assert_eq!(
         delivery_response.metrics[0].coverage.required_sources,
         vec!["campaign.recipient.delivered@1".to_string()]
     );
     assert_eq!(
         delivery_response.metrics[1].coverage.required_sources,
+        vec!["campaign.recipient.read@1".to_string()]
+    );
+    assert_eq!(
+        delivery_response.metrics[2].coverage.required_sources,
         vec![
             "campaign.recipient.sent@1".to_string(),
             "campaign.recipient.delivered@1".to_string()
