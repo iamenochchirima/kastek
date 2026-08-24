@@ -2,7 +2,7 @@
 
 pub const REGISTRY_VERSION: &str = "20260824.1";
 pub const REGISTRY_SHA256: &str =
-    "9d7d1b276804f1a1ffa389775377094f6ec9e12da05ba0fd5d22ed8ed753dfc4";
+    "f608fa863caa7ad2b4a1ca057e32bb177285ef158c630ee80ece5b09e331819f";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",
@@ -25,6 +25,8 @@ pub const CONTRACT_KEYS: &[&str] = &[
     "campaign.recipient.failed@1",
     "campaign.recipient.read@1",
     "campaign.recipient.sent@1",
+    "campaign.recipient.suppressed@1",
+    "campaign.recipient.unsubscribed@1",
     "connection.capability.lifecycle@1",
     "connection.health_check@1",
     "connection.incident.lifecycle@1",
@@ -63,6 +65,8 @@ pub const METRIC_KEYS: &[&str] = &[
     "campaign.recipients.failed@1",
     "campaign.recipients.read@1",
     "campaign.recipients.sent@1",
+    "campaign.recipients.suppressed@1",
+    "campaign.recipients.unsubscribed@1",
     "connection.capability_events@1",
     "connection.health_checks@1",
     "connection.incidents@1",
@@ -125,8 +129,10 @@ pub const DIMENSION_KEYS: &[&str] = &[
     "readiness_workflow_status",
     "responder_type",
     "status",
+    "suppression_class",
     "tool_name",
     "tool_risk_class",
+    "unsubscribe_source",
 ];
 
 pub const METRIC_SET_KEYS: &[&str] = &["agent.performance@1", "overview.summary@1"];
@@ -160,6 +166,8 @@ pub mod metric_keys {
     pub const CAMPAIGN_RECIPIENTS_FAILED_1: &str = "campaign.recipients.failed@1";
     pub const CAMPAIGN_RECIPIENTS_READ_1: &str = "campaign.recipients.read@1";
     pub const CAMPAIGN_RECIPIENTS_SENT_1: &str = "campaign.recipients.sent@1";
+    pub const CAMPAIGN_RECIPIENTS_SUPPRESSED_1: &str = "campaign.recipients.suppressed@1";
+    pub const CAMPAIGN_RECIPIENTS_UNSUBSCRIBED_1: &str = "campaign.recipients.unsubscribed@1";
     pub const CONNECTION_CAPABILITY_EVENTS_1: &str = "connection.capability_events@1";
     pub const CONNECTION_HEALTH_CHECKS_1: &str = "connection.health_checks@1";
     pub const CONNECTION_INCIDENTS_1: &str = "connection.incidents@1";

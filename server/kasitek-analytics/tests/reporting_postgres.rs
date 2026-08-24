@@ -387,6 +387,16 @@ async fn insert_fixture(
             1.0_f64,
             json!(["campaign.recipient.blocked@1"]),
         ),
+        (
+            "campaign.recipients.suppressed",
+            1.0_f64,
+            json!(["campaign.recipient.suppressed@1"]),
+        ),
+        (
+            "campaign.recipients.unsubscribed",
+            1.0_f64,
+            json!(["campaign.recipient.unsubscribed@1"]),
+        ),
     ] {
         sqlx::query(
             r#"INSERT INTO analytics.analytics_projection_rollup (
@@ -571,6 +581,54 @@ async fn insert_fixture(
     .execute(&mut **transaction)
     .await
     .expect("blocked contribution");
+    for (metric_key, storage_id, dimensions, deduplication_key, builder_name, source) in [
+        (
+            "campaign.recipients.suppressed",
+            18_i64,
+            r#"{"suppression_class":"contact_excluded"}"#,
+            "recipient-4",
+            "campaign.suppressed",
+            "campaign.recipient.suppressed@1",
+        ),
+        (
+            "campaign.recipients.unsubscribed",
+            19_i64,
+            r#"{"unsubscribe_source":"keyword"}"#,
+            "recipient-5",
+            "campaign.unsubscribed",
+            "campaign.recipient.unsubscribed@1",
+        ),
+    ] {
+        sqlx::query(
+            r#"INSERT INTO analytics.analytics_projection_contribution (
+                 generation_id, projection_name, projection_version, metric_key, metric_version,
+                 source_kind, source_storage_id, target_scope_id, source_scope_id, root_scope_id,
+                 bucket_start, bucket_end, timezone_name, timezone_revision, dimensions,
+                 deduplication_key, builder_name, value_count, value_sum, source_high_watermark,
+                 coverage
+               ) VALUES ($1,$2,$3,$4,1,'event',$5,$6,$6,$6,
+                         $7,$8,'UTC',1,$9::jsonb,$10,$11,1,1,10,$12)"#,
+        )
+        .bind(generation_id)
+        .bind(PROJECTION_NAME)
+        .bind(PROJECTION_VERSION)
+        .bind(metric_key)
+        .bind(storage_id)
+        .bind(scope_id)
+        .bind(bucket_start + Duration::hours(12))
+        .bind(bucket_start + Duration::hours(13))
+        .bind(dimensions)
+        .bind(deduplication_key)
+        .bind(builder_name)
+        .bind(json!({
+            "source_fact_count": 1,
+            "coverage_state": "observed",
+            "required_sources": [source]
+        }))
+        .execute(&mut **transaction)
+        .await
+        .expect("campaign lifecycle contribution");
+    }
 
     (scope_id, generation_id)
 }
@@ -734,6 +792,8 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
                 "campaign.recipients.read@1".to_string(),
                 "campaign.recipients.failed@1".to_string(),
                 "campaign.recipients.blocked@1".to_string(),
+                "campaign.recipients.suppressed@1".to_string(),
+                "campaign.recipients.unsubscribed@1".to_string(),
                 "campaign.delivery_rate@1".to_string(),
             ],
             comparison: None,
@@ -742,12 +802,14 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
     )
     .await
     .expect("Campaign delivery report response");
-    assert_eq!(delivery_response.metrics.len(), 5);
+    assert_eq!(delivery_response.metrics.len(), 7);
     assert_eq!(delivery_response.metrics[0].series[0].value, Some(1.0));
     assert_eq!(delivery_response.metrics[1].series[0].value, Some(1.0));
     assert_eq!(delivery_response.metrics[2].series[0].value, Some(1.0));
     assert_eq!(delivery_response.metrics[3].series[0].value, Some(1.0));
-    assert_eq!(delivery_response.metrics[4].series[0].value, Some(0.5));
+    assert_eq!(delivery_response.metrics[4].series[0].value, Some(1.0));
+    assert_eq!(delivery_response.metrics[5].series[0].value, Some(1.0));
+    assert_eq!(delivery_response.metrics[6].series[0].value, Some(0.5));
     assert_eq!(
         delivery_response.metrics[0].coverage.required_sources,
         vec!["campaign.recipient.delivered@1".to_string()]
@@ -766,6 +828,14 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
     );
     assert_eq!(
         delivery_response.metrics[4].coverage.required_sources,
+        vec!["campaign.recipient.suppressed@1".to_string()]
+    );
+    assert_eq!(
+        delivery_response.metrics[5].coverage.required_sources,
+        vec!["campaign.recipient.unsubscribed@1".to_string()]
+    );
+    assert_eq!(
+        delivery_response.metrics[6].coverage.required_sources,
         vec![
             "campaign.recipient.sent@1".to_string(),
             "campaign.recipient.delivered@1".to_string()
@@ -829,6 +899,48 @@ async fn signed_reporting_query_reads_promoted_rollups_and_deduplicates_contribu
             .get("block_class")
             .and_then(|value| value.as_str()),
         Some("provider_blocked")
+    );
+    let suppressed_dimension_response = execute_report(
+        &mut transaction,
+        &registry,
+        &grant,
+        &authorized,
+        &ReportQueryRequest {
+            metrics: vec!["campaign.recipients.suppressed@1".to_string()],
+            breakdowns: vec!["suppression_class".to_string()],
+            comparison: None,
+            ..request.clone()
+        },
+    )
+    .await
+    .expect("suppressed dimension report response");
+    assert_eq!(
+        suppressed_dimension_response.metrics[0].series[0]
+            .dimensions
+            .get("suppression_class")
+            .and_then(|value| value.as_str()),
+        Some("contact_excluded")
+    );
+    let unsubscribed_dimension_response = execute_report(
+        &mut transaction,
+        &registry,
+        &grant,
+        &authorized,
+        &ReportQueryRequest {
+            metrics: vec!["campaign.recipients.unsubscribed@1".to_string()],
+            breakdowns: vec!["unsubscribe_source".to_string()],
+            comparison: None,
+            ..request.clone()
+        },
+    )
+    .await
+    .expect("unsubscribed dimension report response");
+    assert_eq!(
+        unsubscribed_dimension_response.metrics[0].series[0]
+            .dimensions
+            .get("unsubscribe_source")
+            .and_then(|value| value.as_str()),
+        Some("keyword")
     );
     let dimension_response = execute_report(
         &mut transaction,

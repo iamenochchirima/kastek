@@ -17,7 +17,8 @@ use kasitek_analytics::{
 };
 use kasitek_core::analytics::campaigns::{
     enqueue_recipient_blocked, enqueue_recipient_delivered, enqueue_recipient_failed,
-    enqueue_recipient_read, enqueue_recipient_sent,
+    enqueue_recipient_read, enqueue_recipient_sent, enqueue_recipient_suppressed,
+    enqueue_recipient_unsubscribed,
 };
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -153,6 +154,8 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         let read_at = delivered_at + Duration::seconds(1);
         let failed_at = read_at + Duration::seconds(1);
         let blocked_at = failed_at + Duration::seconds(1);
+        let suppressed_at = blocked_at + Duration::seconds(1);
+        let unsubscribed_at = suppressed_at + Duration::seconds(1);
         let mut transaction = core_pool.begin().await.expect("Core transaction");
         enqueue_recipient_sent(
             &mut transaction,
@@ -222,6 +225,30 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         )
         .await
         .expect("Campaign blocked fact should enqueue");
+        enqueue_recipient_suppressed(
+            &mut transaction,
+            &organization_id,
+            &campaign_id,
+            &format!("recipient-suppressed-system-e2e-{unique_suffix}"),
+            "whatsapp",
+            "meta",
+            "contact_excluded",
+            suppressed_at,
+        )
+        .await
+        .expect("Campaign suppressed fact should enqueue");
+        enqueue_recipient_unsubscribed(
+            &mut transaction,
+            &organization_id,
+            &campaign_id,
+            &format!("recipient-unsubscribed-system-e2e-{unique_suffix}"),
+            "whatsapp",
+            "meta",
+            "keyword",
+            unsubscribed_at,
+        )
+        .await
+        .expect("Campaign unsubscribed fact should enqueue");
         transaction
             .commit()
             .await
@@ -252,8 +279,8 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
             .await
             .expect("Core publisher should deliver Campaign facts to Analytics");
         assert!(
-            stats.delivered >= 5,
-            "expected five Campaign facts: {stats:?}"
+            stats.delivered >= 7,
+            "expected seven Campaign facts: {stats:?}"
         );
 
         let delivered: i64 = sqlx::query_scalar(
@@ -266,7 +293,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         .fetch_one(&core_pool)
         .await
         .expect("Core Campaign delivery state");
-        assert_eq!(delivered, 5);
+        assert_eq!(delivered, 7);
 
         let rows = sqlx::query(
             r#"SELECT event_type, source_service, source_record_id, attributes, backfilled
@@ -278,7 +305,7 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
         .fetch_all(&analytics_pool)
         .await
         .expect("Analytics Campaign facts");
-        assert_eq!(rows.len(), 5);
+        assert_eq!(rows.len(), 7);
         let mut event_types = Vec::new();
         for row in rows {
             let event_type: String = row.get("event_type");
@@ -309,6 +336,18 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
                     Some("provider_blocked")
                 );
             }
+            if event_type == "campaign.recipient.suppressed@1" {
+                assert_eq!(
+                    attributes.get("suppression_class").and_then(Value::as_str),
+                    Some("contact_excluded")
+                );
+            }
+            if event_type == "campaign.recipient.unsubscribed@1" {
+                assert_eq!(
+                    attributes.get("unsubscribe_source").and_then(Value::as_str),
+                    Some("keyword")
+                );
+            }
             for prohibited in [
                 "phone_number",
                 "email",
@@ -332,7 +371,9 @@ async fn core_campaign_delivery_outbox_publisher_and_analytics_ingestion_work_en
                 "campaign.recipient.delivered@1".to_string(),
                 "campaign.recipient.failed@1".to_string(),
                 "campaign.recipient.read@1".to_string(),
-                "campaign.recipient.sent@1".to_string()
+                "campaign.recipient.sent@1".to_string(),
+                "campaign.recipient.suppressed@1".to_string(),
+                "campaign.recipient.unsubscribed@1".to_string()
             ]
         );
     }

@@ -3,7 +3,8 @@ use std::env;
 use chrono::Utc;
 use kasitek_core::analytics::campaigns::{
     enqueue_recipient_blocked, enqueue_recipient_delivered, enqueue_recipient_failed,
-    enqueue_recipient_read, enqueue_recipient_sent,
+    enqueue_recipient_read, enqueue_recipient_sent, enqueue_recipient_suppressed,
+    enqueue_recipient_unsubscribed,
 };
 use sqlx::{postgres::PgPoolOptions, Row};
 
@@ -75,6 +76,30 @@ async fn campaign_delivery_facts_are_transactional_and_privacy_safe() {
     )
     .await
     .expect("blocked fact should enqueue");
+    enqueue_recipient_suppressed(
+        &mut transaction,
+        "org_campaigns_a",
+        "campaign-analytics",
+        "recipient-suppressed",
+        "whatsapp",
+        "meta",
+        "contact_excluded",
+        Utc::now(),
+    )
+    .await
+    .expect("suppressed fact should enqueue");
+    enqueue_recipient_unsubscribed(
+        &mut transaction,
+        "org_campaigns_a",
+        "campaign-analytics",
+        "recipient-unsubscribed",
+        "whatsapp",
+        "meta",
+        "keyword",
+        Utc::now(),
+    )
+    .await
+    .expect("unsubscribed fact should enqueue");
 
     let rows = sqlx::query(
         r#"
@@ -88,7 +113,7 @@ async fn campaign_delivery_facts_are_transactional_and_privacy_safe() {
     .fetch_all(&mut *transaction)
     .await
     .expect("campaign facts should be visible before commit");
-    assert_eq!(rows.len(), 5);
+    assert_eq!(rows.len(), 7);
     for row in rows {
         let record_id: String = row.try_get("record_id").unwrap();
         let envelope: serde_json::Value = row.try_get("envelope").unwrap();
@@ -110,6 +135,8 @@ async fn campaign_delivery_facts_are_transactional_and_privacy_safe() {
                 || record_id.ends_with(":read")
                 || record_id.ends_with(":failed")
                 || record_id.ends_with(":blocked")
+                || record_id.ends_with(":suppressed")
+                || record_id.ends_with(":unsubscribed")
         );
         if record_id.ends_with(":failed") {
             assert_eq!(
@@ -120,6 +147,18 @@ async fn campaign_delivery_facts_are_transactional_and_privacy_safe() {
             assert_eq!(
                 data.get("block_class").and_then(|value| value.as_str()),
                 Some("provider_blocked")
+            );
+        } else if record_id.ends_with(":suppressed") {
+            assert_eq!(
+                data.get("suppression_class")
+                    .and_then(|value| value.as_str()),
+                Some("contact_excluded")
+            );
+        } else if record_id.ends_with(":unsubscribed") {
+            assert_eq!(
+                data.get("unsubscribe_source")
+                    .and_then(|value| value.as_str()),
+                Some("keyword")
             );
         } else {
             assert!(data.get("failure_class").is_none());

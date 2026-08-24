@@ -808,6 +808,23 @@ checklist records implementation evidence for the current package only.
 - [ ] Add unsubscribe/exclusion, retry, eligibility, guard, timing, cost, attribution, and complete
   mutation-to-reporting coverage in later Campaign slices.
 
+## Core Campaigns — suppression and unsubscribe slice 5
+
+- [x] Add and register `campaign.recipient.suppressed@1` with bounded suppression classes and no
+  contact values, message content, credentials, tokens, or unrestricted provider payloads.
+- [x] Add and register `campaign.recipient.unsubscribed@1` with bounded unsubscribe sources and
+  aggregate-safe campaign/recipient references.
+- [x] Emit manual exclusion facts in the same transaction as skipped recipient persistence.
+- [x] Emit opt-in, contact exclusion, cooldown, and policy-guard facts in the same transaction as
+  the final send-eligibility transition.
+- [x] Emit WhatsApp keyword unsubscribe facts in the same transaction as contact and recipient
+  unsubscribe transitions.
+- [x] Add suppression/unsubscribe metrics, dimensions, overview registration, generated bindings,
+  Core rollback/privacy coverage, authenticated publisher coverage, and signed reporting
+  breakdowns.
+- [ ] Add retry, timing, cost, attribution, source manifests, historical reconstruction, and the
+  combined mutation-to-publisher-to-projection-to-reporting E2E in later Campaign slices.
+
 ## Reporting availability — slice 10
 
 - [x] Evaluate temporal and reconciliation checkpoints by registered metric domain and authorized

@@ -164,6 +164,22 @@
       "privacy_class": "aggregate"
     },
     {
+      "identity": "campaign.recipient.suppressed@1",
+      "schema": "events/campaign/recipient_suppressed/v1.schema.json",
+      "examples": ["examples/campaign/recipient_suppressed.json"],
+      "owner": "core-campaigns",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "campaign.recipient.unsubscribed@1",
+      "schema": "events/campaign/recipient_unsubscribed/v1.schema.json",
+      "examples": ["examples/campaign/recipient_unsubscribed.json"],
+      "owner": "core-campaigns",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
       "identity": "conversation.message.received@1",
       "schema": "events/inbox/message_received/v1.schema.json",
       "examples": ["examples/inbox/message_received.json"],

@@ -2013,8 +2013,8 @@ recipient outcomes.
 - [x] Verify the registered sent, delivered, and delivery-rate metrics through the signed reporting
   fixture, including distinct-recipient and numerator/denominator aggregation paths.
 - [ ] Add campaign source manifests, historical reconstruction, and reliable coverage boundaries.
-- [ ] Add transactional campaign retry, suppression/eligibility, cost, and complete
-  provider-outcome facts before claiming complete Campaign performance coverage.
+- [ ] Add transactional campaign retry, cost, and complete provider-outcome facts before claiming
+  complete Campaign performance coverage. Suppression and eligibility facts are covered in slice 5.
 - [ ] Add one combined mutation-to-publisher-to-projection-to-reporting E2E for Campaign delivery.
 
 #### Execution slice 2 — recipient read facts
@@ -2046,8 +2046,24 @@ recipient outcomes.
   known Meta block signals are normalized to `BLOCKED` before the operational transition is saved.
 - [x] Extend Core privacy/rollback, authenticated publisher, and reporting coverage for blocked facts
   and the `block_class` breakdown.
-- [ ] Add unsubscribe/exclusion, retry, eligibility, guard, timing, cost, and attribution facts in
-  later Campaign slices.
+
+#### Execution slice 5 — suppression, eligibility, and unsubscribe facts
+
+- [x] Add and register `campaign.recipient.suppressed@1` with bounded
+  `suppression_class` values for manual exclusion, opt-in, contact exclusion, cooldown, and
+  policy guards.
+- [x] Add and register `campaign.recipient.unsubscribed@1` with bounded unsubscribe sources;
+  the event contains only stable campaign/recipient references and aggregate-safe dimensions.
+- [x] Emit manual-exclusion facts transactionally when campaign creation persists skipped
+  recipients.
+- [x] Emit eligibility-guard suppression facts transactionally at the authoritative send boundary
+  when opt-in, contact exclusion, or cooldown state prevents delivery.
+- [x] Emit keyword-unsubscribe facts transactionally with the WhatsApp contact and pending
+  recipient unsubscribe transitions.
+- [x] Add suppression/unsubscribe metrics, dimensions, overview registration, Core rollback/privacy
+  coverage, authenticated publisher coverage, and signed reporting breakdowns.
+- [ ] Add retry, timing, cost, attribution, source manifests, historical reconstruction, and the
+  combined mutation-to-publisher-to-projection-to-reporting E2E in later Campaign slices.
 
 ### Agent Platform lane: customer handoff
 

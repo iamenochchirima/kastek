@@ -956,16 +956,18 @@ async fn handle_incoming_messages(
         }
 
         if is_opt_out_message(text.as_deref()) {
+            let occurred_at = Utc::now();
+            let mut transaction = pool.begin().await?;
             sqlx::query(r#"UPDATE "WhatsappContact" SET excluded = true, "optIn" = false, notes = $1, "updatedAt" = NOW() WHERE id = $2"#)
                 .bind(format!("Unsubscribed via STOP keyword on {}", Utc::now().to_rfc3339()))
                 .bind(&contact_id)
-                .execute(pool)
+                .execute(&mut *transaction)
                 .await?;
-            let campaign_ids = sqlx::query_scalar::<_, String>(
-                r#"SELECT "campaignId" FROM "WhatsappCampaignRecipient" WHERE "contactId" = $1 AND status IN ('PENDING'::"WhatsappRecipientStatus", 'QUEUED'::"WhatsappRecipientStatus", 'PROCESSING'::"WhatsappRecipientStatus")"#,
+            let campaign_recipients = sqlx::query_as::<_, (String, String)>(
+                r#"SELECT "campaignId", id FROM "WhatsappCampaignRecipient" WHERE "contactId" = $1 AND status IN ('PENDING'::"WhatsappRecipientStatus", 'QUEUED'::"WhatsappRecipientStatus", 'PROCESSING'::"WhatsappRecipientStatus")"#,
             )
             .bind(&contact_id)
-            .fetch_all(pool)
+            .fetch_all(&mut *transaction)
             .await?;
             sqlx::query(
                 r#"
@@ -978,8 +980,29 @@ async fn handle_incoming_messages(
                 "#,
             )
             .bind(&contact_id)
-            .execute(pool)
+            .execute(&mut *transaction)
             .await?;
+            for (campaign_id, recipient_id) in &campaign_recipients {
+                analytics::campaigns::enqueue_recipient_unsubscribed(
+                    &mut transaction,
+                    org_id,
+                    campaign_id,
+                    recipient_id,
+                    "whatsapp",
+                    "meta",
+                    "keyword",
+                    occurred_at,
+                )
+                .await
+                .map_err(|error| {
+                    AppError::Internal(format!("Failed to queue Campaign analytics fact: {error}"))
+                })?;
+            }
+            transaction.commit().await?;
+            let campaign_ids = campaign_recipients
+                .into_iter()
+                .map(|(campaign_id, _)| campaign_id)
+                .collect::<std::collections::HashSet<_>>();
             for campaign_id in campaign_ids {
                 recompute_campaign_stats(pool, &campaign_id).await?;
                 if let Some(user_id) = sqlx::query_scalar::<_, String>(

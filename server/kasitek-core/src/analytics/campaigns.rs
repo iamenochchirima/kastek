@@ -136,6 +136,56 @@ pub async fn enqueue_recipient_blocked(
     .await
 }
 
+pub async fn enqueue_recipient_suppressed(
+    transaction: &mut Transaction<'_, Postgres>,
+    organization_id: &str,
+    campaign_id: &str,
+    recipient_id: &str,
+    channel: &str,
+    provider: &str,
+    suppression_class: &str,
+    occurred_at: DateTime<Utc>,
+) -> Result<EnqueueResult, analytics_producer::ProducerError> {
+    enqueue_recipient_delivery(
+        transaction,
+        organization_id,
+        campaign_id,
+        recipient_id,
+        channel,
+        provider,
+        "suppressed",
+        "campaign.recipient.suppressed@1",
+        occurred_at,
+        Some(("suppression_class", suppression_class)),
+    )
+    .await
+}
+
+pub async fn enqueue_recipient_unsubscribed(
+    transaction: &mut Transaction<'_, Postgres>,
+    organization_id: &str,
+    campaign_id: &str,
+    recipient_id: &str,
+    channel: &str,
+    provider: &str,
+    unsubscribe_source: &str,
+    occurred_at: DateTime<Utc>,
+) -> Result<EnqueueResult, analytics_producer::ProducerError> {
+    enqueue_recipient_delivery(
+        transaction,
+        organization_id,
+        campaign_id,
+        recipient_id,
+        channel,
+        provider,
+        "unsubscribed",
+        "campaign.recipient.unsubscribed@1",
+        occurred_at,
+        Some(("unsubscribe_source", unsubscribe_source)),
+    )
+    .await
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn enqueue_recipient_delivery(
     transaction: &mut Transaction<'_, Postgres>,

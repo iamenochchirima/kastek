@@ -389,7 +389,10 @@ pub async fn create_campaign(
 
     for contact_id in &excluded_contact_ids {
         let contact = filtered_contacts_by_id.get(contact_id);
-        sqlx::query(
+        let recipient_id = cuid2::create_id();
+        let occurred_at = Utc::now();
+        let mut transaction = pool.begin().await?;
+        let inserted = sqlx::query(
             r#"
             INSERT INTO "WhatsappCampaignRecipient" (
                 id, "campaignId", "contactId", "snapshotPhone", "snapshotFullName", "snapshotLocation",
@@ -402,7 +405,7 @@ pub async fn create_campaign(
             ON CONFLICT DO NOTHING
             "#,
         )
-        .bind(cuid2::create_id())
+        .bind(&recipient_id)
         .bind(&campaign_id)
         .bind(contact_id)
         .bind(contact.map(|value| value.phone.as_str()))
@@ -410,8 +413,25 @@ pub async fn create_campaign(
         .bind(contact.and_then(|value| value.location.as_deref()))
         .bind(contact.map(|value| value.list_label.as_str()))
         .bind(contact.and_then(|value| value.metadata.as_ref()))
-        .execute(pool)
+        .execute(&mut *transaction)
         .await?;
+        if inserted.rows_affected() > 0 {
+            analytics::campaigns::enqueue_recipient_suppressed(
+                &mut transaction,
+                org_id,
+                &campaign_id,
+                &recipient_id,
+                "whatsapp",
+                "meta",
+                "manual_exclusion",
+                occurred_at,
+            )
+            .await
+            .map_err(|error| {
+                AppError::Internal(format!("Failed to queue Campaign analytics fact: {error}"))
+            })?;
+        }
+        transaction.commit().await?;
     }
 
     let campaign = get_campaign_row(pool, org_id, &campaign_id)
@@ -1349,6 +1369,14 @@ async fn process_claimed_campaign_recipient(
 
     let (reason, eligible) = contact_eligible(&contact);
     if !eligible {
+        let suppression_class = match reason {
+            "excluded" => "contact_excluded",
+            "not_opted_in" => "not_opted_in",
+            "cooldown" => "cooldown",
+            _ => "policy_guard",
+        };
+        let occurred_at = Utc::now();
+        let mut transaction = pool.begin().await?;
         sqlx::query(
             r#"
             UPDATE "WhatsappCampaignRecipient"
@@ -1367,8 +1395,23 @@ async fn process_claimed_campaign_recipient(
         .bind(reason)
         .bind("Recipient no longer matches marketing safety requirements")
         .bind(recipient_id)
-        .execute(pool)
+        .execute(&mut *transaction)
         .await?;
+        analytics::campaigns::enqueue_recipient_suppressed(
+            &mut transaction,
+            org_id,
+            &recipient.campaign_id,
+            recipient_id,
+            "whatsapp",
+            "meta",
+            suppression_class,
+            occurred_at,
+        )
+        .await
+        .map_err(|error| {
+            AppError::Internal(format!("Failed to queue Campaign analytics fact: {error}"))
+        })?;
+        transaction.commit().await?;
 
         recompute_campaign_stats(pool, &recipient.campaign_id).await?;
         return Ok(Some((
