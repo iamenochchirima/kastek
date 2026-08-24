@@ -4,6 +4,7 @@
   "files": [
     "domains/agents/runtime.yaml",
     "domains/campaigns/delivery.yaml",
+    "domains/connections/health.yaml",
     "domains/inbox/conversations.yaml",
     "dimensions/core.yaml",
     "metric-sets/overview.summary.yaml",

@@ -11,6 +11,8 @@ definitions:
       - campaign.recipients.sent@1
       - campaign.recipients.delivered@1
       - campaign.delivery_rate@1
+      - connection.lifecycle_events@1
+      - connection.health_checks@1
       - conversation.lifecycle_events@1
       - conversation.message.lifecycle_events@1
       - conversation.response_time_ms@1

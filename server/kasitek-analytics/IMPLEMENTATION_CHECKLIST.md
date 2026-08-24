@@ -524,6 +524,22 @@ checklist records implementation evidence for the current package only.
   regenerated; producer coverage and the live hosted-agent integration passed for creation,
   metadata updates, deletion-before-removal, bounded payloads, and organization isolation.
 
+## Core Connections — slice 1
+
+- [x] Add versioned lifecycle and health-check contracts with bounded provider/state fields and
+  explicit privacy exclusions for account identifiers, credentials, tokens, provider payloads,
+  and raw errors.
+- [x] Register lifecycle and health-check metrics, compatible dimensions, and overview metric-set
+  bindings; generated Rust and TypeScript registry bindings are current.
+- [x] Emit lifecycle facts from Core connection synchronization, explicit status commands, and
+  direct Twilio connection creation; unchanged synchronization and idempotent upserts emit none.
+- [x] Emit health-check facts transactionally with Core `ExternalConnection` health updates.
+- [x] Add an ignored PostgreSQL producer integration fixture covering both contracts, transaction
+  visibility, and prohibited-field absence without leaving rows after rollback.
+- [ ] Instrument capability history, provider synchronization attempts/outcomes, rate limits,
+  incidents, source manifests, historical backfill, projections, reporting, and full product
+  mutation-to-reporting E2E in later Connections slices.
+
 ## Explicitly deferred
 
 - A-02 native Redis integration until a native Redis server is available; Redis is not yet used by

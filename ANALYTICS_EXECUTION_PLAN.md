@@ -1612,6 +1612,24 @@ attempts and outcomes; rate limits; incidents; and reliable provider coverage wi
 Inbox, Campaign, Content, and Calls depend on this collection evidence. Final customer-facing
 Connection metrics remain gated on Product Section 9 approval.
 
+#### Execution slice 1 — connection lifecycle and health facts
+
+- [x] Register versioned, privacy-safe lifecycle and health-check contracts with bounded provider
+  and state fields; exclude account identifiers, display fields, metadata, credentials, tokens,
+  provider payloads, and raw errors.
+- [x] Register lifecycle and health-check count metrics with provider, lifecycle, status, credential,
+  health, and webhook dimensions; keep coverage partial until all authoritative connection paths
+  and historical backfill are complete.
+- [x] Emit connection-created and status-transition facts from Core synchronization, explicit
+  status commands, and direct Twilio connection creation without producing facts for unchanged
+  reads or idempotent upserts.
+- [x] Emit bounded health-check facts in the same transaction as Core's ExternalConnection health
+  state update, preserving the operational error only in Core.
+- [x] Add transactional producer/privacy coverage for both connection contracts.
+- [ ] Add capability history, provider synchronization attempts/outcomes, rate-limit events,
+  incident facts, source manifests, historical backfill, projections, and reporting results in
+  subsequent Connections slices.
+
 ### Core lane: Inbox
 
 Inbox owns conversation opened, reopened, assigned, unassigned, resolved, closed, and archived

@@ -2,6 +2,7 @@ use base64::{
     engine::general_purpose::{STANDARD as BASE64, URL_SAFE_NO_PAD},
     Engine as _,
 };
+use chrono::{DateTime, Utc};
 use hmac::{Hmac, Mac};
 use serde_json::{json, Value};
 use sha1::Sha1;
@@ -9,6 +10,7 @@ use sha2::Sha256;
 use sqlx::PgPool;
 use std::collections::BTreeMap;
 
+use crate::analytics;
 use crate::config::AppConfig;
 use crate::db::models::{CommunicationCallRow, VoiceConnectionCreateRequest};
 use crate::error::AppError;
@@ -566,8 +568,16 @@ pub async fn create_twilio_connection(
         .unwrap_or(phone_number);
     let source_id = format!("twilio:{phone_number}");
     let id = format!("voice_{}", cuid2::create_id());
+    let mut tx = pool.begin().await?;
+    let existing_id = sqlx::query_scalar::<_, String>(
+        r#"SELECT id FROM "ExternalConnection" WHERE "orgId" = $1 AND "sourceType" = 'VOICE' AND "sourceId" = $2 FOR UPDATE"#,
+    )
+    .bind(org_id)
+    .bind(&source_id)
+    .fetch_optional(&mut *tx)
+    .await?;
 
-    let row = sqlx::query_as::<_, (String, String, String)>(
+    let row = sqlx::query_as::<_, (String, String, String, DateTime<Utc>)>(
         r#"
         INSERT INTO "ExternalConnection" (
             id, "orgId", provider, "sourceType", "sourceId", "externalAccountId", "displayName",
@@ -578,7 +588,7 @@ pub async fn create_twilio_connection(
         ON CONFLICT ("orgId", "sourceType", "sourceId") DO UPDATE SET
             "displayName" = EXCLUDED."displayName", "externalAccountId" = EXCLUDED."externalAccountId",
             metadata = EXCLUDED.metadata, "updatedAt" = NOW()
-        RETURNING id, "displayName", "externalAccountId"
+        RETURNING id, "displayName", "externalAccountId", "updatedAt" AT TIME ZONE 'UTC'
         "#,
     )
     .bind(id)
@@ -586,8 +596,30 @@ pub async fn create_twilio_connection(
     .bind(source_id)
     .bind(phone_number)
     .bind(display_name)
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await?;
+
+    if existing_id.is_none() {
+        analytics::connections::enqueue_lifecycle(
+            &mut tx,
+            org_id,
+            &row.0,
+            TWILIO_PROVIDER,
+            "created",
+            "NOT_CONNECTED",
+            "MISSING",
+            "UNKNOWN",
+            "UNKNOWN",
+            row.3,
+        )
+        .await
+        .map_err(|error| {
+            AppError::Internal(format!(
+                "Failed to queue Connections analytics fact: {error}"
+            ))
+        })?;
+    }
+    tx.commit().await?;
 
     Ok(json!({
         "id": row.0,

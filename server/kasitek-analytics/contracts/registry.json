@@ -170,6 +170,22 @@
       "owner": "core-inbox",
       "category": "event",
       "privacy_class": "aggregate"
+    },
+    {
+      "identity": "connection.lifecycle@1",
+      "schema": "events/connections/lifecycle/v1.schema.json",
+      "examples": ["examples/connections/lifecycle.json"],
+      "owner": "core-connections",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "connection.health_check@1",
+      "schema": "events/connections/health_check/v1.schema.json",
+      "examples": ["examples/connections/health_check.json"],
+      "owner": "core-connections",
+      "category": "event",
+      "privacy_class": "aggregate"
     }
   ]
 }

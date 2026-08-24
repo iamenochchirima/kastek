@@ -1,9 +1,25 @@
+use std::collections::HashMap;
+
+use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Postgres, Transaction};
 
+use crate::analytics;
 use crate::db::models::ExternalConnection;
 use crate::error::AppError;
 
 const MUTABLE_STATUSES: &[&str] = &["CONNECTED", "DISCONNECTED", "REVOKED"];
+
+#[derive(Clone, Debug, Eq, PartialEq, sqlx::FromRow)]
+struct ConnectionState {
+    id: String,
+    provider: String,
+    status: String,
+    credential_status: String,
+    health_status: String,
+    webhook_status: String,
+    last_checked_at: Option<DateTime<Utc>>,
+    updated_at: DateTime<Utc>,
+}
 
 pub fn is_mutable_status(status: &str) -> bool {
     MUTABLE_STATUSES.contains(&status)
@@ -11,12 +27,143 @@ pub fn is_mutable_status(status: &str) -> bool {
 
 pub async fn sync_org_connections(pool: &PgPool, org_id: &str) -> Result<(), AppError> {
     let mut tx = pool.begin().await?;
+    let before = load_connection_states(&mut tx, org_id).await?;
     sync_whatsapp(&mut tx, org_id).await?;
     sync_social(&mut tx, org_id).await?;
     mark_missing_sources(&mut tx, org_id).await?;
     sync_capabilities(&mut tx, org_id).await?;
     sync_consumers(&mut tx, org_id).await?;
+    let after = load_connection_states(&mut tx, org_id).await?;
+    enqueue_state_changes(&mut tx, org_id, &before, &after).await?;
     tx.commit().await?;
+    Ok(())
+}
+
+async fn load_connection_states(
+    tx: &mut Transaction<'_, Postgres>,
+    org_id: &str,
+) -> Result<HashMap<String, ConnectionState>, AppError> {
+    let rows = sqlx::query_as::<_, ConnectionState>(
+        r#"
+        SELECT id, provider, status::text AS status,
+               "credentialStatus" AS credential_status,
+               "healthStatus" AS health_status,
+               "webhookStatus" AS webhook_status,
+               "lastCheckedAt" AT TIME ZONE 'UTC' AS last_checked_at,
+               "updatedAt" AT TIME ZONE 'UTC' AS updated_at
+        FROM "ExternalConnection"
+        WHERE "orgId" = $1
+        FOR UPDATE
+        "#,
+    )
+    .bind(org_id)
+    .fetch_all(&mut **tx)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|state| (state.id.clone(), state))
+        .collect())
+}
+
+async fn load_connection_state(
+    tx: &mut Transaction<'_, Postgres>,
+    org_id: &str,
+    connection_id: &str,
+) -> Result<Option<ConnectionState>, AppError> {
+    sqlx::query_as::<_, ConnectionState>(
+        r#"
+        SELECT id, provider, status::text AS status,
+               "credentialStatus" AS credential_status,
+               "healthStatus" AS health_status,
+               "webhookStatus" AS webhook_status,
+               "lastCheckedAt" AT TIME ZONE 'UTC' AS last_checked_at,
+               "updatedAt" AT TIME ZONE 'UTC' AS updated_at
+        FROM "ExternalConnection"
+        WHERE "orgId" = $1 AND id = $2
+        "#,
+    )
+    .bind(org_id)
+    .bind(connection_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(AppError::from)
+}
+
+async fn enqueue_state_changes(
+    tx: &mut Transaction<'_, Postgres>,
+    org_id: &str,
+    before: &HashMap<String, ConnectionState>,
+    after: &HashMap<String, ConnectionState>,
+) -> Result<(), AppError> {
+    for state in after.values() {
+        let Some(previous) = before.get(&state.id) else {
+            analytics::connections::enqueue_lifecycle(
+                tx,
+                org_id,
+                &state.id,
+                &state.provider,
+                "created",
+                &state.status,
+                &state.credential_status,
+                &state.health_status,
+                &state.webhook_status,
+                state.updated_at,
+            )
+            .await
+            .map_err(|error| {
+                AppError::Internal(format!(
+                    "Failed to queue Connections analytics fact: {error}"
+                ))
+            })?;
+            continue;
+        };
+
+        if previous.status != state.status {
+            analytics::connections::enqueue_lifecycle(
+                tx,
+                org_id,
+                &state.id,
+                &state.provider,
+                analytics::connections::lifecycle_action(&state.status),
+                &state.status,
+                &state.credential_status,
+                &state.health_status,
+                &state.webhook_status,
+                state.updated_at,
+            )
+            .await
+            .map_err(|error| {
+                AppError::Internal(format!(
+                    "Failed to queue Connections analytics fact: {error}"
+                ))
+            })?;
+        }
+
+        if previous.health_status != state.health_status
+            || previous.credential_status != state.credential_status
+            || previous.webhook_status != state.webhook_status
+            || previous.last_checked_at != state.last_checked_at
+        {
+            analytics::connections::enqueue_health_check(
+                tx,
+                org_id,
+                &state.id,
+                &state.provider,
+                &state.status,
+                &state.health_status,
+                &state.credential_status,
+                &state.webhook_status,
+                state.health_status == "HEALTHY",
+                state.last_checked_at.unwrap_or(state.updated_at),
+            )
+            .await
+            .map_err(|error| {
+                AppError::Internal(format!(
+                    "Failed to queue Connections analytics fact: {error}"
+                ))
+            })?;
+        }
+    }
     Ok(())
 }
 
@@ -300,12 +447,24 @@ pub async fn update_status(
         ));
     }
 
+    let mut tx = pool.begin().await?;
+    let previous_status = sqlx::query_scalar::<_, String>(
+        r#"SELECT status::text FROM "ExternalConnection" WHERE id = $1 AND "orgId" = $2 FOR UPDATE"#,
+    )
+    .bind(id)
+    .bind(org_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let Some(previous_status) = previous_status else {
+        return Err(AppError::NotFound("Connection not found".to_string()));
+    };
+
     let override_status = if status == "CONNECTED" {
         None
     } else {
         Some(status)
     };
-    let updated = sqlx::query_as::<_, (String, String)>(
+    let source_type = sqlx::query_scalar::<_, String>(
         r#"
         UPDATE "ExternalConnection"
         SET "statusOverride" = CAST($1 AS "ExternalConnectionStatus"),
@@ -314,17 +473,17 @@ pub async fn update_status(
             "healthStatus" = CASE WHEN $2 = 'CONNECTED' THEN "healthStatus" ELSE 'NEEDS_ATTENTION' END,
             "updatedAt" = NOW()
         WHERE id = $3 AND "orgId" = $4
-        RETURNING id, "sourceType"
+        RETURNING "sourceType"
         "#,
     )
     .bind(override_status)
     .bind(status)
     .bind(id)
     .bind(org_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *tx)
     .await?;
 
-    let Some((_, source_type)) = updated else {
+    let Some(source_type) = source_type else {
         return Err(AppError::NotFound("Connection not found".to_string()));
     };
 
@@ -345,9 +504,34 @@ pub async fn update_status(
         .bind(provider_status)
         .bind(id)
         .bind(org_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     }
+
+    if previous_status != status {
+        let state = load_connection_state(&mut tx, org_id, id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
+        analytics::connections::enqueue_lifecycle(
+            &mut tx,
+            org_id,
+            &state.id,
+            &state.provider,
+            analytics::connections::lifecycle_action(&state.status),
+            &state.status,
+            &state.credential_status,
+            &state.health_status,
+            &state.webhook_status,
+            state.updated_at,
+        )
+        .await
+        .map_err(|error| {
+            AppError::Internal(format!(
+                "Failed to queue Connections analytics fact: {error}"
+            ))
+        })?;
+    }
+    tx.commit().await?;
 
     list_connections(pool, org_id)
         .await?
@@ -410,7 +594,8 @@ pub async fn record_synced_source_health(
     webhook_status: Option<&str>,
     error: Option<&str>,
 ) -> Result<(), AppError> {
-    sqlx::query(
+    let mut tx = pool.begin().await?;
+    let state = sqlx::query_as::<_, ConnectionState>(
         r#"
         UPDATE "ExternalConnection"
         SET "healthStatus" = $1,
@@ -424,6 +609,12 @@ pub async fn record_synced_source_health(
             END,
             "updatedAt" = NOW()
         WHERE "orgId" = $5 AND "sourceType" = $6 AND "sourceId" = $7
+        RETURNING id, provider, status::text AS status,
+                  "credentialStatus" AS credential_status,
+                  "healthStatus" AS health_status,
+                  "webhookStatus" AS webhook_status,
+                  "lastCheckedAt" AT TIME ZONE 'UTC' AS last_checked_at,
+                  "updatedAt" AT TIME ZONE 'UTC' AS updated_at
         "#,
     )
     .bind(if healthy {
@@ -437,8 +628,31 @@ pub async fn record_synced_source_health(
     .bind(org_id)
     .bind(source_type)
     .bind(source_id)
-    .execute(pool)
+    .fetch_optional(&mut *tx)
     .await?;
+
+    if let Some(state) = state {
+        let occurred_at = state.last_checked_at.unwrap_or(state.updated_at);
+        analytics::connections::enqueue_health_check(
+            &mut tx,
+            org_id,
+            &state.id,
+            &state.provider,
+            &state.status,
+            &state.health_status,
+            &state.credential_status,
+            &state.webhook_status,
+            healthy,
+            occurred_at,
+        )
+        .await
+        .map_err(|analytics_error| {
+            AppError::Internal(format!(
+                "Failed to queue Connections analytics fact: {analytics_error}"
+            ))
+        })?;
+    }
+    tx.commit().await?;
     Ok(())
 }
 
