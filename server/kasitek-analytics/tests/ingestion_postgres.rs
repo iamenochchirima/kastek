@@ -312,6 +312,69 @@ async fn ingests_idempotently_tracks_cursor_and_reconciles_source_summary() {
         .unwrap(),
         1
     );
+    let manifest_row = sqlx::query(
+        "SELECT manifest_id, reliable_coverage_start FROM analytics.analytics_source_manifest WHERE producer_id = $1 AND manifest_key = $2",
+    )
+    .bind(&authenticated.producer_id)
+    .bind(&manifest_key)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let manifest_id = manifest_row.get::<i64, _>("manifest_id");
+    assert!(manifest_row
+        .get::<Option<chrono::DateTime<Utc>>, _>("reliable_coverage_start")
+        .is_none());
+    let coverage = sqlx::query(
+        "SELECT source_manifest_id, coverage_layer, source_domain, window_start, window_end, expected_count, included_count, excluded_count, coverage_state, complete_through, projection_version FROM analytics.analytics_coverage_checkpoint WHERE source_manifest_id = $1",
+    )
+    .bind(manifest_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(coverage.get::<i64, _>("source_manifest_id"), manifest_id);
+    assert_eq!(coverage.get::<String, _>("coverage_layer"), "source");
+    assert_eq!(coverage.get::<String, _>("source_domain"), "connections");
+    assert_eq!(
+        coverage.get::<chrono::DateTime<Utc>, _>("window_start"),
+        "2026-08-22T12:00:00Z"
+            .parse::<chrono::DateTime<Utc>>()
+            .unwrap()
+    );
+    assert_eq!(
+        coverage.get::<chrono::DateTime<Utc>, _>("window_end"),
+        "2026-08-22T12:05:00Z"
+            .parse::<chrono::DateTime<Utc>>()
+            .unwrap()
+    );
+    assert_eq!(coverage.get::<Option<i64>, _>("expected_count"), Some(3));
+    assert_eq!(coverage.get::<i64, _>("included_count"), 3);
+    assert_eq!(coverage.get::<i64, _>("excluded_count"), 0);
+    assert_eq!(coverage.get::<String, _>("coverage_state"), "available");
+    assert!(coverage
+        .get::<Option<chrono::DateTime<Utc>>, _>("complete_through")
+        .is_none());
+    assert!(coverage
+        .get::<Option<String>, _>("projection_version")
+        .is_none());
+    let coverage_payload: serde_json::Value = sqlx::query_scalar(
+        "SELECT to_jsonb(checkpoint) FROM analytics.analytics_coverage_checkpoint AS checkpoint WHERE source_manifest_id = $1",
+    )
+    .bind(manifest_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(coverage_payload.get("connection_ref").is_none());
+    assert!(coverage_payload.get("approved_checkpoint_hash").is_none());
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM analytics.analytics_coverage_checkpoint WHERE source_manifest_id = $1",
+        )
+        .bind(manifest_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap(),
+        1
+    );
     let manifest_duplicate = ingest_batch(
         &pool,
         &authenticated,
@@ -325,6 +388,16 @@ async fn ingests_idempotently_tracks_cursor_and_reconciles_source_summary() {
         manifest_duplicate.acknowledgements[0].status,
         AcknowledgementStatus::Duplicate
     ));
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM analytics.analytics_coverage_checkpoint WHERE source_manifest_id = $1",
+        )
+        .bind(manifest_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap(),
+        1
+    );
     let source_state = sqlx::query(
         "SELECT availability_state, metric_scope, latest_source_sequence FROM analytics.analytics_source_state WHERE producer_id = $1 AND source_stream_key = $2",
     )

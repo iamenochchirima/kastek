@@ -1688,8 +1688,8 @@ Connection metrics remain gated on Product Section 9 approval.
   checkpoint, while leaving reliable historical coverage and transport sequence evidence unset.
 - [x] Preserve transactional durability, privacy exclusions, and same-window idempotent
   coalescing in focused Core tests.
-- [ ] Add historical event backfill, Analytics coverage-checkpoint projection, reporting results,
-  and full mutation-to-reporting E2E after the Connections projection boundary exists.
+- [ ] Add historical event backfill, temporal/reconciliation coverage checkpoints, reporting
+  results, and full mutation-to-reporting E2E after the Connections projection boundary exists.
 
 #### Execution slice 6 — typed Connections projection boundary
 
@@ -1703,8 +1703,26 @@ Connection metrics remain gated on Product Section 9 approval.
   does not convert partial instrumentation into reliable historical coverage.
 - [x] Verify generation processing, replay idempotence, rollups, dimension mapping, and builder
   identity against a PostgreSQL fixture covering all six Connections metrics.
-- [ ] Add source-manifest-linked coverage checkpoints, historical event backfill, reporting
-  availability results, and full mutation-to-reporting E2E in the next Connections slices.
+- [x] Materialize one Analytics-owned source coverage checkpoint in the same transaction as each
+  accepted manifest, linked by immutable `source_manifest_id`; duplicate delivery creates no second
+  checkpoint.
+- [x] Preserve the source boundary honestly: the checkpoint reports the approved current population
+  and refresh window, while `complete_through` and reliable historical coverage remain unset.
+- [ ] Add historical event backfill, reporting availability results, and full mutation-to-reporting
+  E2E in the next Connections slices.
+
+#### Execution slice 7 — source-manifest coverage checkpoint receipt
+
+- [x] Insert a source-layer checkpoint after the manifest row is accepted and before the ingestion
+  transaction commits; a checkpoint failure rolls the manifest back and returns a retryable result.
+- [x] Carry only bounded scope, refresh-window, count, coverage-state, and manifest-reference data;
+  do not copy connection references, provider payloads, checkpoint hashes, or credentials.
+- [x] Derive `available`, `stale`, `unknown`, and `unavailable` from manifest state and safe failure
+  evidence without turning a current source population into a historical completeness claim.
+- [x] Verify accepted manifests, duplicate delivery, privacy exclusions, and incomplete-history
+  semantics in the PostgreSQL ingestion fixture.
+- [ ] Add temporal event backfill/reconciliation checkpoints and connect source coverage to reporting
+  availability before exposing customer-facing Connections analytics.
 
 ### Core lane: Inbox
 

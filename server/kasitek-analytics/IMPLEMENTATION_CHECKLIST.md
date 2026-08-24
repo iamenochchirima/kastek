@@ -594,8 +594,8 @@ checklist records implementation evidence for the current package only.
 - [x] Include the authoritative current `ExternalConnection` population as a bounded source
   checkpoint; do not claim a reliable historical coverage start before backfill/reconciliation.
 - [x] Add focused privacy, same-window idempotency, and coverage-boundary integration assertions.
-- [ ] Add historical event backfill, Analytics coverage-checkpoint projection, reporting, and full
-  product mutation-to-reporting E2E after the Connections projection boundary exists.
+- [ ] Add historical event backfill, temporal/reconciliation coverage checkpoints, reporting, and
+  full product mutation-to-reporting E2E after the Connections projection boundary exists.
 
 ## Core Connections — slice 6
 
@@ -608,8 +608,22 @@ checklist records implementation evidence for the current package only.
 - [x] Keep projection coverage observed/partial and do not claim reliable historical coverage.
 - [x] Verify generation processing, replay idempotence, rollups, and all six Connections metrics
   in the PostgreSQL projection fixture.
-- [ ] Add source-manifest-linked coverage checkpoints, historical event backfill, reporting, and
-  full product mutation-to-reporting E2E in later Connections slices.
+- [x] Insert one source-layer coverage checkpoint with each accepted manifest, linked by
+  `source_manifest_id` in the same transaction; duplicate delivery remains idempotent.
+- [x] Keep source coverage bounded to the approved current population and refresh window; leave
+  `complete_through` and reliable historical coverage unset until backfill/reconciliation exists.
+- [x] Verify checkpoint privacy, duplicate behavior, and incomplete-history semantics in the
+  PostgreSQL ingestion fixture.
+- [ ] Add temporal event backfill/reconciliation checkpoints, reporting availability, and full
+  product mutation-to-reporting E2E in later Connections slices.
+
+## Core Connections — slice 7
+
+- [x] Materialize source-manifest-linked coverage receipts in the Analytics ingestion transaction.
+- [x] Preserve manifest state, safe-failure, count, and refresh-window semantics without copying
+  provider or connection-sensitive fields into the checkpoint.
+- [x] Verify accepted, duplicate, privacy, and incomplete-history paths.
+- [ ] Build temporal coverage from historical event backfill and reconciliation before reporting.
 
 ## Explicitly deferred
 

@@ -5,7 +5,7 @@
 //! receipts, source cursors, and observation health are committed together.
 
 use actix_web::{http::header, web, HttpRequest, HttpResponse, Responder};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::{types::Json, PgPool, Postgres, Row, Transaction};
@@ -636,7 +636,29 @@ async fn ingest_record(
         .bind(validated.occurred_at)
         .fetch_one(&mut *transaction)
         .await;
-        if inserted.is_err() {
+        let manifest_id = match inserted {
+            Ok(row) => row.get::<i64, _>("manifest_id"),
+            Err(_) => return retryable(record_id, source_sequence, "analytics_unavailable"),
+        };
+        if insert_source_manifest_coverage_checkpoint(
+            &mut transaction,
+            &record,
+            authenticated,
+            &resolution,
+            manifest_id,
+            SourceManifestCoverageInput {
+                expected_refresh_seconds: *expected_refresh_seconds,
+                approved_checkpoint_count: *approved_checkpoint_count,
+                last_successful_collection_at: *last_successful_collection_at,
+                next_expected_at: *next_expected_at,
+                safe_failure_code: safe_failure_code.as_deref(),
+                manifest_state,
+                observed_at: validated.occurred_at,
+            },
+        )
+        .await
+        .is_err()
+        {
             return retryable(record_id, source_sequence, "analytics_unavailable");
         }
         if update_cursor(&mut transaction, authenticated, &record)
@@ -1007,6 +1029,99 @@ fn record_source_domain(record: &IngestionRecord) -> String {
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string()
+}
+
+fn source_manifest_coverage_window(
+    observed_at: DateTime<Utc>,
+    last_successful_collection_at: Option<DateTime<Utc>>,
+    next_expected_at: Option<DateTime<Utc>>,
+    expected_refresh_seconds: i64,
+) -> (DateTime<Utc>, DateTime<Utc>) {
+    let window_start = last_successful_collection_at.unwrap_or(observed_at);
+    let fallback_window_end = window_start + Duration::seconds(expected_refresh_seconds.max(1));
+    let window_end = next_expected_at
+        .filter(|candidate| *candidate > window_start)
+        .unwrap_or(fallback_window_end);
+    (window_start, window_end)
+}
+
+fn source_manifest_coverage_state(
+    manifest_state: &str,
+    safe_failure_code: Option<&str>,
+    has_approved_checkpoint: bool,
+    has_successful_collection: bool,
+) -> &'static str {
+    if matches!(manifest_state, "disabled" | "unsupported") {
+        return "unavailable";
+    }
+    if safe_failure_code.is_some() {
+        return if has_successful_collection {
+            "stale"
+        } else {
+            "unavailable"
+        };
+    }
+    if manifest_state == "active" && has_approved_checkpoint {
+        return "available";
+    }
+    "unknown"
+}
+
+struct SourceManifestCoverageInput<'a> {
+    expected_refresh_seconds: i64,
+    approved_checkpoint_count: Option<i64>,
+    last_successful_collection_at: Option<DateTime<Utc>>,
+    next_expected_at: Option<DateTime<Utc>>,
+    safe_failure_code: Option<&'a str>,
+    manifest_state: &'a str,
+    observed_at: DateTime<Utc>,
+}
+
+async fn insert_source_manifest_coverage_checkpoint(
+    transaction: &mut Transaction<'_, Postgres>,
+    record: &IngestionRecord,
+    authenticated: &AuthenticatedProducer,
+    resolution: &ScopeResolution,
+    manifest_id: i64,
+    coverage: SourceManifestCoverageInput<'_>,
+) -> Result<(), sqlx::Error> {
+    let (window_start, window_end) = source_manifest_coverage_window(
+        coverage.observed_at,
+        coverage.last_successful_collection_at,
+        coverage.next_expected_at,
+        coverage.expected_refresh_seconds,
+    );
+    let coverage_state = source_manifest_coverage_state(
+        coverage.manifest_state,
+        coverage.safe_failure_code,
+        coverage.approved_checkpoint_count.is_some(),
+        coverage.last_successful_collection_at.is_some(),
+    );
+
+    sqlx::query(
+        r#"INSERT INTO analytics.analytics_coverage_checkpoint (
+                producer_id, source_service, source_domain, reporting_scope_id, root_scope_id,
+                coverage_layer, dimension_key, window_start, window_end,
+                expected_count, included_count, excluded_count, coverage_state,
+                complete_through, projection_version, source_manifest_id, observed_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,NULL,$7,$8,$9,$10,0,$11,NULL,NULL,$12,$13)"#,
+    )
+    .bind(&record.producer_id)
+    .bind(&authenticated.source_service)
+    .bind(record_source_domain(record))
+    .bind(resolution.binding.reporting_scope_id)
+    .bind(resolution.binding.root_scope_id)
+    .bind("source")
+    .bind(window_start)
+    .bind(window_end)
+    .bind(coverage.approved_checkpoint_count)
+    .bind(coverage.approved_checkpoint_count.unwrap_or(0))
+    .bind(coverage_state)
+    .bind(manifest_id)
+    .bind(coverage.observed_at)
+    .execute(&mut **transaction)
+    .await?;
+    Ok(())
 }
 
 fn validate_record(
