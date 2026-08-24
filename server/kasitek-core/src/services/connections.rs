@@ -47,6 +47,13 @@ pub async fn sync_org_connections(pool: &PgPool, org_id: &str) -> Result<(), App
     sync_consumers(&mut tx, org_id).await?;
     let after = load_connection_states(&mut tx, org_id).await?;
     enqueue_state_changes(&mut tx, org_id, &before, &after).await?;
+    analytics::connections::enqueue_manifest(&mut tx, org_id, after.len() as i64, Utc::now())
+        .await
+        .map_err(|error| {
+            AppError::Internal(format!(
+                "Failed to queue Connections source manifest: {error}"
+            ))
+        })?;
     tx.commit().await?;
     Ok(())
 }

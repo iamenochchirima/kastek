@@ -3,15 +3,123 @@
 //! Only stable internal references and bounded state values cross the analytics boundary. Provider
 //! identifiers, display fields, credentials, metadata, and raw health errors remain in Core.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde_json::json;
 use sqlx::{Postgres, Transaction};
 
-use analytics_producer::{EnqueueResult, EventInput, ScopeKind};
+use analytics_producer::{EnqueueResult, EventInput, ManifestInput, ScopeKind};
 
-use super::enqueue_event;
+use super::{enqueue_event, enqueue_manifest as enqueue_source_manifest};
 
 const SOURCE_DOMAIN: &str = "connections";
+const MANIFEST_KEY: &str = "core.connections";
+const MANIFEST_REFRESH_SECONDS: i64 = 3_600;
+const SUPPORTED_CONTRACTS: &[&str] = &[
+    "connection.lifecycle@1",
+    "connection.health_check@1",
+    "connection.capability.lifecycle@1",
+    "connection.sync_attempt@1",
+    "connection.rate_limit@1",
+    "connection.incident.lifecycle@1",
+];
+const SUPPORTED_METRICS: &[&str] = &[
+    "connection.lifecycle_events",
+    "connection.health_checks",
+    "connection.capability_events",
+    "connection.sync_attempts",
+    "connection.rate_limit_encounters",
+    "connection.incidents",
+];
+const SUPPORTED_DIMENSIONS: &[&str] = &[
+    "provider",
+    "lifecycle_action",
+    "status",
+    "connection_health_status",
+    "connection_credential_status",
+    "connection_webhook_status",
+    "capability",
+    "connection_sync_operation",
+    "outcome",
+    "failure_class",
+    "rate_limit_scope",
+    "incident_severity",
+    "incident_reason_code",
+];
+
+/// Enqueue one organization-scoped Connections capability/coverage manifest per observed refresh
+/// window. This is evidence from a successful synchronization, not an independent scheduler.
+///
+/// The current ExternalConnection row count is an authoritative source checkpoint for the
+/// organization's current connection population. It is deliberately not presented as a reliable
+/// historical coverage boundary: the event history still needs a domain backfill and Analytics
+/// reconciliation before that boundary can be set.
+pub async fn enqueue_manifest(
+    transaction: &mut Transaction<'_, Postgres>,
+    organization_id: &str,
+    connection_count: i64,
+    collected_at: DateTime<Utc>,
+) -> Result<EnqueueResult, analytics_producer::ProducerError> {
+    let manifest_version = manifest_version(collected_at);
+    let source_stream_key = stream_key(organization_id);
+    let record_id = format!("manifest:{source_stream_key}:{MANIFEST_KEY}:{manifest_version}");
+    let result = enqueue_source_manifest(
+        transaction,
+        ManifestInput {
+            record_id,
+            source_domain: SOURCE_DOMAIN.to_string(),
+            source_stream_key,
+            contract_name: "source.manifest@1".to_string(),
+            schema_version: 1,
+            scope_kind: ScopeKind::CoreOrganization,
+            scope_external_id: organization_id.to_string(),
+            manifest_key: MANIFEST_KEY.to_string(),
+            manifest_version,
+            provider: None,
+            connection_ref: None,
+            supported_contracts: SUPPORTED_CONTRACTS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect(),
+            supported_observation_contracts: Vec::new(),
+            supported_metrics: SUPPORTED_METRICS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect(),
+            supported_dimensions: SUPPORTED_DIMENSIONS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect(),
+            expected_refresh_seconds: MANIFEST_REFRESH_SECONDS,
+            reliable_coverage_start: None,
+            highest_authoritative_source_sequence: None,
+            approved_checkpoint_count: Some(connection_count),
+            approved_checkpoint_hash: None,
+            last_successful_collection_at: Some(collected_at),
+            last_attempted_collection_at: Some(collected_at),
+            safe_failure_code: None,
+            next_expected_at: Some(collected_at + Duration::seconds(MANIFEST_REFRESH_SECONDS)),
+            manifest_state: "active".to_string(),
+            generated_at: collected_at,
+            idempotency_key: None,
+        },
+    )
+    .await?;
+
+    // A refresh can be requested more than once in the same hourly window. The source manifest is
+    // immutable, so the first successful observation wins that window; a concurrent writer's
+    // same-window identity conflict is an intentional coalescing duplicate, not a failed sync.
+    Ok(match result {
+        EnqueueResult::Conflict { outbox_id } => EnqueueResult::Duplicate { outbox_id },
+        result => result,
+    })
+}
+
+fn manifest_version(collected_at: DateTime<Utc>) -> i64 {
+    collected_at
+        .timestamp()
+        .div_euclid(MANIFEST_REFRESH_SECONDS)
+        .max(1)
+}
 
 #[allow(clippy::too_many_arguments)]
 pub async fn enqueue_lifecycle(
@@ -304,7 +412,9 @@ fn stream_key(organization_id: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{lifecycle_action, stream_key};
+    use chrono::{Duration, TimeZone, Utc};
+
+    use super::{lifecycle_action, manifest_version, stream_key};
 
     #[test]
     fn lifecycle_actions_are_bounded() {
@@ -319,5 +429,18 @@ mod tests {
     fn stream_key_is_organization_scoped() {
         assert_eq!(stream_key("org-123"), "organization:org-123:connections");
         assert!(!stream_key("org-123").contains("token"));
+    }
+
+    #[test]
+    fn manifest_versions_coalesce_one_hour_and_advance_monotonically() {
+        let start = Utc.with_ymd_and_hms(2026, 8, 24, 10, 12, 0).unwrap();
+        assert_eq!(
+            manifest_version(start),
+            manifest_version(start + Duration::minutes(40))
+        );
+        assert_eq!(
+            manifest_version(start) + 1,
+            manifest_version(start + Duration::hours(1))
+        );
     }
 }

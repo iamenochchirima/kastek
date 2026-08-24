@@ -536,8 +536,8 @@ checklist records implementation evidence for the current package only.
 - [x] Emit health-check facts transactionally with Core `ExternalConnection` health updates.
 - [x] Add an ignored PostgreSQL producer integration fixture covering both contracts, transaction
   visibility, and prohibited-field absence without leaving rows after rollback.
-- [ ] Instrument source manifests, historical backfill, projections, reporting, and full product
-  mutation-to-reporting E2E in later Connections slices.
+- [ ] Add historical backfill, projections, reporting, and full product mutation-to-reporting E2E
+  in later Connections slices.
 
 ## Core Connections — slice 2
 
@@ -549,8 +549,8 @@ checklist records implementation evidence for the current package only.
   mechanics do not create duplicate analytics transitions.
 - [x] Emit capability transitions transactionally with the Core capability projection.
 - [x] Extend the transactional privacy fixture to cover capability facts and rollback.
-- [ ] Add source manifests, historical backfill, projections, reporting, and full product
-  mutation-to-reporting E2E in later Connections slices.
+- [ ] Add historical backfill, projections, reporting, and full product mutation-to-reporting E2E
+  in later Connections slices.
 
 ## Core Connections — slice 3
 
@@ -565,8 +565,8 @@ checklist records implementation evidence for the current package only.
   avoiding a full connection projection rebuild for every provider attempt.
 - [x] Extend the ignored PostgreSQL producer/privacy fixture and add bounded provider error-class
   unit coverage.
-- [ ] Add source manifests, historical backfill, projections, reporting, and full product
-  mutation-to-reporting E2E in later Connections slices.
+- [ ] Add historical backfill, projections, reporting, and full product mutation-to-reporting E2E
+  in later Connections slices.
 
 ## Core Connections — slice 4
 
@@ -581,8 +581,21 @@ checklist records implementation evidence for the current package only.
 - [x] Emit incident facts transactionally with Core `ExternalConnection` health transitions.
 - [x] Extend producer/privacy coverage and add 429/error-classification and health-boundary tests;
   regenerate the Rust and TypeScript registry bindings.
-- [ ] Add source manifests, historical backfill, projections, reporting, and full product
-  mutation-to-reporting E2E in later Connections slices.
+- [ ] Add historical backfill, projections, reporting, and full product mutation-to-reporting E2E
+  in later Connections slices.
+
+## Core Connections — slice 5
+
+- [x] Publish `source.manifest@1` for the organization-scoped Core Connections stream from the
+  successful synchronization transaction, coalesced to one immutable manifest per observed
+  refresh window; no independent scheduler is claimed yet.
+- [x] Declare the registered Connections contracts, metrics, and dimensions without provider
+  identifiers, credentials, metadata, account identifiers, or raw provider payloads.
+- [x] Include the authoritative current `ExternalConnection` population as a bounded source
+  checkpoint; do not claim a reliable historical coverage start before backfill/reconciliation.
+- [x] Add focused privacy, same-window idempotency, and coverage-boundary integration assertions.
+- [ ] Add historical event backfill, Analytics coverage-checkpoint projection, reporting, and full
+  product mutation-to-reporting E2E after the Connections projection boundary exists.
 
 ## Explicitly deferred
 

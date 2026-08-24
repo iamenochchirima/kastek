@@ -1,8 +1,9 @@
 use std::env;
 
+use chrono::TimeZone;
 use kasitek_core::analytics::connections::{
     enqueue_capability_lifecycle, enqueue_health_check, enqueue_incident_lifecycle,
-    enqueue_lifecycle, enqueue_rate_limit, enqueue_sync_attempt,
+    enqueue_lifecycle, enqueue_manifest, enqueue_rate_limit, enqueue_sync_attempt,
 };
 use sqlx::{postgres::PgPoolOptions, Row};
 
@@ -95,6 +96,20 @@ async fn connection_facts_are_transactional_and_privacy_safe() {
     )
     .await
     .expect("connection incident fact should enqueue");
+    let first_manifest_at = chrono::Utc
+        .with_ymd_and_hms(2026, 8, 24, 10, 12, 0)
+        .unwrap();
+    enqueue_manifest(&mut transaction, "org_connections_a", 4, first_manifest_at)
+        .await
+        .expect("connection source manifest should enqueue");
+    enqueue_manifest(
+        &mut transaction,
+        "org_connections_a",
+        5,
+        first_manifest_at + chrono::Duration::minutes(5),
+    )
+    .await
+    .expect("same-window source manifest should coalesce");
 
     let rows = sqlx::query(
         r#"
@@ -130,6 +145,55 @@ async fn connection_facts_are_transactional_and_privacy_safe() {
         assert_eq!(
             data.get("connection_id").and_then(|value| value.as_str()),
             Some("ext_analytics-connection")
+        );
+    }
+
+    let manifest_rows = sqlx::query(
+        r#"
+        SELECT envelope
+        FROM analytics_outbox
+        WHERE source_domain = 'connections'
+          AND record_category = 'manifest'
+          AND record_id LIKE 'manifest:organization:org_connections_a:connections:%'
+        "#,
+    )
+    .fetch_all(&mut *transaction)
+    .await
+    .expect("manifest should be visible before commit");
+    assert_eq!(manifest_rows.len(), 1);
+    let manifest: serde_json::Value = manifest_rows[0].try_get("envelope").unwrap();
+    let manifest_data = manifest
+        .get("data")
+        .and_then(serde_json::Value::as_object)
+        .unwrap();
+    assert_eq!(
+        manifest_data
+            .get("approved_checkpoint_count")
+            .and_then(serde_json::Value::as_i64),
+        Some(4)
+    );
+    assert!(manifest_data
+        .get("reliable_coverage_start")
+        .is_some_and(serde_json::Value::is_null));
+    assert_eq!(
+        manifest_data
+            .get("manifest_state")
+            .and_then(serde_json::Value::as_str),
+        Some("active")
+    );
+    for prohibited in [
+        "display_name",
+        "handle",
+        "external_account_id",
+        "metadata",
+        "last_error",
+        "provider_payload",
+        "credential",
+        "token",
+    ] {
+        assert!(
+            !manifest_data.contains_key(prohibited),
+            "unexpected {prohibited}"
         );
     }
 

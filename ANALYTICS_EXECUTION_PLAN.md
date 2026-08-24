@@ -1626,8 +1626,7 @@ Connection metrics remain gated on Product Section 9 approval.
 - [x] Emit bounded health-check facts in the same transaction as Core's ExternalConnection health
   state update, preserving the operational error only in Core.
 - [x] Add transactional producer/privacy coverage for both connection contracts.
-- [ ] Add source manifests, historical backfill, projections, and reporting results in subsequent
-  Connections slices.
+- [ ] Add historical backfill, projections, and reporting results in subsequent Connections slices.
 
 #### Execution slice 2 — capability enablement history
 
@@ -1640,7 +1639,9 @@ Connection metrics remain gated on Product Section 9 approval.
   newly observed or enabled-state-changed capabilities emit facts.
 - [x] Emit capability facts in the same Core transaction as the capability projection rebuild.
 - [x] Cover the capability contract with transactional producer and privacy tests.
-- [ ] Add authoritative coverage evidence facts in later Connections slices.
+- [x] Add an organization-scoped source manifest heartbeat from successful synchronization, with
+  the current authoritative connection population as a bounded source checkpoint; leave reliable
+  historical coverage unset until backfill and reconciliation establish it.
 
 #### Execution slice 3 — provider synchronization outcomes
 
@@ -1656,8 +1657,8 @@ Connection metrics remain gated on Product Section 9 approval.
   reference mapping.
 - [x] Add producer/privacy coverage and bounded error-classification tests, and regenerate the
   Rust and TypeScript registry bindings.
-- [ ] Add source manifests, historical backfill, projections, reporting, and full
-  mutation-to-reporting E2E in later Connections slices.
+- [ ] Add historical backfill, projections, reporting, and full mutation-to-reporting E2E in later
+  Connections slices.
 
 #### Execution slice 4 — rate-limit and incident evidence
 
@@ -1673,8 +1674,22 @@ Connection metrics remain gated on Product Section 9 approval.
   suppress duplicates while a connection remains in the same health state.
 - [x] Add producer/privacy fixture coverage, registry bindings, 429 mapping coverage, and health
   incident boundary tests.
-- [ ] Add source manifests, historical backfill, projections, reporting, and full
-  mutation-to-reporting E2E in later Connections slices.
+- [ ] Add historical backfill, projections, reporting, and full mutation-to-reporting E2E in later
+  Connections slices.
+
+#### Execution slice 5 — source manifest and coverage evidence
+
+- [x] Publish `source.manifest@1` for the organization-scoped Core Connections stream from the
+  successful synchronization transaction, coalesced to one immutable manifest per observed
+  refresh window; do not claim an independent scheduler yet.
+- [x] Declare the actual Connections contracts, metrics, and dimensions already registered in
+  Analytics; keep the manifest provider-neutral because it describes the organization source.
+- [x] Include the authoritative current `ExternalConnection` population as an approved source
+  checkpoint, while leaving reliable historical coverage and transport sequence evidence unset.
+- [x] Preserve transactional durability, privacy exclusions, and same-window idempotent
+  coalescing in focused Core tests.
+- [ ] Add historical event backfill, Analytics coverage-checkpoint projection, reporting results,
+  and full mutation-to-reporting E2E after the Connections projection boundary exists.
 
 ### Core lane: Inbox
 
