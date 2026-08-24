@@ -376,6 +376,54 @@ pub async fn enqueue_replay_range(
 
     let mut enqueued = 0;
     for window in windows {
+        let reset = sqlx::query(
+            r#"UPDATE analytics.analytics_projection_work AS work
+               SET min_source_storage_id = LEAST(work.min_source_storage_id, $7),
+                   max_source_storage_id = GREATEST(work.max_source_storage_id, $8),
+                   work_status = 'pending',
+                   available_at = NOW(),
+                   lease_owner = NULL,
+                   lease_expires_at = NULL,
+                   attempt_count = 0,
+                   last_error_code = NULL,
+                   last_error_message = NULL,
+                   completed_at = NULL
+               WHERE work.work_id = (
+                 SELECT candidate.work_id
+                 FROM analytics.analytics_projection_work AS candidate
+                 JOIN analytics.analytics_projection_checkpoint AS checkpoint
+                   ON checkpoint.generation_id = candidate.generation_id
+                 WHERE candidate.projection_name = $1
+                   AND candidate.projection_version = $2
+                   AND candidate.fact_kind = $3
+                   AND candidate.reporting_scope_id = $4
+                   AND candidate.source_window_start = $5
+                   AND candidate.source_window_end = $6
+                   AND checkpoint.projection_name = $1
+                   AND checkpoint.projection_version = $2
+                   AND checkpoint.reporting_scope_id = $4
+                   AND checkpoint.shard_key = $9
+                 ORDER BY candidate.work_id DESC
+                 LIMIT 1
+               )"#,
+        )
+        .bind(PROJECTION_NAME)
+        .bind(PROJECTION_VERSION)
+        .bind(window.try_get::<String, _>("fact_kind")?)
+        .bind(reporting_scope_id)
+        .bind(window.try_get::<DateTime<Utc>, _>("window_start")?)
+        .bind(window.try_get::<DateTime<Utc>, _>("window_end")?)
+        .bind(window.try_get::<i64, _>("min_storage_id")?)
+        .bind(window.try_get::<i64, _>("max_storage_id")?)
+        .bind(DEFAULT_SHARD_KEY)
+        .execute(&mut *transaction)
+        .await?;
+
+        if reset.rows_affected() > 0 {
+            enqueued += 1;
+            continue;
+        }
+
         let result = sqlx::query(
             r#"INSERT INTO analytics.analytics_projection_work (
                  projection_name, projection_version, fact_kind, reporting_scope_id, root_scope_id,
@@ -529,6 +577,7 @@ impl MetricIdentity {
 enum DomainBuilder {
     Agents,
     Campaigns,
+    Connections,
     Inbox,
 }
 
@@ -537,6 +586,7 @@ impl DomainBuilder {
         match metric.domain.as_str() {
             "agents" => Ok(Self::Agents),
             "campaigns" => Ok(Self::Campaigns),
+            "connections" => Ok(Self::Connections),
             "inbox" => Ok(Self::Inbox),
             domain => Err(sqlx::Error::Protocol(format!(
                 "no typed projection builder for domain {domain}"
@@ -548,6 +598,7 @@ impl DomainBuilder {
         match self {
             Self::Agents => "agents.v1",
             Self::Campaigns => "campaigns.v1",
+            Self::Connections => "connections.v1",
             Self::Inbox => "inbox.v1",
         }
     }
@@ -1586,6 +1637,61 @@ fn typed_event_dimensions(
             required_text(attributes, "channel")?;
             required_text(attributes, "responder_type")?;
         }
+        DomainBuilder::Connections => {
+            required_text(attributes, "connection_id")?;
+            required_text(attributes, "provider")?;
+            match metric.key.as_str() {
+                "connection.lifecycle_events" => {
+                    require_text_fields(
+                        attributes,
+                        &[
+                            "action",
+                            "status",
+                            "credential_status",
+                            "health_status",
+                            "webhook_status",
+                        ],
+                    )?;
+                }
+                "connection.health_checks" => {
+                    require_text_fields(
+                        attributes,
+                        &[
+                            "status",
+                            "health_status",
+                            "credential_status",
+                            "webhook_status",
+                            "check_result",
+                        ],
+                    )?;
+                }
+                "connection.capability_events" => {
+                    require_text_fields(attributes, &["capability", "action"])?;
+                    required_bool(attributes, "enabled")?;
+                }
+                "connection.sync_attempts" => {
+                    require_text_fields(
+                        attributes,
+                        &["attempt_id", "operation", "outcome", "failure_class"],
+                    )?;
+                    required_number(attributes, "duration_ms")?;
+                }
+                "connection.rate_limit_encounters" => {
+                    require_text_fields(attributes, &["operation", "rate_limit_scope"])?;
+                }
+                "connection.incidents" => {
+                    require_text_fields(
+                        attributes,
+                        &["incident_key", "action", "severity", "reason_code"],
+                    )?;
+                }
+                metric => {
+                    return Err(sqlx::Error::Protocol(format!(
+                        "unsupported Connections metric {metric}"
+                    )));
+                }
+            }
+        }
     }
     Ok(event_dimensions(
         metric,
@@ -1604,11 +1710,39 @@ fn required_text(attributes: &Value, key: &str) -> Result<String, sqlx::Error> {
         .ok_or_else(|| sqlx::Error::Protocol(format!("typed projection builder missing {key}")))
 }
 
+fn require_text_fields(attributes: &Value, keys: &[&str]) -> Result<(), sqlx::Error> {
+    for key in keys {
+        required_text(attributes, key)?;
+    }
+    Ok(())
+}
+
+fn required_bool(attributes: &Value, key: &str) -> Result<bool, sqlx::Error> {
+    attributes
+        .get(key)
+        .and_then(Value::as_bool)
+        .ok_or_else(|| sqlx::Error::Protocol(format!("typed projection builder missing {key}")))
+}
+
+fn required_number(attributes: &Value, key: &str) -> Result<f64, sqlx::Error> {
+    attributes
+        .get(key)
+        .and_then(Value::as_f64)
+        .filter(|value| value.is_finite())
+        .ok_or_else(|| sqlx::Error::Protocol(format!("typed projection builder missing {key}")))
+}
+
 fn deduplication_key(metric: &MetricDefinition, attributes: &Value) -> Option<String> {
     let key = match metric.deduplication.as_str() {
         "recipient" => "recipient_id",
         "conversation" => "conversation_id",
-        "source_entity" => "source_entity_id",
+        "source_entity" => {
+            if attributes.get("source_entity_id").is_some() {
+                "source_entity_id"
+            } else {
+                "connection_id"
+            }
+        }
         _ => return None,
     };
     attributes
@@ -1676,6 +1810,15 @@ fn event_dimensions(
             "outcome" => attributes.get("outcome").cloned(),
             "failure_class" => attributes.get("failure_class").cloned(),
             "status" => attributes.get("status").cloned(),
+            "lifecycle_action" => attributes.get("action").cloned(),
+            "connection_health_status" => attributes.get("health_status").cloned(),
+            "connection_credential_status" => attributes.get("credential_status").cloned(),
+            "connection_webhook_status" => attributes.get("webhook_status").cloned(),
+            "capability" => attributes.get("capability").cloned(),
+            "connection_sync_operation" => attributes.get("operation").cloned(),
+            "rate_limit_scope" => attributes.get("rate_limit_scope").cloned(),
+            "incident_severity" => attributes.get("severity").cloned(),
+            "incident_reason_code" => attributes.get("reason_code").cloned(),
             _ => None,
         };
         if let Some(value) = value.filter(is_safe_dimension_value) {

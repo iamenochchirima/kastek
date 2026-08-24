@@ -411,3 +411,281 @@ async fn worker_claims_dirty_window_and_promotes_a_complete_generation() {
     .expect("delivery rate rollup");
     assert_eq!(delivery_rate, 1.0);
 }
+
+#[tokio::test]
+async fn connections_projection_builds_registered_metrics_with_bounded_dimensions() {
+    let Some(pool) = pool().await else { return };
+    let registry = load_registry().expect("registry");
+    let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default();
+    let scope_id: i64 = sqlx::query_scalar(
+        r#"INSERT INTO analytics.reporting_scope (
+             scope_kind, owning_source_service, external_source_id, status, reporting_timezone
+           ) VALUES ('core_organization','core',$1,'active','UTC')
+           RETURNING scope_id"#,
+    )
+    .bind(format!("connections-projection-{suffix}"))
+    .fetch_one(&pool)
+    .await
+    .expect("Connections scope");
+    let stream = format!("connections-projection-stream-{suffix}");
+    let connection_id = format!("ext-connections-{suffix}");
+    let event_time = Utc
+        .with_ymd_and_hms(2026, 8, 24, 10, 12, 0)
+        .single()
+        .expect("Connections event timestamp");
+    let events = [
+        (
+            "connection.lifecycle@1",
+            json!({
+                "connection_id": connection_id,
+                "provider": "WHATSAPP",
+                "action": "connected",
+                "status": "CONNECTED",
+                "credential_status": "ACTIVE",
+                "health_status": "HEALTHY",
+                "webhook_status": "UNKNOWN",
+                "occurred_at": event_time,
+            }),
+        ),
+        (
+            "connection.health_check@1",
+            json!({
+                "connection_id": connection_id,
+                "provider": "WHATSAPP",
+                "status": "CONNECTED",
+                "health_status": "HEALTHY",
+                "credential_status": "ACTIVE",
+                "webhook_status": "UNKNOWN",
+                "check_result": "healthy",
+                "occurred_at": event_time,
+            }),
+        ),
+        (
+            "connection.capability.lifecycle@1",
+            json!({
+                "connection_id": connection_id,
+                "provider": "WHATSAPP",
+                "capability": "MESSAGING_INBOUND",
+                "action": "enabled",
+                "enabled": true,
+                "occurred_at": event_time,
+            }),
+        ),
+        (
+            "connection.sync_attempt@1",
+            json!({
+                "attempt_id": format!("attempt-{suffix}"),
+                "connection_id": connection_id,
+                "provider": "WHATSAPP",
+                "operation": "connection_refresh",
+                "outcome": "succeeded",
+                "failure_class": "none",
+                "duration_ms": 120,
+                "occurred_at": event_time,
+            }),
+        ),
+        (
+            "connection.rate_limit@1",
+            json!({
+                "connection_id": connection_id,
+                "provider": "WHATSAPP",
+                "operation": "connection_refresh",
+                "rate_limit_scope": "provider",
+                "retry_after_seconds": null,
+                "observed_at": event_time,
+            }),
+        ),
+        (
+            "connection.incident.lifecycle@1",
+            json!({
+                "connection_id": connection_id,
+                "provider": "WHATSAPP",
+                "incident_key": "connection_health",
+                "action": "opened",
+                "severity": "critical",
+                "reason_code": "provider_health_failed",
+                "occurred_at": event_time,
+            }),
+        ),
+    ];
+    let mut storage_ids = Vec::new();
+    for (sequence, (event_type, attributes)) in events.iter().enumerate() {
+        let event_id = format!("connections-projection-event-{suffix}-{sequence}");
+        let storage_id: i64 = sqlx::query_scalar(
+            r#"INSERT INTO analytics.analytics_event (
+                 producer_id, source_service, source_domain, source_stream_key, source_sequence,
+                 event_id, event_type, schema_version, reporting_scope_id, root_scope_id,
+                 subject_type, subject_id, occurred_at, origin, source_record_id, attributes, payload_hash
+               ) VALUES ('core-customer-analytics','core','connections',$1,$2,$3,$4,1,$5,$5,
+                         'connection',$6,$7,'test://connections-projection',$3,$8,repeat('d',64))
+               RETURNING storage_id"#,
+        )
+        .bind(&stream)
+        .bind(i64::try_from(sequence + 1).expect("sequence fits"))
+        .bind(&event_id)
+        .bind(*event_type)
+        .bind(scope_id)
+        .bind(&connection_id)
+        .bind(event_time)
+        .bind(attributes)
+        .fetch_one(&pool)
+        .await
+        .expect("Connections event");
+        storage_ids.push(storage_id);
+    }
+
+    let window_start = Utc
+        .with_ymd_and_hms(2026, 8, 24, 10, 0, 0)
+        .single()
+        .expect("Connections window start");
+    let window_end = window_start + chrono::Duration::hours(1);
+    let work_id: i64 = sqlx::query_scalar(
+        r#"INSERT INTO analytics.analytics_projection_work (
+             projection_name, projection_version, fact_kind, reporting_scope_id, root_scope_id,
+             source_window_start, source_window_end, min_source_storage_id, max_source_storage_id,
+             priority, work_status
+           ) VALUES ($1,$2,'event',$3,$3,$4,$5,$6,$7,1,'pending')
+           RETURNING work_id"#,
+    )
+    .bind(projections::PROJECTION_NAME)
+    .bind(projections::PROJECTION_VERSION)
+    .bind(scope_id)
+    .bind(window_start)
+    .bind(window_end)
+    .bind(*storage_ids.first().expect("first storage id"))
+    .bind(*storage_ids.last().expect("last storage id"))
+    .fetch_one(&pool)
+    .await
+    .expect("Connections projection work");
+
+    let mut completed = false;
+    for _ in 0..8 {
+        let _ = projections::process_once(&pool, &registry, "connections-projection-test", 60)
+            .await
+            .expect("Connections projection pass");
+        let status: String = sqlx::query_scalar(
+            "SELECT work_status FROM analytics.analytics_projection_work WHERE work_id = $1",
+        )
+        .bind(work_id)
+        .fetch_one(&pool)
+        .await
+        .expect("Connections work status");
+        if status == "completed" {
+            completed = true;
+            break;
+        }
+    }
+    assert!(completed, "Connections projection work did not complete");
+
+    let generation_id: i64 = sqlx::query_scalar(
+        "SELECT generation_id FROM analytics.analytics_projection_work WHERE work_id = $1",
+    )
+    .bind(work_id)
+    .fetch_one(&pool)
+    .await
+    .expect("Connections generation");
+    assert_eq!(
+        projections::enqueue_replay_range(&pool, scope_id, scope_id, window_start, window_end)
+            .await
+            .expect("Connections replay enqueue"),
+        1
+    );
+    for _ in 0..8 {
+        let _ = projections::process_once(&pool, &registry, "connections-replay-test", 60)
+            .await
+            .expect("Connections replay pass");
+        let pending: i64 = sqlx::query_scalar(
+            r#"SELECT COUNT(*)
+               FROM analytics.analytics_projection_work
+               WHERE projection_name = $1 AND projection_version = $2
+                 AND reporting_scope_id = $3
+                 AND source_window_start = $4 AND source_window_end = $5
+                 AND work_status IN ('pending', 'leased', 'failed')"#,
+        )
+        .bind(projections::PROJECTION_NAME)
+        .bind(projections::PROJECTION_VERSION)
+        .bind(scope_id)
+        .bind(window_start)
+        .bind(window_end)
+        .fetch_one(&pool)
+        .await
+        .expect("Connections replay status");
+        if pending == 0 {
+            break;
+        }
+    }
+    let expected_dimensions = [
+        (
+            "connection.lifecycle_events",
+            json!({"provider": "WHATSAPP", "lifecycle_action": "connected", "status": "CONNECTED"}),
+        ),
+        (
+            "connection.health_checks",
+            json!({
+                "provider": "WHATSAPP",
+                "status": "CONNECTED",
+                "connection_health_status": "HEALTHY",
+                "connection_credential_status": "ACTIVE",
+                "connection_webhook_status": "UNKNOWN"
+            }),
+        ),
+        (
+            "connection.capability_events",
+            json!({
+                "provider": "WHATSAPP",
+                "capability": "MESSAGING_INBOUND",
+                "lifecycle_action": "enabled"
+            }),
+        ),
+        (
+            "connection.sync_attempts",
+            json!({
+                "provider": "WHATSAPP",
+                "connection_sync_operation": "connection_refresh",
+                "outcome": "succeeded",
+                "failure_class": "none"
+            }),
+        ),
+        (
+            "connection.rate_limit_encounters",
+            json!({
+                "provider": "WHATSAPP",
+                "connection_sync_operation": "connection_refresh",
+                "rate_limit_scope": "provider"
+            }),
+        ),
+        (
+            "connection.incidents",
+            json!({
+                "provider": "WHATSAPP",
+                "lifecycle_action": "opened",
+                "incident_severity": "critical",
+                "incident_reason_code": "provider_health_failed"
+            }),
+        ),
+    ];
+    for (metric_key, dimensions) in expected_dimensions {
+        let row = sqlx::query(
+            r#"SELECT COUNT(*) AS count, MIN(builder_name) AS builder_name,
+                      (array_agg(dimensions))[1] AS dimensions,
+                      (array_agg(coverage))[1] AS coverage
+               FROM analytics.analytics_projection_contribution
+               WHERE generation_id = $1 AND source_scope_id = $2 AND metric_key = $3"#,
+        )
+        .bind(generation_id)
+        .bind(scope_id)
+        .bind(metric_key)
+        .fetch_one(&pool)
+        .await
+        .expect("Connections contribution");
+        assert_eq!(row.get::<i64, _>("count"), 1, "metric {metric_key}");
+        assert_eq!(row.get::<String, _>("builder_name"), "connections.v1");
+        assert_eq!(row.get::<serde_json::Value, _>("dimensions"), dimensions);
+        assert_eq!(
+            row.get::<serde_json::Value, _>("coverage")
+                .get("coverage_state")
+                .and_then(serde_json::Value::as_str),
+            Some("observed")
+        );
+    }
+}

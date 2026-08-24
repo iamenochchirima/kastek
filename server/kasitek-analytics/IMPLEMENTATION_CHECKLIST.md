@@ -597,6 +597,20 @@ checklist records implementation evidence for the current package only.
 - [ ] Add historical event backfill, Analytics coverage-checkpoint projection, reporting, and full
   product mutation-to-reporting E2E after the Connections projection boundary exists.
 
+## Core Connections — slice 6
+
+- [x] Route Connections event metrics through a dedicated `connections.v1` typed projection
+  builder.
+- [x] Validate lifecycle, health, capability, synchronization, rate-limit, and incident fields
+  before writing typed contributions.
+- [x] Map registered Connections dimensions while excluding internal connection references from
+  dimension JSON.
+- [x] Keep projection coverage observed/partial and do not claim reliable historical coverage.
+- [x] Verify generation processing, replay idempotence, rollups, and all six Connections metrics
+  in the PostgreSQL projection fixture.
+- [ ] Add source-manifest-linked coverage checkpoints, historical event backfill, reporting, and
+  full product mutation-to-reporting E2E in later Connections slices.
+
 ## Explicitly deferred
 
 - A-02 native Redis integration until a native Redis server is available; Redis is not yet used by

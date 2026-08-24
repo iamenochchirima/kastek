@@ -1691,6 +1691,21 @@ Connection metrics remain gated on Product Section 9 approval.
 - [ ] Add historical event backfill, Analytics coverage-checkpoint projection, reporting results,
   and full mutation-to-reporting E2E after the Connections projection boundary exists.
 
+#### Execution slice 6 — typed Connections projection boundary
+
+- [x] Route the registered Connections event metrics through a dedicated `connections.v1` typed
+  projection builder instead of allowing an unsupported-domain fallback.
+- [x] Validate the domain-specific event fields required for lifecycle, health, capability, sync,
+  rate-limit, and incident metrics before writing typed contributions.
+- [x] Map the registered Connections dimensions from bounded event attributes and keep internal
+  connection references out of customer-facing dimension JSON.
+- [x] Preserve partial/observed coverage semantics in projection contributions; a projection pass
+  does not convert partial instrumentation into reliable historical coverage.
+- [x] Verify generation processing, replay idempotence, rollups, dimension mapping, and builder
+  identity against a PostgreSQL fixture covering all six Connections metrics.
+- [ ] Add source-manifest-linked coverage checkpoints, historical event backfill, reporting
+  availability results, and full mutation-to-reporting E2E in the next Connections slices.
+
 ### Core lane: Inbox
 
 Inbox owns conversation opened, reopened, assigned, unassigned, resolved, closed, and archived
