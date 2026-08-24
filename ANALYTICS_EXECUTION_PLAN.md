@@ -2028,7 +2028,16 @@ sent or delivered status.
 - [x] Extend Core privacy/rollback, authenticated publisher, and reporting coverage for the read
   fact and distinct-recipient aggregation.
 - [ ] Add read-delay timing once the Campaign timing contract is introduced.
-- [ ] Add failure, block, unsubscribe, retry, eligibility, and guard facts in later slices.
+
+#### Execution slice 3 — recipient failure facts
+
+- [x] Add and register `campaign.recipient.failed@1` with bounded `failure_class`; blocked outcomes
+  remain a separate later fact and are not counted as failures.
+- [x] Emit failure facts transactionally for provider-send failures, entitlement failures, and
+  WhatsApp provider `FAILED` webhook transitions.
+- [x] Extend Core privacy/rollback, authenticated publisher, and reporting coverage for failure
+  facts and the `failure_class` breakdown.
+- [ ] Add block, unsubscribe, retry, eligibility, guard, and read-delay facts in later slices.
 
 ### Agent Platform lane: customer handoff
 

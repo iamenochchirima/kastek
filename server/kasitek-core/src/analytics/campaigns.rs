@@ -33,6 +33,7 @@ pub async fn enqueue_recipient_sent(
         "sent",
         "campaign.recipient.sent@1",
         occurred_at,
+        None,
     )
     .await
 }
@@ -56,6 +57,7 @@ pub async fn enqueue_recipient_delivered(
         "delivered",
         "campaign.recipient.delivered@1",
         occurred_at,
+        None,
     )
     .await
 }
@@ -79,6 +81,32 @@ pub async fn enqueue_recipient_read(
         "read",
         "campaign.recipient.read@1",
         occurred_at,
+        None,
+    )
+    .await
+}
+
+pub async fn enqueue_recipient_failed(
+    transaction: &mut Transaction<'_, Postgres>,
+    organization_id: &str,
+    campaign_id: &str,
+    recipient_id: &str,
+    channel: &str,
+    provider: &str,
+    failure_class: &str,
+    occurred_at: DateTime<Utc>,
+) -> Result<EnqueueResult, analytics_producer::ProducerError> {
+    enqueue_recipient_delivery(
+        transaction,
+        organization_id,
+        campaign_id,
+        recipient_id,
+        channel,
+        provider,
+        "failed",
+        "campaign.recipient.failed@1",
+        occurred_at,
+        Some(failure_class),
     )
     .await
 }
@@ -94,8 +122,20 @@ async fn enqueue_recipient_delivery(
     status: &str,
     contract_name: &str,
     occurred_at: DateTime<Utc>,
+    failure_class: Option<&str>,
 ) -> Result<EnqueueResult, analytics_producer::ProducerError> {
     let record_id = format!("campaign-recipient:{campaign_id}:{recipient_id}:{status}");
+    let mut attributes = json!({
+        "campaign_id": campaign_id,
+        "recipient_id": recipient_id,
+        "channel": channel,
+        "provider": provider,
+        "occurred_at": occurred_at,
+        "status": status,
+    });
+    if let Some(failure_class) = failure_class {
+        attributes["failure_class"] = json!(failure_class);
+    }
     enqueue_event(
         transaction,
         EventInput {
@@ -109,14 +149,7 @@ async fn enqueue_recipient_delivery(
             subject_type: "campaign_recipient".to_string(),
             subject_id: recipient_id.to_string(),
             occurred_at,
-            attributes: json!({
-                "campaign_id": campaign_id,
-                "recipient_id": recipient_id,
-                "channel": channel,
-                "provider": provider,
-                "occurred_at": occurred_at,
-                "status": status,
-            }),
+            attributes,
             correlation_id: None,
             causation_id: None,
             idempotency_key: Some(record_id),

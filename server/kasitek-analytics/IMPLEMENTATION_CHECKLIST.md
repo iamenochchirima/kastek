@@ -476,11 +476,11 @@ checklist records implementation evidence for the current package only.
 -  The same fixture now verifies all six registered Connections metrics as available after the
   temporal boundary. Approved customer-facing surfaces remain pending.
 - Core Campaign delivery: the ignored `core_campaigns_system_e2e` fixture passed against the local
-  native Core and Analytics PostgreSQL databases; it published deduplicated sent/delivered/read facts
-  through the authenticated Analytics API and verified persisted privacy-safe event rows.
+  native Core and Analytics PostgreSQL databases; it published deduplicated sent/delivered/read/failed
+  facts through the authenticated Analytics API and verified persisted privacy-safe event rows.
 - Campaign reporting: the native `reporting_postgres` fixture now verifies delivered distinct
-  counting, read distinct counting, and delivery-rate numerator/denominator reporting with available
-  temporal coverage.
+  counting, read distinct counting, failed distinct counting with `failure_class` breakdown, and
+  delivery-rate numerator/denominator reporting with available temporal coverage.
 - Customer handoff reporting: the native `reporting_postgres` fixture accepted three bounded
   customer-service handoff lifecycle facts, projected them with Agent-definition and handoff-state
   dimensions, and returned an authorized report with available temporal coverage.
@@ -780,8 +780,19 @@ checklist records implementation evidence for the current package only.
   duplicates for unchanged status writes.
 - [x] Extend Core rollback/privacy, authenticated publisher E2E, and signed reporting coverage for
   the read fact and distinct-recipient aggregation.
-- [ ] Add read-delay timing and the remaining failure, block, unsubscribe, retry, eligibility, and
-  guard facts in later Campaign slices.
+
+## Core Campaigns — recipient failure slice 3
+
+- [x] Add and register `campaign.recipient.failed@1` with aggregate-safe bounded failure classes;
+  `raw_error` and provider payloads remain prohibited.
+- [x] Add `campaign.recipients.failed@1` with distinct-recipient aggregation, failure-class
+  compatibility, and overview metric-set registration.
+- [x] Emit provider-send, entitlement, and WhatsApp webhook failure facts in the same Core database
+  transaction as the authoritative recipient failure transition. Blocked outcomes remain excluded.
+- [x] Verify producer rollback/privacy behavior, authenticated Core publisher delivery, Analytics
+  ingestion, failure-class reporting, and available temporal coverage in PostgreSQL tests.
+- [ ] Add read-delay, blocked, retry, eligibility, unsubscribe/exclusion, guard, and completed
+  mutation-to-reporting coverage in later Campaign slices.
 
 ## Reporting availability — slice 10
 

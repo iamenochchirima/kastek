@@ -1380,6 +1380,8 @@ async fn process_claimed_campaign_recipient(
     if let Err(error) =
         billing::require_capability(pool, org_id, billing::capabilities::CAMPAIGNS_SEND).await
     {
+        let occurred_at = Utc::now();
+        let mut transaction = pool.begin().await?;
         sqlx::query(
             r#"
             UPDATE "WhatsappCampaignRecipient"
@@ -1393,8 +1395,23 @@ async fn process_claimed_campaign_recipient(
         )
         .bind(error.to_string())
         .bind(recipient_id)
-        .execute(pool)
+        .execute(&mut *transaction)
         .await?;
+        analytics::campaigns::enqueue_recipient_failed(
+            &mut transaction,
+            org_id,
+            &recipient.campaign_id,
+            recipient_id,
+            "whatsapp",
+            "meta",
+            "entitlement_required",
+            occurred_at,
+        )
+        .await
+        .map_err(|error| {
+            AppError::Internal(format!("Failed to queue Campaign analytics fact: {error}"))
+        })?;
+        transaction.commit().await?;
         recompute_campaign_stats(pool, &recipient.campaign_id).await?;
         return Ok(Some((
             campaign.user_id.clone(),
@@ -1538,6 +1555,8 @@ async fn process_claimed_campaign_recipient(
             let (code, message, blocked) = parse_failure_details(&error);
             let status = if blocked { "BLOCKED" } else { "FAILED" };
 
+            let occurred_at = Utc::now();
+            let mut transaction = pool.begin().await?;
             sqlx::query(
                 r#"
                 UPDATE "WhatsappCampaignRecipient"
@@ -1553,7 +1572,7 @@ async fn process_claimed_campaign_recipient(
             .bind(code.as_deref())
             .bind(&message)
             .bind(recipient_id)
-            .execute(pool)
+            .execute(&mut *transaction)
             .await?;
             sqlx::query(
                 r#"
@@ -1579,8 +1598,25 @@ async fn process_claimed_campaign_recipient(
             .bind(&response_payload)
             .bind(code.as_deref())
             .bind(&message)
-            .execute(pool)
+            .execute(&mut *transaction)
             .await?;
+            if status == "FAILED" {
+                analytics::campaigns::enqueue_recipient_failed(
+                    &mut transaction,
+                    org_id,
+                    &campaign.id,
+                    recipient_id,
+                    "whatsapp",
+                    "meta",
+                    "provider_rejected",
+                    occurred_at,
+                )
+                .await
+                .map_err(|error| {
+                    AppError::Internal(format!("Failed to queue Campaign analytics fact: {error}"))
+                })?;
+            }
+            transaction.commit().await?;
 
             log::error!(
                 "[campaign-send] request failed campaign_id={} recipient_id={} contact_id={} phone={} code={:?} message={} request_payload={} response_payload={}",

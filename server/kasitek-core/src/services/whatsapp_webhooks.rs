@@ -243,35 +243,52 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
             .bind(&recipient.id)
             .execute(&mut *status_transaction)
             .await?;
-            if matches!(next_status, "DELIVERED" | "READ") {
+            if matches!(next_status, "DELIVERED" | "READ" | "FAILED") {
                 let organization_id = sqlx::query_scalar::<_, String>(
                     r#"SELECT "orgId" FROM "WhatsappCampaign" WHERE id = $1 LIMIT 1"#,
                 )
                 .bind(&recipient.campaign_id)
                 .fetch_one(&mut *status_transaction)
                 .await?;
-                let result = if next_status == "DELIVERED" {
-                    analytics::campaigns::enqueue_recipient_delivered(
-                        &mut status_transaction,
-                        &organization_id,
-                        &recipient.campaign_id,
-                        &recipient.id,
-                        "whatsapp",
-                        "meta",
-                        timestamp,
-                    )
-                    .await
-                } else {
-                    analytics::campaigns::enqueue_recipient_read(
-                        &mut status_transaction,
-                        &organization_id,
-                        &recipient.campaign_id,
-                        &recipient.id,
-                        "whatsapp",
-                        "meta",
-                        timestamp,
-                    )
-                    .await
+                let result = match next_status {
+                    "DELIVERED" => {
+                        analytics::campaigns::enqueue_recipient_delivered(
+                            &mut status_transaction,
+                            &organization_id,
+                            &recipient.campaign_id,
+                            &recipient.id,
+                            "whatsapp",
+                            "meta",
+                            timestamp,
+                        )
+                        .await
+                    }
+                    "READ" => {
+                        analytics::campaigns::enqueue_recipient_read(
+                            &mut status_transaction,
+                            &organization_id,
+                            &recipient.campaign_id,
+                            &recipient.id,
+                            "whatsapp",
+                            "meta",
+                            timestamp,
+                        )
+                        .await
+                    }
+                    "FAILED" => {
+                        analytics::campaigns::enqueue_recipient_failed(
+                            &mut status_transaction,
+                            &organization_id,
+                            &recipient.campaign_id,
+                            &recipient.id,
+                            "whatsapp",
+                            "meta",
+                            "provider_rejected",
+                            timestamp,
+                        )
+                        .await
+                    }
+                    _ => unreachable!("status was checked before analytics publication"),
                 };
                 result.map_err(|error| {
                     AppError::Internal(format!("Failed to queue Campaign analytics fact: {error}"))

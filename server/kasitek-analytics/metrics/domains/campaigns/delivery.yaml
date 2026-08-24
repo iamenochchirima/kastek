@@ -99,6 +99,39 @@ definitions:
     applicability: campaign provider read facts are instrumented
     dependencies: []
 
+  - key: campaign.recipients.failed
+    version: 1
+    domain: campaigns
+    owner: core-campaigns
+    lifecycle: active
+    description: Campaign recipients with a recorded failed delivery outcome.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - campaign.recipient.failed@1
+    formula: count_distinct(campaign.recipient.failed@1, recipient_id)
+    eligible_population: campaign recipients with a failed delivery outcome in the reporting window
+    exclusions: [test recipients, blocked recipients]
+    time_semantics: event_time
+    default_aggregation: distinct_count
+    temporal_aggregation: distinct_count
+    comparison: previous_period
+    deduplication: recipient
+    descendant_aggregation: deduplicated
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace]
+    dimensions: [campaign, channel, provider, failure_class, status]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [campaign.recipient.failed@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-24T00:00:00Z"
+    applicability: campaign provider failure facts are instrumented
+    dependencies: []
+
   - key: campaign.delivery_rate
     version: 1
     domain: campaigns
