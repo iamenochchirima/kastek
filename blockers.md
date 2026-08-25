@@ -19,12 +19,17 @@ analytics slices.
   for a source-of-truth amount from the provider payload or a Core billing/usage ledger; no value is
   inferred from billable state.
 
-## Remaining product reporting surfaces and internal control UI
+## Browser E2E harness
 
-- UI-01 now provides authenticated Core and Tenant catalog/report gateways and an authenticated
-  Analytics scope resolver. The remaining UI slices still need the shared frontend client, local
+- UI-01 through UI-08 now provide the authenticated reporting gateways, shared client, local
   playground, feature dashboards, tenant/client views, per-agent views, overview composition, and
-  browser E2E. Direct browser access to Analytics remains intentionally unsupported.
+  deliberate legacy-route handling. Direct browser access to Analytics remains intentionally
+  unsupported.
+- The repository has no Playwright, Cypress, Puppeteer, or Chromium dependency/harness. Therefore
+  authenticated browser E2E, responsive screenshots, and Core/Tenant/tenant-client scope-isolation
+  checks cannot be executed here. The client production build, source TypeScript check, targeted
+  lint, canonical-route check, and service-level Analytics E2E remain available. Add a supported
+  browser harness before claiming UI-08 browser verification complete.
 
 ## Source heartbeat scheduling
 
