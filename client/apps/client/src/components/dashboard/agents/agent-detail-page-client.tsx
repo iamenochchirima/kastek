@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
-import { Archive, ArrowLeft, BookOpen, CheckCircle2, Copy, Cpu, Globe2, History, KeyRound, LayoutDashboard, MessageSquare, PlugZap, RefreshCw, Rocket, RotateCcw, Settings2, SlidersHorizontal, Sparkles, Trash2, Upload, Workflow, Wrench } from "lucide-react";
+import { Archive, ArrowLeft, BarChart3, BookOpen, CheckCircle2, Copy, Cpu, Globe2, History, KeyRound, LayoutDashboard, MessageSquare, PlugZap, RefreshCw, Rocket, RotateCcw, Settings2, SlidersHorizontal, Sparkles, Trash2, Upload, Workflow, Wrench } from "lucide-react";
 import type { IconType } from "react-icons";
 import { SiDiscord, SiInstagram, SiMessenger, SiModelcontextprotocol, SiTelegram, SiWhatsapp } from "react-icons/si";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { AgentWorkflowEditor, type WorkflowGraphValue } from "./agent-workflow-editor";
 import { AgentChatPanel } from "./agent-chat-panel";
+import { AgentAnalyticsPanel } from "./agent-analytics-panel";
 import { AgentModelPicker } from "./agent-model-picker";
 import { AgentRuntimeLimits, defaultAgentRuntimeLimits, parseAgentRuntimeLimits, type AgentRuntimeLimitsValue } from "./agent-runtime-limits";
 import { AgentToolIntegrations } from "./agent-tool-integrations";
@@ -483,7 +484,7 @@ function sanitizeAgentSlug(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
 }
 
-type DetailSection = "overview" | "activity" | "conversations" | "operations" | "knowledge" | "behavior" | "models" | "tools" | "integrations" | "appearance" | "deployment" | "connection" | "settings" | "advanced";
+type DetailSection = "overview" | "analytics" | "activity" | "conversations" | "operations" | "knowledge" | "behavior" | "models" | "tools" | "integrations" | "appearance" | "deployment" | "connection" | "settings" | "advanced";
 
 type DetailNavigationItem = {
   section: DetailSection;
@@ -498,7 +499,7 @@ type DetailNavigationGroup = {
 };
 
 function isDetailSection(value: string | null): value is DetailSection {
-  return value === "overview" || value === "activity" || value === "conversations" || value === "operations" || value === "knowledge" || value === "behavior" || value === "models" || value === "tools" || value === "integrations" || value === "appearance" || value === "deployment" || value === "connection" || value === "settings" || value === "advanced";
+  return value === "overview" || value === "analytics" || value === "activity" || value === "conversations" || value === "operations" || value === "knowledge" || value === "behavior" || value === "models" || value === "tools" || value === "integrations" || value === "appearance" || value === "deployment" || value === "connection" || value === "settings" || value === "advanced";
 }
 
 export function AgentDetailPageClient({ agent, initialVersions }: { agent: AgentDefinition; initialVersions: AgentVersion[] }) {
@@ -704,6 +705,10 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         items: hostedAgent
           ? activityItems
           : [{ section: externalAgent ? "operations" : "activity", label: externalAgent ? "Operations" : "Private chat", description: externalAgent ? "External calls, usage, and outcomes" : "Your private agent test chat", icon: externalAgent ? History : MessageSquare }],
+      },
+      {
+        label: "Insights",
+        items: [{ section: "analytics", label: "Analytics", description: "Runs, usage, outcomes, and health", icon: BarChart3 }],
       },
     ];
     if (hostedAgent) {
@@ -954,6 +959,8 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         {activeSection === "operations" && kasitekHostedAgent && agent.installation_id ? <InstallationRuns installationId={agent.installation_id} /> : null}
 
         {activeSection === "operations" && externalAgent && agent.installation_id ? <ExternalAgentOperations installationId={agent.installation_id} /> : null}
+
+        {activeSection === "analytics" && agent.installation_id ? <AgentAnalyticsPanel agentName={agentName} installationId={agent.installation_id} handoffEnabled={customerConversationSurface} /> : null}
 
         {activeSection === "conversations" && customerConversationSurface && agent.installation_id ? <AgentConversationHistory agentId={agent.id} installationId={agent.installation_id} /> : null}
 

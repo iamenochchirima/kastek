@@ -35,13 +35,13 @@ their dependencies are approved.
 - [x] UI-03. Protected local Analytics Playground — approved; implemented
 - [x] UI-04. Feature dashboards for Campaigns, Connections, and Inbox — approved; implemented
 - [x] UI-05. Tenant workspace and tenant-client analytics — approved; implemented
-- [x] UI-06. Per-Agent Analytics with conditional customer handoff reporting — approved
+- [x] UI-06. Per-Agent Analytics with conditional customer handoff reporting — approved; implemented
 - [x] UI-07. Main Overview derived from feature reporting contracts — approved
 - [x] UI-08. Legacy migration, visual verification, and browser E2E — approved
 
 ## UI execution track — customer reporting and visual validation
 
-**Status:** The UI track is approved. UI-01 through UI-05 are implemented; UI-06 is the next
+**Status:** The UI track is approved. UI-01 through UI-06 are implemented; UI-07 is the next
 implementation slice. Later slices remain ordered behind the shared reporting contract and
 authorization boundary.
 
@@ -149,6 +149,16 @@ Add per-agent reporting for common agent facts: runs, outcomes, latency, model u
 errors, schedules, versions, and installation health. Handoff/request-human metrics appear only for
 customer-service agents that were created with handoff functionality; they are not a universal
 agent metric. Include the agent's reporting scope and missing-source state in the response.
+
+**Implemented package:** The agent detail page now exposes an Analytics section backed by the Core
+reporting gateway. It requests the versioned Agent Platform metrics over the last 30 days, filters by
+the selected `agent_installation`, and shows run outcomes, model usage, tokens, cost, tools, effects,
+schedules, versions, readiness, conversations, response time, freshness, coverage, availability, and
+source warnings. Handoff lifecycle metrics are added only for the existing hosted customer-service
+surface; personal and external-connected agents never request them. The current product model has no
+separate persisted handoff toggle, so the existing customer-service hosted capability is the source
+of truth until that setting becomes an explicit field. The response identifies the organization
+reporting scope and the installation filter without exposing an Analytics database identifier.
 
 ### UI-07 — main Overview
 
