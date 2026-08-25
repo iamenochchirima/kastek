@@ -18,7 +18,8 @@ else
 fi
 
 AGENT_ENV_SETUP="if [[ -f '$ROOT_DIR/agents/.env' ]]; then set -a; source '$ROOT_DIR/agents/.env'; set +a; fi"
-ANALYTICS_ENV_SETUP="if [[ -f '$ROOT_DIR/server/kasitek-analytics/.env' ]]; then set -a; source '$ROOT_DIR/server/kasitek-analytics/.env'; set +a; fi"
+ANALYTICS_LOCAL_REPORTING_ENV_FILE="/tmp/kasitek-analytics-reporting-${UID}.env"
+ANALYTICS_ENV_SETUP="if [[ -f '$ROOT_DIR/server/kasitek-analytics/.env' ]]; then set -a; source '$ROOT_DIR/server/kasitek-analytics/.env'; set +a; fi; if [[ -f '$ANALYTICS_LOCAL_REPORTING_ENV_FILE' ]]; then set -a; source '$ANALYTICS_LOCAL_REPORTING_ENV_FILE'; set +a; fi"
 
 # The local Agent Platform -> Core boundary uses the development bearer-token
 # compatibility path. Keep one value on both processes so read and draft tools
@@ -52,20 +53,22 @@ configure_local_analytics_reporting() {
   [[ -n "${ANALYTICS_REPORTING_RESOLVER_TOKEN:-}" ]] || missing+=(ANALYTICS_REPORTING_RESOLVER_TOKEN)
   [[ -n "${ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON:-}" ]] || missing+=(ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON)
 
-  if ((${#missing[@]} == 0)); then
-    return
-  fi
-
-  if ((${#missing[@]} != 4)); then
+  if ((${#missing[@]} != 0 && ${#missing[@]} != 4)); then
     echo "Incomplete local Analytics reporting configuration; missing: ${missing[*]}" >&2
     echo "Set all four ANALYTICS_REPORTING_* values or remove the partial local configuration." >&2
     exit 1
   fi
 
-  local private_key public_key resolver_token
-  private_key="$(openssl ecparam -name prime256v1 -genkey -noout)"
-  public_key="$(printf '%s\n' "$private_key" | openssl ec -pubout 2>/dev/null)"
-  resolver_token="$(openssl rand -hex 32)"
+  local private_key="${ANALYTICS_REPORTING_PRIVATE_KEY:-}"
+  local public_key="${ANALYTICS_REPORTING_PUBLIC_KEY:-}"
+  local resolver_token="${ANALYTICS_REPORTING_RESOLVER_TOKEN:-}"
+  if ((${#missing[@]} == 4)); then
+    # jwt-simple's ES256 loader accepts PKCS#8 PEM keys. `ecparam -genkey`
+    # emits the older SEC1 `EC PRIVATE KEY` format, so use genpkey here.
+    private_key="$(openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 2>/dev/null)"
+    public_key="$(printf '%s\n' "$private_key" | openssl pkey -pubout 2>/dev/null)"
+    resolver_token="$(openssl rand -hex 32)"
+  fi
 
   export ANALYTICS_REPORTING_PRIVATE_KEY="$private_key"
   export ANALYTICS_REPORTING_PUBLIC_KEY="$public_key"
@@ -74,6 +77,18 @@ configure_local_analytics_reporting() {
   export ANALYTICS_REPORTING_KEY_ID="${ANALYTICS_REPORTING_KEY_ID:-local-reporting-2026}"
   export ANALYTICS_REPORTING_ISSUER="${ANALYTICS_REPORTING_ISSUER:-kasitek-core}"
   export ANALYTICS_REPORTING_AUDIENCE="${ANALYTICS_REPORTING_AUDIENCE:-kasitek-analytics-reporting}"
+
+  umask 077
+  {
+    printf 'export ANALYTICS_REPORTING_PRIVATE_KEY=%q\n' "$private_key"
+    printf 'export ANALYTICS_REPORTING_PUBLIC_KEY=%q\n' "$public_key"
+    printf 'export ANALYTICS_REPORTING_RESOLVER_TOKEN=%q\n' "$resolver_token"
+    printf 'export ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON=%q\n' "$ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON"
+    printf 'export ANALYTICS_REPORTING_KEY_ID=%q\n' "$ANALYTICS_REPORTING_KEY_ID"
+    printf 'export ANALYTICS_REPORTING_ISSUER=%q\n' "$ANALYTICS_REPORTING_ISSUER"
+    printf 'export ANALYTICS_REPORTING_AUDIENCE=%q\n' "$ANALYTICS_REPORTING_AUDIENCE"
+  } > "$ANALYTICS_LOCAL_REPORTING_ENV_FILE"
+  chmod 600 "$ANALYTICS_LOCAL_REPORTING_ENV_FILE"
 }
 
 # Write a temp launcher script for each service to avoid gnome-terminal's
