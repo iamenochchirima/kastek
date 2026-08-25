@@ -122,7 +122,7 @@ const navigationGroups: NavigationGroup[] = [
     items: [
       { name: "Posts", href: "/content", icon: Sparkles },
       { name: "Calendar", href: "/calendar", icon: CalendarDays },
-      { name: "Analytics", href: "/analytics", icon: Grid2x2 },
+      { name: "Analytics", href: "/content/analytics", icon: Grid2x2 },
     ],
   },
   {

@@ -37,13 +37,13 @@ their dependencies are approved.
 - [x] UI-05. Tenant workspace and tenant-client analytics — approved; implemented
 - [x] UI-06. Per-Agent Analytics with conditional customer handoff reporting — approved; implemented
 - [x] UI-07. Main Overview derived from feature reporting contracts — approved; implemented
-- [x] UI-08. Legacy migration, visual verification, and browser E2E — approved
+- [x] UI-08. Legacy migration, visual verification, and browser E2E — approved; implemented with browser harness gap
 
 ## UI execution track — customer reporting and visual validation
 
-**Status:** The UI track is approved. UI-01 through UI-07 are implemented; UI-08 is the next
-implementation slice. Later slices remain ordered behind the shared reporting contract and
-authorization boundary.
+**Status:** The UI track is approved. UI-01 through UI-08 are implemented; browser-level visual
+verification remains pending until the repository has a supported browser test harness. Later
+analytics work remains ordered behind the shared reporting contract and authorization boundary.
 
 This track makes the collected customer facts visible through authenticated product APIs. The
 browser never calls the Analytics service directly and never receives a reporting grant or an
@@ -179,6 +179,16 @@ Migrate legacy analytics routes only after parity is demonstrated, preserve oper
 are not analytics reports, and add browser E2E for Core users, Tenant users, tenant clients, scope
 isolation, unavailable data, responsive layouts, and the protected playground. Keep legacy routes
 until the replacement is verified and then remove or redirect them deliberately.
+
+**Implemented package:** `/analytics` is now the cross-feature reporting route and uses the
+authenticated catalog plus `overview.summary@1`; its existing Content/Campaigns operational screen
+was not silently deleted. `/content/analytics` remains the canonical Content analytics route until
+Content-specific metric contracts are available, and the sidebar/command palette now point there.
+The Core client production webpack build, source TypeScript check, targeted lint, canonical route
+check, and analytics service E2E fixtures cover the available verification surface. No Playwright,
+Cypress, Puppeteer, or Chromium harness exists in this repository, so authenticated browser E2E,
+responsive screenshots, and cross-scope visual checks remain an explicit follow-up rather than being
+claimed as complete.
 
 ## E1 — Execution architecture and data boundaries
 

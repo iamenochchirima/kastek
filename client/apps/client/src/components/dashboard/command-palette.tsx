@@ -18,7 +18,7 @@ const routes = [
   { group: "Customer", label: "Contacts", href: "/contacts", icon: Users },
   { group: "Content", label: "Posts", href: "/content", icon: Sparkles },
   { group: "Content", label: "Calendar", href: "/calendar", icon: CalendarDays },
-  { group: "Content", label: "Analytics", href: "/analytics", icon: ChartColumn },
+  { group: "Content", label: "Analytics", href: "/content/analytics", icon: ChartColumn },
   { group: "Campaigns", label: "Campaigns", href: "/campaigns", icon: Send },
   { group: "Campaigns", label: "Templates", href: "/templates", icon: FileText },
   { group: "Automation", label: "Agents", href: "/agents", icon: Bot },
