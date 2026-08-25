@@ -36,12 +36,12 @@ their dependencies are approved.
 - [x] UI-04. Feature dashboards for Campaigns, Connections, and Inbox — approved; implemented
 - [x] UI-05. Tenant workspace and tenant-client analytics — approved; implemented
 - [x] UI-06. Per-Agent Analytics with conditional customer handoff reporting — approved; implemented
-- [x] UI-07. Main Overview derived from feature reporting contracts — approved
+- [x] UI-07. Main Overview derived from feature reporting contracts — approved; implemented
 - [x] UI-08. Legacy migration, visual verification, and browser E2E — approved
 
 ## UI execution track — customer reporting and visual validation
 
-**Status:** The UI track is approved. UI-01 through UI-06 are implemented; UI-07 is the next
+**Status:** The UI track is approved. UI-01 through UI-07 are implemented; UI-08 is the next
 implementation slice. Later slices remain ordered behind the shared reporting contract and
 authorization boundary.
 
@@ -165,6 +165,13 @@ reporting scope and the installation filter without exposing an Analytics databa
 Build the overview after feature reports exist. Its cards, trends, attention states, and insights
 must be composed from approved feature reporting contracts, not become a second source of metric
 definitions. Add explicit links to the feature and agent reports that explain each aggregate.
+
+**Implemented package:** The Core workspace Overview now includes a reporting-backed analytics layer
+using `overview.summary@1`. It presents cross-feature highlight cards, three report trends, reporting
+scope, data-as-of, availability, freshness, and coverage, with links to Inbox, Campaigns, Agent
+Analytics, Connections, and the full Analytics route. Existing operational attention actions remain
+in place as feature-owned workflow controls; the new overview does not recalculate their business
+meaning or define parallel metrics.
 
 ### UI-08 — migration, visual verification, and browser E2E
 

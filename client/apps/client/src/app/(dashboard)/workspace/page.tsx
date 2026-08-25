@@ -7,6 +7,7 @@ import { MotionReveal } from "@/components/ui/motion-reveal";
 import { PageHeader, PageHeaderActions, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { WorkspaceAnalyticsOverview } from "@/components/dashboard/workspace-analytics-overview";
 
 export const metadata = { title: "Overview | KasiTek" };
 
@@ -90,6 +91,8 @@ export default async function WorkspacePage() {
         <MotionReveal delay={0.08} className="v-card overflow-hidden">
           {actions.length ? actions.map(([count, href, title, detail]) => <Link key={title} href={href} className="flex min-h-16 items-center justify-between gap-4 border-b border-border px-5 py-4 no-underline transition-colors duration-[150ms] last:border-b-0 hover:bg-secondary/60"><span className="min-w-0"><span className="block truncate text-sm font-semibold text-foreground">{title}</span><span className="mt-1 block truncate text-xs text-muted-foreground">{detail}</span></span><span className="shrink-0 rounded-full bg-status-attention-soft px-2.5 py-1 text-sm font-semibold text-status-attention">{count}</span></Link>) : <EmptyState message="No attention items" />}
         </MotionReveal>
+
+        <WorkspaceAnalyticsOverview />
 
         <section className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <OperationalLink href="/inbox" icon={MessageCircle} label="Inbox" detail="Open conversations and customer replies" delay={0.16} />
