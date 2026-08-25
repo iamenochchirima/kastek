@@ -1,5 +1,23 @@
 # Customer Analytics Execution Plan and Checklist
 
+> **Agent handover — 2026-08-25:** The latest implementation work is the local Analytics reporting
+> gateway startup fix. Follow `03d75b47` (authenticated Analytics browser coverage),
+> `66945d93` (initial local reporting gateway credentials), and `7c6c7379` (PKCS#8-compatible
+> reporting keys and launcher propagation). `7c6c7379` changes only
+> [`scripts/run_local_stack.sh`](scripts/run_local_stack.sh): it creates a mode-600 temporary
+> environment file under `/tmp`, and Core/Analytics launchers source it so gnome-terminal tabs
+> share the same reporting credentials. Verification passed: shell syntax/help checks,
+> `cargo test -p analytics-reporting`, Analytics health, and authenticated Core-to-Analytics
+> communication. The former `Customer analytics is not configured` response is fixed; the current
+> authenticated catalog response is `Customer analytics scope is not ready` because the existing
+> Core organization has no active `core_organization` row in `analytics.reporting_scope`.
+> Continue with the next slice: publish Core organization scope definitions through the
+> transactional Core outbox, configure the matching local ingestion credential/publisher path,
+> register or backfill existing Core organizations through the real ingestion flow, and verify
+> catalog/report responses end to end. Do not insert a fabricated scope row or stage unrelated
+> dirty worktree changes. Commit each coherent slice separately, then update this handover block
+> and remove it once the next agent has taken over.
+
 **Related product plan:** [ANALYTICS_PLAN.md](ANALYTICS_PLAN.md)
 
 **Status:** E1–E10 and Product Sections 1–12 are approved. Planning is complete; implementation is
