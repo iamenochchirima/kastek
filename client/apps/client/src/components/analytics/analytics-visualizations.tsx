@@ -16,32 +16,36 @@ export function AnalyticsTrendChart({
   className?: string;
 }) {
   const values = points.map((point) => point.value).filter((value): value is number => value !== null && Number.isFinite(value));
-  if (!values.length) return <AnalyticsEmptyState title="No points" />;
-
   const width = 360;
-  const height = 120;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const height = 148;
+  const plotLeft = 28;
+  const plotRight = width - 4;
+  const plotTop = 12;
+  const plotBottom = height - 22;
+  const hasData = values.length > 0;
+  const min = hasData ? Math.min(0, ...values) : 0;
+  const max = hasData ? Math.max(1, ...values) : 1;
   const range = max - min || 1;
   const coordinates = points
     .map((point, index) => {
       if (point.value === null || !Number.isFinite(point.value)) return null;
-      const x = points.length === 1 ? width / 2 : (index / (points.length - 1)) * width;
-      const y = height - ((point.value - min) / range) * (height - 12) - 6;
+      const x = points.length === 1 ? (plotLeft + plotRight) / 2 : plotLeft + (index / (points.length - 1)) * (plotRight - plotLeft);
+      const y = plotBottom - ((point.value - min) / range) * (plotBottom - plotTop);
       return `${x.toFixed(2)},${y.toFixed(2)}`;
     })
     .filter((coordinate): coordinate is string => coordinate !== null)
     .join(" ");
+  const yFor = (value: number) => plotBottom - ((value - min) / range) * (plotBottom - plotTop);
 
   return (
     <div className={className}>
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-32 w-full overflow-visible" role="img" aria-label={label}>
-        <line x1="0" y1={height - 6} x2={width} y2={height - 6} className="stroke-border" strokeWidth="1" />
-        <polyline points={coordinates} fill="none" className="stroke-primary" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      <svg viewBox={`0 0 ${width} ${height}`} className="h-36 w-full overflow-visible" role="img" aria-label={label}>
+        {[max, max / 2, 0].map((value) => <g key={value}><line x1={plotLeft} y1={yFor(value)} x2={plotRight} y2={yFor(value)} className="stroke-border" strokeWidth="1" strokeDasharray={value === 0 ? undefined : "3 5"} /><text x="0" y={yFor(value) + 3} className="fill-muted-foreground" fontSize="10">{formatValue(value)}</text></g>)}
+        {hasData ? <polyline points={coordinates} fill="none" className="stroke-primary" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /> : <line x1={plotLeft} y1={yFor(0)} x2={plotRight} y2={yFor(0)} className="stroke-muted-foreground" strokeWidth="2" strokeDasharray="4 6" />}
       </svg>
-      <div className="flex justify-between text-xs text-muted-foreground">
-        <span>{formatValue(min)}</span>
-        <span>{formatValue(max)}</span>
+      <div className="flex justify-between pl-7 text-[11px] text-muted-foreground">
+        <span>30 days ago</span>
+        <span>{hasData ? "Today" : "No activity yet"}</span>
       </div>
     </div>
   );
