@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "check:routes": "node scripts/check-canonical-routes.mjs",
-    "test:e2e:analytics": "playwright test e2e/analytics.spec.ts"
+    "test:e2e:analytics": "playwright test"
   },
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",

@@ -37,14 +37,15 @@ their dependencies are approved.
 - [x] UI-05. Tenant workspace and tenant-client analytics — approved; implemented
 - [x] UI-06. Per-Agent Analytics with conditional customer handoff reporting — approved; implemented
 - [x] UI-07. Main Overview derived from feature reporting contracts — approved; implemented
-- [x] UI-08. Legacy migration, visual verification, and browser E2E — approved; implemented with browser harness gap
+- [x] UI-08. Legacy migration, visual verification, and browser E2E — approved; implemented with authenticated browser harness
 
 ## UI execution track — customer reporting and visual validation
 
-**Status:** The UI track is approved. UI-01 through UI-08 are implemented; browser route smoke
-coverage is available, while authenticated visual verification remains pending until a reusable
-storage-state fixture is supplied. Later analytics work remains ordered behind the shared reporting
-contract and authorization boundary.
+**Status:** The UI track is approved. UI-01 through UI-08 are implemented. Browser route smoke,
+authenticated representative-report checks, protected-playground behavior, and mobile overflow
+checks are available through the checked-in Playwright harness. Live Core/Tenant/tenant-client
+scope-isolation data and screenshot baselines remain follow-up validation. Later analytics work
+remains ordered behind the shared reporting contract and authorization boundary.
 
 This track makes the collected customer facts visible through authenticated product APIs. The
 browser never calls the Analytics service directly and never receives a reporting grant or an
@@ -187,9 +188,11 @@ was not silently deleted. `/content/analytics` remains the canonical Content ana
 Content-specific metric contracts are available, and the sidebar/command palette now point there.
 The Core client production webpack build, source TypeScript check, targeted lint, canonical route
 check, analytics service E2E fixtures, and the checked-in Playwright route smoke suite cover the
-available verification surface. Authenticated browser E2E, responsive screenshots, and cross-scope
-visual checks remain an explicit follow-up because no reusable authenticated storage-state fixture
-is checked in.
+available verification surface. The browser harness now creates a reusable Core session from
+environment-provided credentials and covers representative reporting data, request scope
+constraints, protected playground behavior, and mobile horizontal-overflow checks. Live
+Core/Tenant/tenant-client scope-isolation checks and screenshot baselines remain an explicit
+follow-up because representative accounts and cross-scope report fixtures are not checked in.
 
 ## E1 — Execution architecture and data boundaries
 

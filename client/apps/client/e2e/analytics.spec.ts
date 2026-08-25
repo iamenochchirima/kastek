@@ -15,12 +15,4 @@ test.describe("customer analytics routes", () => {
     const response = await request.get("/api/analytics/catalog", { maxRedirects: 0 });
     expect([401, 403, 307, 308, 500], "anonymous reporting requests must remain protected or fail closed when Core is offline").toContain(response.status());
   });
-
-  test("renders the reporting overview with a configured authenticated state", async ({ page }) => {
-    test.skip(!process.env.ANALYTICS_PLAYWRIGHT_STORAGE_STATE, "Set ANALYTICS_PLAYWRIGHT_STORAGE_STATE for authenticated UI coverage");
-    await page.goto("/analytics", { waitUntil: "networkidle" });
-    await expect(page.getByRole("heading", { name: "Analytics", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Workspace analytics", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Reporting data", exact: true })).toBeVisible();
-  });
 });

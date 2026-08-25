@@ -26,10 +26,12 @@ analytics slices.
   deliberate legacy-route handling. Direct browser access to Analytics remains intentionally
   unsupported.
 - A checked-in Playwright config and analytics route smoke suite now cover protected redirects and
-  anonymous gateway fail-closed behavior. Authenticated browser E2E, responsive screenshots, and
-  Core/Tenant/tenant-client scope-isolation checks still need a reusable authenticated storage-state
-  fixture and representative test data. The optional authenticated test is enabled with
-  `ANALYTICS_PLAYWRIGHT_STORAGE_STATE`.
+  anonymous gateway fail-closed behavior. The authenticated project now creates a reusable Core
+  session from `ANALYTICS_PLAYWRIGHT_EMAIL` and `ANALYTICS_PLAYWRIGHT_PASSWORD`, or consumes
+  `ANALYTICS_PLAYWRIGHT_STORAGE_STATE`, and covers representative report rendering, request scope
+  constraints, protected playground behavior, and mobile horizontal-overflow checks.
+- Live Core/Tenant/tenant-client scope-isolation checks, real report data across those scopes, and
+  committed screenshot baselines still need representative accounts and seeded cross-scope data.
 
 ## Source heartbeat scheduling
 
