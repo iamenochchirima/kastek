@@ -25,11 +25,11 @@ analytics slices.
   playground, feature dashboards, tenant/client views, per-agent views, overview composition, and
   deliberate legacy-route handling. Direct browser access to Analytics remains intentionally
   unsupported.
-- The repository has no Playwright, Cypress, Puppeteer, or Chromium dependency/harness. Therefore
-  authenticated browser E2E, responsive screenshots, and Core/Tenant/tenant-client scope-isolation
-  checks cannot be executed here. The client production build, source TypeScript check, targeted
-  lint, canonical-route check, and service-level Analytics E2E remain available. Add a supported
-  browser harness before claiming UI-08 browser verification complete.
+- A checked-in Playwright config and analytics route smoke suite now cover protected redirects and
+  anonymous gateway fail-closed behavior. Authenticated browser E2E, responsive screenshots, and
+  Core/Tenant/tenant-client scope-isolation checks still need a reusable authenticated storage-state
+  fixture and representative test data. The optional authenticated test is enabled with
+  `ANALYTICS_PLAYWRIGHT_STORAGE_STATE`.
 
 ## Source heartbeat scheduling
 

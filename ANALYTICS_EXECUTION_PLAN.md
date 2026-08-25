@@ -41,9 +41,10 @@ their dependencies are approved.
 
 ## UI execution track — customer reporting and visual validation
 
-**Status:** The UI track is approved. UI-01 through UI-08 are implemented; browser-level visual
-verification remains pending until the repository has a supported browser test harness. Later
-analytics work remains ordered behind the shared reporting contract and authorization boundary.
+**Status:** The UI track is approved. UI-01 through UI-08 are implemented; browser route smoke
+coverage is available, while authenticated visual verification remains pending until a reusable
+storage-state fixture is supplied. Later analytics work remains ordered behind the shared reporting
+contract and authorization boundary.
 
 This track makes the collected customer facts visible through authenticated product APIs. The
 browser never calls the Analytics service directly and never receives a reporting grant or an
@@ -185,10 +186,10 @@ authenticated catalog plus `overview.summary@1`; its existing Content/Campaigns 
 was not silently deleted. `/content/analytics` remains the canonical Content analytics route until
 Content-specific metric contracts are available, and the sidebar/command palette now point there.
 The Core client production webpack build, source TypeScript check, targeted lint, canonical route
-check, and analytics service E2E fixtures cover the available verification surface. No Playwright,
-Cypress, Puppeteer, or Chromium harness exists in this repository, so authenticated browser E2E,
-responsive screenshots, and cross-scope visual checks remain an explicit follow-up rather than being
-claimed as complete.
+check, analytics service E2E fixtures, and the checked-in Playwright route smoke suite cover the
+available verification surface. Authenticated browser E2E, responsive screenshots, and cross-scope
+visual checks remain an explicit follow-up because no reusable authenticated storage-state fixture
+is checked in.
 
 ## E1 — Execution architecture and data boundaries
 
