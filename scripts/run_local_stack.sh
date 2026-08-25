@@ -40,6 +40,41 @@ require_command cargo
 require_command pnpm
 require_command gnome-terminal
 require_command curl
+require_command openssl
+
+# Customer reporting is intentionally authenticated even on the local stack. Generate one
+# process-local ES256 keypair and resolver credential when local credentials were not supplied;
+# the exported values are inherited by both Core and Analytics, but are never written to the repo.
+configure_local_analytics_reporting() {
+  local missing=()
+  [[ -n "${ANALYTICS_REPORTING_PRIVATE_KEY:-}" ]] || missing+=(ANALYTICS_REPORTING_PRIVATE_KEY)
+  [[ -n "${ANALYTICS_REPORTING_PUBLIC_KEY:-}" ]] || missing+=(ANALYTICS_REPORTING_PUBLIC_KEY)
+  [[ -n "${ANALYTICS_REPORTING_RESOLVER_TOKEN:-}" ]] || missing+=(ANALYTICS_REPORTING_RESOLVER_TOKEN)
+  [[ -n "${ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON:-}" ]] || missing+=(ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON)
+
+  if ((${#missing[@]} == 0)); then
+    return
+  fi
+
+  if ((${#missing[@]} != 4)); then
+    echo "Incomplete local Analytics reporting configuration; missing: ${missing[*]}" >&2
+    echo "Set all four ANALYTICS_REPORTING_* values or remove the partial local configuration." >&2
+    exit 1
+  fi
+
+  local private_key public_key resolver_token
+  private_key="$(openssl ecparam -name prime256v1 -genkey -noout)"
+  public_key="$(printf '%s\n' "$private_key" | openssl ec -pubout 2>/dev/null)"
+  resolver_token="$(openssl rand -hex 32)"
+
+  export ANALYTICS_REPORTING_PRIVATE_KEY="$private_key"
+  export ANALYTICS_REPORTING_PUBLIC_KEY="$public_key"
+  export ANALYTICS_REPORTING_RESOLVER_TOKEN="$resolver_token"
+  export ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON="[{\"source_service\":\"core\",\"token\":\"$resolver_token\"}]"
+  export ANALYTICS_REPORTING_KEY_ID="${ANALYTICS_REPORTING_KEY_ID:-local-reporting-2026}"
+  export ANALYTICS_REPORTING_ISSUER="${ANALYTICS_REPORTING_ISSUER:-kasitek-core}"
+  export ANALYTICS_REPORTING_AUDIENCE="${ANALYTICS_REPORTING_AUDIENCE:-kasitek-analytics-reporting}"
+}
 
 # Write a temp launcher script for each service to avoid gnome-terminal's
 # argument parsing bug where '--' stops processing subsequent '--tab' flags.
@@ -228,6 +263,8 @@ if [[ ${#tabs[@]} -eq 0 ]]; then
   echo "Error: No services to launch" >&2
   exit 1
 fi
+
+configure_local_analytics_reporting
 
 echo "Launching local KasiTek stack..."
 gnome-terminal "${tabs[@]}"
