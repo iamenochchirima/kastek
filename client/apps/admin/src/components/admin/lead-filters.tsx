@@ -1,7 +1,9 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { DataToolbar } from "@/components/admin/data-toolbar";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 const STATUSES = ["new", "contacted", "interested", "quoted", "won", "lost"];
 const SOURCES = [
@@ -34,51 +36,23 @@ export default function LeadFilters() {
     updateFilter("search", formData.get("search") as string);
   };
 
+  const activeFilterCount = ["search", "status", "source"].filter((key) => searchParams.get(key)).length;
+
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-[calc(var(--radius)-1px)] border border-line bg-card p-3 shadow-card">
-      <form onSubmit={handleSearch} className="min-w-[200px] flex-1">
-        <Input
-          name="search"
-          type="text"
-          placeholder="Search leads..."
-          defaultValue={searchParams.get("search") || ""}
-        />
-      </form>
-
-      <select
-        value={searchParams.get("status") || ""}
-        onChange={(e) => updateFilter("status", e.target.value)}
-        className="h-[var(--density-control-height)] min-w-36 rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
-      >
-        <option value="">All Statuses</option>
-        {STATUSES.map((s) => (
-          <option key={s} value={s} className="capitalize">
-            {s}
-          </option>
-        ))}
-      </select>
-
-      <select
-        value={searchParams.get("source") || ""}
-        onChange={(e) => updateFilter("source", e.target.value)}
-        className="h-[var(--density-control-height)] min-w-36 rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
-      >
-        <option value="">All Sources</option>
-        {SOURCES.map((s) => (
-          <option key={s.value} value={s.value}>
-            {s.label}
-          </option>
-        ))}
-      </select>
-
-      {(searchParams.get("status") || searchParams.get("source") || searchParams.get("search")) && (
-        <button
-          onClick={() => router.push("/leads")}
-          className="rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-        >
-          Clear filters
-        </button>
-      )}
-    </div>
+    <DataToolbar
+      search={<form onSubmit={handleSearch}><Input name="search" type="text" placeholder="Search leads..." defaultValue={searchParams.get("search") || ""} /></form>}
+      filters={<>
+        <Select value={searchParams.get("status") || ""} onChange={(e) => updateFilter("status", e.target.value)} aria-label="Filter by status">
+          <option value="">All statuses</option>
+          {STATUSES.map((s) => <option key={s} value={s} className="capitalize">{s}</option>)}
+        </Select>
+        <Select value={searchParams.get("source") || ""} onChange={(e) => updateFilter("source", e.target.value)} aria-label="Filter by source">
+          <option value="">All sources</option>
+          {SOURCES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </Select>
+      </>}
+      activeFilterCount={activeFilterCount}
+      onClearFilters={() => router.push("/leads")}
+    />
   );
 }

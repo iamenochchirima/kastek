@@ -1,6 +1,6 @@
 # Admin Vantage UI Migration Plan
 
-**Status:** In progress — foundation, shell, and first route waves implemented
+**Status:** In progress — migration and shared interaction foundation implemented; final visual sign-off pending
 
 **Owner:** KasiTek team
 
@@ -12,7 +12,7 @@
 
 ## Current implementation checkpoint
 
-Completed in the current migration wave:
+Completed in the current migration waves:
 
 - Admin-owned appearance preferences for theme, accent, density, motion, live indicators, and week start.
 - Semantic Vantage tokens, pre-hydration theme application, shared buttons, cards, fields, badges,
@@ -22,10 +22,11 @@ Completed in the current migration wave:
 - Dashboard, authentication, leads, conversations, agencies, billing, outreach, web-services, and
   the main commercial list/detail surfaces migrated onto the new token layer.
 - Native browser dialogs removed from the migrated Admin workflows and replaced with application UI.
+- Shared Dialog/Sheet, FormField, Checkbox, Avatar, Progress, Tabs, Tooltip, and route state
+  primitives are now available; the mobile shell uses the shared Sheet behavior.
 
-Still in progress: the quotation/invoice builder internals, remaining operator/form controls, route
-visual QA at all supported breakpoints, and the final legacy-style cleanup pass. Admin Analytics
-remains gated until those items are verified.
+Still in progress: route visual QA at all supported breakpoints/themes and the final legacy-style
+cleanup pass. Admin Analytics remains gated until those items are verified.
 
 ## Purpose
 
@@ -55,6 +56,11 @@ recorded explicitly rather than hidden inside a styling migration.
 - Existing domain-specific confirmation and editor components remain in place until a shared
   dialog primitive can cover their current focus, escape, sizing, and validation behavior. Native
   browser dialogs are not permitted.
+- Admin preferences use separate namespaces for theme, density, motion, live indicators, week
+  start, navigation groups, and sidebar collapse so internal UI state cannot overwrite client
+  workspace preferences.
+- Repeated list filtering uses the shared `DataToolbar`; route-specific filter semantics remain in
+  each feature component while layout, clear-count treatment, and responsive wrapping stay shared.
 - Chart primitives are established during this migration, but data-backed Admin Analytics remains
   a separate phase. No synthetic chart data is introduced as part of the visual migration.
 
@@ -100,7 +106,7 @@ inspiration. Port the rendered values and behavior into the Admin application's 
       Vantage contract.
 - [ ] Compare each Admin primitive, shell state, and route against the Vantage reference at the
       same theme and viewport before marking it complete.
-- [ ] Remove old Admin styling, compatibility aliases, duplicate components, and dead code after
+- [x] Remove old Admin styling, compatibility aliases, duplicate components, and dead code after
       each migration wave; do not leave two competing visual systems.
 
 ## Appearance and dynamic styling contract
@@ -238,33 +244,32 @@ The admin should share the direct client’s design language, not its customer-f
 
 - [x] Add a consistent `Button` with primary, secondary, ghost, destructive, icon-only, loading, and disabled variants.
 - [x] Add `Input`, `Textarea`, and `Select` conventions with label, hint, required, and error treatment.
-- [ ] Add remaining `Checkbox` and `FormField` conventions, plus `Avatar`, `Tooltip`, `Tabs`, and
-      `Progress` primitives where Admin routes need them.
-- [ ] Add a generic `Dialog`/confirmation and `Sheet` primitive with focus management, escape
-      handling, and clear destructive-action wording; existing domain modals remain functional
-      while this is completed.
+- [x] Add `Checkbox` and `FormField` conventions, plus `Avatar`, `Tooltip`, `Tabs`, and `Progress`
+      primitives where Admin routes need them.
+- [x] Add a generic `Dialog`/confirmation and `Sheet` primitive with focus management, escape
+      handling, and clear destructive-action wording.
 - [x] Add a responsive `DataTable` foundation: header, row, compact cell styles, selection state, overflow handling, empty state, and loading state.
 - [x] Keep the existing pagination and filters functional while moving their presentation onto the shared primitives.
-- [ ] Standardize icon size, button height, form-control height, table density, and status dot/badge treatment.
+- [x] Standardize icon size, button height, form-control height, table density, and status dot/badge treatment.
 
 ### 3. Rebuild the application shell
 
 - [x] Replace the current emoji sidebar with an icon-based, grouped internal-operations navigation.
-- [ ] Group navigation according to admin work rather than direct-client product areas; validate final labels with the actual routes, for example Operations, Commercial, Outreach, and Platform.
+- [x] Group navigation according to admin work rather than direct-client product areas; validate final labels with the actual routes, for example Operations, Commercial, Outreach, and Platform.
 - [x] Provide active route, nested-route, hover, keyboard-focus, collapsed, and mobile states from the same navigation component.
 - [x] Use a responsive mobile sheet/drawer rather than relying on a permanently visible desktop sidebar.
 - [x] Build one top bar with page context, theme toggle, notifications when available, account menu, password access, and sign-out.
-- [ ] Keep sidebar collapse preference and theme preference isolated and documented as admin application preferences.
+- [x] Keep sidebar collapse preference and theme preference isolated and documented as admin application preferences.
 - [x] Establish a single content width, page padding scale, and scrolling responsibility so all pages align.
 
 ### 4. Add repeatable admin page patterns
 
 - [x] Create `AdminPageHeader` for eyebrow/breadcrumb, title, supporting text, primary action, and secondary actions.
-- [ ] Create `AdminSectionHeader` and metric-card patterns for dashboards and detail pages.
-- [ ] Create a `DataToolbar` pattern for search, filters, active-filter count, clear filters, density, and route actions.
-- [ ] Create `EmptyState`, `ErrorState`, and `LoadingState` components with route-appropriate recovery actions.
+- [x] Create `AdminSectionHeader` and metric-card patterns for dashboards and detail pages.
+- [x] Create a `DataToolbar` pattern for search, filters, active-filter count, clear filters, density, and route actions.
+- [x] Create `EmptyState`, `ErrorState`, and `LoadingState` components with route-appropriate recovery actions.
 - [x] Centralize status-to-appearance mapping for lead, quotation, invoice, outreach, service, conversation, and agency statuses. Do not encode status colours independently in each page.
-- [ ] Standardize date, currency, number, truncation, copy-to-clipboard, and external-link presentation helpers.
+- [x] Standardize date, currency, number, truncation, copy-to-clipboard, and external-link presentation helpers.
 - [ ] Define a detail-page pattern for metadata, activity/notes, related records, sidebar actions, and destructive controls.
 - [ ] Define a form-page pattern for sections, validation summaries, sticky save/cancel actions, unsaved-change behaviour, and responsive field grids.
 
@@ -280,7 +285,7 @@ The admin should share the direct client’s design language, not its customer-f
 
 - [x] Migrate `/leads`, lead create/edit/detail, notes, status updates, filters, and quotation handoff.
 - [x] Migrate `/conversations` and conversation detail with consistent channel/status metadata, message spacing, and reply/error states.
-- [ ] Preserve lead deletion confirmation and all lead/conversation authorization paths.
+- [x] Preserve lead deletion confirmation and all lead/conversation authorization paths.
 
 #### Commercial operations
 
@@ -293,7 +298,7 @@ The admin should share the direct client’s design language, not its customer-f
 
 - [x] Migrate outreach list, detail, import, drafts, delivery log, recipient filters, browser, and send controls.
 - [x] Migrate web-services list, import, filters, and destructive bulk controls.
-- [ ] Retain import validation, export, test-email, sync, send, and delete failure feedback while replacing only their visual presentation.
+- [x] Retain import validation, export, test-email, sync, send, and delete failure feedback while replacing only their visual presentation.
 
 #### Platform administration
 
@@ -309,11 +314,11 @@ The admin should share the direct client’s design language, not its customer-f
 
 ### 6. Remove duplication and enforce the system
 
-- [ ] Replace `confirm-modal.tsx`, `edit-field-modal.tsx`, and duplicated form controls only after their shared replacements cover their current behaviour.
+- [x] Replace `confirm-modal.tsx`, `edit-field-modal.tsx`, and duplicated form controls after their shared replacements covered their current behaviour.
 - [ ] Consolidate the existing table and filter components onto the data-table and toolbar contracts without forcing unrelated domain logic into one component.
 - [x] Remove temporary compatibility token aliases and obsolete component styles after all consumers have migrated.
 - [x] Search for hard-coded colours, inline emoji icons, duplicated modal markup, and repeated button/input class strings; resolve or explicitly justify each remaining case.
-- [ ] Add short component usage notes beside non-obvious shared admin components so new routes extend the system instead of bypassing it.
+- [x] Add short component usage notes beside non-obvious shared admin components so new routes extend the system instead of bypassing it.
 
 ### 7. Accessibility, responsiveness, and verification
 

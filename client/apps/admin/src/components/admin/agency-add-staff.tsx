@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
 import { buttonClassName } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 export default function AgencyAddStaff({ workspaceId }: { workspaceId: string }) {
   const router = useRouter();
@@ -44,13 +47,15 @@ export default function AgencyAddStaff({ workspaceId }: { workspaceId: string })
         onClick={() => setOpen(true)}
         className={buttonClassName({ size: "sm" })}
       >
-        + Add Staff
+        <Plus className="size-4" /> Add staff
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-[var(--z-overlay)] flex items-center justify-center bg-overlay/70 p-4 backdrop-blur-sm" role="presentation">
-          <div role="dialog" aria-modal="true" className="v-card w-full max-w-md space-y-4 p-[var(--density-card-padding)]">
-            <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Add staff user</h2>
+      <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) { setOpen(false); setError(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add staff user</DialogTitle>
+            <DialogDescription className="sr-only">Create an internal staff account for this workspace.</DialogDescription>
+          </DialogHeader>
 
             {error && (
               <div role="alert" className="rounded-md border border-status-danger/25 bg-status-danger-soft px-4 py-3 text-sm text-status-danger">
@@ -82,16 +87,15 @@ export default function AgencyAddStaff({ workspaceId }: { workspaceId: string })
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-foreground">Role</label>
-                <select
+                <Select
                   name="role"
                   value={form.role}
                   onChange={handleChange}
-                  className="h-[var(--density-control-height)] w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
                   <option value="admin">Admin</option>
                   <option value="member">Member</option>
                   <option value="viewer">Viewer</option>
-                </select>
+                </Select>
               </div>
               <div className="flex gap-3 pt-2">
                 <button
@@ -110,9 +114,8 @@ export default function AgencyAddStaff({ workspaceId }: { workspaceId: string })
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

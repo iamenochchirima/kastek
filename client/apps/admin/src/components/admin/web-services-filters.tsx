@@ -1,6 +1,8 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { DataToolbar } from "@/components/admin/data-toolbar";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 const STATUSES = [
@@ -31,34 +33,23 @@ export default function WebServicesFilters() {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-[calc(var(--radius)-1px)] border border-line bg-card p-3 shadow-card">
-      <div className="flex flex-wrap gap-1.5">
+    <DataToolbar
+      search={<Input type="text" placeholder="Search businesses..." defaultValue={currentSearch} aria-label="Search businesses" onKeyDown={(e) => { if (e.key === "Enter") updateParams("search", e.currentTarget.value); }} />}
+      filters={<div className="flex flex-wrap gap-1.5">
         {STATUSES.map((s) => (
-          <button
+          <Button
             key={s.value}
+            type="button"
+            size="sm"
+            variant={currentStatus === s.value ? "primary" : "secondary"}
             onClick={() => updateParams("callStatus", s.value)}
-            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              currentStatus === s.value
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-muted-foreground hover:bg-accent hover:text-foreground"
-            }`}
           >
             {s.label}
-          </button>
+          </Button>
         ))}
-      </div>
-
-      <Input
-        type="text"
-        placeholder="Search businesses..."
-        defaultValue={currentSearch}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            updateParams("search", e.currentTarget.value);
-          }
-        }}
-        className="h-[var(--density-control-height)] w-64"
-      />
-    </div>
+      </div>}
+      activeFilterCount={[currentStatus, currentSearch].filter(Boolean).length}
+      onClearFilters={() => router.push("?")}
+    />
   );
 }

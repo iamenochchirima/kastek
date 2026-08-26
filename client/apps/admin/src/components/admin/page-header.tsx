@@ -14,6 +14,10 @@ export function AdminPageHeader({ title, description, actions, eyebrow, classNam
   );
 }
 
+export function AdminSectionHeader({ title, description, actions, className }: { title: string; description?: string; actions?: ReactNode; className?: string }) {
+  return <div className={cn("flex flex-wrap items-start justify-between gap-3", className)}><div><h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">{title}</h2>{description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}</div>{actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}</div>;
+}
+
 export function AdminMetric({ label, value, detail, tone = "default" }: { label: string; value: ReactNode; detail?: ReactNode; tone?: "default" | "attention" | "danger" | "success" | "info" }) {
   const toneClasses = {
     default: "v-card",

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { buttonClassName } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { copyAdminText } from "@/lib/format";
 
 export default function NewAgencyPage() {
   const router = useRouter();
@@ -131,8 +132,7 @@ export default function NewAgencyPage() {
 
   async function copyKey() {
     if (!createdKey) return;
-    await navigator.clipboard.writeText(createdKey);
-    setCopied(true);
+    setCopied(await copyAdminText(createdKey));
     setTimeout(() => setCopied(false), 2000);
   }
 

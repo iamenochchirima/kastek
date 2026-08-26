@@ -1,7 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { Plus } from "lucide-react";
+import { buttonClassName } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function AddWebServiceLead() {
   const router = useRouter();
@@ -17,15 +22,6 @@ export default function AddWebServiceLead() {
     email: "",
     notes: "",
   });
-
-  useEffect(() => {
-    if (!open) return;
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [open]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,94 +43,88 @@ export default function AddWebServiceLead() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="bg-secondary hover:bg-card text-foreground px-4 py-2 rounded-lg text-sm font-medium border border-border transition-colors"
+        className={buttonClassName({ variant: "outline", size: "sm" })}
       >
-        + Add Lead
+        <Plus className="size-4" /> Add lead
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-[var(--z-overlay)] flex items-center justify-center" role="presentation">
-          <div className="fixed inset-0 bg-overlay/70" onClick={() => setOpen(false)} />
-          <div className="relative v-card shadow-pop p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="add-web-service-lead-title">
-            <h3 id="add-web-service-lead-title" className="text-lg font-semibold text-foreground mb-4">Add Web Service Lead</h3>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add web service lead</DialogTitle>
+            <DialogDescription className="sr-only">Add a lead to the web services pipeline.</DialogDescription>
+          </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-3">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Business Name *</label>
-                <input
+                <Input
                   type="text"
                   required
                   value={form.businessName}
                   onChange={(e) => setForm({ ...form, businessName: e.target.value })}
-                  className="w-full px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Category *</label>
-                <input
+                <Input
                   type="text"
                   required
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
                   placeholder="e.g. Hardware, Restaurants"
-                  className="w-full px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Website</label>
-                <input
+                <Input
                   type="url"
                   value={form.website}
                   onChange={(e) => setForm({ ...form, website: e.target.value })}
                   placeholder="https://"
-                  className="w-full px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Address</label>
-                <input
+                <Input
                   type="text"
                   value={form.address}
                   onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  className="w-full px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">BizBay URL</label>
-                <input
+                <Input
                   type="url"
                   value={form.bizbayUrl}
                   onChange={(e) => setForm({ ...form, bizbayUrl: e.target.value })}
                   placeholder="https://bizbay.co.za/Company/..."
-                  className="w-full px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Phone</label>
-                  <input
+                  <Input
                     type="tel"
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    className="w-full px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Email</label>
-                  <input
+                  <Input
                     type="email"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    className="w-full px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                 </div>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Notes</label>
-                <textarea
+                <Textarea
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
                   rows={2}
-                  className="w-full px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                  className="resize-none"
                 />
               </div>
               <div className="flex justify-end gap-3 pt-2">
@@ -154,9 +144,8 @@ export default function AddWebServiceLead() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

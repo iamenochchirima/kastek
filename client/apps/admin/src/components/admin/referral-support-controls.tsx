@@ -2,6 +2,10 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { buttonClassName } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/admin/status-badge";
 
 type ReferralItem = {
@@ -114,7 +118,6 @@ export function ReferralSupportControls() {
     }
   }
 
-  const input = "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground";
   return (
     <section className="mt-6 space-y-5 v-card p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -123,7 +126,7 @@ export function ReferralSupportControls() {
           <p className="mt-1 text-sm text-muted-foreground">Inspect referral state and record corrections.</p>
         </div>
         <div className="flex gap-2">
-          <select className={input + " w-auto"} value={status} onChange={(event) => setStatus(event.target.value)}>
+          <Select className="w-auto" value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Referral status">
             <option value="">All statuses</option>
             <option value="ATTRIBUTED">Attributed</option>
             <option value="QUALIFIED">Qualified</option>
@@ -131,7 +134,7 @@ export function ReferralSupportControls() {
             <option value="REJECTED">Rejected</option>
             <option value="REVERSED">Reversed</option>
             <option value="EXPIRED">Expired</option>
-          </select>
+          </Select>
           <button type="button" className={buttonClassName({ variant: "outline", size: "sm" })} onClick={() => void load()} disabled={busy}>
             Refresh
           </button>
@@ -175,23 +178,22 @@ export function ReferralSupportControls() {
           </div>
         )) : <p className="p-5 text-sm text-muted-foreground">No referrals found.</p>}
       </div>
-      {action ? (
-        <div className="fixed inset-0 z-[var(--z-overlay)] flex items-center justify-center p-4" role="presentation">
-          <div className="fixed inset-0 bg-overlay/70" onClick={() => setAction(null)} />
-          <form className="relative v-card w-full max-w-md space-y-4 p-5 shadow-pop" role="dialog" aria-modal="true" aria-labelledby="referral-change-title" onSubmit={submit}>
-            <div>
-              <h3 id="referral-change-title" className="font-semibold text-foreground">Confirm referral change</h3>
-              <p className="mt-1 text-sm text-muted-foreground">This action will be recorded against {action.item.id}.</p>
-            </div>
-            <textarea className={input} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Support reason" required rows={3} />
-            <input className={input} value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Support reference" required />
-            <div className="flex justify-end gap-2">
+      <Dialog open={Boolean(action)} onOpenChange={(nextOpen) => { if (!nextOpen) setAction(null); }}>
+        <DialogContent showCloseButton={false} className="max-w-md">
+          <form className="space-y-4" onSubmit={submit}>
+            <DialogHeader>
+              <DialogTitle>Confirm referral change</DialogTitle>
+              <DialogDescription>This action will be recorded against {action?.item.id}.</DialogDescription>
+            </DialogHeader>
+            <Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Support reason" required rows={3} aria-label="Support reason" />
+            <Input value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Support reference" required aria-label="Support reference" />
+            <DialogFooter>
               <button type="button" className={buttonClassName({ variant: "ghost", size: "md" })} onClick={() => setAction(null)} disabled={busy}>Cancel</button>
               <button type="submit" className={buttonClassName({ variant: "primary", size: "md" })} disabled={busy}>{busy ? "Saving…" : "Confirm"}</button>
-            </div>
+            </DialogFooter>
           </form>
-        </div>
-      ) : null}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

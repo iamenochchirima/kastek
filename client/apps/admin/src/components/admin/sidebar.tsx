@@ -5,9 +5,10 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Activity, Building2, ChevronDown, ChevronLeft, ChevronRight, FileText, Gauge, Globe2, Handshake,
-  Inbox, KeyRound, Mail, Menu, Palette, ReceiptText, Send, Users, X,
+  Inbox, KeyRound, Mail, Menu, Palette, ReceiptText, Send, Users,
 } from "lucide-react";
 import { buttonClassName } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; icon: typeof Gauge };
@@ -112,7 +113,15 @@ export default function Sidebar() {
 
 export function MobileNavigation() {
   const [open, setOpen] = useState(false);
-  return <><button type="button" onClick={() => setOpen(true)} className={buttonClassName({ variant: "ghost", size: "icon", className: "lg:hidden" })} aria-label="Open navigation"><Menu className="size-5" /></button>
-    {open ? <div className="fixed inset-0 z-[var(--z-overlay)] lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation"><button type="button" className="absolute inset-0 bg-overlay" aria-label="Close navigation" onClick={() => setOpen(false)} /><aside className="relative flex h-full w-[min(19rem,85vw)] flex-col border-r border-sidebar-border bg-sidebar shadow-pop"><div className="flex h-16 items-center justify-between border-b border-sidebar-border px-3"><Brand /><button type="button" onClick={() => setOpen(false)} className={buttonClassName({ variant: "ghost", size: "icon" })} aria-label="Close navigation"><X className="size-5" /></button></div><div className="flex-1 overflow-y-auto px-3 py-5"><Navigation onNavigate={() => setOpen(false)} /></div><div className="space-y-1 border-t border-sidebar-border p-3"><Link href="/settings/appearance" onClick={() => setOpen(false)} className="flex min-h-9 items-center gap-2.5 rounded-md px-2.5 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground"><Palette className="size-4" />Appearance</Link><Link href="/settings/password" onClick={() => setOpen(false)} className="flex min-h-9 items-center gap-2.5 rounded-md px-2.5 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground"><KeyRound className="size-4" />Password settings</Link></div></aside></div> : null}
-  </>;
+  return <Sheet open={open} onOpenChange={setOpen}>
+    <SheetTrigger className={buttonClassName({ variant: "ghost", size: "icon", className: "lg:hidden" })} aria-label="Open navigation"><Menu className="size-5" /></SheetTrigger>
+    <SheetContent side="left" className="w-[min(19rem,85vw)] bg-sidebar p-0">
+      <SheetHeader className="flex h-16 flex-row items-center border-b border-sidebar-border px-3 py-0">
+        <Brand />
+        <SheetTitle className="sr-only">Admin navigation</SheetTitle>
+      </SheetHeader>
+      <div className="flex-1 overflow-y-auto px-3 py-5"><Navigation onNavigate={() => setOpen(false)} /></div>
+      <div className="space-y-1 border-t border-sidebar-border p-3"><Link href="/settings/appearance" onClick={() => setOpen(false)} className="flex min-h-9 items-center gap-2.5 rounded-md px-2.5 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground"><Palette className="size-4" />Appearance</Link><Link href="/settings/password" onClick={() => setOpen(false)} className="flex min-h-9 items-center gap-2.5 rounded-md px-2.5 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground"><KeyRound className="size-4" />Password settings</Link></div>
+    </SheetContent>
+  </Sheet>;
 }

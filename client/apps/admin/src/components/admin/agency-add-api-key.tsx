@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
 import { buttonClassName } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { copyAdminText } from "@/lib/format";
 
 export default function AgencyAddApiKey({ workspaceId }: { workspaceId: string }) {
   const router = useRouter();
@@ -37,8 +40,7 @@ export default function AgencyAddApiKey({ workspaceId }: { workspaceId: string }
 
   async function copyKey() {
     if (!createdKey) return;
-    await navigator.clipboard.writeText(createdKey);
-    setCopied(true);
+    setCopied(await copyAdminText(createdKey));
     setTimeout(() => setCopied(false), 2000);
   }
 
@@ -56,15 +58,17 @@ export default function AgencyAddApiKey({ workspaceId }: { workspaceId: string }
         onClick={() => setOpen(true)}
         className={buttonClassName({ size: "sm" })}
       >
-        + New Key
+        <Plus className="size-4" /> New key
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-[var(--z-overlay)] flex items-center justify-center bg-overlay/70 p-4 backdrop-blur-sm" role="presentation">
-          <div role="dialog" aria-modal="true" className="v-card w-full max-w-md space-y-4 p-[var(--density-card-padding)]">
+      <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) handleClose(); }}>
+        <DialogContent className="max-w-md" onClick={(event) => event.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>{createdKey ? "API key created" : "New API key"}</DialogTitle>
+            <DialogDescription className="sr-only">Manage an API key for this workspace.</DialogDescription>
+          </DialogHeader>
             {createdKey ? (
               <>
-                <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">API key created</h2>
                 <div className="rounded-md border border-status-attention/25 bg-status-attention-soft px-4 py-3">
                   <p className="mb-2 text-xs font-medium text-status-attention">
                     Copy this key now — it will not be shown again.
@@ -88,8 +92,6 @@ export default function AgencyAddApiKey({ workspaceId }: { workspaceId: string }
               </>
             ) : (
               <>
-                <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">New API key</h2>
-
                 {error && (
                   <div role="alert" className="rounded-md border border-status-danger/25 bg-status-danger-soft px-4 py-3 text-sm text-status-danger">
                     {error}
@@ -125,9 +127,8 @@ export default function AgencyAddApiKey({ workspaceId }: { workspaceId: string }
                 </form>
               </>
             )}
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
