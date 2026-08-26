@@ -18,10 +18,22 @@ type NavGroup = { label: string; items: NavItem[] };
 const navigation: NavGroup[] = [
   { label: "Overview", items: [
     { href: "/dashboard", label: "Dashboard", icon: Gauge },
-    { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  ] },
+  { label: "Analytics", items: [
+    { href: "/analytics", label: "Overview", icon: Gauge },
+    { href: "/analytics/usage", label: "Usage", icon: BarChart3 },
+    { href: "/analytics/revenue", label: "Revenue", icon: ReceiptText },
+    { href: "/analytics/customers", label: "Customers", icon: Users },
+  ] },
+  { label: "Activity", items: [
+    { href: "/activity", label: "Live activity", icon: Activity },
+    { href: "/reports", label: "Reports", icon: FileText },
   ] },
   { label: "Operations", items: [
     { href: "/operations", label: "Agent operations", icon: Activity },
+    { href: "/operations/health", label: "System health", icon: Gauge },
+    { href: "/operations/data-quality", label: "Data quality", icon: BarChart3 },
+    { href: "/operations/audit", label: "Audit", icon: FileText },
     { href: "/leads", label: "Leads", icon: Users },
     { href: "/conversations", label: "Conversations", icon: Inbox },
   ] },
