@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Activity, Building2, ChevronDown, ChevronLeft, ChevronRight, FileText, Gauge, Globe2, Handshake,
+  Activity, BarChart3, Building2, ChevronDown, ChevronLeft, ChevronRight, FileText, Gauge, Globe2, Handshake,
   Inbox, KeyRound, Mail, Menu, Palette, ReceiptText, Send, Users,
 } from "lucide-react";
 import { buttonClassName } from "@/components/ui/button";
@@ -16,7 +16,10 @@ type NavItem = { href: string; label: string; icon: typeof Gauge };
 type NavGroup = { label: string; items: NavItem[] };
 
 const navigation: NavGroup[] = [
-  { label: "Overview", items: [{ href: "/dashboard", label: "Dashboard", icon: Gauge }] },
+  { label: "Overview", items: [
+    { href: "/dashboard", label: "Dashboard", icon: Gauge },
+    { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  ] },
   { label: "Operations", items: [
     { href: "/operations", label: "Agent operations", icon: Activity },
     { href: "/leads", label: "Leads", icon: Users },

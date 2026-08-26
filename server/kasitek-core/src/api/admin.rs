@@ -4,11 +4,11 @@ use actix_web::web;
 
 #[allow(unused_imports)]
 use crate::controllers::{
-    admin, admin_billing, admin_conversations, admin_invoices, admin_leads, admin_notifications,
-    admin_operations, admin_outreach, admin_quotations, admin_web_services, agent_internal,
-    agent_platform, ai, auth, billing, bookings, calls, connections, customers, health, inbox,
-    notifications, onboarding, orgs, product_tour, profile, public_v1, realtime, social, whatsapp,
-    whatsapp_calls, workspace,
+    admin, admin_analytics, admin_billing, admin_conversations, admin_invoices, admin_leads,
+    admin_notifications, admin_operations, admin_outreach, admin_quotations, admin_web_services,
+    agent_internal, agent_platform, ai, auth, billing, bookings, calls, connections, customers,
+    health, inbox, notifications, onboarding, orgs, product_tour, profile, public_v1, realtime,
+    social, whatsapp, whatsapp_calls, workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -24,6 +24,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("/reset-password", web::post().to(admin::reset_password))
             .route("/password", web::patch().to(admin::change_password))
             .route("/stats", web::get().to(admin::stats))
+            .service(
+                web::scope("/analytics")
+                    .route("/overview", web::get().to(admin_analytics::overview)),
+            )
             .service(
                 web::scope("/operations")
                     .route("/summary", web::get().to(admin_operations::summary))
