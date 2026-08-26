@@ -15,7 +15,7 @@ use sqlx::{PgPool, Row};
 use crate::{
     controllers::admin_analytics::{authorize_analytics, report_window},
     error::AppError,
-    middleware::extract_admin,
+    middleware::{extract_admin, require_admin_role},
 };
 
 const MAX_SAVED_REPORTS: i64 = 100;
@@ -25,6 +25,7 @@ const MAX_CONFIG_BYTES: usize = 8 * 1024;
 #[serde(rename_all = "camelCase")]
 struct ReportDefinition {
     key: &'static str,
+    version: u8,
     name: &'static str,
     description: &'static str,
     source: &'static str,
@@ -33,24 +34,28 @@ struct ReportDefinition {
 const REPORT_DEFINITIONS: [ReportDefinition; 4] = [
     ReportDefinition {
         key: "platform-overview",
+        version: 1,
         name: "Platform overview",
         description: "Daily organizations, users, operations, and collected revenue.",
         source: "Core authoritative records",
     },
     ReportDefinition {
         key: "usage-daily",
+        version: 1,
         name: "Usage by day",
         description: "Daily operations, conversations, messages, sends, and credits consumed.",
         source: "Core authoritative records",
     },
     ReportDefinition {
         key: "revenue-daily",
+        version: 1,
         name: "Revenue by day",
         description: "Daily collections, refunds, paid invoices, and failed checkouts.",
         source: "Core billing records",
     },
     ReportDefinition {
         key: "customer-cohorts",
+        version: 1,
         name: "Customer cohorts",
         description: "Organization activity and current plan distribution.",
         source: "Core organization and billing records",
@@ -71,6 +76,7 @@ struct SavedReport {
     name: String,
     report_key: String,
     config: Value,
+    version: u8,
     created_by_id: String,
     created_by_name: String,
     created_at: DateTime<Utc>,
@@ -95,7 +101,7 @@ pub struct ExportQuery {
 pub async fn index(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
     let admin = extract_admin(&req, pool.get_ref()).await?;
     authorize_analytics(&req, pool.get_ref(), &admin).await?;
-    let saved = load_saved_reports(pool.get_ref()).await?;
+    let saved = load_saved_reports(pool.get_ref(), &admin.id).await?;
 
     Ok(HttpResponse::Ok().json(ReportsResponse {
         reports: &REPORT_DEFINITIONS,
@@ -110,6 +116,7 @@ pub async fn save(
 ) -> Result<HttpResponse, AppError> {
     let admin = extract_admin(&req, pool.get_ref()).await?;
     authorize_analytics(&req, pool.get_ref(), &admin).await?;
+    require_admin_role(&admin, &["admin", "superadmin", "owner"])?;
     let name = body.name.trim();
     if !(2..=80).contains(&name.chars().count()) {
         return Err(AppError::BadRequest(
@@ -131,7 +138,13 @@ pub async fn save(
     config
         .as_object_mut()
         .expect("object checked above")
-        .insert("days".to_string(), json!(days));
+        .extend([
+            ("days".to_string(), json!(days)),
+            (
+                "version".to_string(),
+                json!(report_version(&body.report_key)),
+            ),
+        ]);
     if serde_json::to_vec(&config)
         .map_err(|_| AppError::BadRequest("Report configuration is invalid".to_string()))?
         .len()
@@ -165,6 +178,7 @@ pub async fn save(
         name: saved.try_get("name")?,
         report_key: saved.try_get("reportKey")?,
         config: saved.try_get("config")?,
+        version: report_version(&body.report_key),
         created_by_id: saved.try_get("createdById")?,
         created_by_name: admin.name,
         created_at: saved.try_get("created_at")?,
@@ -179,6 +193,7 @@ pub async fn remove(
 ) -> Result<HttpResponse, AppError> {
     let admin = extract_admin(&req, pool.get_ref()).await?;
     authorize_analytics(&req, pool.get_ref(), &admin).await?;
+    require_admin_role(&admin, &["admin", "superadmin", "owner"])?;
     let result =
         sqlx::query(r#"DELETE FROM "AdminSavedReport" WHERE id = $1 AND "createdById" = $2"#)
             .bind(report_id.into_inner())
@@ -198,25 +213,49 @@ pub async fn export(
 ) -> Result<HttpResponse, AppError> {
     let admin = extract_admin(&req, pool.get_ref()).await?;
     authorize_analytics(&req, pool.get_ref(), &admin).await?;
+    require_admin_role(&admin, &["admin", "superadmin", "owner"])?;
     if !is_known_report(&query.report) {
         return Err(AppError::BadRequest("Report type is invalid".to_string()));
     }
     let (start, end, _) = report_window(query.days)?;
+    let export_audit_id = cuid2::create_id();
+    let requested_days = query.days.unwrap_or(30);
+    sqlx::query(
+        r#"INSERT INTO "AdminReportExportAuditEvent" (id, "adminId", "reportKey", days, format, status, "createdAt") VALUES ($1, $2, $3, $4, 'csv', 'REQUESTED', NOW())"#,
+    )
+    .bind(&export_audit_id)
+    .bind(&admin.id)
+    .bind(&query.report)
+    .bind(requested_days)
+    .execute(pool.get_ref())
+    .await?;
+
     let mut writer = Writer::from_writer(Vec::<u8>::new());
-    match query.report.as_str() {
+    let export_result: Result<(), AppError> = match query.report.as_str() {
         "platform-overview" => {
-            write_platform_overview(&mut writer, pool.get_ref(), start, end).await?
+            write_platform_overview(&mut writer, pool.get_ref(), start, end).await
         }
-        "usage-daily" => write_usage_daily(&mut writer, pool.get_ref(), start, end).await?,
-        "revenue-daily" => write_revenue_daily(&mut writer, pool.get_ref(), start, end).await?,
-        "customer-cohorts" => {
-            write_customer_cohorts(&mut writer, pool.get_ref(), start, end).await?
-        }
+        "usage-daily" => write_usage_daily(&mut writer, pool.get_ref(), start, end).await,
+        "revenue-daily" => write_revenue_daily(&mut writer, pool.get_ref(), start, end).await,
+        "customer-cohorts" => write_customer_cohorts(&mut writer, pool.get_ref(), start, end).await,
         _ => unreachable!("known report validated above"),
+    };
+    if let Err(error) = export_result {
+        let _ = sqlx::query(
+            r#"UPDATE "AdminReportExportAuditEvent" SET status = 'FAILED' WHERE id = $1"#,
+        )
+        .bind(&export_audit_id)
+        .execute(pool.get_ref())
+        .await;
+        return Err(error);
     }
     let bytes = writer
         .into_inner()
         .map_err(|_| AppError::Internal("Unable to finalize report export".to_string()))?;
+    sqlx::query(r#"UPDATE "AdminReportExportAuditEvent" SET status = 'SUCCEEDED' WHERE id = $1"#)
+        .bind(&export_audit_id)
+        .execute(pool.get_ref())
+        .await?;
     let filename = format!(
         "kasitek-{}-{}.csv",
         query.report,
@@ -232,7 +271,7 @@ pub async fn export(
         .body(bytes))
 }
 
-async fn load_saved_reports(pool: &PgPool) -> Result<Vec<SavedReport>, AppError> {
+async fn load_saved_reports(pool: &PgPool, admin_id: &str) -> Result<Vec<SavedReport>, AppError> {
     let rows = sqlx::query(
         r#"
         SELECT report.id, report.name, report."reportKey", report.config,
@@ -241,10 +280,12 @@ async fn load_saved_reports(pool: &PgPool) -> Result<Vec<SavedReport>, AppError>
                (report."updatedAt" AT TIME ZONE 'UTC') AS updated_at
         FROM "AdminSavedReport" report
         JOIN "AdminUser" admin ON admin.id = report."createdById"
+        WHERE report."createdById" = $1
         ORDER BY report."updatedAt" DESC
-        LIMIT $1
+        LIMIT $2
         "#,
     )
+    .bind(admin_id)
     .bind(MAX_SAVED_REPORTS)
     .fetch_all(pool)
     .await?;
@@ -255,6 +296,14 @@ async fn load_saved_reports(pool: &PgPool) -> Result<Vec<SavedReport>, AppError>
                 name: row.try_get("name")?,
                 report_key: row.try_get("reportKey")?,
                 config: row.try_get("config")?,
+                version: row
+                    .try_get::<Value, _>("config")?
+                    .get("version")
+                    .and_then(Value::as_u64)
+                    .unwrap_or_else(|| {
+                        report_version(&row.try_get::<String, _>("reportKey").unwrap_or_default())
+                            as u64
+                    }) as u8,
                 created_by_id: row.try_get("createdById")?,
                 created_by_name: row.try_get("created_by_name")?,
                 created_at: row.try_get("created_at")?,
@@ -267,6 +316,14 @@ async fn load_saved_reports(pool: &PgPool) -> Result<Vec<SavedReport>, AppError>
 
 fn is_known_report(value: &str) -> bool {
     REPORT_DEFINITIONS.iter().any(|report| report.key == value)
+}
+
+fn report_version(value: &str) -> u8 {
+    REPORT_DEFINITIONS
+        .iter()
+        .find(|report| report.key == value)
+        .map(|report| report.version)
+        .unwrap_or(0)
 }
 
 async fn write_platform_overview(

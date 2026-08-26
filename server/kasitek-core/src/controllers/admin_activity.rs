@@ -277,8 +277,8 @@ async fn query_rows(
           FROM "NotificationEvent" notification
           WHERE notification."createdAt" >= $1 AND notification."createdAt" < $2
           UNION ALL
-          SELECT audit.id, (audit."createdAt" AT TIME ZONE 'UTC'), 'core', 'security', audit.action, 'RECORDED', 'warning', 'admin', audit."actorId", grant."organizationId", 'support_access_audit', audit.id, NULL, jsonb_build_object('resourceType', grant."resourceType", 'resourceId', grant."resourceId")
-          FROM "AdminSupportAccessAuditEvent" audit JOIN "AdminSupportAccessGrant" grant ON grant.id = audit."grantId"
+          SELECT audit.id, (audit."createdAt" AT TIME ZONE 'UTC'), 'core', 'security', audit.action, 'RECORDED', 'warning', 'admin', audit."actorId", access_grant."organizationId", 'support_access_audit', audit.id, NULL, jsonb_build_object('resourceType', access_grant."resourceType", 'resourceId', access_grant."resourceId")
+          FROM "AdminSupportAccessAuditEvent" audit JOIN "AdminSupportAccessGrant" access_grant ON access_grant.id = audit."grantId"
           WHERE audit."createdAt" >= $1 AND audit."createdAt" < $2
           UNION ALL
           SELECT audit.id, (audit."createdAt" AT TIME ZONE 'UTC'), 'core', 'security', audit.action, 'RECORDED', 'warning', 'admin', audit."actorId", NULL, 'webhook_replay_audit', audit.id, NULL, jsonb_build_object('commandId', audit."commandId")
@@ -288,6 +288,10 @@ async fn query_rows(
           SELECT issue.id, (issue."detectedAt" AT TIME ZONE 'UTC'), 'core', 'data_quality', issue."issueType", issue.status, CASE WHEN issue.status = 'OPEN' THEN 'critical' ELSE 'info' END, 'system', NULL, issue."orgId", 'billing_reconciliation_issue', issue.id, NULL, jsonb_build_object('resourceType', issue."resourceType", 'provider', issue.provider)
           FROM "BillingReconciliationIssue" issue
           WHERE issue."detectedAt" >= $1 AND issue."detectedAt" < $2
+          UNION ALL
+          SELECT export.id, (export."createdAt" AT TIME ZONE 'UTC'), 'core', 'reports', 'report.export', export.status, 'info', 'admin', export."adminId", NULL, 'report_export', export.id, NULL, jsonb_build_object('reportKey', export."reportKey", 'days', export.days, 'format', export.format)
+          FROM "AdminReportExportAuditEvent" export
+          WHERE export."createdAt" >= $1 AND export."createdAt" < $2
         )
         SELECT id, occurred_at, source, domain, action, status, severity, actor_type, actor_id,
           organization_id, resource_type, resource_id, correlation_id, metadata

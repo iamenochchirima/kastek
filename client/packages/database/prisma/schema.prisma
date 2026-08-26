@@ -906,6 +906,7 @@ model AdminUser {
   supportAccessGrants AdminSupportAccessGrant[] @relation("SupportAccessAdmin")
   supportAccessGrantsIssued AdminSupportAccessGrant[] @relation("SupportAccessIssuer")
   savedReports AdminSavedReport[]
+  reportExportEvents AdminReportExportAuditEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -924,6 +925,21 @@ model AdminSavedReport {
 
   @@index([createdById, updatedAt])
   @@index([reportKey, updatedAt])
+}
+
+model AdminReportExportAuditEvent {
+  id         String   @id @default(cuid())
+  adminId    String
+  reportKey  String
+  days       Int
+  format     String   @default("csv")
+  status     String   @default("REQUESTED")
+  createdAt  DateTime @default(now())
+
+  admin AdminUser @relation(fields: [adminId], references: [id], onDelete: Restrict)
+
+  @@index([adminId, createdAt])
+  @@index([reportKey, createdAt])
 }
 
 model AdminSupportAccessGrant {
