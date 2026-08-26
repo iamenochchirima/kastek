@@ -18,8 +18,10 @@ else
 fi
 
 AGENT_ENV_SETUP="if [[ -f '$ROOT_DIR/agents/.env' ]]; then set -a; source '$ROOT_DIR/agents/.env'; set +a; fi"
+CORE_ENV_SETUP="if [[ -f '$ROOT_DIR/server/kasitek-core/.env' ]]; then set -a; source '$ROOT_DIR/server/kasitek-core/.env'; set +a; fi"
 ANALYTICS_LOCAL_REPORTING_ENV_FILE="/tmp/kasitek-analytics-reporting-${UID}.env"
 ANALYTICS_ENV_SETUP="if [[ -f '$ROOT_DIR/server/kasitek-analytics/.env' ]]; then set -a; source '$ROOT_DIR/server/kasitek-analytics/.env'; set +a; fi; if [[ -f '$ANALYTICS_LOCAL_REPORTING_ENV_FILE' ]]; then set -a; source '$ANALYTICS_LOCAL_REPORTING_ENV_FILE'; set +a; fi"
+CORE_ANALYTICS_ENV_SETUP="$CORE_ENV_SETUP; $ANALYTICS_ENV_SETUP"
 
 # The local Agent Platform -> Core boundary uses the development bearer-token
 # compatibility path. Keep one value on both processes so read and draft tools
@@ -114,14 +116,14 @@ declare -a tabs=()
 declare -A services
 
 # Define all available services
-services["core"]="$ROOT_DIR/server/kasitek-core|$ANALYTICS_ENV_SETUP; LOG_COLOR=always KASITEK_AGENTS_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' cargo run"
+services["core"]="$ROOT_DIR/server/kasitek-core|$CORE_ANALYTICS_ENV_SETUP; LOG_COLOR=always KASITEK_AGENTS_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' cargo run"
 services["tenants"]="$ROOT_DIR/server/kasitek-tenants|$ANALYTICS_ENV_SETUP; LOG_COLOR=always cargo run"
 services["analytics-storage"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ./scripts/local-storage.sh"
 services["analytics-migrate"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ./scripts/local-migrate.sh"
 services["analytics-api"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ANALYTICS_DATABASE_URL=\"\${ANALYTICS_DATABASE_URL:-postgres://analytics:analytics_dev_password@127.0.0.1:5432/kasitek_analytics}\" ANALYTICS_REDIS_URL=\"\${ANALYTICS_REDIS_URL:-redis://127.0.0.1:6379}\" ANALYTICS_API_PORT=\"\${ANALYTICS_API_PORT:-4300}\" LOG_COLOR=always cargo run --bin analytics-api"
 services["analytics-worker"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ANALYTICS_DATABASE_URL=\"\${ANALYTICS_DATABASE_URL:-postgres://analytics:analytics_dev_password@127.0.0.1:5432/kasitek_analytics}\" ANALYTICS_REDIS_URL=\"\${ANALYTICS_REDIS_URL:-redis://127.0.0.1:6379}\" LOG_COLOR=always cargo run --bin analytics-worker"
-services["core-analytics-publisher"]="$ROOT_DIR/server/kasitek-core|$ANALYTICS_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-publisher cargo run"
-services["core-analytics-backfill"]="$ROOT_DIR/server/kasitek-core|$ANALYTICS_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-backfill-worker cargo run"
+services["core-analytics-publisher"]="$ROOT_DIR/server/kasitek-core|$CORE_ANALYTICS_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-publisher cargo run"
+services["core-analytics-backfill"]="$ROOT_DIR/server/kasitek-core|$CORE_ANALYTICS_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-backfill-worker cargo run"
 services["tenants-analytics-publisher"]="$ROOT_DIR/server/kasitek-tenants|$ANALYTICS_ENV_SETUP; LOG_COLOR=always KASITEK_PROCESS=analytics-publisher cargo run"
 services["agent-analytics-publisher"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; pnpm run dev:analytics-publisher"
 services["agents-api"]="$ROOT_DIR/agents|$AGENT_ENV_SETUP; KASITEK_CORE_URL='$LOCAL_CORE_URL' KASITEK_CORE_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' $AGENT_TEMPORAL_ENV pnpm run dev:api"
