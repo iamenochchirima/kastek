@@ -1,11 +1,13 @@
 pub mod admin;
 pub mod admin_analytics;
+pub mod admin_activity;
 pub mod admin_billing;
 pub mod admin_conversations;
 pub mod admin_invoices;
 pub mod admin_leads;
 pub mod admin_notifications;
 pub mod admin_operations;
+pub mod admin_reports;
 pub mod admin_outreach;
 pub mod admin_quotations;
 pub mod admin_web_services;

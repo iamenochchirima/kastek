@@ -217,3 +217,10 @@ impl From<reqwest::Error> for AppError {
         Self::Internal("External request failed".to_string())
     }
 }
+
+impl From<csv::Error> for AppError {
+    fn from(error: csv::Error) -> Self {
+        log::error!("csv error: {:?}", error);
+        Self::Internal("Report export failed".to_string())
+    }
+}

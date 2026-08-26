@@ -4,11 +4,11 @@ use actix_web::web;
 
 #[allow(unused_imports)]
 use crate::controllers::{
-    admin, admin_analytics, admin_billing, admin_conversations, admin_invoices, admin_leads,
-    admin_notifications, admin_operations, admin_outreach, admin_quotations, admin_web_services,
-    agent_internal, agent_platform, ai, auth, billing, bookings, calls, connections, customers,
-    health, inbox, notifications, onboarding, orgs, product_tour, profile, public_v1, realtime,
-    social, whatsapp, whatsapp_calls, workspace,
+    admin, admin_activity, admin_analytics, admin_billing, admin_conversations, admin_invoices,
+    admin_leads, admin_notifications, admin_operations, admin_outreach, admin_quotations,
+    admin_reports, admin_web_services, agent_internal, agent_platform, ai, auth, billing, bookings,
+    calls, connections, customers, health, inbox, notifications, onboarding, orgs, product_tour,
+    profile, public_v1, realtime, social, whatsapp, whatsapp_calls, workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -26,7 +26,22 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("/stats", web::get().to(admin::stats))
             .service(
                 web::scope("/analytics")
-                    .route("/overview", web::get().to(admin_analytics::overview)),
+                    .route("/overview", web::get().to(admin_analytics::overview))
+                    .route("/usage", web::get().to(admin_analytics::usage))
+                    .route("/revenue", web::get().to(admin_analytics::revenue))
+                    .route("/customers", web::get().to(admin_analytics::customers)),
+            )
+            .service(
+                web::scope("/activity")
+                    .route("", web::get().to(admin_activity::list))
+                    .route("/stream", web::get().to(admin_activity::stream)),
+            )
+            .route("/reports", web::get().to(admin_reports::index))
+            .route("/reports", web::post().to(admin_reports::save))
+            .route("/reports/export", web::get().to(admin_reports::export))
+            .route(
+                "/reports/{reportId}",
+                web::delete().to(admin_reports::remove),
             )
             .service(
                 web::scope("/operations")
