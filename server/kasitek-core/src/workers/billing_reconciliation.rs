@@ -29,9 +29,16 @@ pub async fn run(pool: PgPool, config: AppConfig) {
         .unwrap_or(100);
 
     loop {
-        match crate::services::billing::reconcile_billing(&pool, &provider, batch_size).await {
+        match crate::services::billing::reconcile_billing(
+            &pool,
+            &provider,
+            batch_size,
+            crate::services::referrals::ReferralRewardConfig::from_config(&config),
+        )
+        .await
+        {
             Ok(result) if result.checked > 0 || result.subscriptions_checked > 0 => {
-                log::info!("[billing-reconciliation-worker] provider={} checkouts={} completed={} pending={} subscriptions={} updated={} failed={} open_issues={}", provider.name(), result.checked, result.completed, result.pending, result.subscriptions_checked, result.subscriptions_updated, result.failed, result.open_issues);
+                log::info!("[billing-reconciliation-worker] provider={} checkouts={} completed={} pending={} webhook_retries={} subscriptions={} updated={} failed={} open_issues={}", provider.name(), result.checked, result.completed, result.pending, result.webhook_retries, result.subscriptions_checked, result.subscriptions_updated, result.failed, result.open_issues);
                 if result.failed > 0 {
                     log::warn!(
                         "[billing-reconciliation-worker] {} checkout(s) require operator review",

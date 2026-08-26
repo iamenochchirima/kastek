@@ -94,7 +94,138 @@ export type AvailablePlan = {
   interval: "MONTHLY" | "YEARLY";
   currency: string;
   amountMinor: number | null;
+  creditsPerPeriod: number | null;
   checkoutReady: boolean;
+};
+
+export type PlanEntitlement = {
+  key: string;
+  name: string;
+  description: string | null;
+  kind: "feature" | "limit";
+  value: unknown;
+};
+
+export type AvailablePlanDetails = AvailablePlan & {
+  entitlements: PlanEntitlement[];
+};
+
+export type CreditGrant = {
+  id: string;
+  source: string;
+  amount: number;
+  remainingAmount: number;
+  startsAt: string;
+  endsAt: string | null;
+  reason: string | null;
+  reference: string | null;
+};
+
+export type CreditLedgerEntry = {
+  id: string;
+  entryType: string;
+  amount: number;
+  balanceAfter: number;
+  actionKey: string | null;
+  sourceType: string | null;
+  sourceId: string | null;
+  pricingVersion: string | null;
+  createdByAdminId: string | null;
+  createdAt: string;
+};
+
+export type CreditAccount = {
+  orgId: string;
+  balance: number;
+  reservedBalance: number;
+  availableBalance: number;
+  grants: CreditGrant[];
+  ledger: CreditLedgerEntry[];
+};
+
+export type CreditUsageEvent = {
+  id: string;
+  actionKey: string;
+  quantity: number;
+  creditsCharged: number;
+  status: string;
+  provider: string | null;
+  model: string | null;
+  fundingSource: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  pricingVersion: string | null;
+  createdAt: string;
+};
+
+export type ReferralHistoryItem = {
+  id: string;
+  status: string;
+  refereeOrgName: string;
+  attributedAt: string;
+  attributionExpiresAt: string | null;
+  qualifiedAt: string | null;
+  awardedAt: string | null;
+  reversedAt: string | null;
+};
+
+export type ReferralSummary = {
+  code: string;
+  status: string;
+  disabledAt: string | null;
+  disabledReason: string | null;
+  redemptionCount: number;
+  attributedCount: number;
+  maxRedemptions: number | null;
+  shareUrl: string;
+  referrerRewardCredits: number;
+  refereeRewardCredits: number;
+  rewardExpiryDays: number;
+  attributionWindowDays: number;
+  pendingCount: number;
+  qualifiedCount: number;
+  awardedCount: number;
+  expiredCount: number;
+  rejectedCount: number;
+  reversedCount: number;
+  recent: ReferralHistoryItem[];
+};
+
+export type BillingCredits = {
+  account: CreditAccount;
+  usage: CreditUsageEvent[];
+  referral: ReferralSummary;
+};
+
+export type BillingUsageDay = {
+  date: string;
+  creditsUsed: number;
+  operations: number;
+};
+
+export type BillingUsageBreakdown = {
+  key: string;
+  creditsUsed: number;
+  operations: number;
+};
+
+export type BillingUsage = {
+  rangeStart: string;
+  rangeEnd: string;
+  timezone: string;
+  granularity: "day" | "week" | string;
+  daily: BillingUsageDay[];
+  previousDaily: BillingUsageDay[];
+  credits: {
+    used: number;
+    balance: number;
+    reserved: number;
+    available: number;
+  };
+  operations: number;
+  breakdown: BillingUsageBreakdown[];
+  meters: MeterUsage[];
+  recent: CreditUsageEvent[];
 };
 
 export function fetchBillingSummary() {
@@ -103,4 +234,16 @@ export function fetchBillingSummary() {
 
 export function fetchBillingPlans() {
   return fetchRustJson<{ plans: AvailablePlan[] }>("/api/billing/plans");
+}
+
+export function fetchBillingPlanDetails(planKey: string) {
+  return fetchRustJson<AvailablePlanDetails>(`/api/billing/plans/${encodeURIComponent(planKey)}`);
+}
+
+export function fetchBillingCredits() {
+  return fetchRustJson<BillingCredits>("/api/billing/credits");
+}
+
+export function fetchBillingUsage(range: "7d" | "30d" | "90d" = "30d") {
+  return fetchRustJson<BillingUsage>(`/api/billing/usage?range=${range}`);
 }

@@ -6,6 +6,8 @@ use sqlx::{FromRow, PgPool, Row};
 use crate::config::AppConfig;
 use crate::error::AppError;
 use crate::services::auth::send_email;
+use crate::services::credits;
+use crate::services::referrals;
 
 // ─── DB row types ──────────────────────────────────────────
 
@@ -18,6 +20,9 @@ pub struct OrgRow {
     #[sqlx(rename = "ownerId")]
     #[serde(rename = "ownerId")]
     pub owner_id: String,
+    #[sqlx(rename = "reportingTimezone")]
+    #[serde(rename = "reportingTimezone")]
+    pub reporting_timezone: String,
     #[sqlx(rename = "createdAt")]
     #[serde(rename = "createdAt")]
     pub created_at: DateTime<Utc>,
@@ -74,7 +79,7 @@ pub struct OrgInvitationRow {
 
 pub async fn get_org(pool: &PgPool, org_id: &str) -> Result<Option<OrgRow>, AppError> {
     Ok(sqlx::query_as::<_, OrgRow>(
-        r#"SELECT id, name, slug, logo, "ownerId",
+        r#"SELECT id, name, slug, logo, "ownerId", "reportingTimezone",
                   "createdAt" AT TIME ZONE 'UTC' AS "createdAt",
                   "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"
            FROM "Organization" WHERE id = $1"#,
@@ -86,7 +91,7 @@ pub async fn get_org(pool: &PgPool, org_id: &str) -> Result<Option<OrgRow>, AppE
 
 pub async fn list_orgs_for_user(pool: &PgPool, user_id: &str) -> Result<Vec<OrgRow>, AppError> {
     Ok(sqlx::query_as::<_, OrgRow>(
-        r#"SELECT o.id, o.name, o.slug, o.logo, o."ownerId",
+        r#"SELECT o.id, o.name, o.slug, o.logo, o."ownerId", o."reportingTimezone",
                   o."createdAt" AT TIME ZONE 'UTC' AS "createdAt",
                   o."updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"
            FROM "Organization" o
@@ -152,13 +157,16 @@ pub async fn create_org(
     name: &str,
     slug: &str,
     logo: Option<&str>,
+    trial_credits: i64,
+    trial_duration_days: i64,
 ) -> Result<OrgRow, AppError> {
     let org_id = cuid2::create_id();
 
+    let mut transaction = pool.begin().await?;
     let org = sqlx::query_as::<_, OrgRow>(
-        r#"INSERT INTO "Organization" (id, name, slug, logo, "ownerId", "createdAt", "updatedAt")
-           VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-           RETURNING id, name, slug, logo, "ownerId",
+        r#"INSERT INTO "Organization" (id, name, slug, logo, "ownerId", "reportingTimezone", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, 'UTC', NOW(), NOW())
+           RETURNING id, name, slug, logo, "ownerId", "reportingTimezone",
                      "createdAt" AT TIME ZONE 'UTC' AS "createdAt",
                      "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt""#,
     )
@@ -167,7 +175,7 @@ pub async fn create_org(
     .bind(slug)
     .bind(logo)
     .bind(user_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *transaction)
     .await
     .map_err(|e| {
         if e.to_string().contains("unique") || e.to_string().contains("duplicate") {
@@ -185,7 +193,40 @@ pub async fn create_org(
     .bind(cuid2::create_id())
     .bind(&org_id)
     .bind(user_id)
-    .execute(pool)
+    .execute(&mut *transaction)
+    .await?;
+
+    crate::analytics::enqueue_organization_scope_definition(
+        &mut transaction,
+        &org.id,
+        org.created_at.timestamp_millis().max(1),
+        &org.reporting_timezone,
+        "active",
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!(
+            "failed to queue organization Analytics scope: {error}"
+        ))
+    })?;
+
+    transaction.commit().await?;
+
+    referrals::ensure_referral_code(pool, &org_id).await?;
+
+    credits::grant_system_credits(
+        pool,
+        &org_id,
+        trial_credits,
+        "TRIAL",
+        Some(Utc::now() + Duration::days(trial_duration_days)),
+        "Initial workspace trial credits",
+        Some(&format!("trial:{org_id}")),
+        Some(&serde_json::json!({
+            "trialDurationDays": trial_duration_days,
+        })),
+        &format!("trial-grant:{org_id}"),
+    )
     .await?;
 
     Ok(org)
@@ -204,6 +245,7 @@ pub async fn update_org(
                "updatedAt" = NOW()
            WHERE id = $4
            RETURNING id, name, slug, logo, "ownerId",
+                     "reportingTimezone",
                      "createdAt" AT TIME ZONE 'UTC' AS "createdAt",
                      "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt""#,
     )
@@ -587,7 +629,7 @@ pub async fn activate_invitation_with_new_user(
         .await?;
 
     let org = sqlx::query_as::<_, OrgRow>(
-        r#"SELECT id, name, slug, logo, "ownerId", "createdAt" AT TIME ZONE 'UTC' AS "createdAt", "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"
+        r#"SELECT id, name, slug, logo, "ownerId", "reportingTimezone", "createdAt" AT TIME ZONE 'UTC' AS "createdAt", "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"
            FROM "Organization" WHERE id = $1"#,
     )
     .bind(org_id)

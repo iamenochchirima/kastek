@@ -398,6 +398,14 @@ export const ModelName = {
   OrganizationSubscription: 'OrganizationSubscription',
   OrganizationEntitlementGrant: 'OrganizationEntitlementGrant',
   UsageEvent: 'UsageEvent',
+  ReferralCode: 'ReferralCode',
+  ReferralAttribution: 'ReferralAttribution',
+  CreditAccount: 'CreditAccount',
+  CreditGrant: 'CreditGrant',
+  CreditLedgerEntry: 'CreditLedgerEntry',
+  CreditReservation: 'CreditReservation',
+  CreditUsageEvent: 'CreditUsageEvent',
+  CreditAdminOperation: 'CreditAdminOperation',
   PublicApiRequest: 'PublicApiRequest',
   DeveloperApiKey: 'DeveloperApiKey',
   AgentWebsiteDeployment: 'AgentWebsiteDeployment',
@@ -456,6 +464,8 @@ export const ModelName = {
   SocialPost: 'SocialPost',
   SocialPostVariant: 'SocialPostVariant',
   SocialPublishJob: 'SocialPublishJob',
+  SocialPostInsightObservation: 'SocialPostInsightObservation',
+  SocialPostInsightSyncState: 'SocialPostInsightSyncState',
   ContentMediaAsset: 'ContentMediaAsset',
   ContentMediaRendition: 'ContentMediaRendition',
   SocialPostMedia: 'SocialPostMedia',
@@ -481,7 +491,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "organization" | "organizationMember" | "organizationOnboardingProfile" | "organizationInvitation" | "externalConnection" | "externalConnectionCapability" | "externalConnectionConsumer" | "product" | "productPlan" | "userProductTour" | "planEntitlement" | "organizationSubscription" | "organizationEntitlementGrant" | "usageEvent" | "publicApiRequest" | "developerApiKey" | "agentWebsiteDeployment" | "agentWebsiteVisitorSession" | "agentWebsiteDeliveryEvent" | "publicApiWebhookSubscription" | "publicApiWebhookDelivery" | "billingCheckout" | "billingInvoice" | "paystackWebhookEvent" | "billingReconciliationIssue" | "user" | "pushSubscription" | "account" | "session" | "verificationToken" | "adminUser" | "adminSupportAccessGrant" | "adminSupportAccessAuditEvent" | "adminWebhookReplayCommand" | "adminWebhookReplayAuditEvent" | "businessProfile" | "onboardingConversation" | "quoteRequest" | "productWaitlistEntry" | "quotation" | "invoice" | "invoiceRun" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "customer" | "customerIdentity" | "bookingService" | "booking" | "conversation" | "communicationCall" | "communicationCallLeg" | "message" | "messageAttachment" | "messageReference" | "messageReaction" | "messageEvent" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "whatsappCallSession" | "whatsappCallEvent" | "socialChannelConnection" | "socialDataDeletionRequest" | "socialWebhookEvent" | "socialOAuthAuthorization" | "socialPost" | "socialPostVariant" | "socialPublishJob" | "contentMediaAsset" | "contentMediaRendition" | "socialPostMedia" | "socialPostVariantMedia" | "whatsappContact" | "whatsappContactListMembership" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent"
+    modelProps: "organization" | "organizationMember" | "organizationOnboardingProfile" | "organizationInvitation" | "externalConnection" | "externalConnectionCapability" | "externalConnectionConsumer" | "product" | "productPlan" | "userProductTour" | "planEntitlement" | "organizationSubscription" | "organizationEntitlementGrant" | "usageEvent" | "referralCode" | "referralAttribution" | "creditAccount" | "creditGrant" | "creditLedgerEntry" | "creditReservation" | "creditUsageEvent" | "creditAdminOperation" | "publicApiRequest" | "developerApiKey" | "agentWebsiteDeployment" | "agentWebsiteVisitorSession" | "agentWebsiteDeliveryEvent" | "publicApiWebhookSubscription" | "publicApiWebhookDelivery" | "billingCheckout" | "billingInvoice" | "paystackWebhookEvent" | "billingReconciliationIssue" | "user" | "pushSubscription" | "account" | "session" | "verificationToken" | "adminUser" | "adminSupportAccessGrant" | "adminSupportAccessAuditEvent" | "adminWebhookReplayCommand" | "adminWebhookReplayAuditEvent" | "businessProfile" | "onboardingConversation" | "quoteRequest" | "productWaitlistEntry" | "quotation" | "invoice" | "invoiceRun" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "customer" | "customerIdentity" | "bookingService" | "booking" | "conversation" | "communicationCall" | "communicationCallLeg" | "message" | "messageAttachment" | "messageReference" | "messageReaction" | "messageEvent" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "whatsappCallSession" | "whatsappCallEvent" | "socialChannelConnection" | "socialDataDeletionRequest" | "socialWebhookEvent" | "socialOAuthAuthorization" | "socialPost" | "socialPostVariant" | "socialPublishJob" | "socialPostInsightObservation" | "socialPostInsightSyncState" | "contentMediaAsset" | "contentMediaRendition" | "socialPostMedia" | "socialPostVariantMedia" | "whatsappContact" | "whatsappContactListMembership" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1518,6 +1528,598 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.UsageEventCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.UsageEventCountAggregateOutputType> | number
+        }
+      }
+    }
+    ReferralCode: {
+      payload: Prisma.$ReferralCodePayload<ExtArgs>
+      fields: Prisma.ReferralCodeFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ReferralCodeFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ReferralCodeFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload>
+        }
+        findFirst: {
+          args: Prisma.ReferralCodeFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ReferralCodeFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload>
+        }
+        findMany: {
+          args: Prisma.ReferralCodeFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload>[]
+        }
+        create: {
+          args: Prisma.ReferralCodeCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload>
+        }
+        createMany: {
+          args: Prisma.ReferralCodeCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ReferralCodeCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload>[]
+        }
+        delete: {
+          args: Prisma.ReferralCodeDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload>
+        }
+        update: {
+          args: Prisma.ReferralCodeUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload>
+        }
+        deleteMany: {
+          args: Prisma.ReferralCodeDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ReferralCodeUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ReferralCodeUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload>[]
+        }
+        upsert: {
+          args: Prisma.ReferralCodeUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralCodePayload>
+        }
+        aggregate: {
+          args: Prisma.ReferralCodeAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateReferralCode>
+        }
+        groupBy: {
+          args: Prisma.ReferralCodeGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ReferralCodeGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ReferralCodeCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ReferralCodeCountAggregateOutputType> | number
+        }
+      }
+    }
+    ReferralAttribution: {
+      payload: Prisma.$ReferralAttributionPayload<ExtArgs>
+      fields: Prisma.ReferralAttributionFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ReferralAttributionFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralAttributionPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ReferralAttributionFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralAttributionPayload>
+        }
+        findFirst: {
+          args: Prisma.ReferralAttributionFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralAttributionPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ReferralAttributionFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralAttributionPayload>
+        }
+        findMany: {
+          args: Prisma.ReferralAttributionFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralAttributionPayload>[]
+        }
+        create: {
+          args: Prisma.ReferralAttributionCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralAttributionPayload>
+        }
+        createMany: {
+          args: Prisma.ReferralAttributionCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ReferralAttributionCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralAttributionPayload>[]
+        }
+        delete: {
+          args: Prisma.ReferralAttributionDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralAttributionPayload>
+        }
+        update: {
+          args: Prisma.ReferralAttributionUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralAttributionPayload>
+        }
+        deleteMany: {
+          args: Prisma.ReferralAttributionDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ReferralAttributionUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ReferralAttributionUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralAttributionPayload>[]
+        }
+        upsert: {
+          args: Prisma.ReferralAttributionUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ReferralAttributionPayload>
+        }
+        aggregate: {
+          args: Prisma.ReferralAttributionAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateReferralAttribution>
+        }
+        groupBy: {
+          args: Prisma.ReferralAttributionGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ReferralAttributionGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ReferralAttributionCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ReferralAttributionCountAggregateOutputType> | number
+        }
+      }
+    }
+    CreditAccount: {
+      payload: Prisma.$CreditAccountPayload<ExtArgs>
+      fields: Prisma.CreditAccountFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CreditAccountFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAccountPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CreditAccountFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAccountPayload>
+        }
+        findFirst: {
+          args: Prisma.CreditAccountFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAccountPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CreditAccountFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAccountPayload>
+        }
+        findMany: {
+          args: Prisma.CreditAccountFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAccountPayload>[]
+        }
+        create: {
+          args: Prisma.CreditAccountCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAccountPayload>
+        }
+        createMany: {
+          args: Prisma.CreditAccountCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CreditAccountCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAccountPayload>[]
+        }
+        delete: {
+          args: Prisma.CreditAccountDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAccountPayload>
+        }
+        update: {
+          args: Prisma.CreditAccountUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAccountPayload>
+        }
+        deleteMany: {
+          args: Prisma.CreditAccountDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CreditAccountUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CreditAccountUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAccountPayload>[]
+        }
+        upsert: {
+          args: Prisma.CreditAccountUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAccountPayload>
+        }
+        aggregate: {
+          args: Prisma.CreditAccountAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCreditAccount>
+        }
+        groupBy: {
+          args: Prisma.CreditAccountGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CreditAccountGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CreditAccountCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CreditAccountCountAggregateOutputType> | number
+        }
+      }
+    }
+    CreditGrant: {
+      payload: Prisma.$CreditGrantPayload<ExtArgs>
+      fields: Prisma.CreditGrantFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CreditGrantFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditGrantPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CreditGrantFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditGrantPayload>
+        }
+        findFirst: {
+          args: Prisma.CreditGrantFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditGrantPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CreditGrantFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditGrantPayload>
+        }
+        findMany: {
+          args: Prisma.CreditGrantFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditGrantPayload>[]
+        }
+        create: {
+          args: Prisma.CreditGrantCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditGrantPayload>
+        }
+        createMany: {
+          args: Prisma.CreditGrantCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CreditGrantCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditGrantPayload>[]
+        }
+        delete: {
+          args: Prisma.CreditGrantDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditGrantPayload>
+        }
+        update: {
+          args: Prisma.CreditGrantUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditGrantPayload>
+        }
+        deleteMany: {
+          args: Prisma.CreditGrantDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CreditGrantUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CreditGrantUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditGrantPayload>[]
+        }
+        upsert: {
+          args: Prisma.CreditGrantUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditGrantPayload>
+        }
+        aggregate: {
+          args: Prisma.CreditGrantAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCreditGrant>
+        }
+        groupBy: {
+          args: Prisma.CreditGrantGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CreditGrantGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CreditGrantCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CreditGrantCountAggregateOutputType> | number
+        }
+      }
+    }
+    CreditLedgerEntry: {
+      payload: Prisma.$CreditLedgerEntryPayload<ExtArgs>
+      fields: Prisma.CreditLedgerEntryFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CreditLedgerEntryFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditLedgerEntryPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CreditLedgerEntryFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditLedgerEntryPayload>
+        }
+        findFirst: {
+          args: Prisma.CreditLedgerEntryFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditLedgerEntryPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CreditLedgerEntryFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditLedgerEntryPayload>
+        }
+        findMany: {
+          args: Prisma.CreditLedgerEntryFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditLedgerEntryPayload>[]
+        }
+        create: {
+          args: Prisma.CreditLedgerEntryCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditLedgerEntryPayload>
+        }
+        createMany: {
+          args: Prisma.CreditLedgerEntryCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CreditLedgerEntryCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditLedgerEntryPayload>[]
+        }
+        delete: {
+          args: Prisma.CreditLedgerEntryDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditLedgerEntryPayload>
+        }
+        update: {
+          args: Prisma.CreditLedgerEntryUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditLedgerEntryPayload>
+        }
+        deleteMany: {
+          args: Prisma.CreditLedgerEntryDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CreditLedgerEntryUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CreditLedgerEntryUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditLedgerEntryPayload>[]
+        }
+        upsert: {
+          args: Prisma.CreditLedgerEntryUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditLedgerEntryPayload>
+        }
+        aggregate: {
+          args: Prisma.CreditLedgerEntryAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCreditLedgerEntry>
+        }
+        groupBy: {
+          args: Prisma.CreditLedgerEntryGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CreditLedgerEntryGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CreditLedgerEntryCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CreditLedgerEntryCountAggregateOutputType> | number
+        }
+      }
+    }
+    CreditReservation: {
+      payload: Prisma.$CreditReservationPayload<ExtArgs>
+      fields: Prisma.CreditReservationFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CreditReservationFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditReservationPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CreditReservationFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditReservationPayload>
+        }
+        findFirst: {
+          args: Prisma.CreditReservationFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditReservationPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CreditReservationFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditReservationPayload>
+        }
+        findMany: {
+          args: Prisma.CreditReservationFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditReservationPayload>[]
+        }
+        create: {
+          args: Prisma.CreditReservationCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditReservationPayload>
+        }
+        createMany: {
+          args: Prisma.CreditReservationCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CreditReservationCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditReservationPayload>[]
+        }
+        delete: {
+          args: Prisma.CreditReservationDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditReservationPayload>
+        }
+        update: {
+          args: Prisma.CreditReservationUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditReservationPayload>
+        }
+        deleteMany: {
+          args: Prisma.CreditReservationDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CreditReservationUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CreditReservationUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditReservationPayload>[]
+        }
+        upsert: {
+          args: Prisma.CreditReservationUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditReservationPayload>
+        }
+        aggregate: {
+          args: Prisma.CreditReservationAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCreditReservation>
+        }
+        groupBy: {
+          args: Prisma.CreditReservationGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CreditReservationGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CreditReservationCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CreditReservationCountAggregateOutputType> | number
+        }
+      }
+    }
+    CreditUsageEvent: {
+      payload: Prisma.$CreditUsageEventPayload<ExtArgs>
+      fields: Prisma.CreditUsageEventFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CreditUsageEventFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditUsageEventPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CreditUsageEventFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditUsageEventPayload>
+        }
+        findFirst: {
+          args: Prisma.CreditUsageEventFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditUsageEventPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CreditUsageEventFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditUsageEventPayload>
+        }
+        findMany: {
+          args: Prisma.CreditUsageEventFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditUsageEventPayload>[]
+        }
+        create: {
+          args: Prisma.CreditUsageEventCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditUsageEventPayload>
+        }
+        createMany: {
+          args: Prisma.CreditUsageEventCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CreditUsageEventCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditUsageEventPayload>[]
+        }
+        delete: {
+          args: Prisma.CreditUsageEventDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditUsageEventPayload>
+        }
+        update: {
+          args: Prisma.CreditUsageEventUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditUsageEventPayload>
+        }
+        deleteMany: {
+          args: Prisma.CreditUsageEventDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CreditUsageEventUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CreditUsageEventUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditUsageEventPayload>[]
+        }
+        upsert: {
+          args: Prisma.CreditUsageEventUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditUsageEventPayload>
+        }
+        aggregate: {
+          args: Prisma.CreditUsageEventAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCreditUsageEvent>
+        }
+        groupBy: {
+          args: Prisma.CreditUsageEventGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CreditUsageEventGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CreditUsageEventCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CreditUsageEventCountAggregateOutputType> | number
+        }
+      }
+    }
+    CreditAdminOperation: {
+      payload: Prisma.$CreditAdminOperationPayload<ExtArgs>
+      fields: Prisma.CreditAdminOperationFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CreditAdminOperationFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAdminOperationPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CreditAdminOperationFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAdminOperationPayload>
+        }
+        findFirst: {
+          args: Prisma.CreditAdminOperationFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAdminOperationPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CreditAdminOperationFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAdminOperationPayload>
+        }
+        findMany: {
+          args: Prisma.CreditAdminOperationFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAdminOperationPayload>[]
+        }
+        create: {
+          args: Prisma.CreditAdminOperationCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAdminOperationPayload>
+        }
+        createMany: {
+          args: Prisma.CreditAdminOperationCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CreditAdminOperationCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAdminOperationPayload>[]
+        }
+        delete: {
+          args: Prisma.CreditAdminOperationDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAdminOperationPayload>
+        }
+        update: {
+          args: Prisma.CreditAdminOperationUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAdminOperationPayload>
+        }
+        deleteMany: {
+          args: Prisma.CreditAdminOperationDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CreditAdminOperationUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CreditAdminOperationUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAdminOperationPayload>[]
+        }
+        upsert: {
+          args: Prisma.CreditAdminOperationUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CreditAdminOperationPayload>
+        }
+        aggregate: {
+          args: Prisma.CreditAdminOperationAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCreditAdminOperation>
+        }
+        groupBy: {
+          args: Prisma.CreditAdminOperationGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CreditAdminOperationGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CreditAdminOperationCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CreditAdminOperationCountAggregateOutputType> | number
         }
       }
     }
@@ -5813,6 +6415,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    SocialPostInsightObservation: {
+      payload: Prisma.$SocialPostInsightObservationPayload<ExtArgs>
+      fields: Prisma.SocialPostInsightObservationFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.SocialPostInsightObservationFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightObservationPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.SocialPostInsightObservationFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightObservationPayload>
+        }
+        findFirst: {
+          args: Prisma.SocialPostInsightObservationFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightObservationPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.SocialPostInsightObservationFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightObservationPayload>
+        }
+        findMany: {
+          args: Prisma.SocialPostInsightObservationFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightObservationPayload>[]
+        }
+        create: {
+          args: Prisma.SocialPostInsightObservationCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightObservationPayload>
+        }
+        createMany: {
+          args: Prisma.SocialPostInsightObservationCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.SocialPostInsightObservationCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightObservationPayload>[]
+        }
+        delete: {
+          args: Prisma.SocialPostInsightObservationDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightObservationPayload>
+        }
+        update: {
+          args: Prisma.SocialPostInsightObservationUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightObservationPayload>
+        }
+        deleteMany: {
+          args: Prisma.SocialPostInsightObservationDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.SocialPostInsightObservationUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.SocialPostInsightObservationUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightObservationPayload>[]
+        }
+        upsert: {
+          args: Prisma.SocialPostInsightObservationUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightObservationPayload>
+        }
+        aggregate: {
+          args: Prisma.SocialPostInsightObservationAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateSocialPostInsightObservation>
+        }
+        groupBy: {
+          args: Prisma.SocialPostInsightObservationGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SocialPostInsightObservationGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.SocialPostInsightObservationCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SocialPostInsightObservationCountAggregateOutputType> | number
+        }
+      }
+    }
+    SocialPostInsightSyncState: {
+      payload: Prisma.$SocialPostInsightSyncStatePayload<ExtArgs>
+      fields: Prisma.SocialPostInsightSyncStateFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.SocialPostInsightSyncStateFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightSyncStatePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.SocialPostInsightSyncStateFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightSyncStatePayload>
+        }
+        findFirst: {
+          args: Prisma.SocialPostInsightSyncStateFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightSyncStatePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.SocialPostInsightSyncStateFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightSyncStatePayload>
+        }
+        findMany: {
+          args: Prisma.SocialPostInsightSyncStateFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightSyncStatePayload>[]
+        }
+        create: {
+          args: Prisma.SocialPostInsightSyncStateCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightSyncStatePayload>
+        }
+        createMany: {
+          args: Prisma.SocialPostInsightSyncStateCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.SocialPostInsightSyncStateCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightSyncStatePayload>[]
+        }
+        delete: {
+          args: Prisma.SocialPostInsightSyncStateDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightSyncStatePayload>
+        }
+        update: {
+          args: Prisma.SocialPostInsightSyncStateUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightSyncStatePayload>
+        }
+        deleteMany: {
+          args: Prisma.SocialPostInsightSyncStateDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.SocialPostInsightSyncStateUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.SocialPostInsightSyncStateUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightSyncStatePayload>[]
+        }
+        upsert: {
+          args: Prisma.SocialPostInsightSyncStateUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SocialPostInsightSyncStatePayload>
+        }
+        aggregate: {
+          args: Prisma.SocialPostInsightSyncStateAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateSocialPostInsightSyncState>
+        }
+        groupBy: {
+          args: Prisma.SocialPostInsightSyncStateGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SocialPostInsightSyncStateGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.SocialPostInsightSyncStateCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SocialPostInsightSyncStateCountAggregateOutputType> | number
+        }
+      }
+    }
     ContentMediaAsset: {
       payload: Prisma.$ContentMediaAssetPayload<ExtArgs>
       fields: Prisma.ContentMediaAssetFieldRefs
@@ -6598,6 +7348,7 @@ export const OrganizationScalarFieldEnum = {
   slug: 'slug',
   logo: 'logo',
   ownerId: 'ownerId',
+  reportingTimezone: 'reportingTimezone',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -6723,6 +7474,7 @@ export const ProductPlanScalarFieldEnum = {
   interval: 'interval',
   currency: 'currency',
   amountMinor: 'amountMinor',
+  creditsPerPeriod: 'creditsPerPeriod',
   active: 'active',
   paystackPlanCode: 'paystackPlanCode',
   createdAt: 'createdAt',
@@ -6813,6 +7565,173 @@ export const UsageEventScalarFieldEnum = {
 } as const
 
 export type UsageEventScalarFieldEnum = (typeof UsageEventScalarFieldEnum)[keyof typeof UsageEventScalarFieldEnum]
+
+
+export const ReferralCodeScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  code: 'code',
+  status: 'status',
+  disabledAt: 'disabledAt',
+  disabledReason: 'disabledReason',
+  attributedCount: 'attributedCount',
+  redemptionCount: 'redemptionCount',
+  maxRedemptions: 'maxRedemptions',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ReferralCodeScalarFieldEnum = (typeof ReferralCodeScalarFieldEnum)[keyof typeof ReferralCodeScalarFieldEnum]
+
+
+export const ReferralAttributionScalarFieldEnum = {
+  id: 'id',
+  codeId: 'codeId',
+  referrerOrgId: 'referrerOrgId',
+  refereeOrgId: 'refereeOrgId',
+  status: 'status',
+  attributedAt: 'attributedAt',
+  attributionExpiresAt: 'attributionExpiresAt',
+  qualifiedAt: 'qualifiedAt',
+  awardedAt: 'awardedAt',
+  reversedAt: 'reversedAt',
+  reversalReason: 'reversalReason',
+  qualificationReference: 'qualificationReference',
+  referrerRewardCredits: 'referrerRewardCredits',
+  refereeRewardCredits: 'refereeRewardCredits',
+  rewardExpiryDays: 'rewardExpiryDays',
+  programVersion: 'programVersion',
+  referrerGrantId: 'referrerGrantId',
+  refereeGrantId: 'refereeGrantId',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ReferralAttributionScalarFieldEnum = (typeof ReferralAttributionScalarFieldEnum)[keyof typeof ReferralAttributionScalarFieldEnum]
+
+
+export const CreditAccountScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  balance: 'balance',
+  reservedBalance: 'reservedBalance',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type CreditAccountScalarFieldEnum = (typeof CreditAccountScalarFieldEnum)[keyof typeof CreditAccountScalarFieldEnum]
+
+
+export const CreditGrantScalarFieldEnum = {
+  id: 'id',
+  accountId: 'accountId',
+  orgId: 'orgId',
+  source: 'source',
+  amount: 'amount',
+  remainingAmount: 'remainingAmount',
+  startsAt: 'startsAt',
+  endsAt: 'endsAt',
+  reason: 'reason',
+  reference: 'reference',
+  createdByAdminId: 'createdByAdminId',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type CreditGrantScalarFieldEnum = (typeof CreditGrantScalarFieldEnum)[keyof typeof CreditGrantScalarFieldEnum]
+
+
+export const CreditLedgerEntryScalarFieldEnum = {
+  id: 'id',
+  accountId: 'accountId',
+  orgId: 'orgId',
+  grantId: 'grantId',
+  type: 'type',
+  amount: 'amount',
+  balanceAfter: 'balanceAfter',
+  actionKey: 'actionKey',
+  sourceType: 'sourceType',
+  sourceId: 'sourceId',
+  idempotencyKey: 'idempotencyKey',
+  pricingVersion: 'pricingVersion',
+  createdByAdminId: 'createdByAdminId',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type CreditLedgerEntryScalarFieldEnum = (typeof CreditLedgerEntryScalarFieldEnum)[keyof typeof CreditLedgerEntryScalarFieldEnum]
+
+
+export const CreditReservationScalarFieldEnum = {
+  id: 'id',
+  accountId: 'accountId',
+  orgId: 'orgId',
+  actionKey: 'actionKey',
+  estimatedCredits: 'estimatedCredits',
+  capturedCredits: 'capturedCredits',
+  releasedCredits: 'releasedCredits',
+  status: 'status',
+  sourceType: 'sourceType',
+  sourceId: 'sourceId',
+  pricingVersion: 'pricingVersion',
+  idempotencyKey: 'idempotencyKey',
+  expiresAt: 'expiresAt',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type CreditReservationScalarFieldEnum = (typeof CreditReservationScalarFieldEnum)[keyof typeof CreditReservationScalarFieldEnum]
+
+
+export const CreditUsageEventScalarFieldEnum = {
+  id: 'id',
+  accountId: 'accountId',
+  orgId: 'orgId',
+  ledgerEntryId: 'ledgerEntryId',
+  actionKey: 'actionKey',
+  quantity: 'quantity',
+  creditsCharged: 'creditsCharged',
+  status: 'status',
+  provider: 'provider',
+  model: 'model',
+  fundingSource: 'fundingSource',
+  inputTokens: 'inputTokens',
+  outputTokens: 'outputTokens',
+  providerCostUsd: 'providerCostUsd',
+  pricingVersion: 'pricingVersion',
+  idempotencyKey: 'idempotencyKey',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type CreditUsageEventScalarFieldEnum = (typeof CreditUsageEventScalarFieldEnum)[keyof typeof CreditUsageEventScalarFieldEnum]
+
+
+export const CreditAdminOperationScalarFieldEnum = {
+  id: 'id',
+  accountId: 'accountId',
+  orgId: 'orgId',
+  operationType: 'operationType',
+  amount: 'amount',
+  source: 'source',
+  reason: 'reason',
+  reference: 'reference',
+  actorId: 'actorId',
+  beforeBalance: 'beforeBalance',
+  afterBalance: 'afterBalance',
+  beforeReservedBalance: 'beforeReservedBalance',
+  afterReservedBalance: 'afterReservedBalance',
+  ledgerEntryId: 'ledgerEntryId',
+  idempotencyKey: 'idempotencyKey',
+  status: 'status',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type CreditAdminOperationScalarFieldEnum = (typeof CreditAdminOperationScalarFieldEnum)[keyof typeof CreditAdminOperationScalarFieldEnum]
 
 
 export const PublicApiRequestScalarFieldEnum = {
@@ -6979,6 +7898,8 @@ export const BillingInvoiceScalarFieldEnum = {
   status: 'status',
   currency: 'currency',
   amountMinor: 'amountMinor',
+  periodStart: 'periodStart',
+  periodEnd: 'periodEnd',
   issuedAt: 'issuedAt',
   paidAt: 'paidAt',
   createdAt: 'createdAt',
@@ -7897,6 +8818,49 @@ export const SocialPublishJobScalarFieldEnum = {
 export type SocialPublishJobScalarFieldEnum = (typeof SocialPublishJobScalarFieldEnum)[keyof typeof SocialPublishJobScalarFieldEnum]
 
 
+export const SocialPostInsightObservationScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  postId: 'postId',
+  publishJobId: 'publishJobId',
+  platform: 'platform',
+  metricKey: 'metricKey',
+  value: 'value',
+  availability: 'availability',
+  providerMetricKey: 'providerMetricKey',
+  observationKey: 'observationKey',
+  observedAt: 'observedAt',
+  fetchedAt: 'fetchedAt',
+  windowStart: 'windowStart',
+  windowEnd: 'windowEnd',
+  adapterVersion: 'adapterVersion',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type SocialPostInsightObservationScalarFieldEnum = (typeof SocialPostInsightObservationScalarFieldEnum)[keyof typeof SocialPostInsightObservationScalarFieldEnum]
+
+
+export const SocialPostInsightSyncStateScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  platform: 'platform',
+  status: 'status',
+  retryable: 'retryable',
+  consecutiveFailures: 'consecutiveFailures',
+  lastAttemptAt: 'lastAttemptAt',
+  lastSuccessAt: 'lastSuccessAt',
+  nextRetryAt: 'nextRetryAt',
+  lastErrorCode: 'lastErrorCode',
+  lastErrorMessage: 'lastErrorMessage',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type SocialPostInsightSyncStateScalarFieldEnum = (typeof SocialPostInsightSyncStateScalarFieldEnum)[keyof typeof SocialPostInsightSyncStateScalarFieldEnum]
+
+
 export const ContentMediaAssetScalarFieldEnum = {
   id: 'id',
   orgId: 'orgId',
@@ -8082,6 +9046,8 @@ export const WhatsappCampaignRecipientScalarFieldEnum = {
   deliveredAt: 'deliveredAt',
   readAt: 'readAt',
   failedAt: 'failedAt',
+  attemptCount: 'attemptCount',
+  lastAttemptAt: 'lastAttemptAt',
   errorCode: 'errorCode',
   errorMessage: 'errorMessage',
   createdAt: 'createdAt',
@@ -8280,6 +9246,20 @@ export type ListIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel,
 
 
 /**
+ * Reference to a field of type 'BigInt'
+ */
+export type BigIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'BigInt'>
+    
+
+
+/**
+ * Reference to a field of type 'BigInt[]'
+ */
+export type ListBigIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'BigInt[]'>
+    
+
+
+/**
  * Reference to a field of type 'OrganizationSubscriptionStatus'
  */
 export type EnumOrganizationSubscriptionStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'OrganizationSubscriptionStatus'>
@@ -8308,16 +9288,16 @@ export type ListEnumEntitlementSourceFieldRefInput<$PrismaModel> = FieldRefInput
 
 
 /**
- * Reference to a field of type 'BigInt'
+ * Reference to a field of type 'Decimal'
  */
-export type BigIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'BigInt'>
+export type DecimalFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Decimal'>
     
 
 
 /**
- * Reference to a field of type 'BigInt[]'
+ * Reference to a field of type 'Decimal[]'
  */
-export type ListBigIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'BigInt[]'>
+export type ListDecimalFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Decimal[]'>
     
 
 
@@ -8751,6 +9731,14 @@ export type GlobalOmitConfig = {
   organizationSubscription?: Prisma.OrganizationSubscriptionOmit
   organizationEntitlementGrant?: Prisma.OrganizationEntitlementGrantOmit
   usageEvent?: Prisma.UsageEventOmit
+  referralCode?: Prisma.ReferralCodeOmit
+  referralAttribution?: Prisma.ReferralAttributionOmit
+  creditAccount?: Prisma.CreditAccountOmit
+  creditGrant?: Prisma.CreditGrantOmit
+  creditLedgerEntry?: Prisma.CreditLedgerEntryOmit
+  creditReservation?: Prisma.CreditReservationOmit
+  creditUsageEvent?: Prisma.CreditUsageEventOmit
+  creditAdminOperation?: Prisma.CreditAdminOperationOmit
   publicApiRequest?: Prisma.PublicApiRequestOmit
   developerApiKey?: Prisma.DeveloperApiKeyOmit
   agentWebsiteDeployment?: Prisma.AgentWebsiteDeploymentOmit
@@ -8809,6 +9797,8 @@ export type GlobalOmitConfig = {
   socialPost?: Prisma.SocialPostOmit
   socialPostVariant?: Prisma.SocialPostVariantOmit
   socialPublishJob?: Prisma.SocialPublishJobOmit
+  socialPostInsightObservation?: Prisma.SocialPostInsightObservationOmit
+  socialPostInsightSyncState?: Prisma.SocialPostInsightSyncStateOmit
   contentMediaAsset?: Prisma.ContentMediaAssetOmit
   contentMediaRendition?: Prisma.ContentMediaRenditionOmit
   socialPostMedia?: Prisma.SocialPostMediaOmit

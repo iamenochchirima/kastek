@@ -88,6 +88,46 @@ export type OrganizationEntitlementGrant = Prisma.OrganizationEntitlementGrantMo
  */
 export type UsageEvent = Prisma.UsageEventModel
 /**
+ * Model ReferralCode
+ * 
+ */
+export type ReferralCode = Prisma.ReferralCodeModel
+/**
+ * Model ReferralAttribution
+ * 
+ */
+export type ReferralAttribution = Prisma.ReferralAttributionModel
+/**
+ * Model CreditAccount
+ * 
+ */
+export type CreditAccount = Prisma.CreditAccountModel
+/**
+ * Model CreditGrant
+ * 
+ */
+export type CreditGrant = Prisma.CreditGrantModel
+/**
+ * Model CreditLedgerEntry
+ * 
+ */
+export type CreditLedgerEntry = Prisma.CreditLedgerEntryModel
+/**
+ * Model CreditReservation
+ * 
+ */
+export type CreditReservation = Prisma.CreditReservationModel
+/**
+ * Model CreditUsageEvent
+ * 
+ */
+export type CreditUsageEvent = Prisma.CreditUsageEventModel
+/**
+ * Model CreditAdminOperation
+ * 
+ */
+export type CreditAdminOperation = Prisma.CreditAdminOperationModel
+/**
  * Model PublicApiRequest
  * 
  */
@@ -377,6 +417,16 @@ export type SocialPostVariant = Prisma.SocialPostVariantModel
  * 
  */
 export type SocialPublishJob = Prisma.SocialPublishJobModel
+/**
+ * Model SocialPostInsightObservation
+ * 
+ */
+export type SocialPostInsightObservation = Prisma.SocialPostInsightObservationModel
+/**
+ * Model SocialPostInsightSyncState
+ * 
+ */
+export type SocialPostInsightSyncState = Prisma.SocialPostInsightSyncStateModel
 /**
  * Model ContentMediaAsset
  * 

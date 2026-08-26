@@ -134,6 +134,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 "/billing/entitlements",
                 web::post().to(admin_billing::upsert_entitlement),
             )
+            .route(
+                "/billing/organizations",
+                web::get().to(admin_billing::search_credit_organizations),
+            )
             .service(
                 web::scope("/billing/orgs/{orgId}/grants")
                     .route("", web::get().to(admin_billing::list_grants))
@@ -142,6 +146,28 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         "/{grantId}/expire",
                         web::post().to(admin_billing::expire_grant),
                     ),
+            )
+            .service(
+                web::scope("/billing/orgs/{orgId}/credits")
+                    .route("", web::get().to(admin_billing::get_credits))
+                    .route("/grants", web::post().to(admin_billing::grant_credits))
+                    .route(
+                        "/balance",
+                        web::post().to(admin_billing::set_credit_balance),
+                    ),
+            )
+            .route("/referrals", web::get().to(admin_billing::list_referrals))
+            .route(
+                "/referrals/orgs/{orgId}/code",
+                web::post().to(admin_billing::update_referral_code_status),
+            )
+            .route(
+                "/referrals/{attributionId}/reject",
+                web::post().to(admin_billing::reject_referral),
+            )
+            .route(
+                "/referrals/{attributionId}/reverse",
+                web::post().to(admin_billing::reverse_referral),
             )
             .service(
                 web::scope("/leads")

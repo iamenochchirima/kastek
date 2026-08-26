@@ -1,4 +1,4 @@
-use actix_web::{HttpResponse, ResponseError};
+use actix_web::{http::StatusCode, HttpResponse, ResponseError};
 use serde::Serialize;
 use std::fmt;
 
@@ -20,6 +20,11 @@ pub enum AppError {
     ServiceUnavailable(String),
     BadGateway(String),
     GatewayTimeout(String),
+    Referral {
+        code: &'static str,
+        message: String,
+        status: StatusCode,
+    },
     Internal(String),
 }
 
@@ -36,6 +41,7 @@ impl fmt::Display for AppError {
             Self::ServiceUnavailable(message) => write!(f, "service unavailable: {message}"),
             Self::BadGateway(message) => write!(f, "bad gateway: {message}"),
             Self::GatewayTimeout(message) => write!(f, "gateway timeout: {message}"),
+            Self::Referral { message, .. } => write!(f, "referral: {message}"),
             Self::Internal(message) => write!(f, "internal: {message}"),
         }
     }
@@ -89,6 +95,12 @@ impl ResponseError for AppError {
                 error: message.clone(),
                 code,
             }),
+            Self::Referral {
+                message, status, ..
+            } => HttpResponse::build(*status).json(ErrorResponse {
+                error: message.clone(),
+                code,
+            }),
             Self::Internal(message) => HttpResponse::InternalServerError().json(ErrorResponse {
                 error: message.clone(),
                 code,
@@ -113,7 +125,16 @@ impl AppError {
             Self::ServiceUnavailable(_) => "service_unavailable",
             Self::BadGateway(_) => "bad_gateway",
             Self::GatewayTimeout(_) => "gateway_timeout",
+            Self::Referral { code, .. } => code,
             Self::Internal(_) => "internal_error",
+        }
+    }
+
+    pub fn referral(code: &'static str, message: impl Into<String>, status: StatusCode) -> Self {
+        Self::Referral {
+            code,
+            message: message.into(),
+            status,
         }
     }
 
@@ -159,6 +180,20 @@ mod tests {
             .expect("429 should map to a rate-limit error");
         assert_eq!(error.code(), "rate_limited");
         assert!(AppError::provider_http_failure(reqwest::StatusCode::BAD_GATEWAY).is_none());
+    }
+
+    #[test]
+    fn referral_errors_preserve_machine_readable_reason_codes() {
+        let error = AppError::referral(
+            "referral_self_referral",
+            "An account cannot refer itself",
+            actix_web::http::StatusCode::BAD_REQUEST,
+        );
+        assert_eq!(error.code(), "referral_self_referral");
+        assert_eq!(
+            error.error_response().status(),
+            actix_web::http::StatusCode::BAD_REQUEST
+        );
     }
 }
 

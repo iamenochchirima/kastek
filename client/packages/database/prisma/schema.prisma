@@ -15,6 +15,7 @@ model Organization {
   slug    String  @unique
   logo    String?
   ownerId String
+  reportingTimezone String @default("UTC")
 
   owner       User                     @relation("OwnedOrganizations", fields: [ownerId], references: [id], onDelete: Restrict)
   members     OrganizationMember[]
@@ -47,6 +48,15 @@ model Organization {
   billingCheckouts               BillingCheckout[]
   billingInvoices                BillingInvoice[]
   billingIssues                  BillingReconciliationIssue[]
+  creditAccount                  CreditAccount?
+  creditGrants                   CreditGrant[]
+  creditLedgerEntries            CreditLedgerEntry[]
+  creditReservations             CreditReservation[]
+  creditUsageEvents              CreditUsageEvent[]
+  creditAdminOperations          CreditAdminOperation[]
+  referralCodes                  ReferralCode[]          @relation("ReferralCodeOwner")
+  referralsSent                  ReferralAttribution[]   @relation("ReferralReferrer")
+  referralReceived               ReferralAttribution?   @relation("ReferralReferee")
   supportAccessGrants            AdminSupportAccessGrant[]
   bookingServices                BookingService[]
   bookings                       Booking[]
@@ -238,6 +248,7 @@ model ProductPlan {
   interval         BillingInterval @default(MONTHLY)
   currency         String          @default("ZAR")
   amountMinor      Int?
+  creditsPerPeriod BigInt?
   active           Boolean         @default(false)
   paystackPlanCode String?         @unique
 
@@ -342,6 +353,210 @@ model UsageEvent {
   createdAt DateTime @default(now())
 
   @@index([orgId, productKey, metricKey, occurredAt])
+}
+
+model ReferralCode {
+  id               String                @id @default(cuid())
+  orgId            String                @unique
+  code             String                @unique
+  status           String                @default("ACTIVE")
+  disabledAt       DateTime?
+  disabledReason   String?
+  attributedCount  Int                   @default(0)
+  redemptionCount  Int                   @default(0)
+  maxRedemptions   Int?
+  org              Organization          @relation("ReferralCodeOwner", fields: [orgId], references: [id], onDelete: Cascade)
+  attributions     ReferralAttribution[]
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model ReferralAttribution {
+  id                    String       @id @default(cuid())
+  codeId                String
+  referrerOrgId         String
+  refereeOrgId          String       @unique
+  status                String       @default("ATTRIBUTED")
+  attributedAt          DateTime     @default(now())
+  attributionExpiresAt  DateTime?
+  qualifiedAt           DateTime?
+  awardedAt             DateTime?
+  reversedAt            DateTime?
+  reversalReason        String?
+  qualificationReference String?      @unique
+  referrerRewardCredits Int?
+  refereeRewardCredits  Int?
+  rewardExpiryDays      Int?
+  programVersion        String?
+  referrerGrantId       String?
+  refereeGrantId        String?
+  metadata              Json?
+
+  code       ReferralCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
+  referrer   Organization @relation("ReferralReferrer", fields: [referrerOrgId], references: [id], onDelete: Cascade)
+  referee    Organization @relation("ReferralReferee", fields: [refereeOrgId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([codeId, refereeOrgId])
+  @@index([referrerOrgId, status])
+  @@index([status, qualifiedAt])
+  @@index([status, attributionExpiresAt])
+}
+
+model CreditAccount {
+  id              String       @id @default(cuid())
+  orgId           String       @unique
+  balance         BigInt       @default(0)
+  reservedBalance BigInt       @default(0)
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  grants          CreditGrant[]
+  ledgerEntries   CreditLedgerEntry[]
+  reservations    CreditReservation[]
+  usageEvents     CreditUsageEvent[]
+  adminOperations CreditAdminOperation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CreditGrant {
+  id              String        @id @default(cuid())
+  accountId       String
+  orgId           String
+  source          String
+  amount          BigInt
+  remainingAmount BigInt
+  startsAt        DateTime      @default(now())
+  endsAt          DateTime?
+  reason          String?
+  reference       String?
+  createdByAdminId String?
+  metadata        Json?
+
+  account CreditAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  org     Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  ledgerEntries CreditLedgerEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId, endsAt, startsAt])
+  @@index([accountId, remainingAmount])
+}
+
+model CreditLedgerEntry {
+  id              String   @id @default(cuid())
+  accountId       String
+  orgId           String
+  grantId         String?
+  type            String
+  amount          BigInt
+  balanceAfter    BigInt
+  actionKey       String?
+  sourceType      String?
+  sourceId        String?
+  idempotencyKey  String?  @unique
+  pricingVersion  String?
+  createdByAdminId String?
+  metadata        Json?
+
+  account CreditAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  org     Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  grant   CreditGrant?  @relation(fields: [grantId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([accountId, createdAt])
+  @@index([orgId, type, createdAt])
+}
+
+model CreditReservation {
+  id               String    @id @default(cuid())
+  accountId        String
+  orgId            String
+  actionKey        String
+  estimatedCredits BigInt
+  capturedCredits  BigInt    @default(0)
+  releasedCredits  BigInt    @default(0)
+  status           String    @default("RESERVED")
+  sourceType       String?
+  sourceId         String?
+  pricingVersion   String?
+  idempotencyKey   String?   @unique
+  expiresAt        DateTime?
+  metadata         Json?
+
+  account CreditAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  org     Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId, status, expiresAt])
+  @@index([accountId, createdAt])
+}
+
+model CreditUsageEvent {
+  id              String   @id @default(cuid())
+  accountId       String
+  orgId           String
+  ledgerEntryId   String?  @unique
+  actionKey       String
+  quantity        BigInt   @default(1)
+  creditsCharged  BigInt
+  status          String
+  provider        String?
+  model           String?
+  fundingSource   String?
+  inputTokens     BigInt?
+  outputTokens    BigInt?
+  providerCostUsd Decimal? @db.Decimal(18, 8)
+  pricingVersion  String?
+  idempotencyKey  String?  @unique
+  metadata        Json?
+
+  account CreditAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  org     Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([orgId, actionKey, createdAt])
+  @@index([accountId, createdAt])
+}
+
+model CreditAdminOperation {
+  id              String   @id @default(cuid())
+  accountId       String
+  orgId           String
+  operationType   String
+  amount          BigInt?
+  source          String?
+  reason          String
+  reference       String?
+  actorId         String
+  beforeBalance   BigInt
+  afterBalance    BigInt
+  beforeReservedBalance BigInt @default(0)
+  afterReservedBalance  BigInt @default(0)
+  ledgerEntryId   String?
+  idempotencyKey  String?  @unique
+  status          String   @default("COMPLETED")
+  metadata        Json?
+
+  account CreditAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  org     Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([operationType, createdAt])
 }
 
 model PublicApiRequest {
@@ -527,7 +742,7 @@ model BillingInvoice {
   id                    String    @id @default(cuid())
   invoiceNumber         String    @unique
   orgId                 String
-  checkoutId            String    @unique
+  checkoutId            String?   @unique
   subscriptionId        String?
   provider              String
   providerInvoiceId     String?
@@ -535,11 +750,13 @@ model BillingInvoice {
   status                String    @default("PAID")
   currency              String
   amountMinor           Int?
+  periodStart           DateTime?
+  periodEnd             DateTime?
   issuedAt              DateTime  @default(now())
   paidAt                DateTime?
 
   org          Organization              @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  checkout     BillingCheckout           @relation(fields: [checkoutId], references: [id], onDelete: Restrict)
+  checkout     BillingCheckout?          @relation(fields: [checkoutId], references: [id], onDelete: Restrict)
   subscription OrganizationSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
@@ -547,7 +764,7 @@ model BillingInvoice {
 
   @@unique([provider, providerInvoiceId])
   @@index([orgId, issuedAt])
-  @@index([subscriptionId])
+  @@index([subscriptionId, periodStart])
 }
 
 model PaystackWebhookEvent {

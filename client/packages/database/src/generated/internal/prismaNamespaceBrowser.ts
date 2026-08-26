@@ -65,6 +65,14 @@ export const ModelName = {
   OrganizationSubscription: 'OrganizationSubscription',
   OrganizationEntitlementGrant: 'OrganizationEntitlementGrant',
   UsageEvent: 'UsageEvent',
+  ReferralCode: 'ReferralCode',
+  ReferralAttribution: 'ReferralAttribution',
+  CreditAccount: 'CreditAccount',
+  CreditGrant: 'CreditGrant',
+  CreditLedgerEntry: 'CreditLedgerEntry',
+  CreditReservation: 'CreditReservation',
+  CreditUsageEvent: 'CreditUsageEvent',
+  CreditAdminOperation: 'CreditAdminOperation',
   PublicApiRequest: 'PublicApiRequest',
   DeveloperApiKey: 'DeveloperApiKey',
   AgentWebsiteDeployment: 'AgentWebsiteDeployment',
@@ -123,6 +131,8 @@ export const ModelName = {
   SocialPost: 'SocialPost',
   SocialPostVariant: 'SocialPostVariant',
   SocialPublishJob: 'SocialPublishJob',
+  SocialPostInsightObservation: 'SocialPostInsightObservation',
+  SocialPostInsightSyncState: 'SocialPostInsightSyncState',
   ContentMediaAsset: 'ContentMediaAsset',
   ContentMediaRendition: 'ContentMediaRendition',
   SocialPostMedia: 'SocialPostMedia',
@@ -157,6 +167,7 @@ export const OrganizationScalarFieldEnum = {
   slug: 'slug',
   logo: 'logo',
   ownerId: 'ownerId',
+  reportingTimezone: 'reportingTimezone',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -282,6 +293,7 @@ export const ProductPlanScalarFieldEnum = {
   interval: 'interval',
   currency: 'currency',
   amountMinor: 'amountMinor',
+  creditsPerPeriod: 'creditsPerPeriod',
   active: 'active',
   paystackPlanCode: 'paystackPlanCode',
   createdAt: 'createdAt',
@@ -372,6 +384,173 @@ export const UsageEventScalarFieldEnum = {
 } as const
 
 export type UsageEventScalarFieldEnum = (typeof UsageEventScalarFieldEnum)[keyof typeof UsageEventScalarFieldEnum]
+
+
+export const ReferralCodeScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  code: 'code',
+  status: 'status',
+  disabledAt: 'disabledAt',
+  disabledReason: 'disabledReason',
+  attributedCount: 'attributedCount',
+  redemptionCount: 'redemptionCount',
+  maxRedemptions: 'maxRedemptions',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ReferralCodeScalarFieldEnum = (typeof ReferralCodeScalarFieldEnum)[keyof typeof ReferralCodeScalarFieldEnum]
+
+
+export const ReferralAttributionScalarFieldEnum = {
+  id: 'id',
+  codeId: 'codeId',
+  referrerOrgId: 'referrerOrgId',
+  refereeOrgId: 'refereeOrgId',
+  status: 'status',
+  attributedAt: 'attributedAt',
+  attributionExpiresAt: 'attributionExpiresAt',
+  qualifiedAt: 'qualifiedAt',
+  awardedAt: 'awardedAt',
+  reversedAt: 'reversedAt',
+  reversalReason: 'reversalReason',
+  qualificationReference: 'qualificationReference',
+  referrerRewardCredits: 'referrerRewardCredits',
+  refereeRewardCredits: 'refereeRewardCredits',
+  rewardExpiryDays: 'rewardExpiryDays',
+  programVersion: 'programVersion',
+  referrerGrantId: 'referrerGrantId',
+  refereeGrantId: 'refereeGrantId',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ReferralAttributionScalarFieldEnum = (typeof ReferralAttributionScalarFieldEnum)[keyof typeof ReferralAttributionScalarFieldEnum]
+
+
+export const CreditAccountScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  balance: 'balance',
+  reservedBalance: 'reservedBalance',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type CreditAccountScalarFieldEnum = (typeof CreditAccountScalarFieldEnum)[keyof typeof CreditAccountScalarFieldEnum]
+
+
+export const CreditGrantScalarFieldEnum = {
+  id: 'id',
+  accountId: 'accountId',
+  orgId: 'orgId',
+  source: 'source',
+  amount: 'amount',
+  remainingAmount: 'remainingAmount',
+  startsAt: 'startsAt',
+  endsAt: 'endsAt',
+  reason: 'reason',
+  reference: 'reference',
+  createdByAdminId: 'createdByAdminId',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type CreditGrantScalarFieldEnum = (typeof CreditGrantScalarFieldEnum)[keyof typeof CreditGrantScalarFieldEnum]
+
+
+export const CreditLedgerEntryScalarFieldEnum = {
+  id: 'id',
+  accountId: 'accountId',
+  orgId: 'orgId',
+  grantId: 'grantId',
+  type: 'type',
+  amount: 'amount',
+  balanceAfter: 'balanceAfter',
+  actionKey: 'actionKey',
+  sourceType: 'sourceType',
+  sourceId: 'sourceId',
+  idempotencyKey: 'idempotencyKey',
+  pricingVersion: 'pricingVersion',
+  createdByAdminId: 'createdByAdminId',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type CreditLedgerEntryScalarFieldEnum = (typeof CreditLedgerEntryScalarFieldEnum)[keyof typeof CreditLedgerEntryScalarFieldEnum]
+
+
+export const CreditReservationScalarFieldEnum = {
+  id: 'id',
+  accountId: 'accountId',
+  orgId: 'orgId',
+  actionKey: 'actionKey',
+  estimatedCredits: 'estimatedCredits',
+  capturedCredits: 'capturedCredits',
+  releasedCredits: 'releasedCredits',
+  status: 'status',
+  sourceType: 'sourceType',
+  sourceId: 'sourceId',
+  pricingVersion: 'pricingVersion',
+  idempotencyKey: 'idempotencyKey',
+  expiresAt: 'expiresAt',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type CreditReservationScalarFieldEnum = (typeof CreditReservationScalarFieldEnum)[keyof typeof CreditReservationScalarFieldEnum]
+
+
+export const CreditUsageEventScalarFieldEnum = {
+  id: 'id',
+  accountId: 'accountId',
+  orgId: 'orgId',
+  ledgerEntryId: 'ledgerEntryId',
+  actionKey: 'actionKey',
+  quantity: 'quantity',
+  creditsCharged: 'creditsCharged',
+  status: 'status',
+  provider: 'provider',
+  model: 'model',
+  fundingSource: 'fundingSource',
+  inputTokens: 'inputTokens',
+  outputTokens: 'outputTokens',
+  providerCostUsd: 'providerCostUsd',
+  pricingVersion: 'pricingVersion',
+  idempotencyKey: 'idempotencyKey',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type CreditUsageEventScalarFieldEnum = (typeof CreditUsageEventScalarFieldEnum)[keyof typeof CreditUsageEventScalarFieldEnum]
+
+
+export const CreditAdminOperationScalarFieldEnum = {
+  id: 'id',
+  accountId: 'accountId',
+  orgId: 'orgId',
+  operationType: 'operationType',
+  amount: 'amount',
+  source: 'source',
+  reason: 'reason',
+  reference: 'reference',
+  actorId: 'actorId',
+  beforeBalance: 'beforeBalance',
+  afterBalance: 'afterBalance',
+  beforeReservedBalance: 'beforeReservedBalance',
+  afterReservedBalance: 'afterReservedBalance',
+  ledgerEntryId: 'ledgerEntryId',
+  idempotencyKey: 'idempotencyKey',
+  status: 'status',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type CreditAdminOperationScalarFieldEnum = (typeof CreditAdminOperationScalarFieldEnum)[keyof typeof CreditAdminOperationScalarFieldEnum]
 
 
 export const PublicApiRequestScalarFieldEnum = {
@@ -538,6 +717,8 @@ export const BillingInvoiceScalarFieldEnum = {
   status: 'status',
   currency: 'currency',
   amountMinor: 'amountMinor',
+  periodStart: 'periodStart',
+  periodEnd: 'periodEnd',
   issuedAt: 'issuedAt',
   paidAt: 'paidAt',
   createdAt: 'createdAt',
@@ -1456,6 +1637,49 @@ export const SocialPublishJobScalarFieldEnum = {
 export type SocialPublishJobScalarFieldEnum = (typeof SocialPublishJobScalarFieldEnum)[keyof typeof SocialPublishJobScalarFieldEnum]
 
 
+export const SocialPostInsightObservationScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  postId: 'postId',
+  publishJobId: 'publishJobId',
+  platform: 'platform',
+  metricKey: 'metricKey',
+  value: 'value',
+  availability: 'availability',
+  providerMetricKey: 'providerMetricKey',
+  observationKey: 'observationKey',
+  observedAt: 'observedAt',
+  fetchedAt: 'fetchedAt',
+  windowStart: 'windowStart',
+  windowEnd: 'windowEnd',
+  adapterVersion: 'adapterVersion',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type SocialPostInsightObservationScalarFieldEnum = (typeof SocialPostInsightObservationScalarFieldEnum)[keyof typeof SocialPostInsightObservationScalarFieldEnum]
+
+
+export const SocialPostInsightSyncStateScalarFieldEnum = {
+  id: 'id',
+  orgId: 'orgId',
+  platform: 'platform',
+  status: 'status',
+  retryable: 'retryable',
+  consecutiveFailures: 'consecutiveFailures',
+  lastAttemptAt: 'lastAttemptAt',
+  lastSuccessAt: 'lastSuccessAt',
+  nextRetryAt: 'nextRetryAt',
+  lastErrorCode: 'lastErrorCode',
+  lastErrorMessage: 'lastErrorMessage',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type SocialPostInsightSyncStateScalarFieldEnum = (typeof SocialPostInsightSyncStateScalarFieldEnum)[keyof typeof SocialPostInsightSyncStateScalarFieldEnum]
+
+
 export const ContentMediaAssetScalarFieldEnum = {
   id: 'id',
   orgId: 'orgId',
@@ -1641,6 +1865,8 @@ export const WhatsappCampaignRecipientScalarFieldEnum = {
   deliveredAt: 'deliveredAt',
   readAt: 'readAt',
   failedAt: 'failedAt',
+  attemptCount: 'attemptCount',
+  lastAttemptAt: 'lastAttemptAt',
   errorCode: 'errorCode',
   errorMessage: 'errorMessage',
   createdAt: 'createdAt',

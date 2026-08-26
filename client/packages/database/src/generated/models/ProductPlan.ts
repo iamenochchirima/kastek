@@ -28,10 +28,12 @@ export type AggregateProductPlan = {
 
 export type ProductPlanAvgAggregateOutputType = {
   amountMinor: number | null
+  creditsPerPeriod: number | null
 }
 
 export type ProductPlanSumAggregateOutputType = {
   amountMinor: number | null
+  creditsPerPeriod: bigint | null
 }
 
 export type ProductPlanMinAggregateOutputType = {
@@ -42,6 +44,7 @@ export type ProductPlanMinAggregateOutputType = {
   interval: $Enums.BillingInterval | null
   currency: string | null
   amountMinor: number | null
+  creditsPerPeriod: bigint | null
   active: boolean | null
   paystackPlanCode: string | null
   createdAt: Date | null
@@ -56,6 +59,7 @@ export type ProductPlanMaxAggregateOutputType = {
   interval: $Enums.BillingInterval | null
   currency: string | null
   amountMinor: number | null
+  creditsPerPeriod: bigint | null
   active: boolean | null
   paystackPlanCode: string | null
   createdAt: Date | null
@@ -70,6 +74,7 @@ export type ProductPlanCountAggregateOutputType = {
   interval: number
   currency: number
   amountMinor: number
+  creditsPerPeriod: number
   active: number
   paystackPlanCode: number
   createdAt: number
@@ -80,10 +85,12 @@ export type ProductPlanCountAggregateOutputType = {
 
 export type ProductPlanAvgAggregateInputType = {
   amountMinor?: true
+  creditsPerPeriod?: true
 }
 
 export type ProductPlanSumAggregateInputType = {
   amountMinor?: true
+  creditsPerPeriod?: true
 }
 
 export type ProductPlanMinAggregateInputType = {
@@ -94,6 +101,7 @@ export type ProductPlanMinAggregateInputType = {
   interval?: true
   currency?: true
   amountMinor?: true
+  creditsPerPeriod?: true
   active?: true
   paystackPlanCode?: true
   createdAt?: true
@@ -108,6 +116,7 @@ export type ProductPlanMaxAggregateInputType = {
   interval?: true
   currency?: true
   amountMinor?: true
+  creditsPerPeriod?: true
   active?: true
   paystackPlanCode?: true
   createdAt?: true
@@ -122,6 +131,7 @@ export type ProductPlanCountAggregateInputType = {
   interval?: true
   currency?: true
   amountMinor?: true
+  creditsPerPeriod?: true
   active?: true
   paystackPlanCode?: true
   createdAt?: true
@@ -223,6 +233,7 @@ export type ProductPlanGroupByOutputType = {
   interval: $Enums.BillingInterval
   currency: string
   amountMinor: number | null
+  creditsPerPeriod: bigint | null
   active: boolean
   paystackPlanCode: string | null
   createdAt: Date
@@ -260,6 +271,7 @@ export type ProductPlanWhereInput = {
   interval?: Prisma.EnumBillingIntervalFilter<"ProductPlan"> | $Enums.BillingInterval
   currency?: Prisma.StringFilter<"ProductPlan"> | string
   amountMinor?: Prisma.IntNullableFilter<"ProductPlan"> | number | null
+  creditsPerPeriod?: Prisma.BigIntNullableFilter<"ProductPlan"> | bigint | number | null
   active?: Prisma.BoolFilter<"ProductPlan"> | boolean
   paystackPlanCode?: Prisma.StringNullableFilter<"ProductPlan"> | string | null
   createdAt?: Prisma.DateTimeFilter<"ProductPlan"> | Date | string
@@ -278,6 +290,7 @@ export type ProductPlanOrderByWithRelationInput = {
   interval?: Prisma.SortOrder
   currency?: Prisma.SortOrder
   amountMinor?: Prisma.SortOrderInput | Prisma.SortOrder
+  creditsPerPeriod?: Prisma.SortOrderInput | Prisma.SortOrder
   active?: Prisma.SortOrder
   paystackPlanCode?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -300,6 +313,7 @@ export type ProductPlanWhereUniqueInput = Prisma.AtLeast<{
   interval?: Prisma.EnumBillingIntervalFilter<"ProductPlan"> | $Enums.BillingInterval
   currency?: Prisma.StringFilter<"ProductPlan"> | string
   amountMinor?: Prisma.IntNullableFilter<"ProductPlan"> | number | null
+  creditsPerPeriod?: Prisma.BigIntNullableFilter<"ProductPlan"> | bigint | number | null
   active?: Prisma.BoolFilter<"ProductPlan"> | boolean
   createdAt?: Prisma.DateTimeFilter<"ProductPlan"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"ProductPlan"> | Date | string
@@ -317,6 +331,7 @@ export type ProductPlanOrderByWithAggregationInput = {
   interval?: Prisma.SortOrder
   currency?: Prisma.SortOrder
   amountMinor?: Prisma.SortOrderInput | Prisma.SortOrder
+  creditsPerPeriod?: Prisma.SortOrderInput | Prisma.SortOrder
   active?: Prisma.SortOrder
   paystackPlanCode?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -339,6 +354,7 @@ export type ProductPlanScalarWhereWithAggregatesInput = {
   interval?: Prisma.EnumBillingIntervalWithAggregatesFilter<"ProductPlan"> | $Enums.BillingInterval
   currency?: Prisma.StringWithAggregatesFilter<"ProductPlan"> | string
   amountMinor?: Prisma.IntNullableWithAggregatesFilter<"ProductPlan"> | number | null
+  creditsPerPeriod?: Prisma.BigIntNullableWithAggregatesFilter<"ProductPlan"> | bigint | number | null
   active?: Prisma.BoolWithAggregatesFilter<"ProductPlan"> | boolean
   paystackPlanCode?: Prisma.StringNullableWithAggregatesFilter<"ProductPlan"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"ProductPlan"> | Date | string
@@ -352,6 +368,7 @@ export type ProductPlanCreateInput = {
   interval?: $Enums.BillingInterval
   currency?: string
   amountMinor?: number | null
+  creditsPerPeriod?: bigint | number | null
   active?: boolean
   paystackPlanCode?: string | null
   createdAt?: Date | string
@@ -370,6 +387,7 @@ export type ProductPlanUncheckedCreateInput = {
   interval?: $Enums.BillingInterval
   currency?: string
   amountMinor?: number | null
+  creditsPerPeriod?: bigint | number | null
   active?: boolean
   paystackPlanCode?: string | null
   createdAt?: Date | string
@@ -386,6 +404,7 @@ export type ProductPlanUpdateInput = {
   interval?: Prisma.EnumBillingIntervalFieldUpdateOperationsInput | $Enums.BillingInterval
   currency?: Prisma.StringFieldUpdateOperationsInput | string
   amountMinor?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  creditsPerPeriod?: Prisma.NullableBigIntFieldUpdateOperationsInput | bigint | number | null
   active?: Prisma.BoolFieldUpdateOperationsInput | boolean
   paystackPlanCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -404,6 +423,7 @@ export type ProductPlanUncheckedUpdateInput = {
   interval?: Prisma.EnumBillingIntervalFieldUpdateOperationsInput | $Enums.BillingInterval
   currency?: Prisma.StringFieldUpdateOperationsInput | string
   amountMinor?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  creditsPerPeriod?: Prisma.NullableBigIntFieldUpdateOperationsInput | bigint | number | null
   active?: Prisma.BoolFieldUpdateOperationsInput | boolean
   paystackPlanCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -421,6 +441,7 @@ export type ProductPlanCreateManyInput = {
   interval?: $Enums.BillingInterval
   currency?: string
   amountMinor?: number | null
+  creditsPerPeriod?: bigint | number | null
   active?: boolean
   paystackPlanCode?: string | null
   createdAt?: Date | string
@@ -434,6 +455,7 @@ export type ProductPlanUpdateManyMutationInput = {
   interval?: Prisma.EnumBillingIntervalFieldUpdateOperationsInput | $Enums.BillingInterval
   currency?: Prisma.StringFieldUpdateOperationsInput | string
   amountMinor?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  creditsPerPeriod?: Prisma.NullableBigIntFieldUpdateOperationsInput | bigint | number | null
   active?: Prisma.BoolFieldUpdateOperationsInput | boolean
   paystackPlanCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -448,6 +470,7 @@ export type ProductPlanUncheckedUpdateManyInput = {
   interval?: Prisma.EnumBillingIntervalFieldUpdateOperationsInput | $Enums.BillingInterval
   currency?: Prisma.StringFieldUpdateOperationsInput | string
   amountMinor?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  creditsPerPeriod?: Prisma.NullableBigIntFieldUpdateOperationsInput | bigint | number | null
   active?: Prisma.BoolFieldUpdateOperationsInput | boolean
   paystackPlanCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -472,6 +495,7 @@ export type ProductPlanCountOrderByAggregateInput = {
   interval?: Prisma.SortOrder
   currency?: Prisma.SortOrder
   amountMinor?: Prisma.SortOrder
+  creditsPerPeriod?: Prisma.SortOrder
   active?: Prisma.SortOrder
   paystackPlanCode?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -480,6 +504,7 @@ export type ProductPlanCountOrderByAggregateInput = {
 
 export type ProductPlanAvgOrderByAggregateInput = {
   amountMinor?: Prisma.SortOrder
+  creditsPerPeriod?: Prisma.SortOrder
 }
 
 export type ProductPlanMaxOrderByAggregateInput = {
@@ -490,6 +515,7 @@ export type ProductPlanMaxOrderByAggregateInput = {
   interval?: Prisma.SortOrder
   currency?: Prisma.SortOrder
   amountMinor?: Prisma.SortOrder
+  creditsPerPeriod?: Prisma.SortOrder
   active?: Prisma.SortOrder
   paystackPlanCode?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -504,6 +530,7 @@ export type ProductPlanMinOrderByAggregateInput = {
   interval?: Prisma.SortOrder
   currency?: Prisma.SortOrder
   amountMinor?: Prisma.SortOrder
+  creditsPerPeriod?: Prisma.SortOrder
   active?: Prisma.SortOrder
   paystackPlanCode?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -512,6 +539,7 @@ export type ProductPlanMinOrderByAggregateInput = {
 
 export type ProductPlanSumOrderByAggregateInput = {
   amountMinor?: Prisma.SortOrder
+  creditsPerPeriod?: Prisma.SortOrder
 }
 
 export type ProductPlanScalarRelationFilter = {
@@ -573,6 +601,14 @@ export type NullableIntFieldUpdateOperationsInput = {
   divide?: number
 }
 
+export type NullableBigIntFieldUpdateOperationsInput = {
+  set?: bigint | number | null
+  increment?: bigint | number
+  decrement?: bigint | number
+  multiply?: bigint | number
+  divide?: bigint | number
+}
+
 export type ProductPlanCreateNestedOneWithoutEntitlementsInput = {
   create?: Prisma.XOR<Prisma.ProductPlanCreateWithoutEntitlementsInput, Prisma.ProductPlanUncheckedCreateWithoutEntitlementsInput>
   connectOrCreate?: Prisma.ProductPlanCreateOrConnectWithoutEntitlementsInput
@@ -622,6 +658,7 @@ export type ProductPlanCreateWithoutProductInput = {
   interval?: $Enums.BillingInterval
   currency?: string
   amountMinor?: number | null
+  creditsPerPeriod?: bigint | number | null
   active?: boolean
   paystackPlanCode?: string | null
   createdAt?: Date | string
@@ -638,6 +675,7 @@ export type ProductPlanUncheckedCreateWithoutProductInput = {
   interval?: $Enums.BillingInterval
   currency?: string
   amountMinor?: number | null
+  creditsPerPeriod?: bigint | number | null
   active?: boolean
   paystackPlanCode?: string | null
   createdAt?: Date | string
@@ -684,6 +722,7 @@ export type ProductPlanScalarWhereInput = {
   interval?: Prisma.EnumBillingIntervalFilter<"ProductPlan"> | $Enums.BillingInterval
   currency?: Prisma.StringFilter<"ProductPlan"> | string
   amountMinor?: Prisma.IntNullableFilter<"ProductPlan"> | number | null
+  creditsPerPeriod?: Prisma.BigIntNullableFilter<"ProductPlan"> | bigint | number | null
   active?: Prisma.BoolFilter<"ProductPlan"> | boolean
   paystackPlanCode?: Prisma.StringNullableFilter<"ProductPlan"> | string | null
   createdAt?: Prisma.DateTimeFilter<"ProductPlan"> | Date | string
@@ -697,6 +736,7 @@ export type ProductPlanCreateWithoutEntitlementsInput = {
   interval?: $Enums.BillingInterval
   currency?: string
   amountMinor?: number | null
+  creditsPerPeriod?: bigint | number | null
   active?: boolean
   paystackPlanCode?: string | null
   createdAt?: Date | string
@@ -714,6 +754,7 @@ export type ProductPlanUncheckedCreateWithoutEntitlementsInput = {
   interval?: $Enums.BillingInterval
   currency?: string
   amountMinor?: number | null
+  creditsPerPeriod?: bigint | number | null
   active?: boolean
   paystackPlanCode?: string | null
   createdAt?: Date | string
@@ -745,6 +786,7 @@ export type ProductPlanUpdateWithoutEntitlementsInput = {
   interval?: Prisma.EnumBillingIntervalFieldUpdateOperationsInput | $Enums.BillingInterval
   currency?: Prisma.StringFieldUpdateOperationsInput | string
   amountMinor?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  creditsPerPeriod?: Prisma.NullableBigIntFieldUpdateOperationsInput | bigint | number | null
   active?: Prisma.BoolFieldUpdateOperationsInput | boolean
   paystackPlanCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -762,6 +804,7 @@ export type ProductPlanUncheckedUpdateWithoutEntitlementsInput = {
   interval?: Prisma.EnumBillingIntervalFieldUpdateOperationsInput | $Enums.BillingInterval
   currency?: Prisma.StringFieldUpdateOperationsInput | string
   amountMinor?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  creditsPerPeriod?: Prisma.NullableBigIntFieldUpdateOperationsInput | bigint | number | null
   active?: Prisma.BoolFieldUpdateOperationsInput | boolean
   paystackPlanCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -777,6 +820,7 @@ export type ProductPlanCreateWithoutSubscriptionsInput = {
   interval?: $Enums.BillingInterval
   currency?: string
   amountMinor?: number | null
+  creditsPerPeriod?: bigint | number | null
   active?: boolean
   paystackPlanCode?: string | null
   createdAt?: Date | string
@@ -794,6 +838,7 @@ export type ProductPlanUncheckedCreateWithoutSubscriptionsInput = {
   interval?: $Enums.BillingInterval
   currency?: string
   amountMinor?: number | null
+  creditsPerPeriod?: bigint | number | null
   active?: boolean
   paystackPlanCode?: string | null
   createdAt?: Date | string
@@ -825,6 +870,7 @@ export type ProductPlanUpdateWithoutSubscriptionsInput = {
   interval?: Prisma.EnumBillingIntervalFieldUpdateOperationsInput | $Enums.BillingInterval
   currency?: Prisma.StringFieldUpdateOperationsInput | string
   amountMinor?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  creditsPerPeriod?: Prisma.NullableBigIntFieldUpdateOperationsInput | bigint | number | null
   active?: Prisma.BoolFieldUpdateOperationsInput | boolean
   paystackPlanCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -842,6 +888,7 @@ export type ProductPlanUncheckedUpdateWithoutSubscriptionsInput = {
   interval?: Prisma.EnumBillingIntervalFieldUpdateOperationsInput | $Enums.BillingInterval
   currency?: Prisma.StringFieldUpdateOperationsInput | string
   amountMinor?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  creditsPerPeriod?: Prisma.NullableBigIntFieldUpdateOperationsInput | bigint | number | null
   active?: Prisma.BoolFieldUpdateOperationsInput | boolean
   paystackPlanCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -857,6 +904,7 @@ export type ProductPlanCreateWithoutBillingCheckoutsInput = {
   interval?: $Enums.BillingInterval
   currency?: string
   amountMinor?: number | null
+  creditsPerPeriod?: bigint | number | null
   active?: boolean
   paystackPlanCode?: string | null
   createdAt?: Date | string
@@ -874,6 +922,7 @@ export type ProductPlanUncheckedCreateWithoutBillingCheckoutsInput = {
   interval?: $Enums.BillingInterval
   currency?: string
   amountMinor?: number | null
+  creditsPerPeriod?: bigint | number | null
   active?: boolean
   paystackPlanCode?: string | null
   createdAt?: Date | string
@@ -905,6 +954,7 @@ export type ProductPlanUpdateWithoutBillingCheckoutsInput = {
   interval?: Prisma.EnumBillingIntervalFieldUpdateOperationsInput | $Enums.BillingInterval
   currency?: Prisma.StringFieldUpdateOperationsInput | string
   amountMinor?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  creditsPerPeriod?: Prisma.NullableBigIntFieldUpdateOperationsInput | bigint | number | null
   active?: Prisma.BoolFieldUpdateOperationsInput | boolean
   paystackPlanCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -922,6 +972,7 @@ export type ProductPlanUncheckedUpdateWithoutBillingCheckoutsInput = {
   interval?: Prisma.EnumBillingIntervalFieldUpdateOperationsInput | $Enums.BillingInterval
   currency?: Prisma.StringFieldUpdateOperationsInput | string
   amountMinor?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  creditsPerPeriod?: Prisma.NullableBigIntFieldUpdateOperationsInput | bigint | number | null
   active?: Prisma.BoolFieldUpdateOperationsInput | boolean
   paystackPlanCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -937,6 +988,7 @@ export type ProductPlanCreateManyProductInput = {
   interval?: $Enums.BillingInterval
   currency?: string
   amountMinor?: number | null
+  creditsPerPeriod?: bigint | number | null
   active?: boolean
   paystackPlanCode?: string | null
   createdAt?: Date | string
@@ -950,6 +1002,7 @@ export type ProductPlanUpdateWithoutProductInput = {
   interval?: Prisma.EnumBillingIntervalFieldUpdateOperationsInput | $Enums.BillingInterval
   currency?: Prisma.StringFieldUpdateOperationsInput | string
   amountMinor?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  creditsPerPeriod?: Prisma.NullableBigIntFieldUpdateOperationsInput | bigint | number | null
   active?: Prisma.BoolFieldUpdateOperationsInput | boolean
   paystackPlanCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -966,6 +1019,7 @@ export type ProductPlanUncheckedUpdateWithoutProductInput = {
   interval?: Prisma.EnumBillingIntervalFieldUpdateOperationsInput | $Enums.BillingInterval
   currency?: Prisma.StringFieldUpdateOperationsInput | string
   amountMinor?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  creditsPerPeriod?: Prisma.NullableBigIntFieldUpdateOperationsInput | bigint | number | null
   active?: Prisma.BoolFieldUpdateOperationsInput | boolean
   paystackPlanCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -982,6 +1036,7 @@ export type ProductPlanUncheckedUpdateManyWithoutProductInput = {
   interval?: Prisma.EnumBillingIntervalFieldUpdateOperationsInput | $Enums.BillingInterval
   currency?: Prisma.StringFieldUpdateOperationsInput | string
   amountMinor?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  creditsPerPeriod?: Prisma.NullableBigIntFieldUpdateOperationsInput | bigint | number | null
   active?: Prisma.BoolFieldUpdateOperationsInput | boolean
   paystackPlanCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1045,6 +1100,7 @@ export type ProductPlanSelect<ExtArgs extends runtime.Types.Extensions.InternalA
   interval?: boolean
   currency?: boolean
   amountMinor?: boolean
+  creditsPerPeriod?: boolean
   active?: boolean
   paystackPlanCode?: boolean
   createdAt?: boolean
@@ -1064,6 +1120,7 @@ export type ProductPlanSelectCreateManyAndReturn<ExtArgs extends runtime.Types.E
   interval?: boolean
   currency?: boolean
   amountMinor?: boolean
+  creditsPerPeriod?: boolean
   active?: boolean
   paystackPlanCode?: boolean
   createdAt?: boolean
@@ -1079,6 +1136,7 @@ export type ProductPlanSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.E
   interval?: boolean
   currency?: boolean
   amountMinor?: boolean
+  creditsPerPeriod?: boolean
   active?: boolean
   paystackPlanCode?: boolean
   createdAt?: boolean
@@ -1094,13 +1152,14 @@ export type ProductPlanSelectScalar = {
   interval?: boolean
   currency?: boolean
   amountMinor?: boolean
+  creditsPerPeriod?: boolean
   active?: boolean
   paystackPlanCode?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type ProductPlanOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "productId" | "key" | "name" | "interval" | "currency" | "amountMinor" | "active" | "paystackPlanCode" | "createdAt" | "updatedAt", ExtArgs["result"]["productPlan"]>
+export type ProductPlanOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "productId" | "key" | "name" | "interval" | "currency" | "amountMinor" | "creditsPerPeriod" | "active" | "paystackPlanCode" | "createdAt" | "updatedAt", ExtArgs["result"]["productPlan"]>
 export type ProductPlanInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   product?: boolean | Prisma.ProductDefaultArgs<ExtArgs>
   entitlements?: boolean | Prisma.ProductPlan$entitlementsArgs<ExtArgs>
@@ -1131,6 +1190,7 @@ export type $ProductPlanPayload<ExtArgs extends runtime.Types.Extensions.Interna
     interval: $Enums.BillingInterval
     currency: string
     amountMinor: number | null
+    creditsPerPeriod: bigint | null
     active: boolean
     paystackPlanCode: string | null
     createdAt: Date
@@ -1569,6 +1629,7 @@ export interface ProductPlanFieldRefs {
   readonly interval: Prisma.FieldRef<"ProductPlan", 'BillingInterval'>
   readonly currency: Prisma.FieldRef<"ProductPlan", 'String'>
   readonly amountMinor: Prisma.FieldRef<"ProductPlan", 'Int'>
+  readonly creditsPerPeriod: Prisma.FieldRef<"ProductPlan", 'BigInt'>
   readonly active: Prisma.FieldRef<"ProductPlan", 'Boolean'>
   readonly paystackPlanCode: Prisma.FieldRef<"ProductPlan", 'String'>
   readonly createdAt: Prisma.FieldRef<"ProductPlan", 'DateTime'>

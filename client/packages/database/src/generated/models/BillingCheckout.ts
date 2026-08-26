@@ -571,9 +571,9 @@ export type BillingCheckoutMinOrderByAggregateInput = {
   updatedAt?: Prisma.SortOrder
 }
 
-export type BillingCheckoutScalarRelationFilter = {
-  is?: Prisma.BillingCheckoutWhereInput
-  isNot?: Prisma.BillingCheckoutWhereInput
+export type BillingCheckoutNullableScalarRelationFilter = {
+  is?: Prisma.BillingCheckoutWhereInput | null
+  isNot?: Prisma.BillingCheckoutWhereInput | null
 }
 
 export type BillingCheckoutCreateNestedManyWithoutOrgInput = {
@@ -666,10 +666,12 @@ export type BillingCheckoutCreateNestedOneWithoutInvoiceInput = {
   connect?: Prisma.BillingCheckoutWhereUniqueInput
 }
 
-export type BillingCheckoutUpdateOneRequiredWithoutInvoiceNestedInput = {
+export type BillingCheckoutUpdateOneWithoutInvoiceNestedInput = {
   create?: Prisma.XOR<Prisma.BillingCheckoutCreateWithoutInvoiceInput, Prisma.BillingCheckoutUncheckedCreateWithoutInvoiceInput>
   connectOrCreate?: Prisma.BillingCheckoutCreateOrConnectWithoutInvoiceInput
   upsert?: Prisma.BillingCheckoutUpsertWithoutInvoiceInput
+  disconnect?: Prisma.BillingCheckoutWhereInput | boolean
+  delete?: Prisma.BillingCheckoutWhereInput | boolean
   connect?: Prisma.BillingCheckoutWhereUniqueInput
   update?: Prisma.XOR<Prisma.XOR<Prisma.BillingCheckoutUpdateToOneWithWhereWithoutInvoiceInput, Prisma.BillingCheckoutUpdateWithoutInvoiceInput>, Prisma.BillingCheckoutUncheckedUpdateWithoutInvoiceInput>
 }

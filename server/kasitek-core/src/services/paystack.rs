@@ -180,6 +180,8 @@ impl BillingProvider for PaystackProvider {
             .bearer_auth(&self.secret_key)
             .json(&json!({
                 "email": request.email,
+                "amount": request.amount_minor,
+                "currency": request.currency,
                 "plan": request.plan_code,
                 "reference": request.reference,
                 "callback_url": request.callback_url,
@@ -295,6 +297,21 @@ impl BillingProvider for PaystackProvider {
                         .and_then(Value::as_str)
                         .map(ToString::to_string),
                     subscription_id,
+                    transaction_id: Self::external_id(data.get("id")),
+                    invoice_id: data
+                        .get("invoice_code")
+                        .and_then(|value| Self::external_id(Some(value)))
+                        .or_else(|| {
+                            data.get("invoice")
+                                .and_then(Value::as_object)
+                                .and_then(|invoice| invoice.get("invoice_code"))
+                                .and_then(|value| Self::external_id(Some(value)))
+                        }),
+                    amount_minor: data.get("amount").and_then(Value::as_i64),
+                    currency: data
+                        .get("currency")
+                        .and_then(Value::as_str)
+                        .map(ToString::to_string),
                 }
             }
             "subscription.create" => ProviderEvent::SubscriptionCreated {
@@ -407,6 +424,37 @@ mod tests {
         );
         assert!(
             PaystackProvider::parse_verified_transaction(&json!({"status": "success"})).is_err()
+        );
+    }
+
+    #[test]
+    fn parses_charge_success_details_for_recurring_invoice_records() {
+        let provider = PaystackProvider::new("secret", "https://example.test");
+        let event = json!({
+            "event": "charge.success",
+            "data": {
+                "status": "success",
+                "reference": "sub_charge_123",
+                "id": 987654,
+                "amount": 1600,
+                "currency": "ZAR",
+                "customer": {"customer_code": "CUS_123"},
+                "subscription": {"subscription_code": "SUB_123"},
+                "invoice": {"invoice_code": "INV_123"}
+            }
+        });
+
+        assert_eq!(
+            provider.parse_webhook(&event).unwrap(),
+            ProviderEvent::ChargeSucceeded {
+                reference: "sub_charge_123".to_string(),
+                customer_id: Some("CUS_123".to_string()),
+                subscription_id: Some("SUB_123".to_string()),
+                transaction_id: Some("987654".to_string()),
+                invoice_id: Some("INV_123".to_string()),
+                amount_minor: Some(1600),
+                currency: Some("ZAR".to_string()),
+            }
         );
     }
 

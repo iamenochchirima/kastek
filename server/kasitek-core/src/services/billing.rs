@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, NaiveDate, Utc};
 use serde::Serialize;
 use serde_json::Value;
 use sha2::Digest;
@@ -9,6 +9,8 @@ use crate::error::AppError;
 use crate::services::billing_provider::{
     BillingProvider, CheckoutRequest, ProviderEvent, ProviderSubscriptionState,
 };
+use crate::services::credits;
+use crate::services::referrals::{self, ReferralRewardConfig};
 
 pub mod capabilities {
     pub const AGENTS_MANAGE: &str = "feature.agents.manage";
@@ -213,6 +215,89 @@ pub struct MeterUsage {
 }
 
 #[derive(Debug, Serialize)]
+pub struct DailyCreditUsage {
+    pub date: NaiveDate,
+    #[serde(rename = "creditsUsed")]
+    pub credits_used: i64,
+    pub operations: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CreditUsageBreakdown {
+    pub key: String,
+    #[serde(rename = "creditsUsed")]
+    pub credits_used: i64,
+    pub operations: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BillingUsage {
+    #[serde(rename = "rangeStart")]
+    pub range_start: DateTime<Utc>,
+    #[serde(rename = "rangeEnd")]
+    pub range_end: DateTime<Utc>,
+    pub timezone: String,
+    pub granularity: String,
+    pub daily: Vec<DailyCreditUsage>,
+    #[serde(rename = "previousDaily")]
+    pub previous_daily: Vec<DailyCreditUsage>,
+    #[serde(rename = "creditsUsed")]
+    pub credits_used: i64,
+    pub operations: i64,
+    pub breakdown: Vec<CreditUsageBreakdown>,
+}
+
+#[derive(Debug, FromRow)]
+struct DailyCreditUsageRow {
+    date: NaiveDate,
+    #[sqlx(rename = "credits_used")]
+    credits_used: i64,
+}
+
+#[derive(Debug, FromRow)]
+struct DailyMeterUsageRow {
+    date: NaiveDate,
+    operations: i64,
+}
+
+#[derive(Debug, FromRow)]
+struct CreditUsageBreakdownRow {
+    #[sqlx(rename = "action_key")]
+    action_key: String,
+    #[sqlx(rename = "credits_used")]
+    credits_used: i64,
+    operations: i64,
+}
+
+fn build_daily_usage(
+    first_day: NaiveDate,
+    days: i64,
+    credit_rows: Vec<DailyCreditUsageRow>,
+    meter_rows: Vec<DailyMeterUsageRow>,
+) -> Vec<DailyCreditUsage> {
+    let credits_by_date = credit_rows
+        .into_iter()
+        .map(|row| (row.date, row))
+        .collect::<HashMap<_, _>>();
+    let meters_by_date = meter_rows
+        .into_iter()
+        .map(|row| (row.date, row))
+        .collect::<HashMap<_, _>>();
+    (0..days)
+        .map(|offset| {
+            let date = first_day + Duration::days(offset);
+            let credit_day = credits_by_date.get(&date);
+            let meter_day = meters_by_date.get(&date);
+            DailyCreditUsage {
+                date,
+                credits_used: credit_day.map(|row| row.credits_used).unwrap_or_default(),
+                operations: meter_day.map(|row| row.operations).unwrap_or_default(),
+            }
+        })
+        .collect()
+}
+
+#[derive(Debug, Serialize)]
 pub struct BillingSummary {
     #[serde(rename = "orgId")]
     pub org_id: String,
@@ -363,7 +448,7 @@ pub async fn expire_manual_grant(
     Ok(result.rows_affected() == 1)
 }
 
-#[derive(Debug, Serialize, FromRow)]
+#[derive(Debug, Serialize, FromRow, Clone)]
 pub struct AvailablePlan {
     pub key: String,
     #[serde(rename = "productKey")]
@@ -375,8 +460,27 @@ pub struct AvailablePlan {
     #[serde(rename = "amountMinor")]
     #[sqlx(rename = "amount_minor")]
     pub amount_minor: Option<i32>,
+    #[serde(rename = "creditsPerPeriod")]
+    #[sqlx(rename = "credits_per_period")]
+    pub credits_per_period: Option<i64>,
     #[serde(rename = "checkoutReady")]
     pub checkout_ready: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PlanEntitlementView {
+    pub key: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub kind: String,
+    pub value: Value,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AvailablePlanDetails {
+    #[serde(flatten)]
+    pub plan: AvailablePlan,
+    pub entitlements: Vec<PlanEntitlementView>,
 }
 
 pub fn paystack_event_key(event: &Value) -> Result<String, AppError> {
@@ -411,11 +515,36 @@ pub async fn record_paystack_event(
         .get("event")
         .and_then(Value::as_str)
         .unwrap_or("unknown");
-    let result = sqlx::query(r#"
-        INSERT INTO "PaystackWebhookEvent" (id, "eventKey", "eventType", payload, status, "receivedAt")
-        VALUES ($1, $2, $3, $4, 'RECEIVED', NOW()) ON CONFLICT ("eventKey") DO NOTHING
-    "#).bind(cuid2::create_id()).bind(event_key).bind(event_type).bind(event).execute(pool).await?;
-    Ok(result.rows_affected() == 1)
+    let claimed = sqlx::query_scalar::<_, String>(
+        r#"
+        INSERT INTO "PaystackWebhookEvent" (
+            id, "eventKey", "eventType", payload, status, "receivedAt", "processedAt"
+        )
+        VALUES ($1, $2, $3, $4, 'PROCESSING', NOW(), NOW())
+        ON CONFLICT ("eventKey") DO UPDATE SET
+            "eventType" = EXCLUDED."eventType",
+            payload = EXCLUDED.payload,
+            status = 'PROCESSING',
+            "errorMessage" = NULL,
+            "processedAt" = NOW()
+        WHERE "PaystackWebhookEvent".status IN ('FAILED', 'RECEIVED')
+           OR (
+                "PaystackWebhookEvent".status = 'PROCESSING'
+                AND (
+                    "PaystackWebhookEvent"."processedAt" IS NULL
+                    OR "PaystackWebhookEvent"."processedAt" < NOW() - INTERVAL '10 minutes'
+                )
+           )
+        RETURNING id
+        "#,
+    )
+    .bind(cuid2::create_id())
+    .bind(event_key)
+    .bind(event_type)
+    .bind(event)
+    .fetch_optional(pool)
+    .await?;
+    Ok(claimed.is_some())
 }
 
 pub async fn finish_paystack_event(
@@ -427,7 +556,7 @@ pub async fn finish_paystack_event(
     sqlx::query(
         r#"
         UPDATE "PaystackWebhookEvent" SET status = $2, "errorMessage" = $3, "processedAt" = NOW()
-        WHERE "eventKey" = $1
+        WHERE "eventKey" = $1 AND status = 'PROCESSING'
     "#,
     )
     .bind(event_key)
@@ -438,10 +567,116 @@ pub async fn finish_paystack_event(
     Ok(())
 }
 
+#[derive(Debug, FromRow)]
+struct PaystackWebhookRetryCandidate {
+    #[sqlx(rename = "event_key")]
+    event_key: String,
+}
+
+async fn claim_paystack_webhook_retry(
+    pool: &PgPool,
+    event_key: &str,
+) -> Result<Option<Value>, AppError> {
+    sqlx::query_as::<_, (Value,)>(
+        r#"
+        UPDATE "PaystackWebhookEvent"
+        SET status = 'PROCESSING', "errorMessage" = NULL, "processedAt" = NOW()
+        WHERE "eventKey" = $1
+          AND (
+            status IN ('FAILED', 'RECEIVED')
+            OR (
+                status = 'PROCESSING'
+                AND (
+                    "processedAt" IS NULL
+                    OR "processedAt" < NOW() - INTERVAL '10 minutes'
+                )
+            )
+          )
+        RETURNING payload
+        "#,
+    )
+    .bind(event_key)
+    .fetch_optional(pool)
+    .await
+    .map(|row| row.map(|(payload,)| payload))
+    .map_err(AppError::from)
+}
+
+async fn retry_failed_paystack_events(
+    pool: &PgPool,
+    provider: &dyn BillingProvider,
+    limit: i64,
+    referral_config: ReferralRewardConfig,
+) -> Result<usize, AppError> {
+    let candidates = sqlx::query_as::<_, PaystackWebhookRetryCandidate>(
+        r#"
+        SELECT "eventKey" AS event_key
+        FROM "PaystackWebhookEvent"
+        WHERE status = 'FAILED'
+           OR status = 'RECEIVED'
+           OR (
+                status = 'PROCESSING'
+                AND (
+                    "processedAt" IS NULL
+                    OR "processedAt" < NOW() - INTERVAL '10 minutes'
+                )
+           )
+        ORDER BY "receivedAt" ASC
+        LIMIT $1
+        "#,
+    )
+    .bind(limit.clamp(1, 200))
+    .fetch_all(pool)
+    .await?;
+
+    let mut attempted = 0;
+    for candidate in candidates {
+        let Some(payload) = claim_paystack_webhook_retry(pool, &candidate.event_key).await? else {
+            continue;
+        };
+        attempted += 1;
+        let provider_event = match provider.parse_webhook(&payload) {
+            Ok(event) => event,
+            Err(error) => {
+                finish_paystack_event(
+                    pool,
+                    &candidate.event_key,
+                    "FAILED",
+                    Some(&error.to_string()),
+                )
+                .await?;
+                continue;
+            }
+        };
+        match process_provider_event(pool, provider.name(), provider_event, referral_config).await {
+            Ok(processed) => {
+                finish_paystack_event(
+                    pool,
+                    &candidate.event_key,
+                    if processed { "PROCESSED" } else { "IGNORED" },
+                    None,
+                )
+                .await?;
+            }
+            Err(error) => {
+                finish_paystack_event(
+                    pool,
+                    &candidate.event_key,
+                    "FAILED",
+                    Some(&error.to_string()),
+                )
+                .await?;
+            }
+        }
+    }
+    Ok(attempted)
+}
+
 pub async fn process_provider_event(
     pool: &PgPool,
     provider_name: &str,
     event: ProviderEvent,
+    referral_config: ReferralRewardConfig,
 ) -> Result<bool, AppError> {
     match event {
         ProviderEvent::SubscriptionCreated {
@@ -465,8 +700,7 @@ pub async fn process_provider_event(
             update_subscription_status(pool, provider_name, &subscription_id, "ACTIVE", true).await
         }
         ProviderEvent::SubscriptionDisabled { subscription_id } => {
-            update_subscription_status(pool, provider_name, &subscription_id, "CANCELLED", false)
-                .await
+            mark_subscription_disabled(pool, provider_name, &subscription_id).await
         }
         ProviderEvent::InvoicePaymentFailed { subscription_id } => {
             update_subscription_status(pool, provider_name, &subscription_id, "PAST_DUE", false)
@@ -487,7 +721,11 @@ pub async fn process_provider_event(
                 "transaction",
                 &transaction_reference,
                 "dispute_opened",
-                serde_json::json!({"reference": transaction_reference}),
+                serde_json::json!({
+                    "reference": transaction_reference,
+                    "referralReviewRequired": true,
+                    "referralPolicy": "manual_review",
+                }),
             )
             .await?;
             Ok(true)
@@ -496,15 +734,35 @@ pub async fn process_provider_event(
             reference,
             customer_id,
             subscription_id,
+            transaction_id,
+            invoice_id,
+            amount_minor,
+            currency,
         } => {
-            activate_checkout(
+            let activated = activate_checkout(
                 pool,
                 provider_name,
                 &reference,
                 customer_id.as_deref(),
                 subscription_id.as_deref(),
+                referral_config,
             )
-            .await
+            .await?;
+            if activated {
+                Ok(true)
+            } else {
+                process_recurring_charge(
+                    pool,
+                    provider_name,
+                    &reference,
+                    subscription_id.as_deref(),
+                    transaction_id.as_deref(),
+                    invoice_id.as_deref(),
+                    amount_minor,
+                    currency.as_deref(),
+                )
+                .await
+            }
         }
         ProviderEvent::Ignored => Ok(false),
     }
@@ -623,6 +881,13 @@ async fn process_refund(
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
+    referrals::reverse_referral(
+        pool,
+        &org_id,
+        "Initial payment was fully refunded",
+        &format!("{provider_name}:refund:{reference}"),
+    )
+    .await?;
     Ok(true)
 }
 
@@ -643,12 +908,50 @@ async fn update_subscription_status(
     "#,
     )
     .bind(provider_name)
-    .bind(subscription_id)
+    .bind(&subscription_id)
     .bind(status)
     .bind(cancel_at_period_end)
     .execute(pool)
     .await?;
     Ok(result.rows_affected() == 1)
+}
+
+async fn mark_subscription_disabled(
+    pool: &PgPool,
+    provider_name: &str,
+    subscription_id: &str,
+) -> Result<bool, AppError> {
+    let org_id = sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT "orgId"
+        FROM "OrganizationSubscription"
+        WHERE provider = $1 AND "providerSubscriptionId" = $2
+        "#,
+    )
+    .bind(provider_name)
+    .bind(subscription_id)
+    .fetch_optional(pool)
+    .await?;
+    let updated =
+        update_subscription_status(pool, provider_name, subscription_id, "CANCELLED", false)
+            .await?;
+    if updated {
+        upsert_reconciliation_issue(
+            pool,
+            org_id.as_deref(),
+            provider_name,
+            "subscription",
+            subscription_id,
+            "subscription_disabled",
+            serde_json::json!({
+                "reference": subscription_id,
+                "referralReviewRequired": true,
+                "referralPolicy": "manual_review",
+            }),
+        )
+        .await?;
+    }
+    Ok(updated)
 }
 
 pub async fn activate_checkout(
@@ -657,6 +960,7 @@ pub async fn activate_checkout(
     reference: &str,
     customer_id: Option<&str>,
     subscription_id: Option<&str>,
+    referral_config: ReferralRewardConfig,
 ) -> Result<bool, AppError> {
     let mut tx = pool.begin().await?;
     let checkout = sqlx::query_as::<_, (String, String, String, String)>(
@@ -673,7 +977,45 @@ pub async fn activate_checkout(
         return Ok(false);
     };
     if status == "COMPLETED" {
+        let subscription = sqlx::query_as::<_, (String, DateTime<Utc>, DateTime<Utc>)>(
+            r#"
+            SELECT id,
+                   "currentPeriodStart" AT TIME ZONE 'UTC',
+                   "currentPeriodEnd" AT TIME ZONE 'UTC'
+            FROM "OrganizationSubscription"
+            WHERE "orgId" = $1 AND "planId" = $2 AND provider = $3
+              AND status IN (
+                'ACTIVE'::"OrganizationSubscriptionStatus",
+                'GRACE'::"OrganizationSubscriptionStatus",
+                'PAST_DUE'::"OrganizationSubscriptionStatus"
+              )
+            ORDER BY "createdAt" DESC
+            LIMIT 1
+            "#,
+        )
+        .bind(&org_id)
+        .bind(&plan_id)
+        .bind(provider_name)
+        .fetch_optional(&mut *tx)
+        .await?;
         tx.commit().await?;
+        let Some((subscription_id, period_start, period_end)) = subscription else {
+            return Err(AppError::Internal(
+                "Completed checkout has no active subscription".to_string(),
+            ));
+        };
+        finalize_paid_activation(
+            pool,
+            &org_id,
+            &plan_id,
+            &subscription_id,
+            period_start,
+            period_end,
+            reference,
+            &format!("paid-activation:{reference}"),
+            referral_config,
+        )
+        .await?;
         return Ok(true);
     }
     if status != "PENDING" {
@@ -697,9 +1039,14 @@ pub async fn activate_checkout(
 
     sqlx::query(r#"
         INSERT INTO "OrganizationSubscription" (
-          id, "orgId", "planId", status, "startedAt", "currentPeriodStart",
+          id, "orgId", "planId", status, "startedAt", "currentPeriodStart", "currentPeriodEnd",
           "cancelAtPeriodEnd", provider, "providerCustomerId", "providerSubscriptionId", "createdAt", "updatedAt"
-        ) VALUES ($1, $2, $3, 'ACTIVE'::"OrganizationSubscriptionStatus", NOW(), NOW(), false, $4, $5, $6, NOW(), NOW())
+        )
+        SELECT $1, $2, $3, 'ACTIVE'::"OrganizationSubscriptionStatus", NOW(), NOW(),
+               NOW() + CASE WHEN plan.interval = 'YEARLY'::"BillingInterval"
+                            THEN INTERVAL '1 year' ELSE INTERVAL '1 month' END,
+               false, $4, $5, $6, NOW(), NOW()
+        FROM "ProductPlan" plan WHERE plan.id = $3
         ON CONFLICT ("providerSubscriptionId") DO UPDATE SET
           status = 'ACTIVE'::"OrganizationSubscriptionStatus", "cancelledAt" = NULL, "updatedAt" = NOW()
     "#).bind(cuid2::create_id()).bind(&org_id).bind(&plan_id).bind(provider_name).bind(customer_id)
@@ -757,12 +1104,283 @@ pub async fn activate_checkout(
         "#,
     )
     .bind(cuid2::create_id())
-    .bind(subscription_id)
+    .bind(&subscription_id)
     .bind(checkout_id)
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
+
+    let period = sqlx::query_as::<_, (DateTime<Utc>, DateTime<Utc>)>(
+        r#"
+        SELECT "currentPeriodStart" AT TIME ZONE 'UTC', "currentPeriodEnd" AT TIME ZONE 'UTC'
+        FROM "OrganizationSubscription" WHERE id = $1
+        "#,
+    )
+    .bind(&subscription_id)
+    .fetch_one(pool)
+    .await?;
+    finalize_paid_activation(
+        pool,
+        &org_id,
+        &plan_id,
+        &subscription_id,
+        period.0,
+        period.1,
+        reference,
+        &format!("paid-activation:{reference}"),
+        referral_config,
+    )
+    .await?;
     Ok(true)
+}
+
+async fn finalize_paid_activation(
+    pool: &PgPool,
+    org_id: &str,
+    plan_id: &str,
+    subscription_id: &str,
+    period_start: DateTime<Utc>,
+    period_end: DateTime<Utc>,
+    payment_reference: &str,
+    idempotency_key: &str,
+    referral_config: ReferralRewardConfig,
+) -> Result<(), AppError> {
+    grant_paid_period_credits(
+        pool,
+        org_id,
+        subscription_id,
+        plan_id,
+        period_start,
+        period_end,
+        payment_reference,
+        idempotency_key,
+    )
+    .await?;
+    referrals::qualify_referral(pool, org_id, payment_reference, referral_config).await?;
+    Ok(())
+}
+
+async fn grant_paid_period_credits(
+    pool: &PgPool,
+    org_id: &str,
+    subscription_id: &str,
+    plan_id: &str,
+    period_start: DateTime<Utc>,
+    period_end: DateTime<Utc>,
+    payment_reference: &str,
+    idempotency_key: &str,
+) -> Result<(), AppError> {
+    let credits_per_period = sqlx::query_scalar::<_, Option<i64>>(
+        r#"SELECT "creditsPerPeriod" FROM "ProductPlan" WHERE id = $1"#,
+    )
+    .bind(plan_id)
+    .fetch_one(pool)
+    .await?;
+    let Some(credits_per_period) = credits_per_period else {
+        return Ok(());
+    };
+    if credits_per_period <= 0 {
+        return Err(AppError::Internal(
+            "Configured plan credit allowance must be positive".to_string(),
+        ));
+    }
+    credits::grant_system_credits(
+        pool,
+        org_id,
+        credits_per_period,
+        "PLAN",
+        Some(period_end),
+        "Paid subscription period credits",
+        Some(payment_reference),
+        Some(&serde_json::json!({
+            "subscriptionId": subscription_id,
+            "planId": plan_id,
+            "periodStart": period_start,
+            "periodEnd": period_end,
+        })),
+        idempotency_key,
+    )
+    .await?;
+    Ok(())
+}
+
+async fn process_recurring_charge(
+    pool: &PgPool,
+    provider_name: &str,
+    payment_reference: &str,
+    provider_subscription_id: Option<&str>,
+    provider_transaction_id: Option<&str>,
+    provider_invoice_id: Option<&str>,
+    amount_minor: Option<i64>,
+    currency: Option<&str>,
+) -> Result<bool, AppError> {
+    let Some(provider_subscription_id) = provider_subscription_id else {
+        return Ok(false);
+    };
+    let invoice_number = recurring_invoice_number(provider_name, payment_reference);
+    let mut tx = pool.begin().await?;
+    if let Some((org_id, plan_id, subscription_id, period_start, period_end)) = sqlx::query_as::<
+        _,
+        (
+            String,
+            String,
+            String,
+            Option<DateTime<Utc>>,
+            Option<DateTime<Utc>>,
+        ),
+    >(
+        r#"
+            SELECT invoice."orgId", subscription."planId", invoice."subscriptionId",
+                   invoice."periodStart" AT TIME ZONE 'UTC',
+                   invoice."periodEnd" AT TIME ZONE 'UTC'
+            FROM "BillingInvoice" invoice
+            JOIN "OrganizationSubscription" subscription
+              ON subscription.id = invoice."subscriptionId"
+            WHERE invoice."invoiceNumber" = $1
+            "#,
+    )
+    .bind(&invoice_number)
+    .fetch_optional(&mut *tx)
+    .await?
+    {
+        tx.commit().await?;
+        let Some(period_start) = period_start else {
+            return Err(AppError::Internal(
+                "Recurring invoice is missing its period start".to_string(),
+            ));
+        };
+        let Some(period_end) = period_end else {
+            return Err(AppError::Internal(
+                "Recurring invoice is missing its period end".to_string(),
+            ));
+        };
+        grant_paid_period_credits(
+            pool,
+            &org_id,
+            &subscription_id,
+            &plan_id,
+            period_start,
+            period_end,
+            payment_reference,
+            &format!("paid-invoice:{invoice_number}"),
+        )
+        .await?;
+        return Ok(true);
+    }
+
+    let subscription = sqlx::query_as::<
+        _,
+        (
+            String,
+            String,
+            String,
+            Option<DateTime<Utc>>,
+            Option<DateTime<Utc>>,
+            String,
+            String,
+            Option<i32>,
+        ),
+    >(
+        r#"
+        SELECT subscription.id, subscription."orgId", subscription."planId",
+               subscription."currentPeriodStart" AT TIME ZONE 'UTC',
+               subscription."currentPeriodEnd" AT TIME ZONE 'UTC',
+               plan.interval::text, plan.currency, plan."amountMinor"
+        FROM "OrganizationSubscription" subscription
+        JOIN "ProductPlan" plan ON plan.id = subscription."planId"
+        WHERE subscription.provider = $1 AND subscription."providerSubscriptionId" = $2
+        FOR UPDATE
+        "#,
+    )
+    .bind(provider_name)
+    .bind(provider_subscription_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let Some((
+        subscription_id,
+        org_id,
+        plan_id,
+        _current_period_start,
+        current_period_end,
+        interval,
+        plan_currency,
+        plan_amount_minor,
+    )) = subscription
+    else {
+        tx.commit().await?;
+        return Err(AppError::Conflict(
+            "Recurring payment arrived before its local subscription was linked".to_string(),
+        ));
+    };
+    let period_start = current_period_end.unwrap_or_else(Utc::now);
+    let period_end = sqlx::query_scalar::<_, DateTime<Utc>>(
+        r#"
+        SELECT $1 + CASE WHEN $2 = 'YEARLY' THEN INTERVAL '1 year' ELSE INTERVAL '1 month' END
+        "#,
+    )
+    .bind(period_start)
+    .bind(&interval)
+    .fetch_one(&mut *tx)
+    .await?;
+    sqlx::query(
+        r#"
+        UPDATE "OrganizationSubscription"
+        SET status = 'ACTIVE'::"OrganizationSubscriptionStatus",
+            "currentPeriodStart" = $2, "currentPeriodEnd" = $3,
+            "cancelAtPeriodEnd" = false, "updatedAt" = NOW()
+        WHERE id = $1
+        "#,
+    )
+    .bind(&subscription_id)
+    .bind(period_start)
+    .bind(period_end)
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        r#"
+        INSERT INTO "BillingInvoice" (
+            id, "invoiceNumber", "orgId", "checkoutId", "subscriptionId", provider,
+            "providerInvoiceId", "providerTransactionId", status, currency, "amountMinor",
+            "periodStart", "periodEnd", "issuedAt", "paidAt", "createdAt", "updatedAt"
+        )
+        VALUES (
+            $1, $2, $3, NULL, $4, $5, $6, $7, 'PAID', $8, $9,
+            $10, $11, NOW(), NOW(), NOW(), NOW()
+        )
+        "#,
+    )
+    .bind(cuid2::create_id())
+    .bind(&invoice_number)
+    .bind(&org_id)
+    .bind(&subscription_id)
+    .bind(provider_name)
+    .bind(provider_invoice_id)
+    .bind(provider_transaction_id.or(Some(payment_reference)))
+    .bind(currency.unwrap_or(&plan_currency))
+    .bind(amount_minor.or(plan_amount_minor.map(i64::from)))
+    .bind(period_start)
+    .bind(period_end)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    grant_paid_period_credits(
+        pool,
+        &org_id,
+        &subscription_id,
+        &plan_id,
+        period_start,
+        period_end,
+        payment_reference,
+        &format!("paid-invoice:{invoice_number}"),
+    )
+    .await?;
+    Ok(true)
+}
+
+fn recurring_invoice_number(provider_name: &str, payment_reference: &str) -> String {
+    format!("KS-{provider_name}-{payment_reference}")
 }
 
 pub async fn list_available_plans(pool: &PgPool) -> Result<Vec<AvailablePlan>, AppError> {
@@ -770,15 +1388,78 @@ pub async fn list_available_plans(pool: &PgPool) -> Result<Vec<AvailablePlan>, A
         r#"
         SELECT plan.key, product.key AS product_key, plan.name, plan.interval::text AS interval,
                plan.currency, plan."amountMinor" AS amount_minor,
+               plan."creditsPerPeriod" AS credits_per_period,
                (plan."paystackPlanCode" IS NOT NULL) AS checkout_ready
         FROM "ProductPlan" plan JOIN "Product" product ON product.id = plan."productId"
         WHERE plan.active = true AND product.active = true
-        ORDER BY product.name, plan.name
+        ORDER BY product.name, plan."amountMinor" ASC NULLS LAST, plan.name
     "#,
     )
     .fetch_all(pool)
     .await
     .map_err(AppError::from)
+}
+
+pub async fn get_available_plan_details(
+    pool: &PgPool,
+    plan_key: &str,
+) -> Result<AvailablePlanDetails, AppError> {
+    let plan = sqlx::query_as::<_, AvailablePlan>(
+        r#"
+        SELECT plan.key, product.key AS product_key, plan.name, plan.interval::text AS interval,
+               plan.currency, plan."amountMinor" AS amount_minor,
+               plan."creditsPerPeriod" AS credits_per_period,
+               (plan."paystackPlanCode" IS NOT NULL) AS checkout_ready
+        FROM "ProductPlan" plan JOIN "Product" product ON product.id = plan."productId"
+        WHERE plan.key = $1 AND plan.active = true AND product.active = true
+        "#,
+    )
+    .bind(plan_key)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Plan not found".to_string()))?;
+    let entitlement_rows = sqlx::query_as::<_, (String, Value)>(
+        r#"
+        SELECT entitlement.key, entitlement.value
+        FROM "PlanEntitlement" entitlement
+        JOIN "ProductPlan" candidate ON candidate.id = entitlement."planId"
+        WHERE candidate.id = (
+            SELECT id FROM "ProductPlan" WHERE key = $1
+        )
+        ORDER BY entitlement.key
+        "#,
+    )
+    .bind(plan_key)
+    .fetch_all(pool)
+    .await?;
+    let entitlements = entitlement_rows
+        .into_iter()
+        .filter_map(|(key, value)| {
+            if key.starts_with("limit.") {
+                let meter_key = key.trim_start_matches("limit.");
+                let definition = METER_DEFINITIONS
+                    .iter()
+                    .find(|item| item.key == meter_key)?;
+                Some(PlanEntitlementView {
+                    key,
+                    name: definition.name.to_string(),
+                    description: Some(definition.description.to_string()),
+                    kind: "limit".to_string(),
+                    value,
+                })
+            } else {
+                let definition = capability_definition(&key)?;
+                Some(PlanEntitlementView {
+                    key,
+                    name: definition.name.to_string(),
+                    description: Some(definition.description.to_string()),
+                    kind: "feature".to_string(),
+                    value,
+                })
+            }
+        })
+        .collect();
+    Ok(AvailablePlanDetails { plan, entitlements })
 }
 
 fn validate_catalog_key(key: &str) -> Result<&str, AppError> {
@@ -836,13 +1517,14 @@ pub async fn admin_catalog(pool: &PgPool) -> Result<Value, AppError> {
             String,
             String,
             Option<i32>,
+            Option<i64>,
             bool,
             Option<String>,
         ),
     >(
         r#"
         SELECT plan.key, product.key, plan.name, plan.interval::text, plan.currency,
-               plan."amountMinor", plan.active, plan."paystackPlanCode"
+               plan."amountMinor", plan."creditsPerPeriod", plan.active, plan."paystackPlanCode"
         FROM "ProductPlan" plan JOIN "Product" product ON product.id = plan."productId"
         ORDER BY product.name, plan.name
     "#,
@@ -851,10 +1533,21 @@ pub async fn admin_catalog(pool: &PgPool) -> Result<Value, AppError> {
     .await?
     .into_iter()
     .map(
-        |(key, product_key, name, interval, currency, amount_minor, active, paystack_plan_code)| {
+        |(
+            key,
+            product_key,
+            name,
+            interval,
+            currency,
+            amount_minor,
+            credits_per_period,
+            active,
+            paystack_plan_code,
+        )| {
             serde_json::json!({
                 "key": key, "productKey": product_key, "name": name, "interval": interval,
-                "currency": currency, "amountMinor": amount_minor, "active": active,
+                "currency": currency, "amountMinor": amount_minor,
+                "creditsPerPeriod": credits_per_period, "active": active,
                 "paystackPlanCode": paystack_plan_code,
             })
         },
@@ -945,6 +1638,7 @@ pub async fn upsert_plan(
     interval: &str,
     currency: &str,
     amount_minor: Option<i32>,
+    credits_per_period: Option<i64>,
     active: bool,
     paystack_plan_code: Option<&str>,
 ) -> Result<Value, AppError> {
@@ -966,7 +1660,10 @@ pub async fn upsert_plan(
             "Currency must be a three-letter code".to_string(),
         ));
     }
-    if amount_minor.is_some_and(|amount| amount < 0) || name.trim().is_empty() {
+    if amount_minor.is_some_and(|amount| amount < 0)
+        || credits_per_period.is_some_and(|credits| credits <= 0)
+        || name.trim().is_empty()
+    {
         return Err(AppError::BadRequest(
             "Plan name and a non-negative amount are required".to_string(),
         ));
@@ -974,21 +1671,22 @@ pub async fn upsert_plan(
     let plan_code = paystack_plan_code
         .map(str::trim)
         .filter(|value| !value.is_empty());
-    let row = sqlx::query_as::<_, (String, String, String, String, Option<i32>, bool, Option<String>)>(r#"
-        INSERT INTO "ProductPlan" (id, "productId", key, name, interval, currency, "amountMinor", active, "paystackPlanCode", "createdAt", "updatedAt")
-        SELECT $1, product.id, $3, $4, CAST($5 AS "BillingInterval"), $6, $7, $8, $9, NOW(), NOW()
+    let row = sqlx::query_as::<_, (String, String, String, String, Option<i32>, Option<i64>, bool, Option<String>)>(r#"
+        INSERT INTO "ProductPlan" (id, "productId", key, name, interval, currency, "amountMinor", "creditsPerPeriod", active, "paystackPlanCode", "createdAt", "updatedAt")
+        SELECT $1, product.id, $3, $4, CAST($5 AS "BillingInterval"), $6, $7, $8, $9, $10, NOW(), NOW()
         FROM "Product" product WHERE product.key = $2
         ON CONFLICT (key) DO UPDATE SET "productId" = EXCLUDED."productId", name = EXCLUDED.name,
           interval = EXCLUDED.interval, currency = EXCLUDED.currency, "amountMinor" = EXCLUDED."amountMinor",
-          active = EXCLUDED.active, "paystackPlanCode" = EXCLUDED."paystackPlanCode", "updatedAt" = NOW()
-        RETURNING key, name, interval::text, currency, "amountMinor", active, "paystackPlanCode"
+          "creditsPerPeriod" = EXCLUDED."creditsPerPeriod", active = EXCLUDED.active,
+          "paystackPlanCode" = EXCLUDED."paystackPlanCode", "updatedAt" = NOW()
+        RETURNING key, name, interval::text, currency, "amountMinor", "creditsPerPeriod", active, "paystackPlanCode"
     "#)
     .bind(cuid2::create_id()).bind(product_key).bind(key).bind(name.trim()).bind(&interval)
-    .bind(&currency).bind(amount_minor).bind(active).bind(plan_code).fetch_optional(pool).await?
+    .bind(&currency).bind(amount_minor).bind(credits_per_period).bind(active).bind(plan_code).fetch_optional(pool).await?
     .ok_or_else(|| AppError::NotFound("Product not found".to_string()))?;
     Ok(
         serde_json::json!({"key": row.0, "name": row.1, "interval": row.2, "currency": row.3,
-        "amountMinor": row.4, "active": row.5, "paystackPlanCode": row.6}),
+        "amountMinor": row.4, "creditsPerPeriod": row.5, "active": row.6, "paystackPlanCode": row.7}),
     )
 }
 
@@ -1039,9 +1737,10 @@ pub async fn create_checkout(
             "A valid checkout idempotency key is required".to_string(),
         ));
     }
-    let plan = sqlx::query_as::<_, (String, String, String, String)>(
+    let plan = sqlx::query_as::<_, (String, String, String, String, Option<i32>, String)>(
         r#"
-        SELECT plan.id, plan."paystackPlanCode", product.key, plan.name
+        SELECT plan.id, plan."paystackPlanCode", product.key, plan.name,
+               plan."amountMinor", plan.currency
         FROM "ProductPlan" plan JOIN "Product" product ON product.id = plan."productId"
         WHERE plan.key = $1 AND plan.active = true AND product.active = true
     "#,
@@ -1050,10 +1749,18 @@ pub async fn create_checkout(
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Active plan not found".to_string()))?;
-    let (plan_id, paystack_plan_code, product_key, plan_name) = plan;
+    let (plan_id, paystack_plan_code, product_key, plan_name, amount_minor, currency) = plan;
     if paystack_plan_code.trim().is_empty() {
         return Err(AppError::BadRequest(
             "This plan is not connected to Paystack yet".to_string(),
+        ));
+    }
+    let amount_minor = amount_minor.ok_or_else(|| {
+        AppError::BadRequest("This plan does not have a configured checkout amount".to_string())
+    })?;
+    if amount_minor <= 0 {
+        return Err(AppError::BadRequest(
+            "This plan must have a positive checkout amount".to_string(),
         ));
     }
     if let Some((authorization_url, reference)) = sqlx::query_as::<_, (String, String)>(
@@ -1122,6 +1829,8 @@ pub async fn create_checkout(
     let result = provider.initialize_checkout(CheckoutRequest {
         email: email.to_string(),
         plan_code: paystack_plan_code,
+        amount_minor: i64::from(amount_minor),
+        currency,
         reference: reference.clone(),
         callback_url,
         metadata: serde_json::json!({"orgId": org_id, "planKey": plan_key, "productKey": product_key}),
@@ -1165,6 +1874,7 @@ pub async fn verify_checkout(
     provider: &dyn BillingProvider,
     org_id: &str,
     reference: &str,
+    referral_config: ReferralRewardConfig,
 ) -> Result<CheckoutVerification, AppError> {
     let checkout_status = sqlx::query_scalar::<_, String>(
         r#"
@@ -1180,10 +1890,19 @@ pub async fn verify_checkout(
     .ok_or_else(|| AppError::NotFound("Checkout not found".to_string()))?;
 
     if checkout_status == "COMPLETED" {
+        let activated = activate_checkout(
+            pool,
+            provider.name(),
+            reference,
+            None,
+            None,
+            referral_config,
+        )
+        .await?;
         return Ok(CheckoutVerification {
             reference: reference.to_string(),
             status: "completed",
-            activated: true,
+            activated,
         });
     }
     if checkout_status != "PENDING" {
@@ -1214,6 +1933,7 @@ pub async fn verify_checkout(
         reference,
         transaction.customer_id.as_deref(),
         transaction.subscription_id.as_deref(),
+        referral_config,
     )
     .await?;
     Ok(CheckoutVerification {
@@ -1270,6 +1990,8 @@ pub struct ReconciliationResult {
     pub subscriptions_updated: usize,
     #[serde(rename = "openIssues")]
     pub open_issues: i64,
+    #[serde(rename = "webhookRetries")]
+    pub webhook_retries: usize,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -1406,7 +2128,14 @@ pub async fn reconcile_billing(
     pool: &PgPool,
     provider: &dyn BillingProvider,
     limit: i64,
+    referral_config: ReferralRewardConfig,
 ) -> Result<ReconciliationResult, AppError> {
+    // Keep pending referral state bounded even when no customer opens the
+    // Billing page. The reconciliation loop already runs on the provider's
+    // retry cadence, so it is the existing scheduled lifecycle boundary.
+    referrals::expire_attributions(pool, limit).await?;
+    let webhook_retries =
+        retry_failed_paystack_events(pool, provider, limit, referral_config).await?;
     let references = sqlx::query_scalar::<_, String>(
         r#"
         SELECT reference FROM "BillingCheckout"
@@ -1428,6 +2157,7 @@ pub async fn reconcile_billing(
         subscriptions_checked: 0,
         subscriptions_updated: 0,
         open_issues: 0,
+        webhook_retries,
     };
     for reference in references {
         match provider.verify_transaction(&reference).await {
@@ -1440,6 +2170,7 @@ pub async fn reconcile_billing(
                     &reference,
                     transaction.customer_id.as_deref(),
                     transaction.subscription_id.as_deref(),
+                    referral_config,
                 )
                 .await?
                 {
@@ -1857,6 +2588,176 @@ pub async fn get_billing_summary(pool: &PgPool, org_id: &str) -> Result<BillingS
     })
 }
 
+pub async fn get_billing_usage(
+    pool: &PgPool,
+    org_id: &str,
+    days: i64,
+) -> Result<BillingUsage, AppError> {
+    let days = days.clamp(7, 90);
+    let now = Utc::now();
+    let timezone = sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT CASE
+                 WHEN EXISTS (
+                     SELECT 1 FROM pg_timezone_names
+                     WHERE name = COALESCE(NULLIF("reportingTimezone", ''), 'UTC')
+                 ) THEN COALESCE(NULLIF("reportingTimezone", ''), 'UTC')
+                 ELSE 'UTC'
+               END
+        FROM "Organization"
+        WHERE id = $1
+        "#,
+    )
+    .bind(org_id)
+    .fetch_optional(pool)
+    .await?
+    .unwrap_or_else(|| "UTC".to_string());
+    let local_today = sqlx::query_scalar::<_, NaiveDate>(r#"SELECT (NOW() AT TIME ZONE $1)::date"#)
+        .bind(&timezone)
+        .fetch_one(pool)
+        .await?;
+    let first_day = local_today - Duration::days(days - 1);
+    let range_start = sqlx::query_scalar::<_, DateTime<Utc>>(
+        r#"
+        SELECT (((NOW() AT TIME ZONE $1)::date - $2)::timestamp AT TIME ZONE $1)
+        "#,
+    )
+    .bind(&timezone)
+    .bind((days - 1) as i32)
+    .fetch_one(pool)
+    .await?;
+
+    // CreditUsageEvent is the source of truth for AI/credit consumption. It is
+    // intentionally separate from UsageEvent, which records non-AI workspace
+    // activity such as publishing and campaign recipients.
+    let daily_credit_rows = sqlx::query_as::<_, DailyCreditUsageRow>(
+        r#"
+        SELECT (("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE $4)::date AS date,
+               COALESCE(SUM("creditsCharged"), 0)::bigint AS credits_used
+        FROM "CreditUsageEvent"
+        WHERE "orgId" = $1
+          AND status = 'COMPLETED'
+          AND "createdAt" >= $2
+          AND "createdAt" <= $3
+        GROUP BY 1
+        ORDER BY 1 ASC
+        "#,
+    )
+    .bind(org_id)
+    .bind(range_start)
+    .bind(now)
+    .bind(&timezone)
+    .fetch_all(pool)
+    .await?;
+
+    let daily_meter_rows = sqlx::query_as::<_, DailyMeterUsageRow>(
+        r#"
+        SELECT (("occurredAt" AT TIME ZONE 'UTC') AT TIME ZONE $3)::date AS date,
+               COALESCE(SUM(quantity), 0)::bigint AS operations
+        FROM "UsageEvent"
+        WHERE "orgId" = $1
+          AND "occurredAt" >= $2
+          AND "occurredAt" <= $4
+        GROUP BY 1
+        ORDER BY 1 ASC
+        "#,
+    )
+    .bind(org_id)
+    .bind(range_start)
+    .bind(&timezone)
+    .bind(now)
+    .fetch_all(pool)
+    .await?;
+    let daily = build_daily_usage(first_day, days, daily_credit_rows, daily_meter_rows);
+
+    // The previous period is returned for a real comparison line in the
+    // client. It uses the same sources and duration as the selected period.
+    let previous_range_start = range_start - Duration::days(days);
+    let previous_first_day = first_day - Duration::days(days);
+    let previous_credit_rows = sqlx::query_as::<_, DailyCreditUsageRow>(
+        r#"
+        SELECT (("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE $4)::date AS date,
+               COALESCE(SUM("creditsCharged"), 0)::bigint AS credits_used
+        FROM "CreditUsageEvent"
+        WHERE "orgId" = $1
+          AND status = 'COMPLETED'
+          AND "createdAt" >= $2
+          AND "createdAt" < $3
+        GROUP BY 1
+        ORDER BY 1 ASC
+        "#,
+    )
+    .bind(org_id)
+    .bind(previous_range_start)
+    .bind(range_start)
+    .bind(&timezone)
+    .fetch_all(pool)
+    .await?;
+    let previous_meter_rows = sqlx::query_as::<_, DailyMeterUsageRow>(
+        r#"
+        SELECT (("occurredAt" AT TIME ZONE 'UTC') AT TIME ZONE $3)::date AS date,
+               COALESCE(SUM(quantity), 0)::bigint AS operations
+        FROM "UsageEvent"
+        WHERE "orgId" = $1
+          AND "occurredAt" >= $2
+          AND "occurredAt" < $4
+        GROUP BY 1
+        ORDER BY 1 ASC
+        "#,
+    )
+    .bind(org_id)
+    .bind(previous_range_start)
+    .bind(&timezone)
+    .bind(range_start)
+    .fetch_all(pool)
+    .await?;
+    let previous_daily = build_daily_usage(
+        previous_first_day,
+        days,
+        previous_credit_rows,
+        previous_meter_rows,
+    );
+
+    let breakdown = sqlx::query_as::<_, CreditUsageBreakdownRow>(
+        r#"
+        SELECT "actionKey" AS action_key,
+               COALESCE(SUM("creditsCharged"), 0)::bigint AS credits_used,
+               COUNT(*)::bigint AS operations
+        FROM "CreditUsageEvent"
+        WHERE "orgId" = $1
+          AND status = 'COMPLETED'
+          AND "createdAt" >= $2
+          AND "createdAt" <= $3
+        GROUP BY "actionKey"
+        ORDER BY credits_used DESC, action_key ASC
+        "#,
+    )
+    .bind(org_id)
+    .bind(range_start)
+    .bind(now)
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .map(|row| CreditUsageBreakdown {
+        key: row.action_key,
+        credits_used: row.credits_used,
+        operations: row.operations,
+    })
+    .collect::<Vec<_>>();
+
+    Ok(BillingUsage {
+        range_start,
+        range_end: now,
+        timezone,
+        granularity: "day".to_string(),
+        credits_used: daily.iter().map(|day| day.credits_used).sum(),
+        operations: daily.iter().map(|day| day.operations).sum(),
+        daily,
+        previous_daily,
+        breakdown,
+    })
+}
+
 pub async fn set_subscription_enabled(
     pool: &PgPool,
     provider: &dyn BillingProvider,
@@ -2204,5 +3105,21 @@ mod tests {
             Some(meters::SOCIAL_PUBLISHES)
         );
         assert_eq!(canonical_meter_key("reach", "unknown"), None);
+    }
+
+    #[test]
+    fn recurring_invoice_numbers_are_deterministic() {
+        assert_eq!(
+            recurring_invoice_number("paystack", "charge_123"),
+            "KS-paystack-charge_123"
+        );
+        assert_eq!(
+            recurring_invoice_number("paystack", "charge_123"),
+            recurring_invoice_number("paystack", "charge_123")
+        );
+        assert_ne!(
+            recurring_invoice_number("paystack", "charge_123"),
+            recurring_invoice_number("paystack", "charge_456")
+        );
     }
 }

@@ -102,6 +102,8 @@ pub struct SignupRequest {
     pub phone: Option<String>,
     #[serde(rename = "phoneVerified")]
     pub phone_verified: Option<bool>,
+    #[serde(rename = "referralCode")]
+    pub referral_code: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

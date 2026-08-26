@@ -50,6 +50,14 @@ pub struct AppConfig {
     pub paystack_secret_key: Option<String>,
     pub paystack_mode: String,
     pub paystack_api_base_url: String,
+    /// Credits granted when a new organisation enters the free trial.
+    pub trial_credits: i64,
+    pub trial_duration_days: i64,
+    /// Two-sided referral rewards, kept configurable until launch pricing is final.
+    pub referral_referrer_credits: i64,
+    pub referral_referee_credits: i64,
+    pub referral_reward_expiry_days: i64,
+    pub referral_attribution_window_days: i64,
     pub twilio_account_sid: Option<String>,
     pub twilio_auth_token: Option<String>,
     pub twilio_api_key_sid: Option<String>,
@@ -175,6 +183,24 @@ impl AppConfig {
             paystack_api_base_url: env_string_or(
                 "PAYSTACK_API_BASE_URL",
                 "https://api.paystack.co",
+            ),
+            trial_credits: i64::from(env_u32_or("KASITEK_TRIAL_CREDITS", 1_000).max(1)),
+            trial_duration_days: i64::from(
+                env_u32_or("KASITEK_TRIAL_DURATION_DAYS", 14).clamp(1, 90),
+            ),
+            referral_referrer_credits: i64::from(env_u32_or(
+                "KASITEK_REFERRAL_REFERRER_CREDITS",
+                1_000,
+            )),
+            referral_referee_credits: i64::from(env_u32_or(
+                "KASITEK_REFERRAL_REFEREE_CREDITS",
+                500,
+            )),
+            referral_reward_expiry_days: i64::from(
+                env_u32_or("KASITEK_REFERRAL_REWARD_EXPIRY_DAYS", 365).clamp(1, 3_650),
+            ),
+            referral_attribution_window_days: i64::from(
+                env_u32_or("KASITEK_REFERRAL_ATTRIBUTION_WINDOW_DAYS", 90).clamp(1, 3_650),
             ),
             twilio_account_sid: env_optional("TWILIO_ACCOUNT_SID"),
             twilio_auth_token: env_optional("TWILIO_AUTH_TOKEN"),

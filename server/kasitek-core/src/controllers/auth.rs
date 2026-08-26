@@ -15,6 +15,7 @@ use crate::services::auth::{
     create_session, delete_session, issue_verification_token, send_email, send_sms_message,
 };
 use crate::services::orgs;
+use crate::services::referrals;
 
 fn auth_server_base_url(config: &AppConfig) -> String {
     std::env::var("API_BASE_URL").unwrap_or_else(|_| config.public_api_url.clone())
@@ -22,6 +23,25 @@ fn auth_server_base_url(config: &AppConfig) -> String {
 
 fn google_redirect_uri(config: &AppConfig) -> String {
     format!("{}/api/auth/google/callback", auth_server_base_url(config))
+}
+
+fn referral_code_from_callback(callback_path: &str) -> Option<String> {
+    callback_path
+        .split_once('?')
+        .and_then(|(_, query)| {
+            query.split('&').find_map(|part| {
+                let (key, value) = part.split_once('=')?;
+                (key == "referralCode")
+                    .then(|| {
+                        urlencoding::decode(value)
+                            .ok()
+                            .map(|value| value.into_owned())
+                    })
+                    .flatten()
+            })
+        })
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
 }
 
 async fn send_account_verification_email(
@@ -190,7 +210,32 @@ pub async fn signup(
         .map(|n| format!("{}'s Workspace", n))
         .unwrap_or_else(|| "My Workspace".to_string());
     let base_slug = orgs::slugify(&user_id);
-    let _ = orgs::create_org(pool.get_ref(), &user_id, &org_name, &base_slug, None).await;
+    let created_org = orgs::create_org(
+        pool.get_ref(),
+        &user_id,
+        &org_name,
+        &base_slug,
+        None,
+        config.trial_credits,
+        config.trial_duration_days,
+    )
+    .await;
+    if let Ok(org) = created_org {
+        if let Some(code) = body
+            .referral_code
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            let _ = referrals::attribute_referral(
+                pool.get_ref(),
+                &org.id,
+                code,
+                referrals::ReferralRewardConfig::from_config(config.get_ref()),
+            )
+            .await;
+        }
+    }
 
     let _ = send_account_verification_email(pool.get_ref(), config.get_ref(), &email).await;
 
@@ -401,6 +446,7 @@ pub async fn google_oauth_callback(
     .fetch_optional(pool.get_ref())
     .await?;
 
+    let mut created_org_id = None;
     let user_id = if let Some(user_id) = existing_linked_user {
         sqlx::query(
             r#"
@@ -471,8 +517,19 @@ pub async fn google_oauth_callback(
                 .map(|n| format!("{}'s Workspace", n))
                 .unwrap_or_else(|| "My Workspace".to_string());
             let base_slug = orgs::slugify(&new_user_id);
-            let _ =
-                orgs::create_org(pool.get_ref(), &new_user_id, &org_name, &base_slug, None).await;
+            if let Ok(org) = orgs::create_org(
+                pool.get_ref(),
+                &new_user_id,
+                &org_name,
+                &base_slug,
+                None,
+                config.trial_credits,
+                config.trial_duration_days,
+            )
+            .await
+            {
+                created_org_id = Some(org.id);
+            }
 
             new_user_id
         };
@@ -499,6 +556,18 @@ pub async fn google_oauth_callback(
         .await?;
         user_id
     };
+
+    if let Some(org_id) = created_org_id {
+        if let Some(code) = referral_code_from_callback(&callback_path) {
+            let _ = referrals::attribute_referral(
+                pool.get_ref(),
+                &org_id,
+                &code,
+                referrals::ReferralRewardConfig::from_config(config.get_ref()),
+            )
+            .await;
+        }
+    }
 
     let session_token = create_session(pool.get_ref(), &user_id).await?;
     let target = if callback_path.starts_with("http://") || callback_path.starts_with("https://") {

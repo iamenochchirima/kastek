@@ -8,6 +8,8 @@ use crate::error::AppError;
 pub struct CheckoutRequest {
     pub email: String,
     pub plan_code: String,
+    pub amount_minor: i64,
+    pub currency: String,
     pub reference: String,
     pub callback_url: String,
     pub metadata: Value,
@@ -56,6 +58,10 @@ pub enum ProviderEvent {
         reference: String,
         customer_id: Option<String>,
         subscription_id: Option<String>,
+        transaction_id: Option<String>,
+        invoice_id: Option<String>,
+        amount_minor: Option<i64>,
+        currency: Option<String>,
     },
     SubscriptionCreated {
         subscription_id: String,

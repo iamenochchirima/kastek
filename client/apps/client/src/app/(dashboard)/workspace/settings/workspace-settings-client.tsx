@@ -1,10 +1,10 @@
 "use client";
 
 import type { Org } from "@/lib/orgs";
-import type { BillingSummary, AvailablePlan } from "@/lib/billing";
+import type { BillingCredits, BillingSummary, AvailablePlan, BillingUsage } from "@/lib/billing";
 import { apiUrl } from "@/lib/server-api";
 import { cn } from "@/lib/utils";
-import { Bell, Building2, CreditCard, ImagePlus, Palette, Upload, UserRound, X } from "lucide-react";
+import { BarChart3, Bell, Building2, CreditCard, ImagePlus, Palette, Upload, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -13,6 +13,7 @@ import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { AppearancePanel } from "@/components/dashboard/settings/appearance-panel";
 import { WorkspaceNotificationsPanel } from "@/components/dashboard/settings/workspace-notifications-panel";
 import { BillingPanel } from "@/components/dashboard/billing/billing-panel";
+import { UsagePanel } from "@/components/dashboard/billing/usage-panel";
 import ProfileForm from "@/components/dashboard/profile/profile-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { VANTAGE_EXPO, VANTAGE_MOTION, VANTAGE_SELECTION_SPRING } from "@/lib/motion";
 import { useAppearance } from "@/lib/appearance";
 
-export type LocalSettingsTab = "profile" | "organization" | "appearance" | "notifications" | "billing";
+export type LocalSettingsTab = "profile" | "organization" | "appearance" | "notifications" | "billing" | "usage";
 
 export type WorkspaceProfile = {
   user: {
@@ -39,6 +40,7 @@ const SETTINGS_LINKS = [
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "billing", label: "Billing", icon: CreditCard },
+  { id: "usage", label: "Usage", icon: BarChart3 },
 ] as const;
 
 export function WorkspaceSettingsClient({
@@ -48,6 +50,8 @@ export function WorkspaceSettingsClient({
   initialTab,
   billingSummary,
   billingPlans,
+  billingCredits,
+  billingUsage,
   billingQuery,
 }: {
   org: Org;
@@ -56,6 +60,8 @@ export function WorkspaceSettingsClient({
   initialTab: LocalSettingsTab;
   billingSummary: BillingSummary | null;
   billingPlans: { plans: AvailablePlan[] };
+  billingCredits: BillingCredits | null;
+  billingUsage: BillingUsage | null;
   billingQuery: { payment?: string; reference?: string; trxref?: string };
 }) {
   const router = useRouter();
@@ -146,7 +152,7 @@ export function WorkspaceSettingsClient({
       <div className="mx-auto max-w-[1440px]">
         <header>
           <h1 className="text-[24px] font-semibold leading-8 tracking-[-0.02em] text-foreground">Settings</h1>
-          <p className="mt-1 text-[13px] text-muted-foreground">Manage your profile, organization, appearance, notifications, and billing.</p>
+          <p className="mt-1 text-[13px] text-muted-foreground">Manage your workspace settings and billing.</p>
         </header>
 
         <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-start">
@@ -169,7 +175,7 @@ export function WorkspaceSettingsClient({
             })}
           </nav>
 
-          <div className="min-w-0 w-full max-w-[760px] flex-1">
+          <div className="min-w-0 w-full max-w-[1080px] flex-1">
             <AnimatePresence initial={false} mode="wait">
             <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: VANTAGE_MOTION.shell / 1000, ease: VANTAGE_EXPO }}>
             {tab === "profile" ? (
@@ -181,7 +187,7 @@ export function WorkspaceSettingsClient({
                   <Button asChild variant="outline" className="mt-4"><Link href="/workspace/team">Team</Link></Button>
                 </section>
               </div>
-            ) : tab === "appearance" ? <AppearancePanel /> : tab === "notifications" ? <WorkspaceNotificationsPanel /> : tab === "billing" ? <BillingPanel embedded summary={billingSummary} planResponse={billingPlans} query={billingQuery} /> : tab === "organization" ? (
+            ) : tab === "appearance" ? <AppearancePanel /> : tab === "notifications" ? <WorkspaceNotificationsPanel /> : tab === "billing" ? <BillingPanel embedded summary={billingSummary} planResponse={billingPlans} billingCredits={billingCredits} query={billingQuery} /> : tab === "usage" ? <UsagePanel embedded usage={billingUsage} credits={billingCredits} /> : tab === "organization" ? (
               <section className="v-settings-card rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-panel)]">
                 <h2 className="text-base font-semibold text-foreground">Organization settings</h2>
                 <p className="mt-0.5 text-xs text-muted-foreground">Manage the identity shown across KasiTek.</p>

@@ -6,7 +6,7 @@ use crate::error::AppError;
 use crate::middleware::{extract_user, resolve_active_org_id};
 use crate::services::billing_provider::BillingProvider;
 use crate::services::paystack::PaystackProvider;
-use crate::services::{billing, orgs};
+use crate::services::{billing, credits, orgs, referrals};
 
 #[derive(Deserialize)]
 pub struct CheckoutRequest {
@@ -14,6 +14,11 @@ pub struct CheckoutRequest {
     pub plan_key: String,
     #[serde(rename = "idempotencyKey")]
     pub idempotency_key: String,
+}
+
+#[derive(Deserialize)]
+pub struct UsageQuery {
+    pub range: Option<String>,
 }
 
 fn paystack_provider(config: &crate::config::AppConfig) -> Result<PaystackProvider, AppError> {
@@ -33,11 +38,90 @@ pub async fn summary(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpRe
     Ok(HttpResponse::Ok().json(summary))
 }
 
+pub async fn usage(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    query: web::Query<UsageQuery>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    orgs::require_member(pool.get_ref(), &org_id, &user.id).await?;
+    let days = match query.range.as_deref().unwrap_or("30d") {
+        "7d" => 7,
+        "30d" => 30,
+        "90d" => 90,
+        _ => {
+            return Err(AppError::BadRequest(
+                "Usage range must be 7d, 30d, or 90d".to_string(),
+            ))
+        }
+    };
+    let usage = billing::get_billing_usage(pool.get_ref(), &org_id, days).await?;
+    let summary = billing::get_billing_summary(pool.get_ref(), &org_id).await?;
+    let account = credits::get_credit_account(pool.get_ref(), &org_id).await?;
+    let recent = credits::get_credit_usage(pool.get_ref(), &org_id, 20).await?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "rangeStart": usage.range_start,
+        "rangeEnd": usage.range_end,
+        "timezone": usage.timezone,
+        "granularity": usage.granularity,
+        "daily": usage.daily,
+        "previousDaily": usage.previous_daily,
+        "credits": {
+            "used": usage.credits_used,
+            "balance": account.balance,
+            "reserved": account.reserved_balance,
+            "available": account.available_balance,
+        },
+        "operations": usage.operations,
+        "breakdown": usage.breakdown,
+        "meters": summary.meters,
+        "recent": recent,
+    })))
+}
+
+pub async fn credits(
+    pool: web::Data<PgPool>,
+    config: web::Data<crate::config::AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    orgs::require_member(pool.get_ref(), &org_id, &user.id).await?;
+    let account = credits::get_credit_account(pool.get_ref(), &org_id).await?;
+    let usage = credits::get_credit_usage(pool.get_ref(), &org_id, 100).await?;
+    let referral = referrals::get_referral_summary(
+        pool.get_ref(),
+        &org_id,
+        referrals::ReferralRewardConfig::from_config(config.get_ref()),
+        &config.frontend_url,
+    )
+    .await?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "account": account,
+        "usage": usage,
+        "referral": referral,
+    })))
+}
+
 pub async fn plans(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
     resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
     Ok(HttpResponse::Ok()
         .json(serde_json::json!({"plans": billing::list_available_plans(pool.get_ref()).await?})))
+}
+
+pub async fn plan_details(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    plan_key: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let user = extract_user(&req, pool.get_ref()).await?;
+    resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
+    let details = billing::get_available_plan_details(pool.get_ref(), &plan_key).await?;
+    Ok(HttpResponse::Ok().json(details))
 }
 
 pub async fn checkout(
@@ -82,7 +166,14 @@ pub async fn verify_checkout(
     let org_id = resolve_active_org_id(&req, pool.get_ref(), &user.id).await?;
     orgs::require_admin(pool.get_ref(), &org_id, &user.id).await?;
     let provider = paystack_provider(config.get_ref())?;
-    let result = billing::verify_checkout(pool.get_ref(), &provider, &org_id, &reference).await?;
+    let result = billing::verify_checkout(
+        pool.get_ref(),
+        &provider,
+        &org_id,
+        &reference,
+        crate::services::referrals::ReferralRewardConfig::from_config(config.get_ref()),
+    )
+    .await?;
     Ok(HttpResponse::Ok().json(result))
 }
 
@@ -137,17 +228,18 @@ pub async fn paystack_webhook(
     }
     let event: serde_json::Value = serde_json::from_slice(&payload)
         .map_err(|_| AppError::BadRequest("Invalid Paystack webhook payload".to_string()))?;
+    let provider_event = provider.parse_webhook(&event)?;
     let event_key = billing::paystack_event_key(&event)?;
     if !billing::record_paystack_event(pool.get_ref(), &event_key, &event).await? {
         return Ok(
             HttpResponse::Ok().json(serde_json::json!({"received": true, "duplicate": true}))
         );
     }
-    let provider_event = provider.parse_webhook(&event)?;
     let processed = match billing::process_provider_event(
         pool.get_ref(),
         provider.name(),
         provider_event,
+        crate::services::referrals::ReferralRewardConfig::from_config(config.get_ref()),
     )
     .await
     {

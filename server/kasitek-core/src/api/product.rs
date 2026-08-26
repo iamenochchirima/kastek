@@ -7,7 +7,7 @@ use crate::controllers::{
     admin, admin_billing, admin_conversations, admin_invoices, admin_leads, admin_notifications,
     admin_outreach, admin_quotations, admin_web_services, agent_internal, agent_platform, ai,
     analytics, auth, billing, bookings, calls, connections, customers, developers, health, inbox,
-    notifications, onboarding, orgs, product_tour, profile, realtime, social, whatsapp,
+    notifications, onboarding, orgs, product_tour, profile, realtime, referrals, social, whatsapp,
     whatsapp_calls, workspace,
 };
 
@@ -51,7 +51,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api/billing")
             .route("/summary", web::get().to(billing::summary))
+            .route("/usage", web::get().to(billing::usage))
+            .route("/credits", web::get().to(billing::credits))
             .route("/plans", web::get().to(billing::plans))
+            .route("/plans/{planKey}", web::get().to(billing::plan_details))
             .route("/checkout", web::post().to(billing::checkout))
             .route(
                 "/checkout/{reference}/verify",
@@ -61,6 +64,11 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 "/subscriptions/{id}/{action}",
                 web::post().to(billing::set_subscription_enabled),
             ),
+    );
+    cfg.service(
+        web::scope("/api/referrals")
+            .route("", web::get().to(referrals::get_code))
+            .route("/attribute", web::post().to(referrals::attribute)),
     );
     cfg.service(
         web::scope("/api/orgs")
