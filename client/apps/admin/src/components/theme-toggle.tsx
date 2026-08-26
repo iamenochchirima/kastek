@@ -1,28 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useSyncExternalStore } from "react";
 import { Moon, Sun } from "lucide-react";
 import { buttonClassName } from "@/components/ui/button";
-
-type Theme = "light" | "dark";
-
-const storageKey = "kasiai-theme";
-
-function getTheme(): Theme {
-  if (typeof window === "undefined") return "light";
-  const stored = window.localStorage.getItem(storageKey);
-  if (stored === "light" || stored === "dark") return stored;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
+import { applyTheme, resolveStoredTheme, serverThemeSnapshot, subscribeToThemeChange } from "@/lib/appearance";
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>(getTheme);
+  const theme = useSyncExternalStore(subscribeToThemeChange, resolveStoredTheme, serverThemeSnapshot);
 
   function toggleTheme() {
-    const nextTheme = theme === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = nextTheme;
-    window.localStorage.setItem(storageKey, nextTheme);
-    setTheme(nextTheme);
+    applyTheme(theme === "dark" ? "light" : "dark");
   }
 
   return (

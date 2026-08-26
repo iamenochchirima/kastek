@@ -1,13 +1,10 @@
 import OutreachImportForm from "@/components/admin/outreach-import-form";
+import { AdminPageHeader } from "@/components/admin/page-header";
 
 export default function ImportPage() {
   return (
-    <div className="max-w-3xl space-y-6">
-      <h1 className="text-2xl font-bold text-text">Import Leads</h1>
-      <p className="text-text-muted text-sm">
-        Upload a crawled JSON file from scripts/bizbay-data/ to create a new
-        outreach campaign.
-      </p>
+    <div className="admin-page max-w-3xl">
+      <AdminPageHeader title="Import leads" description="Upload crawled JSON data to create an outreach campaign." />
       <OutreachImportForm />
     </div>
   );

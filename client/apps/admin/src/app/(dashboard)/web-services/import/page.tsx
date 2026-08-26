@@ -1,12 +1,17 @@
 import WebServicesImportForm from "@/components/admin/web-services-import-form";
+import { AdminPageHeader } from "@/components/admin/page-header";
+import Link from "next/link";
+import { buttonClassName } from "@/components/ui/button";
 
 export default function WebServicesImportPage() {
   return (
-    <div className="max-w-3xl space-y-6">
-      <h1 className="text-2xl font-bold text-text">Import Web Service Leads</h1>
-      <p className="text-text-muted text-sm">
-        Upload a JSON file of businesses without working websites to start cold calling.
-      </p>
+    <div className="admin-page max-w-4xl">
+      <AdminPageHeader
+        eyebrow="Web services"
+        title="Import leads"
+        description="Upload a JSON file of businesses without working websites."
+        actions={<Link href="/web-services" className={buttonClassName({ variant: "outline", size: "sm" })}>Back to leads</Link>}
+      />
       <WebServicesImportForm />
     </div>
   );

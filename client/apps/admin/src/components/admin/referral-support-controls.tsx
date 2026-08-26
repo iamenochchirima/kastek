@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { buttonClassName } from "@/components/ui/button";
+import { StatusBadge } from "@/components/admin/status-badge";
 
 type ReferralItem = {
   id: string;
@@ -114,7 +116,7 @@ export function ReferralSupportControls() {
 
   const input = "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground";
   return (
-    <section className="mt-6 space-y-5 rounded-xl border border-border bg-card p-5">
+    <section className="mt-6 space-y-5 v-card p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-semibold text-foreground">Referral support</h2>
@@ -130,7 +132,7 @@ export function ReferralSupportControls() {
             <option value="REVERSED">Reversed</option>
             <option value="EXPIRED">Expired</option>
           </select>
-          <button type="button" className="rounded-lg border border-border px-3 py-2 text-sm text-foreground" onClick={() => void load()} disabled={busy}>
+          <button type="button" className={buttonClassName({ variant: "outline", size: "sm" })} onClick={() => void load()} disabled={busy}>
             Refresh
           </button>
         </div>
@@ -145,7 +147,7 @@ export function ReferralSupportControls() {
                 <p className="font-medium text-foreground">{item.referrerOrgName} → {item.refereeOrgName}</p>
                 <p className="mt-1 text-xs text-muted-foreground">{item.code} · {dateLabel(item.attributedAt)} · {item.id}</p>
               </div>
-              <span className="rounded-full border border-border px-2 py-1 text-xs text-muted-foreground">{statusLabel(item.status)}</span>
+              <StatusBadge value={item.status} />
             </div>
             <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
               <span>Code: {statusLabel(item.codeStatus)}</span>
@@ -161,12 +163,12 @@ export function ReferralSupportControls() {
             ) : null}
             <div className="flex flex-wrap gap-2">
               {item.status === "ATTRIBUTED" || item.status === "QUALIFIED" ? (
-                <button type="button" className="rounded-lg border border-amber-500/40 px-3 py-2 text-xs text-amber-200" onClick={() => openAction({ kind: "reject", item })}>Reject attribution</button>
+                <button type="button" className={buttonClassName({ variant: "secondary", size: "sm", className: "border-status-attention/30 text-status-attention" })} onClick={() => openAction({ kind: "reject", item })}>Reject attribution</button>
               ) : null}
               {item.status === "AWARDED" ? (
                 <button type="button" className="rounded-lg border border-status-danger/30 px-3 py-2 text-xs text-status-danger" onClick={() => openAction({ kind: "reverse", item })}>Reverse reward</button>
               ) : null}
-              <button type="button" className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground" onClick={() => openAction({ kind: "code", item, nextCodeStatus: item.codeStatus === "DISABLED" ? "ACTIVE" : "DISABLED" })}>
+              <button type="button" className={buttonClassName({ variant: "ghost", size: "sm" })} onClick={() => openAction({ kind: "code", item, nextCodeStatus: item.codeStatus === "DISABLED" ? "ACTIVE" : "DISABLED" })}>
                 {item.codeStatus === "DISABLED" ? "Enable code" : "Disable code"}
               </button>
             </div>
@@ -174,18 +176,18 @@ export function ReferralSupportControls() {
         )) : <p className="p-5 text-sm text-muted-foreground">No referrals found.</p>}
       </div>
       {action ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
+        <div className="fixed inset-0 z-[var(--z-overlay)] flex items-center justify-center p-4" role="presentation">
           <div className="fixed inset-0 bg-overlay/70" onClick={() => setAction(null)} />
-          <form className="relative w-full max-w-md space-y-4 rounded-xl border border-border bg-card p-5 shadow-2xl" role="dialog" aria-modal="true" onSubmit={submit}>
+          <form className="relative v-card w-full max-w-md space-y-4 p-5 shadow-pop" role="dialog" aria-modal="true" aria-labelledby="referral-change-title" onSubmit={submit}>
             <div>
-              <h3 className="font-semibold text-foreground">Confirm referral change</h3>
+              <h3 id="referral-change-title" className="font-semibold text-foreground">Confirm referral change</h3>
               <p className="mt-1 text-sm text-muted-foreground">This action will be recorded against {action.item.id}.</p>
             </div>
             <textarea className={input} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Support reason" required rows={3} />
             <input className={input} value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Support reference" required />
             <div className="flex justify-end gap-2">
-              <button type="button" className="rounded-lg border border-border px-4 py-2 text-sm text-foreground" onClick={() => setAction(null)} disabled={busy}>Cancel</button>
-              <button type="submit" className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-black" disabled={busy}>{busy ? "Saving…" : "Confirm"}</button>
+              <button type="button" className={buttonClassName({ variant: "ghost", size: "md" })} onClick={() => setAction(null)} disabled={busy}>Cancel</button>
+              <button type="submit" className={buttonClassName({ variant: "primary", size: "md" })} disabled={busy}>{busy ? "Saving…" : "Confirm"}</button>
             </div>
           </form>
         </div>

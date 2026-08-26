@@ -99,30 +99,30 @@ export default function WebServicesImportForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="bg-danger/10 text-danger text-sm px-4 py-3 rounded-lg border border-danger/20">
+        <div className="bg-status-danger-soft text-status-danger text-sm px-4 py-3 rounded-lg border border-status-danger/25">
           {error}
         </div>
       )}
 
-      <div className="bg-surface-raised rounded-xl border border-border p-6 space-y-4">
-        <h2 className="font-semibold text-text">Upload Data</h2>
+      <div className="v-card p-6 space-y-4">
+        <h2 className="font-semibold text-foreground">Upload Data</h2>
 
         <div>
           <label className="flex items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-primary/50 transition-colors">
             <div className="text-center">
               {files.length > 0 ? (
                 <>
-                  <p className="text-sm font-medium text-text">
+                  <p className="text-sm font-medium text-foreground">
                     {files.length} file{files.length > 1 ? "s" : ""} selected
                   </p>
-                  <p className="text-xs text-text-muted mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     {totalListings} businesses total
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="text-sm text-text-muted">Click to select JSON files</p>
-                  <p className="text-xs text-text-faint mt-1">Select multiple files at once</p>
+                  <p className="text-sm text-muted-foreground">Click to select JSON files</p>
+                  <p className="text-xs text-ink-3 mt-1">Select multiple files at once</p>
                 </>
               )}
             </div>
@@ -139,8 +139,8 @@ export default function WebServicesImportForm() {
 
       {/* File list */}
       {files.length > 0 && (
-        <div className="bg-surface-raised rounded-xl border border-border p-6">
-          <h2 className="font-semibold text-text mb-3">
+        <div className="v-card p-6">
+          <h2 className="font-semibold text-foreground mb-3">
             {files.length} files ({totalListings} businesses)
           </h2>
           <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -152,17 +152,17 @@ export default function WebServicesImportForm() {
                   className="flex items-center justify-between text-sm py-2 border-b border-border last:border-0"
                 >
                   <div>
-                    <p className="text-text font-medium">{f.category}</p>
-                    <p className="text-text-faint text-xs">{f.listings.length} businesses</p>
+                    <p className="text-foreground font-medium">{f.category}</p>
+                    <p className="text-ink-3 text-xs">{f.listings.length} businesses</p>
                   </div>
                   {result ? (
                     result.error ? (
-                      <span className="text-red-400 text-xs">{result.error}</span>
+                      <span className="text-status-danger text-xs">{result.error}</span>
                     ) : (
-                      <span className="text-green-400 text-xs">{result.count} imported</span>
+                      <span className="text-status-success text-xs">{result.count} imported</span>
                     )
                   ) : loading ? (
-                    <span className="text-text-faint text-xs">waiting...</span>
+                    <span className="text-ink-3 text-xs">waiting...</span>
                   ) : null}
                 </div>
               );
@@ -175,14 +175,14 @@ export default function WebServicesImportForm() {
         <button
           type="submit"
           disabled={loading || files.length === 0}
-          className="bg-primary hover:bg-primary-dark text-white px-6 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50"
+          className="bg-primary hover:bg-brand-strong text-primary-foreground px-6 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50"
         >
           {loading ? "Importing..." : `Import All (${totalListings} leads)`}
         </button>
         <button
           type="button"
           onClick={() => router.back()}
-          className="text-text-muted hover:text-text px-6 py-2.5 rounded-lg font-medium"
+          className="text-muted-foreground hover:text-foreground px-6 py-2.5 rounded-lg font-medium"
         >
           Cancel
         </button>

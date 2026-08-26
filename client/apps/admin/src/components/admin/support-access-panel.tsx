@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { buttonClassName } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 type Grant = {
   id: string;
@@ -62,16 +64,16 @@ export function SupportAccessPanel({ initialGrants, adminId, canManage }: { init
   }
 
   return <div className="grid gap-5 lg:grid-cols-[1fr_1.2fr]">
-    {canManage ? <form className="space-y-3 rounded-lg border border-border bg-background p-4" onSubmit={(event) => { event.preventDefault(); void createGrant(); }}>
+    {canManage ? <form className="v-card space-y-3 p-4" onSubmit={(event) => { event.preventDefault(); void createGrant(); }}>
       <div><h3 className="text-sm font-semibold text-foreground">Grant temporary support access</h3><p className="mt-1 text-xs text-muted-foreground">Access is scoped to one organization or resource and expires automatically within 60 minutes.</p></div>
-      <input required value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} placeholder="Organization ID" className="h-9 w-full rounded-md border border-border bg-card px-3 text-sm" />
+      <Input required value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} placeholder="Organization ID" />
       <div className="grid gap-2 sm:grid-cols-2">
-        <select value={resourceType} onChange={(event) => setResourceType(event.target.value)} className="h-9 rounded-md border border-border bg-card px-3 text-sm"><option value="organization">Organization</option><option value="conversation">Conversation</option><option value="customer">Customer</option><option value="run">Run</option></select>
-        <input value={resourceId} onChange={(event) => setResourceId(event.target.value)} disabled={resourceType === "organization"} placeholder={resourceType === "organization" ? "No resource ID" : "Resource ID"} className="h-9 rounded-md border border-border bg-card px-3 text-sm disabled:opacity-50" />
+        <Select value={resourceType} onChange={(event) => setResourceType(event.target.value)}><option value="organization">Organization</option><option value="conversation">Conversation</option><option value="customer">Customer</option><option value="run">Run</option></Select>
+        <Input value={resourceId} onChange={(event) => setResourceId(event.target.value)} disabled={resourceType === "organization"} placeholder={resourceType === "organization" ? "No resource ID" : "Resource ID"} />
       </div>
-      <div className="grid gap-2 sm:grid-cols-[1fr_110px]"><input required minLength={8} maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason for access" className="h-9 rounded-md border border-border bg-card px-3 text-sm" /><input required type="number" min={1} max={60} value={durationMinutes} onChange={(event) => setDurationMinutes(event.target.value)} className="h-9 rounded-md border border-border bg-card px-3 text-sm" /></div>
+      <div className="grid gap-2 sm:grid-cols-[1fr_110px]"><Input required minLength={8} maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason for access" /><Input required type="number" min={1} max={60} value={durationMinutes} onChange={(event) => setDurationMinutes(event.target.value)} /></div>
       <button type="submit" disabled={busy} className={buttonClassName({ variant: "secondary", size: "sm" })}>{busy ? "Saving…" : "Grant access"}</button>
-    </form> : <div className="rounded-lg border border-border bg-background p-4"><h3 className="text-sm font-semibold text-foreground">Support access</h3><p className="mt-1 text-xs text-muted-foreground">Only administrators, superadmins, and owners can issue or revoke grants.</p></div>}
-    <div className="rounded-lg border border-border bg-background"><div className="border-b border-border px-4 py-3"><h3 className="text-sm font-semibold text-foreground">Active and recent grants</h3></div>{grants.length === 0 ? <p className="px-4 py-8 text-sm text-muted-foreground">No support grants found.</p> : <div className="divide-y divide-border">{grants.map((grant) => <div key={grant.id} className="flex items-start justify-between gap-3 px-4 py-3"><div className="min-w-0"><p className="text-xs font-medium text-foreground">{grant.organizationId} · {grant.resourceType}{grant.resourceId ? ` · ${grant.resourceId}` : ""}</p><p className="mt-1 text-xs text-muted-foreground">{grant.reason} · expires {new Date(grant.expiresAt).toLocaleString()}</p></div>{canManage && !grant.revokedAt ? <button type="button" disabled={busy} onClick={() => void revokeGrant(grant.id)} className={buttonClassName({ variant: "ghost", size: "sm" })}>Revoke</button> : <span className="text-[11px] text-muted-foreground">{grant.revokedAt ? "Revoked" : "Read-only"}</span>}</div>)}</div>}{message ? <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">{message}</p> : null}</div>
+    </form> : <div className="v-card p-4"><h3 className="text-sm font-semibold text-foreground">Support access</h3><p className="mt-1 text-xs text-muted-foreground">Only administrators, superadmins, and owners can issue or revoke grants.</p></div>}
+    <div className="v-card overflow-hidden"><div className="border-b border-border px-4 py-3"><h3 className="text-sm font-semibold text-foreground">Active and recent grants</h3></div>{grants.length === 0 ? <p className="px-4 py-8 text-sm text-muted-foreground">No support grants found.</p> : <div className="divide-y divide-border">{grants.map((grant) => <div key={grant.id} className="flex items-start justify-between gap-3 px-4 py-3"><div className="min-w-0"><p className="text-xs font-medium text-foreground">{grant.organizationId} · {grant.resourceType}{grant.resourceId ? ` · ${grant.resourceId}` : ""}</p><p className="mt-1 text-xs text-muted-foreground">{grant.reason} · expires {new Date(grant.expiresAt).toLocaleString()}</p></div>{canManage && !grant.revokedAt ? <button type="button" disabled={busy} onClick={() => void revokeGrant(grant.id)} className={buttonClassName({ variant: "ghost", size: "sm" })}>Revoke</button> : <span className="text-[11px] text-muted-foreground">{grant.revokedAt ? "Revoked" : "Read-only"}</span>}</div>)}</div>}{message ? <p role="status" className="border-t border-border px-4 py-3 text-xs text-muted-foreground">{message}</p> : null}</div>
   </div>;
 }

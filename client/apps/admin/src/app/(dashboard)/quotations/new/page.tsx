@@ -2,6 +2,8 @@ import Link from "next/link";
 import { fetchFromCore } from "@/lib/admin-auth";
 import QuotationBuilder from "@/components/admin/quotation-builder";
 import { getDefaultQuotationDraft, getTemplateDraft } from "@/lib/quotation";
+import { AdminPageHeader } from "@/components/admin/page-header";
+import { buttonClassName } from "@/components/ui/button";
 
 export default async function NewQuotationPage({
   searchParams,
@@ -45,19 +47,13 @@ export default async function NewQuotationPage({
       };
 
   return (
-    <div className="max-w-none space-y-6">
-      <div>
-        <Link
-          href="/quotations"
-          className="text-sm text-text-muted hover:text-text mb-1 inline-block"
-        >
-          &larr; Back to Quotations
-        </Link>
-        <h1 className="text-2xl font-bold text-text">New Quotation</h1>
-        <p className="text-sm text-text-muted">
-          Create a standalone quotation record. You can optionally prefill it from a lead.
-        </p>
-      </div>
+    <div className="admin-page">
+      <AdminPageHeader
+        eyebrow="Commercial"
+        title="New quotation"
+        description="Create a quotation, optionally prefilled from a lead."
+        actions={<Link href="/quotations" className={buttonClassName({ variant: "outline", size: "sm" })}>Back to quotations</Link>}
+      />
 
       <QuotationBuilder mode="create" initialDraft={draft} />
     </div>

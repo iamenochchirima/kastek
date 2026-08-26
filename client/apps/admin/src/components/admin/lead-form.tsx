@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { buttonClassName } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const BUSINESS_TYPES = [
   "restaurant",
@@ -118,78 +121,74 @@ export default function LeadForm({ initialData }: { initialData?: LeadData }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="bg-danger/10 text-danger text-sm px-4 py-3 rounded-lg border border-danger/20">
+        <div role="alert" className="rounded-md border border-status-danger/25 bg-status-danger-soft px-4 py-3 text-sm text-status-danger">
           {error}
         </div>
       )}
 
-      <div className="bg-surface-raised rounded-xl border border-border p-6 space-y-4">
-        <h2 className="font-semibold text-text">Contact Information</h2>
+      <div className="v-card space-y-4 p-[var(--density-card-padding)]">
+        <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Contact information</h2>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="block text-sm font-medium text-text-muted mb-1">
+            <label className="mb-1 block text-sm font-medium text-foreground">
               Business Name *
             </label>
-            <input
+            <Input
               type="text"
               required
               value={form.businessName}
               onChange={(e) => setForm({ ...form, businessName: e.target.value })}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-text-muted mb-1">
+            <label className="mb-1 block text-sm font-medium text-foreground">
               Contact Person *
             </label>
-            <input
+            <Input
               type="text"
               required
               value={form.contactPerson}
               onChange={(e) => setForm({ ...form, contactPerson: e.target.value })}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-text-muted mb-1">
+            <label className="mb-1 block text-sm font-medium text-foreground">
               Phone *
             </label>
-            <input
+            <Input
               type="tel"
               required
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-text-muted mb-1">
+            <label className="mb-1 block text-sm font-medium text-foreground">
               Email *
             </label>
-            <input
+            <Input
               type="email"
               required
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
         </div>
       </div>
 
-      <div className="bg-surface-raised rounded-xl border border-border p-6 space-y-4">
-        <h2 className="font-semibold text-text">Business Details</h2>
+      <div className="v-card space-y-4 p-[var(--density-card-padding)]">
+        <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Business details</h2>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="block text-sm font-medium text-text-muted mb-1">
+            <label className="mb-1 block text-sm font-medium text-foreground">
               Business Type
             </label>
             <select
               value={form.businessType}
               onChange={(e) => setForm({ ...form, businessType: e.target.value })}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="h-[var(--density-control-height)] w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
             >
               {BUSINESS_TYPES.map((t) => (
                 <option key={t} value={t} className="capitalize">
@@ -199,13 +198,13 @@ export default function LeadForm({ initialData }: { initialData?: LeadData }) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-text-muted mb-1">
+            <label className="mb-1 block text-sm font-medium text-foreground">
               Source
             </label>
             <select
               value={form.source}
               onChange={(e) => setForm({ ...form, source: e.target.value })}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="h-[var(--density-control-height)] w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
             >
               {SOURCES.map((s) => (
                 <option key={s.value} value={s.value}>
@@ -217,7 +216,7 @@ export default function LeadForm({ initialData }: { initialData?: LeadData }) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-text-muted mb-2">
+          <label className="mb-2 block text-sm font-medium text-foreground">
             Services Interested
           </label>
           <div className="flex flex-wrap gap-2">
@@ -228,8 +227,8 @@ export default function LeadForm({ initialData }: { initialData?: LeadData }) {
                 onClick={() => toggleService(s.value)}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                   form.services.includes(s.value)
-                    ? "bg-primary text-white border-primary"
-                    : "bg-surface text-text-muted border-border hover:border-border-light"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-line bg-background text-muted-foreground hover:border-line-strong hover:text-foreground"
                 }`}
               >
                 {s.label}
@@ -239,31 +238,31 @@ export default function LeadForm({ initialData }: { initialData?: LeadData }) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-text-muted mb-1">
+          <label className="mb-1 block text-sm font-medium text-foreground">
             Description
           </label>
-          <textarea
+          <Textarea
             rows={3}
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
-            className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="min-h-24"
             placeholder="Notes about what the client needs..."
           />
         </div>
       </div>
 
-      <div className="bg-surface-raised rounded-xl border border-border p-6 space-y-4">
-        <h2 className="font-semibold text-text">Lead Management</h2>
+      <div className="v-card space-y-4 p-[var(--density-card-padding)]">
+        <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Lead management</h2>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid gap-4 sm:grid-cols-3">
           <div>
-            <label className="block text-sm font-medium text-text-muted mb-1">
+            <label className="mb-1 block text-sm font-medium text-foreground">
               Status
             </label>
             <select
               value={form.status}
               onChange={(e) => setForm({ ...form, status: e.target.value })}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="h-[var(--density-control-height)] w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
             >
               {STATUSES.map((s) => (
                 <option key={s} value={s} className="capitalize">
@@ -273,10 +272,10 @@ export default function LeadForm({ initialData }: { initialData?: LeadData }) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-text-muted mb-1">
+            <label className="mb-1 block text-sm font-medium text-foreground">
               Quote Amount (R)
             </label>
-            <input
+            <Input
               type="number"
               value={form.quoteAmount || ""}
               onChange={(e) =>
@@ -285,19 +284,18 @@ export default function LeadForm({ initialData }: { initialData?: LeadData }) {
                   quoteAmount: e.target.value ? Number(e.target.value) : null,
                 })
               }
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="[appearance:textfield]"
               placeholder="e.g. 2500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-text-muted mb-1">
+            <label className="mb-1 block text-sm font-medium text-foreground">
               Follow-up Date
             </label>
-            <input
+            <Input
               type="date"
               value={form.followUpDate}
               onChange={(e) => setForm({ ...form, followUpDate: e.target.value })}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
         </div>
@@ -307,14 +305,14 @@ export default function LeadForm({ initialData }: { initialData?: LeadData }) {
         <button
           type="submit"
           disabled={loading}
-          className="bg-primary hover:bg-primary-dark text-white px-6 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50"
+          className={buttonClassName({ size: "lg" })}
         >
           {loading ? "Saving..." : isEdit ? "Update Lead" : "Create Lead"}
         </button>
         <button
           type="button"
           onClick={() => router.back()}
-          className="text-text-muted hover:text-text px-6 py-2.5 rounded-lg font-medium"
+          className={buttonClassName({ variant: "ghost", size: "lg" })}
         >
           Cancel
         </button>

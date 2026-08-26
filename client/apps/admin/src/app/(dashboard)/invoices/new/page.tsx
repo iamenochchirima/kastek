@@ -2,6 +2,8 @@ import Link from "next/link";
 import { fetchFromCore } from "@/lib/admin-auth";
 import InvoiceBuilder from "@/components/admin/invoice-builder";
 import { getDefaultInvoiceDraft, getTemplateDraft } from "@/lib/invoice";
+import { AdminPageHeader } from "@/components/admin/page-header";
+import { buttonClassName } from "@/components/ui/button";
 
 export default async function NewInvoicePage({
   searchParams,
@@ -45,19 +47,13 @@ export default async function NewInvoicePage({
       };
 
   return (
-    <div className="max-w-none space-y-6">
-      <div>
-        <Link
-          href="/invoices"
-          className="text-sm text-text-muted hover:text-text mb-1 inline-block"
-        >
-          &larr; Back to Invoices
-        </Link>
-        <h1 className="text-2xl font-bold text-text">New Invoice</h1>
-        <p className="text-sm text-text-muted">
-          Create a standalone invoice record. You can optionally prefill it from a lead.
-        </p>
-      </div>
+    <div className="admin-page">
+      <AdminPageHeader
+        eyebrow="Commercial"
+        title="New invoice"
+        description="Create an invoice, optionally prefilled from a lead."
+        actions={<Link href="/invoices" className={buttonClassName({ variant: "outline", size: "sm" })}>Back to invoices</Link>}
+      />
 
       <InvoiceBuilder mode="create" initialDraft={draft} />
     </div>

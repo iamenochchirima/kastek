@@ -4,6 +4,8 @@ import Link from "next/link";
 import InvoiceBuilder from "@/components/admin/invoice-builder";
 import InvoiceOperationsPanel from "@/components/admin/invoice-operations-panel";
 import { invoiceRecordToDraft } from "@/lib/invoice";
+import { AdminPageHeader } from "@/components/admin/page-header";
+import { buttonClassName } from "@/components/ui/button";
 
 export default async function InvoiceDetailPage({
   params,
@@ -19,21 +21,15 @@ export default async function InvoiceDetailPage({
   const draft = invoiceRecordToDraft(invoice);
 
   return (
-    <div className="max-w-none space-y-6">
-      <div>
-        <Link
-          href="/invoices"
-          className="text-sm text-text-muted hover:text-text mb-1 inline-block"
-        >
-          &larr; Back to Invoices
-        </Link>
-        <h1 className="text-2xl font-bold text-text">Invoice: {invoice.businessName}</h1>
-        <p className="text-sm text-text-muted">
-          Update the invoice template, track the active billing cycle, and manage send and reminder follow-up.
-        </p>
-      </div>
+    <div className="admin-page">
+      <AdminPageHeader
+        eyebrow="Commercial"
+        title={`Invoice: ${invoice.businessName}`}
+        description="Update the invoice, track the billing cycle, and manage send and reminder follow-up."
+        actions={<Link href="/invoices" className={buttonClassName({ variant: "outline", size: "sm" })}>Back to invoices</Link>}
+      />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px] items-start">
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
         <InvoiceBuilder mode="edit" initialDraft={draft} />
         <InvoiceOperationsPanel
           invoiceId={invoice.id}

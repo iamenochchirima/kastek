@@ -31,11 +31,11 @@ export default function OutreachSyncDraftsButton() {
       <button
         onClick={runSync}
         disabled={loading}
-        className="border border-border hover:bg-surface-overlay text-text px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+        className="border border-border hover:bg-secondary text-foreground px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
       >
         {loading ? "Syncing..." : "Sync Drafts to Leads"}
       </button>
-      {result ? <p className="text-xs text-text-muted">{result}</p> : null}
+      {result ? <p className="text-xs text-muted-foreground">{result}</p> : null}
     </div>
   );
 }

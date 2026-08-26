@@ -2,6 +2,7 @@ import { fetchFromCore } from "@/lib/admin-auth";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import LeadForm from "@/components/admin/lead-form";
+import { AdminPageHeader } from "@/components/admin/page-header";
 
 export default async function EditLeadPage({
   params,
@@ -15,15 +16,15 @@ export default async function EditLeadPage({
   const lead = await res.json();
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="admin-page max-w-3xl">
       <div>
         <Link
           href={`/leads/${lead.id}`}
-          className="text-sm text-text-muted hover:text-text mb-1 inline-block"
+          className="mb-1 inline-block text-sm text-muted-foreground hover:text-foreground"
         >
           &larr; Back to Lead
         </Link>
-        <h1 className="text-2xl font-bold text-text">Edit: {lead.businessName}</h1>
+        <AdminPageHeader title={`Edit: ${lead.businessName}`} />
       </div>
       <LeadForm
         initialData={{

@@ -7,6 +7,9 @@ import AgencyRemoveStaff from "@/components/admin/agency-remove-staff";
 import AgencyAddApiKey from "@/components/admin/agency-add-api-key";
 import AgencyRevokeApiKey from "@/components/admin/agency-revoke-api-key";
 import AgencyDomainsManager from "@/components/admin/agency-domains-manager";
+import { AdminMetric, AdminPageHeader } from "@/components/admin/page-header";
+import { StatusBadge } from "@/components/admin/status-badge";
+import { buttonClassName } from "@/components/ui/button";
 
 type StaffUser = {
   id: string;
@@ -81,16 +84,16 @@ export default async function AgencyDetailPage({
         : "Unable to load the agency right now.";
 
     return (
-      <div className="space-y-4">
+      <div className="admin-page max-w-5xl space-y-4">
         <Link
           href="/agencies"
-          className="text-sm text-text-muted hover:text-text inline-block"
+          className="inline-block text-sm text-muted-foreground hover:text-foreground"
         >
           &larr; Back to Agencies
         </Link>
-        <div className="rounded-xl border border-danger/30 bg-danger/10 p-5">
-          <h1 className="text-lg font-semibold text-text">Agency unavailable</h1>
-          <p className="mt-2 text-sm text-text-muted">
+        <div className="v-card border-status-danger/25 bg-status-danger-soft p-[var(--density-card-padding)]">
+          <h1 className="text-lg font-semibold text-foreground">Agency unavailable</h1>
+          <p className="mt-2 text-sm text-status-danger">
             {message}
             {typeof errorData?.detail === "string" ? ` ${errorData.detail}` : null}
           </p>
@@ -114,61 +117,35 @@ export default async function AgencyDetailPage({
   const revokedKeys = apiKeys.filter((k) => k.revoked_at);
 
   return (
-    <div className="space-y-8">
+    <div className="admin-page max-w-5xl">
       {/* Header */}
-      <div>
-        <Link
-          href="/agencies"
-          className="text-sm text-text-muted hover:text-text mb-1 inline-block"
-        >
-          &larr; Back to Agencies
-        </Link>
-        <div className="flex items-start justify-between mt-1">
-          <div>
-            <h1 className="text-2xl font-bold text-text">{workspace.displayName}</h1>
-            <p className="text-sm text-text-muted mt-0.5">
-              <span className="font-mono">{workspace.slug}</span>
-              {workspace.domains.length > 0 && (
-                <> &middot; {workspace.domains.join(", ")}</>
-              )}
-            </p>
-          </div>
-          <AgencyStatusToggle
-            workspaceId={id}
-            currentStatus={workspace.status}
-          />
-        </div>
-      </div>
+      <AdminPageHeader
+        eyebrow="Platform / Agencies"
+        title={workspace.displayName}
+        description={`${workspace.slug}${workspace.domains.length > 0 ? ` · ${workspace.domains.join(", ")}` : ""}`}
+        actions={<><AgencyStatusToggle workspaceId={id} currentStatus={workspace.status} /><Link href="/agencies" className={buttonClassName({ variant: "outline", size: "sm" })}>Back to agencies</Link></>}
+      />
 
       {/* Stats row */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-surface-raised border border-border rounded-xl p-5">
-          <p className="text-sm text-text-muted">Staff Users</p>
-          <p className="text-3xl font-bold text-text mt-1">{staff.length}</p>
-        </div>
-        <div className="bg-surface-raised border border-border rounded-xl p-5">
-          <p className="text-sm text-text-muted">Clients</p>
-          <p className="text-3xl font-bold text-text mt-1">{clients.length}</p>
-        </div>
-        <div className="bg-surface-raised border border-border rounded-xl p-5">
-          <p className="text-sm text-text-muted">Active API Keys</p>
-          <p className="text-3xl font-bold text-text mt-1">{activeKeys.length}</p>
-        </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <AdminMetric label="Staff users" value={staff.length} />
+        <AdminMetric label="Clients" value={clients.length} />
+        <AdminMetric label="Active API keys" value={activeKeys.length} />
       </div>
 
       <section className="space-y-3">
         <div>
-          <h2 className="text-lg font-semibold text-text">Hosted Portal Domain</h2>
-          <p className="text-sm text-text-muted mt-1">
+          <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Hosted portal domain</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             This system-managed domain is the tenant&apos;s immediate fallback access URL.
           </p>
         </div>
-        <div className="rounded-xl border border-border bg-surface-raised p-5 text-sm text-text space-y-2">
+        <div className="v-card space-y-2 p-[var(--density-card-padding)] text-sm text-foreground">
           <p>
-            <span className="text-text-muted">Hosted Domain:</span>{" "}
+            <span className="text-muted-foreground">Hosted domain:</span>{" "}
             <span className="font-mono">{workspace.hostedDomain ?? "Not configured"}</span>
           </p>
-          <p className="text-text-faint text-xs">
+          <p className="text-xs text-muted-foreground">
             Keep the hosted domain active even after a custom domain is added so support and recovery access
             always have a stable fallback.
           </p>
@@ -186,33 +163,33 @@ export default async function AgencyDetailPage({
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-text">Staff Users</h2>
+          <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Staff users</h2>
           <AgencyAddStaff workspaceId={id} />
         </div>
-        <div className="bg-surface-raised rounded-xl border border-border overflow-hidden">
+        <div className="v-card overflow-hidden">
           {staff.length === 0 ? (
-            <p className="px-6 py-8 text-sm text-text-faint text-center">No staff users yet.</p>
+            <p className="px-6 py-8 text-center text-sm text-muted-foreground">No staff users yet.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border">
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Email</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Roles</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Status</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Added</th>
+                <tr className="admin-table-head border-b border-line">
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Email</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Roles</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Added</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {staff.map((user) => (
                   <tr key={user.id}>
-                    <td className="px-4 py-3 text-text">{user.email}</td>
+                    <td className="px-4 py-3 text-foreground">{user.email}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         {(Array.isArray(user.roles) ? user.roles : []).map((r) => (
                           <span
                             key={r}
-                            className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium capitalize"
+                            className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium capitalize text-primary"
                           >
                             {r}
                           </span>
@@ -220,17 +197,9 @@ export default async function AgencyDetailPage({
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${
-                          user.status === "active"
-                            ? "bg-green-500/15 text-green-400"
-                            : "bg-white/5 text-text-faint"
-                        }`}
-                      >
-                        {user.status}
-                      </span>
+                      <StatusBadge value={user.status} />
                     </td>
-                    <td className="px-4 py-3 text-text-faint text-xs">
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
                       {new Date(user.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -246,41 +215,33 @@ export default async function AgencyDetailPage({
 
       {/* Clients */}
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-text">Clients</h2>
-        <div className="bg-surface-raised rounded-xl border border-border overflow-hidden">
+        <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Clients</h2>
+        <div className="v-card overflow-hidden">
           {clients.length === 0 ? (
-            <p className="px-6 py-8 text-sm text-text-faint text-center">
+            <p className="px-6 py-8 text-center text-sm text-muted-foreground">
               No clients yet — they are created by staff inside the tenant portal.
             </p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border">
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Name</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Slug</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Status</th>
-                  <th className="px-4 py-3 text-right font-medium text-text-muted">Users</th>
-                  <th className="px-4 py-3 text-right font-medium text-text-muted">Created</th>
+                <tr className="admin-table-head border-b border-line">
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Name</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Slug</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">Users</th>
+                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">Created</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {clients.map((c) => (
                   <tr key={c.id}>
-                    <td className="px-4 py-3 font-medium text-text">{c.name}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-text-muted">{c.slug}</td>
+                    <td className="px-4 py-3 font-medium text-foreground">{c.name}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{c.slug}</td>
                     <td className="px-4 py-3">
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${
-                          c.status === "active"
-                            ? "bg-green-500/15 text-green-400"
-                            : "bg-white/5 text-text-faint"
-                        }`}
-                      >
-                        {c.status}
-                      </span>
+                      <StatusBadge value={c.status} />
                     </td>
-                    <td className="px-4 py-3 text-right text-text">{c.user_count}</td>
-                    <td className="px-4 py-3 text-right text-text-faint text-xs">
+                    <td className="px-4 py-3 text-right text-foreground">{c.user_count}</td>
+                    <td className="px-4 py-3 text-right text-xs text-muted-foreground">
                       {new Date(c.created_at).toLocaleDateString()}
                     </td>
                   </tr>
@@ -294,42 +255,42 @@ export default async function AgencyDetailPage({
       {/* API Keys */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-text">API Keys</h2>
+          <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">API keys</h2>
           <AgencyAddApiKey workspaceId={id} />
         </div>
 
-        <div className="bg-surface-raised rounded-xl border border-border overflow-hidden">
+        <div className="v-card overflow-hidden">
           {activeKeys.length === 0 ? (
-            <p className="px-6 py-8 text-sm text-text-faint text-center">No active API keys.</p>
+            <p className="px-6 py-8 text-center text-sm text-muted-foreground">No active API keys.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border">
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Label</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Prefix</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Scopes</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Created</th>
+                <tr className="admin-table-head border-b border-line">
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Label</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Prefix</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Scopes</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Created</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {activeKeys.map((key) => (
                   <tr key={key.id}>
-                    <td className="px-4 py-3 text-text">{key.label}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-text-muted">{key.key_prefix}…</td>
+                    <td className="px-4 py-3 text-foreground">{key.label}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{key.key_prefix}…</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         {(Array.isArray(key.scopes) ? key.scopes : []).map((s) => (
                           <span
                             key={s}
-                            className="text-xs px-1.5 py-0.5 rounded bg-white/5 text-text-muted font-mono"
+                            className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs text-muted-foreground"
                           >
                             {s}
                           </span>
                         ))}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-text-faint text-xs">
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
                       {new Date(key.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -344,17 +305,17 @@ export default async function AgencyDetailPage({
 
         {revokedKeys.length > 0 && (
           <details className="text-sm">
-            <summary className="cursor-pointer text-text-faint hover:text-text">
+            <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
               {revokedKeys.length} revoked key{revokedKeys.length !== 1 ? "s" : ""}
             </summary>
-            <div className="mt-2 bg-surface-raised rounded-xl border border-border overflow-hidden opacity-60">
+            <div className="v-card mt-2 overflow-hidden opacity-60">
               <table className="w-full text-sm">
                 <tbody className="divide-y divide-border">
                   {revokedKeys.map((key) => (
                     <tr key={key.id}>
-                      <td className="px-4 py-2 text-text-faint line-through">{key.label}</td>
-                      <td className="px-4 py-2 font-mono text-xs text-text-faint">{key.key_prefix}…</td>
-                      <td className="px-4 py-2 text-xs text-text-faint">
+                      <td className="px-4 py-2 text-muted-foreground line-through">{key.label}</td>
+                      <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{key.key_prefix}…</td>
+                      <td className="px-4 py-2 text-xs text-muted-foreground">
                         Revoked {key.revoked_at ? new Date(key.revoked_at).toLocaleDateString() : ""}
                       </td>
                     </tr>

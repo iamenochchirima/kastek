@@ -51,21 +51,21 @@ export default async function AgenciesPage() {
     <div className="admin-page">
       <AdminPageHeader title="Agencies" description={`${workspaces.length} tenant workspace${workspaces.length === 1 ? "" : "s"} provisioned on the platform.`} actions={<Link href="/agencies/new" className={buttonClassName()}><Plus className="size-4" />New agency</Link>} />
 
-      <div className="admin-table-wrap">
+      <div className="v-card overflow-hidden">
         {loadError ? (
-          <div className="border-b border-border bg-danger/10 px-4 py-3 text-sm text-danger">
+          <div className="border-b border-status-danger/25 bg-status-danger-soft px-4 py-3 text-sm text-status-danger">
             {loadError}
             {typeof data?.detail === "string" ? ` ${data.detail}` : null}
           </div>
         ) : null}
         {workspaces.length === 0 ? (
           <div className="p-12 text-center">
-            <p className="text-text-faint text-sm">
+            <p className="text-sm text-muted-foreground">
               {loadError ? "The agencies list is temporarily unavailable." : "No agencies yet."}
             </p>
             <Link
               href="/agencies/new"
-              className="text-primary text-sm hover:underline mt-2 inline-block"
+              className="mt-2 inline-block text-sm text-primary hover:underline"
             >
               Create your first agency workspace
             </Link>
@@ -84,16 +84,16 @@ export default async function AgenciesPage() {
             </thead>
             <tbody className="divide-y divide-border">
               {workspaces.map((ws) => (
-                <tr key={ws.id} className="hover:bg-surface-overlay transition-colors">
+                <tr key={ws.id} className="hover:bg-secondary transition-colors">
                   <td className="px-4 py-3">
-                    <p className="font-medium text-text">{ws.displayName}</p>
+                  <p className="font-medium text-foreground">{ws.displayName}</p>
                   </td>
-                  <td className="px-4 py-3 text-text-muted font-mono text-xs">{ws.slug}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{ws.slug}</td>
                   <td className="px-4 py-3">
                     <StatusBadge value={ws.status} />
                   </td>
-                  <td className="px-4 py-3 text-right text-text">{ws.clientCount}</td>
-                  <td className="px-4 py-3 text-right text-text-faint">
+                  <td className="px-4 py-3 text-right text-foreground">{ws.clientCount}</td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">
                     {ws.createdAt ? new Date(ws.createdAt).toLocaleDateString() : "—"}
                   </td>
                   <td className="px-4 py-3 text-right">

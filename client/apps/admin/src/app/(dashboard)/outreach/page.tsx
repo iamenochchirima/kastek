@@ -78,20 +78,20 @@ export default async function OutreachPage() {
 
       {/* Pipeline Breakdown */}
       <div className="grid md:grid-cols-2 gap-6">
-        <div className="rounded-lg border border-border bg-card p-5">
-          <h2 className="font-semibold mb-4 text-text">Outreach Pipeline</h2>
+        <div className="v-card p-[var(--density-card-padding)]">
+          <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Outreach pipeline</h2>
           <div className="space-y-3">
-            <PipelineRow label="Pending" count={totalPending} total={totalLeads} color="bg-white/20" />
-            <PipelineRow label="Sent" count={totalSent} total={totalLeads} color="bg-blue-500" />
-            <PipelineRow label="Replied" count={totalReplied} total={totalLeads} color="bg-purple-500" />
+            <PipelineRow label="Pending" count={totalPending} total={totalLeads} color="bg-secondary" />
+            <PipelineRow label="Sent" count={totalSent} total={totalLeads} color="bg-status-info" />
+            <PipelineRow label="Replied" count={totalReplied} total={totalLeads} color="bg-brand-2" />
           </div>
         </div>
 
         {/* By Category */}
-        <div className="rounded-lg border border-border bg-card p-5">
-          <h2 className="font-semibold mb-4 text-text">By Category</h2>
+        <div className="v-card p-[var(--density-card-padding)]">
+          <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">By category</h2>
           {sortedCategories.length === 0 ? (
-            <p className="text-text-faint text-sm">No leads imported yet</p>
+            <p className="text-sm text-muted-foreground">No leads imported yet</p>
           ) : (
             <div className="space-y-3 max-h-80 overflow-y-auto">
               {sortedCategories.map(([category, stats]) => {
@@ -99,25 +99,25 @@ export default async function OutreachPage() {
                 return (
                   <div key={category} className="border-b border-border pb-3 last:border-0 last:pb-0">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium text-text capitalize">
+                      <span className="text-sm font-medium capitalize text-foreground">
                         {category.replace(/-/g, " ")}
                       </span>
-                      <span className="text-xs text-text-muted">{stats.total} leads</span>
+                      <span className="text-xs text-muted-foreground">{stats.total} leads</span>
                     </div>
                     <div className="flex gap-2 text-xs">
-                      <span className="text-text-faint">{stats.total - stats.sent} pending</span>
-                      <span className="text-blue-400">{stats.sent} sent</span>
-                      <span className="text-purple-400">{stats.replied} replied</span>
+                      <span className="text-muted-foreground">{stats.total - stats.sent} pending</span>
+                      <span className="text-status-info">{stats.sent} sent</span>
+                      <span className="text-brand-2">{stats.replied} replied</span>
                       {catRate > 0 && (
-                        <span className="text-text-muted ml-auto">{catRate}% rate</span>
+                        <span className="ml-auto text-muted-foreground">{catRate}% rate</span>
                       )}
                     </div>
-                    <div className="flex h-1.5 rounded-full overflow-hidden mt-2 bg-white/5">
+                    <div className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-secondary">
                       {stats.replied > 0 && (
-                        <div className="bg-purple-500" style={{ width: `${(stats.replied / stats.total) * 100}%` }} />
+                        <div className="bg-brand-2" style={{ width: `${(stats.replied / stats.total) * 100}%` }} />
                       )}
                       {stats.sent > 0 && (
-                        <div className="bg-blue-500" style={{ width: `${((stats.sent - stats.replied) / stats.total) * 100}%` }} />
+                        <div className="bg-status-info" style={{ width: `${((stats.sent - stats.replied) / stats.total) * 100}%` }} />
                       )}
                     </div>
                   </div>
@@ -149,12 +149,12 @@ function PipelineRow({
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-sm text-text-muted">{label}</span>
-        <span className="text-sm font-semibold text-text">
-          {count} <span className="text-text-faint font-normal">({pct}%)</span>
+        <span className="text-sm text-muted-foreground">{label}</span>
+        <span className="text-sm font-semibold text-foreground">
+          {count} <span className="font-normal text-muted-foreground">({pct}%)</span>
         </span>
       </div>
-      <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+      <div className="h-2 overflow-hidden rounded-full bg-secondary">
         <div
           className={`h-full rounded-full ${color} transition-all`}
           style={{ width: `${pct}%` }}

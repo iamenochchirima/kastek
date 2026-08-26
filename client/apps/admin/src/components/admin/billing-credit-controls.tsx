@@ -113,7 +113,7 @@ export function BillingCreditControls() {
   }
 
   const input = "h-[var(--density-control-height)] w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50";
-  return <section className="v-card mt-6 space-y-5">
+  return <section className="v-card mt-6 space-y-5 p-[var(--density-card-padding)]">
     <div><h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Credit controls</h2><p className="mt-1 text-sm text-muted-foreground">Manage organization credit balances and grants.</p></div>
     {error ? <p role="alert" className="rounded-md border border-status-danger/25 bg-status-danger-soft p-3 text-sm text-status-danger">{error}</p> : null}
     {message ? <p role="status" className="rounded-md border border-status-success/25 bg-status-success-soft p-3 text-sm text-status-success">{message}</p> : null}

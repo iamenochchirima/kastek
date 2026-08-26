@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { buttonClassName } from "@/components/ui/button";
 
 type FileEntry = {
   fileName: string;
@@ -109,30 +110,30 @@ export default function OutreachImportForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="bg-danger/10 text-danger text-sm px-4 py-3 rounded-lg border border-danger/20">
+        <div role="alert" className="rounded-md border border-status-danger/25 bg-status-danger-soft px-4 py-3 text-sm text-status-danger">
           {error}
         </div>
       )}
 
-      <div className="bg-surface-raised rounded-xl border border-border p-6 space-y-4">
-        <h2 className="font-semibold text-text">Upload Crawled Data</h2>
+      <div className="v-card space-y-4 p-[var(--density-card-padding)]">
+        <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Upload crawled data</h2>
 
         <div>
-          <label className="flex items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-primary/50 transition-colors">
+          <label className="flex h-32 w-full cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-line transition-colors hover:border-primary/50">
             <div className="text-center">
               {files.length > 0 ? (
                 <>
-                  <p className="text-sm font-medium text-text">
+                  <p className="text-sm font-medium text-foreground">
                     {files.length} file{files.length > 1 ? "s" : ""} selected
                   </p>
-                  <p className="text-xs text-text-muted mt-1">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {totalListings} listings total
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="text-sm text-text-muted">Click to select JSON files</p>
-                  <p className="text-xs text-text-faint mt-1">Select multiple files at once</p>
+                  <p className="text-sm text-muted-foreground">Click to select JSON files</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Select multiple files at once</p>
                 </>
               )}
             </div>
@@ -149,8 +150,8 @@ export default function OutreachImportForm() {
 
       {/* File list */}
       {files.length > 0 && (
-        <div className="bg-surface-raised rounded-xl border border-border p-6">
-          <h2 className="font-semibold text-text mb-3">
+        <div className="v-card p-[var(--density-card-padding)]">
+          <h2 className="mb-3 text-base font-semibold tracking-[-0.01em] text-foreground">
             {files.length} campaigns ({totalListings} listings)
           </h2>
           <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -162,17 +163,17 @@ export default function OutreachImportForm() {
                   className="flex items-center justify-between text-sm py-2 border-b border-border last:border-0"
                 >
                   <div>
-                    <p className="text-text font-medium">{f.name}</p>
-                    <p className="text-text-faint text-xs">{f.listings.length} listings</p>
+                    <p className="font-medium text-foreground">{f.name}</p>
+                    <p className="text-xs text-muted-foreground">{f.listings.length} listings</p>
                   </div>
                   {result ? (
                     result.error ? (
-                      <span className="text-red-400 text-xs">{result.error}</span>
+                      <span className="text-xs text-status-danger">{result.error}</span>
                     ) : (
-                      <span className="text-green-400 text-xs">{result.count} imported</span>
+                      <span className="text-xs text-status-success">{result.count} imported</span>
                     )
                   ) : loading ? (
-                    <span className="text-text-faint text-xs">waiting...</span>
+                    <span className="text-xs text-muted-foreground">Waiting…</span>
                   ) : null}
                 </div>
               );
@@ -185,14 +186,14 @@ export default function OutreachImportForm() {
         <button
           type="submit"
           disabled={loading || files.length === 0}
-          className="bg-primary hover:bg-primary-dark text-white px-6 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50"
+          className={buttonClassName({ size: "lg" })}
         >
           {loading ? "Importing..." : `Import All (${totalListings} leads)`}
         </button>
         <button
           type="button"
           onClick={() => router.back()}
-          className="text-text-muted hover:text-text px-6 py-2.5 rounded-lg font-medium"
+          className={buttonClassName({ variant: "ghost", size: "lg" })}
         >
           Cancel
         </button>

@@ -99,8 +99,8 @@ export default async function WebServicesPage({
 
       {/* Category breakdown */}
       {categories.length > 0 && (
-        <div className="rounded-lg border border-border bg-card p-5">
-          <h2 className="font-semibold text-text mb-3">By Category</h2>
+        <div className="v-card p-[var(--density-card-padding)]">
+          <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">By category</h2>
           <div className="flex flex-wrap gap-2">
             {categories.map((c) => (
               <Link
@@ -108,8 +108,8 @@ export default async function WebServicesPage({
                 href={`/web-services?category=${encodeURIComponent(c.name)}`}
                 className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
                   filters.category === c.name
-                    ? "bg-primary text-white"
-                    : "bg-surface-overlay text-text-muted hover:text-text"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-muted-foreground hover:bg-accent hover:text-foreground"
                 }`}
               >
                 {c.name.replace(/-/g, " ")} ({c.count})
@@ -118,7 +118,7 @@ export default async function WebServicesPage({
             {filters.category && (
               <Link
                 href="/web-services"
-                className="text-xs font-medium px-3 py-1.5 rounded-full bg-white/5 text-text-faint hover:text-text"
+                className="rounded-full bg-secondary px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
               >
                 Clear
               </Link>

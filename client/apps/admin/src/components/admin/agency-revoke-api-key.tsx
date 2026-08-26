@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { buttonClassName } from "@/components/ui/button";
 
 export default function AgencyRevokeApiKey({
   workspaceId,
@@ -27,17 +28,17 @@ export default function AgencyRevokeApiKey({
   if (confirming) {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-xs text-text-muted">Revoke &ldquo;{keyLabel}&rdquo;?</span>
+        <span className="text-xs text-muted-foreground">Revoke &ldquo;{keyLabel}&rdquo;?</span>
         <button
           onClick={handleRevoke}
           disabled={loading}
-          className="px-2.5 py-1 rounded text-xs font-medium bg-danger/10 text-danger border border-danger/20 hover:bg-danger/20 transition-colors disabled:opacity-50"
+          className={buttonClassName({ variant: "destructive", size: "sm" })}
         >
           {loading ? "…" : "Revoke"}
         </button>
         <button
           onClick={() => setConfirming(false)}
-          className="px-2.5 py-1 rounded text-xs font-medium text-text-muted hover:text-text transition-colors"
+          className={buttonClassName({ variant: "ghost", size: "sm" })}
         >
           Cancel
         </button>
@@ -48,7 +49,7 @@ export default function AgencyRevokeApiKey({
   return (
     <button
       onClick={() => setConfirming(true)}
-      className="px-2.5 py-1 rounded text-xs font-medium text-text-faint hover:text-danger transition-colors"
+      className="rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-status-danger-soft hover:text-status-danger"
     >
       Revoke
     </button>

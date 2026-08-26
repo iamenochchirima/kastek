@@ -69,32 +69,32 @@ export default async function InvoicesPage() {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><AdminMetric label="Total records" value={summary.totalInvoices} /><AdminMetric label="Monthly clients" value={summary.recurringClients} /><AdminMetric label="Need invoice send" value={summary.needsInvoiceSend} tone="attention" /><AdminMetric label="Need reminder" value={summary.needsReminder} tone="danger" /></div>
 
-      <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="v-card overflow-hidden">
         <div className="border-b border-border px-6 py-4">
-          <h2 className="font-semibold text-text">Action Queue</h2>
-          <p className="text-sm text-text-muted mt-1">
+          <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Action queue</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             These are the monthly client tasks that need operational attention right now.
           </p>
         </div>
 
         {actionItems.length === 0 ? (
-          <div className="px-6 py-8 text-sm text-text-faint">No billing actions are currently outstanding.</div>
+          <div className="px-6 py-8 text-sm text-muted-foreground">No billing actions are currently outstanding.</div>
         ) : (
           <div className="divide-y divide-border">
             {actionItems.slice(0, 8).map((item) => (
               <Link
                 key={`${item.invoiceRunId}-${item.actionType}`}
                 href={`/invoices/${item.invoiceId}`}
-                className="block px-6 py-4 transition-colors hover:bg-surface-overlay"
+                className="block px-6 py-4 transition-colors hover:bg-accent"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="font-medium text-text">{item.title}</p>
-                    <p className="text-sm text-text-muted mt-1">{item.message}</p>
+                    <p className="font-medium text-foreground">{item.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{item.message}</p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="text-sm text-text">{item.businessName}</p>
-                    <p className="text-xs text-text-faint">Due {formatDate(item.dueAt) ?? "now"}</p>
+                    <p className="text-sm text-foreground">{item.businessName}</p>
+                    <p className="text-xs text-muted-foreground">Due {formatDate(item.dueAt) ?? "now"}</p>
                   </div>
                 </div>
               </Link>
@@ -103,7 +103,7 @@ export default async function InvoicesPage() {
         )}
       </div>
 
-      <div className="admin-table-wrap">
+      <div className="v-card overflow-hidden">
         <div className="grid min-w-[780px] grid-cols-[1.5fr_1.1fr_1.5fr_1fr_1fr] gap-4 border-b border-border px-5 py-3 admin-table-head">
           <div>Business</div>
           <div>Billing</div>
@@ -113,7 +113,7 @@ export default async function InvoicesPage() {
         </div>
 
         {invoices.length === 0 ? (
-          <div className="px-6 py-10 text-center text-sm text-text-faint">
+            <div className="px-6 py-10 text-center text-sm text-muted-foreground">
             No invoices created yet.
           </div>
         ) : (
@@ -121,23 +121,23 @@ export default async function InvoicesPage() {
             {invoices.map((invoice) => (
               <div
                 key={invoice.id}
-                className="grid grid-cols-[1.5fr_1.1fr_1.5fr_1fr_1fr] items-center gap-4 px-5 py-4 hover:bg-secondary"
+                className="grid grid-cols-[1.5fr_1.1fr_1.5fr_1fr_1fr] items-center gap-4 px-5 py-4 transition-colors hover:bg-accent"
               >
                 <div>
-                  <p className="font-medium text-sm text-text">{invoice.businessName}</p>
-                  <p className="text-xs text-text-faint">{invoice.contactEmail}</p>
+                  <p className="text-sm font-medium text-foreground">{invoice.businessName}</p>
+                  <p className="text-xs text-muted-foreground">{invoice.contactEmail}</p>
                 </div>
 
                 <div>
-                  <p className="text-sm text-text">
+                  <p className="text-sm text-foreground">
                     {invoice.billingMode === "monthly" && invoice.recurringActive ? "Monthly client" : "One-off"}
                   </p>
-                  <p className="text-xs text-text-faint">{getServiceLabel(invoice.serviceType)}</p>
+                  <p className="text-xs text-muted-foreground">{getServiceLabel(invoice.serviceType)}</p>
                 </div>
 
                 <div>
-                  <p className="text-sm text-text">{invoice.title}</p>
-                  <p className="text-xs text-text-faint">
+                  <p className="text-sm text-foreground">{invoice.title}</p>
+                  <p className="text-xs text-muted-foreground">
                     {invoice.currentRun?.cycleKey
                       ? `${invoice.currentRun.cycleKey} · Due ${formatDate(invoice.currentRun.dueDate) ?? "n/a"}`
                       : `Created ${formatDate(invoice.createdAt) ?? "n/a"}`}
@@ -146,7 +146,7 @@ export default async function InvoicesPage() {
                     <p className="text-xs text-amber-300 mt-1">Invoice still needs to be sent</p>
                   ) : null}
                   {invoice.operations?.needs_reminder ? (
-                    <p className="text-xs text-red-300 mt-1">Reminder email still needs to be sent</p>
+                    <p className="text-xs text-status-danger mt-1">Reminder email still needs to be sent</p>
                   ) : null}
                 </div>
 

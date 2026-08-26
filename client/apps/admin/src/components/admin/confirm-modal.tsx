@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { buttonClassName } from "@/components/ui/button";
 
 export default function ConfirmModal({
   open,
@@ -31,23 +32,23 @@ export default function ConfirmModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/60" onClick={onCancel} />
-      <div className="relative bg-surface-raised border border-border rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
-        <h3 className="text-lg font-semibold text-text">{title}</h3>
-        <p className="text-sm text-text-muted mt-2">{message}</p>
-        <div className="flex justify-end gap-3 mt-6">
+    <div className="fixed inset-0 z-[var(--z-overlay)] flex items-center justify-center p-4" role="presentation">
+      <div className="fixed inset-0 bg-overlay/70 backdrop-blur-sm" onClick={onCancel} />
+      <div role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" className="relative w-full max-w-sm rounded-[calc(var(--radius)-1px)] border border-line bg-card p-[var(--density-card-padding)] shadow-pop">
+        <h3 id="confirm-modal-title" className="text-base font-semibold tracking-[-0.01em] text-foreground">{title}</h3>
+        <p className="mt-2 text-sm text-muted-foreground">{message}</p>
+        <div className="mt-6 flex justify-end gap-2">
           <button
             onClick={onCancel}
             disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-text-muted hover:text-text rounded-lg hover:bg-surface-overlay transition-colors disabled:opacity-50"
+            className={buttonClassName({ variant: "ghost", size: "md" })}
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
             disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50"
+            className={buttonClassName({ variant: "destructive", size: "md" })}
           >
             {loading ? "Deleting..." : confirmLabel || "Delete"}
           </button>

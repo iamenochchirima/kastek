@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import ConfirmModal from "@/components/admin/confirm-modal";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { buttonClassName } from "@/components/ui/button";
 
@@ -32,6 +33,8 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const allSelected = leads.length > 0 && selected.size === leads.length;
 
@@ -51,16 +54,15 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
   function toggleOne(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
 
   async function handleBulkDelete() {
-    if (!confirm(`Delete ${selected.size} lead${selected.size > 1 ? "s" : ""}? This cannot be undone.`)) {
-      return;
-    }
-
+    setConfirmOpen(false);
+    setError(null);
     setDeleting(true);
     const results = await Promise.allSettled(
       Array.from(selected).map((id) =>
@@ -70,7 +72,7 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
 
     const failed = results.filter((r) => r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok));
     if (failed.length > 0) {
-      alert(`Failed to delete ${failed.length} lead${failed.length > 1 ? "s" : ""}.`);
+      setError(`Failed to delete ${failed.length} lead${failed.length > 1 ? "s" : ""}.`);
     }
 
     setSelected(new Set());
@@ -82,7 +84,7 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
   return (
     <>
       {/* Toolbar */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex flex-wrap items-center gap-3">
         {!selectMode ? (
           <button
             onClick={enterSelectMode}
@@ -100,11 +102,11 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
             </button>
             {selected.size > 0 && (
               <>
-                <span className="text-xs text-text-muted">
+                <span className="text-xs text-muted-foreground">
                   {selected.size} selected
                 </span>
                 <button
-                  onClick={handleBulkDelete}
+                  onClick={() => setConfirmOpen(true)}
                   disabled={deleting}
                   className={buttonClassName({ variant: "destructive", size: "sm" })}
                 >
@@ -116,10 +118,12 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
         )}
       </div>
 
+      {error ? <p role="status" className="text-sm text-status-danger">{error}</p> : null}
+
       <div className="admin-table-wrap">
         {leads.length === 0 ? (
           <div className="p-12 text-center">
-            <p className="text-text-faint">No leads found</p>
+            <p className="text-sm text-muted-foreground">No leads found</p>
           </div>
         ) : (
           <table className="w-full min-w-[700px]">
@@ -156,7 +160,7 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
               {leads.map((lead) => (
                 <tr
                   key={lead.id}
-                  className={`hover:bg-surface-overlay transition-colors ${selectMode && selected.has(lead.id) ? "bg-primary/5" : ""}`}
+                  className={`transition-colors hover:bg-accent ${selectMode && selected.has(lead.id) ? "bg-primary/5" : ""}`}
                 >
                   {selectMode && (
                     <td className="px-4 py-3">
@@ -169,28 +173,28 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
                     </td>
                   )}
                   <td className="px-4 py-3">
-                    <Link href={`/leads/${lead.id}`} className="hover:text-primary">
-                      <p className="font-medium text-sm text-text">{lead.businessName}</p>
+                    <Link href={`/leads/${lead.id}`} className="group hover:text-primary">
+                      <p className="text-sm font-medium text-foreground group-hover:text-primary">{lead.businessName}</p>
                       {lead.businessType ? (
-                        <p className="text-text-faint text-xs capitalize">
+                        <p className="text-xs capitalize text-muted-foreground">
                           {lead.businessType.replace(/_/g, " ")}
                         </p>
                       ) : null}
                     </Link>
                   </td>
                   <td className="px-4 py-3">
-                    <p className="text-sm text-text">{lead.contactPerson}</p>
-                    <p className="text-text-faint text-xs">{lead.email}</p>
+                    <p className="text-sm text-foreground">{lead.contactPerson}</p>
+                    <p className="text-xs text-muted-foreground">{lead.email}</p>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-xs text-text-muted">
+                    <span className="text-xs text-muted-foreground">
                       {SOURCE_LABELS[lead.source] || lead.source}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge value={lead.status} />
                   </td>
-                  <td className="px-4 py-3 text-xs text-text-muted">
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
                     {new Date(lead.createdAt).toLocaleDateString()}
                   </td>
                 </tr>
@@ -199,6 +203,15 @@ export default function LeadsTable({ leads }: { leads: Lead[] }) {
           </table>
         )}
       </div>
+      <ConfirmModal
+        open={confirmOpen}
+        title={`Delete ${selected.size} lead${selected.size === 1 ? "" : "s"}?`}
+        message="This action cannot be undone."
+        confirmLabel="Delete"
+        loading={deleting}
+        onConfirm={() => void handleBulkDelete()}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </>
   );
 }

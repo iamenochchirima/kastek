@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { cn } from "@/lib/utils";
 
 export default function Pagination({
   currentPage,
@@ -46,32 +47,29 @@ export default function Pagination({
   }
 
   return (
-    <div className="flex items-center justify-between pt-4">
-      <p className="text-xs text-text-faint">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+      <p className="v-label">
         Showing {start}–{end} of {totalItems}
       </p>
       <div className="flex items-center gap-1">
         <button
           onClick={() => goToPage(currentPage - 1)}
           disabled={currentPage <= 1}
-          className="px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-text rounded-lg hover:bg-surface-overlay transition-colors disabled:opacity-30 disabled:pointer-events-none"
+          className="rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
         >
           Previous
         </button>
         {pages.map((p, i) =>
           p === "..." ? (
-            <span key={`dots-${i}`} className="px-1.5 text-xs text-text-faint">
+            <span key={`dots-${i}`} className="px-1.5 text-xs text-muted-foreground">
               ...
             </span>
           ) : (
             <button
               key={p}
               onClick={() => goToPage(p)}
-              className={`min-w-[28px] px-1.5 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                p === currentPage
-                  ? "bg-primary text-white"
-                  : "text-text-muted hover:text-text hover:bg-surface-overlay"
-              }`}
+              aria-current={p === currentPage ? "page" : undefined}
+              className={cn("min-w-7 rounded-md px-1.5 py-1.5 text-xs font-medium transition-colors", p === currentPage ? "bg-primary text-primary-foreground shadow-card" : "text-muted-foreground hover:bg-accent hover:text-foreground")}
             >
               {p}
             </button>
@@ -80,7 +78,7 @@ export default function Pagination({
         <button
           onClick={() => goToPage(currentPage + 1)}
           disabled={currentPage >= totalPages}
-          className="px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-text rounded-lg hover:bg-surface-overlay transition-colors disabled:opacity-30 disabled:pointer-events-none"
+          className="rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
         >
           Next
         </button>

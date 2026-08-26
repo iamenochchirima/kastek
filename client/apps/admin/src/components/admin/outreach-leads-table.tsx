@@ -1,17 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import ConfirmModal from "./confirm-modal";
 import EditFieldModal from "./edit-field-modal";
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-white/5 text-text-faint",
-  sent: "bg-blue-500/15 text-blue-400",
-  replied: "bg-purple-500/15 text-purple-400",
-  interested: "bg-green-500/15 text-green-400",
-  not_interested: "bg-yellow-500/15 text-yellow-400",
-  bounced: "bg-red-500/15 text-red-400",
+  pending: "bg-secondary text-muted-foreground",
+  sent: "bg-status-info-soft text-status-info",
+  replied: "bg-status-info-soft text-status-info",
+  interested: "bg-status-success-soft text-status-success",
+  not_interested: "bg-status-attention-soft text-status-attention",
+  bounced: "bg-status-danger-soft text-status-danger",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -196,7 +196,8 @@ export default function OutreachLeadsTable({
   function toggleOne(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -405,7 +406,7 @@ export default function OutreachLeadsTable({
           <>
             <button
               onClick={enterSelectMode}
-              className="text-xs font-medium text-text-muted hover:text-text px-3 py-1.5 rounded-lg border border-border hover:bg-surface-overlay transition-colors"
+              className="text-xs font-medium text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg border border-border hover:bg-secondary transition-colors"
             >
               Select
             </button>
@@ -419,7 +420,7 @@ export default function OutreachLeadsTable({
                 else setDebugData(null);
                 setDebugLoading(false);
               }}
-              className="border border-border hover:bg-surface-overlay text-text px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+              className="border border-border hover:bg-secondary text-foreground px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
             >
               Debug Match
             </button>
@@ -432,7 +433,7 @@ export default function OutreachLeadsTable({
                 await loadAllCampaignLeads();
               }}
               disabled={bulkSending}
-              className="bg-primary hover:bg-primary-dark text-white px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-primary hover:bg-brand-strong text-primary-foreground px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Bulk Send
             </button>
@@ -441,13 +442,13 @@ export default function OutreachLeadsTable({
           <>
             <button
               onClick={exitSelectMode}
-              className="text-xs font-medium text-text-muted hover:text-text px-3 py-1.5 rounded-lg border border-border hover:bg-surface-overlay transition-colors"
+              className="text-xs font-medium text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg border border-border hover:bg-secondary transition-colors"
             >
               Cancel
             </button>
             {selected.size > 0 && (
               <>
-                <span className="text-xs text-text-muted">
+                <span className="text-xs text-muted-foreground">
                   {selected.size} selected:
                 </span>
                 {EMAIL_STATUSES.map((s) => (
@@ -463,7 +464,7 @@ export default function OutreachLeadsTable({
                 <button
                   onClick={() => setShowDeleteModal(true)}
                   disabled={updating}
-                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50"
+                  className="bg-status-danger hover:opacity-90 text-primary-foreground px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50"
                 >
                   Delete
                 </button>
@@ -476,7 +477,7 @@ export default function OutreachLeadsTable({
                     await loadAllCampaignLeads();
                   }}
                   disabled={updating || bulkSending}
-                  className="bg-primary hover:bg-primary-dark text-white px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-primary hover:bg-brand-strong text-primary-foreground px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Bulk Send
                 </button>
@@ -487,7 +488,7 @@ export default function OutreachLeadsTable({
       </div>
       {bulkSending || bulkStopping ? (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2">
-          <p className="text-xs text-text">
+          <p className="text-xs text-foreground">
             Bulk send running in background ({bulkRunMode === "selected" ? "selected" : "all"} scope)
             {bulkProgress ? `: ${bulkProgress.done}/${bulkProgress.total}` : ""}
             {bulkCooldownSeconds !== null ? ` · next send in ${bulkCooldownSeconds}s` : ""}
@@ -495,14 +496,14 @@ export default function OutreachLeadsTable({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowBulkSendModal(true)}
-              className="rounded border border-border px-2 py-1 text-xs text-text-muted hover:text-text"
+              className="rounded border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
             >
               Open details
             </button>
             <button
               onClick={requestStopBulkSend}
               disabled={bulkStopping}
-              className="rounded border border-red-500/50 px-2 py-1 text-xs text-red-300 hover:text-red-200 disabled:opacity-50"
+              className="rounded border border-status-danger/30 px-2 py-1 text-xs text-status-danger hover:text-status-danger disabled:opacity-50"
             >
               {bulkStopping ? "Stopping..." : "Stop"}
             </button>
@@ -510,15 +511,15 @@ export default function OutreachLeadsTable({
         </div>
       ) : null}
 
-      <div className="bg-surface-raised rounded-xl border border-border overflow-hidden">
+      <div className="v-card overflow-hidden">
         {leads.length === 0 ? (
           <div className="p-12 text-center">
-            <p className="text-text-faint">No leads in this campaign</p>
+            <p className="text-ink-3">No leads in this campaign</p>
           </div>
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="border-b border-border bg-surface-overlay">
+              <tr className="border-b border-border bg-secondary">
                 {selectMode && (
                   <th className="px-4 py-3 w-10">
                     <input
@@ -529,28 +530,28 @@ export default function OutreachLeadsTable({
                     />
                   </th>
                 )}
-                <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
                   Business
                 </th>
-                <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
                   Website
                 </th>
-                <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
                   Email
                 </th>
-                <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
                   Phone
                 </th>
-                <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
                   Status
                 </th>
-                <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
                   Sent At
                 </th>
-                <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
                   Follow-ups
                 </th>
-                <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">
                   Actions
                 </th>
               </tr>
@@ -559,7 +560,7 @@ export default function OutreachLeadsTable({
               {leads.map((lead) => (
                 <tr
                   key={lead.id}
-                  className={`hover:bg-surface-overlay transition-colors ${selectMode && selected.has(lead.id) ? "bg-primary/5" : ""}`}
+                  className={`hover:bg-secondary transition-colors ${selectMode && selected.has(lead.id) ? "bg-primary/5" : ""}`}
                 >
                   {selectMode && (
                     <td className="px-4 py-3">
@@ -572,11 +573,11 @@ export default function OutreachLeadsTable({
                     </td>
                   )}
                   <td className="px-4 py-3">
-                    <p className="font-medium text-sm text-text">
+                    <p className="font-medium text-sm text-foreground">
                       {lead.businessName}
                     </p>
                     {lead.address && (
-                      <p className="text-text-faint text-xs">{lead.address}</p>
+                      <p className="text-ink-3 text-xs">{lead.address}</p>
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -590,7 +591,7 @@ export default function OutreachLeadsTable({
                         {lead.website.replace(/^https?:\/\//, "")}
                       </a>
                     ) : (
-                      <span className="text-text-faint text-xs">--</span>
+                      <span className="text-ink-3 text-xs">--</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -617,12 +618,12 @@ export default function OutreachLeadsTable({
                       onChange={(status) => updateStatus(lead.id, status)}
                     />
                   </td>
-                  <td className="px-4 py-3 text-xs text-text-muted">
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
                     {lead.emailSentAt
                       ? new Date(lead.emailSentAt).toLocaleString()
                       : "--"}
                   </td>
-                  <td className="px-4 py-3 text-xs text-text-muted">
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
                     {lead.followUpCount}
                   </td>
                   <td className="px-4 py-3">
@@ -673,30 +674,30 @@ export default function OutreachLeadsTable({
       ) : null}
 
       {showDebugModal ? (
-        <div className="fixed inset-0 z-50 bg-black/60 p-4">
-          <div className="mx-auto mt-4 flex h-[88vh] w-full max-w-6xl flex-col rounded-xl border border-border bg-surface-raised">
+        <div className="fixed inset-0 z-[var(--z-overlay)] bg-overlay/70 p-4" role="presentation">
+          <div className="mx-auto mt-4 flex h-[88vh] w-full max-w-6xl flex-col v-card" role="dialog" aria-modal="true" aria-labelledby="website-match-debug-title">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <h3 className="text-sm font-semibold text-text">Website Match Debug</h3>
+              <h3 id="website-match-debug-title" className="text-sm font-semibold text-foreground">Website Match Debug</h3>
               <button
                 onClick={() => setShowDebugModal(false)}
-                className="rounded border border-border px-2 py-1 text-xs text-text-muted hover:text-text"
+                className="rounded border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
               >
                 Close
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
               {debugLoading ? (
-                <p className="text-sm text-text-muted">Loading debug data...</p>
+                <p className="text-sm text-muted-foreground">Loading debug data...</p>
               ) : !debugData ? (
-                <p className="text-sm text-red-400">Failed to load debug data.</p>
+                <p className="text-sm text-status-danger">Failed to load debug data.</p>
               ) : (
                 <div className="space-y-3">
-                  <p className="text-xs text-text-faint">
+                  <p className="text-xs text-ink-3">
                     Checked: {debugData.dbLeadsChecked} · Matched: {debugData.matched} · Unmatched: {debugData.unmatched}
                   </p>
                   <div className="rounded-lg border border-border overflow-hidden">
                     <table className="w-full text-xs">
-                      <thead className="bg-surface-overlay border-b border-border">
+                      <thead className="bg-secondary border-b border-border">
                         <tr>
                           <th className="px-2 py-2 text-left">Business</th>
                           <th className="px-2 py-2 text-left">DB Website</th>
@@ -731,10 +732,10 @@ export default function OutreachLeadsTable({
       {toast ? (
         <div className="fixed right-4 top-4 z-[60]">
           <div
-            className={`rounded-lg border px-4 py-3 text-sm shadow-lg ${
+            className={`rounded-lg border px-4 py-3 text-sm shadow-pop ${
               toast.type === "success"
-                ? "border-green-500/40 bg-green-500/15 text-green-200"
-                : "border-red-500/40 bg-red-500/15 text-red-200"
+                ? "border-status-success/30 bg-status-success-soft text-status-success"
+                : "border-status-danger/30 bg-status-danger-soft text-status-danger"
             }`}
           >
             {toast.message}
@@ -838,42 +839,42 @@ function BulkSendModal({
             : null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 p-4">
-      <div className="mx-auto mt-2 flex h-[92vh] w-full max-w-6xl flex-col rounded-xl border border-border bg-surface-raised">
+    <div className="fixed inset-0 z-[var(--z-overlay)] bg-overlay/70 p-4" role="presentation">
+      <div className="mx-auto mt-2 flex h-[92vh] w-full max-w-6xl flex-col v-card" role="dialog" aria-modal="true" aria-labelledby="bulk-send-title">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h3 className="text-sm font-semibold text-text">Bulk Send Emails</h3>
+          <h3 id="bulk-send-title" className="text-sm font-semibold text-foreground">Bulk Send Emails</h3>
           <button
             onClick={onCancel}
-            className="rounded border border-border px-2 py-1 text-xs text-text-muted hover:text-text"
+            className="rounded border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
           >
             Close
           </button>
         </div>
 
         <div className="flex-1 space-y-3 overflow-y-auto p-4">
-          <p className="text-xs text-text-faint">
+          <p className="text-xs text-ink-3">
             Scope: {mode === "selected" ? "Selected rows" : "All campaign leads (no pagination)"} · Selected: {selectedCount} · In scope: {totalScopeCount} · Sendable: {sendableCount} · Missing required data: {missingEmailsCount}
           </p>
           {mode === "all" && loadingAllLeads ? (
             <p className="text-xs text-primary">Loading full campaign leads...</p>
           ) : null}
           {allLeadsError ? (
-            <p className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+            <p className="rounded-md border border-status-danger/30 bg-status-danger-soft px-3 py-2 text-xs text-status-danger">
               {allLeadsError}
             </p>
           ) : null}
           {sendableCount === 0 ? (
-            <p className="rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-300">
+            <p className="rounded-md border border-status-attention/30 bg-status-attention-soft px-3 py-2 text-xs text-status-attention">
               No sendable leads in this scope yet. Leads need both email address and verified custom email body.
             </p>
           ) : null}
           {sendableCount > 0 ? (
-            <div className="rounded-md border border-border bg-surface p-3 space-y-2">
-              <p className="text-xs text-text-faint">
+            <div className="rounded-md border border-border bg-card p-3 space-y-2">
+              <p className="text-xs text-ink-3">
                 Send strategy: always starts from the remaining unsent sendable leads in this scope.
               </p>
               <div className="flex items-center gap-3 flex-wrap">
-                <label className="flex items-center gap-2 text-xs text-text">
+                <label className="flex items-center gap-2 text-xs text-foreground">
                   <input
                     type="radio"
                     checked={sendStrategy === "all"}
@@ -882,7 +883,7 @@ function BulkSendModal({
                   />
                   Send all ({sendableCount})
                 </label>
-                <label className="flex items-center gap-2 text-xs text-text">
+                <label className="flex items-center gap-2 text-xs text-foreground">
                   <input
                     type="radio"
                     checked={sendStrategy === "count"}
@@ -898,17 +899,17 @@ function BulkSendModal({
                   value={sendCountInput}
                   onChange={(e) => setSendCountInput(e.target.value)}
                   disabled={sendStrategy !== "count"}
-                  className="w-24 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-text outline-none focus:border-primary disabled:opacity-40"
+                  className="w-24 rounded-md border border-border bg-surface-2 px-2 py-1 text-xs text-foreground outline-none focus:border-primary disabled:opacity-40"
                 />
-                <span className="text-xs text-text-faint">
-                  Planned this run: <span className="text-text">{requestedCount}</span>
+                <span className="text-xs text-ink-3">
+                  Planned this run: <span className="text-foreground">{requestedCount}</span>
                 </span>
               </div>
             </div>
           ) : null}
 
           <div className="grid gap-3 lg:grid-cols-[320px,1fr]">
-            <div className="rounded-lg border border-border bg-surface p-2 max-h-[62vh] overflow-y-auto space-y-1">
+            <div className="rounded-lg border border-border bg-card p-2 max-h-[62vh] overflow-y-auto space-y-1">
               {leads.map((lead, index) => {
                 const isActive = lead.id === activeLead?.id;
                 const leadSubject = getLeadSubject(lead);
@@ -918,49 +919,49 @@ function BulkSendModal({
                     key={lead.id}
                     onClick={() => setActiveLeadId(lead.id)}
                     className={`w-full text-left rounded-md border px-2 py-2 transition-colors ${
-                      isActive ? "border-primary/60 bg-primary/10" : "border-border hover:bg-surface-overlay"
+                      isActive ? "border-primary/60 bg-primary/10" : "border-border hover:bg-secondary"
                     }`}
                   >
-                    <p className="text-[11px] text-text-faint">#{index + 1}</p>
-                    <p className="text-xs font-medium text-text truncate">{lead.businessName}</p>
-                    <p className="text-[11px] text-text-faint truncate">{lead.emailAddress}</p>
+                    <p className="text-[11px] text-ink-3">#{index + 1}</p>
+                    <p className="text-xs font-medium text-foreground truncate">{lead.businessName}</p>
+                    <p className="text-[11px] text-ink-3 truncate">{lead.emailAddress}</p>
                     <p className="text-[11px] text-primary/90 truncate">
                       {(() => {
                         const recipientCount = (lead.sendToEmails || []).filter((e) => Boolean(e?.trim())).length;
                         return `${recipientCount} recipient${recipientCount === 1 ? "" : "s"}`;
                       })()}
                     </p>
-                    <p className="text-[11px] text-text-muted truncate mt-1">{leadSubject}</p>
+                    <p className="text-[11px] text-muted-foreground truncate mt-1">{leadSubject}</p>
                   </button>
                 );
               })}
               {leads.length === 0 ? (
-                <p className="text-xs text-text-faint p-2">No sendable leads in current scope.</p>
+                <p className="text-xs text-ink-3 p-2">No sendable leads in current scope.</p>
               ) : null}
             </div>
 
             <div className="space-y-2">
-              <div className="rounded-lg border border-border bg-surface p-3 space-y-2">
-                <p className="text-xs text-text-faint">
-                  Preview for: <span className="text-text">{activeLead?.businessName || "--"}</span>
+              <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+                <p className="text-xs text-ink-3">
+                  Preview for: <span className="text-foreground">{activeLead?.businessName || "--"}</span>
                 </p>
-                <p className="text-xs text-text-faint">
+                <p className="text-xs text-ink-3">
                   Recipients:{" "}
-                  <span className="text-text">
+                  <span className="text-foreground">
                     {activeRecipients.length
                       ? activeRecipients.join(", ")
                       : activeLead?.emailAddress || "--"}
                   </span>
                 </p>
-                <p className="text-sm font-medium text-text">{previewSubject}</p>
-                <pre className="text-xs leading-5 whitespace-pre-wrap rounded-md border border-border bg-surface-2 p-3 max-h-[30vh] overflow-y-auto text-text">
+                <p className="text-sm font-medium text-foreground">{previewSubject}</p>
+                <pre className="text-xs leading-5 whitespace-pre-wrap rounded-md border border-border bg-surface-2 p-3 max-h-[30vh] overflow-y-auto text-foreground">
                   {previewBody}
                 </pre>
               </div>
             </div>
           </div>
 
-          <label className="flex items-center gap-2 text-xs text-text-muted">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
             <input
               type="checkbox"
               checked={confirmReady}
@@ -970,7 +971,7 @@ function BulkSendModal({
             I confirmed the preview and want to send to {requestedCount} recipients.
           </label>
 
-          {result ? <p className="text-xs text-green-400">{result}</p> : null}
+          {result ? <p className="text-xs text-status-success">{result}</p> : null}
           {loading && progress ? (
             <p className="text-xs text-primary">
               Sending... {progress.done}/{progress.total} · Remaining:{" "}
@@ -978,7 +979,7 @@ function BulkSendModal({
             </p>
           ) : null}
           {loading ? (
-            <p className="text-xs text-text-faint">
+            <p className="text-xs text-ink-3">
               You can close this modal. Sending will continue in the background.
             </p>
           ) : null}
@@ -988,14 +989,14 @@ function BulkSendModal({
             </p>
           ) : null}
           {sendDisabledReason ? (
-            <p className="text-xs text-yellow-300">{sendDisabledReason}</p>
+            <p className="text-xs text-status-attention">{sendDisabledReason}</p>
           ) : null}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
           <button
             onClick={onCancel}
-            className="rounded-lg border border-border px-3 py-2 text-xs text-text-muted hover:text-text"
+            className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
           >
             {loading ? "Close (keep running)" : "Cancel"}
           </button>
@@ -1003,7 +1004,7 @@ function BulkSendModal({
             <button
               onClick={onStop}
               disabled={stopLoading}
-              className="rounded-lg border border-red-500/50 px-3 py-2 text-xs font-medium text-red-300 hover:text-red-200 disabled:opacity-50"
+              className="rounded-lg border border-status-danger/30 px-3 py-2 text-xs font-medium text-status-danger hover:text-status-danger disabled:opacity-50"
             >
               {stopLoading ? "Stopping..." : "Stop Sending"}
             </button>
@@ -1012,7 +1013,7 @@ function BulkSendModal({
             onClick={() => onSend(requestedCount)}
             disabled={Boolean(sendDisabledReason)}
             title={sendDisabledReason || `Send ${requestedCount} emails now`}
-            className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-white hover:bg-primary-dark disabled:opacity-40 disabled:cursor-not-allowed"
+            className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-brand-strong disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {loading ? `Sending ${runRequestedCount || requestedCount}...` : `Send ${requestedCount} Emails`}
           </button>
@@ -1074,7 +1075,7 @@ function SendEmailButton({
       <button
         onClick={() => setOpen(true)}
         disabled={!emailAddress || !emailTemplate?.trim() || !subject.trim()}
-        className="rounded-md border border-border px-2.5 py-1 text-xs text-text hover:bg-surface-overlay disabled:cursor-not-allowed disabled:opacity-40"
+        className="rounded-md border border-border px-2.5 py-1 text-xs text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40"
         title={
           !emailAddress
             ? "Add email address first"
@@ -1089,53 +1090,53 @@ function SendEmailButton({
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-50 bg-black/60 p-4">
-          <div className="mx-auto mt-8 w-full max-w-2xl rounded-xl border border-border bg-surface-raised p-4 space-y-3">
+        <div className="fixed inset-0 z-[var(--z-overlay)] bg-overlay/70 p-4" role="presentation">
+          <div className="mx-auto mt-8 w-full max-w-2xl v-card p-4 space-y-3" role="dialog" aria-modal="true" aria-labelledby="send-email-title">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-text">Send Email</h3>
+              <h3 id="send-email-title" className="text-sm font-semibold text-foreground">Send Email</h3>
               <button
                 onClick={() => setOpen(false)}
-                className="rounded border border-border px-2 py-1 text-xs text-text-muted hover:text-text"
+                className="rounded border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
               >
                 Close
               </button>
             </div>
 
-            <p className="text-xs text-text-faint">{businessName}</p>
+            <p className="text-xs text-ink-3">{businessName}</p>
 
             <input
               value={to}
               onChange={(e) => setTo(e.target.value)}
               placeholder="Recipient email"
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
+              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
             />
             <input
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Subject"
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
+              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
             />
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={14}
               placeholder="Email body"
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
+              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
             />
 
-            {error ? <p className="text-xs text-red-400">{error}</p> : null}
+            {error ? <p className="text-xs text-status-danger">{error}</p> : null}
 
             <div className="flex items-center justify-end gap-2">
               <button
                 onClick={() => setOpen(false)}
-                className="rounded-lg border border-border px-3 py-2 text-xs text-text-muted hover:text-text"
+                className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSend}
                 disabled={sending || !to.trim() || !subject.trim() || !body.trim()}
-                className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-white hover:bg-primary-dark disabled:opacity-40"
+                className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-brand-strong disabled:opacity-40"
               >
                 {sending ? "Sending..." : "Send Email"}
               </button>
@@ -1186,7 +1187,7 @@ function StatusDropdown({
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div
-            className="fixed z-50 bg-surface-raised border border-border rounded-lg shadow-lg py-1 min-w-36"
+            className="fixed z-50 bg-card border border-border rounded-lg shadow-pop py-1 min-w-36"
             style={{
               left: pos.left,
               ...(pos.dropUp
@@ -1201,12 +1202,12 @@ function StatusDropdown({
                   onChange(s);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-3 py-1.5 text-xs font-medium hover:bg-surface-overlay transition-colors flex items-center gap-2 ${
-                  s === value ? "text-primary" : "text-text-muted"
+                className={`w-full text-left px-3 py-1.5 text-xs font-medium hover:bg-secondary transition-colors flex items-center gap-2 ${
+                  s === value ? "text-primary" : "text-muted-foreground"
                 }`}
               >
                 <span
-                  className={`w-2 h-2 rounded-full ${STATUS_COLORS[s]?.split(" ")[0] || "bg-white/10"}`}
+                  className={`w-2 h-2 rounded-full ${STATUS_COLORS[s]?.split(" ")[0] || "bg-secondary"}`}
                 />
                 {STATUS_LABELS[s]}
               </button>
@@ -1279,7 +1280,7 @@ function EditableField({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-xs text-text-muted hover:text-text truncate block max-w-40"
+        className="text-xs text-muted-foreground hover:text-foreground truncate block max-w-40"
       >
         {value || placeholder}
       </button>

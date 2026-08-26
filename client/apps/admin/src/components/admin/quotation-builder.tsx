@@ -15,6 +15,7 @@ import {
   type QuotationDraft,
   type QuotationSection,
 } from "@/lib/quotation";
+import EditFieldModal from "@/components/admin/edit-field-modal";
 
 type Props = {
   mode: "create" | "edit";
@@ -243,6 +244,8 @@ type RichTextEditorProps = {
 };
 
 function RichTextEditor({ value, onChange }: RichTextEditorProps) {
+  const [linkPromptOpen, setLinkPromptOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("https://");
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -269,8 +272,13 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
   function setLink() {
     if (!editor) return;
     const previousUrl = editor.getAttributes("link").href as string | undefined;
-    const url = window.prompt("Enter link URL", previousUrl || "https://");
-    if (url === null) return;
+    setLinkUrl(previousUrl || "https://");
+    setLinkPromptOpen(true);
+  }
+
+  function applyLink(url: string) {
+    if (!editor) return;
+    setLinkPromptOpen(false);
 
     if (url.trim() === "") {
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
@@ -286,17 +294,17 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
   if (!editor) {
     return (
       <div className="rounded-lg border border-border bg-surface-2 overflow-hidden">
-        <div className="px-3 py-2 text-xs text-text-faint border-b border-border bg-surface">
+        <div className="px-3 py-2 text-xs text-ink-3 border-b border-border bg-card">
           Loading editor...
         </div>
-        <div className="min-h-[220px] px-3 py-2 text-sm text-text-faint">Preparing rich text editor...</div>
+        <div className="min-h-[220px] px-3 py-2 text-sm text-ink-3">Preparing rich text editor...</div>
       </div>
     );
   }
 
   return (
     <div className="rounded-lg border border-border bg-surface-2 overflow-hidden">
-      <div className="flex flex-wrap gap-2 border-b border-border px-3 py-2 bg-surface">
+      <div className="flex flex-wrap gap-2 border-b border-border px-3 py-2 bg-card">
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleBold().run()}
@@ -304,7 +312,7 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           className={`${toolbarButtonClass} ${
             editor.isActive("bold")
               ? "border-primary/60 bg-primary/15 text-primary"
-              : "border-border text-text hover:bg-surface-overlay"
+              : "border-border text-foreground hover:bg-secondary"
           }`}
         >
           Bold
@@ -316,7 +324,7 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           className={`${toolbarButtonClass} ${
             editor.isActive("italic")
               ? "border-primary/60 bg-primary/15 text-primary"
-              : "border-border text-text hover:bg-surface-overlay"
+              : "border-border text-foreground hover:bg-secondary"
           }`}
         >
           Italic
@@ -327,7 +335,7 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           className={`${toolbarButtonClass} ${
             editor.isActive("heading", { level: 2 })
               ? "border-primary/60 bg-primary/15 text-primary"
-              : "border-border text-text hover:bg-surface-overlay"
+              : "border-border text-foreground hover:bg-secondary"
           }`}
         >
           Heading
@@ -338,7 +346,7 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           className={`${toolbarButtonClass} ${
             editor.isActive("bulletList")
               ? "border-primary/60 bg-primary/15 text-primary"
-              : "border-border text-text hover:bg-surface-overlay"
+              : "border-border text-foreground hover:bg-secondary"
           }`}
         >
           Bullet List
@@ -349,7 +357,7 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           className={`${toolbarButtonClass} ${
             editor.isActive("orderedList")
               ? "border-primary/60 bg-primary/15 text-primary"
-              : "border-border text-text hover:bg-surface-overlay"
+              : "border-border text-foreground hover:bg-secondary"
           }`}
         >
           Numbered List
@@ -360,7 +368,7 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           className={`${toolbarButtonClass} ${
             editor.isActive("link")
               ? "border-primary/60 bg-primary/15 text-primary"
-              : "border-border text-text hover:bg-surface-overlay"
+              : "border-border text-foreground hover:bg-secondary"
           }`}
         >
           Link
@@ -369,7 +377,7 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           type="button"
           onClick={() => editor.chain().focus().undo().run()}
           disabled={!editor.can().chain().focus().undo().run()}
-          className={`${toolbarButtonClass} border-border text-text hover:bg-surface-overlay`}
+          className={`${toolbarButtonClass} border-border text-foreground hover:bg-secondary`}
         >
           Undo
         </button>
@@ -377,15 +385,16 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           type="button"
           onClick={() => editor.chain().focus().redo().run()}
           disabled={!editor.can().chain().focus().redo().run()}
-          className={`${toolbarButtonClass} border-border text-text hover:bg-surface-overlay`}
+          className={`${toolbarButtonClass} border-border text-foreground hover:bg-secondary`}
         >
           Redo
         </button>
       </div>
       <EditorContent
         editor={editor}
-        className="min-h-[220px] max-h-[55vh] overflow-y-auto px-3 py-2 text-sm text-text [&_.ProseMirror]:min-h-[200px] [&_.ProseMirror]:outline-none [&_.ProseMirror_h2]:text-base [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_p]:my-1 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_a]:text-primary [&_.ProseMirror_a]:underline"
+        className="min-h-[220px] max-h-[55vh] overflow-y-auto px-3 py-2 text-sm text-foreground [&_.ProseMirror]:min-h-[200px] [&_.ProseMirror]:outline-none [&_.ProseMirror_h2]:text-base [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_p]:my-1 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_a]:text-primary [&_.ProseMirror_a]:underline"
       />
+      <EditFieldModal open={linkPromptOpen} title="Add link" value={linkUrl} placeholder="https://" onSave={applyLink} onCancel={() => setLinkPromptOpen(false)} />
     </div>
   );
 }
@@ -950,9 +959,9 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
 
   function renderLivePreviewPanel() {
     return (
-      <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+      <div className="v-card p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-text">Live PDF Preview</h3>
+          <h3 className="font-semibold text-foreground">Live PDF Preview</h3>
           <div className="flex items-center gap-2">
             <div className="inline-flex rounded-lg border border-border overflow-hidden">
               <button
@@ -961,7 +970,7 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                 className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                   previewMode === "manual"
                     ? "bg-primary/15 text-primary"
-                    : "bg-surface text-text-faint hover:text-text hover:bg-surface-overlay"
+                    : "bg-card text-ink-3 hover:text-foreground hover:bg-secondary"
                 }`}
               >
                 Manual
@@ -972,7 +981,7 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                 className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                   previewMode === "auto"
                     ? "bg-primary/15 text-primary"
-                    : "bg-surface text-text-faint hover:text-text hover:bg-surface-overlay"
+                    : "bg-card text-ink-3 hover:text-foreground hover:bg-secondary"
                 }`}
               >
                 Auto
@@ -982,7 +991,7 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
               type="button"
               onClick={() => void requestPdfPreview(true)}
               disabled={pdfPreviewLoading}
-              className="border border-border hover:bg-surface-overlay px-3 py-1.5 rounded-lg text-xs font-medium text-text transition-colors disabled:opacity-50"
+              className="border border-border hover:bg-secondary px-3 py-1.5 rounded-lg text-xs font-medium text-foreground transition-colors disabled:opacity-50"
             >
               {pdfPreviewLoading ? "Refreshing..." : "Refresh PDF"}
             </button>
@@ -990,7 +999,7 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
         </div>
 
         {pdfPreviewError ? (
-          <div className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+          <div className="rounded-xl border border-status-danger/25 bg-status-danger-soft px-4 py-3 text-sm text-status-danger">
             {pdfPreviewError}
           </div>
         ) : null}
@@ -1004,7 +1013,7 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                 className="absolute inset-0 w-full h-full bg-white"
               />
             ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-sm text-text-faint">
+              <div className="absolute inset-0 flex items-center justify-center text-sm text-ink-3">
                 Generating PDF preview...
               </div>
             )}
@@ -1033,17 +1042,17 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
   return (
     <div className="space-y-6">
       {error && (
-        <div className="bg-danger/10 text-danger text-sm px-4 py-3 rounded-lg border border-danger/20">
+        <div className="bg-status-danger-soft text-status-danger text-sm px-4 py-3 rounded-lg border border-status-danger/25">
           {error}
         </div>
       )}
 
       <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_520px] gap-6 items-start">
-      <div className="bg-surface-raised rounded-xl border border-border p-6 space-y-6">
+      <div className="v-card p-6 space-y-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="font-semibold text-text">Quotation Builder</h2>
-            <p className="text-sm text-text-muted">
+            <h2 className="font-semibold text-foreground">Quotation Builder</h2>
+            <p className="text-sm text-muted-foreground">
               Build a professional quotation with service-specific sections, line items, and PDF output.
             </p>
           </div>
@@ -1053,7 +1062,7 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                 href={pdfUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="border border-border hover:bg-surface-overlay px-4 py-2 rounded-lg text-sm font-medium text-text transition-colors whitespace-nowrap"
+                className="border border-border hover:bg-secondary px-4 py-2 rounded-lg text-sm font-medium text-foreground transition-colors whitespace-nowrap"
               >
                 Download PDF
               </a>
@@ -1062,7 +1071,7 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
               type="button"
               onClick={() => saveQuotation()}
               disabled={loading}
-              className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
+              className="bg-primary hover:bg-brand-strong text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
             >
               {loading ? "Saving..." : mode === "create" ? "Create Quotation" : "Save Changes"}
             </button>
@@ -1071,11 +1080,11 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
 
         <div className="grid md:grid-cols-[1.2fr_auto] gap-4 items-end border border-border rounded-xl p-4">
           <div>
-            <label className="block text-sm font-medium text-text-muted mb-1">Quotation Type</label>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">Quotation Type</label>
             <select
               value={form.serviceType}
               onChange={(e) => setForm({ ...form, serviceType: e.target.value })}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
             >
               {QUOTATION_SERVICE_TYPES.map((service) => (
                 <option key={service.value} value={service.value}>
@@ -1083,14 +1092,14 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                 </option>
               ))}
             </select>
-            <p className="text-xs text-text-faint mt-1">
+            <p className="text-xs text-ink-3 mt-1">
               Current template: {getServiceLabel(form.serviceType)}
             </p>
           </div>
           <button
             type="button"
             onClick={() => applyTemplate(form.serviceType)}
-            className="border border-border hover:bg-surface-overlay px-4 py-2 rounded-lg text-sm font-medium text-text transition-colors"
+            className="border border-border hover:bg-secondary px-4 py-2 rounded-lg text-sm font-medium text-foreground transition-colors"
           >
             Apply Service Template
           </button>
@@ -1099,8 +1108,8 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
         {mode === "edit" && (
           <div className="flex items-center justify-between gap-4 border border-border rounded-xl px-4 py-3">
             <div>
-              <p className="text-sm font-medium text-text">Quotation Status</p>
-              <p className="text-xs text-text-faint">
+              <p className="text-sm font-medium text-foreground">Quotation Status</p>
+              <p className="text-xs text-ink-3">
                 Track whether the quotation is draft, sent, accepted, rejected, or expired.
               </p>
             </div>
@@ -1116,8 +1125,8 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                   disabled={loading}
                   className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                     status.value === form.status
-                      ? "bg-primary/15 text-primary ring-2 ring-offset-1 ring-offset-surface-raised ring-primary/50"
-                      : "bg-surface-overlay text-text-faint hover:text-text-muted hover:bg-border"
+                      ? "bg-primary/15 text-primary ring-2 ring-offset-1 ring-offset-card ring-primary/50"
+                      : "bg-secondary text-ink-3 hover:text-muted-foreground hover:bg-border"
                   }`}
                 >
                   {status.label}
@@ -1127,64 +1136,64 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
           </div>
         )}
 
-        <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
-          <h3 className="font-semibold text-text">Prepared For</h3>
+        <div className="v-card p-5 space-y-4">
+          <h3 className="font-semibold text-foreground">Prepared For</h3>
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-1">Client Business Name</label>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Client Business Name</label>
               <input
                 type="text"
                 value={form.preparedFor}
                 onChange={(e) => setForm({ ...form, preparedFor: e.target.value })}
-                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-1">Date</label>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Date</label>
               <input
                 type="text"
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
                 placeholder="YYYY-MM-DD"
-                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
-              <p className="text-xs text-text-faint mt-1">Use format `YYYY-MM-DD`.</p>
+              <p className="text-xs text-ink-3 mt-1">Use format `YYYY-MM-DD`.</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-1">Client Contact Email</label>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Client Contact Email</label>
               <input
                 type="email"
                 value={form.contactEmail}
                 onChange={(e) => setForm({ ...form, contactEmail: e.target.value })}
-                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-1">Quotation Title</label>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Quotation Title</label>
               <input
                 type="text"
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
-                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
           </div>
         </div>
 
-        <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
-          <h3 className="font-semibold text-text">Project Summary</h3>
+        <div className="v-card p-5 space-y-4">
+          <h3 className="font-semibold text-foreground">Project Summary</h3>
           <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
             {summaryPreviewLines(form.introduction).length > 0 ? (
-              <ul className="list-disc pl-5 text-sm text-text space-y-1">
+              <ul className="list-disc pl-5 text-sm text-foreground space-y-1">
                 {summaryPreviewLines(form.introduction).slice(0, 8).map((line, index) => (
                   <li key={`summary-line-${index}`}>{line}</li>
                 ))}
                 {summaryPreviewLines(form.introduction).length > 8 ? (
-                  <li className="text-text-faint">...</li>
+                  <li className="text-ink-3">...</li>
                 ) : null}
               </ul>
             ) : (
-              <p className="text-sm text-text-faint">No summary content yet.</p>
+              <p className="text-sm text-ink-3">No summary content yet.</p>
             )}
           </div>
           <button
@@ -1195,17 +1204,17 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                 toRichTextContent(form.introduction)
               )
             }
-            className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-overlay transition-colors"
+            className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-foreground hover:bg-secondary transition-colors"
           >
             Edit Content
           </button>
         </div>
 
-        <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+        <div className="v-card p-5 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-text">Service Sections</h3>
-              <p className="text-xs text-text-faint mt-1">
+              <h3 className="font-semibold text-foreground">Service Sections</h3>
+              <p className="text-xs text-ink-3 mt-1">
                 Define Service 1 and Service 2 clearly before pricing.
               </p>
             </div>
@@ -1217,26 +1226,26 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                 <div key={service.id} className="border border-border rounded-xl p-4 space-y-4">
                   <div className="grid md:grid-cols-[1fr_auto] gap-3 items-start">
                     <div className="space-y-1">
-                      <p className="text-xs text-text-faint">Service {index + 1}</p>
+                      <p className="text-xs text-ink-3">Service {index + 1}</p>
                       <input
                         type="text"
                         value={service.title}
                         onChange={(e) => updateService(service.id, "title", e.target.value)}
                         placeholder={index === 0 ? "Service 1 Title" : "Service 2 Title"}
-                        className="px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50 w-full"
+                        className="px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 w-full"
                       />
                     </div>
                   </div>
 
                   <div className="grid md:grid-cols-3 gap-3">
                     <div className="rounded-lg border border-border bg-surface-2 p-3 space-y-3">
-                      <p className="text-sm font-semibold text-text">Included Services</p>
-                      <ul className="list-disc pl-5 text-sm text-text space-y-1">
+                      <p className="text-sm font-semibold text-foreground">Included Services</p>
+                      <ul className="list-disc pl-5 text-sm text-foreground space-y-1">
                         {richTextToPreviewLines(service.included).slice(0, 6).map((line, itemIndex) => (
                           <li key={`${service.id}-included-${itemIndex}`}>{line}</li>
                         ))}
                         {richTextToPreviewLines(service.included).length > 6 ? (
-                          <li className="text-text-faint">...</li>
+                          <li className="text-ink-3">...</li>
                         ) : null}
                       </ul>
                       <button
@@ -1252,20 +1261,20 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                             service.included
                           );
                         }}
-                        className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-overlay transition-colors"
+                        className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                       >
                         Edit Content
                       </button>
                     </div>
 
                     <div className="rounded-lg border border-border bg-surface-2 p-3 space-y-3">
-                      <p className="text-sm font-semibold text-text">Features</p>
-                      <ul className="list-disc pl-5 text-sm text-text space-y-1">
+                      <p className="text-sm font-semibold text-foreground">Features</p>
+                      <ul className="list-disc pl-5 text-sm text-foreground space-y-1">
                         {richTextToPreviewLines(service.features).slice(0, 6).map((line, itemIndex) => (
                           <li key={`${service.id}-features-${itemIndex}`}>{line}</li>
                         ))}
                         {richTextToPreviewLines(service.features).length > 6 ? (
-                          <li className="text-text-faint">...</li>
+                          <li className="text-ink-3">...</li>
                         ) : null}
                       </ul>
                       <button
@@ -1281,20 +1290,20 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                             service.features
                           )
                         }
-                        className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-overlay transition-colors"
+                        className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                       >
                         Edit Content
                       </button>
                     </div>
 
                     <div className="rounded-lg border border-border bg-surface-2 p-3 space-y-3">
-                      <p className="text-sm font-semibold text-text">Maintenance</p>
-                      <ul className="list-disc pl-5 text-sm text-text space-y-1">
+                      <p className="text-sm font-semibold text-foreground">Maintenance</p>
+                      <ul className="list-disc pl-5 text-sm text-foreground space-y-1">
                         {richTextToPreviewLines(service.maintenance).slice(0, 6).map((line, itemIndex) => (
                           <li key={`${service.id}-maintenance-${itemIndex}`}>{line}</li>
                         ))}
                         {richTextToPreviewLines(service.maintenance).length > 6 ? (
-                          <li className="text-text-faint">...</li>
+                          <li className="text-ink-3">...</li>
                         ) : null}
                       </ul>
                       <button
@@ -1310,7 +1319,7 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                             service.maintenance
                           )
                         }
-                        className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-overlay transition-colors"
+                        className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                       >
                         Edit Content
                       </button>
@@ -1322,18 +1331,18 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
           </div>
         </div>
 
-        <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+        <div className="v-card p-5 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-text">Additional Sections</h3>
-              <p className="text-xs text-text-faint mt-1">
+              <h3 className="font-semibold text-foreground">Additional Sections</h3>
+              <p className="text-xs text-ink-3 mt-1">
                 Optional extra sections shown after Service 2 and before pricing.
               </p>
             </div>
             <button
               type="button"
               onClick={addCustomSection}
-              className="border border-border hover:bg-surface-overlay px-3 py-2 rounded-lg text-sm font-medium text-text transition-colors"
+              className="border border-border hover:bg-secondary px-3 py-2 rounded-lg text-sm font-medium text-foreground transition-colors"
             >
               + Add Section
             </button>
@@ -1380,7 +1389,7 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                           setDraggingSectionId(null);
                           setDropTargetSectionId(null);
                         }}
-                        className="h-10 w-10 rounded-lg border border-border text-text-faint hover:text-text hover:bg-surface-overlay transition-colors cursor-grab active:cursor-grabbing"
+                        className="h-10 w-10 rounded-lg border border-border text-ink-3 hover:text-foreground hover:bg-secondary transition-colors cursor-grab active:cursor-grabbing"
                         title="Drag to reorder"
                         aria-label="Drag to reorder section"
                       >
@@ -1391,7 +1400,7 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                         value={customSection.title}
                         onChange={(e) => updateCustomSection(customSection.id, "title", e.target.value)}
                         placeholder="Section title"
-                        className="px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        className="px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                       />
                     </div>
                     <div className="flex gap-2">
@@ -1407,28 +1416,28 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                             customSection.content
                           )
                         }
-                        className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-overlay transition-colors"
+                        className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                       >
                         Edit Content
                       </button>
                       <button
                         type="button"
                         onClick={() => moveSection(sectionId, "up")}
-                        className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-overlay transition-colors"
+                        className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                       >
                         Move Up
                       </button>
                       <button
                         type="button"
                         onClick={() => moveSection(sectionId, "down")}
-                        className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-overlay transition-colors"
+                        className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                       >
                         Move Down
                       </button>
                       <button
                         type="button"
                         onClick={() => removeCustomSection(customSection.id)}
-                        className="border border-red-500/30 text-red-400 hover:bg-red-500/10 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                        className="border border-status-danger/30 text-status-danger hover:bg-status-danger-soft px-3 py-2 rounded-lg text-sm font-medium transition-colors"
                       >
                         Remove
                       </button>
@@ -1436,15 +1445,15 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                   </div>
 
                   <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
-                    <ul className="list-disc pl-5 text-sm text-text space-y-1">
+                    <ul className="list-disc pl-5 text-sm text-foreground space-y-1">
                       {richTextToPreviewLines(customSection.content).slice(0, 6).map((line, itemIndex) => (
                         <li key={`${customSection.id}-${itemIndex}`}>{line}</li>
                       ))}
                       {richTextToPreviewLines(customSection.content).length > 6 ? (
-                        <li className="text-text-faint">...</li>
+                        <li className="text-ink-3">...</li>
                       ) : null}
                     </ul>
-                    <p className="text-xs text-text-faint mt-2">Rich text content</p>
+                    <p className="text-xs text-ink-3 mt-2">Rich text content</p>
                   </div>
                 </div>
               );
@@ -1452,13 +1461,13 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
           </div>
         </div>
 
-        <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+        <div className="v-card p-5 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-text">Pricing Items</h3>
+            <h3 className="font-semibold text-foreground">Pricing Items</h3>
             <button
               type="button"
               onClick={addLineItem}
-              className="border border-border hover:bg-surface-overlay px-3 py-2 rounded-lg text-sm font-medium text-text transition-colors"
+              className="border border-border hover:bg-secondary px-3 py-2 rounded-lg text-sm font-medium text-foreground transition-colors"
             >
               + Add Line Item
             </button>
@@ -1499,7 +1508,7 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                       setDraggingPriceItemId(null);
                       setDropTargetPriceItemId(null);
                     }}
-                    className="h-10 w-10 rounded-lg border border-border text-text-faint hover:text-text hover:bg-surface-overlay transition-colors cursor-grab active:cursor-grabbing"
+                    className="h-10 w-10 rounded-lg border border-border text-ink-3 hover:text-foreground hover:bg-secondary transition-colors cursor-grab active:cursor-grabbing"
                     title="Drag to reorder pricing line"
                     aria-label="Drag to reorder pricing line"
                   >
@@ -1510,26 +1519,26 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                     value={item.description}
                     onChange={(e) => updateLineItem(item.id, "description", e.target.value)}
                     placeholder="Description"
-                    className="px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                   <input
                     type="text"
                     value={item.amount}
                     onChange={(e) => updateLineItem(item.id, "amount", e.target.value)}
                     placeholder="Amount"
-                    className="px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                   <input
                     type="text"
                     value={item.billing}
                     onChange={(e) => updateLineItem(item.id, "billing", e.target.value)}
                     placeholder="Billing"
-                    className="px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                   <button
                     type="button"
                     onClick={() => removeLineItem(item.id)}
-                    className="border border-red-500/30 text-red-400 hover:bg-red-500/10 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                    className="border border-status-danger/30 text-status-danger hover:bg-status-danger-soft px-3 py-2 rounded-lg text-sm font-medium transition-colors"
                   >
                     Remove
                   </button>
@@ -1540,23 +1549,23 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
 
           {onceOffTotal !== null ? (
             <div className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-3">
-              <p className="text-xs text-text-faint">Auto-calculated total</p>
-              <p className="text-sm font-semibold text-text mt-1">
+              <p className="text-xs text-ink-3">Auto-calculated total</p>
+              <p className="text-sm font-semibold text-foreground mt-1">
                 Total Once-off: {formatZar(onceOffTotal)}
               </p>
             </div>
           ) : null}
         </div>
 
-        <div className="bg-surface border border-border rounded-xl p-5 space-y-3">
-          <h3 className="font-semibold text-text">Terms and Notes</h3>
+        <div className="v-card p-5 space-y-3">
+          <h3 className="font-semibold text-foreground">Terms and Notes</h3>
           <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
-            <ul className="list-disc pl-5 text-sm text-text space-y-1">
+            <ul className="list-disc pl-5 text-sm text-foreground space-y-1">
               {fromTextAreaValue(textAreas.termsAndNotes).slice(0, 8).map((line, index) => (
                 <li key={`terms-line-${index}`}>{line}</li>
               ))}
               {fromTextAreaValue(textAreas.termsAndNotes).length > 8 ? (
-                <li className="text-text-faint">...</li>
+                <li className="text-ink-3">...</li>
               ) : null}
             </ul>
           </div>
@@ -1568,32 +1577,32 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                 linesValueToHtml(textAreas.termsAndNotes)
               )
             }
-            className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-overlay transition-colors"
+            className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-foreground hover:bg-secondary transition-colors"
           >
             Edit Content
           </button>
-          <p className="text-xs text-text-faint">This section is fixed below pricing.</p>
+          <p className="text-xs text-ink-3">This section is fixed below pricing.</p>
         </div>
 
-        <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+        <div className="v-card p-5 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-text">Notes Sections</h3>
-              <p className="text-xs text-text-faint mt-1">
+              <h3 className="font-semibold text-foreground">Notes Sections</h3>
+              <p className="text-xs text-ink-3 mt-1">
                 Add titled notes for each service, e.g. Service 1 Notes and Service 2 Notes.
               </p>
             </div>
             <button
               type="button"
               onClick={addNoteSection}
-              className="border border-border hover:bg-surface-overlay px-3 py-2 rounded-lg text-sm font-medium text-text transition-colors"
+              className="border border-border hover:bg-secondary px-3 py-2 rounded-lg text-sm font-medium text-foreground transition-colors"
             >
               + Add Notes Section
             </button>
           </div>
 
           {noteSections.length === 0 ? (
-            <div className="text-sm text-text-faint border border-dashed border-border rounded-lg px-4 py-3">
+            <div className="text-sm text-ink-3 border border-dashed border-border rounded-lg px-4 py-3">
               No extra notes sections yet.
             </div>
           ) : (
@@ -1606,23 +1615,23 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                       value={section.title}
                       onChange={(e) => updateNoteSection(section.id, "title", e.target.value)}
                       placeholder="Section title (e.g. Service 1 - WhatsApp AI Agent Notes)"
-                      className="px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      className="px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                     />
                     <button
                       type="button"
                       onClick={() => removeNoteSection(section.id)}
-                      className="border border-red-500/30 text-red-400 hover:bg-red-500/10 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                      className="border border-status-danger/30 text-status-danger hover:bg-status-danger-soft px-3 py-2 rounded-lg text-sm font-medium transition-colors"
                     >
                       Remove
                     </button>
                   </div>
                   <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
-                    <ul className="list-disc pl-5 text-sm text-text space-y-1">
+                    <ul className="list-disc pl-5 text-sm text-foreground space-y-1">
                       {fromTextAreaValue(section.items).slice(0, 6).map((line, index) => (
                         <li key={`${section.id}-note-${index}`}>{line}</li>
                       ))}
                       {fromTextAreaValue(section.items).length > 6 ? (
-                        <li className="text-text-faint">...</li>
+                        <li className="text-ink-3">...</li>
                       ) : null}
                     </ul>
                   </div>
@@ -1634,7 +1643,7 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                         linesValueToHtml(section.items)
                       )
                     }
-                    className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-overlay transition-colors"
+                    className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                   >
                     Edit Content
                   </button>
@@ -1644,15 +1653,15 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
           )}
         </div>
 
-        <div className="bg-surface border border-border rounded-xl p-5 space-y-3">
-          <h3 className="font-semibold text-text">Validity</h3>
+        <div className="v-card p-5 space-y-3">
+          <h3 className="font-semibold text-foreground">Validity</h3>
           <div>
-            <label className="block text-sm font-medium text-text-muted mb-1">Validity Days</label>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">Validity Days</label>
             <input
               type="text"
               value={form.validityDays}
               onChange={(e) => setForm({ ...form, validityDays: e.target.value })}
-              className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
         </div>
@@ -1663,7 +1672,7 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
               type="button"
               onClick={deleteQuotation}
               disabled={deleting}
-              className="border border-red-500/30 text-red-400 hover:bg-red-500/10 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              className="border border-status-danger/30 text-status-danger hover:bg-status-danger-soft px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
             >
               {deleting ? "Deleting..." : "Delete Quotation"}
             </button>
@@ -1675,17 +1684,17 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
       <div className="xl:hidden">{renderLivePreviewPanel()}</div>
 
       {editorTarget ? (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-4xl bg-surface-raised border border-border rounded-xl shadow-xl">
+        <div className="fixed inset-0 z-[var(--z-overlay)] flex items-center justify-center bg-overlay/70 p-4" role="presentation">
+          <div className="v-card w-full max-w-4xl shadow-pop" role="dialog" aria-modal="true" aria-labelledby="quotation-editor-title">
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-text">Edit {editorTarget.title}</h3>
-                <p className="text-xs text-text-faint">Rich text editor</p>
+                <h3 id="quotation-editor-title" className="font-semibold text-foreground">Edit {editorTarget.title}</h3>
+                <p className="text-xs text-ink-3">Rich text editor</p>
               </div>
               <button
                 type="button"
                 onClick={closeEditor}
-                className="h-9 w-9 rounded-lg border border-border text-text-faint hover:text-text hover:bg-surface-overlay transition-colors"
+                className="h-9 w-9 rounded-lg border border-border text-ink-3 hover:text-foreground hover:bg-secondary transition-colors"
                 aria-label="Close editor"
               >
                 ✕
@@ -1697,14 +1706,14 @@ export default function QuotationBuilder({ mode, initialDraft }: Props) {
                 <button
                   type="button"
                   onClick={closeEditor}
-                  className="border border-border hover:bg-surface-overlay px-4 py-2 rounded-lg text-sm font-medium text-text transition-colors"
+                  className="border border-border hover:bg-secondary px-4 py-2 rounded-lg text-sm font-medium text-foreground transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={saveEditorContent}
-                  className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  className="bg-primary hover:bg-brand-strong text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                 >
                   Save Content
                 </button>

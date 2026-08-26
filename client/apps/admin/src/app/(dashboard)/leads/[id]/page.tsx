@@ -4,6 +4,7 @@ import Link from "next/link";
 import LeadNotes from "@/components/admin/lead-notes";
 import LeadStatusUpdate from "@/components/admin/lead-status-update";
 import LeadDeleteButton from "@/components/admin/lead-delete-button";
+import { buttonClassName } from "@/components/ui/button";
 
 const SOURCE_LABELS: Record<string, string> = {
   website: "Website Form",
@@ -37,17 +38,17 @@ export default async function LeadDetailPage({
     Array.isArray(lead.notes) ? lead.notes : [];
 
   return (
-    <div className="max-w-4xl space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="admin-page max-w-5xl">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
           <Link
             href="/leads"
-            className="text-sm text-text-muted hover:text-text mb-1 inline-block"
+            className="mb-1 inline-block text-sm text-muted-foreground hover:text-foreground"
           >
             &larr; Back to Leads
           </Link>
-          <h1 className="text-2xl font-bold text-text">{lead.businessName}</h1>
-          <p className="text-text-muted text-sm">
+          <h1 className="text-2xl font-semibold tracking-[-0.025em] text-foreground">{lead.businessName}</h1>
+          <p className="text-sm text-muted-foreground">
             Added {new Date(lead.createdAt).toLocaleDateString()} &middot;{" "}
             {SOURCE_LABELS[lead.source] || lead.source}
           </p>
@@ -55,13 +56,13 @@ export default async function LeadDetailPage({
         <div className="flex items-center gap-2">
           <Link
             href={`/quotations/new?leadId=${lead.id}`}
-            className="border border-border hover:bg-surface-overlay px-4 py-2 rounded-lg text-sm font-medium text-text transition-colors"
+            className={buttonClassName({ variant: "outline" })}
           >
             New Quotation
           </Link>
           <Link
             href={`/leads/${lead.id}/edit`}
-            className="border border-border hover:bg-surface-overlay px-4 py-2 rounded-lg text-sm font-medium text-text transition-colors"
+            className={buttonClassName({ variant: "outline" })}
           >
             Edit
           </Link>
@@ -70,22 +71,22 @@ export default async function LeadDetailPage({
       </div>
 
       {/* Status */}
-      <div className="bg-surface-raised rounded-xl border border-border p-6">
-        <h2 className="font-semibold mb-3 text-text">Status</h2>
+      <div className="v-card p-[var(--density-card-padding)]">
+        <h2 className="mb-3 text-base font-semibold tracking-[-0.01em] text-foreground">Status</h2>
         <LeadStatusUpdate leadId={lead.id} currentStatus={lead.status} />
       </div>
 
       {/* Contact + Business Details */}
       <div className="grid md:grid-cols-2 gap-6">
-        <div className="bg-surface-raised rounded-xl border border-border p-6">
-          <h2 className="font-semibold mb-4 text-text">Contact</h2>
+        <div className="v-card p-[var(--density-card-padding)]">
+          <h2 className="mb-4 text-base font-semibold tracking-[-0.01em] text-foreground">Contact</h2>
           <dl className="space-y-3">
             <div>
-              <dt className="text-xs text-text-faint uppercase tracking-wider">Person</dt>
-              <dd className="text-sm font-medium text-text">{lead.contactPerson}</dd>
+              <dt className="v-label">Person</dt>
+              <dd className="text-sm font-medium text-foreground">{lead.contactPerson}</dd>
             </div>
             <div>
-              <dt className="text-xs text-text-faint uppercase tracking-wider">Email</dt>
+              <dt className="v-label">Email</dt>
               <dd className="text-sm">
                 <a href={`mailto:${lead.email}`} className="text-primary hover:underline">
                   {lead.email}
@@ -93,7 +94,7 @@ export default async function LeadDetailPage({
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-text-faint uppercase tracking-wider">Phone</dt>
+              <dt className="v-label">Phone</dt>
               <dd className="text-sm">
                 <a href={`tel:${lead.phone}`} className="text-primary hover:underline">
                   {lead.phone}
@@ -103,39 +104,39 @@ export default async function LeadDetailPage({
           </dl>
         </div>
 
-        <div className="bg-surface-raised rounded-xl border border-border p-6">
-          <h2 className="font-semibold mb-4 text-text">Business</h2>
+        <div className="v-card p-[var(--density-card-padding)]">
+          <h2 className="mb-4 text-base font-semibold tracking-[-0.01em] text-foreground">Business</h2>
           <dl className="space-y-3">
             <div>
-              <dt className="text-xs text-text-faint uppercase tracking-wider">Type</dt>
-              <dd className="text-sm capitalize text-text">{lead.businessType.replace(/_/g, " ")}</dd>
+              <dt className="v-label">Type</dt>
+              <dd className="text-sm capitalize text-foreground">{lead.businessType.replace(/_/g, " ")}</dd>
             </div>
             <div>
-              <dt className="text-xs text-text-faint uppercase tracking-wider">Services</dt>
+              <dt className="v-label">Services</dt>
               <dd className="flex flex-wrap gap-1.5 mt-1">
                 {(lead.services as string[]).map((s) => (
                   <span
                     key={s}
-                    className="bg-primary/10 text-primary text-xs font-medium px-2 py-0.5 rounded"
+                    className="rounded-sm bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
                   >
                     {SERVICE_LABELS[s] || s}
                   </span>
                 ))}
                 {lead.services.length === 0 && (
-                  <span className="text-text-faint text-sm">None specified</span>
+                  <span className="text-sm text-muted-foreground">None specified</span>
                 )}
               </dd>
             </div>
             {lead.quoteAmount && (
               <div>
-                <dt className="text-xs text-text-faint uppercase tracking-wider">Quote Amount</dt>
-                <dd className="text-sm font-semibold text-text">R {lead.quoteAmount.toLocaleString()}</dd>
+                <dt className="v-label">Quote amount</dt>
+                <dd className="text-sm font-semibold text-foreground">R {lead.quoteAmount.toLocaleString()}</dd>
               </div>
             )}
             {lead.followUpDate && (
               <div>
-                <dt className="text-xs text-text-faint uppercase tracking-wider">Follow-up Date</dt>
-                <dd className="text-sm text-text">{new Date(lead.followUpDate).toLocaleDateString()}</dd>
+                <dt className="v-label">Follow-up date</dt>
+                <dd className="text-sm text-foreground">{new Date(lead.followUpDate).toLocaleDateString()}</dd>
               </div>
             )}
           </dl>
@@ -144,9 +145,9 @@ export default async function LeadDetailPage({
 
       {/* Description */}
       {lead.description && (
-        <div className="bg-surface-raised rounded-xl border border-border p-6">
-          <h2 className="font-semibold mb-2 text-text">Description</h2>
-          <p className="text-sm text-text-muted whitespace-pre-wrap">{lead.description}</p>
+        <div className="v-card p-[var(--density-card-padding)]">
+          <h2 className="mb-2 text-base font-semibold tracking-[-0.01em] text-foreground">Description</h2>
+          <p className="whitespace-pre-wrap text-sm text-muted-foreground">{lead.description}</p>
         </div>
       )}
 

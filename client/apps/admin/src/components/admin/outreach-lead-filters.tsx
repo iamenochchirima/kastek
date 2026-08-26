@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { Input } from "@/components/ui/input";
 
 const STATUSES = [
   { value: "", label: "All" },
@@ -29,16 +30,16 @@ export default function OutreachLeadFilters() {
   }
 
   return (
-    <div className="flex items-center gap-3 flex-wrap">
-      <div className="flex gap-1.5">
+    <div className="flex flex-wrap items-center gap-3 rounded-[calc(var(--radius)-1px)] border border-line bg-card p-3 shadow-card">
+      <div className="flex flex-wrap gap-1.5">
         {STATUSES.map((s) => (
           <button
             key={s.value}
             onClick={() => updateParams("emailStatus", s.value)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
               currentStatus === s.value
-                ? "bg-primary text-white"
-                : "bg-surface-overlay text-text-muted hover:text-text"
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary text-muted-foreground hover:bg-accent hover:text-foreground"
             }`}
           >
             {s.label}
@@ -46,7 +47,7 @@ export default function OutreachLeadFilters() {
         ))}
       </div>
 
-      <input
+      <Input
         type="text"
         placeholder="Search businesses..."
         defaultValue={currentSearch}
@@ -55,7 +56,7 @@ export default function OutreachLeadFilters() {
             updateParams("search", e.currentTarget.value);
           }
         }}
-        className="px-3 py-1.5 bg-surface border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50 w-64"
+        className="h-[var(--density-control-height)] w-64"
       />
     </div>
   );

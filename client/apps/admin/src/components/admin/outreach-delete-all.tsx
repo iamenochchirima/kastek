@@ -21,7 +21,7 @@ export default function OutreachDeleteAllButton({ campaignCount, leadCount }: { 
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-xs font-medium text-red-400 hover:text-red-300 px-3 py-2 rounded-lg border border-red-500/30 hover:bg-red-500/10 transition-colors"
+        className="text-xs font-medium text-status-danger hover:text-status-danger px-3 py-2 rounded-lg border border-status-danger/30 hover:bg-status-danger-soft transition-colors"
       >
         Delete All
       </button>

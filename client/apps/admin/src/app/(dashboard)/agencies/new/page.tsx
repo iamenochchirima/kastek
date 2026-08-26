@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/page-header";
+import { buttonClassName } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function NewAgencyPage() {
   const router = useRouter();
@@ -135,58 +138,53 @@ export default function NewAgencyPage() {
 
   if (createdKey) {
     return (
-      <div className="max-w-xl space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-text">Agency Created</h1>
-          <p className="text-text-muted text-sm mt-1">
-            The workspace was provisioned successfully.
-          </p>
-        </div>
-        <div className="bg-surface-raised border border-border rounded-xl p-6 space-y-4">
+      <div className="admin-page max-w-xl">
+        <AdminPageHeader title="Agency created" description="The workspace was provisioned successfully." />
+        <div className="v-card space-y-4 p-[var(--density-card-padding)]">
           {createdWorkspace ? (
-            <div className="rounded-lg border border-border bg-surface px-4 py-4 space-y-2 text-sm">
-              <p className="text-text">
-                <span className="text-text-muted">Workspace:</span> {createdWorkspace.displayName}
+            <div className="space-y-2 rounded-md border border-line bg-background px-4 py-4 text-sm">
+              <p className="text-foreground">
+                <span className="text-muted-foreground">Workspace:</span> {createdWorkspace.displayName}
               </p>
-              <p className="text-text">
-                <span className="text-text-muted">Slug:</span>{" "}
+              <p className="text-foreground">
+                <span className="text-muted-foreground">Slug:</span>{" "}
                 <span className="font-mono">{createdWorkspace.slug}</span>
               </p>
-              <p className="text-text">
-                <span className="text-text-muted">Status:</span> {createdWorkspace.status}
+              <p className="text-foreground">
+                <span className="text-muted-foreground">Status:</span> {createdWorkspace.status}
               </p>
-              <p className="text-text">
-                <span className="text-text-muted">Tenant Admin Email:</span> {createdWorkspace.adminEmail}
+              <p className="text-foreground">
+                <span className="text-muted-foreground">Tenant admin email:</span> {createdWorkspace.adminEmail}
               </p>
-              <p className="text-text">
-                <span className="text-text-muted">Admin Onboarding:</span>{" "}
+              <p className="text-foreground">
+                <span className="text-muted-foreground">Admin onboarding:</span>{" "}
                 {createdWorkspace.adminInviteEmailSent ? "Email sent" : "Use fallback setup link below"}
               </p>
               {createdWorkspace.portalUrl ? (
-                <p className="text-text">
-                  <span className="text-text-muted">Portal Login URL:</span>{" "}
+                <p className="text-foreground">
+                  <span className="text-muted-foreground">Portal login URL:</span>{" "}
                   <span className="font-mono break-all">{createdWorkspace.portalUrl}</span>
                 </p>
               ) : null}
               {createdWorkspace.adminInviteUrl ? (
-                <p className="text-text">
-                  <span className="text-text-muted">Admin Setup URL:</span>{" "}
+                <p className="text-foreground">
+                  <span className="text-muted-foreground">Admin setup URL:</span>{" "}
                   <span className="font-mono break-all">{createdWorkspace.adminInviteUrl}</span>
                 </p>
               ) : null}
               {createdWorkspace.hostedDomain ? (
-                <p className="text-text">
-                  <span className="text-text-muted">Hosted Domain:</span>{" "}
+                <p className="text-foreground">
+                  <span className="text-muted-foreground">Hosted domain:</span>{" "}
                   <span className="font-mono">{createdWorkspace.hostedDomain}</span>
                 </p>
               ) : null}
               {createdWorkspace.domains.length > 0 ? (
-                <p className="text-text">
-                  <span className="text-text-muted">Custom Domain:</span>{" "}
+                <p className="text-foreground">
+                  <span className="text-muted-foreground">Custom domain:</span>{" "}
                   <span className="font-mono">{createdWorkspace.domains[0]}</span>
                 </p>
               ) : (
-                <p className="text-xs text-text-faint">
+                <p className="text-xs text-muted-foreground">
                   The hosted tenant domain is available immediately. For local fallback access without wildcard
                   DNS, run the tenant backend with{" "}
                   <span className="font-mono">TENANT_DEFAULT_WORKSPACE_SLUG={createdWorkspace.slug}</span>.
@@ -194,13 +192,13 @@ export default function NewAgencyPage() {
               )}
             </div>
           ) : null}
-          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-4 space-y-2">
-            <p className="text-sm font-medium text-amber-400">Save this API key — it will not be shown again.</p>
+          <div className="space-y-2 rounded-md border border-status-attention/25 bg-status-attention-soft px-4 py-4">
+            <p className="text-sm font-medium text-status-attention">Save this API key — it will not be shown again.</p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 text-xs font-mono text-text break-all">{createdKey}</code>
+              <code className="flex-1 break-all font-mono text-xs text-foreground">{createdKey}</code>
               <button
                 onClick={copyKey}
-                className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-text-muted hover:text-text transition-colors"
+                className={buttonClassName({ variant: "outline", size: "sm" })}
               >
                 {copied ? "Copied!" : "Copy"}
               </button>
@@ -208,7 +206,7 @@ export default function NewAgencyPage() {
           </div>
           <Link
             href="/agencies"
-            className="block w-full text-center bg-primary hover:bg-primary-dark text-white py-2.5 rounded-lg font-medium transition-colors"
+            className={buttonClassName({ className: "w-full" })}
           >
             Go to Agencies
           </Link>
@@ -218,89 +216,75 @@ export default function NewAgencyPage() {
   }
 
   return (
-    <div className="max-w-xl space-y-6">
-      <div>
-        <Link
-          href="/agencies"
-          className="text-sm text-text-muted hover:text-text mb-1 inline-block"
-        >
-          &larr; Back to Agencies
-        </Link>
-        <h1 className="text-2xl font-bold text-text">New Agency Workspace</h1>
-        <p className="text-text-muted text-sm mt-1">
-          Creates a tenant workspace, provisions the admin account, and sends the onboarding email.
-        </p>
-      </div>
+    <div className="admin-page max-w-xl">
+      <AdminPageHeader eyebrow="Platform" title="New agency workspace" description="Provision a tenant workspace and its first admin account." actions={<Link href="/agencies" className={buttonClassName({ variant: "outline", size: "sm" })}>Back to agencies</Link>} />
 
-      <form onSubmit={handleSubmit} className="bg-surface-raised rounded-xl border border-border p-6 space-y-4">
+      <form onSubmit={handleSubmit} className="v-card space-y-4 p-[var(--density-card-padding)]">
         {error && (
-          <div className="bg-danger/10 text-danger text-sm px-4 py-3 rounded-lg border border-danger/20">
+          <div role="alert" className="rounded-md border border-status-danger/25 bg-status-danger-soft px-4 py-3 text-sm text-status-danger">
             {error}
           </div>
         )}
 
         <div>
-          <label className="block text-sm font-medium text-text-muted mb-1">Agency Name</label>
-          <input
+          <label className="mb-1 block text-sm font-medium text-foreground">Agency name</label>
+          <Input
             name="workspaceName"
             value={form.workspaceName}
             onChange={handleChange}
             required
             placeholder="Northstar Agency"
-            className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-text-muted mb-1">Slug</label>
-          <input
+          <label className="mb-1 block text-sm font-medium text-foreground">Slug</label>
+          <Input
             name="slug"
             value={form.slug}
             onChange={handleChange}
             required
             pattern="[a-z0-9-]+"
             placeholder="northstar-agency"
-            className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="font-mono"
           />
-          <p className="text-xs text-text-faint mt-1">Lowercase letters, numbers, and hyphens only.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Lowercase letters, numbers, and hyphens only.</p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-text-muted mb-1">Admin Email</label>
-          <input
+          <label className="mb-1 block text-sm font-medium text-foreground">Admin email</label>
+          <Input
             name="adminEmail"
             type="email"
             value={form.adminEmail}
             onChange={handleChange}
             required
             placeholder="admin@northstar.local"
-            className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-text-muted mb-1">
-            Primary Color <span className="text-text-faint">(optional)</span>
+          <label className="mb-1 block text-sm font-medium text-foreground">
+            Primary color <span className="text-muted-foreground">(optional)</span>
           </label>
-          <input
+          <Input
             name="primaryColor"
             value={form.primaryColor}
             onChange={handleChange}
             placeholder="#3b82f6"
-            className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="font-mono"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-text-muted mb-1">
-            Custom Domain <span className="text-text-faint">(optional)</span>
+          <label className="mb-1 block text-sm font-medium text-foreground">
+            Custom domain <span className="text-muted-foreground">(optional)</span>
           </label>
-          <input
+          <Input
             name="domain"
             value={form.domain}
             onChange={handleChange}
             placeholder="portal.northstar.local"
-            className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
 
@@ -308,7 +292,7 @@ export default function NewAgencyPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-primary hover:bg-primary-dark text-white py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50"
+            className={buttonClassName({ className: "w-full" })}
           >
             {loading ? "Creating..." : "Create Agency"}
           </button>

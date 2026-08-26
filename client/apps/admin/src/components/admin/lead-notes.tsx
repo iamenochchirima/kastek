@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { buttonClassName } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface Note {
   text: string;
@@ -37,34 +39,33 @@ export default function LeadNotes({
   };
 
   return (
-    <div className="bg-surface-raised rounded-xl border border-border p-6">
-      <h2 className="font-semibold mb-4 text-text">Notes</h2>
+    <div className="v-card p-[var(--density-card-padding)]">
+      <h2 className="mb-4 text-base font-semibold tracking-[-0.01em] text-foreground">Notes</h2>
 
       <form onSubmit={handleAddNote} className="flex gap-3 mb-6">
-        <input
+        <Input
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Add a note..."
-          className="flex-1 px-3 py-2 bg-surface border border-border rounded-lg text-sm text-text placeholder:text-text-faint focus:outline-none focus:ring-2 focus:ring-primary/50"
         />
         <button
           type="submit"
           disabled={loading || !text.trim()}
-          className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+          className={buttonClassName({ size: "sm" })}
         >
           {loading ? "..." : "Add"}
         </button>
       </form>
 
       {notes.length === 0 ? (
-        <p className="text-text-faint text-sm">No notes yet</p>
+        <p className="text-sm text-muted-foreground">No notes yet</p>
       ) : (
         <div className="space-y-3">
           {[...notes].reverse().map((note, i) => (
-            <div key={i} className="border-l-2 border-border-light pl-4 py-1">
-              <p className="text-sm text-text">{note.text}</p>
-              <p className="text-xs text-text-faint mt-1">
+            <div key={i} className="border-l-2 border-line-strong py-1 pl-4">
+              <p className="text-sm text-foreground">{note.text}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
                 {note.adminUserName} &middot;{" "}
                 {new Date(note.timestamp).toLocaleString()}
               </p>

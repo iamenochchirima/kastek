@@ -2,6 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import Link from "next/link";
 import OutreachEmailBrowser from "@/components/admin/outreach-email-browser";
+import { AdminPageHeader } from "@/components/admin/page-header";
+import { buttonClassName } from "@/components/ui/button";
 
 type RawLead = {
   business_name?: string;
@@ -172,19 +174,8 @@ export default async function OutreachDraftsPage({
   const displayLeads = selectedKey === "__all__" ? allLeads : selected?.leads || [];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link
-          href="/outreach"
-          className="text-sm text-text-muted hover:text-text mb-1 inline-block"
-        >
-          &larr; Back to Outreach
-        </Link>
-        <h1 className="text-2xl font-bold text-text">Outreach Email Draft Browser</h1>
-        <p className="text-sm text-text-muted mt-1">
-          Review generated JSON email drafts before choosing which ones to send.
-        </p>
-      </div>
+    <div className="admin-page">
+      <AdminPageHeader eyebrow="Outreach" title="Email drafts" description="Review generated email drafts before sending." actions={<Link href="/outreach" className={buttonClassName({ variant: "outline", size: "sm" })}>Back to outreach</Link>} />
 
       <OutreachEmailBrowser
         files={[

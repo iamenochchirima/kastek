@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { AdminPageHeader } from "@/components/admin/page-header";
+import { buttonClassName } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function AdminPasswordSettingsPage() {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -59,24 +62,19 @@ export default function AdminPasswordSettingsPage() {
   }
 
   return (
-    <div className="max-w-2xl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-semibold text-text">Password</h1>
-        <p className="mt-2 text-sm text-text-muted">
-          Update the password for your internal Kasitek Labs account.
-        </p>
-      </div>
+    <div className="admin-page max-w-2xl">
+      <AdminPageHeader title="Password" description="Update the password for your internal Kasitek Labs account." />
 
-      <div className="rounded-xl border border-border bg-surface-raised p-6">
+      <div className="v-card p-[var(--density-card-padding)]">
         <form onSubmit={handleSubmit} className="space-y-5">
           {error ? (
-            <div className="rounded-lg border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
+            <div className="rounded-md border border-status-danger/25 bg-status-danger-soft px-4 py-3 text-sm text-status-danger">
               {error}
             </div>
           ) : null}
 
           {success ? (
-            <div className="rounded-lg border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
+            <div className="rounded-md border border-status-success/25 bg-status-success-soft px-4 py-3 text-sm text-status-success">
               {success}
             </div>
           ) : null}
@@ -84,60 +82,57 @@ export default function AdminPasswordSettingsPage() {
           <div>
             <label
               htmlFor="currentPassword"
-              className="mb-1 block text-sm font-medium text-text-muted"
+              className="mb-1 block text-sm font-medium text-foreground"
             >
               Current password
             </label>
-            <input
+            <Input
               id="currentPassword"
               type="password"
               value={currentPassword}
               onChange={(event) => setCurrentPassword(event.target.value)}
               required
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
 
           <div>
             <label
               htmlFor="nextPassword"
-              className="mb-1 block text-sm font-medium text-text-muted"
+              className="mb-1 block text-sm font-medium text-foreground"
             >
               New password
             </label>
-            <input
+            <Input
               id="nextPassword"
               type="password"
               value={nextPassword}
               onChange={(event) => setNextPassword(event.target.value)}
               minLength={8}
               required
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
 
           <div>
             <label
               htmlFor="confirmPassword"
-              className="mb-1 block text-sm font-medium text-text-muted"
+              className="mb-1 block text-sm font-medium text-foreground"
             >
               Confirm new password
             </label>
-            <input
+            <Input
               id="confirmPassword"
               type="password"
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
               minLength={8}
               required
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-text focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="rounded-lg bg-primary px-5 py-2.5 font-medium text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
+            className={buttonClassName()}
           >
             {loading ? "Updating..." : "Update password"}
           </button>

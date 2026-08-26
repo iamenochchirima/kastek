@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { fetchFromCore } from "@/lib/admin-auth";
 import Pagination from "@/components/admin/pagination";
+import { AdminMetric, AdminPageHeader } from "@/components/admin/page-header";
+import { StatusBadge } from "@/components/admin/status-badge";
+import { buttonClassName } from "@/components/ui/button";
 
 const PAGE_SIZE = 100;
 
@@ -71,33 +74,14 @@ export default async function OutreachDeliveryPage({
   const exportParams = new URLSearchParams(q);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <Link
-            href="/outreach"
-            className="text-sm text-text-muted hover:text-text mb-1 inline-block"
-          >
-            &larr; Back to Outreach
-          </Link>
-          <h1 className="text-2xl font-bold text-text">Delivery Monitoring</h1>
-          <p className="text-sm text-text-muted mt-1">
-            Global send attempt tracking across all outreach campaigns.
-          </p>
-        </div>
-        <a
-          href={`/api/outreach/delivery/export?${exportParams.toString()}`}
-          className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-overlay transition-colors"
-        >
-          Export CSV
-        </a>
-      </div>
+    <div className="admin-page">
+      <AdminPageHeader eyebrow="Outreach" title="Delivery monitoring" description="Global send attempts across outreach campaigns." actions={<><a href={`/api/outreach/delivery/export?${exportParams.toString()}`} className={buttonClassName({ variant: "outline", size: "sm" })}>Export CSV</a><Link href="/outreach" className={buttonClassName({ variant: "ghost", size: "sm" })}>Back to outreach</Link></>} />
 
-      <form className="rounded-xl border border-border bg-surface-raised p-4 grid gap-3 md:grid-cols-7">
+      <form className="v-card grid gap-3 p-4 md:grid-cols-7">
         <select
           name="campaignId"
           defaultValue={filters.campaignId || ""}
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
+          className="h-[var(--density-control-height)] rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <option value="">All campaigns</option>
           {campaigns.map((campaign) => (
@@ -109,7 +93,7 @@ export default async function OutreachDeliveryPage({
         <select
           name="status"
           defaultValue={filters.status || ""}
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
+          className="h-[var(--density-control-height)] rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <option value="">All statuses</option>
           <option value="sent">Sent</option>
@@ -118,7 +102,7 @@ export default async function OutreachDeliveryPage({
         <select
           name="mode"
           defaultValue={filters.mode || ""}
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
+          className="h-[var(--density-control-height)] rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <option value="">All types</option>
           <option value="live">Live Sends</option>
@@ -128,94 +112,82 @@ export default async function OutreachDeliveryPage({
           name="recipient"
           defaultValue={filters.recipient || ""}
           placeholder="Recipient contains..."
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
+          className="h-[var(--density-control-height)] rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
         />
         <input
           name="domain"
           defaultValue={filters.domain || ""}
           placeholder="Domain (e.g. gmail.com)"
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
+          className="h-[var(--density-control-height)] rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
         />
         <input
           type="date"
           name="dateFrom"
           defaultValue={filters.dateFrom || ""}
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
+          className="h-[var(--density-control-height)] rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
         />
         <input
           type="date"
           name="dateTo"
           defaultValue={filters.dateTo || ""}
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
+          className="h-[var(--density-control-height)] rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
         />
 
         <div className="md:col-span-6 flex items-center gap-2">
           <button
             type="submit"
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark transition-colors"
+            className={buttonClassName({ size: "sm" })}
           >
             Apply filters
           </button>
           <Link
             href="/outreach/delivery"
-            className="rounded-lg border border-border px-4 py-2 text-sm text-text hover:bg-surface-overlay transition-colors"
+            className={buttonClassName({ variant: "outline", size: "sm" })}
           >
             Clear
           </Link>
         </div>
       </form>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="rounded-xl border border-border bg-surface-raised p-4">
-          <p className="text-sm text-text-muted">Filtered Attempts</p>
-          <p className="text-3xl font-bold text-text mt-1">{totalItems}</p>
-        </div>
-        <div className="rounded-xl border border-green-500/20 bg-green-500/10 p-4">
-          <p className="text-sm text-green-400">Sent</p>
-          <p className="text-3xl font-bold text-green-400 mt-1">{sentCount}</p>
-        </div>
-        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4">
-          <p className="text-sm text-red-400">Failed</p>
-          <p className="text-3xl font-bold text-red-400 mt-1">{failedCount}</p>
-        </div>
-        <div className="rounded-xl border border-border bg-surface-raised p-4">
-          <p className="text-sm text-text-muted">Failure Rate</p>
-          <p className="text-3xl font-bold text-text mt-1">{failRate}%</p>
-        </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <AdminMetric label="Filtered attempts" value={totalItems} />
+        <AdminMetric label="Sent" value={sentCount} tone="success" />
+        <AdminMetric label="Failed" value={failedCount} tone="danger" />
+        <AdminMetric label="Failure rate" value={`${failRate}%`} tone={failRate ? "attention" : "default"} />
       </div>
 
-      <section className="rounded-xl border border-border bg-surface-raised p-4">
+      <section className="v-card p-4">
         {logs.length === 0 ? (
-          <p className="text-sm text-text-faint">No delivery attempts found for current filters.</p>
+          <p className="text-sm text-muted-foreground">No delivery attempts found for current filters.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1100px]">
               <thead>
-                <tr className="border-b border-border">
-                  <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-text-faint">When</th>
-                  <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-text-faint">Campaign</th>
-                  <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-text-faint">Type</th>
-                  <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-text-faint">Business</th>
-                  <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-text-faint">Recipient</th>
-                  <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-text-faint">Status</th>
-                  <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-text-faint">Subject</th>
-                  <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-text-faint">Error</th>
+                <tr className="admin-table-head border-b border-line">
+                  <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-muted-foreground">When</th>
+                  <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-muted-foreground">Campaign</th>
+                  <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-muted-foreground">Type</th>
+                  <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-muted-foreground">Business</th>
+                  <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-muted-foreground">Recipient</th>
+                  <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-muted-foreground">Status</th>
+                  <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-muted-foreground">Subject</th>
+                  <th className="px-2 py-2 text-left text-[11px] uppercase tracking-wide text-muted-foreground">Error</th>
                 </tr>
               </thead>
               <tbody>
                 {logs.map((log) => (
                   <tr key={log.id} className="border-b border-border/70">
-                    <td className="px-2 py-2 text-xs text-text-muted whitespace-nowrap">
+                    <td className="px-2 py-2 text-xs text-muted-foreground whitespace-nowrap">
                       {new Date(log.attemptedAt).toLocaleString()}
                     </td>
-                    <td className="px-2 py-2 text-xs text-text">
+                    <td className="px-2 py-2 text-xs text-foreground">
                       {log.campaign_name || "--"}
                     </td>
-                    <td className="px-2 py-2 text-xs text-text-muted">
+                    <td className="px-2 py-2 text-xs text-muted-foreground">
                       {log.campaign_category === "system-test" ? "Test" : "Live"}
                     </td>
-                    <td className="px-2 py-2 text-xs text-text-muted">
-                      <p className="text-text">{log.lead_business_name || "--"}</p>
+                    <td className="px-2 py-2 text-xs text-muted-foreground">
+                      <p className="text-foreground">{log.lead_business_name || "--"}</p>
                       {log.lead_website ? (
                         <a
                           href={log.lead_website}
@@ -227,22 +199,14 @@ export default async function OutreachDeliveryPage({
                         </a>
                       ) : null}
                     </td>
-                    <td className="px-2 py-2 text-xs text-text break-all">{log.recipient}</td>
+                    <td className="px-2 py-2 text-xs text-foreground break-all">{log.recipient}</td>
                     <td className="px-2 py-2 text-xs">
-                      <span
-                        className={`inline-flex rounded-full px-2 py-0.5 font-medium ${
-                          log.status === "sent"
-                            ? "bg-green-500/15 text-green-400"
-                            : "bg-red-500/15 text-red-400"
-                        }`}
-                      >
-                        {log.status}
-                      </span>
+                      <StatusBadge value={log.status} />
                     </td>
-                    <td className="px-2 py-2 text-xs text-text max-w-[320px] truncate" title={log.subject}>
+                    <td className="px-2 py-2 text-xs text-foreground max-w-[320px] truncate" title={log.subject}>
                       {log.subject}
                     </td>
-                    <td className="px-2 py-2 text-xs text-red-300 max-w-[320px] truncate" title={log.errorMessage || ""}>
+                    <td className="px-2 py-2 text-xs text-status-danger max-w-[320px] truncate" title={log.errorMessage || ""}>
                       {log.errorMessage || "--"}
                     </td>
                   </tr>

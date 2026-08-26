@@ -2,11 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { buttonClassName } from "@/components/ui/button";
 
 export default function LeadDeleteButton({ leadId }: { leadId: string }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleDelete() {
     setDeleting(true);
@@ -17,25 +19,25 @@ export default function LeadDeleteButton({ leadId }: { leadId: string }) {
     } else {
       setDeleting(false);
       setConfirming(false);
-      alert("Failed to delete lead");
+      setError("Failed to delete lead.");
     }
   }
 
   if (confirming) {
     return (
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-text-muted">Delete this lead?</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Delete this lead?</span>
         <button
           onClick={handleDelete}
           disabled={deleting}
-          className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+          className={buttonClassName({ variant: "destructive", size: "sm" })}
         >
           {deleting ? "Deleting..." : "Confirm"}
         </button>
         <button
           onClick={() => setConfirming(false)}
           disabled={deleting}
-          className="border border-border hover:bg-surface-overlay px-3 py-1.5 rounded-lg text-sm text-text transition-colors"
+          className={buttonClassName({ variant: "ghost", size: "sm" })}
         >
           Cancel
         </button>
@@ -43,12 +45,5 @@ export default function LeadDeleteButton({ leadId }: { leadId: string }) {
     );
   }
 
-  return (
-    <button
-      onClick={() => setConfirming(true)}
-      className="border border-red-500/30 text-red-400 hover:bg-red-500/10 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-    >
-      Delete
-    </button>
-  );
+  return <div className="flex flex-col items-end gap-2">{error ? <span role="alert" className="text-xs text-status-danger">{error}</span> : null}<button onClick={() => { setError(null); setConfirming(true); }} className={buttonClassName({ variant: "destructive", size: "sm" })}>Delete</button></div>;
 }

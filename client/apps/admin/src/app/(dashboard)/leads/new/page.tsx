@@ -1,9 +1,10 @@
 import LeadForm from "@/components/admin/lead-form";
+import { AdminPageHeader } from "@/components/admin/page-header";
 
 export default function NewLeadPage() {
   return (
-    <div className="max-w-3xl space-y-6">
-      <h1 className="text-2xl font-bold text-text">Add New Lead</h1>
+    <div className="admin-page max-w-3xl">
+      <AdminPageHeader title="Add lead" description="Capture a new lead and its service interest." />
       <LeadForm />
     </div>
   );

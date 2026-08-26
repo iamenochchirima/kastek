@@ -24,7 +24,7 @@ export default async function QuotationsPage() {
     <div className="admin-page">
       <AdminPageHeader title="Quotations" description="Create, update, download, and track standalone quotation records." actions={<Link href="/quotations/new" className={buttonClassName()}><Plus className="size-4" />New quotation</Link>} />
 
-      <div className="admin-table-wrap">
+      <div className="v-card overflow-hidden">
         <div className="grid min-w-[780px] grid-cols-[1.8fr_1.2fr_1.6fr_0.9fr_1fr] gap-4 border-b border-border px-5 py-3 admin-table-head">
           <div>Business</div>
           <div>Contact</div>
@@ -34,7 +34,7 @@ export default async function QuotationsPage() {
         </div>
 
         {quotations.length === 0 ? (
-          <div className="px-6 py-10 text-center text-sm text-text-faint">
+            <div className="px-6 py-10 text-center text-sm text-muted-foreground">
             No quotations created yet.
           </div>
         ) : (
@@ -42,23 +42,23 @@ export default async function QuotationsPage() {
             {quotations.map((quotation) => (
               <div
                 key={quotation.id}
-                className="grid grid-cols-[1.8fr_1.2fr_1.6fr_0.9fr_1fr] items-center gap-4 px-5 py-4 hover:bg-secondary"
+                className="grid grid-cols-[1.8fr_1.2fr_1.6fr_0.9fr_1fr] items-center gap-4 px-5 py-4 transition-colors hover:bg-accent"
               >
                 <div>
-                  <p className="font-medium text-sm text-text">{quotation.businessName}</p>
-                  <p className="text-xs text-text-faint">
+                  <p className="text-sm font-medium text-foreground">{quotation.businessName}</p>
+                  <p className="text-xs text-muted-foreground">
                     Created {new Date(quotation.createdAt).toLocaleDateString()}
                   </p>
                 </div>
 
                 <div>
-                  <p className="text-sm text-text">{quotation.contactPerson}</p>
-                  <p className="text-xs text-text-faint">{quotation.contactEmail}</p>
+                  <p className="text-sm text-foreground">{quotation.contactPerson}</p>
+                  <p className="text-xs text-muted-foreground">{quotation.contactEmail}</p>
                 </div>
 
                 <div>
-                  <p className="text-sm text-text">{quotation.title}</p>
-                  <p className="text-xs text-text-faint">
+                  <p className="text-sm text-foreground">{quotation.title}</p>
+                  <p className="text-xs text-muted-foreground">
                     {getServiceLabel(quotation.serviceType)}
                     {Array.isArray(quotation.pricingItems) && quotation.pricingItems.length > 0
                       ? ` · ${String(quotation.pricingItems[0]?.amount || "")}`

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { buttonClassName } from "@/components/ui/button";
+import ConfirmModal from "@/components/admin/confirm-modal";
 
 type Command = { id: string; status: string; requiredApprovals: number; approvers: string[]; result?: { status?: string } | null; error?: { message?: string } | null };
 
@@ -119,9 +120,10 @@ function OperatorRecoveryCommandButton({ commandType, targetId, label, completed
   const [command, setCommand] = useState<Command | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   async function start() {
-    if (confirmMessage && typeof window !== "undefined" && !window.confirm(confirmMessage)) return;
+    setConfirming(false);
     setBusy(true);
     setMessage(null);
     try {
@@ -159,9 +161,10 @@ function OperatorRecoveryCommandButton({ commandType, targetId, label, completed
   }
 
   return <div className="flex flex-col items-end gap-1">
-    {!command || command.status === "failed" ? <button type="button" disabled={busy} onClick={() => void start()} className={buttonClassName({ variant: "secondary", size: "sm" })}>{busy ? "Submitting…" : label}</button> : null}
+    {!command || command.status === "failed" ? <button type="button" disabled={busy} onClick={() => confirmMessage ? setConfirming(true) : void start()} className={buttonClassName({ variant: "secondary", size: "sm" })}>{busy ? "Submitting…" : label}</button> : null}
     {command?.status === "awaiting_approval" ? <button type="button" disabled={busy} onClick={() => void approve()} className={buttonClassName({ variant: "secondary", size: "sm" })}>{busy ? "Approving…" : "Approve as second operator"}</button> : null}
     {message ? <span className="max-w-56 text-right text-[11px] text-muted-foreground">{message}</span> : null}
+    {confirmMessage ? <ConfirmModal open={confirming} title="Confirm operator action?" message={confirmMessage} confirmLabel="Continue" loading={busy} onConfirm={() => void start()} onCancel={() => setConfirming(false)} /> : null}
   </div>;
 }
 

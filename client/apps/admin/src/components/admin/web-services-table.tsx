@@ -6,13 +6,13 @@ import ConfirmModal from "./confirm-modal";
 import EditFieldModal from "./edit-field-modal";
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-white/5 text-text-faint",
-  called: "bg-blue-500/15 text-blue-400",
-  interested: "bg-green-500/15 text-green-400",
-  not_interested: "bg-yellow-500/15 text-yellow-400",
-  no_answer: "bg-red-500/15 text-red-400",
-  callback: "bg-purple-500/15 text-purple-400",
-  dead: "bg-zinc-500/15 text-zinc-400",
+  pending: "bg-secondary text-muted-foreground",
+  called: "bg-status-info-soft text-status-info",
+  interested: "bg-status-success-soft text-status-success",
+  not_interested: "bg-status-attention-soft text-status-attention",
+  no_answer: "bg-status-danger-soft text-status-danger",
+  callback: "bg-status-info-soft text-status-info",
+  dead: "bg-secondary text-muted-foreground",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -88,11 +88,11 @@ export default function WebServicesTable({ leads }: { leads: Lead[] }) {
   return (
     <>
       {/* Toolbar */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex flex-wrap items-center gap-3">
         {!selectMode ? (
           <button
             onClick={() => setSelectMode(true)}
-            className="text-xs font-medium text-text-muted hover:text-text px-3 py-1.5 rounded-lg border border-border hover:bg-surface-overlay transition-colors"
+            className="rounded-md border border-line px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             Select
           </button>
@@ -100,13 +100,13 @@ export default function WebServicesTable({ leads }: { leads: Lead[] }) {
           <>
             <button
               onClick={() => { setSelectMode(false); setSelected(new Set()); }}
-              className="text-xs font-medium text-text-muted hover:text-text px-3 py-1.5 rounded-lg border border-border hover:bg-surface-overlay transition-colors"
+              className="rounded-md border border-line px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               Cancel
             </button>
             {selected.size > 0 && (
               <>
-                <span className="text-xs text-text-muted">{selected.size} selected:</span>
+                <span className="text-xs text-muted-foreground">{selected.size} selected:</span>
                 {CALL_STATUSES.map((s) => (
                   <button
                     key={s}
@@ -120,7 +120,7 @@ export default function WebServicesTable({ leads }: { leads: Lead[] }) {
                 <button
                   onClick={() => setShowDeleteModal(true)}
                   disabled={updating}
-                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50"
+                  className="rounded-full bg-status-danger px-3 py-1 text-xs font-medium text-primary-foreground transition-colors hover:opacity-90 disabled:opacity-50"
                 >
                   Delete
                 </button>
@@ -130,15 +130,15 @@ export default function WebServicesTable({ leads }: { leads: Lead[] }) {
         )}
       </div>
 
-      <div className="bg-surface-raised rounded-xl border border-border overflow-hidden">
+      <div className="v-card overflow-hidden">
         {leads.length === 0 ? (
           <div className="p-12 text-center">
-            <p className="text-text-faint">No leads found</p>
+            <p className="text-sm text-muted-foreground">No leads found</p>
           </div>
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="border-b border-border bg-surface-overlay">
+              <tr className="admin-table-head border-b border-line">
                 {selectMode && (
                   <th className="px-4 py-3 w-10">
                     <input
@@ -149,18 +149,18 @@ export default function WebServicesTable({ leads }: { leads: Lead[] }) {
                     />
                   </th>
                 )}
-                <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">Business</th>
-                <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">Phone</th>
-                <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">Email</th>
-                <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">Status</th>
-                <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">Notes</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Business</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Phone</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Email</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Notes</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {leads.map((lead) => (
                 <tr
                   key={lead.id}
-                  className={`hover:bg-surface-overlay transition-colors ${selectMode && selected.has(lead.id) ? "bg-primary/5" : ""}`}
+                    className={`transition-colors hover:bg-accent ${selectMode && selected.has(lead.id) ? "bg-primary/5" : ""}`}
                 >
                   {selectMode && (
                     <td className="px-4 py-3">
@@ -170,7 +170,8 @@ export default function WebServicesTable({ leads }: { leads: Lead[] }) {
                         onChange={() => {
                           setSelected((prev) => {
                             const next = new Set(prev);
-                            next.has(lead.id) ? next.delete(lead.id) : next.add(lead.id);
+                            if (next.has(lead.id)) next.delete(lead.id);
+                            else next.add(lead.id);
                             return next;
                           });
                         }}
@@ -186,13 +187,13 @@ export default function WebServicesTable({ leads }: { leads: Lead[] }) {
                         rel="noopener noreferrer"
                         className="hover:text-primary group"
                       >
-                        <p className="font-medium text-sm text-text group-hover:text-primary transition-colors">{lead.businessName}</p>
-                        {lead.address && <p className="text-text-faint text-xs">{lead.address}</p>}
+                        <p className="text-sm font-medium text-foreground transition-colors group-hover:text-primary">{lead.businessName}</p>
+                        {lead.address && <p className="text-xs text-muted-foreground">{lead.address}</p>}
                       </a>
                     ) : (
                       <div>
-                        <p className="font-medium text-sm text-text">{lead.businessName}</p>
-                        {lead.address && <p className="text-text-faint text-xs">{lead.address}</p>}
+                        <p className="text-sm font-medium text-foreground">{lead.businessName}</p>
+                        {lead.address && <p className="text-xs text-muted-foreground">{lead.address}</p>}
                       </div>
                     )}
                   </td>
@@ -280,7 +281,7 @@ function StatusDropdown({
       <button
         ref={btnRef}
         onClick={handleOpen}
-        className={`text-xs font-medium px-2.5 py-1 rounded-full cursor-pointer ${STATUS_COLORS[value] || ""}`}
+        className={`cursor-pointer rounded-full border border-transparent px-2.5 py-1 text-xs font-medium ${STATUS_COLORS[value] || "bg-secondary text-muted-foreground"}`}
       >
         {STATUS_LABELS[value] || value}
       </button>
@@ -289,7 +290,7 @@ function StatusDropdown({
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div
-            className="fixed z-50 bg-surface-raised border border-border rounded-lg shadow-lg py-1 min-w-36"
+            className="fixed z-[var(--z-popover)] min-w-36 rounded-md border border-line bg-popover py-1 shadow-pop"
             style={{
               left: pos.left,
               ...(pos.dropUp
@@ -301,11 +302,11 @@ function StatusDropdown({
               <button
                 key={s}
                 onClick={() => { onChange(s); setOpen(false); }}
-                className={`w-full text-left px-3 py-1.5 text-xs font-medium hover:bg-surface-overlay transition-colors flex items-center gap-2 ${
-                  s === value ? "text-primary" : "text-text-muted"
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium transition-colors hover:bg-accent ${
+                  s === value ? "text-primary" : "text-muted-foreground"
                 }`}
               >
-                <span className={`w-2 h-2 rounded-full ${STATUS_COLORS[s]?.split(" ")[0] || "bg-white/10"}`} />
+                <span className={`size-2 rounded-full ${STATUS_COLORS[s]?.split(" ")[0] || "bg-secondary"}`} />
                 {STATUS_LABELS[s]}
               </button>
             ))}
@@ -353,7 +354,7 @@ function EditableField({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-xs text-text-muted hover:text-text truncate block max-w-40 text-left"
+        className="block max-w-40 truncate text-left text-xs text-muted-foreground hover:text-foreground"
       >
         {value || placeholder}
       </button>

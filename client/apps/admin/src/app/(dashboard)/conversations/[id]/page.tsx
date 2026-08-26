@@ -1,11 +1,7 @@
 import { fetchFromCore } from "@/lib/admin-auth";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-
-const CHANNEL_BADGES: Record<string, string> = {
-  whatsapp: "bg-green-500/15 text-green-400",
-  website: "bg-blue-500/15 text-blue-400",
-};
+import { StatusBadge } from "@/components/admin/status-badge";
 
 interface Message {
   id: string;
@@ -39,29 +35,23 @@ export default async function ConversationDetailPage({
     await res.json();
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
+    <div className="admin-page mx-auto max-w-3xl">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <Link
             href="/conversations"
-            className="text-sm text-text-muted hover:text-text mb-1 inline-block"
+            className="mb-1 inline-block text-sm text-muted-foreground hover:text-foreground"
           >
             &larr; Back to Conversations
           </Link>
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-text">
+            <h1 className="text-xl font-semibold tracking-[-0.02em] text-foreground">
               {conversation.customerName ?? conversation.customerIdentifier}
             </h1>
-            <span
-              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase ${
-                CHANNEL_BADGES[conversation.channel] ?? ""
-              }`}
-            >
-              {conversation.channel}
-            </span>
+            <StatusBadge value={conversation.channel} className="text-[10px] uppercase" />
           </div>
-          <p className="text-text-faint text-xs mt-0.5">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {conversation.customerIdentifier}
             {conversation.customerName ? ` · ${conversation.customerIdentifier}` : ""}
             {" · "}
@@ -71,9 +61,9 @@ export default async function ConversationDetailPage({
       </div>
 
       {/* Messages */}
-      <div className="bg-surface-raised rounded-xl border border-border p-4 space-y-3 min-h-[400px] max-h-[600px] overflow-y-auto">
+      <div className="v-card min-h-[400px] max-h-[600px] space-y-3 overflow-y-auto p-[var(--density-card-padding)]">
         {messages.length === 0 ? (
-          <p className="text-text-faint text-sm text-center py-8">No messages</p>
+          <p className="py-8 text-center text-sm text-muted-foreground">No messages</p>
         ) : (
           messages.map((msg) => (
             <div
@@ -83,14 +73,14 @@ export default async function ConversationDetailPage({
               <div
                 className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
                   msg.role === "user"
-                    ? "bg-surface-overlay text-text rounded-bl-sm"
-                    : "bg-primary/20 text-text rounded-br-sm"
+                    ? "rounded-bl-sm bg-secondary text-foreground"
+                    : "rounded-br-sm bg-primary/15 text-foreground"
                 }`}
               >
                 <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                 <p
                   className={`text-[10px] mt-1 ${
-                    msg.role === "user" ? "text-text-faint" : "text-primary/60"
+                    msg.role === "user" ? "text-muted-foreground" : "text-primary"
                   }`}
                 >
                   {msg.role === "assistant" ? "Bot · " : ""}

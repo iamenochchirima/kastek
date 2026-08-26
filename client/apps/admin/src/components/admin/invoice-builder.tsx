@@ -16,6 +16,7 @@ import {
   type InvoiceDraft,
   type InvoiceSection,
 } from "@/lib/invoice";
+import EditFieldModal from "@/components/admin/edit-field-modal";
 
 type Props = {
   mode: "create" | "edit";
@@ -241,6 +242,8 @@ type RichTextEditorProps = {
 };
 
 function RichTextEditor({ value, onChange }: RichTextEditorProps) {
+  const [linkPromptOpen, setLinkPromptOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("https://");
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -267,8 +270,13 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
   function setLink() {
     if (!editor) return;
     const previousUrl = editor.getAttributes("link").href as string | undefined;
-    const url = window.prompt("Enter link URL", previousUrl || "https://");
-    if (url === null) return;
+    setLinkUrl(previousUrl || "https://");
+    setLinkPromptOpen(true);
+  }
+
+  function applyLink(url: string) {
+    if (!editor) return;
+    setLinkPromptOpen(false);
 
     if (url.trim() === "") {
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
@@ -284,17 +292,17 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
   if (!editor) {
     return (
       <div className="rounded-lg border border-border bg-surface-2 overflow-hidden">
-        <div className="px-3 py-2 text-xs text-text-faint border-b border-border bg-surface">
+        <div className="px-3 py-2 text-xs text-ink-3 border-b border-border bg-card">
           Loading editor...
         </div>
-        <div className="min-h-[220px] px-3 py-2 text-sm text-text-faint">Preparing rich text editor...</div>
+        <div className="min-h-[220px] px-3 py-2 text-sm text-ink-3">Preparing rich text editor...</div>
       </div>
     );
   }
 
   return (
     <div className="rounded-lg border border-border bg-surface-2 overflow-hidden">
-      <div className="flex flex-wrap gap-2 border-b border-border px-3 py-2 bg-surface">
+      <div className="flex flex-wrap gap-2 border-b border-border px-3 py-2 bg-card">
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleBold().run()}
@@ -302,7 +310,7 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           className={`${toolbarButtonClass} ${
             editor.isActive("bold")
               ? "border-primary/60 bg-primary/15 text-primary"
-              : "border-border text-text hover:bg-surface-overlay"
+              : "border-border text-foreground hover:bg-secondary"
           }`}
         >
           Bold
@@ -314,7 +322,7 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           className={`${toolbarButtonClass} ${
             editor.isActive("italic")
               ? "border-primary/60 bg-primary/15 text-primary"
-              : "border-border text-text hover:bg-surface-overlay"
+              : "border-border text-foreground hover:bg-secondary"
           }`}
         >
           Italic
@@ -325,7 +333,7 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           className={`${toolbarButtonClass} ${
             editor.isActive("heading", { level: 2 })
               ? "border-primary/60 bg-primary/15 text-primary"
-              : "border-border text-text hover:bg-surface-overlay"
+              : "border-border text-foreground hover:bg-secondary"
           }`}
         >
           Heading
@@ -336,7 +344,7 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           className={`${toolbarButtonClass} ${
             editor.isActive("bulletList")
               ? "border-primary/60 bg-primary/15 text-primary"
-              : "border-border text-text hover:bg-surface-overlay"
+              : "border-border text-foreground hover:bg-secondary"
           }`}
         >
           Bullet List
@@ -347,7 +355,7 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           className={`${toolbarButtonClass} ${
             editor.isActive("orderedList")
               ? "border-primary/60 bg-primary/15 text-primary"
-              : "border-border text-text hover:bg-surface-overlay"
+              : "border-border text-foreground hover:bg-secondary"
           }`}
         >
           Numbered List
@@ -358,7 +366,7 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           className={`${toolbarButtonClass} ${
             editor.isActive("link")
               ? "border-primary/60 bg-primary/15 text-primary"
-              : "border-border text-text hover:bg-surface-overlay"
+              : "border-border text-foreground hover:bg-secondary"
           }`}
         >
           Link
@@ -367,7 +375,7 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           type="button"
           onClick={() => editor.chain().focus().undo().run()}
           disabled={!editor.can().chain().focus().undo().run()}
-          className={`${toolbarButtonClass} border-border text-text hover:bg-surface-overlay`}
+          className={`${toolbarButtonClass} border-border text-foreground hover:bg-secondary`}
         >
           Undo
         </button>
@@ -375,15 +383,16 @@ function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           type="button"
           onClick={() => editor.chain().focus().redo().run()}
           disabled={!editor.can().chain().focus().redo().run()}
-          className={`${toolbarButtonClass} border-border text-text hover:bg-surface-overlay`}
+          className={`${toolbarButtonClass} border-border text-foreground hover:bg-secondary`}
         >
           Redo
         </button>
       </div>
       <EditorContent
         editor={editor}
-        className="min-h-[220px] max-h-[55vh] overflow-y-auto px-3 py-2 text-sm text-text [&_.ProseMirror]:min-h-[200px] [&_.ProseMirror]:outline-none [&_.ProseMirror_h2]:text-base [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_p]:my-1 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_a]:text-primary [&_.ProseMirror_a]:underline"
+        className="min-h-[220px] max-h-[55vh] overflow-y-auto px-3 py-2 text-sm text-foreground [&_.ProseMirror]:min-h-[200px] [&_.ProseMirror]:outline-none [&_.ProseMirror_h2]:text-base [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_p]:my-1 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_a]:text-primary [&_.ProseMirror_a]:underline"
       />
+      <EditFieldModal open={linkPromptOpen} title="Add link" value={linkUrl} placeholder="https://" onSave={applyLink} onCancel={() => setLinkPromptOpen(false)} />
     </div>
   );
 }
@@ -918,9 +927,9 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
 
   function renderLivePreviewPanel() {
     return (
-      <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+      <div className="v-card p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-text">Live PDF Preview</h3>
+          <h3 className="font-semibold text-foreground">Live PDF Preview</h3>
           <div className="flex items-center gap-2">
             <div className="inline-flex rounded-lg border border-border overflow-hidden">
               <button
@@ -929,7 +938,7 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
                 className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                   previewMode === "manual"
                     ? "bg-primary/15 text-primary"
-                    : "bg-surface text-text-faint hover:text-text hover:bg-surface-overlay"
+                    : "bg-card text-ink-3 hover:text-foreground hover:bg-secondary"
                 }`}
               >
                 Manual
@@ -940,7 +949,7 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
                 className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                   previewMode === "auto"
                     ? "bg-primary/15 text-primary"
-                    : "bg-surface text-text-faint hover:text-text hover:bg-surface-overlay"
+                    : "bg-card text-ink-3 hover:text-foreground hover:bg-secondary"
                 }`}
               >
                 Auto
@@ -950,7 +959,7 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
               type="button"
               onClick={() => void requestPdfPreview(true)}
               disabled={pdfPreviewLoading}
-              className="border border-border hover:bg-surface-overlay px-3 py-1.5 rounded-lg text-xs font-medium text-text transition-colors disabled:opacity-50"
+              className="border border-border hover:bg-secondary px-3 py-1.5 rounded-lg text-xs font-medium text-foreground transition-colors disabled:opacity-50"
             >
               {pdfPreviewLoading ? "Refreshing..." : "Refresh PDF"}
             </button>
@@ -958,7 +967,7 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
         </div>
 
         {pdfPreviewError ? (
-          <div className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+          <div className="rounded-xl border border-status-danger/25 bg-status-danger-soft px-4 py-3 text-sm text-status-danger">
             {pdfPreviewError}
           </div>
         ) : null}
@@ -972,7 +981,7 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
                 className="absolute inset-0 w-full h-full bg-white"
               />
             ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-sm text-text-faint">
+              <div className="absolute inset-0 flex items-center justify-center text-sm text-ink-3">
                 Generating PDF preview...
               </div>
             )}
@@ -1001,17 +1010,17 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
   return (
     <div className="space-y-6">
       {error && (
-        <div className="bg-danger/10 text-danger text-sm px-4 py-3 rounded-lg border border-danger/20">
+        <div className="bg-status-danger-soft text-status-danger text-sm px-4 py-3 rounded-lg border border-status-danger/25">
           {error}
         </div>
       )}
 
       <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_520px] gap-6 items-start">
-      <div className="bg-surface-raised rounded-xl border border-border p-6 space-y-6">
+      <div className="v-card p-6 space-y-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="font-semibold text-text">Invoice Builder</h2>
-            <p className="text-sm text-text-muted">
+            <h2 className="font-semibold text-foreground">Invoice Builder</h2>
+            <p className="text-sm text-muted-foreground">
               Build a professional invoice with client details, pricing items, payment terms, and PDF output.
             </p>
           </div>
@@ -1021,7 +1030,7 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
                 href={pdfUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="border border-border hover:bg-surface-overlay px-4 py-2 rounded-lg text-sm font-medium text-text transition-colors whitespace-nowrap"
+                className="border border-border hover:bg-secondary px-4 py-2 rounded-lg text-sm font-medium text-foreground transition-colors whitespace-nowrap"
               >
                 Download PDF
               </a>
@@ -1030,7 +1039,7 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
               type="button"
               onClick={() => saveInvoice()}
               disabled={loading}
-              className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
+              className="bg-primary hover:bg-brand-strong text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
             >
               {loading ? "Saving..." : mode === "create" ? "Create Invoice" : "Save Changes"}
             </button>
@@ -1039,11 +1048,11 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
 
         <div className="grid md:grid-cols-[1.2fr_auto] gap-4 items-end border border-border rounded-xl p-4">
           <div>
-            <label className="block text-sm font-medium text-text-muted mb-1">Invoice Template</label>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">Invoice Template</label>
             <select
               value={form.serviceType}
               onChange={(e) => setForm({ ...form, serviceType: e.target.value })}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
             >
               {INVOICE_SERVICE_TYPES.map((service) => (
                 <option key={service.value} value={service.value}>
@@ -1051,27 +1060,27 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
                 </option>
               ))}
             </select>
-            <p className="text-xs text-text-faint mt-1">Use a template to prefill invoice defaults and line items.</p>
+            <p className="text-xs text-ink-3 mt-1">Use a template to prefill invoice defaults and line items.</p>
           </div>
           <button
             type="button"
             onClick={() => applyTemplate(form.serviceType)}
-            className="border border-border hover:bg-surface-overlay px-4 py-2 rounded-lg text-sm font-medium text-text transition-colors"
+            className="border border-border hover:bg-secondary px-4 py-2 rounded-lg text-sm font-medium text-foreground transition-colors"
           >
             Apply Template
           </button>
         </div>
 
-        <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+        <div className="v-card p-5 space-y-4">
           <div>
-            <h3 className="font-semibold text-text">Billing Workflow</h3>
-            <p className="text-sm text-text-muted mt-1">
+            <h3 className="font-semibold text-foreground">Billing Workflow</h3>
+            <p className="text-sm text-muted-foreground mt-1">
               Decide whether this record is a once-off invoice or a recurring monthly client you need to operationally track.
             </p>
           </div>
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-1">Billing Mode</label>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Billing Mode</label>
               <select
                 value={form.billingMode}
                 onChange={(e) => {
@@ -1082,7 +1091,7 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
                     recurringActive: billingMode === "monthly" ? true : false,
                   }));
                 }}
-                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               >
                 {INVOICE_BILLING_MODES.map((modeOption) => (
                   <option key={modeOption.value} value={modeOption.value}>
@@ -1098,14 +1107,14 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
                 checked={form.billingMode === "monthly" ? form.recurringActive : false}
                 disabled={form.billingMode !== "monthly"}
                 onChange={(e) => setForm((prev) => ({ ...prev, recurringActive: e.target.checked }))}
-                className="h-4 w-4 rounded border-border bg-surface"
+                className="h-4 w-4 rounded border-border bg-card"
               />
-              <label htmlFor="recurring-active" className="text-sm text-text">
+              <label htmlFor="recurring-active" className="text-sm text-foreground">
                 Track this as an active monthly client
               </label>
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-1">Monthly Send Day</label>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Monthly Send Day</label>
               <input
                 type="number"
                 min={1}
@@ -1113,12 +1122,12 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
                 value={form.billingAnchorDay}
                 disabled={form.billingMode !== "monthly"}
                 onChange={(e) => setForm((prev) => ({ ...prev, billingAnchorDay: e.target.value }))}
-                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
               />
-              <p className="text-xs text-text-faint mt-1">Use the day of the month when the invoice should go out.</p>
+              <p className="text-xs text-ink-3 mt-1">Use the day of the month when the invoice should go out.</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-1">Reminder Delay After Due Date</label>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Reminder Delay After Due Date</label>
               <input
                 type="number"
                 min={0}
@@ -1126,9 +1135,9 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
                 value={form.reminderDaysAfterDue}
                 disabled={form.billingMode !== "monthly"}
                 onChange={(e) => setForm((prev) => ({ ...prev, reminderDaysAfterDue: e.target.value }))}
-                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
               />
-              <p className="text-xs text-text-faint mt-1">When overdue, surface a reminder action this many days after the due date.</p>
+              <p className="text-xs text-ink-3 mt-1">When overdue, surface a reminder action this many days after the due date.</p>
             </div>
           </div>
         </div>
@@ -1136,8 +1145,8 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
         {mode === "edit" && (
           <div className="flex items-center justify-between gap-4 border border-border rounded-xl px-4 py-3">
             <div>
-              <p className="text-sm font-medium text-text">Invoice Status</p>
-              <p className="text-xs text-text-faint">
+              <p className="text-sm font-medium text-foreground">Invoice Status</p>
+              <p className="text-xs text-ink-3">
                 Track whether the invoice is draft, sent, paid, overdue, or cancelled.
               </p>
             </div>
@@ -1153,8 +1162,8 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
                   disabled={loading}
                   className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                     status.value === form.status
-                      ? "bg-primary/15 text-primary ring-2 ring-offset-1 ring-offset-surface-raised ring-primary/50"
-                      : "bg-surface-overlay text-text-faint hover:text-text-muted hover:bg-border"
+                      ? "bg-primary/15 text-primary ring-2 ring-offset-1 ring-offset-card ring-primary/50"
+                      : "bg-secondary text-ink-3 hover:text-muted-foreground hover:bg-border"
                   }`}
                 >
                   {status.label}
@@ -1164,57 +1173,57 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
           </div>
         )}
 
-        <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
-          <h3 className="font-semibold text-text">Billed To</h3>
+        <div className="v-card p-5 space-y-4">
+          <h3 className="font-semibold text-foreground">Billed To</h3>
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-1">Client Business Name</label>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Client Business Name</label>
               <input
                 type="text"
                 value={form.preparedFor}
                 onChange={(e) => setForm({ ...form, preparedFor: e.target.value })}
-                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-1">Date</label>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Date</label>
               <input
                 type="text"
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
                 placeholder="YYYY-MM-DD"
-                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
-              <p className="text-xs text-text-faint mt-1">Use format `YYYY-MM-DD`.</p>
+              <p className="text-xs text-ink-3 mt-1">Use format `YYYY-MM-DD`.</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-1">Client Contact Email</label>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Client Contact Email</label>
               <input
                 type="email"
                 value={form.contactEmail}
                 onChange={(e) => setForm({ ...form, contactEmail: e.target.value })}
-                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-1">Invoice Title</label>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Invoice Title</label>
               <input
                 type="text"
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
-                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
           </div>
         </div>
 
-        <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
+        <div className="v-card p-5 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-text">Pricing Items</h3>
+            <h3 className="font-semibold text-foreground">Pricing Items</h3>
             <button
               type="button"
               onClick={addLineItem}
-              className="border border-border hover:bg-surface-overlay px-3 py-2 rounded-lg text-sm font-medium text-text transition-colors"
+              className="border border-border hover:bg-secondary px-3 py-2 rounded-lg text-sm font-medium text-foreground transition-colors"
             >
               + Add Line Item
             </button>
@@ -1255,7 +1264,7 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
                       setDraggingPriceItemId(null);
                       setDropTargetPriceItemId(null);
                     }}
-                    className="h-10 w-10 rounded-lg border border-border text-text-faint hover:text-text hover:bg-surface-overlay transition-colors cursor-grab active:cursor-grabbing"
+                    className="h-10 w-10 rounded-lg border border-border text-ink-3 hover:text-foreground hover:bg-secondary transition-colors cursor-grab active:cursor-grabbing"
                     title="Drag to reorder pricing line"
                     aria-label="Drag to reorder pricing line"
                   >
@@ -1266,26 +1275,26 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
                     value={item.description}
                     onChange={(e) => updateLineItem(item.id, "description", e.target.value)}
                     placeholder="Description"
-                    className="px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                   <input
                     type="text"
                     value={item.amount}
                     onChange={(e) => updateLineItem(item.id, "amount", e.target.value)}
                     placeholder="Amount"
-                    className="px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                   <input
                     type="text"
                     value={item.billing}
                     onChange={(e) => updateLineItem(item.id, "billing", e.target.value)}
                     placeholder="Billing"
-                    className="px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                   <button
                     type="button"
                     onClick={() => removeLineItem(item.id)}
-                    className="border border-red-500/30 text-red-400 hover:bg-red-500/10 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                    className="border border-status-danger/30 text-status-danger hover:bg-status-danger-soft px-3 py-2 rounded-lg text-sm font-medium transition-colors"
                   >
                     Remove
                   </button>
@@ -1296,23 +1305,23 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
 
           {invoiceTotal !== null ? (
             <div className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-3">
-              <p className="text-xs text-text-faint">Auto-calculated total</p>
-              <p className="text-sm font-semibold text-text mt-1">
+              <p className="text-xs text-ink-3">Auto-calculated total</p>
+              <p className="text-sm font-semibold text-foreground mt-1">
                 Total Due: {formatZar(invoiceTotal)}
               </p>
             </div>
           ) : null}
         </div>
 
-        <div className="bg-surface border border-border rounded-xl p-5 space-y-3">
-          <h3 className="font-semibold text-text">Terms and Notes</h3>
+        <div className="v-card p-5 space-y-3">
+          <h3 className="font-semibold text-foreground">Terms and Notes</h3>
           <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
-            <ul className="list-disc pl-5 text-sm text-text space-y-1">
+            <ul className="list-disc pl-5 text-sm text-foreground space-y-1">
               {fromTextAreaValue(textAreas.termsAndNotes).slice(0, 8).map((line, index) => (
                 <li key={`terms-line-${index}`}>{line}</li>
               ))}
               {fromTextAreaValue(textAreas.termsAndNotes).length > 8 ? (
-                <li className="text-text-faint">...</li>
+                <li className="text-ink-3">...</li>
               ) : null}
             </ul>
           </div>
@@ -1324,24 +1333,24 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
                 linesValueToHtml(textAreas.termsAndNotes)
               )
             }
-            className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-overlay transition-colors"
+            className="border border-border px-3 py-2 rounded-lg text-sm font-medium text-foreground hover:bg-secondary transition-colors"
           >
             Edit Content
           </button>
-          <p className="text-xs text-text-faint">This section is fixed below pricing.</p>
+          <p className="text-xs text-ink-3">This section is fixed below pricing.</p>
         </div>
 
-        <div className="bg-surface border border-border rounded-xl p-5 space-y-3">
-          <h3 className="font-semibold text-text">Payment Terms</h3>
+        <div className="v-card p-5 space-y-3">
+          <h3 className="font-semibold text-foreground">Payment Terms</h3>
           <div>
-            <label className="block text-sm font-medium text-text-muted mb-1">Due In (Days)</label>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">Due In (Days)</label>
             <input
               type="text"
               value={form.validityDays}
               onChange={(e) => setForm({ ...form, validityDays: e.target.value })}
-              className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full px-3 py-2 bg-surface-2 border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
-            <p className="text-xs text-text-faint mt-1">
+            <p className="text-xs text-ink-3 mt-1">
               Used as the invoice payment term for this record.
             </p>
           </div>
@@ -1353,7 +1362,7 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
               type="button"
               onClick={deleteInvoice}
               disabled={deleting}
-              className="border border-red-500/30 text-red-400 hover:bg-red-500/10 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              className="border border-status-danger/30 text-status-danger hover:bg-status-danger-soft px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
             >
               {deleting ? "Deleting..." : "Delete Invoice"}
             </button>
@@ -1365,17 +1374,17 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
       <div className="xl:hidden">{renderLivePreviewPanel()}</div>
 
       {editorTarget ? (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-4xl bg-surface-raised border border-border rounded-xl shadow-xl">
+        <div className="fixed inset-0 z-[var(--z-overlay)] flex items-center justify-center bg-overlay/70 p-4" role="presentation">
+          <div className="v-card w-full max-w-4xl shadow-pop" role="dialog" aria-modal="true" aria-labelledby="invoice-editor-title">
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-text">Edit {editorTarget.title}</h3>
-                <p className="text-xs text-text-faint">Rich text editor</p>
+                <h3 id="invoice-editor-title" className="font-semibold text-foreground">Edit {editorTarget.title}</h3>
+                <p className="text-xs text-ink-3">Rich text editor</p>
               </div>
               <button
                 type="button"
                 onClick={closeEditor}
-                className="h-9 w-9 rounded-lg border border-border text-text-faint hover:text-text hover:bg-surface-overlay transition-colors"
+                className="h-9 w-9 rounded-lg border border-border text-ink-3 hover:text-foreground hover:bg-secondary transition-colors"
                 aria-label="Close editor"
               >
                 ✕
@@ -1387,14 +1396,14 @@ export default function InvoiceBuilder({ mode, initialDraft }: Props) {
                 <button
                   type="button"
                   onClick={closeEditor}
-                  className="border border-border hover:bg-surface-overlay px-4 py-2 rounded-lg text-sm font-medium text-text transition-colors"
+                  className="border border-border hover:bg-secondary px-4 py-2 rounded-lg text-sm font-medium text-foreground transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={saveEditorContent}
-                  className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  className="bg-primary hover:bg-brand-strong text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                 >
                   Save Content
                 </button>

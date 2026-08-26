@@ -5,6 +5,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { buttonClassName } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 function LoginContent() {
   const router = useRouter();
@@ -52,28 +53,28 @@ function LoginContent() {
 
   return (
     <div>
-      <div className="rounded-lg border border-border bg-card p-6 shadow-sm sm:p-8">
-        <div className="text-center mb-8">
-          <div aria-hidden="true" className="mx-auto mb-4 flex size-12 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground shadow-sm">K</div>
+      <div className="rounded-[calc(var(--radius)-1px)] border border-line bg-card p-6 shadow-pop sm:p-8">
+        <div className="mb-8 text-center">
+          <div aria-hidden="true" className="mx-auto mb-4 grid size-12 place-items-center rounded-md bg-primary text-lg font-bold text-primary-foreground shadow-glow">K</div>
           <h1 className="text-2xl font-semibold tracking-[-0.025em] text-foreground">Kasitek Labs</h1>
           <p className="mt-1 text-sm text-muted-foreground">Sign in to the internal operations workspace.</p>
         </div>
 
         {passwordReset === "success" ? (
-          <div className="mb-4 rounded-lg border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
+          <div className="mb-4 rounded-md border border-status-success/25 bg-status-success-soft px-4 py-3 text-sm text-status-success">
             Your password has been reset. Sign in with the new password.
           </div>
         ) : null}
 
         {passwordChanged === "success" ? (
-          <div className="mb-4 rounded-lg border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
+          <div className="mb-4 rounded-md border border-status-success/25 bg-status-success-soft px-4 py-3 text-sm text-status-success">
             Your password has been updated.
           </div>
         ) : null}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="bg-danger/10 text-danger text-sm px-4 py-3 rounded-lg border border-danger/20">
+            <div className="rounded-md border border-status-danger/25 bg-status-danger-soft px-4 py-3 text-sm text-status-danger">
               {error}
             </div>
           )}
@@ -82,13 +83,12 @@ function LoginContent() {
               <label htmlFor="email" className="mb-1 block text-sm font-medium text-foreground">
               Email
             </label>
-            <input
+            <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
 
@@ -105,18 +105,18 @@ function LoginContent() {
               </Link>
             </div>
             <div className="relative">
-              <input
+              <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="h-10 w-full rounded-md border border-input bg-background px-3 pr-14 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                className="pr-14"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((current) => !current)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-text-muted hover:text-text transition-colors"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -138,5 +138,5 @@ function LoginContent() {
 }
 
 export default function LoginPage() {
-  return <Suspense fallback={<div className="text-sm text-text-muted">Loading sign in...</div>}><LoginContent /></Suspense>;
+  return <Suspense fallback={<div className="text-sm text-muted-foreground">Loading sign in...</div>}><LoginContent /></Suspense>;
 }

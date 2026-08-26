@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { Input } from "@/components/ui/input";
 
 const STATUSES = ["new", "contacted", "interested", "quoted", "won", "lost"];
 const SOURCES = [
@@ -34,21 +35,20 @@ export default function LeadFilters() {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <form onSubmit={handleSearch} className="flex-1 min-w-[200px]">
-        <input
+    <div className="flex flex-wrap items-center gap-3 rounded-[calc(var(--radius)-1px)] border border-line bg-card p-3 shadow-card">
+      <form onSubmit={handleSearch} className="min-w-[200px] flex-1">
+        <Input
           name="search"
           type="text"
           placeholder="Search leads..."
           defaultValue={searchParams.get("search") || ""}
-          className="w-full px-3 py-2 bg-surface-raised border border-border rounded-lg text-sm text-text placeholder:text-text-faint focus:outline-none focus:ring-2 focus:ring-primary/50"
         />
       </form>
 
       <select
         value={searchParams.get("status") || ""}
         onChange={(e) => updateFilter("status", e.target.value)}
-        className="px-3 py-2 bg-surface-raised border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+        className="h-[var(--density-control-height)] min-w-36 rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         <option value="">All Statuses</option>
         {STATUSES.map((s) => (
@@ -61,7 +61,7 @@ export default function LeadFilters() {
       <select
         value={searchParams.get("source") || ""}
         onChange={(e) => updateFilter("source", e.target.value)}
-        className="px-3 py-2 bg-surface-raised border border-border rounded-lg text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+        className="h-[var(--density-control-height)] min-w-36 rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         <option value="">All Sources</option>
         {SOURCES.map((s) => (
@@ -74,7 +74,7 @@ export default function LeadFilters() {
       {(searchParams.get("status") || searchParams.get("source") || searchParams.get("search")) && (
         <button
           onClick={() => router.push("/leads")}
-          className="text-sm text-text-muted hover:text-text"
+          className="rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
         >
           Clear filters
         </button>

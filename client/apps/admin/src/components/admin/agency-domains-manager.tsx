@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { StatusBadge } from "@/components/admin/status-badge";
+import { buttonClassName } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type DomainRecord = {
   id: string;
@@ -12,17 +15,6 @@ type DomainRecord = {
   created_at: string;
   verification_message: string;
 };
-
-function statusTone(status: string) {
-  switch (status) {
-    case "verified":
-      return "bg-green-500/15 text-green-400";
-    case "misconfigured":
-      return "bg-amber-500/15 text-amber-400";
-    default:
-      return "bg-white/5 text-text-faint";
-  }
-}
 
 export default function AgencyDomainsManager({
   workspaceId,
@@ -126,19 +118,19 @@ export default function AgencyDomainsManager({
     <section className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-text">Domains</h2>
-          <p className="text-sm text-text-muted mt-1">
+          <h2 className="text-base font-semibold tracking-[-0.01em] text-foreground">Domains</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             Point tenant domains to the shared portal deployment, then verify routing here.
           </p>
           {hostedDomain ? (
-            <p className="text-xs text-text-faint mt-2">
+            <p className="mt-2 text-xs text-muted-foreground">
               Default hosted domain:
-              <span className="ml-1 font-mono text-text">{hostedDomain}</span>
+              <span className="ml-1 font-mono text-foreground">{hostedDomain}</span>
             </p>
           ) : null}
         </div>
-        <div className="rounded-lg border border-border bg-surface px-4 py-3 text-xs text-text-muted max-w-sm">
-          <p className="font-medium text-text">Local fallback</p>
+        <div className="max-w-sm rounded-md border border-line bg-background px-4 py-3 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">Local fallback</p>
           <p className="mt-1">
             Without a mapped custom domain, run the tenant backend with{" "}
             <span className="font-mono">TENANT_DEFAULT_WORKSPACE_SLUG={workspaceSlug}</span>.
@@ -147,25 +139,25 @@ export default function AgencyDomainsManager({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.25fr_0.9fr]">
-        <div className="bg-surface-raised rounded-xl border border-border overflow-hidden">
+        <div className="v-card overflow-hidden">
           {domains.length === 0 ? (
-            <p className="px-6 py-8 text-sm text-text-faint text-center">
+            <p className="px-6 py-8 text-center text-sm text-muted-foreground">
               No custom domains yet.
             </p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border">
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Domain</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Status</th>
-                  <th className="px-4 py-3 text-left font-medium text-text-muted">Verified</th>
+                <tr className="admin-table-head border-b border-line">
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Domain</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Verified</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {domains.map((entry) => (
                   <tr key={entry.id}>
-                    <td className="px-4 py-3 text-text">
+                    <td className="px-4 py-3 text-foreground">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-xs">{entry.domain}</span>
                         {entry.is_primary ? (
@@ -176,13 +168,9 @@ export default function AgencyDomainsManager({
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${statusTone(entry.dns_status)}`}
-                      >
-                        {entry.dns_status}
-                      </span>
+                      <StatusBadge value={entry.dns_status} />
                     </td>
-                    <td className="px-4 py-3 text-xs text-text-faint">
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
                       <div className="space-y-1">
                         <p>
                           {entry.verified_at
@@ -197,7 +185,7 @@ export default function AgencyDomainsManager({
                         <button
                           onClick={() => handleVerify(entry.id)}
                           disabled={verifyingId === entry.id}
-                          className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-text-muted transition-colors hover:text-text disabled:opacity-50"
+                          className={buttonClassName({ variant: "outline", size: "sm" })}
                         >
                           {verifyingId === entry.id ? "Checking…" : "Verify"}
                         </button>
@@ -205,7 +193,7 @@ export default function AgencyDomainsManager({
                           <button
                             onClick={() => handleMakePrimary(entry.id)}
                             disabled={primaryId === entry.id}
-                            className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-text-muted transition-colors hover:text-text disabled:opacity-50"
+                            className={buttonClassName({ variant: "outline", size: "sm" })}
                           >
                             {primaryId === entry.id ? "Updating…" : "Make Primary"}
                           </button>
@@ -213,7 +201,7 @@ export default function AgencyDomainsManager({
                         <button
                           onClick={() => handleRemove(entry.id)}
                           disabled={removingId === entry.id}
-                          className="rounded-lg px-2.5 py-1 text-xs font-medium text-text-faint transition-colors hover:text-danger disabled:opacity-50"
+                          className="rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-status-danger-soft hover:text-status-danger disabled:opacity-50"
                         >
                           {removingId === entry.id ? "Removing…" : "Remove"}
                         </button>
@@ -227,35 +215,34 @@ export default function AgencyDomainsManager({
         </div>
 
         <div className="space-y-4">
-          <div className="bg-surface-raised rounded-xl border border-border p-5 space-y-4">
+          <div className="v-card space-y-4 p-[var(--density-card-padding)]">
             <div>
-              <h3 className="text-sm font-semibold text-text">Add Domain</h3>
-              <p className="text-xs text-text-faint mt-1">
+              <h3 className="text-sm font-semibold text-foreground">Add domain</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
                 Store the tenant domain first, then verify DNS after the record is pointed at your portal.
               </p>
             </div>
 
             {error ? (
-              <div className="rounded-lg border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
+              <div role="alert" className="rounded-md border border-status-danger/25 bg-status-danger-soft px-4 py-3 text-sm text-status-danger">
                 {error}
               </div>
             ) : null}
 
             <form onSubmit={handleAdd} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-text-muted mb-1">
-                  Custom Domain
+                <label className="mb-1 block text-sm font-medium text-foreground">
+                  Custom domain
                 </label>
-                <input
+                <Input
                   value={domain}
                   onChange={(e) => setDomain(e.target.value)}
                   required
                   placeholder="portal.clienta.com"
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
               </div>
 
-              <label className="flex items-center gap-2 text-sm text-text-muted">
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
                 <input
                   type="checkbox"
                   checked={makePrimary}
@@ -267,26 +254,26 @@ export default function AgencyDomainsManager({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
+                className={buttonClassName({ className: "w-full" })}
               >
                 {loading ? "Adding…" : "Add Domain"}
               </button>
             </form>
           </div>
 
-          <div className="bg-surface-raised rounded-xl border border-border p-5 text-sm text-text-muted space-y-2">
-            <h3 className="text-sm font-semibold text-text">DNS Instructions</h3>
+          <div className="v-card space-y-2 p-[var(--density-card-padding)] text-sm text-muted-foreground">
+            <h3 className="text-sm font-semibold text-foreground">DNS instructions</h3>
             <p>
               Point the tenant domain to your shared portal deployment using a CNAME to your public portal host.
             </p>
             <p>
               Example:
-              <span className="ml-1 font-mono text-text">
+              <span className="ml-1 font-mono text-foreground">
                 {primaryDomain?.domain ?? "portal.clienta.com"} CNAME{" "}
                 {expectedTargetHost ?? "portal.kasitek.com"}
               </span>
             </p>
-            <p className="text-xs text-text-faint">
+            <p className="text-xs text-muted-foreground">
               After DNS propagates, use Verify to confirm that the tenant domain resolves to{" "}
               <span className="font-mono">{expectedTargetHost ?? "your shared portal host"}</span>.
             </p>

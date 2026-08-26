@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { StatusBadge } from "@/components/admin/status-badge";
+import { buttonClassName } from "@/components/ui/button";
 
 export default function AgencyStatusToggle({
   workspaceId,
@@ -29,23 +31,11 @@ export default function AgencyStatusToggle({
 
   return (
     <div className="flex items-center gap-3">
-      <span
-        className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${
-          isActive
-            ? "bg-green-500/15 text-green-400"
-            : "bg-red-500/15 text-red-400"
-        }`}
-      >
-        {currentStatus}
-      </span>
+      <StatusBadge value={currentStatus} />
       <button
         onClick={toggle}
         disabled={loading}
-        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors disabled:opacity-50 ${
-          isActive
-            ? "border-red-500/30 text-red-400 hover:bg-red-500/10"
-            : "border-green-500/30 text-green-400 hover:bg-green-500/10"
-        }`}
+        className={buttonClassName({ variant: isActive ? "destructive" : "primary", size: "sm" })}
       >
         {loading ? "…" : isActive ? "Suspend" : "Activate"}
       </button>

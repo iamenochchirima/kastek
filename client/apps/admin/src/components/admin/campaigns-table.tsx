@@ -3,13 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-
-const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-white/5 text-text-faint",
-  active: "bg-green-500/15 text-green-400",
-  paused: "bg-yellow-500/15 text-yellow-400",
-  completed: "bg-blue-500/15 text-blue-400",
-};
+import ConfirmModal from "@/components/admin/confirm-modal";
+import { StatusBadge } from "@/components/admin/status-badge";
 
 type Campaign = {
   id: string;
@@ -25,23 +20,28 @@ type Campaign = {
 export default function CampaignsTable({ campaigns }: { campaigns: Campaign[] }) {
   const router = useRouter();
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Campaign | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this campaign and all its leads?")) return;
+    setError(null);
+    setPendingDelete(null);
     setDeleting(id);
-    await fetch(`/api/outreach/${id}`, { method: "DELETE" });
+    const response = await fetch(`/api/outreach/${id}`, { method: "DELETE" });
+    if (!response.ok) setError("Unable to delete campaign.");
     setDeleting(null);
     router.refresh();
   }
 
   return (
-    <div className="bg-surface-raised rounded-xl border border-border overflow-hidden">
+    <div className="v-card overflow-hidden">
+      {error ? <p role="alert" className="border-b border-status-danger/25 bg-status-danger-soft px-4 py-3 text-sm text-status-danger">{error}</p> : null}
       {campaigns.length === 0 ? (
         <div className="p-12 text-center">
-          <p className="text-text-faint">No campaigns yet</p>
+          <p className="text-sm text-muted-foreground">No campaigns yet</p>
           <Link
             href="/outreach/import"
-            className="text-primary text-sm font-medium hover:underline mt-2 inline-block"
+            className="mt-2 inline-block text-sm font-medium text-primary hover:underline"
           >
             Import your first batch
           </Link>
@@ -49,26 +49,26 @@ export default function CampaignsTable({ campaigns }: { campaigns: Campaign[] })
       ) : (
         <table className="w-full">
           <thead>
-            <tr className="border-b border-border bg-surface-overlay">
-              <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+            <tr className="admin-table-head border-b border-line">
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Campaign
               </th>
-              <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Status
               </th>
-              <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Leads
               </th>
-              <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Sent
               </th>
-              <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Replies
               </th>
-              <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Rate
               </th>
-              <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Date
               </th>
               <th className="px-4 py-3"></th>
@@ -78,32 +78,28 @@ export default function CampaignsTable({ campaigns }: { campaigns: Campaign[] })
             {campaigns.map((c) => {
               const rate = c.emailsSent > 0 ? Math.round((c.replies / c.emailsSent) * 100) : 0;
               return (
-                <tr key={c.id} className="hover:bg-surface-overlay transition-colors">
+                <tr key={c.id} className="transition-colors hover:bg-accent">
                   <td className="px-4 py-3">
-                    <Link href={`/outreach/${c.id}`} className="hover:text-primary">
-                      <p className="font-medium text-sm text-text">{c.name}</p>
-                      <p className="text-text-faint text-xs">{c.category}</p>
+                    <Link href={`/outreach/${c.id}`} className="group">
+                      <p className="text-sm font-medium text-foreground group-hover:text-primary">{c.name}</p>
+                      <p className="text-xs text-muted-foreground">{c.category}</p>
                     </Link>
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${STATUS_COLORS[c.status] || ""}`}
-                    >
-                      {c.status}
-                    </span>
+                    <StatusBadge value={c.status} />
                   </td>
-                  <td className="px-4 py-3 text-sm text-text">{c.totalLeads}</td>
-                  <td className="px-4 py-3 text-sm text-text">{c.emailsSent}</td>
-                  <td className="px-4 py-3 text-sm text-text">{c.replies}</td>
-                  <td className="px-4 py-3 text-sm text-text">{rate}%</td>
-                  <td className="px-4 py-3 text-xs text-text-muted">
+                  <td className="px-4 py-3 text-sm text-foreground">{c.totalLeads}</td>
+                  <td className="px-4 py-3 text-sm text-foreground">{c.emailsSent}</td>
+                  <td className="px-4 py-3 text-sm text-foreground">{c.replies}</td>
+                  <td className="px-4 py-3 text-sm text-foreground">{rate}%</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
                     {new Date(c.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3">
                     <button
-                      onClick={() => handleDelete(c.id)}
+                      onClick={() => setPendingDelete(c)}
                       disabled={deleting === c.id}
-                      className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+                      className="rounded-md px-2 py-1 text-xs font-medium text-status-danger transition-colors hover:bg-status-danger-soft disabled:opacity-50"
                     >
                       {deleting === c.id ? "..." : "Delete"}
                     </button>
@@ -114,6 +110,15 @@ export default function CampaignsTable({ campaigns }: { campaigns: Campaign[] })
           </tbody>
         </table>
       )}
+      <ConfirmModal
+        open={pendingDelete !== null}
+        title="Delete campaign?"
+        message="This also removes all leads in the campaign. This action cannot be undone."
+        confirmLabel="Delete"
+        loading={pendingDelete !== null && deleting === pendingDelete.id}
+        onConfirm={() => pendingDelete && void handleDelete(pendingDelete.id)}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }
