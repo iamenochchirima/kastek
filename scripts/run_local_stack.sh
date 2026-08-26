@@ -22,6 +22,10 @@ CORE_ENV_SETUP="if [[ -f '$ROOT_DIR/server/kasitek-core/.env' ]]; then set -a; s
 ANALYTICS_LOCAL_REPORTING_ENV_FILE="/tmp/kasitek-analytics-reporting-${UID}.env"
 ANALYTICS_ENV_SETUP="if [[ -f '$ROOT_DIR/server/kasitek-analytics/.env' ]]; then set -a; source '$ROOT_DIR/server/kasitek-analytics/.env'; set +a; fi; if [[ -f '$ANALYTICS_LOCAL_REPORTING_ENV_FILE' ]]; then set -a; source '$ANALYTICS_LOCAL_REPORTING_ENV_FILE'; set +a; fi"
 CORE_ANALYTICS_ENV_SETUP="$CORE_ENV_SETUP; $ANALYTICS_ENV_SETUP"
+# Tenants has its own local environment file. Keep the explicit tenant
+# variable names used by the Rust config, while accepting the existing local
+# DATABASE_URL key as a compatibility fallback for this launcher only.
+TENANTS_ENV_SETUP="if [[ -f '$ROOT_DIR/server/kasitek-tenants/.env' ]]; then set -a; source '$ROOT_DIR/server/kasitek-tenants/.env'; set +a; fi; if [[ -z \"\${KASITEK_TENANTS_DATABASE_URL:-}\" && -z \"\${TENANT_DATABASE_URL:-}\" && -n \"\${DATABASE_URL:-}\" ]]; then export TENANT_DATABASE_URL=\"\${DATABASE_URL}\"; fi; $ANALYTICS_ENV_SETUP"
 
 # The local Agent Platform -> Core boundary uses the development bearer-token
 # compatibility path. Keep one value on both processes so read and draft tools
@@ -117,7 +121,7 @@ declare -A services
 
 # Define all available services
 services["core"]="$ROOT_DIR/server/kasitek-core|$CORE_ANALYTICS_ENV_SETUP; LOG_COLOR=always KASITEK_AGENTS_INTERNAL_TOKEN='$LOCAL_CORE_AGENT_TOKEN' cargo run"
-services["tenants"]="$ROOT_DIR/server/kasitek-tenants|$ANALYTICS_ENV_SETUP; LOG_COLOR=always cargo run"
+services["tenants"]="$ROOT_DIR/server/kasitek-tenants|$TENANTS_ENV_SETUP; LOG_COLOR=always cargo run"
 services["analytics-storage"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ./scripts/local-storage.sh"
 services["analytics-migrate"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ./scripts/local-migrate.sh"
 services["analytics-api"]="$ROOT_DIR/server/kasitek-analytics|$ANALYTICS_ENV_SETUP; ANALYTICS_DATABASE_URL=\"\${ANALYTICS_DATABASE_URL:-postgres://analytics:analytics_dev_password@127.0.0.1:5432/kasitek_analytics}\" ANALYTICS_REDIS_URL=\"\${ANALYTICS_REDIS_URL:-redis://127.0.0.1:6379}\" ANALYTICS_API_PORT=\"\${ANALYTICS_API_PORT:-4300}\" LOG_COLOR=always cargo run --bin analytics-api"
