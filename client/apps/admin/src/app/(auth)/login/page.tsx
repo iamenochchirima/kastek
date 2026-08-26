@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
@@ -55,7 +56,7 @@ function LoginContent() {
     <div>
       <div className="rounded-[calc(var(--radius)-1px)] border border-line bg-card p-6 shadow-pop sm:p-8">
         <div className="mb-8 text-center">
-          <div aria-hidden="true" className="mx-auto mb-4 grid size-12 place-items-center rounded-md bg-primary text-lg font-bold text-primary-foreground shadow-glow">K</div>
+          <Image src="/logo.png" alt="" aria-hidden="true" width={48} height={48} priority className="mx-auto mb-4 size-12 object-contain drop-shadow-[0_0_16px_var(--brand-soft)]" />
           <h1 className="text-2xl font-semibold tracking-[-0.025em] text-foreground">Kasitek Labs</h1>
           <p className="mt-1 text-sm text-muted-foreground">Sign in to the internal operations workspace.</p>
         </div>
