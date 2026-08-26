@@ -2,7 +2,7 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use bytes::Bytes;
 use hmac::{Hmac, Mac};
 use rand::RngCore;
-use reqwest::{Client, Method, Response, StatusCode};
+use reqwest::{header::HeaderMap, Client, Method, Response, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::Sha256;
@@ -23,6 +23,12 @@ fn new_correlation_id() -> String {
         bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
         bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
     )
+}
+
+fn trace_headers() -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    observability::inject_trace_context(&mut headers);
+    headers
 }
 
 #[derive(Debug, Serialize)]
@@ -1820,7 +1826,7 @@ impl AgentPlatformClient {
             url.push_str(&format!("?after={after}"));
         }
         let correlation_id = new_correlation_id();
-        let response = self
+        let request = self
             .client
             .get(url)
             .header("accept", "text/event-stream")
@@ -1834,9 +1840,11 @@ impl AgentPlatformClient {
             .header("x-organization-id", organization_id)
             .header("x-actor-id", actor_id)
             .header("x-correlation-id", &correlation_id)
-            .send()
-            .await
-            .map_err(|error| self.map_request_error(error))?;
+            .headers(trace_headers());
+        let response =
+            observability::provider_result_span("kasitek-agents", "http.request", request.send())
+                .await
+                .map_err(|error| self.map_request_error(error))?;
         if response.status().is_success() {
             return Ok(response);
         }
@@ -2148,11 +2156,13 @@ impl AgentPlatformClient {
         if let Some(provider_secret) = provider_secret.filter(|value| !value.trim().is_empty()) {
             request = request.header("x-telegram-bot-api-secret-token", provider_secret);
         }
-        let response = request
-            .json(&body)
-            .send()
-            .await
-            .map_err(|error| self.map_request_error(error))?;
+        let response = observability::provider_result_span(
+            "kasitek-agents",
+            "http.request",
+            request.headers(trace_headers()).json(&body).send(),
+        )
+        .await
+        .map_err(|error| self.map_request_error(error))?;
         if !response.status().is_success() {
             return Err(self.map_status(response).await);
         }
@@ -2475,7 +2485,7 @@ impl AgentPlatformClient {
             url.push_str(&format!("?after={after}"));
         }
         let correlation_id = new_correlation_id();
-        let response = self
+        let request = self
             .client
             .get(url)
             // Run-event SSE is intentionally long-lived; the browser closes the
@@ -2493,9 +2503,11 @@ impl AgentPlatformClient {
             .header("x-organization-id", organization_id)
             .header("x-actor-id", actor_id)
             .header("x-correlation-id", &correlation_id)
-            .send()
-            .await
-            .map_err(|error| self.map_request_error(error))?;
+            .headers(trace_headers());
+        let response =
+            observability::provider_result_span("kasitek-agents", "http.request", request.send())
+                .await
+                .map_err(|error| self.map_request_error(error))?;
         if response.status().is_success() {
             return Ok(response);
         }
@@ -2524,10 +2536,13 @@ impl AgentPlatformClient {
         if let Some(body) = body {
             request = request.json(&body);
         }
-        let response = request
-            .send()
-            .await
-            .map_err(|error| self.map_request_error(error))?;
+        let response = observability::provider_result_span(
+            "kasitek-agents",
+            "http.request",
+            request.headers(trace_headers()).send(),
+        )
+        .await
+        .map_err(|error| self.map_request_error(error))?;
         if !response.status().is_success() {
             return Err(self.map_status(response).await);
         }
@@ -2552,7 +2567,7 @@ impl AgentPlatformClient {
     ) -> Result<Value, AppError> {
         let correlation_id = new_correlation_id();
         let token = self.token(organization_id, actor_id, scopes, &correlation_id)?;
-        let response = self
+        let request = self
             .client
             .request(method, format!("{}{}", self.base_url, path))
             .timeout(self.timeout)
@@ -2561,10 +2576,12 @@ impl AgentPlatformClient {
             .header("x-actor-id", actor_id)
             .header("x-correlation-id", &correlation_id)
             .header("content-type", content_type)
-            .body(body)
-            .send()
-            .await
-            .map_err(|error| self.map_request_error(error))?;
+            .headers(trace_headers())
+            .body(body);
+        let response =
+            observability::provider_result_span("kasitek-agents", "http.request", request.send())
+                .await
+                .map_err(|error| self.map_request_error(error))?;
         if !response.status().is_success() {
             return Err(self.map_status(response).await);
         }
@@ -2630,10 +2647,13 @@ impl AgentPlatformClient {
         if let Some(body) = body {
             request = request.json(&body);
         }
-        let response = request
-            .send()
-            .await
-            .map_err(|error| self.map_request_error(error))?;
+        let response = observability::provider_result_span(
+            "kasitek-agents",
+            "http.request",
+            request.headers(trace_headers()).send(),
+        )
+        .await
+        .map_err(|error| self.map_request_error(error))?;
         if !response.status().is_success() {
             return Err(self.map_status(response).await);
         }
@@ -2672,10 +2692,13 @@ impl AgentPlatformClient {
         if let Some(body) = body {
             request = request.json(&body);
         }
-        let response = request
-            .send()
-            .await
-            .map_err(|error| self.map_request_error(error))?;
+        let response = observability::provider_result_span(
+            "kasitek-agents",
+            "http.request",
+            request.headers(trace_headers()).send(),
+        )
+        .await
+        .map_err(|error| self.map_request_error(error))?;
         if !response.status().is_success() {
             return Err(self.map_status(response).await);
         }

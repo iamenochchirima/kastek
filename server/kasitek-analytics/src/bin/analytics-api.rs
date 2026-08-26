@@ -22,7 +22,8 @@ fn load_dotenv() {
 async fn main() -> Result<(), AnalyticsError> {
     load_dotenv();
     let config = AnalyticsConfig::from_env()?;
-    observability::init(&config.log_filter);
+    observability::init_with_service(&config.log_filter, "kasitek-analytics-api");
+    let _telemetry_guard = observability::ShutdownGuard;
     let registry = kasitek_analytics::registry::load_registry()?;
     let registry_access = web::Data::new(registry.clone());
     log::info!(
@@ -66,7 +67,10 @@ async fn main() -> Result<(), AnalyticsError> {
             .app_data(
                 web::JsonConfig::default().limit(kasitek_analytics::ingestion::MAX_BATCH_BYTES),
             )
+            .wrap(observability::correlation_id())
             .wrap(observability::http_logger())
+            .wrap(observability::http_metrics())
+            .wrap(observability::http_tracing_logger())
             .configure(|cfg| app::configure(cfg, ProcessKind::Api))
     })
     .bind(bind_address)?

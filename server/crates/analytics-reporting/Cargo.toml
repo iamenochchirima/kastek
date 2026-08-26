@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 chrono.workspace = true
 jwt-simple = "0.11"
+observability.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true

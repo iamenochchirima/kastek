@@ -10,7 +10,8 @@ fn load_dotenv() {
 async fn main() -> Result<(), AnalyticsError> {
     load_dotenv();
     let config = AnalyticsConfig::from_env()?;
-    observability::init(&config.log_filter);
+    observability::init_with_service(&config.log_filter, "kasitek-analytics-migrate");
+    let _telemetry_guard = observability::ShutdownGuard;
     let registry = kasitek_analytics::registry::load_registry()?;
     log::info!(
         "service=kasitek-analytics process=analytics-migrate status=registry_loaded registry_sha256={} metrics_registry_version={}",
@@ -23,7 +24,12 @@ async fn main() -> Result<(), AnalyticsError> {
         "service=kasitek-analytics process=analytics-migrate status=starting environment={}",
         config.environment
     );
-    migrations::run(&pool).await?;
+    observability::result_span(
+        "migration",
+        "analytics.sqlx_migrate",
+        migrations::run(&pool),
+    )
+    .await?;
     log::info!("service=kasitek-analytics process=analytics-migrate status=completed");
     pool.close().await;
     Ok(())

@@ -20,12 +20,36 @@ fn background_workers_enabled_for_api() -> bool {
 fn spawn_background_workers(pool: sqlx::PgPool, config: AppConfig) {
     log::info!("starting background workers in api server process");
 
-    tokio::spawn(workers::whatsapp_inbox::run(pool.clone()));
-    tokio::spawn(workers::social_publishing::run(pool.clone()));
-    tokio::spawn(workers::social_insights::run(pool.clone()));
-    tokio::spawn(workers::whatsapp_campaigns::run(pool.clone()));
-    tokio::spawn(workers::public_webhooks::run(pool.clone()));
-    tokio::spawn(workers::billing_reconciliation::run(pool, config));
+    tokio::spawn(observability::in_span(
+        "worker",
+        "whatsapp_inbox",
+        workers::whatsapp_inbox::run(pool.clone()),
+    ));
+    tokio::spawn(observability::in_span(
+        "worker",
+        "social_publishing",
+        workers::social_publishing::run(pool.clone()),
+    ));
+    tokio::spawn(observability::in_span(
+        "worker",
+        "social_insights",
+        workers::social_insights::run(pool.clone()),
+    ));
+    tokio::spawn(observability::in_span(
+        "worker",
+        "whatsapp_campaigns",
+        workers::whatsapp_campaigns::run(pool.clone()),
+    ));
+    tokio::spawn(observability::in_span(
+        "worker",
+        "public_webhooks",
+        workers::public_webhooks::run(pool.clone()),
+    ));
+    tokio::spawn(observability::in_span(
+        "worker",
+        "billing_reconciliation",
+        workers::billing_reconciliation::run(pool, config),
+    ));
 }
 
 #[actix_web::main]
@@ -35,71 +59,151 @@ async fn main() -> std::io::Result<()> {
     if from_path(format!("{}/.env", env!("CARGO_MANIFEST_DIR"))).is_err() {
         dotenv().ok();
     }
-    observability::init("info");
+    observability::init_with_service("info", "kasitek-core");
+    let _telemetry_guard = observability::ShutdownGuard;
 
     let config = AppConfig::from_env().expect("failed to load config");
 
-    let db_pool = PgPoolOptions::new()
-        .max_connections(config.database_max_connections)
-        .connect(&config.database_url)
-        .await
-        .expect("failed to connect to postgres");
+    let db_pool = observability::result_span(
+        "database",
+        "postgres.connect",
+        PgPoolOptions::new()
+            .max_connections(config.database_max_connections)
+            .connect(&config.database_url),
+    )
+    .await
+    .expect("failed to connect to postgres");
 
     match std::env::var("KASITEK_PROCESS").ok().as_deref() {
         Some("social-publishing-worker") => {
             log::info!("starting social publishing worker");
-            workers::social_publishing::run(db_pool).await;
+            observability::in_span(
+                "worker",
+                "social_publishing",
+                workers::social_publishing::run(db_pool),
+            )
+            .await;
             return Ok(());
         }
         Some("social-insights-worker") => {
             log::info!("starting social insights worker");
-            workers::social_insights::run(db_pool).await;
+            observability::in_span(
+                "worker",
+                "social_insights",
+                workers::social_insights::run(db_pool),
+            )
+            .await;
             return Ok(());
         }
         Some("whatsapp-marketing-worker") => {
             log::info!("starting whatsapp marketing worker");
-            workers::whatsapp_campaigns::run(db_pool).await;
+            observability::in_span(
+                "worker",
+                "whatsapp_marketing",
+                workers::whatsapp_campaigns::run(db_pool),
+            )
+            .await;
             return Ok(());
         }
         Some("whatsapp-inbox-worker") => {
             log::info!("starting whatsapp inbox worker");
-            workers::whatsapp_inbox::run(db_pool).await;
+            observability::in_span(
+                "worker",
+                "whatsapp_inbox",
+                workers::whatsapp_inbox::run(db_pool),
+            )
+            .await;
             return Ok(());
         }
         Some("billing-reconciliation-worker") => {
             log::info!("starting billing reconciliation worker");
-            workers::billing_reconciliation::run(db_pool, config).await;
+            observability::in_span(
+                "worker",
+                "billing_reconciliation",
+                workers::billing_reconciliation::run(db_pool, config),
+            )
+            .await;
             return Ok(());
         }
         Some("analytics-publisher") => {
             log::info!("starting analytics publisher worker");
             tokio::join!(
-                workers::analytics_publisher::run(db_pool.clone()),
-                workers::analytics_backfill::run(db_pool)
+                observability::in_span(
+                    "worker",
+                    "analytics_publisher",
+                    workers::analytics_publisher::run(db_pool.clone())
+                ),
+                observability::in_span(
+                    "worker",
+                    "analytics_backfill",
+                    workers::analytics_backfill::run(db_pool)
+                )
             );
             return Ok(());
         }
         Some("analytics-backfill-worker") => {
             log::info!("starting analytics backfill worker");
-            workers::analytics_backfill::run(db_pool).await;
+            observability::in_span(
+                "worker",
+                "analytics_backfill",
+                workers::analytics_backfill::run(db_pool),
+            )
+            .await;
             return Ok(());
         }
         Some("public-webhooks-worker") => {
             log::info!("starting public webhooks worker");
-            workers::public_webhooks::run(db_pool).await;
+            observability::in_span(
+                "worker",
+                "public_webhooks",
+                workers::public_webhooks::run(db_pool),
+            )
+            .await;
             return Ok(());
         }
         Some("all-workers") => {
             log::info!("starting all workers");
             tokio::join!(
-                workers::whatsapp_inbox::run(db_pool.clone()),
-                workers::social_publishing::run(db_pool.clone()),
-                workers::social_insights::run(db_pool.clone()),
-                workers::whatsapp_campaigns::run(db_pool.clone()),
-                workers::public_webhooks::run(db_pool.clone()),
-                workers::billing_reconciliation::run(db_pool.clone(), config.clone()),
-                workers::analytics_publisher::run(db_pool.clone()),
-                workers::analytics_backfill::run(db_pool.clone())
+                observability::in_span(
+                    "worker",
+                    "whatsapp_inbox",
+                    workers::whatsapp_inbox::run(db_pool.clone())
+                ),
+                observability::in_span(
+                    "worker",
+                    "social_publishing",
+                    workers::social_publishing::run(db_pool.clone())
+                ),
+                observability::in_span(
+                    "worker",
+                    "social_insights",
+                    workers::social_insights::run(db_pool.clone())
+                ),
+                observability::in_span(
+                    "worker",
+                    "whatsapp_campaigns",
+                    workers::whatsapp_campaigns::run(db_pool.clone())
+                ),
+                observability::in_span(
+                    "worker",
+                    "public_webhooks",
+                    workers::public_webhooks::run(db_pool.clone())
+                ),
+                observability::in_span(
+                    "worker",
+                    "billing_reconciliation",
+                    workers::billing_reconciliation::run(db_pool.clone(), config.clone())
+                ),
+                observability::in_span(
+                    "worker",
+                    "analytics_publisher",
+                    workers::analytics_publisher::run(db_pool.clone())
+                ),
+                observability::in_span(
+                    "worker",
+                    "analytics_backfill",
+                    workers::analytics_backfill::run(db_pool.clone())
+                )
             );
             return Ok(());
         }
@@ -142,6 +246,9 @@ async fn main() -> std::io::Result<()> {
                 config.clone(),
             )))
             .wrap(cors)
+            .wrap(observability::correlation_id())
+            .wrap(observability::http_metrics())
+            .wrap(observability::http_tracing_logger())
             .wrap(observability::http_logger())
             .configure(configure_app)
     })

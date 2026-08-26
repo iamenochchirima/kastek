@@ -56,33 +56,54 @@ fn origin_matches_platform_domain(origin: &HeaderValue, platform_base_domain: &s
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
-    observability::init("info");
+    observability::init_with_service("info", "kasitek-tenants");
+    let _telemetry_guard = observability::ShutdownGuard;
 
     let config = AppConfig::from_env().expect("failed to load tenant server config");
 
-    let db_pool = PgPoolOptions::new()
-        .max_connections(config.database_max_connections)
-        .connect(&config.database_url)
-        .await
-        .expect("failed to connect tenant postgres");
+    let db_pool = observability::result_span(
+        "database",
+        "postgres.connect",
+        PgPoolOptions::new()
+            .max_connections(config.database_max_connections)
+            .connect(&config.database_url),
+    )
+    .await
+    .expect("failed to connect tenant postgres");
 
-    sqlx::migrate!("./migrations")
-        .run(&db_pool)
-        .await
-        .expect("failed to run tenant migrations");
+    observability::in_span(
+        "migration",
+        "tenants.sqlx_migrate",
+        sqlx::migrate!("./migrations").run(&db_pool),
+    )
+    .await
+    .expect("failed to run tenant migrations");
 
     match std::env::var("KASITEK_PROCESS").ok().as_deref() {
         Some("analytics-publisher") => {
             log::info!("starting tenant analytics publisher and backfill workers");
             tokio::join!(
-                analytics_publisher::run(db_pool.clone()),
-                analytics_backfill::run(db_pool)
+                observability::in_span(
+                    "worker",
+                    "analytics_publisher",
+                    analytics_publisher::run(db_pool.clone())
+                ),
+                observability::in_span(
+                    "worker",
+                    "analytics_backfill",
+                    analytics_backfill::run(db_pool)
+                )
             );
             return Ok(());
         }
         Some("analytics-backfill-worker") => {
             log::info!("starting tenant analytics backfill worker");
-            analytics_backfill::run(db_pool).await;
+            observability::in_span(
+                "worker",
+                "analytics_backfill",
+                analytics_backfill::run(db_pool),
+            )
+            .await;
             return Ok(());
         }
         _ => {}
@@ -122,6 +143,9 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(db_pool.clone()))
             .app_data(web::Data::new(config.clone()))
             .wrap(cors)
+            .wrap(observability::correlation_id())
+            .wrap(observability::http_metrics())
+            .wrap(observability::http_tracing_logger())
             .wrap(observability::http_logger())
             .configure(routes::configure)
     })

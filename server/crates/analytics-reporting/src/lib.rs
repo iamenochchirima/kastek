@@ -296,28 +296,40 @@ impl AnalyticsReportingClient {
         scope_kind: &str,
         external_source_id: &str,
     ) -> Result<ScopeResolution, ReportingClientError> {
-        let response = self
-            .http
-            .get(self.endpoint(SCOPE_RESOLVE_PATH))
-            .bearer_auth(&self.resolver_token)
-            .header("x-source-service", source_service)
-            .query(&[
-                ("scope_kind", scope_kind),
-                ("external_source_id", external_source_id),
-            ])
-            .send()
-            .await?;
+        let mut trace_headers = reqwest::header::HeaderMap::new();
+        observability::inject_trace_context(&mut trace_headers);
+        let response = observability::provider_result_span(
+            "kasitek-analytics",
+            "reporting.resolve_scope",
+            self.http
+                .get(self.endpoint(SCOPE_RESOLVE_PATH))
+                .bearer_auth(&self.resolver_token)
+                .header("x-source-service", source_service)
+                .headers(trace_headers)
+                .query(&[
+                    ("scope_kind", scope_kind),
+                    ("external_source_id", external_source_id),
+                ])
+                .send(),
+        )
+        .await?;
         decode_json(response).await
     }
 
     pub async fn catalog(&self, grant: &str, scope_id: i64) -> Result<Value, ReportingClientError> {
-        let response = self
-            .http
-            .get(self.endpoint(CATALOG_PATH))
-            .bearer_auth(grant)
-            .query(&[("reporting_scope_id", scope_id)])
-            .send()
-            .await?;
+        let mut trace_headers = reqwest::header::HeaderMap::new();
+        observability::inject_trace_context(&mut trace_headers);
+        let response = observability::provider_result_span(
+            "kasitek-analytics",
+            "reporting.catalog",
+            self.http
+                .get(self.endpoint(CATALOG_PATH))
+                .bearer_auth(grant)
+                .headers(trace_headers)
+                .query(&[("reporting_scope_id", scope_id)])
+                .send(),
+        )
+        .await?;
         decode_json(response).await
     }
 
@@ -326,13 +338,19 @@ impl AnalyticsReportingClient {
         grant: &str,
         request: &ReportQueryRequest,
     ) -> Result<Value, ReportingClientError> {
-        let response = self
-            .http
-            .post(self.endpoint(QUERY_PATH))
-            .bearer_auth(grant)
-            .json(request)
-            .send()
-            .await?;
+        let mut trace_headers = reqwest::header::HeaderMap::new();
+        observability::inject_trace_context(&mut trace_headers);
+        let response = observability::provider_result_span(
+            "kasitek-analytics",
+            "reporting.query",
+            self.http
+                .post(self.endpoint(QUERY_PATH))
+                .bearer_auth(grant)
+                .headers(trace_headers)
+                .json(request)
+                .send(),
+        )
+        .await?;
         decode_json(response).await
     }
 

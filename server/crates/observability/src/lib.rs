@@ -1,11 +1,251 @@
 use std::{
     env,
+    future::{ready, Future, Ready},
     io::{IsTerminal, Write},
+    pin::Pin,
+    sync::OnceLock,
+    time::{Duration, Instant},
 };
 
-use actix_web::{dev::ServiceResponse, middleware::Logger};
+use actix_web::{
+    body::MessageBody,
+    dev::{Service, ServiceRequest, ServiceResponse, Transform},
+    http::header::{HeaderName, HeaderValue},
+    middleware::Logger,
+    Error,
+};
 use env_logger::{Builder, Env, Target, WriteStyle};
 use log::{Level, Record};
+use opentelemetry::{
+    global,
+    metrics::{Counter, Histogram, UpDownCounter},
+    propagation::{Extractor, Injector},
+    trace::TracerProvider as _,
+    Context, KeyValue,
+};
+use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
+use opentelemetry_sdk::{
+    logs::{
+        log_processor_with_async_runtime::BatchLogProcessor,
+        BatchConfigBuilder as LogBatchConfigBuilder, SdkLoggerProvider,
+    },
+    metrics::{periodic_reader_with_async_runtime::PeriodicReader, SdkMeterProvider},
+    propagation::TraceContextPropagator,
+    runtime,
+    trace::{BatchConfigBuilder as TraceBatchConfigBuilder, Sampler, SdkTracerProvider},
+    Resource,
+};
+use serde_json::json;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+
+pub use tracing_actix_web::{DefaultRootSpanBuilder, RootSpanBuilder, TracingLogger};
+
+const UNKNOWN_VALUE: &str = "unknown";
+
+struct Providers {
+    tracer: &'static SdkTracerProvider,
+    meter: &'static SdkMeterProvider,
+    logger: &'static SdkLoggerProvider,
+}
+
+static PROVIDERS: OnceLock<Providers> = OnceLock::new();
+static REQUEST_COUNT: OnceLock<Counter<u64>> = OnceLock::new();
+static REQUEST_DURATION: OnceLock<Histogram<f64>> = OnceLock::new();
+static REQUEST_ERRORS: OnceLock<Counter<u64>> = OnceLock::new();
+static REQUEST_IN_FLIGHT: OnceLock<UpDownCounter<i64>> = OnceLock::new();
+
+fn env_value(names: &[&str]) -> String {
+    names
+        .iter()
+        .find_map(|name| env::var(name).ok().filter(|value| !value.trim().is_empty()))
+        .unwrap_or_else(|| UNKNOWN_VALUE.to_string())
+}
+
+fn env_truthy(name: &str) -> bool {
+    matches!(
+        env::var(name)
+            .ok()
+            .map(|value| value.to_ascii_lowercase())
+            .as_deref(),
+        Some("1" | "true" | "yes" | "on")
+    )
+}
+
+fn otel_export_configured() -> bool {
+    !env_truthy("OTEL_SDK_DISABLED")
+        && [
+            "OTEL_EXPORTER_OTLP_ENDPOINT",
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+            "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+            "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+        ]
+        .iter()
+        .any(|name| {
+            env::var(name)
+                .ok()
+                .is_some_and(|value| !value.trim().is_empty())
+        })
+}
+
+/// Builds the resource shared by all signals emitted by a service process.
+pub fn telemetry_resource(service_name: &str) -> Resource {
+    let service_name = env::var("OTEL_SERVICE_NAME")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| service_name.to_string());
+    let version = env_value(&["KASITEK_VERSION", "PLATFORM_VERSION"]);
+    let release_id = env_value(&["KASITEK_RELEASE_ID", "RELEASE_ID", "KASITEK_VERSION"]);
+    let commit_sha = env_value(&["KASITEK_COMMIT_SHA", "GIT_SHA", "COMMIT_SHA"]);
+    let artifact_digest = env_value(&["KASITEK_ARTIFACT_DIGEST", "ARTIFACT_DIGEST"]);
+    let instance_id = env_value(&["KASITEK_INSTANCE_ID", "RAILWAY_REPLICA_ID", "HOSTNAME"]);
+    let environment = env_value(&[
+        "OTEL_DEPLOYMENT_ENVIRONMENT",
+        "DEPLOYMENT_ENVIRONMENT",
+        "ENVIRONMENT",
+        "RAILWAY_ENVIRONMENT_NAME",
+    ]);
+
+    Resource::builder()
+        .with_service_name(service_name)
+        .with_attributes([
+            KeyValue::new("service.version", version),
+            KeyValue::new("deployment.environment.name", environment.clone()),
+            KeyValue::new("kasitek.release_id", release_id),
+            KeyValue::new("kasitek.commit_sha", commit_sha),
+            KeyValue::new("kasitek.artifact_digest", artifact_digest),
+            KeyValue::new("kasitek.environment", environment),
+            KeyValue::new("service.instance.id", instance_id),
+            KeyValue::new("process.runtime.name", "rust"),
+            KeyValue::new("process.pid", i64::from(std::process::id())),
+        ])
+        .build()
+}
+
+fn sampler_from_environment() -> Sampler {
+    let ratio = env::var("OTEL_TRACES_SAMPLER_ARG")
+        .ok()
+        .and_then(|value| value.parse::<f64>().ok())
+        .filter(|value| value.is_finite())
+        .map(|value| value.clamp(0.0, 1.0))
+        .unwrap_or(1.0);
+
+    match env::var("OTEL_TRACES_SAMPLER")
+        .unwrap_or_else(|_| "parentbased_always_on".to_string())
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "always_off" => Sampler::AlwaysOff,
+        "always_on" => Sampler::AlwaysOn,
+        "traceidratio" => Sampler::TraceIdRatioBased(ratio),
+        "parentbased_always_off" => Sampler::ParentBased(Box::new(Sampler::AlwaysOff)),
+        "parentbased_traceidratio" => {
+            Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(ratio)))
+        }
+        _ => Sampler::ParentBased(Box::new(Sampler::AlwaysOn)),
+    }
+}
+
+fn tracing_filter(default_filter: &str) -> EnvFilter {
+    let value = env::var("RUST_LOG")
+        .ok()
+        .or_else(|| env::var("LOG_LEVEL").ok())
+        .unwrap_or_else(|| default_filter.to_string());
+    EnvFilter::new(value)
+}
+
+fn init_otel(default_filter: &str, service_name: &str) -> Result<(), String> {
+    let resource = telemetry_resource(service_name);
+    let span_exporter = opentelemetry_otlp::SpanExporter::builder()
+        .with_http()
+        .build()
+        .map_err(|error| format!("failed to build OTLP span exporter: {error}"))?;
+    let metric_exporter = opentelemetry_otlp::MetricExporter::builder()
+        .with_http()
+        .build()
+        .map_err(|error| format!("failed to build OTLP metric exporter: {error}"))?;
+    let log_exporter = opentelemetry_otlp::LogExporter::builder()
+        .with_http()
+        .build()
+        .map_err(|error| format!("failed to build OTLP log exporter: {error}"))?;
+
+    let tracer_provider = Box::leak(Box::new(
+        SdkTracerProvider::builder()
+            .with_resource(resource.clone())
+            .with_sampler(sampler_from_environment())
+            .with_span_processor(
+                opentelemetry_sdk::trace::span_processor_with_async_runtime::BatchSpanProcessor::builder(
+                    span_exporter,
+                    runtime::Tokio,
+                )
+                .with_batch_config(
+                    TraceBatchConfigBuilder::default()
+                        .with_max_queue_size(2_048)
+                        .with_max_export_batch_size(512)
+                        .with_scheduled_delay(Duration::from_secs(5))
+                        .with_max_export_timeout(Duration::from_secs(5))
+                        .build(),
+                )
+                .build(),
+            )
+            .build(),
+    ));
+    let meter_provider = Box::leak(Box::new(
+        SdkMeterProvider::builder()
+            .with_resource(resource.clone())
+            .with_reader(
+                PeriodicReader::builder(metric_exporter, runtime::Tokio)
+                    .with_interval(Duration::from_secs(30))
+                    .with_timeout(Duration::from_secs(5))
+                    .build(),
+            )
+            .build(),
+    ));
+    let logger_provider = Box::leak(Box::new(
+        SdkLoggerProvider::builder()
+            .with_resource(resource)
+            .with_log_processor(
+                BatchLogProcessor::builder(log_exporter, runtime::Tokio)
+                    .with_batch_config(
+                        LogBatchConfigBuilder::default()
+                            .with_max_queue_size(2_048)
+                            .with_max_export_batch_size(512)
+                            .with_scheduled_delay(Duration::from_secs(5))
+                            .with_max_export_timeout(Duration::from_secs(5))
+                            .build(),
+                    )
+                    .build(),
+            )
+            .build(),
+    ));
+
+    global::set_tracer_provider(tracer_provider.clone());
+    global::set_meter_provider(meter_provider.clone());
+    global::set_text_map_propagator(TraceContextPropagator::new());
+    PROVIDERS
+        .set(Providers {
+            tracer: tracer_provider,
+            meter: meter_provider,
+            logger: logger_provider,
+        })
+        .map_err(|_| "OpenTelemetry providers were already initialized".to_string())?;
+
+    let otel_layer = tracing_opentelemetry::layer()
+        .with_tracer(tracer_provider.tracer(service_name.to_string()));
+    let log_layer = OpenTelemetryTracingBridge::new(logger_provider);
+    tracing_subscriber::registry()
+        .with(tracing_filter(default_filter))
+        .with(otel_layer)
+        .with(log_layer)
+        .with(
+            tracing_subscriber::fmt::layer()
+                .json()
+                .with_target(true)
+                .with_current_span(true)
+                .with_span_list(false),
+        )
+        .try_init()
+        .map_err(|error| format!("failed to initialize tracing subscriber: {error}"))
+}
 
 fn structured_logs_enabled() -> bool {
     match env::var("LOG_FORMAT") {
@@ -63,8 +303,7 @@ fn access_log_status(record: &Record<'_>) -> Option<u16> {
     }
 
     let message = record.args().to_string();
-    let (_, response) = message.split_once("\" ")?;
-    parse_status_token(response.split_whitespace().next()?)
+    parse_status_token(message.split_whitespace().next()?)
 }
 
 fn parse_status_token(token: &str) -> Option<u16> {
@@ -105,18 +344,472 @@ fn format_level(level: Level, colorize: bool) -> String {
 
 /// Builds the shared access logger used by the HTTP servers.
 ///
-/// The status code and displayed log level are colorized, keeping the access-log format stable
-/// while making successful, redirect, client-error, and server-error responses easy to scan.
-/// Structured logs and non-terminal output remain ANSI-free unless `LOG_COLOR=always` is set.
+/// The legacy access record intentionally contains only the response status and duration. The
+/// request span owns bounded method/route fields, keeping raw URLs, query strings, remote
+/// addresses, referers, and user agents out of the compatibility log path.
 pub fn http_logger() -> Logger {
     let colorize = request_log_colors_enabled();
-    Logger::new(r#"%a "%r" %{STATUS}xo %b "%{Referer}i" "%{User-Agent}i" %T"#)
+    Logger::new(r#"%{STATUS}xo %T"#)
         .custom_response_replace("STATUS", move |response: &ServiceResponse| {
             format_status(response.status().as_u16(), colorize)
         })
 }
 
+struct HeaderExtractor<'a>(&'a actix_web::http::header::HeaderMap);
+
+impl Extractor for HeaderExtractor<'_> {
+    fn get(&self, key: &str) -> Option<&str> {
+        self.0.get(key).and_then(|value| value.to_str().ok())
+    }
+
+    fn keys(&self) -> Vec<&str> {
+        self.0.keys().map(HeaderName::as_str).collect()
+    }
+}
+
+/// Builds request spans with the same trace propagation as the upstream middleware while keeping
+/// query strings and network identifiers out of the exported span attributes.
+pub struct KasitekRootSpanBuilder;
+
+impl RootSpanBuilder for KasitekRootSpanBuilder {
+    fn on_request_start(request: &ServiceRequest) -> tracing::Span {
+        let method = request.method().as_str().to_string();
+        let route = request
+            .match_pattern()
+            .unwrap_or_else(|| "unmatched".to_string())
+            .chars()
+            .take(128)
+            .collect::<String>();
+        let target = request.uri().path().chars().take(256).collect::<String>();
+        let correlation_id = request
+            .headers()
+            .get(&CORRELATION_ID_HEADER)
+            .and_then(|value| value.to_str().ok())
+            .filter(|value| is_safe_correlation_id(value))
+            .unwrap_or(UNKNOWN_VALUE);
+        let span = tracing::info_span!(
+            "HTTP request",
+            http.method = %method,
+            http.route = %route,
+            http.flavor = ?request.version(),
+            http.target = %target,
+            http.status_code = tracing::field::Empty,
+            otel.name = %format!("{} {}", method, route),
+            otel.kind = "server",
+            otel.status_code = tracing::field::Empty,
+            trace_id = tracing::field::Empty,
+            request_id = tracing::field::Empty,
+            exception.message = tracing::field::Empty,
+            exception.details = tracing::field::Empty,
+            correlation_id = %correlation_id,
+        );
+        let parent = global::get_text_map_propagator(|propagator| {
+            propagator.extract(&HeaderExtractor(request.headers()))
+        });
+        let _ = tracing_opentelemetry::OpenTelemetrySpanExt::set_parent(&span, parent);
+        span
+    }
+
+    fn on_request_end<B: MessageBody>(
+        span: tracing::Span,
+        outcome: &Result<ServiceResponse<B>, Error>,
+    ) {
+        DefaultRootSpanBuilder::on_request_end(span, outcome);
+    }
+}
+
+/// Adds a server span around every Actix request and extracts W3C `traceparent`/`tracestate`.
+pub fn http_tracing_logger() -> TracingLogger<KasitekRootSpanBuilder> {
+    TracingLogger::new()
+}
+
+fn metric_route(request: &ServiceRequest) -> String {
+    request
+        .match_pattern()
+        .unwrap_or_else(|| "unmatched".to_string())
+        .chars()
+        .take(128)
+        .collect()
+}
+
+fn request_counter() -> Counter<u64> {
+    REQUEST_COUNT
+        .get_or_init(|| {
+            global::meter("kasitek.http")
+                .u64_counter("http.server.request.count")
+                .with_description("Completed HTTP server requests")
+                .build()
+        })
+        .clone()
+}
+
+fn request_duration() -> Histogram<f64> {
+    REQUEST_DURATION
+        .get_or_init(|| {
+            global::meter("kasitek.http")
+                .f64_histogram("http.server.request.duration")
+                .with_description("HTTP server request duration in seconds")
+                .with_unit("s")
+                .build()
+        })
+        .clone()
+}
+
+fn request_errors() -> Counter<u64> {
+    REQUEST_ERRORS
+        .get_or_init(|| {
+            global::meter("kasitek.http")
+                .u64_counter("http.server.request.error.count")
+                .with_description("HTTP server requests that failed with a server error")
+                .build()
+        })
+        .clone()
+}
+
+fn request_in_flight() -> UpDownCounter<i64> {
+    REQUEST_IN_FLIGHT
+        .get_or_init(|| {
+            global::meter("kasitek.http")
+                .i64_up_down_counter("http.server.request.in_flight")
+                .with_description("HTTP server requests currently in progress")
+                .build()
+        })
+        .clone()
+}
+
+/// Records bounded HTTP service metrics without making request handling depend on export health.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct TelemetryMetrics;
+
+impl<S, B> Transform<S, ServiceRequest> for TelemetryMetrics
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    S::Future: 'static,
+    B: MessageBody + 'static,
+{
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type Transform = TelemetryMetricsService<S>;
+    type InitError = ();
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ready(Ok(TelemetryMetricsService { service }))
+    }
+}
+
+#[doc(hidden)]
+pub struct TelemetryMetricsService<S> {
+    service: S,
+}
+
+impl<S, B> Service<ServiceRequest> for TelemetryMetricsService<S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    S::Future: 'static,
+    B: MessageBody + 'static,
+{
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
+
+    actix_web::dev::forward_ready!(service);
+
+    fn call(&self, request: ServiceRequest) -> Self::Future {
+        let method = request.method().as_str().to_string();
+        let route = metric_route(&request);
+        let started = Instant::now();
+        request_in_flight().add(1, &[]);
+        let future = self.service.call(request);
+
+        Box::pin(async move {
+            let result = future.await;
+            let status = result
+                .as_ref()
+                .map(|response| response.status().as_u16())
+                .unwrap_or(500);
+            let attributes = [
+                KeyValue::new("http.request.method", method),
+                KeyValue::new("http.route", route),
+                KeyValue::new("http.response.status_code", i64::from(status)),
+            ];
+            request_in_flight().add(-1, &attributes);
+            request_counter().add(1, &attributes);
+            request_duration().record(started.elapsed().as_secs_f64(), &attributes);
+            if status >= 500 || result.is_err() {
+                request_errors().add(1, &attributes);
+            }
+            result
+        })
+    }
+}
+
+/// Creates a request-metrics middleware value for an Actix application.
+pub fn http_metrics() -> TelemetryMetrics {
+    TelemetryMetrics
+}
+
+const CORRELATION_ID_HEADER: HeaderName = HeaderName::from_static("x-correlation-id");
+
+fn safe_correlation_id(request: &ServiceRequest) -> String {
+    request
+        .headers()
+        .get(&CORRELATION_ID_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| is_safe_correlation_id(value))
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string())
+}
+
+/// Returns whether a correlation ID is safe to copy into logs and response/request headers.
+pub fn is_safe_correlation_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || "._:-".contains(character))
+}
+
+struct HeaderInjector<'a>(&'a mut http::HeaderMap);
+
+impl Injector for HeaderInjector<'_> {
+    fn set(&mut self, key: &str, value: String) {
+        let Ok(name) = http::header::HeaderName::from_bytes(key.as_bytes()) else {
+            return;
+        };
+        let Ok(value) = http::HeaderValue::from_str(&value) else {
+            return;
+        };
+        self.0.insert(name, value);
+    }
+}
+
+/// Injects the active W3C trace context into an outbound HTTP header map.
+///
+/// Application code remains responsible for authentication and correlation headers. This helper
+/// only writes `traceparent`/`tracestate` through the configured OpenTelemetry propagator.
+pub fn inject_trace_context(headers: &mut http::HeaderMap) {
+    global::get_text_map_propagator(|propagator| {
+        propagator.inject_context(&Context::current(), &mut HeaderInjector(headers));
+    });
+}
+
+/// Preserves a trusted, bounded application correlation ID across HTTP responses.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct CorrelationId;
+
+impl<S, B> Transform<S, ServiceRequest> for CorrelationId
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    S::Future: 'static,
+    B: MessageBody + 'static,
+{
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type Transform = CorrelationIdService<S>;
+    type InitError = ();
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ready(Ok(CorrelationIdService { service }))
+    }
+}
+
+#[doc(hidden)]
+pub struct CorrelationIdService<S> {
+    service: S,
+}
+
+impl<S, B> Service<ServiceRequest> for CorrelationIdService<S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    S::Future: 'static,
+    B: MessageBody + 'static,
+{
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
+
+    actix_web::dev::forward_ready!(service);
+
+    fn call(&self, mut request: ServiceRequest) -> Self::Future {
+        let correlation_id = safe_correlation_id(&request);
+        if let Ok(header) = HeaderValue::from_str(&correlation_id) {
+            request
+                .headers_mut()
+                .insert(CORRELATION_ID_HEADER.clone(), header);
+        }
+        let future = self.service.call(request);
+
+        Box::pin(async move {
+            let mut response = future.await?;
+            if let Ok(header) = HeaderValue::from_str(&correlation_id) {
+                response.headers_mut().insert(CORRELATION_ID_HEADER, header);
+            }
+            Ok(response)
+        })
+    }
+}
+
+/// Creates the correlation-ID middleware for an Actix application.
+pub fn correlation_id() -> CorrelationId {
+    CorrelationId
+}
+
+/// Runs a long-lived background operation in a named trace span.
+pub async fn in_span<F, T>(kind: &'static str, name: &'static str, future: F) -> T
+where
+    F: Future<Output = T>,
+{
+    use tracing::Instrument;
+    future
+        .instrument(tracing::info_span!(
+            "kasitek.background",
+            operation.kind = kind,
+            operation.name = name
+        ))
+        .await
+}
+
+/// Runs an outbound dependency operation in a bounded provider span.
+pub async fn provider_span<F, T>(provider: &'static str, operation: &'static str, future: F) -> T
+where
+    F: Future<Output = T>,
+{
+    use tracing::Instrument;
+    future
+        .instrument(tracing::info_span!(
+            "kasitek.provider",
+            peer.service = provider,
+            kasitek.provider.operation = operation,
+        ))
+        .await
+}
+
+/// Runs a fallible background operation and records success or failure on its span without
+/// copying the error text into telemetry. Callers remain responsible for logging a safe error
+/// code or message at the application boundary.
+pub async fn result_span<F, T, E>(kind: &'static str, name: &'static str, future: F) -> Result<T, E>
+where
+    F: Future<Output = Result<T, E>>,
+{
+    use tracing::{field, Instrument};
+    let span = tracing::info_span!(
+        "kasitek.background",
+        operation.kind = kind,
+        operation.name = name,
+        otel.status_code = field::Empty,
+        exception.type = field::Empty,
+    );
+    let result_span = span.clone();
+    async move {
+        match future.await {
+            Ok(value) => {
+                result_span.record("otel.status_code", "OK");
+                Ok(value)
+            }
+            Err(error) => {
+                result_span.record("otel.status_code", "ERROR");
+                result_span.record("exception.type", std::any::type_name::<E>());
+                Err(error)
+            }
+        }
+    }
+    .instrument(span)
+    .await
+}
+
+/// Fallible variant of [`provider_span`] that marks dependency errors on the span while keeping
+/// error payloads out of telemetry attributes.
+pub async fn provider_result_span<F, T, E>(
+    provider: &'static str,
+    operation: &'static str,
+    future: F,
+) -> Result<T, E>
+where
+    F: Future<Output = Result<T, E>>,
+{
+    use tracing::{field, Instrument};
+    let span = tracing::info_span!(
+        "kasitek.provider",
+        peer.service = provider,
+        kasitek.provider.operation = operation,
+        otel.status_code = field::Empty,
+        exception.type = field::Empty,
+    );
+    let result_span = span.clone();
+    async move {
+        match future.await {
+            Ok(value) => {
+                result_span.record("otel.status_code", "OK");
+                Ok(value)
+            }
+            Err(error) => {
+                result_span.record("otel.status_code", "ERROR");
+                result_span.record("exception.type", std::any::type_name::<E>());
+                Err(error)
+            }
+        }
+    }
+    .instrument(span)
+    .await
+}
+
+/// Initializes the shared Rust logging and telemetry stack for a named process.
+pub fn init_with_service(default_filter: &str, service_name: &str) {
+    if otel_export_configured() {
+        if let Err(error) = init_otel(default_filter, service_name) {
+            eprintln!(
+                "OpenTelemetry initialization failed; continuing with stdout logging: {error}"
+            );
+            init_legacy(default_filter);
+        }
+    } else {
+        init_legacy(default_filter);
+    }
+}
+
+/// Initializes the shared Rust stack using `KASITEK_SERVICE_NAME` when supplied.
 pub fn init(default_filter: &str) {
+    let service_name =
+        env::var("KASITEK_SERVICE_NAME").unwrap_or_else(|_| "kasitek-rust".to_string());
+    init_with_service(default_filter, &service_name);
+}
+
+/// Flushes bounded telemetry queues during orderly process shutdown.
+pub fn shutdown() {
+    let timeout = Duration::from_secs(3);
+    if let Some(providers) = PROVIDERS.get() {
+        let tracer = providers.tracer;
+        let meter = providers.meter;
+        let logger = providers.logger;
+        let (finished, wait) = std::sync::mpsc::sync_channel(1);
+        std::thread::spawn(move || {
+            let _ = tracer.shutdown_with_timeout(timeout);
+            let _ = meter.shutdown_with_timeout(timeout);
+            let _ = logger.shutdown_with_timeout(timeout);
+            let _ = finished.send(());
+        });
+        if wait.recv_timeout(timeout).is_err() {
+            eprintln!(
+                "OpenTelemetry shutdown exceeded the {} second limit",
+                timeout.as_secs()
+            );
+        }
+    }
+}
+
+/// Flushes telemetry when a service entrypoint returns or unwinds.
+pub struct ShutdownGuard;
+
+impl Drop for ShutdownGuard {
+    fn drop(&mut self) {
+        shutdown();
+    }
+}
+
+fn init_legacy(default_filter: &str) {
     let mut builder = Builder::from_env(Env::default().default_filter_or(default_filter));
     builder.target(Target::Stdout);
     let colorize = request_log_colors_enabled();
@@ -124,7 +817,7 @@ pub fn init(default_filter: &str) {
     if structured_logs_enabled() {
         builder.write_style(WriteStyle::Never);
         builder.format(|buffer, record| {
-            let event = serde_json::json!({
+            let event = json!({
                 "timestamp": buffer.timestamp_millis().to_string(),
                 "level": display_level(record).as_str().to_ascii_lowercase(),
                 "target": record.target(),
@@ -157,8 +850,11 @@ pub fn init(default_filter: &str) {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+
     use super::{
-        access_log_status, display_level, format_status, parse_status_token, status_color,
+        access_log_status, display_level, format_status, is_safe_correlation_id,
+        parse_status_token, status_color, Sampler,
     };
     use log::{Level, Record};
 
@@ -183,9 +879,7 @@ mod tests {
     #[test]
     fn request_status_maps_to_a_useful_display_level() {
         let record = Record::builder()
-            .args(format_args!(
-                "127.0.0.1 \"GET / HTTP/1.1\" 503 70 \"-\" \"node\" 0.1"
-            ))
+            .args(format_args!("503 70 0.1"))
             .level(Level::Info)
             .target("actix_web::middleware::logger")
             .build();
@@ -197,9 +891,7 @@ mod tests {
     fn request_status_mapping_handles_the_colorized_status_token() {
         assert_eq!(parse_status_token("\u{1b}[33m404\u{1b}[0m"), Some(404));
         let record = Record::builder()
-            .args(format_args!(
-                "127.0.0.1 \"GET /missing HTTP/1.1\" \u{1b}[33m404\u{1b}[0m 0 \"-\" \"node\" 0.1"
-            ))
+            .args(format_args!("\u{1b}[33m404\u{1b}[0m 0.1"))
             .level(Level::Info)
             .target("actix_web::middleware::logger")
             .build();
@@ -214,5 +906,38 @@ mod tests {
             .target("kasitek_core::database")
             .build();
         assert_eq!(display_level(&record), Level::Error);
+    }
+
+    #[test]
+    fn correlation_ids_are_bounded_and_header_safe() {
+        assert!(is_safe_correlation_id("run-123:attempt_1"));
+        assert!(!is_safe_correlation_id(""));
+        assert!(!is_safe_correlation_id("bad value"));
+        assert!(!is_safe_correlation_id(&"x".repeat(129)));
+    }
+
+    #[test]
+    fn resource_contains_service_and_process_identity() {
+        let resource = super::telemetry_resource("kasitek-test");
+        assert!(resource
+            .iter()
+            .any(|(key, value)| key.as_str() == "service.name"
+                && value.to_string() == "kasitek-test"));
+        assert!(resource
+            .iter()
+            .any(|(key, _)| key.as_str() == "process.runtime.name"));
+        assert!(resource
+            .iter()
+            .any(|(key, _)| key.as_str() == "process.pid"));
+    }
+
+    #[test]
+    fn default_sampling_is_parent_based_when_not_overridden() {
+        if env::var("OTEL_TRACES_SAMPLER").is_err() {
+            assert!(matches!(
+                super::sampler_from_environment(),
+                Sampler::ParentBased(_)
+            ));
+        }
     }
 }

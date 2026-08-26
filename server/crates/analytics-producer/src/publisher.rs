@@ -108,14 +108,20 @@ impl AnalyticsIngestionClient {
                 .collect(),
             backfill_job_id: None,
         };
-        let response = self
-            .client
-            .post(format!("{}{}", self.endpoint, INGESTION_PATH))
-            .header(header::AUTHORIZATION, format!("Bearer {}", self.token))
-            .json(&request)
-            .send()
-            .await
-            .map_err(|_| TransportError::Retryable("analytics.transport_unavailable"))?;
+        let mut trace_headers = header::HeaderMap::new();
+        observability::inject_trace_context(&mut trace_headers);
+        let response = observability::provider_result_span(
+            "kasitek-analytics",
+            "ingest.batch",
+            self.client
+                .post(format!("{}{}", self.endpoint, INGESTION_PATH))
+                .header(header::AUTHORIZATION, format!("Bearer {}", self.token))
+                .headers(trace_headers)
+                .json(&request)
+                .send(),
+        )
+        .await
+        .map_err(|_| TransportError::Retryable("analytics.transport_unavailable"))?;
 
         let status = response.status();
         if !status.is_success() {
@@ -131,16 +137,22 @@ impl AnalyticsIngestionClient {
         &self,
         request: &ReconciliationRequest,
     ) -> Result<ReconciliationResponse, PublisherError> {
-        let response = self
-            .client
-            .post(format!("{}{}", self.endpoint, RECONCILIATION_PATH))
-            .header(header::AUTHORIZATION, format!("Bearer {}", self.token))
-            .json(request)
-            .send()
-            .await
-            .map_err(|_| {
-                PublisherError::Reconciliation("analytics.transport_unavailable".to_string())
-            })?;
+        let mut trace_headers = header::HeaderMap::new();
+        observability::inject_trace_context(&mut trace_headers);
+        let response = observability::provider_result_span(
+            "kasitek-analytics",
+            "reconciliation.summary",
+            self.client
+                .post(format!("{}{}", self.endpoint, RECONCILIATION_PATH))
+                .header(header::AUTHORIZATION, format!("Bearer {}", self.token))
+                .headers(trace_headers)
+                .json(request)
+                .send(),
+        )
+        .await
+        .map_err(|_| {
+            PublisherError::Reconciliation("analytics.transport_unavailable".to_string())
+        })?;
 
         let status = response.status();
         if !status.is_success() {
@@ -165,13 +177,19 @@ impl AnalyticsIngestionClient {
     pub async fn claim_source_backfill_work(
         &self,
     ) -> Result<Option<SourceBackfillWork>, PublisherError> {
-        let response = self
-            .client
-            .get(format!("{}{}", self.endpoint, BACKFILL_WORK_PATH))
-            .header(header::AUTHORIZATION, format!("Bearer {}", self.token))
-            .send()
-            .await
-            .map_err(|_| PublisherError::Backfill("analytics.transport_unavailable".to_string()))?;
+        let mut trace_headers = header::HeaderMap::new();
+        observability::inject_trace_context(&mut trace_headers);
+        let response = observability::provider_result_span(
+            "kasitek-analytics",
+            "backfill.claim",
+            self.client
+                .get(format!("{}{}", self.endpoint, BACKFILL_WORK_PATH))
+                .header(header::AUTHORIZATION, format!("Bearer {}", self.token))
+                .headers(trace_headers)
+                .send(),
+        )
+        .await
+        .map_err(|_| PublisherError::Backfill("analytics.transport_unavailable".to_string()))?;
 
         if response.status() == StatusCode::NO_CONTENT {
             return Ok(None);
@@ -217,14 +235,20 @@ impl AnalyticsIngestionClient {
                 .collect(),
             backfill_job_id: Some(job_id.to_string()),
         };
-        let response = self
-            .client
-            .post(format!("{}{}", self.endpoint, INGESTION_PATH))
-            .header(header::AUTHORIZATION, format!("Bearer {}", self.token))
-            .json(&request)
-            .send()
-            .await
-            .map_err(|_| PublisherError::Backfill("analytics.transport_unavailable".to_string()))?;
+        let mut trace_headers = header::HeaderMap::new();
+        observability::inject_trace_context(&mut trace_headers);
+        let response = observability::provider_result_span(
+            "kasitek-analytics",
+            "ingest.backfill",
+            self.client
+                .post(format!("{}{}", self.endpoint, INGESTION_PATH))
+                .header(header::AUTHORIZATION, format!("Bearer {}", self.token))
+                .headers(trace_headers)
+                .json(&request)
+                .send(),
+        )
+        .await
+        .map_err(|_| PublisherError::Backfill("analytics.transport_unavailable".to_string()))?;
 
         let status = response.status();
         if !status.is_success() {
