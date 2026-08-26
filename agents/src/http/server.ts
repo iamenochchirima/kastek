@@ -1,16 +1,19 @@
+import "../telemetry";
+import { shutdownTelemetry } from "../telemetry";
 import { loadConfig } from "../config";
 import { createPool } from "../db/pool";
 import { AgentRepository } from "../db/repositories/agent-repository";
 import { buildApp } from "./app";
 import { synchronizeKasiAi } from "../system/kasiai";
 import { connectTemporal, signalRunApproval, signalRunCancellation, signalRunExternalEvent, startDurableRun } from "../temporal/client";
+import { operationalLogger } from "../telemetry/logger";
 
 async function main(): Promise<void> {
   const config = loadConfig();
   const pool = createPool(config);
   if (config.NODE_ENV !== "production") {
     const synced = await synchronizeKasiAi(new AgentRepository(pool), config);
-    console.log(`[kasiai] synchronized version ${synced.version.version_number}; rolled out ${synced.rolledOut} installation(s)`);
+    operationalLogger.info({ event: "kasiai.synchronized", version_number: synced.version.version_number, rolled_out: synced.rolledOut }, "KasiAi synchronized");
   }
   let temporalConnection: Awaited<ReturnType<typeof connectTemporal>> | undefined;
   if (config.TEMPORAL_ENABLED) temporalConnection = await connectTemporal(config);
@@ -34,6 +37,7 @@ async function main(): Promise<void> {
     await app.close();
     temporalConnection?.connection.close();
     await pool.end();
+    await shutdownTelemetry();
   };
   process.once("SIGINT", () => void close().finally(() => process.exit(0)));
   process.once("SIGTERM", () => void close().finally(() => process.exit(0)));
@@ -41,6 +45,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
+  operationalLogger.error({ err: error, event: "agents_api.startup_failed" }, "Agent API startup failed");
+  void shutdownTelemetry().finally(() => { process.exitCode = 1; });
 });

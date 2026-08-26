@@ -113,6 +113,8 @@ import { verifyChannelApprovalActionToken, type ChannelApprovalDecision } from "
 import { IntegrationRepository } from "../integrations/repository";
 import { IntegrationToolService } from "../integrations/service";
 import { getIntegration, listIntegrations, listToolIntegrations } from "../integrations/catalog";
+import { correlationIdFromHeader, currentCorrelationId, runWithCorrelationId } from "../telemetry/context";
+import { operationalLogFields, operationalLogRedaction, operationalLogSerializers } from "../telemetry/logger";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -393,7 +395,19 @@ function publicMcpTask(run: { id: string; status: string; updated_at?: string | 
 }
 
 export function buildApp(dependencies: AppDependencies): FastifyInstance {
-  const app = Fastify({ logger: { level: dependencies.config.LOG_LEVEL } });
+  const app = Fastify({
+    logger: {
+      level: dependencies.config.LOG_LEVEL,
+      redact: operationalLogRedaction,
+      serializers: operationalLogSerializers,
+      mixin: () => ({ ...operationalLogFields(), ...(currentCorrelationId() ? { correlation_id: currentCorrelationId() } : {}) }),
+    },
+  });
+  app.addHook("onRequest", (request, reply, done) => {
+    const correlationId = correlationIdFromHeader(request.headers["x-correlation-id"]);
+    reply.header("x-correlation-id", correlationId);
+    runWithCorrelationId(correlationId, done);
+  });
   app.register(multipart, {
     limits: {
       files: 1,

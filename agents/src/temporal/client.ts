@@ -3,6 +3,7 @@ import type { AppConfig } from "../config";
 import type { DurableRunInput } from "./contracts";
 import type { ApprovalSignal, CancellationSignal, ExternalEventSignal } from "./contracts";
 import { agentRunWorkflow } from "./workflows";
+import { temporalClientInterceptor } from "../telemetry/temporal";
 
 export async function connectTemporal(config: AppConfig): Promise<{ connection: Connection; client: Client }> {
   const connection = await Connection.connect({
@@ -10,7 +11,14 @@ export async function connectTemporal(config: AppConfig): Promise<{ connection: 
     apiKey: config.TEMPORAL_API_KEY || undefined,
     tls: config.TEMPORAL_MODE === "cloud" ? {} : undefined,
   });
-  return { connection, client: new Client({ connection, namespace: config.TEMPORAL_NAMESPACE }) };
+  return {
+    connection,
+    client: new Client({
+      connection,
+      namespace: config.TEMPORAL_NAMESPACE,
+      interceptors: { workflow: [temporalClientInterceptor] },
+    }),
+  };
 }
 
 export async function startDurableRun(

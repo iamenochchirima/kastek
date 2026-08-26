@@ -1,3 +1,5 @@
+import "../telemetry";
+import { shutdownTelemetry } from "../telemetry";
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { Client } from "@temporalio/client";
 import { loadConfig } from "../config";
@@ -6,6 +8,8 @@ import { createActivities } from "./activities";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
 import { RunRepository } from "../db/repositories/run-repository";
 import { ApprovalRepository } from "../db/repositories/approval-repository";
+import { operationalLogger } from "../telemetry/logger";
+import { temporalActivityInterceptors, temporalClientInterceptor } from "../telemetry/temporal";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -21,7 +25,11 @@ async function main(): Promise<void> {
     apiKey: config.TEMPORAL_API_KEY || undefined,
     tls: config.TEMPORAL_MODE === "cloud" ? {} : undefined,
   });
-  const client = new Client({ connection, namespace: config.TEMPORAL_NAMESPACE });
+  const client = new Client({
+    connection,
+    namespace: config.TEMPORAL_NAMESPACE,
+    interceptors: { workflow: [temporalClientInterceptor] },
+  });
   let reconciling = false;
   const reconcileStaleEffects = async (): Promise<void> => {
     if (reconciling) return;
@@ -51,13 +59,13 @@ async function main(): Promise<void> {
         try {
           await client.workflow.getHandle(`agent-run-${approval.run_id}`).signal("agent.expire", { reason: "Approval expired" });
         } catch (error) {
-          console.warn(`[approval-expiry] could not signal run ${approval.run_id}`, error);
+          operationalLogger.warn({ err: error, event: "approval.expiry_signal_failed", run_id: approval.run_id }, "Could not signal expired approval");
         }
       }));
-      if (stale.length) console.warn(`[effect-reconciliation] ${stale.length} provider outcomes require reconciliation`);
-      if (expired.length) console.warn(`[approval-expiry] ${expired.length} approvals expired`);
+      if (stale.length) operationalLogger.warn({ event: "effect.reconciliation_required", count: stale.length }, "Provider outcomes require reconciliation");
+      if (expired.length) operationalLogger.warn({ event: "approval.expired", count: expired.length }, "Approvals expired");
     } catch (error) {
-      console.error("[agent-recovery] sweep failed", error);
+      operationalLogger.error({ err: error, event: "agent_recovery.sweep_failed" }, "Agent recovery sweep failed");
     } finally {
       reconciling = false;
     }
@@ -69,6 +77,10 @@ async function main(): Promise<void> {
     namespace: config.TEMPORAL_NAMESPACE,
     taskQueue: config.TEMPORAL_TASK_QUEUE,
     workflowsPath: require.resolve("./workflows"),
+    interceptors: {
+      activity: [temporalActivityInterceptors],
+      workflowModules: [require.resolve("./workflow-interceptors")],
+    },
     activities: createActivities(pool, { config }),
     maxConcurrentActivityTaskExecutions: 20,
     maxConcurrentWorkflowTaskExecutions: 100,
@@ -78,6 +90,7 @@ async function main(): Promise<void> {
     await worker.shutdown();
     await connection.close();
     await pool.end();
+    await shutdownTelemetry();
   };
   process.once("SIGINT", () => void close().finally(() => process.exit(0)));
   process.once("SIGTERM", () => void close().finally(() => process.exit(0)));
@@ -85,6 +98,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
+  operationalLogger.error({ err: error, event: "agents_worker.startup_failed" }, "Agent worker startup failed");
+  void shutdownTelemetry().finally(() => { process.exitCode = 1; });
 });

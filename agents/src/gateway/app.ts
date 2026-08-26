@@ -1,6 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { createHash } from "node:crypto";
-import { randomUUID } from "node:crypto";
 import { FixedWindowRateLimiter } from "./rate-limit";
 import {
   firstHeader,
@@ -11,6 +10,8 @@ import {
   McpProtocolError,
   validateStatelessRequest,
 } from "../mcp/protocol";
+import { correlationIdFromHeader, currentCorrelationHeaders, currentCorrelationId, runWithCorrelationId } from "../telemetry/context";
+import { operationalLogFields, operationalLogRedaction, operationalLogSerializers } from "../telemetry/logger";
 
 const MAX_MCP_REQUEST_BYTES = 256 * 1024;
 const MAX_MCP_RESPONSE_BYTES = 1024 * 1024;
@@ -70,12 +71,27 @@ export function buildGateway(input: {
   upstreamTimeoutMs?: number;
   allowedOrigins?: string[];
   statelessEnabled?: boolean;
+  logLevel?: string;
 }): FastifyInstance {
   if (input.environment === "production" && !input.sharedSecret?.trim()) {
     throw new Error("AGENT_GATEWAY_SHARED_SECRET is required in production");
   }
   const upstreamTimeoutMs = input.upstreamTimeoutMs ?? UPSTREAM_TIMEOUT_MS;
-  const app = Fastify({ logger: false, bodyLimit: MAX_MCP_REQUEST_BYTES, requestTimeout: upstreamTimeoutMs });
+  const app = Fastify({
+    logger: {
+      level: input.logLevel ?? process.env.LOG_LEVEL ?? "info",
+      redact: operationalLogRedaction,
+      serializers: operationalLogSerializers,
+      mixin: () => ({ ...operationalLogFields(), ...(currentCorrelationId() ? { correlation_id: currentCorrelationId() } : {}) }),
+    },
+    bodyLimit: MAX_MCP_REQUEST_BYTES,
+    requestTimeout: upstreamTimeoutMs,
+  });
+  app.addHook("onRequest", (request, reply, done) => {
+    const correlationId = correlationIdFromHeader(request.headers["x-correlation-id"]);
+    reply.header("x-correlation-id", correlationId);
+    runWithCorrelationId(correlationId, done);
+  });
   const enabled = input.enabled ?? true;
   const statelessEnabled = input.statelessEnabled ?? true;
   const windowMs = input.rateLimitWindowMs ?? 60_000;
@@ -125,7 +141,10 @@ export function buildGateway(input: {
   app.get("/health/ready", async (_request, reply) => {
     if (!enabled) return reply.code(503).send({ status: "not_ready", reason: "mcp_gateway_disabled" });
     try {
-      const response = await fetch(`${input.agentPlatformUrl.replace(/\/$/, "")}/health/ready`, { signal: AbortSignal.timeout(2_000) });
+      const response = await fetch(`${input.agentPlatformUrl.replace(/\/$/, "")}/health/ready`, {
+        headers: currentCorrelationHeaders(),
+        signal: AbortSignal.timeout(2_000),
+      });
       if (!response.ok) return reply.code(503).send({ status: "not_ready", reason: "agent_platform_unready" });
       return { status: "ready", service: "agent-gateway" };
     } catch {
@@ -166,9 +185,7 @@ export function buildGateway(input: {
     const startedAt = Date.now();
     metrics.requests += 1;
     metrics.inFlight += 1;
-    const correlationId = typeof request.headers["x-correlation-id"] === "string" && /^[a-zA-Z0-9._:-]{1,160}$/.test(request.headers["x-correlation-id"])
-      ? request.headers["x-correlation-id"]
-      : randomUUID();
+    const correlationId = currentCorrelationId() ?? correlationIdFromHeader(request.headers["x-correlation-id"]);
     reply.header("x-correlation-id", correlationId);
     const finish = (error = false) => {
       metrics.inFlight = Math.max(0, metrics.inFlight - 1);
@@ -270,7 +287,7 @@ export function buildGateway(input: {
     try {
       const response = await fetch(`${input.agentPlatformUrl.replace(/\/$/, "")}/mcp`, {
         method: "POST",
-        headers,
+        headers: { ...headers, ...currentCorrelationHeaders() },
         body: JSON.stringify(request.body),
         signal: AbortSignal.any([controller.signal, AbortSignal.timeout(upstreamTimeoutMs)]),
       });

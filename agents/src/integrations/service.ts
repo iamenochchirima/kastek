@@ -2,6 +2,7 @@ import type { AppConfig } from "../config";
 import type { ToolInvocationContext } from "../tools/types";
 import { CalendarRepository } from "./calendar-repository";
 import { IntegrationRepository, type IntegrationConnectionRecord } from "./repository";
+import { withProviderSpan } from "../telemetry/spans";
 
 const GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3";
 
@@ -135,7 +136,7 @@ export class IntegrationToolService {
     const connection = await this.repository.getConnection(context.organizationId, context.installationId, "tavily.search");
     const apiKey = connection?.credential_id ? await this.repository.resolveCredential(context.organizationId, connection.credential_id) : this.config?.TAVILY_API_KEY;
     if (!apiKey) throw new IntegrationToolError("INTEGRATION_NOT_CONNECTED", "Tavily Search is not connected");
-    const response = await fetch("https://api.tavily.com/search", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ api_key: apiKey, query: queryText, search_depth: stringArg(args, "searchDepth", "basic"), max_results: Math.max(1, Math.min(typeof args.limit === "number" ? args.limit : 5, 10)), include_answer: true }), signal: AbortSignal.timeout(20_000) });
+    const response = await withProviderSpan("tavily", "search", () => fetch("https://api.tavily.com/search", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ api_key: apiKey, query: queryText, search_depth: stringArg(args, "searchDepth", "basic"), max_results: Math.max(1, Math.min(typeof args.limit === "number" ? args.limit : 5, 10)), include_answer: true }), signal: AbortSignal.timeout(20_000) }));
     if (!response.ok) throw new IntegrationToolError("PROVIDER_ERROR", `Tavily returned HTTP ${response.status}`);
     const payload = await response.json() as { answer?: string; results?: Array<{ title?: string; url?: string; content?: string; score?: number }> };
     return { answer: payload.answer ?? "", results: (payload.results ?? []).map((item) => ({ title: item.title ?? "", url: item.url ?? "", content: item.content ?? "", score: item.score })) };
@@ -180,14 +181,17 @@ export class IntegrationToolService {
     let credential = jsonRecord(await this.repository.resolveCredential(organizationId, connection.credential_id)) as GoogleCredential;
     if (!credential.accessToken) throw new IntegrationToolError("INTEGRATION_CREDENTIAL_INVALID", "Google Calendar access token is missing");
     if (credential.expiresAt && Date.parse(credential.expiresAt) <= Date.now() + 30_000 && credential.refreshToken && this.config?.GOOGLE_CALENDAR_CLIENT_ID && this.config.GOOGLE_CALENDAR_CLIENT_SECRET) {
-      const refreshed = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: this.config.GOOGLE_CALENDAR_CLIENT_ID, client_secret: this.config.GOOGLE_CALENDAR_CLIENT_SECRET, grant_type: "refresh_token", refresh_token: credential.refreshToken }), signal: AbortSignal.timeout(20_000) });
+      const clientId = this.config.GOOGLE_CALENDAR_CLIENT_ID;
+      const clientSecret = this.config.GOOGLE_CALENDAR_CLIENT_SECRET;
+      const refreshToken = credential.refreshToken;
+      const refreshed = await withProviderSpan("google-calendar", "oauth.refresh", () => fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: "refresh_token", refresh_token: refreshToken }), signal: AbortSignal.timeout(20_000) }));
       if (!refreshed.ok) throw new IntegrationToolError("INTEGRATION_REAUTH_REQUIRED", "Google Calendar authorization has expired");
       const token = await refreshed.json() as { access_token?: string; expires_in?: number };
       if (!token.access_token) throw new IntegrationToolError("INTEGRATION_REAUTH_REQUIRED", "Google Calendar refresh did not return an access token");
       credential = { ...credential, accessToken: token.access_token, expiresAt: new Date(Date.now() + (token.expires_in ?? 3_600) * 1_000).toISOString() };
       await this.repository.replaceCredential(organizationId, connection.credential_id, JSON.stringify(credential));
     }
-    const response = await fetch(`${GOOGLE_CALENDAR_API}${path}`, { method, headers: { authorization: `Bearer ${credential.accessToken}`, "content-type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(20_000) });
+    const response = await withProviderSpan("google-calendar", "calendar.request", () => fetch(`${GOOGLE_CALENDAR_API}${path}`, { method, headers: { authorization: `Bearer ${credential.accessToken}`, "content-type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(20_000) }));
     if (!response.ok) throw new IntegrationToolError(response.status === 401 ? "INTEGRATION_REAUTH_REQUIRED" : "PROVIDER_ERROR", `Google Calendar returned HTTP ${response.status}`);
     if (response.status === 204) return {};
     return response.json();
@@ -198,7 +202,7 @@ export class IntegrationToolService {
     const endpoint = connection.configuration.endpoint.trim().replace(/\/$/, "");
     if (!/^https?:\/\//i.test(endpoint)) throw new IntegrationToolError("CONNECTOR_INVALID", "Apple Tools connector endpoint is invalid");
     const secret = await this.repository.resolveCredential(context.organizationId, connection.credential_id);
-    const response = await fetch(`${endpoint}/v1/tools/call`, { method: "POST", headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" }, body: JSON.stringify({ operation, arguments: args, requestId: context.runId, correlationId: context.correlationId }), signal: AbortSignal.timeout(30_000) });
+    const response = await withProviderSpan("apple-connector", "tools.call", () => fetch(`${endpoint}/v1/tools/call`, { method: "POST", headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" }, body: JSON.stringify({ operation, arguments: args, requestId: context.runId, correlationId: context.correlationId }), signal: AbortSignal.timeout(30_000) }));
     if (!response.ok) throw new IntegrationToolError("CONNECTOR_ERROR", `Apple connector returned HTTP ${response.status}`);
     const payload = await response.json() as { results?: Array<Record<string, unknown>> };
     return payload.results ?? [];

@@ -1,3 +1,5 @@
+import "../telemetry";
+import { shutdownTelemetry } from "../telemetry";
 import { createInterface } from "node:readline";
 import { stdin, stdout } from "node:process";
 import {
@@ -168,9 +170,11 @@ if (process.argv[1]?.endsWith("stdio.js") || process.argv[1]?.endsWith("stdio.ts
     process.stderr.write("MCP_STDIO_API_KEY is required\n");
     process.exitCode = 1;
   } else {
-    runStdioBridge({ endpoint, token, probeProtocol }).catch((error) => {
-      process.stderr.write(`${error instanceof Error ? error.message : "stdio_bridge_failed"}\n`);
-      process.exitCode = 1;
-    });
+    runStdioBridge({ endpoint, token, probeProtocol })
+      .catch((error) => {
+        process.stderr.write(`${error instanceof Error ? error.message : "stdio_bridge_failed"}\n`);
+        process.exitCode = 1;
+      })
+      .finally(() => shutdownTelemetry());
   }
 }

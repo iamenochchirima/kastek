@@ -19,7 +19,7 @@ describe("agent gateway", () => {
     const forwarded = fetchMock.mock.calls[0]?.[1] as RequestInit;
     expect(forwarded.headers).not.toHaveProperty("x-organization-id");
     expect(forwarded.headers).not.toHaveProperty("x-actor-id");
-    expect(forwarded.headers).not.toHaveProperty("x-correlation-id");
+    expect(forwarded.headers).toMatchObject({ "x-correlation-id": "spoofed" });
     await app.close();
     fetchMock.mockRestore();
   });

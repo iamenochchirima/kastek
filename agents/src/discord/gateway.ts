@@ -2,6 +2,7 @@ import type { AppConfig } from "../config";
 import { ChannelCredentialRepository } from "../db/repositories/channel-credential-repository";
 import type { ChannelConnectionRecord, ChannelRepository } from "../db/repositories/channel-repository";
 import { DiscordBotClient } from "../channels/discord-client";
+import { operationalLogger } from "../telemetry/logger";
 import { readDiscordAccessPolicy, shouldDiscordAnswer, shouldDiscordAnswerComponent, stripDiscordMention } from "./policy";
 
 interface GatewayPayload {
@@ -211,7 +212,7 @@ export class DiscordGatewaySupervisor {
     for (const connection of connections) {
       if (this.sessions.has(connection.id) || !connection.credential_reference) continue;
       const token = await this.credentials.resolve(connection.organization_id, connection.credential_reference, "discord").catch((error) => {
-        console.warn(`[discord] credential unavailable for ${connection.id}: ${error instanceof Error ? error.message : "unknown error"}`);
+        operationalLogger.warn({ err: error, event: "discord.credential_unavailable", connection_id: connection.id }, "Discord credential unavailable");
         return undefined;
       });
       if (!token) continue;
@@ -226,11 +227,11 @@ export class DiscordGatewaySupervisor {
             organizationId: connection.organization_id,
             connectionId: connection.id,
             metadata: { ...connection.metadata, gateway: { status } },
-          }).catch((error) => console.warn(`[discord] could not update ${connection.id} status: ${error instanceof Error ? error.message : "unknown error"}`));
+          }).catch((error) => operationalLogger.warn({ err: error, event: "discord.status_update_failed", connection_id: connection.id }, "Could not update Discord connection status"));
         },
       });
       this.sessions.set(connection.id, session);
-      void session.start().catch((error) => console.warn(`[discord] session ${connection.id} failed: ${error instanceof Error ? error.message : "unknown error"}`));
+      void session.start().catch((error) => operationalLogger.warn({ err: error, event: "discord.session_failed", connection_id: connection.id }, "Discord session failed"));
     }
   }
 }

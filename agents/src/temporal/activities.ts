@@ -48,6 +48,7 @@ import { buildChannelApprovalPrompt } from "../approval/channel-prompt";
 import { IntegrationRepository } from "../integrations/repository";
 import { IntegrationToolService } from "../integrations/service";
 import { registerIntegrationTools } from "../integrations/tools";
+import { withSpan } from "../telemetry/spans";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -1299,7 +1300,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const integrationRepository = options.config ? new IntegrationRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY) : undefined;
   const integrationTools = options.integrationTools ?? (integrationRepository ? new IntegrationToolService(integrationRepository, options.config) : undefined);
   const tools = options.tools ?? createDefaultTools(coreClient, conversationActions, integrationTools);
-  return {
+  const activities: AgentRunActivities = {
     async transitionRun(input) {
       await runs.transitionRun(input.runId, input.expectedStatus, input.nextStatus);
     },
@@ -1611,6 +1612,10 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       await runs.failRun(input.runId, input.error);
     },
   };
+  return Object.fromEntries(Object.entries(activities).map(([name, handler]) => [
+    name,
+    (input: unknown) => withSpan(`temporal.activity.${name}`, { "temporal.activity.name": name }, () => handler(input as never)),
+  ])) as unknown as AgentRunActivities;
 }
 
 function isMcpToolRun(input: Record<string, unknown>): input is Record<string, unknown> & { mcpTool: { name: string; arguments: Record<string, unknown>; toolCallId: string } } {

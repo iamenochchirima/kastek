@@ -3,6 +3,7 @@ import Ajv from "ajv";
 import { createOpenAIAdapter, createOpenAICompatibleAdapter, createOpenRouterAdapter } from "./openai-compatible";
 import { GeminiAdapter } from "./gemini";
 import { ModelProviderError, type ModelAdapter, type ModelCapabilities, type ModelCredentials, type ModelPricing, type ModelProvider, type ModelRequest, type ModelResponse, type ModelStreamDelta, type ModelStreamResult } from "./types";
+import { withProviderSpan } from "../telemetry/spans";
 
 export class ModelGateway {
   private readonly adapters: Map<ModelProvider, ModelAdapter>;
@@ -88,7 +89,7 @@ export class ModelGateway {
       const abortParent = (): void => controller.abort();
       request.signal?.addEventListener("abort", abortParent, { once: true });
       try {
-        const response = await adapter.complete({ ...request, signal: controller.signal }, credentials);
+        const response = await withProviderSpan(request.provider, "model.complete", () => adapter.complete({ ...request, signal: controller.signal }, credentials));
         if (request.responseFormat) {
           let structured: unknown;
           try {
@@ -138,7 +139,7 @@ export class ModelGateway {
     let deltas = 0;
     let response: ModelResponse;
     try {
-      response = await adapter.stream(request, credentials, async (delta) => { deltas += 1; await onDelta(delta); });
+      response = await withProviderSpan(request.provider, "model.stream", () => adapter.stream!(request, credentials, async (delta) => { deltas += 1; await onDelta(delta); }));
     } catch (error) {
       if (error instanceof ModelProviderError) this.recordCircuitFailure(request, credentials);
       throw error;

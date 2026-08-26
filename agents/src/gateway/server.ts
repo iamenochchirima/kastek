@@ -1,3 +1,5 @@
+import "../telemetry";
+import { shutdownTelemetry } from "../telemetry";
 import { z } from "zod";
 import { buildGateway } from "./app";
 
@@ -33,7 +35,15 @@ const app = buildGateway({
   rateLimitMaxKeys: config.MCP_GATEWAY_RATE_LIMIT_MAX_KEYS,
   upstreamTimeoutMs: config.MCP_GATEWAY_UPSTREAM_TIMEOUT_MS,
   allowedOrigins: config.MCP_GATEWAY_ALLOWED_ORIGINS,
+  logLevel: process.env.LOG_LEVEL,
 });
+
+const close = async (): Promise<void> => {
+  await app.close();
+  await shutdownTelemetry();
+};
+process.once("SIGINT", () => void close().finally(() => process.exit(0)));
+process.once("SIGTERM", () => void close().finally(() => process.exit(0)));
 
 app.listen({ host: config.GATEWAY_HOST, port: config.GATEWAY_PORT }).catch((error) => {
   app.log.error(error);

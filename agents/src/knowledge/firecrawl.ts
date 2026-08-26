@@ -1,3 +1,5 @@
+import { withProviderSpan } from "../telemetry/spans";
+
 export interface FirecrawlMapLink {
   url: string;
   title?: string;
@@ -125,32 +127,34 @@ export class FirecrawlClient {
 
   private async request(pathOrUrl: string, init: RequestInit = {}): Promise<Record<string, unknown>> {
     if (!this.isConfigured()) throw new Error("Website crawler is not configured");
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
-    try {
-      const url = pathOrUrl.startsWith("http") ? pathOrUrl : `${this.baseUrl}${pathOrUrl}`;
-      const response = await this.fetcher(url, {
-        ...init,
-        signal: controller.signal,
-        headers: {
-          authorization: `Bearer ${this.apiKey}`,
-          accept: "application/json",
-          ...(init.body ? { "content-type": "application/json" } : {}),
-          ...(init.headers ?? {}),
-        },
-      });
-      const payload = asRecord(await response.json().catch(() => ({})));
-      if (!response.ok) {
-        const detail = typeof payload.error === "string" ? payload.error : `HTTP ${response.status}`;
-        throw new Error(`Firecrawl request failed: ${detail}`);
+    return withProviderSpan("firecrawl", "http.request", async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+      try {
+        const url = pathOrUrl.startsWith("http") ? pathOrUrl : `${this.baseUrl}${pathOrUrl}`;
+        const response = await this.fetcher(url, {
+          ...init,
+          signal: controller.signal,
+          headers: {
+            authorization: `Bearer ${this.apiKey}`,
+            accept: "application/json",
+            ...(init.body ? { "content-type": "application/json" } : {}),
+            ...(init.headers ?? {}),
+          },
+        });
+        const payload = asRecord(await response.json().catch(() => ({})));
+        if (!response.ok) {
+          const detail = typeof payload.error === "string" ? payload.error : `HTTP ${response.status}`;
+          throw new Error(`Firecrawl request failed: ${detail}`);
+        }
+        return payload;
+      } catch (error) {
+        if (controller.signal.aborted) throw new Error("Firecrawl request timed out");
+        throw error;
+      } finally {
+        clearTimeout(timeout);
       }
-      return payload;
-    } catch (error) {
-      if (controller.signal.aborted) throw new Error("Firecrawl request timed out");
-      throw error;
-    } finally {
-      clearTimeout(timeout);
-    }
+    });
   }
 
   public async map(options: FirecrawlMapOptions): Promise<FirecrawlMapResult> {

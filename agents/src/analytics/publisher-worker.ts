@@ -1,3 +1,5 @@
+import "../telemetry";
+import { shutdownTelemetry } from "../telemetry";
 import { createPool } from "../db/pool";
 import { loadConfig } from "../config";
 import {
@@ -6,12 +8,15 @@ import {
   RetryPolicy,
   type AnalyticsPublisherSettings,
 } from "./index";
+import { operationalLogger } from "../telemetry/logger";
+import { withSpan } from "../telemetry/spans";
 
 async function main(): Promise<void> {
   const config = loadConfig();
   const token = config.ANALYTICS_AGENT_INGESTION_TOKEN;
   if (!token) {
-    console.warn("[analytics-publisher] disabled; ANALYTICS_AGENT_INGESTION_TOKEN is not configured");
+    operationalLogger.warn({ event: "analytics_publisher.disabled", reason: "missing_ingestion_token" }, "Analytics publisher disabled");
+    await shutdownTelemetry();
     return;
   }
 
@@ -36,12 +41,19 @@ async function main(): Promise<void> {
     if (publishing) return;
     publishing = true;
     try {
-      const stats = await publishOutboxOnce(pool, client, settings);
+      const stats = await withSpan("analytics.outbox.publish", {}, () => publishOutboxOnce(pool, client, settings));
       if (stats.claimed > 0 || stats.leasesReleased > 0) {
-        console.info(`[analytics-publisher] claimed=${stats.claimed} delivered=${stats.delivered} retryable=${stats.retryable} quarantined=${stats.quarantined} leasesReleased=${stats.leasesReleased}`);
+        operationalLogger.info({
+          event: "analytics_publisher.batch_completed",
+          claimed: stats.claimed,
+          delivered: stats.delivered,
+          retryable: stats.retryable,
+          quarantined: stats.quarantined,
+          leases_released: stats.leasesReleased,
+        }, "Analytics publisher batch completed");
       }
     } catch (error) {
-      console.error("[analytics-publisher] iteration failed", error);
+      operationalLogger.error({ err: error, event: "analytics_publisher.iteration_failed" }, "Analytics publisher iteration failed");
     } finally {
       publishing = false;
     }
@@ -52,6 +64,7 @@ async function main(): Promise<void> {
   const close = async (): Promise<void> => {
     clearInterval(timer);
     await pool.end();
+    await shutdownTelemetry();
   };
   process.once("SIGINT", () => void close().finally(() => process.exit(0)));
   process.once("SIGTERM", () => void close().finally(() => process.exit(0)));
@@ -59,6 +72,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
+  operationalLogger.error({ err: error, event: "analytics_publisher.startup_failed" }, "Analytics publisher startup failed");
+  void shutdownTelemetry().finally(() => { process.exitCode = 1; });
 });
