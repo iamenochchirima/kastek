@@ -34,6 +34,19 @@ TENANTS_ENV_SETUP="if [[ -f '$ROOT_DIR/server/kasitek-tenants/.env' ]]; then set
 LOCAL_CORE_URL="${KASITEK_CORE_URL:-http://127.0.0.1:4000}"
 LOCAL_CORE_AGENT_TOKEN="${KASITEK_LOCAL_CORE_AGENT_TOKEN:-kasitek-local-agent-boundary-dev-2026}"
 
+# Reuse the existing process-local reporting credentials when this script is
+# invoked from a fresh shell. Otherwise restarting only one reporting process
+# would generate a new token and leave the other processes unable to authenticate.
+if [[ -f "$ANALYTICS_LOCAL_REPORTING_ENV_FILE" ]] \
+  && [[ -z "${ANALYTICS_REPORTING_PRIVATE_KEY:-}" ]] \
+  && [[ -z "${ANALYTICS_REPORTING_PUBLIC_KEY:-}" ]] \
+  && [[ -z "${ANALYTICS_REPORTING_RESOLVER_TOKEN:-}" ]] \
+  && [[ -z "${ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON:-}" ]]; then
+  set -a
+  source "$ANALYTICS_LOCAL_REPORTING_ENV_FILE"
+  set +a
+fi
+
 # "$ROOT_DIR/scripts/sync_dotenv_vaults.sh" pull
 
 require_command() {
@@ -80,7 +93,10 @@ configure_local_analytics_reporting() {
   export ANALYTICS_REPORTING_PUBLIC_KEY="$public_key"
   export ANALYTICS_REPORTING_RESOLVER_TOKEN="$resolver_token"
   export ANALYTICS_REPORTING_RESOLVER_CREDENTIALS_JSON="[{\"source_service\":\"core\",\"token\":\"$resolver_token\"}]"
-  export ANALYTICS_REPORTING_KEY_ID="${ANALYTICS_REPORTING_KEY_ID:-local-reporting-2026}"
+  # Leave the local grant unkeyed unless a keyed public-key map is explicitly
+  # supplied. A key id without ANALYTICS_REPORTING_PUBLIC_KEYS_JSON makes the
+  # Analytics verifier reject every otherwise valid grant.
+  export ANALYTICS_REPORTING_KEY_ID="${ANALYTICS_REPORTING_KEY_ID:-}"
   export ANALYTICS_REPORTING_ISSUER="${ANALYTICS_REPORTING_ISSUER:-kasitek-core}"
   export ANALYTICS_REPORTING_AUDIENCE="${ANALYTICS_REPORTING_AUDIENCE:-kasitek-analytics-reporting}"
 
@@ -94,6 +110,37 @@ configure_local_analytics_reporting() {
     printf 'export ANALYTICS_REPORTING_ISSUER=%q\n' "$ANALYTICS_REPORTING_ISSUER"
     printf 'export ANALYTICS_REPORTING_AUDIENCE=%q\n' "$ANALYTICS_REPORTING_AUDIENCE"
   } > "$ANALYTICS_LOCAL_REPORTING_ENV_FILE"
+  chmod 600 "$ANALYTICS_LOCAL_REPORTING_ENV_FILE"
+}
+
+# Core's source publisher and Analytics' private ingestion API must share the
+# same local credential. Keep this in the process-local environment file so it
+# is never committed to the repository or copied into a service .env file.
+configure_local_analytics_ingestion() {
+  local core_token="${ANALYTICS_CORE_INGESTION_TOKEN:-${ANALYTICS_INGESTION_TOKEN:-}}"
+  local ingestion_credentials="${ANALYTICS_INGESTION_CREDENTIALS_JSON:-}"
+
+  if [[ -z "$core_token" && -n "$ingestion_credentials" ]]; then
+    echo "Incomplete local Analytics ingestion configuration; ANALYTICS_CORE_INGESTION_TOKEN is missing." >&2
+    exit 1
+  fi
+  if [[ -n "$core_token" && -z "$ingestion_credentials" ]]; then
+    echo "Incomplete local Analytics ingestion configuration; ANALYTICS_INGESTION_CREDENTIALS_JSON is missing." >&2
+    exit 1
+  fi
+  if [[ -z "$core_token" ]]; then
+    core_token="$(openssl rand -hex 32)"
+    ingestion_credentials="[{\"source_service\":\"core\",\"producer_id\":\"core-customer-analytics\",\"token\":\"$core_token\"}]"
+  fi
+
+  export ANALYTICS_CORE_INGESTION_TOKEN="$core_token"
+  export ANALYTICS_INGESTION_CREDENTIALS_JSON="$ingestion_credentials"
+
+  umask 077
+  {
+    printf 'export ANALYTICS_CORE_INGESTION_TOKEN=%q\n' "$core_token"
+    printf 'export ANALYTICS_INGESTION_CREDENTIALS_JSON=%q\n' "$ingestion_credentials"
+  } >> "$ANALYTICS_LOCAL_REPORTING_ENV_FILE"
   chmod 600 "$ANALYTICS_LOCAL_REPORTING_ENV_FILE"
 }
 
@@ -286,6 +333,7 @@ if [[ ${#tabs[@]} -eq 0 ]]; then
 fi
 
 configure_local_analytics_reporting
+configure_local_analytics_ingestion
 
 echo "Launching local KasiTek stack..."
 gnome-terminal "${tabs[@]}"
