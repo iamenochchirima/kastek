@@ -1,8 +1,11 @@
+import "../telemetry";
+import { shutdownTelemetry } from "../telemetry";
 import { loadConfig } from "../config";
 import { createPool } from "../db/pool";
 import { AgentRepository, SYSTEM_ORGANIZATION_ID } from "../db/repositories/agent-repository";
 import { KASIAI_RELEASE_ACTOR, KASIAI_SLUG, kasiaiInitialVersion } from "./kasiai";
 import { evaluateKasiAiRelease } from "./kasiai-release-gate";
+import { operationalLogger } from "../telemetry/logger";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -12,7 +15,7 @@ async function main(): Promise<void> {
     const candidate = kasiaiInitialVersion(config);
     const gate = evaluateKasiAiRelease(candidate);
     if (!gate.passed) {
-      console.error(JSON.stringify({ error: "kasiai_release_gate_failed", checks: gate.checks }));
+      operationalLogger.error({ event: "kasiai.release.gate.failed", checks: gate.checks }, "KasiAi release gate failed");
       process.exitCode = 1;
       return;
     }
@@ -27,13 +30,14 @@ async function main(): Promise<void> {
     const rolledOut = process.argv.includes("--rollout")
       ? await agents.rolloutSystemVersion(agent.id, version.id, KASIAI_RELEASE_ACTOR)
       : 0;
-    console.log(JSON.stringify({ agentId: agent.id, versionId: version.id, versionNumber: version.version_number, rolledOut, releaseGate: gate.checks }));
+    operationalLogger.info({ event: "kasiai.release.completed", agentId: agent.id, versionId: version.id, versionNumber: version.version_number, rolledOut, releaseGate: gate.checks }, "KasiAi release completed");
   } finally {
     await pool.end();
+    await shutdownTelemetry();
   }
 }
 
 main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
+  operationalLogger.error({ err: error, event: "kasiai.release.failed" }, "KasiAi release failed");
+  void shutdownTelemetry().finally(() => { process.exitCode = 1; });
 });
