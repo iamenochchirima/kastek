@@ -30,8 +30,13 @@ The repository implementation is split into reviewable commits:
 | CI signal and configuration validation | `9f175041` |
 | Documentation and release gates | `124bbff2` |
 | Operational metrics, queue age, and production sampling | `7f064cce` |
+| Release record and local evidence | `a5aeaf74` |
+| Remaining worker boundaries, event enforcement, and log bridge | `586f2444` |
+| Event normalization contract tests | `64227832` |
 
-The exact implementation tree used for the repository smoke evidence is `7f064cce`. The current
+The exact implementation tree used for the repository smoke evidence is now
+`642278324a8d14baa216910144247202ac3cd320`. The Collector configuration is unchanged from
+`7f064cce`; the current tree includes the follow-up worker, event-contract, and compatibility-boundary changes. The current
 branch may contain later product commits; those commits are not covered by this record and must be
 retested before being promoted as one artifact.
 
@@ -41,7 +46,7 @@ retested before being promoted as one artifact.
 Platform version: 0.1.0 (local validation metadata)
 Release tag: not created
 Deployed artifact digest: not created
-Collector configuration revision: 7f064cce
+Collector configuration revision: 7f064cce (unchanged)
 Deployment environment: local verification only
 Staging release ID: not created
 Production release ID: not created
@@ -49,8 +54,12 @@ Production release ID: not created
 
 ## Repository verification evidence
 
-- Rust formatting, workspace check, shared observability tests, and Clippy passed.
-- Agents type checking and the full test suite passed: 418 tests passed and 43 were skipped.
+- The initial implementation tree passed Rust formatting, workspace check, shared observability
+  tests, and Clippy. On the current dirty branch, the targeted observability and
+  analytics-producer tests pass (9 and 14 tests respectively); Analytics unit and ingestion
+  tests pass, while the local maintenance PostgreSQL test does not discover its quarantine work
+  row.
+- Agents type checking and the full test suite passed: 420 tests passed and 43 were skipped.
 - All four Collector profiles passed validation with the pinned Collector `0.158.0` binary, and
   the Compose configuration passed validation.
 - The local Collector reached readiness and received Rust and Agents logs, traces, and metrics.
@@ -58,6 +67,9 @@ Production release ID: not created
   correlation metadata where applicable.
 - Export-disabled behavior, bounded/redacted exception fields, propagation seams, and telemetry
   contract tests passed.
+- The current full-workspace Rust formatter/check is blocked by an unrelated user change that
+  declares missing `server/kasitek-core/src/services/early_access.rs`; the targeted Rust
+  telemetry crates remain independently verified.
 - Public documentation build passed. The internal build compiles the observability page and its
   repository links, but remains blocked by an unrelated broken link in the user-edited
   `docs/internal/architecture/admin-analytics.md` to a removed plan. This infrastructure-only

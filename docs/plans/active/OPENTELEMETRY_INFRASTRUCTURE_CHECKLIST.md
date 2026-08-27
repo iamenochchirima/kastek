@@ -47,9 +47,13 @@ exist.
 
 - [x] Define structured log fields for timestamp, severity, service, environment, release,
       operation, outcome, error code, trace ID, span ID, and correlation ID.
-- [ ] Define stable event names for every startup, shutdown, request completion, provider call,
-      retry, migration, queue transition, and terminal-failure path. Touched paths use stable
-      events; a full legacy event inventory remains an incremental follow-up.
+- [x] Define the stable lowercase dot-separated event vocabulary and enforce its syntax at the
+      Agents logger boundary.
+- [x] Apply stable events to modified Agents paths and the Core/Tenant worker, source-backfill,
+      Analytics outbox, and Analytics projection boundaries.
+- [ ] Migrate the remaining legacy Rust `log!` callsites for startup, shutdown, request
+      completion, provider call, retry, migration, queue transition, and terminal-failure paths;
+      the logger bridge preserves them safely while this incremental migration remains open.
 - [x] Define severity mapping across Rust `log`/`tracing` and Agents/Pino.
 - [x] Define exception type, message, stack, and cause fields with bounded sizes.
 - [x] Define attribute cardinality limits and fields that must remain in the body instead of
@@ -68,8 +72,9 @@ exist.
       count, error count, latency, in-flight work, queue age, retries, and dependency failures;
       resource saturation is owned by the Collector/host platform. Queue age and retry metrics are
       emitted by the Agents outbox owner, and the shared operation helpers cover Rust boundaries.
-- [ ] Extend metric wiring to every legacy queue and worker that is not yet wrapped by a shared
-      operation boundary.
+- [x] Extend metric wiring to the current Core/Tenant worker and source-backfill loops, Analytics
+      outbox publisher, Analytics projection processor, and their retry/dependency boundaries.
+      Queue age remains limited to queues that expose an enqueue timestamp.
 - [x] Keep product analytics metrics separate from service health metrics.
 - [x] Define metric units, names, attributes, and cardinality limits using OpenTelemetry conventions.
 - [x] Define baseline trace sampling and error-preserving behavior for production: application
@@ -289,7 +294,7 @@ Repository evidence for the implementation slice:
   `cargo test -p observability` (9 passed), and
   `cargo clippy -p observability --all-targets --all-features -- -D warnings` passed.
 - Agents: `pnpm exec tsc -p tsconfig.json --noEmit` and `pnpm test` passed (75 test files passed,
-  17 skipped; 418 tests passed, 43 skipped).
+  17 skipped; 420 tests passed, 43 skipped).
 - Collector: `docker compose -f infra/observability/otel-collector/compose.yaml config --quiet`
   passed. The pinned Collector `0.158.0` binary validated `config.yaml`, `config.local.yaml`,
   `config.staging.yaml`, and `config.production.template.yaml` with placeholder template values.
@@ -300,18 +305,25 @@ Repository evidence for the implementation slice:
 - Privacy hardening: the legacy Actix access formatter now excludes raw URLs, query strings,
   remote addresses, referers, and user agents. Agents exception messages and stacks redact common
   credential forms before they are recorded in logs or span exception events.
+- Boundary completion: `tracing_log::LogTracer` now bridges legacy Rust `log!` records into the
+  OpenTelemetry subscriber when export is enabled; the Core/Tenant source-backfill loops and
+  Analytics projection/outbox boundaries now record shared operation metrics and stable events.
 - Documentation: public Docusaurus build passed. The internal build compiles the observability
   page but is blocked by an unrelated broken link in the user-edited
   `docs/internal/architecture/admin-analytics.md` to a removed plan; no public user/API
   documentation change is required for this infrastructure-only work.
-- Versioning: local validation metadata is `0.1.0`; the OTel implementation tree is recorded as
-  `7f064cceca1a8e27e34847d8f740657310098b4a`; no platform release tag or deployed artifact was
-  created by this work.
+- Versioning: local validation metadata is `0.1.0`; the current observability implementation tree
+  is recorded as `642278324a8d14baa216910144247202ac3cd320`; no platform release tag or deployed
+  artifact was created by this work.
 
 Checks intentionally not claimed as complete:
 
 - Docker container build/run could not be repeated locally because the Docker daemon is not
   available. The GitHub workflow contains the containerized smoke test.
+- The current full-workspace Rust formatter/check is blocked by an unrelated user change that
+  declares missing `server/kasitek-core/src/services/early_access.rs`; targeted observability
+  and analytics-producer tests/checks pass, and the existing Analytics maintenance PostgreSQL
+  test still fails to discover its quarantine work row in the local database.
 - Railway staging service creation, private DNS, environment variables, isolated resources, and
   staging release evidence require external platform access.
 - The implementation PR/issue link and release-owner approval must be added by the repository

@@ -248,7 +248,7 @@ Change: Introduce vendor-neutral OpenTelemetry instrumentation and Collector inf
 Owner: KasiTek engineering; provisional Collector incident owner: platform-ops.
 Risk: standard for repository changes; high for production enablement until staging and durable-destination gates pass.
 Affected services and user surfaces: Rust Core/Tenants/Analytics services, Agents API/worker/gateway/maintenance processes, and Collector deployment configuration; no direct user-interface behavior change.
-Platform release version or release ID: local validation metadata 0.1.0; implementation tree 7f064cceca1a8e27e34847d8f740657310098b4a; no release tag or deployed artifact.
+Platform release version or release ID: local validation metadata 0.1.0; implementation tree 642278324a8d14baa216910144247202ac3cd320; no release tag or deployed artifact.
 API/schema/migration changes: not applicable; migration execution is instrumented but schemas are unchanged.
 Feature flag or rollout method: OTEL_SDK_DISABLED, OTEL_EXPORTER_OTLP_* endpoint/protocol, resource metadata, and sampler environment variables; stdout fallback remains available.
 Analytics events and success metrics: not applicable; operational telemetry remains separate from customer analytics.
@@ -262,13 +262,17 @@ Post-release review date: before any staging or production promotion.
 ## Implementation evidence — 2026-08-27
 
 The full command-level record is maintained in the [execution checklist](./OPENTELEMETRY_INFRASTRUCTURE_CHECKLIST.md).
-The short result is: Rust formatting, workspace check, shared-crate tests, and Clippy passed;
-Agents type checking and the full test suite passed; all Collector profiles passed validation;
-and the local Collector received Rust and Agents traces, logs, and metrics with matching
-trace/span context and release metadata. The public documentation build passed. The internal
-documentation build compiles the observability page but is blocked by an unrelated broken link
-in the user-edited `docs/internal/architecture/admin-analytics.md` to a removed plan. The CI
-workflow contains the containerized Rust plus Agents signal smoke. The legacy Actix access
+The short result is: the initial implementation tree passed Rust formatting, workspace check,
+shared-crate tests, and Clippy; the current targeted observability and analytics-producer tests
+pass; Agents type checking and the full test suite passed; all Collector profiles passed
+validation; and the local Collector received Rust and Agents traces, logs, and metrics with
+matching trace/span context and release metadata. The current full-workspace Rust formatter/check
+is blocked by an unrelated user change that declares missing
+`server/kasitek-core/src/services/early_access.rs`; one local Analytics maintenance PostgreSQL
+test also fails to discover its quarantine work row. The public documentation build passed. The
+internal documentation build compiles the observability page but is blocked by an unrelated
+broken link in the user-edited `docs/internal/architecture/admin-analytics.md` to a removed plan.
+The CI workflow contains the containerized Rust plus Agents signal smoke. The legacy Actix access
 formatter and Agents exception telemetry also apply the final privacy bounds described in the
 checklist.
 

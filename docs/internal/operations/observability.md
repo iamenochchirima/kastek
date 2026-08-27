@@ -3,7 +3,7 @@ id: observability
 title: Observability
 sidebar_position: 5
 owner: platform-ops
-last_reviewed: 2026-08-26
+last_reviewed: 2026-08-27
 ---
 
 # Observability
@@ -110,22 +110,27 @@ The minimum event vocabulary is:
 
 | Boundary | Event names |
 | --- | --- |
-| Process lifecycle | `service.startup`, `service.startup_failed`, `service.shutdown`, `service.shutdown_failed` |
+| Process lifecycle | `service.startup`, `service.startup.failed`, `service.shutdown`, `service.shutdown.failed` |
 | HTTP | `http.request.completed`, `http.request.failed` |
 | Dependencies/providers | `provider.call.completed`, `provider.call.failed`, `dependency.unavailable` |
-| Retries | `operation.retry_scheduled`, `operation.retry_exhausted` |
+| Retries | `operation.retry.scheduled`, `operation.retry.exhausted` |
 | Migrations | `migration.started`, `migration.completed`, `migration.failed` |
-| Queues/workers | `queue.item_claimed`, `queue.item_completed`, `queue.item_failed`, `worker.started`, `worker.failed` |
-| Terminal failures | `operation.failed`, `operation.terminal_failure` |
+| Queues/workers | `queue.item.claimed`, `queue.item.completed`, `queue.item.failed`, `queue.item.ignored`, `queue.claim.failed`, `worker.started`, `worker.disabled`, `worker.failed` |
+| Terminal failures | `operation.failed`, `operation.terminal.failure` |
 
 Event names are identifiers, not user-facing prose. The existing legacy Rust `log!` inventory is
 migrated incrementally; new code must use this vocabulary and the legacy inventory must not be
 expanded without an event field or an explicit `not applicable` decision in its release record.
 
-Agents uses Pino with `trace_id`, `span_id`, `trace_flags`, and `correlation_id` fields. Rust
-`log` records are bridged into the tracing subscriber when OTLP is enabled. Request summaries
-omit query strings and network addresses; credentials, authorization material, cookies, tokens,
-prompts, and message content are redacted in the application logger and Collector processor.
+Agents uses Pino with `trace_id`, `span_id`, `trace_flags`, and `correlation_id` fields. Its
+operational logger accepts lowercase dot-separated event names and normalizes invalid event
+values to `operation.invalid.event` while retaining only a bounded diagnostic value. Rust `log`
+records are bridged into the tracing subscriber when OTLP is enabled. Core and Tenant source
+backfill workers, Core operational workers, the Analytics outbox publisher, and Analytics
+projection processing now emit stable lifecycle/result events and shared operation metrics.
+Request summaries omit query strings and network addresses; credentials, authorization material,
+cookies, tokens, prompts, and message content are redacted in the application logger and Collector
+processor.
 
 Use low-cardinality attributes for metrics and spans. Keep request IDs, customer identifiers,
 provider payloads, and message text in bounded body fields only when there is a documented support
@@ -143,7 +148,10 @@ The current shared instrumentation provides `http.server.request.count`,
 `kasitek.operation.count`, `kasitek.operation.error.count`,
 `kasitek.operation.duration`, `kasitek.operation.in_flight`,
 `kasitek.operation.retry.count`, `kasitek.dependency.failure.count`, and
-`kasitek.queue.age` for instrumented application, provider, worker, and outbox boundaries.
+`kasitek.queue.age` for instrumented application, provider, worker, and outbox boundaries. Core
+worker batch loops, Core/Tenant source backfill processing, Analytics outbox publication, and
+Analytics projection processing use the shared operation boundary; source queues that do not
+return an enqueue timestamp cannot emit a meaningful queue-age measurement yet.
 Collector internal metrics cover Collector health and processing. Queue age, retry, and
 dependency metrics are emitted only at boundaries that own those concepts; resource saturation is
 owned by the Collector/host platform rather than application request labels.
