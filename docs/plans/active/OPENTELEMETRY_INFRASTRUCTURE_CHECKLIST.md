@@ -338,13 +338,15 @@ Repository evidence for the implementation slice:
   The Rust W3C HTTP injection and provider-child context contract tests and Agents Temporal
   activity-boundary propagation test also pass; live multi-service trace relationship evidence
   remains a staging gate. All production Rust operational log callsites now use the shared
-  structured tracing API; CI rejects new legacy macros outside the smoke fixture.
+  structured tracing API; CI rejects new legacy macros outside the smoke fixture. The final
+  one-shot Agents events use lowercase dot-separated names, and the workflow covers the local
+  Agents smoke script.
 - Documentation: public and internal Docusaurus builds passed. The internal documentation index
   and Admin Analytics reference were cleaned so current technical documentation no longer links
   to removed strategy or implementation-plan material; no public user/API documentation change
   is required for this infrastructure-only work.
 - Versioning: local validation metadata is `0.1.0`; the current observability implementation tree
-  is recorded through `b2b9cedb`; no platform release tag or deployed
+  is recorded through `29eae0a8`; no platform release tag or deployed
   artifact was created by this work.
 
 Checks intentionally not claimed as complete:

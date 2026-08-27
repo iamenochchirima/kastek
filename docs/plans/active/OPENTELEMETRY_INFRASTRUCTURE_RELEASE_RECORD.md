@@ -46,9 +46,10 @@ The repository implementation is split into reviewable commits:
 | Add reproducible Railway Collector service definition | `988c93cb` |
 | Validate the Railway Collector service definition in CI | `e99ad4e9` |
 | Format committed Rust service code | `b2b9cedb` |
+| Normalize one-shot Agents events and smoke trigger paths | `29eae0a8` |
 
 The exact implementation tree used for the repository smoke evidence is now
-`b2b9cedb` (`b2b9cedb` is the current repository-side implementation commit). The Collector
+`29eae0a8` (`29eae0a8` is the current repository-side implementation commit). The Collector
 configuration content is unchanged from `7f064cce`; the Railway service definition is recorded in
 `988c93cb`. The current tree includes the follow-up worker,
 event-contract, compatibility-boundary, disabled-export fallback, documentation, and
@@ -104,7 +105,8 @@ Production release ID: not created
   pre-existing unused-parameter warning in Tenants; that mixed state is not a releasable artifact.
   The Core suite passed with 190 tests and 3 ignored, the Analytics suite passed with 66 tests,
   and the Tenants binary suite passed with 5 tests. The observability CI workflow now rejects new
-  operational Rust `log!` macros outside the smoke fixture.
+  operational Rust `log!` macros outside the smoke fixture and runs when the Agents local OTel
+  smoke script changes.
 - Public and internal documentation builds passed after removing stale links from the internal
   documentation index and Admin Analytics reference. This infrastructure-only change has no
   public user/API behavior change, so public documentation content is `not applicable`.
