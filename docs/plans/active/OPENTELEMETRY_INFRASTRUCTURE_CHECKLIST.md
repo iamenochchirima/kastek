@@ -182,8 +182,8 @@ exist.
 - [x] Verify service, environment, version, commit, trace, span, and correlation fields where
       applicable; the Rust smoke proves release/resource and log trace/span identity.
 - [ ] Verify trace relationships across HTTP and asynchronous work in a live multi-service stack;
-      propagation code and contract tests are present, while live multi-service evidence remains
-      a staging gate.
+      direct Rust HTTP injection and Agents Temporal activity-boundary contract tests now pass,
+      while live multi-service evidence remains a staging gate.
 - [x] Disable telemetry export and verify the services retain their stdout fallback by endpoint
       omission and `OTEL_SDK_DISABLED` handling.
 - [x] Document behavior when the local Collector stops: application work continues and bounded
@@ -293,12 +293,13 @@ Repository evidence for the implementation slice:
 - Initial implementation tree: `cargo fmt --all -- --check`, `cargo check --workspace`,
   `cargo test -p observability` (9 passed), and
   `cargo clippy -p observability --all-targets --all-features -- -D warnings` passed.
-- Current targeted Rust verification: `cargo test -p observability --lib` (9 passed),
+- Current targeted Rust verification: `cargo test -p observability --lib` (10 passed),
   `cargo test -p analytics-producer --lib` (14 passed), and the Analytics unit and ingestion
   PostgreSQL tests passed; the local Analytics maintenance PostgreSQL test remains failing at its
   quarantine-work assertion.
 - Agents: `pnpm exec tsc -p tsconfig.json --noEmit` and `pnpm test` passed (75 test files passed,
-  17 skipped; 420 tests passed, 43 skipped).
+  17 skipped; 421 tests passed, 43 skipped). The Temporal activity-boundary test verifies that
+  JSON-encoded string headers are decoded before correlation context is restored.
 - Disabled-export fallback: `OTEL_SDK_DISABLED=true LOG_FORMAT=json RUST_LOG=info cargo run
   -p observability --example otel-smoke` emitted both legacy `log!` and `tracing!` records to
   stdout without attempting an OTLP connection.
@@ -315,12 +316,14 @@ Repository evidence for the implementation slice:
 - Boundary completion: `tracing_log::LogTracer` now bridges legacy Rust `log!` records into the
   OpenTelemetry subscriber when export is enabled; the Core/Tenant source-backfill loops and
   Analytics projection/outbox boundaries now record shared operation metrics and stable events.
+  The Rust W3C HTTP injection contract test and Agents Temporal activity-boundary propagation test
+  also pass; live multi-service trace relationship evidence remains a staging gate.
 - Documentation: public and internal Docusaurus builds passed. The internal documentation index
   and Admin Analytics reference were cleaned so current technical documentation no longer links
   to removed strategy or implementation-plan material; no public user/API documentation change
   is required for this infrastructure-only work.
 - Versioning: local validation metadata is `0.1.0`; the current observability implementation tree
-  is recorded as `91d0598b`; no platform release tag or deployed
+  is recorded as `eb06783f`; no platform release tag or deployed
   artifact was created by this work.
 
 Checks intentionally not claimed as complete:

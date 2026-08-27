@@ -32,7 +32,9 @@ The shared Rust crate initializes logs, traces, metrics, resources, W3C propagat
 correlation IDs, provider spans, background spans, and graceful shutdown. Agents initializes the
 Node SDK before service modules, enables HTTP/PG/Pino instrumentation, adds provider and Temporal
 spans, propagates W3C/correlation context through Temporal, and retains a structured stdout
-fallback. CI, tests, and internal runbook/documentation updates are included.
+fallback. Direct Rust HTTP injection and the Agents Temporal activity context boundaries have
+contract tests, including the Temporal payload-converter round trip. CI, tests, and internal
+runbook/documentation updates are included.
 
 Local code/configuration verification and the repository release record are complete. Actual staging deployment, Railway
 service creation, and durable backend selection remain external gates. The repository must not
@@ -248,7 +250,7 @@ Change: Introduce vendor-neutral OpenTelemetry instrumentation and Collector inf
 Owner: KasiTek engineering; provisional Collector incident owner: platform-ops.
 Risk: standard for repository changes; high for production enablement until staging and durable-destination gates pass.
 Affected services and user surfaces: Rust Core/Tenants/Analytics services, Agents API/worker/gateway/maintenance processes, and Collector deployment configuration; no direct user-interface behavior change.
-Platform release version or release ID: local validation metadata 0.1.0; implementation tree 91d0598b; no release tag or deployed artifact.
+Platform release version or release ID: local validation metadata 0.1.0; implementation tree eb06783f; no release tag or deployed artifact.
 API/schema/migration changes: not applicable; migration execution is instrumented but schemas are unchanged.
 Feature flag or rollout method: OTEL_SDK_DISABLED, OTEL_EXPORTER_OTLP_* endpoint/protocol, resource metadata, and sampler environment variables; stdout fallback remains available.
 Analytics events and success metrics: not applicable; operational telemetry remains separate from customer analytics.
@@ -273,6 +275,9 @@ internal documentation builds passed after stale links were removed from the int
 documentation index and Admin Analytics reference.
 The disabled-export Rust smoke also emitted both legacy `log!` and `tracing!` records to stdout
 with `OTEL_SDK_DISABLED=true`.
+The Rust W3C HTTP injection contract test and Agents Temporal activity-boundary correlation test
+passed; the latter also guards decoding of Temporal JSON string payloads before restoring async
+context.
 The CI workflow contains the containerized Rust plus Agents signal smoke. The legacy Actix access
 formatter and Agents exception telemetry also apply the final privacy bounds described in the
 checklist.

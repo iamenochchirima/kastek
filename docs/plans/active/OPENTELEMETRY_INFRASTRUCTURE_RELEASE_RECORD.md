@@ -34,11 +34,13 @@ The repository implementation is split into reviewable commits:
 | Remaining worker boundaries, event enforcement, and log bridge | `586f2444` |
 | Event normalization contract tests | `64227832` |
 | Disabled-export fallback, CI regression check, and documentation cleanup | `91d0598b` |
+| HTTP and Temporal context-propagation contract tests | `eb06783f` |
 
 The exact implementation tree used for the repository smoke evidence is now
-`91d0598b` (`91d0598b` is the current repository-side implementation commit). The Collector
+`eb06783f` (`eb06783f` is the current repository-side implementation commit). The Collector
 configuration is unchanged from `7f064cce`; the current tree includes the follow-up worker,
-event-contract, compatibility-boundary, disabled-export fallback, and documentation changes. The current
+event-contract, compatibility-boundary, disabled-export fallback, documentation, and
+context-propagation changes. The current
 branch may contain later product commits; those commits are not covered by this record and must be
 retested before being promoted as one artifact.
 
@@ -57,11 +59,13 @@ Production release ID: not created
 ## Repository verification evidence
 
 - The initial implementation tree passed Rust formatting, workspace check, shared observability
-  tests, and Clippy. On the current dirty branch, the targeted observability and
-  analytics-producer tests pass (9 and 14 tests respectively); Analytics unit and ingestion
-  tests pass, while the local maintenance PostgreSQL test does not discover its quarantine work
-  row.
-- Agents type checking and the full test suite passed: 420 tests passed and 43 were skipped.
+  tests, and Clippy. Its shared observability test count was 9. On the current dirty branch, the
+  propagation follow-up passed `cargo test -p observability --lib` (10 tests) and the
+  analytics-producer tests pass (14 tests); Analytics unit and ingestion tests pass, while the
+  local maintenance PostgreSQL test does not discover its quarantine work row.
+- Agents type checking and the full test suite passed after the propagation regression fix: 421
+  tests passed and 43 were skipped. The Temporal activity-boundary test verifies JSON string
+  payload decoding before async correlation context restoration.
 - The disabled-export Rust smoke emitted both legacy `log!` and `tracing!` records to stdout with
   `OTEL_SDK_DISABLED=true`, confirming the fallback remains visible without an OTLP endpoint.
 - All four Collector profiles passed validation with the pinned Collector `0.158.0` binary, and
@@ -71,6 +75,8 @@ Production release ID: not created
   correlation metadata where applicable.
 - Export-disabled behavior, bounded/redacted exception fields, propagation seams, and telemetry
   contract tests passed.
+- The shared Rust W3C HTTP injection test passed with `traceparent` and `tracestate`, and the
+  Agents Temporal activity-boundary test passed with bounded correlation context.
 - The current full-workspace `cargo check --workspace` and `cargo fmt --all -- --check` pass;
   the targeted Rust telemetry crates remain independently verified.
 - Public and internal documentation builds passed after removing stale links from the internal

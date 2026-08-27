@@ -30,6 +30,10 @@ The Rust services initialize the shared `server/crates/observability` crate. Age
 the Node SDK before Fastify, PostgreSQL, Temporal, and gateway modules. HTTP instrumentation,
 Pino correlation, PostgreSQL/HTTP auto-instrumentation, provider spans, Temporal activity spans,
 background-worker spans, and graceful shutdown are enabled in the current server-side slice.
+Internal HTTP calls use the shared W3C propagator, while Temporal carries only bounded trace and
+correlation headers through its payload converter. The activity interceptor decodes those string
+payloads before restoring the async context; contract tests cover both the HTTP injection and
+Temporal activity boundary.
 
 The debug exporter is not durable storage. Production observability is not complete until a
 durable destination, retention, access policy, resource owner, and alerting policy are approved
