@@ -13,12 +13,25 @@ const meter = metrics.getMeter("kasitek-agents");
 const operationCounter = meter.createCounter("kasitek.operation.count", {
   description: "Completed instrumented application operations",
 });
+const operationErrorCounter = meter.createCounter("kasitek.operation.error.count", {
+  description: "Instrumented application operations that failed",
+});
 const operationDuration = meter.createHistogram("kasitek.operation.duration", {
   description: "Instrumented application operation duration in seconds",
   unit: "s",
 });
 const operationInFlight: UpDownCounter = meter.createUpDownCounter("kasitek.operation.in_flight", {
   description: "Instrumented application operations currently in progress",
+});
+const operationRetryCounter = meter.createCounter("kasitek.operation.retry.count", {
+  description: "Retries observed for instrumented application operations",
+});
+const dependencyFailureCounter = meter.createCounter("kasitek.dependency.failure.count", {
+  description: "Instrumented dependency operations that failed",
+});
+const queueAge = meter.createHistogram("kasitek.queue.age", {
+  description: "Age of work when it is claimed from a queue in seconds",
+  unit: "s",
 });
 
 export function boundedAttribute(value: unknown, maxLength = 128): string {
@@ -50,6 +63,7 @@ export async function withSpan<T>(name: string, attributes: Attributes, operatio
     } catch (error) {
       recordFailure(span, error);
       operationCounter.add(1, { operation: operationName, outcome: "error" });
+      operationErrorCounter.add(1, { operation: operationName });
       operationDuration.record((performance.now() - started) / 1000, { operation: operationName, outcome: "error" });
       throw error;
     } finally {
@@ -60,8 +74,24 @@ export async function withSpan<T>(name: string, attributes: Attributes, operatio
 }
 
 export function withProviderSpan<T>(provider: string, operation: string, action: () => Promise<T>): Promise<T> {
-  return withSpan(`provider.${boundedAttribute(provider)}.${boundedAttribute(operation)}`, {
+  const dependency = boundedAttribute(provider);
+  const dependencyOperation = boundedAttribute(operation);
+  return withSpan(`provider.${dependency}.${dependencyOperation}`, {
     "peer.service": boundedAttribute(provider),
     "kasitek.provider.operation": boundedAttribute(operation),
-  }, action);
+  }, action).catch((error: unknown) => {
+    dependencyFailureCounter.add(1, { dependency, operation: dependencyOperation });
+    throw error;
+  });
+}
+
+/** Records retries and queue age without creating high-cardinality metric attributes. */
+export function recordRetry(operation: string, count = 1): void {
+  if (!Number.isSafeInteger(count) || count <= 0) return;
+  operationRetryCounter.add(count, { operation: boundedAttribute(operation) });
+}
+
+export function recordQueueAge(queue: string, ageSeconds: number): void {
+  if (!Number.isFinite(ageSeconds) || ageSeconds < 0) return;
+  queueAge.record(ageSeconds, { "queue.name": boundedAttribute(queue) });
 }

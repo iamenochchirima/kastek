@@ -601,6 +601,7 @@ describe("Agent analytics producer", () => {
         idempotencyKey: "transport-record",
         envelope: {} as AgentOutboxRow["envelope"],
         payloadHash: "hash",
+        createdAt: new Date(),
         deliveryStatus: "leased",
         attemptCount: 1,
         nextAttemptAt: new Date(),

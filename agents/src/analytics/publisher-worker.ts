@@ -9,7 +9,7 @@ import {
   type AnalyticsPublisherSettings,
 } from "./index";
 import { operationalLogger } from "../telemetry/logger";
-import { withSpan } from "../telemetry/spans";
+import { recordQueueAge, recordRetry, withSpan } from "../telemetry/spans";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -42,6 +42,8 @@ async function main(): Promise<void> {
     publishing = true;
     try {
       const stats = await withSpan("analytics.outbox.publish", {}, () => publishOutboxOnce(pool, client, settings));
+      if (stats.oldestQueuedAgeSeconds !== null) recordQueueAge("analytics.outbox", stats.oldestQueuedAgeSeconds);
+      if (stats.retryable > 0) recordRetry("analytics.outbox", stats.retryable);
       if (stats.claimed > 0 || stats.leasesReleased > 0) {
         operationalLogger.info({
           event: "analytics_publisher.batch_completed",

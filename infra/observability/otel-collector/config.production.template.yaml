@@ -69,6 +69,19 @@ processors:
   batch:
     send_batch_size: 1024
     timeout: 5s
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 10000
+    expected_new_traces_per_sec: 100
+    policies:
+      - name: preserve-errors
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+      - name: baseline
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: 20
 
 exporters:
   otlp_http/backend:
@@ -98,7 +111,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, resource/normalize, attributes/redact, batch]
+      processors: [memory_limiter, resource/normalize, attributes/redact, tail_sampling, batch]
       exporters: [otlp_http/backend]
     metrics:
       receivers: [otlp]

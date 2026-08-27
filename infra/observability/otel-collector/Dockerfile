@@ -1,5 +1,5 @@
 # Keep the Collector version pinned so infrastructure changes are deliberate and reproducible.
-FROM otel/opentelemetry-collector:0.158.0
+FROM otel/opentelemetry-collector-contrib:0.158.0
 
 COPY config.yaml /etc/otelcol/config.yaml
 

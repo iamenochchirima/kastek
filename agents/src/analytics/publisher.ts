@@ -17,6 +17,7 @@ export interface AgentOutboxRow {
   idempotencyKey: string;
   envelope: AnalyticsEnvelope;
   payloadHash: string;
+  createdAt: Date;
   deliveryStatus: "pending" | "leased" | "delivered" | "quarantined";
   attemptCount: number;
   nextAttemptAt: Date;
@@ -106,6 +107,7 @@ interface IngestionBatchResponse {
 export interface AgentPublisherStats {
   leasesReleased: number;
   claimed: number;
+  oldestQueuedAgeSeconds: number | null;
   delivered: number;
   retryable: number;
   quarantined: number;
@@ -192,6 +194,9 @@ export async function publishOutboxOnce(
   const stats: AgentPublisherStats = {
     leasesReleased,
     claimed: rows.length,
+    oldestQueuedAgeSeconds: rows.length === 0
+      ? null
+      : Math.max(...rows.map((row) => Math.max(0, (now.getTime() - row.createdAt.getTime()) / 1_000))),
     delivered: 0,
     retryable: 0,
     quarantined: 0,
@@ -327,6 +332,7 @@ interface OutboxDatabaseRow extends QueryResultRow {
   idempotency_key: string;
   envelope: AnalyticsEnvelope;
   payload_hash: string;
+  created_at: Date;
   delivery_status: AgentOutboxRow["deliveryStatus"];
   attempt_count: number;
   next_attempt_at: Date;
@@ -464,6 +470,7 @@ function toOutboxRow(row: OutboxDatabaseRow): AgentOutboxRow {
     idempotencyKey: row.idempotency_key,
     envelope: row.envelope,
     payloadHash: row.payload_hash,
+    createdAt: row.created_at,
     deliveryStatus: row.delivery_status,
     attemptCount: row.attempt_count,
     nextAttemptAt: row.next_attempt_at,

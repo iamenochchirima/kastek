@@ -125,7 +125,7 @@ jobs:
               -e OTEL_BACKEND_ENDPOINT \
               -e OTEL_BACKEND_AUTH \
               -v "$PWD/infra/observability/otel-collector:/work:ro" \
-              otel/opentelemetry-collector:0.158.0 \
+              otel/opentelemetry-collector-contrib:0.158.0 \
               validate --config="/work/$config"
 
   local-e2e:

@@ -53,6 +53,13 @@ static REQUEST_COUNT: OnceLock<Counter<u64>> = OnceLock::new();
 static REQUEST_DURATION: OnceLock<Histogram<f64>> = OnceLock::new();
 static REQUEST_ERRORS: OnceLock<Counter<u64>> = OnceLock::new();
 static REQUEST_IN_FLIGHT: OnceLock<UpDownCounter<i64>> = OnceLock::new();
+static OPERATION_COUNT: OnceLock<Counter<u64>> = OnceLock::new();
+static OPERATION_ERRORS: OnceLock<Counter<u64>> = OnceLock::new();
+static OPERATION_DURATION: OnceLock<Histogram<f64>> = OnceLock::new();
+static OPERATION_IN_FLIGHT: OnceLock<UpDownCounter<i64>> = OnceLock::new();
+static OPERATION_RETRIES: OnceLock<Counter<u64>> = OnceLock::new();
+static DEPENDENCY_FAILURES: OnceLock<Counter<u64>> = OnceLock::new();
+static QUEUE_AGE: OnceLock<Histogram<f64>> = OnceLock::new();
 
 fn env_value(names: &[&str]) -> String {
     names
@@ -477,6 +484,140 @@ fn request_in_flight() -> UpDownCounter<i64> {
         .clone()
 }
 
+fn operation_counter() -> Counter<u64> {
+    OPERATION_COUNT
+        .get_or_init(|| {
+            global::meter("kasitek.operations")
+                .u64_counter("kasitek.operation.count")
+                .with_description("Completed instrumented service operations")
+                .build()
+        })
+        .clone()
+}
+
+fn operation_errors() -> Counter<u64> {
+    OPERATION_ERRORS
+        .get_or_init(|| {
+            global::meter("kasitek.operations")
+                .u64_counter("kasitek.operation.error.count")
+                .with_description("Instrumented service operations that failed")
+                .build()
+        })
+        .clone()
+}
+
+fn operation_duration() -> Histogram<f64> {
+    OPERATION_DURATION
+        .get_or_init(|| {
+            global::meter("kasitek.operations")
+                .f64_histogram("kasitek.operation.duration")
+                .with_description("Instrumented service operation duration in seconds")
+                .with_unit("s")
+                .build()
+        })
+        .clone()
+}
+
+fn operation_in_flight() -> UpDownCounter<i64> {
+    OPERATION_IN_FLIGHT
+        .get_or_init(|| {
+            global::meter("kasitek.operations")
+                .i64_up_down_counter("kasitek.operation.in_flight")
+                .with_description("Instrumented service operations currently in progress")
+                .build()
+        })
+        .clone()
+}
+
+fn operation_retries() -> Counter<u64> {
+    OPERATION_RETRIES
+        .get_or_init(|| {
+            global::meter("kasitek.operations")
+                .u64_counter("kasitek.operation.retry.count")
+                .with_description("Retries observed for instrumented service operations")
+                .build()
+        })
+        .clone()
+}
+
+fn dependency_failures() -> Counter<u64> {
+    DEPENDENCY_FAILURES
+        .get_or_init(|| {
+            global::meter("kasitek.operations")
+                .u64_counter("kasitek.dependency.failure.count")
+                .with_description("Instrumented dependency operations that failed")
+                .build()
+        })
+        .clone()
+}
+
+fn queue_age() -> Histogram<f64> {
+    QUEUE_AGE
+        .get_or_init(|| {
+            global::meter("kasitek.operations")
+                .f64_histogram("kasitek.queue.age")
+                .with_description("Age of work when it is claimed from a queue in seconds")
+                .with_unit("s")
+                .build()
+        })
+        .clone()
+}
+
+struct InFlightGuard<const N: usize> {
+    counter: UpDownCounter<i64>,
+    attributes: [KeyValue; N],
+    active: bool,
+}
+
+impl<const N: usize> InFlightGuard<N> {
+    fn new(counter: UpDownCounter<i64>, attributes: [KeyValue; N]) -> Self {
+        counter.add(1, &attributes);
+        Self {
+            counter,
+            attributes,
+            active: true,
+        }
+    }
+
+    fn finish(&mut self) {
+        if self.active {
+            self.counter.add(-1, &self.attributes);
+            self.active = false;
+        }
+    }
+}
+
+impl<const N: usize> Drop for InFlightGuard<N> {
+    fn drop(&mut self) {
+        self.finish();
+    }
+}
+
+fn operation_attributes(kind: &'static str, name: &'static str) -> [KeyValue; 2] {
+    [
+        KeyValue::new("operation.kind", kind),
+        KeyValue::new("operation.name", name),
+    ]
+}
+
+fn record_operation(
+    kind: &'static str,
+    name: &'static str,
+    outcome: &'static str,
+    duration: Duration,
+) {
+    let attributes = [
+        KeyValue::new("operation.kind", kind),
+        KeyValue::new("operation.name", name),
+        KeyValue::new("outcome", outcome),
+    ];
+    operation_counter().add(1, &attributes);
+    operation_duration().record(duration.as_secs_f64(), &attributes);
+    if outcome == "error" {
+        operation_errors().add(1, &attributes);
+    }
+}
+
 /// Records bounded HTTP service metrics without making request handling depend on export health.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TelemetryMetrics;
@@ -519,7 +660,11 @@ where
         let method = request.method().as_str().to_string();
         let route = metric_route(&request);
         let started = Instant::now();
-        request_in_flight().add(1, &[]);
+        let in_flight_attributes = [
+            KeyValue::new("http.request.method", method.clone()),
+            KeyValue::new("http.route", route.clone()),
+        ];
+        let mut in_flight = InFlightGuard::new(request_in_flight(), in_flight_attributes);
         let future = self.service.call(request);
 
         Box::pin(async move {
@@ -533,7 +678,7 @@ where
                 KeyValue::new("http.route", route),
                 KeyValue::new("http.response.status_code", i64::from(status)),
             ];
-            request_in_flight().add(-1, &attributes);
+            in_flight.finish();
             request_counter().add(1, &attributes);
             request_duration().record(started.elapsed().as_secs_f64(), &attributes);
             if status >= 500 || result.is_err() {
@@ -663,13 +808,19 @@ where
     F: Future<Output = T>,
 {
     use tracing::Instrument;
-    future
+    let started = Instant::now();
+    let attributes = operation_attributes(kind, name);
+    let mut in_flight = InFlightGuard::new(operation_in_flight(), attributes);
+    let result = future
         .instrument(tracing::info_span!(
             "kasitek.background",
             operation.kind = kind,
             operation.name = name
         ))
-        .await
+        .await;
+    in_flight.finish();
+    record_operation(kind, name, "success", started.elapsed());
+    result
 }
 
 /// Runs an outbound dependency operation in a bounded provider span.
@@ -678,13 +829,47 @@ where
     F: Future<Output = T>,
 {
     use tracing::Instrument;
-    future
+    let started = Instant::now();
+    let attributes = operation_attributes("dependency", operation);
+    let mut in_flight = InFlightGuard::new(operation_in_flight(), attributes);
+    let result = future
         .instrument(tracing::info_span!(
             "kasitek.provider",
             peer.service = provider,
             kasitek.provider.operation = operation,
         ))
-        .await
+        .await;
+    in_flight.finish();
+    record_operation("dependency", operation, "success", started.elapsed());
+    result
+}
+
+/// Records a retry without requiring callers to create a separate span for every backoff.
+pub fn record_retry(kind: &'static str, name: &'static str, count: u64) {
+    if count == 0 {
+        return;
+    }
+    let attributes = operation_attributes(kind, name);
+    operation_retries().add(count, &attributes);
+}
+
+/// Records the age of work at the point it is claimed from an asynchronous queue.
+pub fn record_queue_age(queue: &'static str, age: Duration) {
+    queue_age().record(
+        age.as_secs_f64().max(0.0),
+        &[KeyValue::new("queue.name", queue)],
+    );
+}
+
+/// Records a dependency failure without copying provider response text into telemetry.
+pub fn record_dependency_failure(provider: &'static str, operation: &'static str) {
+    dependency_failures().add(
+        1,
+        &[
+            KeyValue::new("peer.service", provider),
+            KeyValue::new("operation.name", operation),
+        ],
+    );
 }
 
 /// Runs a fallible background operation and records success or failure on its span without
@@ -695,6 +880,9 @@ where
     F: Future<Output = Result<T, E>>,
 {
     use tracing::{field, Instrument};
+    let started = Instant::now();
+    let attributes = operation_attributes(kind, name);
+    let mut in_flight = InFlightGuard::new(operation_in_flight(), attributes);
     let span = tracing::info_span!(
         "kasitek.background",
         operation.kind = kind,
@@ -703,7 +891,7 @@ where
         exception.type = field::Empty,
     );
     let result_span = span.clone();
-    async move {
+    let result = async move {
         match future.await {
             Ok(value) => {
                 result_span.record("otel.status_code", "OK");
@@ -717,7 +905,15 @@ where
         }
     }
     .instrument(span)
-    .await
+    .await;
+    in_flight.finish();
+    record_operation(
+        kind,
+        name,
+        if result.is_ok() { "success" } else { "error" },
+        started.elapsed(),
+    );
+    result
 }
 
 /// Fallible variant of [`provider_span`] that marks dependency errors on the span while keeping
@@ -731,6 +927,9 @@ where
     F: Future<Output = Result<T, E>>,
 {
     use tracing::{field, Instrument};
+    let started = Instant::now();
+    let attributes = operation_attributes("dependency", operation);
+    let mut in_flight = InFlightGuard::new(operation_in_flight(), attributes);
     let span = tracing::info_span!(
         "kasitek.provider",
         peer.service = provider,
@@ -739,7 +938,7 @@ where
         exception.type = field::Empty,
     );
     let result_span = span.clone();
-    async move {
+    let result = async move {
         match future.await {
             Ok(value) => {
                 result_span.record("otel.status_code", "OK");
@@ -748,12 +947,21 @@ where
             Err(error) => {
                 result_span.record("otel.status_code", "ERROR");
                 result_span.record("exception.type", std::any::type_name::<E>());
+                record_dependency_failure(provider, operation);
                 Err(error)
             }
         }
     }
     .instrument(span)
-    .await
+    .await;
+    in_flight.finish();
+    record_operation(
+        "dependency",
+        operation,
+        if result.is_ok() { "success" } else { "error" },
+        started.elapsed(),
+    );
+    result
 }
 
 /// Initializes the shared Rust logging and telemetry stack for a named process.
