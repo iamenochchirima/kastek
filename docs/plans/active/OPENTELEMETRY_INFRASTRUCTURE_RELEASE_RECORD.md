@@ -40,13 +40,15 @@ The repository implementation is split into reviewable commits:
 | CI smoke-fixture exclusion correction | `dfff04d1` |
 | Service-boundary test and Agents build CI coverage | `4ddec15b` |
 | Bootstrap and stdio diagnostic redaction | `b0a0cf7d` |
+| Explicitly disable PostgreSQL payload instrumentation | `edc63ee6` |
 
 The exact implementation tree used for the repository smoke evidence is now
-`b0a0cf7d` (`b0a0cf7d` is the current repository-side implementation commit). The Collector
+`edc63ee6` (`edc63ee6` is the current repository-side implementation commit). The Collector
 configuration is unchanged from `7f064cce`; the current tree includes the follow-up worker,
 event-contract, compatibility-boundary, disabled-export fallback, documentation, and
-context-propagation, provider-child propagation, log-redaction, operational-log migration, and
-bootstrap/stdio diagnostic-redaction changes. The current
+context-propagation, provider-child propagation, log-redaction, operational-log migration,
+bootstrap/stdio diagnostic-redaction, and explicit PostgreSQL payload-instrumentation disablement
+changes. The current
 branch may contain later product commits; those commits are not covered by this record and must be
 retested before being promoted as one artifact.
 
@@ -83,7 +85,7 @@ Production release ID: not created
   correlation metadata where applicable.
 - Export-disabled behavior, bounded/redacted exception fields, legacy Rust log redaction,
   provider-response payload hardening, propagation seams, bootstrap/stdio diagnostic redaction,
-  and telemetry contract tests passed.
+  disabled PostgreSQL enhanced database reporting, and telemetry contract tests passed.
 - The shared Rust W3C HTTP injection test passed with `traceparent` and `tracestate`, and the
   provider-child regression test confirmed request construction observes the dependency span.
   The Agents Temporal activity-boundary test passed with bounded correlation context.

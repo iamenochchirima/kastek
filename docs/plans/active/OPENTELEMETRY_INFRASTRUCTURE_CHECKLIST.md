@@ -113,6 +113,8 @@ exist.
 - [x] Add the Node OpenTelemetry SDK and initialize it before Fastify, PostgreSQL, Temporal, and
       gateway modules load.
 - [x] Add compatible HTTP/Fastify and PostgreSQL instrumentation.
+- [x] Disable PostgreSQL enhanced database reporting so query parameters and result data do not
+      enter telemetry spans.
 - [x] Add manual spans for Temporal workflows and activities where automatic instrumentation is
       insufficient.
 - [x] Add manual spans for provider calls, webhook processing, credential operations, migrations,
@@ -323,7 +325,8 @@ Repository evidence for the implementation slice:
 - Privacy hardening: the legacy Actix access formatter now excludes raw URLs, query strings,
   remote addresses, referers, and user agents. Rust legacy log messages and telemetry bootstrap
   diagnostics are bounded and redact common credential forms before stdout/stderr or the
-  OpenTelemetry bridge; touched provider paths omit raw response bodies and webhook payloads.
+  OpenTelemetry bridge. Agents PostgreSQL enhanced database reporting is disabled; touched provider
+  paths omit raw response bodies and webhook payloads.
   Agents exception messages, stacks, telemetry-bootstrap diagnostics, and stdio fallback errors
   redact common credential forms before they are recorded or returned.
 - Boundary completion: `tracing_log::LogTracer` now bridges legacy Rust `log!` records into the
@@ -338,7 +341,7 @@ Repository evidence for the implementation slice:
   to removed strategy or implementation-plan material; no public user/API documentation change
   is required for this infrastructure-only work.
 - Versioning: local validation metadata is `0.1.0`; the current observability implementation tree
-  is recorded through `b0a0cf7d`; no platform release tag or deployed
+  is recorded through `edc63ee6`; no platform release tag or deployed
   artifact was created by this work.
 
 Checks intentionally not claimed as complete:

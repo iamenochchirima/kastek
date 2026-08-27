@@ -30,6 +30,8 @@ The Rust services initialize the shared `server/crates/observability` crate. Age
 the Node SDK before Fastify, PostgreSQL, Temporal, and gateway modules. HTTP instrumentation,
 Pino correlation, PostgreSQL/HTTP auto-instrumentation, provider spans, Temporal activity spans,
 background-worker spans, and graceful shutdown are enabled in the current server-side slice.
+PostgreSQL enhanced database reporting is disabled so query parameters and result data are not
+attached to database spans.
 Internal HTTP calls use the shared W3C propagator and construct/inject request headers inside the
 provider span, so downstream requests are children of the dependency operation rather than
 siblings of it. Temporal carries only bounded trace and correlation headers through its payload

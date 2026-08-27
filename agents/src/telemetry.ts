@@ -68,6 +68,7 @@ if (telemetryConfigured()) {
         "@opentelemetry/instrumentation-fs": { enabled: false },
         "@opentelemetry/instrumentation-host-metrics": { enabled: false },
         "@opentelemetry/instrumentation-pg": {
+          // Never attach query parameters or database result data to spans.
           enhancedDatabaseReporting: false,
         },
         "@opentelemetry/instrumentation-pino": {
