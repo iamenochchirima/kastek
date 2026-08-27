@@ -54,7 +54,7 @@ const WEBSITE_CHAT_LOADER: &str = r#"(() => {
       const poll = () => fetch(`${api}/sessions/${encodeURIComponent(session.sessionId)}/audio/${encodeURIComponent(jobId)}${shareSuffix}`, { credentials: 'omit' })
         .then((statusResponse) => statusResponse.ok ? statusResponse.json() : Promise.reject(new Error('Audio status unavailable')))
         .then((status) => {
-          emit({ type: 'kasitek:audio-status', jobId, status: status.status, transcript: status.transcript || '', errorMessage: status.errorMessage || '' });
+          emit({ type: 'kasitek:audio-status', jobId, status: status.status, transcript: status.transcript || '', audioUrl: status.audioUrl || '', errorMessage: status.errorMessage || '' });
           if (status.status === 'queued' || status.status === 'processing' || status.status === 'dispatching' || status.status === 'retryable_failed') window.setTimeout(poll, 1000);
         })
         .catch(() => emit({ type: 'kasitek:error', message: 'Unable to track your audio. Please try again.' }));
@@ -121,6 +121,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     .bot code{padding:1px 4px;border-radius:4px;background:#d7dce8;font-size:.9em}
     .transcript{margin-top:7px;padding-top:7px;border-top:1px solid #ffffff55;font-size:12px;line-height:1.35;opacity:.9}
     .transcript button{margin-left:7px;padding:2px 7px;border:1px solid #ffffff88;border-radius:6px;font-size:11px}
+    .audio-player{display:block;width:min(100%,260px);height:32px;margin-bottom:7px}
     .bot table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
     .bot th,.bot td{padding:7px 8px;border:1px solid #cbd5e1;text-align:left;vertical-align:top;overflow-wrap:anywhere;word-break:break-word}
     .bot th{background:#dce2ee;font-weight:700}
@@ -327,6 +328,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
       }
       if(data.type==='kasitek:audio-status'&&pendingAudioMessage){
         const transcript=pendingAudioMessage.querySelector('.transcript');
+        if(typeof data.audioUrl==='string'&&data.audioUrl){let player=pendingAudioMessage.querySelector('audio');if(!player){player=document.createElement('audio');player.controls=true;player.preload='metadata';player.className='audio-player';pendingAudioMessage.prepend(player)}player.src=data.audioUrl}
         if(data.status==='completed'&&data.transcript){if(transcript)transcript.textContent=`Transcript: ${data.transcript}`;pendingAudioMessage=null}
         else if(data.status==='failed'){
           stopPending();
@@ -854,7 +856,7 @@ pub async fn get_agent_website_chat_audio_status(
     .await?
     .ok_or_else(|| AppError::NotFound("Website Chat deployment not found".to_string()))?;
     let client = AgentPlatformClient::from_config(config.get_ref())?;
-    let status = client
+    let mut status = client
         .get_audio_transcription_job(&organization_id, &owner_id, job_id.trim())
         .await?;
     let asset_id = status
@@ -880,6 +882,12 @@ pub async fn get_agent_website_chat_audio_status(
         return Err(AppError::NotFound(
             "Website Chat audio not found".to_string(),
         ));
+    }
+    if let Some(payload) = status.as_object_mut() {
+        payload.insert(
+            "audioUrl".to_string(),
+            Value::String(content_media::public_media_url(config.get_ref(), asset_id)),
+        );
     }
     Ok(HttpResponse::Ok()
         .insert_header(("Access-Control-Allow-Origin", normalized_origin))

@@ -332,6 +332,21 @@ describe("kasitek-core read boundary", () => {
     expect(Buffer.from(init.body as ArrayBuffer).subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]));
   });
 
+  it("deletes audio media through the trusted media boundary", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ deleted: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({
+      AGENTS_DATABASE_URL: "postgres://localhost/agents",
+      KASITEK_CORE_URL: "https://core.example.test",
+      KASITEK_CORE_INTERNAL_TOKEN: "internal-token",
+    });
+    await expect(new KasitekCoreReadClient(config).deleteContentMedia(context, "asset/audio 1")).resolves.toEqual({ deleted: true });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://core.example.test/api/internal/agents/v1/content/media/asset%2Faudio%201");
+    expect(init.method).toBe("DELETE");
+    expect(init.headers).toMatchObject({ "x-actor-id": context.actorId });
+  });
+
   it("preserves Core validation details for failed content requests", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "At least one publishing channel is required", code: "bad_request" }), { status: 400 }));
     vi.stubGlobal("fetch", fetchMock);

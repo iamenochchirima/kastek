@@ -42,6 +42,19 @@ describe("ElevenLabsTranscriptionProvider", () => {
     } satisfies Partial<AudioTranscriptionError>);
   });
 
+  it("keeps rejected provider credentials terminal and safe", async () => {
+    const provider = new ElevenLabsTranscriptionProvider({
+      apiKey: "test-key",
+      fetchImpl: vi.fn<typeof fetch>(async () => new Response("credentials must not be exposed", { status: 401 })),
+    });
+
+    await expect(provider.transcribe({ bytes: new Uint8Array([1]), mimeType: "audio/ogg" })).rejects.toMatchObject({
+      code: "AUDIO_TRANSCRIPTION_PROVIDER_AUTH_FAILED",
+      retryable: false,
+      statusCode: 503,
+    } satisfies Partial<AudioTranscriptionError>);
+  });
+
   it("reports missing configuration without making a provider request", async () => {
     const fetchImpl = vi.fn<typeof fetch>();
     const provider = new ElevenLabsTranscriptionProvider({ fetchImpl });

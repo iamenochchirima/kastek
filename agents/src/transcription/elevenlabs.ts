@@ -69,6 +69,9 @@ export class ElevenLabsTranscriptionProvider implements AudioTranscriptionProvid
         if (response.status >= 500) {
           throw new AudioTranscriptionError("Audio transcription provider is unavailable", "AUDIO_TRANSCRIPTION_PROVIDER_FAILED", true, 503);
         }
+        if (response.status === 401 || response.status === 403) {
+          throw new AudioTranscriptionError("Audio transcription provider credentials were rejected", "AUDIO_TRANSCRIPTION_PROVIDER_AUTH_FAILED", false, 503);
+        }
         throw new AudioTranscriptionError("Audio could not be transcribed", "AUDIO_TRANSCRIPTION_INVALID_MEDIA", false, 422);
       }
       let payload: ElevenLabsSpeechToTextResponse;

@@ -585,6 +585,76 @@ pub async fn read_content_media_bytes(
     })
 }
 
+pub async fn delete_audio_content_media(
+    pool: &PgPool,
+    config: &AppConfig,
+    org_id: &str,
+    asset_id: &str,
+) -> Result<bool, AppError> {
+    let mut tx = pool.begin().await?;
+    let row = sqlx::query_as::<_, ContentMediaDeleteRow>(
+        r#"
+        SELECT kind::text AS kind, "storageKey" AS storage_key,
+               "previewStorageKey" AS preview_storage_key
+        FROM "ContentMediaAsset"
+        WHERE id = $1 AND "orgId" = $2
+        FOR UPDATE
+        "#,
+    )
+    .bind(asset_id)
+    .bind(org_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let Some(row) = row else {
+        return Ok(false);
+    };
+    if row.kind != "AUDIO" {
+        return Err(AppError::BadRequest(
+            "Only audio media can be deleted by the transcription lifecycle".to_string(),
+        ));
+    }
+    let referenced = sqlx::query_scalar::<_, bool>(
+        r#"SELECT EXISTS(
+             SELECT 1 FROM "SocialPostMedia" WHERE "assetId" = $1
+           )"#,
+    )
+    .bind(asset_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if referenced {
+        return Err(AppError::Conflict(
+            "Audio media is still attached to published content".to_string(),
+        ));
+    }
+
+    let object_path = storage_path(config, &row.storage_key)?;
+    let preview_path = row
+        .preview_storage_key
+        .as_deref()
+        .map(|key| storage_path(config, key))
+        .transpose()?;
+    sqlx::query(r#"DELETE FROM "ContentMediaAsset" WHERE id = $1 AND "orgId" = $2"#)
+        .bind(asset_id)
+        .bind(org_id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+
+    for path in [Some(object_path), preview_path].into_iter().flatten() {
+        match tokio::fs::remove_file(path).await {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => {
+                return Err(AppError::Internal(
+                    "Media metadata was deleted but the storage object could not be removed"
+                        .to_string(),
+                ));
+            }
+        }
+    }
+    Ok(true)
+}
+
 pub async fn download_public_content_media(
     pool: &PgPool,
     config: &AppConfig,
@@ -635,6 +705,13 @@ struct ContentMediaDownloadRow {
     file_name: Option<String>,
     processing_status: String,
     scan_status: String,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct ContentMediaDeleteRow {
+    kind: String,
+    storage_key: String,
+    preview_storage_key: Option<String>,
 }
 
 #[cfg(test)]

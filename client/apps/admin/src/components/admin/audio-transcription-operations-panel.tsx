@@ -1,7 +1,7 @@
 "use client";
 
 import { StatusBadge } from "@/components/admin/status-badge";
-import { OperatorAudioTranscriptionRetryButton } from "@/components/admin/operator-command-button";
+import { OperatorAudioTranscriptionDeleteButton, OperatorAudioTranscriptionRetryButton } from "@/components/admin/operator-command-button";
 
 type AudioTranscriptionJob = {
   id: string;
@@ -31,6 +31,7 @@ export function AudioTranscriptionOperationsPanel({ jobs, canCommand }: { jobs: 
         <div className="flex items-center gap-2">
           <StatusBadge value={job.status} />
           {canCommand && ["failed", "retryable_failed"].includes(job.status) ? <OperatorAudioTranscriptionRetryButton jobId={job.id} status={job.status} expectedOrganizationId={job.organization_id} expectedInstallationId={job.installation_id} /> : null}
+          {canCommand && ["completed", "failed", "retryable_failed"].includes(job.status) ? <OperatorAudioTranscriptionDeleteButton jobId={job.id} status={job.status} expectedOrganizationId={job.organization_id} expectedInstallationId={job.installation_id} /> : null}
         </div>
       </div>)}
     </div>}

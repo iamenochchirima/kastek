@@ -110,7 +110,7 @@ export function OperatorReconcileButton({ effectId, expectedOrganizationId, expe
 }
 
 function OperatorRecoveryCommandButton({ commandType, targetId, label, completedMessage, payload = {}, confirmMessage }: {
-  commandType: "cancel_run" | "retry_run" | "retry_audio_transcription" | "replay_delivery" | "delete_memory" | "request_export" | "kill_switch_disable" | "release_hold" | "apply_retention_policy" | "release_legal_hold";
+  commandType: "cancel_run" | "retry_run" | "retry_audio_transcription" | "delete_audio_transcription" | "replay_delivery" | "delete_memory" | "request_export" | "kill_switch_disable" | "release_hold" | "apply_retention_policy" | "release_legal_hold";
   targetId: string;
   label: string;
   completedMessage: string;
@@ -180,6 +180,17 @@ export function OperatorAudioTranscriptionRetryButton({ jobId, status, expectedO
     completedMessage="Transcription retry queued."
     payload={{ expectedStatus: status, expectedOrganizationId, expectedInstallationId }}
     confirmMessage="Retry this audio transcription? A second operator must approve."
+  />;
+}
+
+export function OperatorAudioTranscriptionDeleteButton({ jobId, status, expectedOrganizationId, expectedInstallationId }: { jobId: string; status: string; expectedOrganizationId: string; expectedInstallationId: string }) {
+  return <OperatorRecoveryCommandButton
+    commandType="delete_audio_transcription"
+    targetId={jobId}
+    label="Delete audio"
+    completedMessage="Audio deletion completed."
+    payload={{ expectedStatus: status, expectedOrganizationId, expectedInstallationId }}
+    confirmMessage="Delete the stored audio and transcription result? A second operator must approve."
   />;
 }
 

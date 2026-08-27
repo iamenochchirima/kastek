@@ -11,6 +11,7 @@ describe("operator command contract", () => {
     expect(requiredApprovals("cancel_run")).toBe(1);
     expect(requiredApprovals("retry_run")).toBe(2);
     expect(requiredApprovals("retry_audio_transcription")).toBe(2);
+    expect(requiredApprovals("delete_audio_transcription")).toBe(2);
     expect(requiredApprovals("replay_delivery")).toBe(2);
     expect(requiredApprovals("delete_memory")).toBe(2);
     expect(requiredApprovals("assign_run")).toBe(2);
@@ -37,6 +38,7 @@ describe("operator command contract", () => {
     const dualControlCommands = [
       "retry_run",
       "retry_audio_transcription",
+      "delete_audio_transcription",
       "replay_delivery",
       "delete_memory",
       "assign_run",

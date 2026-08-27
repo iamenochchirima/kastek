@@ -1384,7 +1384,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid audio transcription job limit");
     const status = request.query.status
-      ? z.enum(["queued", "processing", "dispatching", "completed", "retryable_failed", "failed"]).parse(request.query.status)
+      ? z.enum(["queued", "processing", "dispatching", "completed", "retryable_failed", "failed", "deleted"]).parse(request.query.status)
       : undefined;
     return { jobs: await audioTranscriptionJobs.listForOperator({ organizationId: request.query.organizationId?.trim() || undefined, status, limit }) };
   });
@@ -1574,7 +1574,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       actorId: auth.actorId,
       idempotencyKey: headerValue(request, "idempotency-key"),
       command,
-      dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, controls, retention, audioTranscriptionJobs, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation },
+      dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, controls, retention, audioTranscriptionJobs, coreClient, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation },
     });
     return reply.code(result.replayed ? 200 : result.command.status === "awaiting_approval" ? 202 : 201).send(result.command);
   });
@@ -1588,7 +1588,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post<{ Params: { commandId: string } }>("/v1/operator/commands/:commandId/approve", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireOperatorScope(auth, dependencies.config, "operator:write");
-    return approveOperatorCommand({ actorId: auth.actorId, commandId: request.params.commandId, dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, controls, retention, audioTranscriptionJobs, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation } });
+    return approveOperatorCommand({ actorId: auth.actorId, commandId: request.params.commandId, dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, controls, retention, audioTranscriptionJobs, coreClient, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation } });
   });
 
   app.get<{ Params: { projectionKey: string } }>("/v1/operator/projections/:projectionKey", async (request) => {
@@ -2836,6 +2836,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       if (!bytes.length) return reply.code(422).send({ error: "AUDIO_EMPTY", code: "AUDIO_EMPTY" });
       if (bytes.length > MAX_AUDIO_FILE_BYTES) return reply.code(413).send({ error: "AUDIO_TOO_LARGE", code: "AUDIO_TOO_LARGE" });
       if (!hasAudioFileSignature(mimeType, bytes)) return reply.code(422).send({ error: "AUDIO_INVALID_MEDIA", code: "AUDIO_INVALID_MEDIA" });
+      if (!(await controls.isFeatureEnabled(auth.organizationId, "audio_transcription_enabled", request.params.installationId))) {
+        return reply.code(503).send({ error: "Audio transcription is disabled", code: "AUDIO_TRANSCRIPTION_DISABLED" });
+      }
 
       const correlationId = auth.correlationId ?? randomUUID();
       const uploaded = await coreClient.uploadContentMedia(
@@ -2854,9 +2857,6 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           sourceKey: `kasiai:${request.params.installationId}:${conversationId}:${idempotencyKey}`,
         },
       );
-      if (!(await controls.isFeatureEnabled(auth.organizationId, "audio_transcription_enabled", request.params.installationId))) {
-        return reply.code(503).send({ error: "Audio transcription is disabled", code: "AUDIO_TRANSCRIPTION_DISABLED" });
-      }
       const caption = headerValue(request, "x-audio-caption")?.trim().slice(0, 4_000) ?? "";
       const context = {
         ...(headerValue(request, "x-audio-context-route")?.trim() ? { route: headerValue(request, "x-audio-context-route")!.trim().slice(0, 500) } : {}),

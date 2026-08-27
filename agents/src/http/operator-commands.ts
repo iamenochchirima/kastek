@@ -13,9 +13,10 @@ import { MemoryRepository } from "../db/repositories/memory-repository";
 import { OperatorControlRepository, type OperatorFlagKey, type OperatorFlagScope, type OperatorHoldScope, type OperatorHoldType } from "../db/repositories/operator-control-repository";
 import { RetentionRepository } from "../db/repositories/retention-repository";
 import { AudioTranscriptionJobRepository } from "../db/repositories/audio-transcription-job-repository";
+import { KasitekCoreReadClient } from "../core/client";
 
 export const operatorCommandInputSchema = z.object({
-  commandType: z.enum(["cancel_run", "retry_run", "retry_audio_transcription", "replay_delivery", "delete_memory", "assign_run", "reconcile_effect", "request_export", "set_feature_flag", "clear_feature_flag", "create_hold", "release_hold", "set_retention_policy", "apply_retention_policy", "create_legal_hold", "release_legal_hold", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
+  commandType: z.enum(["cancel_run", "retry_run", "retry_audio_transcription", "delete_audio_transcription", "replay_delivery", "delete_memory", "assign_run", "reconcile_effect", "request_export", "set_feature_flag", "clear_feature_flag", "create_hold", "release_hold", "set_retention_policy", "apply_retention_policy", "create_legal_hold", "release_legal_hold", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
   targetId: z.string().trim().min(1).max(240),
   payload: z.record(z.string(), z.unknown()).default({}),
 }).strict();
@@ -53,6 +54,7 @@ export interface OperatorCommandDependencies {
   controls?: OperatorControlRepository;
   retention?: RetentionRepository;
   audioTranscriptionJobs?: AudioTranscriptionJobRepository;
+  coreClient?: KasitekCoreReadClient;
   startWorkflow?: (runId: string) => Promise<void>;
   signalCancellation?: (runId: string, signal: { reason?: string }) => Promise<void>;
 }
@@ -91,6 +93,8 @@ export function publicOperatorCommand(command: OperatorCommandRecord): Record<st
       legalHoldId: command.result.legalHoldId,
       audioTranscriptionJobId: command.result.audioTranscriptionJobId,
       expired: command.result.expired,
+      audioDeleted: command.result.audioDeleted,
+      audioFailed: command.result.audioFailed,
     } : null,
     error: command.error ? { code: command.error.code, message: command.error.message } : null,
     createdAt: command.created_at,
@@ -197,6 +201,39 @@ async function auditCommand(pool: Pool, input: { organizationId?: string | null;
   );
 }
 
+async function applyAudioRetention(
+  organizationId: string,
+  actorId: string,
+  dependencies: OperatorCommandDependencies,
+): Promise<{ deleted: number; failed: number }> {
+  if (!dependencies.audioTranscriptionJobs || !dependencies.retention || !dependencies.coreClient) {
+    throw Object.assign(new Error("Audio retention controls are unavailable"), { statusCode: 503 });
+  }
+  const policy = await dependencies.retention.getPolicy(organizationId);
+  const candidates = await dependencies.audioTranscriptionJobs.listRetentionCandidates(
+    organizationId,
+    policy.attachment_days,
+  );
+  let deleted = 0;
+  let failed = 0;
+  for (const job of candidates) {
+    try {
+      await dependencies.coreClient.deleteContentMedia({
+        organizationId: job.organization_id,
+        installationId: job.installation_id,
+        actorId,
+        runId: job.result_run_id ?? job.id,
+        correlationId: job.correlation_id,
+      }, job.asset_id);
+      const marked = await dependencies.audioTranscriptionJobs.markDeleted(job.id, actorId);
+      if (marked) deleted += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+  return { deleted, failed };
+}
+
 async function executeCommand(command: OperatorCommandRecord, actorId: string, dependencies: OperatorCommandDependencies): Promise<Record<string, unknown>> {
   if (command.command_type === "cancel_run") {
     const run = await dependencies.runs.getRunById(command.target_id);
@@ -290,6 +327,36 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
       metadata: { audioTranscriptionJobId: job.id },
     });
     return { status: retried.status, audioTranscriptionJobId: retried.id };
+  }
+
+  if (command.command_type === "delete_audio_transcription") {
+    if (!dependencies.audioTranscriptionJobs || !dependencies.coreClient) throw Object.assign(new Error("Audio deletion controls are unavailable"), { statusCode: 503 });
+    const job = await dependencies.audioTranscriptionJobs.getById(command.target_id);
+    if (!job) throw Object.assign(new Error("Audio transcription job not found"), { statusCode: 404 });
+    assertExpectedResource(command, "expectedOrganizationId", job.organization_id, "Audio transcription job organization");
+    assertExpectedResource(command, "expectedInstallationId", job.installation_id, "Audio transcription job installation");
+    assertExpectedStatus(command, job.status);
+    if (["queued", "processing", "dispatching"].includes(job.status)) {
+      throw Object.assign(new Error("Only completed or terminally failed audio jobs can be deleted"), { statusCode: 409 });
+    }
+    if (job.status === "deleted") return { status: "deleted", audioTranscriptionJobId: job.id };
+    await dependencies.coreClient.deleteContentMedia({
+      organizationId: job.organization_id,
+      installationId: job.installation_id,
+      actorId,
+      runId: job.result_run_id ?? job.id,
+      correlationId: job.correlation_id,
+    }, job.asset_id);
+    const deleted = await dependencies.audioTranscriptionJobs.markDeleted(job.id, actorId);
+    if (!deleted) throw Object.assign(new Error("Audio transcription job changed before deletion completed"), { statusCode: 409 });
+    await auditCommand(dependencies.pool, {
+      organizationId: job.organization_id,
+      actorId,
+      action: "operator_command.audio_transcription_deleted",
+      commandId: command.id,
+      metadata: { audioTranscriptionJobId: job.id },
+    });
+    return { status: "deleted", audioTranscriptionJobId: job.id };
   }
 
   if (command.command_type === "assign_run") {
@@ -526,9 +593,11 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
     if (!dependencies.retention) throw Object.assign(new Error("Retention controls are unavailable"), { statusCode: 503 });
     const organizationId = command.target_id.trim();
     assertExpectedResource(command, "expectedOrganizationId", organizationId, "Retention organization");
-    const result = await dependencies.retention.applyMemoryRetention(organizationId, actorId);
-    await auditCommand(dependencies.pool, { organizationId, actorId, action: "operator_command.retention_applied", commandId: command.id, metadata: result });
-    return { status: "applied", expired: result.expired };
+    const memory = await dependencies.retention.applyMemoryRetention(organizationId, actorId);
+    const audio = await applyAudioRetention(organizationId, actorId, dependencies);
+    const result = { expired: memory.expired, audioDeleted: audio.deleted, audioFailed: audio.failed };
+    await auditCommand(dependencies.pool, { organizationId, actorId, action: "operator_command.retention_applied", commandId: command.id, metadata: { ...result, skippedByHold: memory.skippedByHold } });
+    return { status: "applied", ...result };
   }
 
   if (command.command_type === "create_legal_hold") {

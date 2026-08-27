@@ -8,7 +8,8 @@ export type AudioTranscriptionJobStatus =
   | "dispatching"
   | "completed"
   | "retryable_failed"
-  | "failed";
+  | "failed"
+  | "deleted";
 
 export type AudioTranscriptionDispatchKind = "platform" | "external";
 
@@ -36,6 +37,7 @@ export interface AudioTranscriptionJobRecord {
   error_message: string | null;
   started_at: string | null;
   completed_at: string | null;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -205,6 +207,53 @@ export class AudioTranscriptionJobRepository {
         attempt: 1,
         retryReason: "operator",
       });
+      return job;
+    });
+  }
+
+  public async listRetentionCandidates(organizationId: string, attachmentDays: number, limit = 100): Promise<AudioTranscriptionJobRecord[]> {
+    const result = await query<AudioTranscriptionJobRecord>(
+      this.pool,
+      `SELECT * FROM audio_transcription_jobs job
+       WHERE job.organization_id = $1
+         AND job.status IN ('completed', 'retryable_failed', 'failed')
+         AND job.created_at <= now() - make_interval(days => $2::int)
+         AND NOT EXISTS (
+           SELECT 1 FROM agent_legal_holds hold
+           WHERE hold.organization_id = job.organization_id
+             AND hold.status = 'active'
+             AND (hold.expires_at IS NULL OR hold.expires_at > now())
+             AND (
+               (hold.scope_type = 'organization' AND hold.scope_id = job.organization_id)
+               OR (hold.scope_type = 'installation' AND hold.scope_id = job.installation_id::text)
+               OR (hold.scope_type = 'conversation' AND hold.scope_id = job.dispatch_input->>'conversationId')
+             )
+         )
+       ORDER BY job.created_at ASC
+       LIMIT $3`,
+      [organizationId, Math.max(1, Math.min(Math.trunc(attachmentDays), 3650)), Math.max(1, Math.min(Math.trunc(limit), 500))],
+    );
+    return result.rows;
+  }
+
+  public async markDeleted(jobId: string, actorId: string): Promise<AudioTranscriptionJobRecord | null> {
+    return withTransaction(this.pool, async (client) => {
+      const result = await client.query<AudioTranscriptionJobRecord>(
+        `UPDATE audio_transcription_jobs
+         SET status = 'deleted', deleted_at = now(), lease_owner = NULL, lease_expires_at = NULL,
+             transcript = NULL, language_code = NULL, result_conversation_id = NULL,
+             result_message_id = NULL, result_run_id = NULL, error_code = NULL, error_message = NULL
+         WHERE id = $1 AND status IN ('completed', 'retryable_failed', 'failed')
+         RETURNING *`,
+        [jobId],
+      );
+      const job = result.rows[0] ?? null;
+      if (!job) return null;
+      await client.query(
+        `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'platform_admin', $2, 'audio_transcription_job.deleted', 'audio_transcription_job', $3, $4::jsonb)`,
+        [job.organization_id, actorId, job.id, JSON.stringify({ assetId: job.asset_id })],
+      );
       return job;
     });
   }

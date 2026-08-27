@@ -94,6 +94,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_internal::download_content_media),
             )
             .route(
+                "/content/media/{id}",
+                web::delete().to(agent_internal::delete_audio_content_media),
+            )
+            .route(
                 "/content/posts/{id}",
                 web::get().to(agent_internal::get_content_post),
             )

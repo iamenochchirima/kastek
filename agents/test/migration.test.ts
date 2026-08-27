@@ -204,6 +204,14 @@ describe("foundation migration", () => {
     expect(readinessSql).toContain("ON DELETE CASCADE");
   });
 
+  it("defines resumable audio retention and operator deletion state", async () => {
+    const audioRetentionSql = await readFile(new URL("../migrations/075_audio_transcription_retention.sql", import.meta.url), "utf8");
+    expect(audioRetentionSql).toContain("ADD COLUMN IF NOT EXISTS deleted_at");
+    expect(audioRetentionSql).toContain("'deleted'");
+    expect(audioRetentionSql).toContain("delete_audio_transcription");
+    expect(audioRetentionSql).toContain("audio_transcription_jobs_retention_idx");
+  });
+
   it("defines agent context and aggregate ownership invariants", async () => {
     const scopeSql = await readFile(new URL("../migrations/057_agent_context_and_ownership_invariants.sql", import.meta.url), "utf8");
     expect(scopeSql).toContain("memory_records_agent_scope_required");

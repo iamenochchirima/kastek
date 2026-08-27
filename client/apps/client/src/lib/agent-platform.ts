@@ -1333,7 +1333,7 @@ export function sendPlatformAudio(
 
 export type AudioTranscriptionJob = {
   jobId: string;
-  status: "queued" | "processing" | "dispatching" | "completed" | "retryable_failed" | "failed";
+  status: "queued" | "processing" | "dispatching" | "completed" | "retryable_failed" | "failed" | "deleted";
   assetId: string;
   transcript?: string;
   languageCode?: string;

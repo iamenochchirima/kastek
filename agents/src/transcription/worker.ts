@@ -14,7 +14,7 @@ import {
 } from "./provider";
 import { ElevenLabsTranscriptionProvider } from "./elevenlabs";
 import { operationalLogger } from "../telemetry/logger";
-import { recordQueueAge, recordRetry, withSpan } from "../telemetry/spans";
+import { recordQueueAge, recordRetry, withProviderSpan, withSpan } from "../telemetry/spans";
 import { ChannelCredentialRepository } from "../db/repositories/channel-credential-repository";
 import { ChannelRepository } from "../db/repositories/channel-repository";
 import { TelegramBotClient } from "../channels/telegram-client";
@@ -168,12 +168,12 @@ export class AudioTranscriptionWorker {
           runId: job.id,
           correlationId: job.correlation_id,
         }, job.asset_id);
-        const transcription = await this.provider.transcribe({
+        const transcription = await withProviderSpan("elevenlabs", "speech_to_text", () => this.provider.transcribe({
           bytes: media.bytes,
           mimeType: media.mimeType,
           fileName: recordString(input, "fileName"),
           languageHint: recordString(input, "languageHint"),
-        });
+        }));
         const claimed = await this.jobs.markTranscribed({
           jobId: job.id,
           workerId: this.workerId,

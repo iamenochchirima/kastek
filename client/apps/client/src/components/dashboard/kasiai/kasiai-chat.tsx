@@ -376,7 +376,7 @@ async function waitForAudioTranscriptionJob(
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
     try {
       const job = await getAudioTranscriptionJob(jobId);
-      if (["completed", "failed"].includes(job.status)) return job;
+      if (["completed", "failed", "deleted"].includes(job.status)) return job;
     } catch {
       // Keep polling; the job remains durable server-side.
     }

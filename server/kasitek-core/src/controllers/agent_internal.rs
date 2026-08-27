@@ -1193,6 +1193,24 @@ pub async fn download_content_media(
         .body(stored.bytes))
 }
 
+pub async fn delete_audio_content_media(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (organization_id, _) =
+        require_internal_agent(config.get_ref(), &req, "kasitek.core.content_media_delete").await?;
+    let deleted = content_media::delete_audio_content_media(
+        pool.get_ref(),
+        config.get_ref(),
+        &organization_id,
+        &path.into_inner(),
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(json!({ "deleted": deleted })))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct AgentContentPublishRequest {
     pub platform: String,
