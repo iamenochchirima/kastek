@@ -33,10 +33,12 @@ The repository implementation is split into reviewable commits:
 | Release record and local evidence | `a5aeaf74` |
 | Remaining worker boundaries, event enforcement, and log bridge | `586f2444` |
 | Event normalization contract tests | `64227832` |
+| Disabled-export fallback, CI regression check, and documentation cleanup | `91d0598b` |
 
 The exact implementation tree used for the repository smoke evidence is now
-`642278324a8d14baa216910144247202ac3cd320`. The Collector configuration is unchanged from
-`7f064cce`; the current tree includes the follow-up worker, event-contract, and compatibility-boundary changes. The current
+`91d0598b` (`91d0598b` is the current repository-side implementation commit). The Collector
+configuration is unchanged from `7f064cce`; the current tree includes the follow-up worker,
+event-contract, compatibility-boundary, disabled-export fallback, and documentation changes. The current
 branch may contain later product commits; those commits are not covered by this record and must be
 retested before being promoted as one artifact.
 

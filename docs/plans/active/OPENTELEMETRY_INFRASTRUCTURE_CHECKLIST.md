@@ -320,7 +320,7 @@ Repository evidence for the implementation slice:
   to removed strategy or implementation-plan material; no public user/API documentation change
   is required for this infrastructure-only work.
 - Versioning: local validation metadata is `0.1.0`; the current observability implementation tree
-  is recorded as `642278324a8d14baa216910144247202ac3cd320`; no platform release tag or deployed
+  is recorded as `91d0598b`; no platform release tag or deployed
   artifact was created by this work.
 
 Checks intentionally not claimed as complete:
