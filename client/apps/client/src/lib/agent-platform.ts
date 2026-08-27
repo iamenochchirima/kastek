@@ -1337,6 +1337,8 @@ export type AudioTranscriptionJob = {
   assetId: string;
   transcript?: string;
   languageCode?: string;
+  conversationId?: string;
+  messageId?: string;
   errorCode?: string;
   errorMessage?: string;
   createdAt: string;
@@ -1346,6 +1348,13 @@ export type AudioTranscriptionJob = {
 
 export function getAudioTranscriptionJob(jobId: string): Promise<AudioTranscriptionJob> {
   return request(`/api/agents/audio/transcription-jobs/${encodeURIComponent(jobId)}`);
+}
+
+export function retryAudioTranscription(jobId: string): Promise<{ jobId: string; status: string; assetId: string; created: boolean; durable: boolean }> {
+  return request(`/api/agents/audio/transcription-jobs/${encodeURIComponent(jobId)}/retry`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
 }
 
 export function getPlatformConversation(conversationId: string, options: { limit?: number; before?: string } = {}): Promise<ConversationResponse> {

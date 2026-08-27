@@ -50,6 +50,20 @@ const WEBSITE_CHAT_LOADER: &str = r#"(() => {
     document.body.appendChild(overlay);
     let ready = false;
     const emit = (payload) => { if (ready) frame.contentWindow?.postMessage(payload, base); };
+    const pollAudioStatus = (jobId) => {
+      const poll = () => fetch(`${api}/sessions/${encodeURIComponent(session.sessionId)}/audio/${encodeURIComponent(jobId)}${shareSuffix}`, { credentials: 'omit' })
+        .then((statusResponse) => statusResponse.ok ? statusResponse.json() : Promise.reject(new Error('Audio status unavailable')))
+        .then((status) => {
+          emit({ type: 'kasitek:audio-status', jobId, status: status.status, transcript: status.transcript || '', errorMessage: status.errorMessage || '' });
+          if (status.status === 'queued' || status.status === 'processing' || status.status === 'dispatching' || status.status === 'retryable_failed') window.setTimeout(poll, 1000);
+        })
+        .catch(() => emit({ type: 'kasitek:error', message: 'Unable to track your audio. Please try again.' }));
+      poll();
+    };
+    const retryAudio = (jobId) => fetch(`${api}/sessions/${encodeURIComponent(session.sessionId)}/audio/${encodeURIComponent(jobId)}/retry${shareSuffix}`, { method: 'POST', credentials: 'omit' })
+      .then((r) => r.ok ? r.json() : Promise.reject(new Error('Audio retry was not accepted')))
+      .then((result) => { emit({ type: 'kasitek:accepted', jobId, status: result.status || 'queued' }); pollAudioStatus(jobId); })
+      .catch(() => emit({ type: 'kasitek:error', message: 'Unable to retry your audio. Please try again.' }));
     instance.open = () => { frame.style.display = 'block'; launcher.style.display = 'none'; emit({ type: 'kasitek:open' }); };
     instance.close = () => { frame.style.display = 'none'; launcher.style.display = 'flex'; };
     launcher.addEventListener('click', instance.open);
@@ -68,17 +82,11 @@ const WEBSITE_CHAT_LOADER: &str = r#"(() => {
             const jobId = typeof result?.jobId === 'string' ? result.jobId : '';
             if (!jobId) throw new Error('Audio job was not created');
             emit({ type: 'kasitek:accepted', jobId, status: result.status || 'queued' });
-            const poll = () => fetch(`${api}/sessions/${encodeURIComponent(session.sessionId)}/audio/${encodeURIComponent(jobId)}${shareSuffix}`, { credentials: 'omit' })
-              .then((statusResponse) => statusResponse.ok ? statusResponse.json() : Promise.reject(new Error('Audio status unavailable')))
-              .then((status) => {
-                emit({ type: 'kasitek:audio-status', jobId, status: status.status, transcript: status.transcript || '', errorMessage: status.errorMessage || '' });
-                if (status.status === 'queued' || status.status === 'processing' || status.status === 'dispatching' || status.status === 'retryable_failed') window.setTimeout(poll, 1000);
-              })
-              .catch(() => emit({ type: 'kasitek:error', message: 'Unable to track your audio. Please try again.' }));
-            poll();
+            pollAudioStatus(jobId);
           })
           .catch(() => emit({ type: 'kasitek:error', message: 'Unable to process your audio. Please try again.' }));
       }
+      if (event.data.type === 'kasitek:retry-audio' && typeof event.data.jobId === 'string') retryAudio(event.data.jobId);
       if (event.data.type === 'kasitek:send' && typeof event.data.text === 'string') {
         fetch(`${api}/sessions/${encodeURIComponent(session.sessionId)}/messages${shareSuffix}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idempotencyKey: crypto.randomUUID(), text: event.data.text }) })
           .then((r) => { if (!r.ok) throw new Error('Message not accepted'); emit({ type: 'kasitek:accepted' }); })
@@ -112,6 +120,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     .bot strong{font-weight:700;color:#111827}
     .bot code{padding:1px 4px;border-radius:4px;background:#d7dce8;font-size:.9em}
     .transcript{margin-top:7px;padding-top:7px;border-top:1px solid #ffffff55;font-size:12px;line-height:1.35;opacity:.9}
+    .transcript button{margin-left:7px;padding:2px 7px;border:1px solid #ffffff88;border-radius:6px;font-size:11px}
     .bot table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
     .bot th,.bot td{padding:7px 8px;border:1px solid #cbd5e1;text-align:left;vertical-align:top;overflow-wrap:anywhere;word-break:break-word}
     .bot th{background:#dce2ee;font-weight:700}
@@ -314,12 +323,17 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
       }
       if(data.type==='kasitek:accepted'){
         error.textContent='';
-        if(pendingAudioMessage){const transcript=document.createElement('div');transcript.className='transcript';transcript.textContent='Transcribing…';pendingAudioMessage.append(transcript)}
+        if(pendingAudioMessage){const transcript=pendingAudioMessage.querySelector('.transcript');if(transcript)transcript.textContent='Transcribing…';else{const next=document.createElement('div');next.className='transcript';next.textContent='Transcribing…';pendingAudioMessage.append(next)}}
       }
       if(data.type==='kasitek:audio-status'&&pendingAudioMessage){
         const transcript=pendingAudioMessage.querySelector('.transcript');
         if(data.status==='completed'&&data.transcript){if(transcript)transcript.textContent=`Transcript: ${data.transcript}`;pendingAudioMessage=null}
-        else if(data.status==='failed'){stopPending();error.textContent=data.errorMessage||'Unable to transcribe your audio';scrollToBottom()}
+        else if(data.status==='failed'){
+          stopPending();
+          if(transcript){transcript.textContent=data.errorMessage||'Unable to transcribe your audio';const retry=document.createElement('button');retry.type='button';retry.textContent='Try again';retry.onclick=()=>{startPending();error.textContent='';parent.postMessage({type:'kasitek:retry-audio',jobId:data.jobId},targetOrigin)};transcript.append(retry)}
+          else error.textContent=data.errorMessage||'Unable to transcribe your audio';
+          scrollToBottom()
+        }
       }
       if(data.type==='kasitek:reply'){
         stopPending();
@@ -829,8 +843,8 @@ pub async fn get_agent_website_chat_audio_status(
     let session =
         website::active_agent_website_visitor_session(pool.get_ref(), session_id.trim(), &origin)
             .await?;
-    let (organization_id, owner_id) = sqlx::query_as::<_, (String, String)>(
-        r#"SELECT deployment."orgId", organization."ownerId"
+    let (organization_id, owner_id, public_id) = sqlx::query_as::<_, (String, String, String)>(
+        r#"SELECT deployment."orgId", organization."ownerId", deployment."publicId"
            FROM "AgentWebsiteDeployment" deployment
            JOIN "Organization" organization ON organization.id = deployment."orgId"
            WHERE deployment.id = $1 AND deployment.status = 'ACTIVE'"#,
@@ -839,13 +853,107 @@ pub async fn get_agent_website_chat_audio_status(
     .fetch_optional(pool.get_ref())
     .await?
     .ok_or_else(|| AppError::NotFound("Website Chat deployment not found".to_string()))?;
-    let status = AgentPlatformClient::from_config(config.get_ref())?
+    let client = AgentPlatformClient::from_config(config.get_ref())?;
+    let status = client
         .get_audio_transcription_job(&organization_id, &owner_id, job_id.trim())
         .await?;
+    let asset_id = status
+        .get("assetId")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| AppError::NotFound("Website Chat audio not found".to_string()))?;
+    let source_prefix = format!("website:{public_id}:{}:", session.public_session_id);
+    let belongs_to_session = sqlx::query_scalar::<_, bool>(
+        r#"SELECT EXISTS(
+             SELECT 1 FROM "ContentMediaAsset"
+             WHERE id = $1 AND "orgId" = $2
+               AND metadata->>'source' = 'website_widget'
+               AND metadata->>'sourceKey' LIKE $3
+           )"#,
+    )
+    .bind(asset_id)
+    .bind(&organization_id)
+    .bind(format!("{source_prefix}%"))
+    .fetch_one(pool.get_ref())
+    .await?;
+    if !belongs_to_session {
+        return Err(AppError::NotFound(
+            "Website Chat audio not found".to_string(),
+        ));
+    }
     Ok(HttpResponse::Ok()
         .insert_header(("Access-Control-Allow-Origin", normalized_origin))
         .insert_header(("Vary", "Origin"))
         .json(status))
+}
+
+pub async fn retry_agent_website_chat_audio(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<(String, String)>,
+    query: web::Query<std::collections::HashMap<String, String>>,
+) -> Result<HttpResponse, AppError> {
+    let share_request = query
+        .get("share")
+        .is_some_and(|value| value == "1" || value == "true");
+    let origin = req
+        .headers()
+        .get("origin")
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string)
+        .or_else(|| share_request.then(|| config.public_api_url.clone()))
+        .ok_or(AppError::Unauthorized)?;
+    let normalized_origin = website::normalize_origin(&origin)?;
+    let (session_id, job_id) = path.into_inner();
+    let session =
+        website::active_agent_website_visitor_session(pool.get_ref(), session_id.trim(), &origin)
+            .await?;
+    let (organization_id, owner_id, public_id) = sqlx::query_as::<_, (String, String, String)>(
+        r#"SELECT deployment."orgId", organization."ownerId", deployment."publicId"
+           FROM "AgentWebsiteDeployment" deployment
+           JOIN "Organization" organization ON organization.id = deployment."orgId"
+           WHERE deployment.id = $1 AND deployment.status = 'ACTIVE'"#,
+    )
+    .bind(&session.deployment_id)
+    .fetch_optional(pool.get_ref())
+    .await?
+    .ok_or_else(|| AppError::NotFound("Website Chat deployment not found".to_string()))?;
+    let client = AgentPlatformClient::from_config(config.get_ref())?;
+    let status = client
+        .get_audio_transcription_job(&organization_id, &owner_id, job_id.trim())
+        .await?;
+    let asset_id = status
+        .get("assetId")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| AppError::NotFound("Website Chat audio not found".to_string()))?;
+    let source_prefix = format!("website:{public_id}:{}:", session.public_session_id);
+    let belongs_to_session = sqlx::query_scalar::<_, bool>(
+        r#"SELECT EXISTS(
+             SELECT 1 FROM "ContentMediaAsset"
+             WHERE id = $1 AND "orgId" = $2
+               AND metadata->>'source' = 'website_widget'
+               AND metadata->>'sourceKey' LIKE $3
+           )"#,
+    )
+    .bind(asset_id)
+    .bind(&organization_id)
+    .bind(format!("{source_prefix}%"))
+    .fetch_one(pool.get_ref())
+    .await?;
+    if !belongs_to_session {
+        return Err(AppError::NotFound(
+            "Website Chat audio not found".to_string(),
+        ));
+    }
+    let response = client
+        .retry_audio_transcription(&organization_id, &owner_id, job_id.trim())
+        .await?;
+    Ok(HttpResponse::Accepted()
+        .insert_header(("Access-Control-Allow-Origin", normalized_origin))
+        .insert_header(("Vary", "Origin"))
+        .json(response))
 }
 
 #[cfg(test)]

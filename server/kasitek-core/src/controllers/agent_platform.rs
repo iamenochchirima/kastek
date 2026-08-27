@@ -2505,6 +2505,19 @@ pub async fn send_audio_message(
     Ok(HttpResponse::Accepted().json(response))
 }
 
+pub async fn retry_audio_transcription(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    job_id: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .retry_audio_transcription(&organization_id, &user.id, job_id.trim())
+        .await?;
+    Ok(HttpResponse::Accepted().json(response))
+}
+
 pub async fn get_conversation(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

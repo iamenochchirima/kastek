@@ -532,6 +532,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::post().to(agent_platform::send_audio_message),
             )
             .route(
+                "/audio/transcription-jobs/{jobId}/retry",
+                web::post().to(agent_platform::retry_audio_transcription),
+            )
+            .route(
                 "/conversations/{conversationId}",
                 web::get().to(agent_platform::get_conversation),
             )

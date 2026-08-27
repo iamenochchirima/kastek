@@ -226,6 +226,13 @@ function hasCompletedTranscription(content: Record<string, unknown>): boolean {
   );
 }
 
+function safeAudioTranscriptionErrorMessage(errorCode: string | null, status: string): string {
+  if (errorCode === "AUDIO_TOO_LARGE") return "That audio file is too large. Please send a shorter recording.";
+  if (errorCode === "AUDIO_UNSUPPORTED_FORMAT" || errorCode === "AUDIO_INVALID_MEDIA") return "That audio file could not be read. Please try another recording.";
+  if (status === "failed") return "Audio transcription failed. Please try again.";
+  return "Audio transcription is still in progress.";
+}
+
 function requireOperatorScope(auth: AuthContext, config: AppConfig, scope: "operator:read" | "operator:write"): void {
   if (auth.organizationId !== "platform" || auth.operator !== true) {
     throw Object.assign(new Error("Platform operator authentication required"), { statusCode: 403 });
@@ -871,10 +878,20 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       ...(job.result_message_id ? { messageId: job.result_message_id } : {}),
       ...(job.result_run_id ? { runId: job.result_run_id } : {}),
       ...(job.error_code ? { errorCode: job.error_code } : {}),
-      ...(job.error_message ? { errorMessage: job.error_message } : {}),
+      ...(job.error_code ? { errorMessage: safeAudioTranscriptionErrorMessage(job.error_code, job.status) } : {}),
       createdAt: job.created_at,
       ...(job.completed_at ? { completedAt: job.completed_at } : {}),
     });
+  });
+
+  app.post<{ Params: { jobId: string } }>("/v1/audio/transcription-jobs/:jobId/retry", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "chat:write");
+    const job = await audioTranscriptionJobs.get(auth.organizationId, request.params.jobId);
+    if (!job) return reply.code(404).send({ error: "AUDIO_TRANSCRIPTION_JOB_NOT_FOUND", code: "AUDIO_TRANSCRIPTION_JOB_NOT_FOUND" });
+    if (job.actor_id !== auth.actorId && auth.operator !== true) return reply.code(403).send({ error: "AUDIO_TRANSCRIPTION_FORBIDDEN", code: "AUDIO_TRANSCRIPTION_FORBIDDEN" });
+    const retried = await audioTranscriptionJobs.retry(job.id, auth.actorId);
+    return reply.code(202).send({ jobId: retried.id, status: retried.status, assetId: retried.asset_id, created: true, durable: true });
   });
 
   app.post<{ Params: { connectionId: string } }>("/v1/webhooks/telegram/:connectionId", async (request, reply) => {

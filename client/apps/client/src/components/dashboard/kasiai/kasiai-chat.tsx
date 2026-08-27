@@ -57,6 +57,7 @@ import {
   listWhatsappConnectionOptions,
   restoreKasiAiConversation,
   retryAgentRun,
+  retryAudioTranscription,
   sendPlatformAudio,
   sendPlatformMessage,
   setKasiAiChannelDefault,
@@ -445,6 +446,7 @@ export function KasiAiChat({
   const [groundingSummary, setGroundingSummary] =
     useState<GroundingSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [audioRetryJobId, setAudioRetryJobId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [hasMore, setHasMore] = useState(false);
   const [nextBefore, setNextBefore] = useState<string | null>(null);
@@ -630,6 +632,7 @@ export function KasiAiChat({
       setActiveRunId(null);
       setPendingApproval(null);
       setError(null);
+      setAudioRetryJobId(null);
       const result = await getPlatformConversation(id);
       if (selection !== conversationSelection.current) return;
       setConversation(result.conversation);
@@ -702,6 +705,7 @@ export function KasiAiChat({
           setHasMore(false);
           setNextBefore(null);
           setPendingApproval(null);
+          setAudioRetryJobId(null);
           runStatusesRef.current = {};
           setRunStatuses({});
           setChannelFilter("all");
@@ -731,6 +735,7 @@ export function KasiAiChat({
     setHasMore(false);
     setNextBefore(null);
     setPendingApproval(null);
+    setAudioRetryJobId(null);
     setChannelFilter("all");
     setLastRunId(null);
     setGroundingSummary(null);
@@ -857,6 +862,7 @@ export function KasiAiChat({
     setActiveRunId(null);
     setLastRunId(null);
     setGroundingSummary(null);
+    setAudioRetryJobId(null);
     setRunProgress("Preparing request…");
     setRunEvents([]);
     runStatusesRef.current = {};
@@ -885,7 +891,9 @@ export function KasiAiChat({
     setEditingMessageId(null);
     setPendingApproval(null);
     setError(null);
+    setAudioRetryJobId(null);
     setSending(true);
+    let audioJobId: string | null = null;
     const optimistic: AgentMessage | null = retryRunId
       ? null
       : {
@@ -923,6 +931,10 @@ export function KasiAiChat({
                   pageTitle: document.title,
                 },
               });
+              audioJobId = queued.jobId;
+              setConversation(audioConversation.conversation);
+              window.localStorage.setItem(LAST_CHAT_KEY, audioConversation.conversation.id);
+              setConversationUrl(audioConversation.conversation.id);
               if (optimistic) {
                 setMessages((current) =>
                   current.map((message) =>
@@ -935,7 +947,10 @@ export function KasiAiChat({
               setRunProgress("Transcribing audio…");
               setRunEvents([{ event: "audio.transcription", label: "Transcribing audio" }]);
               const job = await waitForAudioTranscriptionJob(queued.jobId, controller.signal);
-              if (job.status !== "completed") throw new Error(job.errorMessage || "Audio transcription failed");
+              if (job.status !== "completed") {
+                setAudioRetryJobId(job.jobId);
+                throw new Error(job.errorMessage || "Audio transcription failed");
+              }
               if (!job.runId) throw new Error("Audio run was not created");
               const conversationResult = await getPlatformConversation(audioConversation.conversation.id);
               const audioMessage = [...conversationResult.messages].reverse().find(
@@ -1122,6 +1137,7 @@ export function KasiAiChat({
             setPendingApproval(null);
           }
           if (!retryRunId) setDraft(text);
+          if (!audioJobId) setAudioRetryJobId(null);
           setError(
             formatError(cause, "KasiAi could not complete this request"),
           );
@@ -1139,6 +1155,50 @@ export function KasiAiChat({
   };
   const sendAudio = (file: File) => {
     void send(undefined, undefined, file);
+  };
+  const retryAudio = async () => {
+    const jobId = audioRetryJobId;
+    if (!jobId || sending) return;
+    const selection = conversationSelection.current;
+    const controller = new AbortController();
+    sendLocked.current = true;
+    streamAbort.current = controller;
+    setError(null);
+    setSending(true);
+    setRunProgress("Retrying audio transcription…");
+    setRunEvents([
+      { event: "audio.transcription.retry", label: "Retrying audio transcription" },
+    ]);
+    try {
+      await retryAudioTranscription(jobId);
+      const job = await waitForAudioTranscriptionJob(jobId, controller.signal);
+      if (job.status !== "completed") {
+        throw new Error(job.errorMessage || "Audio transcription failed");
+      }
+      if (selection !== conversationSelection.current) return;
+      setAudioRetryJobId(null);
+      if (job.conversationId) {
+        await loadConversation(job.conversationId);
+      } else if (conversation) {
+        const result = await getPlatformConversation(conversation.id);
+        setConversation(result.conversation);
+        setMessages((current) => mergeMessages(current, result.messages));
+      }
+      setRunProgress("Audio transcription completed");
+    } catch (cause) {
+      if (
+        selection === conversationSelection.current &&
+        !(cause instanceof DOMException && cause.name === "AbortError")
+      ) {
+        setError(formatError(cause, "Audio transcription failed"));
+      }
+    } finally {
+      if (selection === conversationSelection.current) {
+        sendLocked.current = false;
+        streamAbort.current = null;
+        setSending(false);
+      }
+    }
   };
   const editMessage = (message: AgentMessage) => {
     setEditingMessageId(message.id);
@@ -1787,7 +1847,22 @@ export function KasiAiChat({
                       className="mx-4 mb-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
                       role="alert"
                     >
-                      {error}
+                      <div className="flex items-center justify-between gap-3">
+                        <span>{error}</span>
+                        {audioRetryJobId ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 shrink-0 gap-1 px-2 text-[11px]"
+                            onClick={() => void retryAudio()}
+                            disabled={sending}
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            Retry
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
                   ) : null}
                   <footer className="border-t border-border p-3">

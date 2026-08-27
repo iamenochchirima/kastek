@@ -2253,6 +2253,23 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn retry_audio_transcription(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        job_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::POST,
+            &format!("/v1/audio/transcription-jobs/{job_id}/retry"),
+            organization_id,
+            actor_id,
+            &["chat:write"],
+            Some(json!({})),
+        )
+        .await
+    }
+
     pub async fn transcribe_audio(
         &self,
         organization_id: &str,
