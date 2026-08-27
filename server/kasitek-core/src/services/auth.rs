@@ -64,11 +64,7 @@ pub async fn send_email(
     text: &str,
 ) -> Result<(), AppError> {
     let Some(api_key) = config.resend_api_key.as_ref() else {
-        log::warn!(
-            "AUTH_RESEND_KEY not configured. email to {} not sent: {}",
-            to,
-            subject
-        );
+        log::warn!("AUTH_RESEND_KEY not configured; email not sent");
         return Ok(());
     };
 
@@ -85,8 +81,7 @@ pub async fn send_email(
         .await?;
 
     if response.status() != StatusCode::OK && response.status() != StatusCode::CREATED {
-        let body = response.text().await.unwrap_or_default();
-        log::error!("resend rejected email: {}", body);
+        log::error!("resend rejected email: status={}", response.status());
         return Err(AppError::Internal("Failed to send email".to_string()));
     }
 

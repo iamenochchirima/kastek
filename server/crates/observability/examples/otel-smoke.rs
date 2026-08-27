@@ -12,7 +12,7 @@ async fn main() {
         observability::provider_span("synthetic-provider", "request", async {}).await;
         observability::in_span("worker", "smoke.worker", async {}).await;
         let expected_error: Result<(), &str> =
-            observability::in_span("smoke", "smoke.expected_error", async {
+            observability::result_span("smoke", "smoke.expected_error", async {
                 Err("expected telemetry smoke failure")
             })
             .await;

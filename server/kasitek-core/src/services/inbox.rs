@@ -383,38 +383,28 @@ async fn fetch_meta_attachment_payload(
 ) -> Option<Value> {
     let response = match request.send().await {
         Ok(response) => response,
-        Err(error) => {
-            log::warn!("[meta-media] lookup={} request_failed={}", lookup, error);
+        Err(_error) => {
+            log::warn!("[meta-media] request failed");
             return None;
         }
     };
     let status = response.status();
     let payload = match response.json::<Value>().await {
         Ok(payload) => payload,
-        Err(error) => {
-            log::warn!(
-                "[meta-media] lookup={} status={} invalid_json={}",
-                lookup,
-                status,
-                error
-            );
+        Err(_error) => {
+            log::warn!("[meta-media] invalid response status={}", status);
             return None;
         }
     };
     if !status.is_success() {
         let code = payload.pointer("/error/code").and_then(Value::as_i64);
         let error_type = payload.pointer("/error/type").and_then(Value::as_str);
-        let message = payload
-            .pointer("/error/message")
-            .and_then(Value::as_str)
-            .map(|message| message.chars().take(240).collect::<String>());
         log::warn!(
-            "[meta-media] lookup={} status={} graph_code={:?} graph_type={:?} graph_message={:?}",
+            "[meta-media] lookup={} status={} graph_code={:?} graph_type={:?}",
             lookup,
             status,
             code,
-            error_type,
-            message
+            error_type
         );
         return None;
     }
@@ -1263,12 +1253,7 @@ pub async fn process_meta_webhook_payload(
     config: &AppConfig,
     payload: Value,
 ) -> Result<(), AppError> {
-    if std::env::var("META_WEBHOOK_LOG_PAYLOADS")
-        .ok()
-        .is_some_and(|value| matches!(value.trim(), "1" | "true" | "TRUE" | "yes" | "YES"))
-    {
-        log::info!("[meta-webhook] payload={payload}");
-    }
+    log::info!("[meta-webhook] payload received");
     let object = payload
         .get("object")
         .and_then(|value| value.as_str())

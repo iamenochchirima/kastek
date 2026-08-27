@@ -565,8 +565,7 @@ pub async fn send_email(
         .await?;
 
     if response.status() != StatusCode::OK && response.status() != StatusCode::CREATED {
-        let body = response.text().await.unwrap_or_default();
-        log::error!("email rejected by resend: {}", body);
+        log::error!("email rejected by resend: status={}", response.status());
         return Err(AppError::Internal("Failed to send email".to_string()));
     }
 
@@ -668,8 +667,10 @@ pub async fn send_tenant_admin_invite_email(
         .await?;
 
     if response.status() != StatusCode::OK && response.status() != StatusCode::CREATED {
-        let body = response.text().await.unwrap_or_default();
-        log::error!("tenant admin invite email rejected by resend: {}", body);
+        log::error!(
+            "tenant admin invite email rejected by resend: status={}",
+            response.status()
+        );
         return Err(AppError::Internal(
             "Failed to send tenant admin invite email".to_string(),
         ));

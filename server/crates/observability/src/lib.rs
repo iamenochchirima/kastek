@@ -35,6 +35,7 @@ use opentelemetry_sdk::{
     trace::{BatchConfigBuilder as TraceBatchConfigBuilder, Sampler, SdkTracerProvider},
     Resource,
 };
+use regex::{Captures, Regex};
 use serde_json::json;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
@@ -42,6 +43,39 @@ pub use tracing;
 pub use tracing_actix_web::{DefaultRootSpanBuilder, RootSpanBuilder, TracingLogger};
 
 const UNKNOWN_VALUE: &str = "unknown";
+const MAX_LEGACY_LOG_MESSAGE_LENGTH: usize = 4_096;
+
+static TELEMETRY_REDACTION_PATTERN: OnceLock<Regex> = OnceLock::new();
+
+fn telemetry_redaction_pattern() -> &'static Regex {
+    TELEMETRY_REDACTION_PATTERN.get_or_init(|| {
+        Regex::new(
+            r#"(?ix)
+            (?P<bearer>Bearer\s+)[^\s,;&]+
+            |(?P<query>[?&](?:token|access[_-]?token|refresh[_-]?token|api[_-]?key|key|code|signature|password|secret)=)[^&\s]+
+            |(?P<field>(?:authorization|token|secret|password|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret)\s*[:=])\s*(?:Bearer\s+)?(?:"[^"]*"|'[^']*'|[^,\s;&]+)
+            "#,
+        )
+        .expect("telemetry redaction pattern must compile")
+    })
+}
+
+/// Bounds legacy log messages and removes common credential material before they reach either
+/// stdout or the OpenTelemetry log bridge.
+pub fn redact_telemetry_text(value: impl AsRef<str>, max_length: usize) -> String {
+    let bounded: String = value.as_ref().chars().take(max_length).collect();
+    telemetry_redaction_pattern()
+        .replace_all(&bounded, |captures: &Captures<'_>| {
+            if let Some(prefix) = captures.name("query") {
+                format!("{}[REDACTED]", prefix.as_str())
+            } else if let Some(prefix) = captures.name("field") {
+                format!("{}[REDACTED]", prefix.as_str())
+            } else {
+                "Bearer [REDACTED]".to_string()
+            }
+        })
+        .into_owned()
+}
 
 struct Providers {
     tracer: &'static SdkTracerProvider,
@@ -161,9 +195,48 @@ fn tracing_filter(default_filter: &str) -> EnvFilter {
     EnvFilter::new(value)
 }
 
+struct RedactingLogger<L> {
+    inner: L,
+}
+
+impl<L> log::Log for RedactingLogger<L>
+where
+    L: log::Log,
+{
+    fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
+        self.inner.enabled(metadata)
+    }
+
+    fn log(&self, record: &log::Record<'_>) {
+        if !self.inner.enabled(record.metadata()) {
+            return;
+        }
+
+        let message =
+            redact_telemetry_text(record.args().to_string(), MAX_LEGACY_LOG_MESSAGE_LENGTH);
+        self.inner.log(
+            &log::Record::builder()
+                .args(format_args!("{message}"))
+                .level(record.level())
+                .target(record.target())
+                .module_path(record.module_path())
+                .file(record.file())
+                .line(record.line())
+                .build(),
+        );
+    }
+
+    fn flush(&self) {
+        self.inner.flush();
+    }
+}
+
 fn init_otel(default_filter: &str, service_name: &str) -> Result<(), String> {
-    tracing_log::LogTracer::init()
-        .map_err(|error| format!("failed to initialize log-to-tracing bridge: {error}"))?;
+    log::set_boxed_logger(Box::new(RedactingLogger {
+        inner: tracing_log::LogTracer::new(),
+    }))
+    .map_err(|error| format!("failed to initialize log-to-tracing bridge: {error}"))?;
+    log::set_max_level(log::LevelFilter::Trace);
     let resource = telemetry_resource(service_name);
     let span_exporter = opentelemetry_otlp::SpanExporter::builder()
         .with_http()
@@ -929,6 +1002,23 @@ pub async fn provider_result_span<F, T, E>(
 where
     F: Future<Output = Result<T, E>>,
 {
+    provider_result_span_with(provider, operation, move || future).await
+}
+
+/// Fallible provider span variant that constructs its operation after the span is active.
+///
+/// Use this form when the operation needs to inject the active trace context into an outbound
+/// request. Constructing the request inside the callback makes the downstream request a child of
+/// the provider span rather than a sibling of it.
+pub async fn provider_result_span_with<F, Fut, T, E>(
+    provider: &'static str,
+    operation: &'static str,
+    operation_factory: F,
+) -> Result<T, E>
+where
+    F: FnOnce() -> Fut,
+    Fut: Future<Output = Result<T, E>>,
+{
     use tracing::{field, Instrument};
     let started = Instant::now();
     let attributes = operation_attributes("dependency", operation);
@@ -942,7 +1032,7 @@ where
     );
     let result_span = span.clone();
     let result = async move {
-        match future.await {
+        match operation_factory().await {
             Ok(value) => {
                 result_span.record("otel.status_code", "OK");
                 Ok(value)
@@ -1061,8 +1151,12 @@ fn init_legacy(default_filter: &str) {
     // when OTEL is disabled: legacy log records stay on env_logger, while tracing records use the
     // subscriber below. When OTEL initialization fails after installing LogTracer, env_logger's
     // `try_init` simply reports that the logger is already owned and the subscriber still receives
-    // the bridged records.
-    let _ = builder.try_init();
+    // the bridged records. Both sinks receive the redacted compatibility record.
+    let logger = builder.build();
+    let max_level = logger.filter();
+    if log::set_boxed_logger(Box::new(RedactingLogger { inner: logger })).is_ok() {
+        log::set_max_level(max_level);
+    }
 
     let tracing_result = if structured_logs_enabled() {
         let subscriber = tracing_subscriber::registry()
@@ -1097,14 +1191,19 @@ mod tests {
 
     use super::{
         access_log_status, display_level, format_status, inject_trace_context,
-        is_safe_correlation_id, parse_status_token, status_color, Sampler,
+        is_safe_correlation_id, parse_status_token, redact_telemetry_text, status_color, Sampler,
     };
     use log::{Level, Record};
     use opentelemetry::{
         global,
-        trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState},
+        trace::{
+            Span as _, SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState,
+            Tracer as _, TracerProvider as _,
+        },
         Context,
     };
+    use opentelemetry_sdk::trace::SdkTracerProvider;
+    use tracing_subscriber::prelude::*;
 
     #[test]
     fn status_colors_follow_http_outcome_classes() {
@@ -1165,6 +1264,20 @@ mod tests {
     }
 
     #[test]
+    fn legacy_log_text_is_bounded_and_redacts_credentials() {
+        let redacted = redact_telemetry_text(
+            "request failed authorization=Bearer abc123&token=secret",
+            512,
+        );
+        assert_eq!(
+            redacted,
+            "request failed authorization=[REDACTED]&token=[REDACTED]"
+        );
+        assert!(!redact_telemetry_text("Bearer abc123", 512).contains("abc123"));
+        assert_eq!(redact_telemetry_text("x".repeat(200), 128).len(), 128);
+    }
+
+    #[test]
     fn injects_the_active_w3c_trace_context_into_http_headers() {
         global::set_text_map_propagator(super::TraceContextPropagator::new());
         let parent = SpanContext::new(
@@ -1193,6 +1306,42 @@ mod tests {
                 .get("tracestate")
                 .and_then(|value| value.to_str().ok()),
             Some("vendor=value")
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn provider_factory_injects_the_provider_span_context() {
+        global::set_text_map_propagator(super::TraceContextPropagator::new());
+        let provider = SdkTracerProvider::builder().build();
+        let tracer = provider.tracer("kasitek-test");
+        let parent = tracer.start("parent");
+        let parent_span_id = parent.span_context().span_id();
+        let _parent_guard = Context::current_with_span(parent).attach();
+        let subscriber = tracing_subscriber::registry()
+            .with(tracing_opentelemetry::layer().with_tracer(tracer.clone()));
+        let _subscriber_guard = tracing::subscriber::set_default(subscriber);
+
+        let (headers, active_trace_id, active_span_id) =
+            super::provider_result_span_with("test-provider", "request", || async {
+                let mut headers = http::HeaderMap::new();
+                let active_span_context = Context::current().span().span_context().clone();
+                super::inject_trace_context(&mut headers);
+                Ok::<_, ()>((
+                    headers,
+                    active_span_context.trace_id(),
+                    active_span_context.span_id(),
+                ))
+            })
+            .await
+            .expect("provider operation should succeed");
+
+        assert_ne!(active_span_id, parent_span_id);
+        let expected_traceparent = format!("00-{active_trace_id}-{active_span_id}-01");
+        assert_eq!(
+            headers
+                .get("traceparent")
+                .and_then(|value| value.to_str().ok()),
+            Some(expected_traceparent.as_str())
         );
     }
 

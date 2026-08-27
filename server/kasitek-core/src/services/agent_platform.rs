@@ -25,12 +25,6 @@ fn new_correlation_id() -> String {
     )
 }
 
-fn trace_headers() -> HeaderMap {
-    let mut headers = HeaderMap::new();
-    observability::inject_trace_context(&mut headers);
-    headers
-}
-
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct InternalClaims<'a> {
@@ -1839,12 +1833,18 @@ impl AgentPlatformClient {
             )
             .header("x-organization-id", organization_id)
             .header("x-actor-id", actor_id)
-            .header("x-correlation-id", &correlation_id)
-            .headers(trace_headers());
-        let response =
-            observability::provider_result_span("kasitek-agents", "http.request", request.send())
-                .await
-                .map_err(|error| self.map_request_error(error))?;
+            .header("x-correlation-id", &correlation_id);
+        let response = observability::provider_result_span_with(
+            "kasitek-agents",
+            "http.request",
+            move || async move {
+                let mut trace_headers = HeaderMap::new();
+                observability::inject_trace_context(&mut trace_headers);
+                request.headers(trace_headers).send().await
+            },
+        )
+        .await
+        .map_err(|error| self.map_request_error(error))?;
         if response.status().is_success() {
             return Ok(response);
         }
@@ -2156,10 +2156,14 @@ impl AgentPlatformClient {
         if let Some(provider_secret) = provider_secret.filter(|value| !value.trim().is_empty()) {
             request = request.header("x-telegram-bot-api-secret-token", provider_secret);
         }
-        let response = observability::provider_result_span(
+        let response = observability::provider_result_span_with(
             "kasitek-agents",
             "http.request",
-            request.headers(trace_headers()).json(&body).send(),
+            move || async move {
+                let mut trace_headers = HeaderMap::new();
+                observability::inject_trace_context(&mut trace_headers);
+                request.headers(trace_headers).json(&body).send().await
+            },
         )
         .await
         .map_err(|error| self.map_request_error(error))?;
@@ -2502,12 +2506,18 @@ impl AgentPlatformClient {
             )
             .header("x-organization-id", organization_id)
             .header("x-actor-id", actor_id)
-            .header("x-correlation-id", &correlation_id)
-            .headers(trace_headers());
-        let response =
-            observability::provider_result_span("kasitek-agents", "http.request", request.send())
-                .await
-                .map_err(|error| self.map_request_error(error))?;
+            .header("x-correlation-id", &correlation_id);
+        let response = observability::provider_result_span_with(
+            "kasitek-agents",
+            "http.request",
+            move || async move {
+                let mut trace_headers = HeaderMap::new();
+                observability::inject_trace_context(&mut trace_headers);
+                request.headers(trace_headers).send().await
+            },
+        )
+        .await
+        .map_err(|error| self.map_request_error(error))?;
         if response.status().is_success() {
             return Ok(response);
         }
@@ -2536,10 +2546,14 @@ impl AgentPlatformClient {
         if let Some(body) = body {
             request = request.json(&body);
         }
-        let response = observability::provider_result_span(
+        let response = observability::provider_result_span_with(
             "kasitek-agents",
             "http.request",
-            request.headers(trace_headers()).send(),
+            move || async move {
+                let mut trace_headers = HeaderMap::new();
+                observability::inject_trace_context(&mut trace_headers);
+                request.headers(trace_headers).send().await
+            },
         )
         .await
         .map_err(|error| self.map_request_error(error))?;
@@ -2576,12 +2590,18 @@ impl AgentPlatformClient {
             .header("x-actor-id", actor_id)
             .header("x-correlation-id", &correlation_id)
             .header("content-type", content_type)
-            .headers(trace_headers())
             .body(body);
-        let response =
-            observability::provider_result_span("kasitek-agents", "http.request", request.send())
-                .await
-                .map_err(|error| self.map_request_error(error))?;
+        let response = observability::provider_result_span_with(
+            "kasitek-agents",
+            "http.request",
+            move || async move {
+                let mut trace_headers = HeaderMap::new();
+                observability::inject_trace_context(&mut trace_headers);
+                request.headers(trace_headers).send().await
+            },
+        )
+        .await
+        .map_err(|error| self.map_request_error(error))?;
         if !response.status().is_success() {
             return Err(self.map_status(response).await);
         }
@@ -2647,10 +2667,14 @@ impl AgentPlatformClient {
         if let Some(body) = body {
             request = request.json(&body);
         }
-        let response = observability::provider_result_span(
+        let response = observability::provider_result_span_with(
             "kasitek-agents",
             "http.request",
-            request.headers(trace_headers()).send(),
+            move || async move {
+                let mut trace_headers = HeaderMap::new();
+                observability::inject_trace_context(&mut trace_headers);
+                request.headers(trace_headers).send().await
+            },
         )
         .await
         .map_err(|error| self.map_request_error(error))?;
@@ -2692,10 +2716,14 @@ impl AgentPlatformClient {
         if let Some(body) = body {
             request = request.json(&body);
         }
-        let response = observability::provider_result_span(
+        let response = observability::provider_result_span_with(
             "kasitek-agents",
             "http.request",
-            request.headers(trace_headers()).send(),
+            move || async move {
+                let mut trace_headers = HeaderMap::new();
+                observability::inject_trace_context(&mut trace_headers);
+                request.headers(trace_headers).send().await
+            },
         )
         .await
         .map_err(|error| self.map_request_error(error))?;
@@ -3100,7 +3128,7 @@ mod tests {
 
     #[tokio::test]
     async fn every_non_operator_adapter_uses_the_scoped_agent_boundary() {
-        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 79]).await;
+        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 80]).await;
         let client = test_client(&base_url);
         let body = json!({"value": "test"});
 
