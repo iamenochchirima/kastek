@@ -144,8 +144,10 @@ updates the derived transcription record, not the original attachment.
 
 The current implementation enforces a 25 MB limit, supported MIME types, and known file signatures
 before transcription. Core owns organization/session media authorization and short-lived playback
-URLs. Streaming, checksum/duration inspection, and malware scanning/quarantine remain release gates
-because the current upload paths still buffer request bytes and Core marks uploaded media ready.
+URLs, stores a SHA-256 checksum, and returns it on internal reads; Agent Platform verifies the
+checksum before sending bytes to ElevenLabs. Streaming, duration inspection, and malware
+scanning/quarantine remain release gates because the current upload paths still buffer request
+bytes and Core marks uploaded media ready.
 
 ### 3. Transcription provider boundary
 
@@ -329,9 +331,13 @@ User, API, internal, and operational documentation: public audio input documenta
 ownership reference, this plan/checklist, and the provider-failure runbook are present. API
 reference publication and privacy/legal approval remain pending.
 
-Validation evidence: Agent build and TypeScript checks pass; focused Agent tests pass; Core
-formatting/check and focused website/media tests pass; client/Admin TypeScript checks pass. Real
-ElevenLabs, channel-provider, widget browser, migration, and staging tests remain pending.
+Validation evidence: Agent build and TypeScript checks pass; focused Agent tests pass; the
+database-backed Agent integration suite passes 15/15 tests for retention, operator commands,
+platform chat, durable audio enqueue/deduplication, worker completion, retry recovery, and one
+agent dispatch; Core formatting/check and focused website/media tests pass; client/Admin
+TypeScript checks pass. Core checksum verification and deletion-retry behavior are covered by
+targeted tests/checks. Real ElevenLabs, channel-provider, widget browser, clean-install migration,
+and staging tests remain pending.
 
 Rollback or disable plan: do not enable client entry points; if enabled during development, disable
 the audio controls and remove the ElevenLabs key/configuration. The additive audio enum migration
@@ -403,8 +409,10 @@ message/media architecture, provider configuration and failure runbook, and acti
 are present. API reference, privacy/legal approval, and release notes remain pending.
 
 **Validation evidence:** Agent build/typecheck and focused worker/provider/HTTP tests pass; Core
-format/check and focused website/media tests pass; client/Admin TypeScript checks pass. Database
-integration, recorded channel fixtures, browser E2E, manual ElevenLabs staging smoke, and full
+format/check and focused website/media tests pass; client/Admin TypeScript checks pass; the
+database-backed Agent integration suite passes 15/15 tests, including durable audio completion,
+deduplication, retry recovery, and normal text response insertion. Recorded channel fixtures,
+browser E2E, manual ElevenLabs staging smoke, clean-install migration evidence, and full
 multi-surface acceptance remain pending.
 
 **Rollback or disable plan:** turn off the audio flag, stop new transcription submissions, allow or

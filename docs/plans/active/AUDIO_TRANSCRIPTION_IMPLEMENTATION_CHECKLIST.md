@@ -43,7 +43,7 @@ product, provider, privacy, or deployment decision.
 - [x] Preserve existing text messages, attachments, provider IDs, and old clients.
 - [x] Ensure the migration is additive, repeatable, and safe with partially processed jobs.
 - [x] Add a migration rollback/disable note; migrations do not delete audio data.
-- [-] Run Prisma/schema validation and generation; the Core enum migration is present and Agent SQL has contract coverage, but an isolated database run remains pending.
+- [-] Run Prisma/schema validation and generation; the Core enum migration is present and Agent SQL has contract coverage, and the local integration database has applied the migrations; clean-install evidence remains pending.
 - [ ] Run the migration against an isolated database and verify clean-install behavior.
 - [x] Record migration versions in the release record.
 
@@ -107,8 +107,8 @@ product, provider, privacy, or deployment decision.
 
 - [x] Add microphone recording with permission-denied handling.
 - [x] Add audio-file selection with client-side hints but server-side validation.
-- [-] Show recording timer, cancel, upload progress, and disabled duplicate-submit state; duplicate-submit is guarded, while timer/progress remain pending.
-- [-] Show `Uploading`, `Transcribing`, `Ready`, and `Failed` states with retry; the current UI has transcribing/ready/failed and no upload progress indicator.
+- [-] Show recording timer, cancel, upload state, and disabled duplicate-submit state; timer and upload-state feedback are implemented, while byte-level progress remains pending.
+- [-] Show `Uploading`, `Transcribing`, `Ready`, and `Failed` states with retry; the current UI exposes upload-state feedback, transcribing/ready/failed states, and no byte-level progress indicator.
 - [x] Render a compact audio player and transcript in the conversation.
 - [x] Preserve text composition and existing send behavior.
 - [x] Keep transcript/audio access scoped to the active organization and conversation.
@@ -119,7 +119,7 @@ product, provider, privacy, or deployment decision.
 - [x] Add a session-scoped upload/finalize API or secure signed-upload flow.
 - [-] Preserve origin validation, session expiry, and idempotency. A 20-per-session-hour limit exists; per-organization anonymous volume controls remain pending.
 - [x] Add a microphone button and file upload with concise processing states.
-- [ ] Prevent sending the same attachment twice after refresh or retry.
+- [-] Prevent sending the same attachment twice after refresh or retry; the widget now reuses a persisted fingerprint-based idempotency key, while browser evidence remains pending.
 - [-] Deliver transcription/agent progress through the current widget polling/delivery mechanism; a dedicated event channel is not yet implemented.
 - [x] Render the audio player and transcript without exposing storage keys or provider details.
 - [x] Provide a short user-safe error and retry action for provider/media failures.
@@ -167,7 +167,7 @@ product, provider, privacy, or deployment decision.
 
 ### Unit and contract tests
 
-- [-] Validate MIME, magic bytes, size, and format normalization; duration, filename, and checksum validation remain pending.
+- [-] Validate MIME, magic bytes, size, and format normalization; Core-to-Agent SHA-256 verification is covered, while duration and deeper filename/codec validation remain pending.
 - [x] Validate the canonical audio attachment/job/transcript contract through route, repository, and worker tests.
 - [x] Validate provider success, malformed, 4xx/429 mapping, and missing configuration.
 - [-] Validate idempotency keys, lease expiry, and retry backoff in code; duplicate completion and full lease integration coverage remain pending.
@@ -177,9 +177,9 @@ product, provider, privacy, or deployment decision.
 ### Database and service integration tests
 
 - [ ] Create an audio attachment and verify durable job state.
-- [ ] Complete a transcription and verify one normalized transcript.
-- [ ] Verify one agent dispatch and one normal text response.
-- [ ] Retry a provider failure and verify no duplicate transcript or agent run.
+- [x] Complete a transcription and verify one normalized transcript.
+- [x] Verify one agent dispatch and one normal text response.
+- [x] Retry a provider failure and verify no duplicate transcript or agent run.
 - [ ] Verify permanent media/provider failure becomes operator-visible and user-safe.
 - [ ] Verify organization/session authorization on upload, read, retry, and delete.
 - [ ] Verify retention deletion removes the source and derived transcript.
