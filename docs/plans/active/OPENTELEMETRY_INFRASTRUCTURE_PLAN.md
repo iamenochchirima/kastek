@@ -4,7 +4,7 @@
 
 **Owner:** KasiTek engineering
 
-**Last updated:** 2026-08-26
+**Last updated:** 2026-08-27
 
 ## Objective
 
@@ -26,17 +26,19 @@ retention, alert rules, and provider-specific queries are deliberately deferred 
 The repository now contains the complete repository-side server-side implementation slice. The Collector
 boundary is checked in under `infra/observability/otel-collector/` with pinned profiles, OTLP
 receivers, memory limits, batching, redaction, health checks, local Compose startup, a generic
-production OTLP template with bounded queue/retry settings, and Railway deployment instructions.
+production OTLP template with bounded queue/retry settings and error-preserving tail sampling, and
+Railway deployment instructions.
 The shared Rust crate initializes logs, traces, metrics, resources, W3C propagation, HTTP metrics,
 correlation IDs, provider spans, background spans, and graceful shutdown. Agents initializes the
 Node SDK before service modules, enables HTTP/PG/Pino instrumentation, adds provider and Temporal
 spans, propagates W3C/correlation context through Temporal, and retains a structured stdout
 fallback. CI, tests, and internal runbook/documentation updates are included.
 
-Local code/configuration verification is repository-complete. Actual staging deployment, Railway
+Local code/configuration verification and the repository release record are complete. Actual staging deployment, Railway
 service creation, and durable backend selection remain external gates. The repository must not
 claim complete production observability until those gates are satisfied. The execution checklist
-records the exact verification evidence and the intentionally open gates.
+and [release record](./OPENTELEMETRY_INFRASTRUCTURE_RELEASE_RECORD.md) record the exact verification
+evidence and the intentionally open gates.
 
 ## Scope
 
@@ -72,12 +74,12 @@ The repository now has a provider-neutral server-side OpenTelemetry implementati
 
 | Area | Current baseline | Target change |
 | --- | --- | --- |
-| Rust | Shared `server/crates/observability` crate using `log`, `env_logger`, JSON stdout, and Actix access logging. | OTel SDK initialization, OTLP export, W3C context, HTTP/worker/provider spans, metrics, and a compatibility bridge are implemented. |
+| Rust | Shared `server/crates/observability` crate using `log`, `env_logger`, JSON stdout, and Actix access logging. | OTel SDK initialization, OTLP export, W3C context, HTTP/worker/provider spans, operation/retry/dependency/queue metric helpers, and a compatibility bridge are implemented. |
 | Agents | Fastify/Pino logging, application correlation IDs, and legacy console paths. | Early OTel bootstrap, HTTP/PG/Pino instrumentation, provider/Temporal spans, structured logging, redaction, and shutdown are implemented for server entrypoints. |
 | Analytics | Product analytics facts and metrics are separate from infrastructure telemetry. | Add only service health and pipeline-operational telemetry; do not mix customer analytics facts into OpenTelemetry. |
 | Client | No direct OpenTelemetry setup. | Keep outside the initial server-side slice. |
-| Export | No durable provider has been selected. | OTLP Collector boundary, local/staging verification profiles, redaction, health, and generic future-backend template are implemented; durable export is deferred. |
-| Release identity | `VERSION`, platform tags, and release-process requirements exist, but runtime identity is incomplete. | Attach platform version, commit/artifact identity, service name, and environment to telemetry. |
+| Export | No durable provider has been selected. | OTLP Collector boundary, local/staging verification profiles, redaction, health, error-preserving tail sampling, and generic future-backend template are implemented; durable export is deferred. |
+| Release identity | Local version metadata and release-process requirements exist, but no hosted artifact has been promoted. | Attach platform version, commit/artifact identity, service name, and environment to telemetry and record the exact implementation commits. |
 
 The current deployment direction uses separate hosted services and GitHub Environments for
 staging and production. The Collector must not collapse those environment boundaries or share
@@ -246,7 +248,7 @@ Change: Introduce vendor-neutral OpenTelemetry instrumentation and Collector inf
 Owner: KasiTek engineering; provisional Collector incident owner: platform-ops.
 Risk: standard for repository changes; high for production enablement until staging and durable-destination gates pass.
 Affected services and user surfaces: Rust Core/Tenants/Analytics services, Agents API/worker/gateway/maintenance processes, and Collector deployment configuration; no direct user-interface behavior change.
-Platform release version or release ID: VERSION 0.1.0; current source revision b1fce9463f714b74e0ba6742b0f296fdbb3a8f48; no release tag or deployed artifact.
+Platform release version or release ID: local validation metadata 0.1.0; implementation tree 7f064cceca1a8e27e34847d8f740657310098b4a; no release tag or deployed artifact.
 API/schema/migration changes: not applicable; migration execution is instrumented but schemas are unchanged.
 Feature flag or rollout method: OTEL_SDK_DISABLED, OTEL_EXPORTER_OTLP_* endpoint/protocol, resource metadata, and sampler environment variables; stdout fallback remains available.
 Analytics events and success metrics: not applicable; operational telemetry remains separate from customer analytics.
@@ -257,19 +259,23 @@ Rollback or disable plan: set OTEL_SDK_DISABLED=true or remove the OTLP endpoint
 Post-release review date: before any staging or production promotion.
 ```
 
-## Implementation evidence — 2026-08-26
+## Implementation evidence — 2026-08-27
 
 The full command-level record is maintained in the [execution checklist](./OPENTELEMETRY_INFRASTRUCTURE_CHECKLIST.md).
 The short result is: Rust formatting, workspace check, shared-crate tests, and Clippy passed;
 Agents type checking and the full test suite passed; all Collector profiles passed validation;
 and the local Collector received Rust and Agents traces, logs, and metrics with matching
-trace/span context and release metadata. The CI workflow contains the containerized Rust plus
-Agents signal smoke. The legacy Actix access formatter and Agents exception telemetry also apply
-the final privacy bounds described in the checklist.
+trace/span context and release metadata. The public documentation build passed. The internal
+documentation build compiles the observability page but is blocked by an unrelated broken link
+in the user-edited `docs/internal/architecture/admin-analytics.md` to a removed plan. The CI
+workflow contains the containerized Rust plus Agents signal smoke. The legacy Actix access
+formatter and Agents exception telemetry also apply the final privacy bounds described in the
+checklist.
 
 The Docker daemon was unavailable in this workspace, so the containerized smoke was not run
 locally. Railway staging service creation, hosted end-to-end evidence, and durable backend,
-retention, access, dashboards, alerts, and release-ID search remain external or deferred work.
+provider-specific retention/access/dashboards/alerts, and retained release-ID search remain
+external or deferred work. The complete repository-side evidence is in the [release record](./OPENTELEMETRY_INFRASTRUCTURE_RELEASE_RECORD.md).
 
 ## Verification and acceptance criteria
 
@@ -301,15 +307,15 @@ The implementation is complete only when all of the following are true:
 | Local destination | Use the Collector debug/stdout exporter for local end-to-end verification. | KasiTek engineering | Decided |
 | Production destination | Select and configure a durable backend in a separate plan. | KasiTek engineering | Deferred |
 | Browser telemetry | Excluded from the first server-side slice; require a separate privacy, consent, sampling, and cost decision. | KasiTek engineering | Deferred |
-| Trace sampling | Define baseline and error-preserving sampling before production enablement. | KasiTek engineering | Open |
-| Retention and access | Define platform requirements before selecting a provider and configuring production export. | KasiTek engineering | Open |
+| Trace sampling | Production template uses `parentbased_always_on` at the service boundary and Collector tail sampling that retains errors plus a 20% baseline. | KasiTek engineering | Decided for the provider-neutral template |
+| Retention and access | Platform-level access, separation, retention, and deletion requirements are defined; provider-specific roles and durations remain deferred. | KasiTek engineering | Baseline decided; provider implementation open |
 | Ownership | Telemetry contract owner is KasiTek engineering; platform-ops is the provisional Collector incident owner until a named individual is assigned. | Repository owner | Provisional |
 
 ## Notes and blockers
 
 - A durable production backend is intentionally not selected by this plan. Until one is configured,
   production telemetry can be validated but is not operationally retained.
-- The Collector deployment topology must be resolved before hosted staging verification.
+- The Collector deployment topology is resolved as a separate same-project Railway service; service creation is still an external deployment gate.
 - Dependency versions must be selected from the current Rust and Node toolchains during
   implementation and checked into the normal lockfiles.
 - No `console.*` calls remain in `agents/src`; direct stderr is retained only for stdio and

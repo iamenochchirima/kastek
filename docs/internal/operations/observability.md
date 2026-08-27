@@ -62,13 +62,19 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
 OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 OTEL_SERVICE_NAME=kasitek-core
 OTEL_DEPLOYMENT_ENVIRONMENT=staging
-OTEL_TRACES_SAMPLER=parentbased_traceidratio
-OTEL_TRACES_SAMPLER_ARG=0.20
+OTEL_TRACES_SAMPLER=parentbased_always_on
 OTEL_EXPORTER_OTLP_TIMEOUT=5000
 KASITEK_VERSION=0.1.0
 KASITEK_RELEASE_ID=platform-v0.1.0
 KASITEK_COMMIT_SHA=<immutable-commit>
 ```
+
+Local and staging verification profiles use `parentbased_always_on` so the debug Collector can
+inspect the complete smoke trace. The production template also receives all application traces
+and applies a provider-neutral tail-sampling policy: error traces are retained and 20% of other
+traces are retained. If a deployment cannot support this boundary, its sampling decision must be
+recorded explicitly in the release record; a ratio sampler must not be described as preserving all
+errors.
 
 Set `OTEL_SDK_DISABLED=true` or remove the OTLP endpoint to disable export. Services retain their
 structured stdout fallback and must continue to answer liveness checks when the Collector is
@@ -97,6 +103,25 @@ Logs, metrics, health responses, and deployment records should identify:
 - Treat logs as operational data with an owner, retention period, access control, and deletion
   process.
 
+## Stable operational events
+
+New and modified operational paths use a bounded `event` field with a dot-separated, stable name.
+The minimum event vocabulary is:
+
+| Boundary | Event names |
+| --- | --- |
+| Process lifecycle | `service.startup`, `service.startup_failed`, `service.shutdown`, `service.shutdown_failed` |
+| HTTP | `http.request.completed`, `http.request.failed` |
+| Dependencies/providers | `provider.call.completed`, `provider.call.failed`, `dependency.unavailable` |
+| Retries | `operation.retry_scheduled`, `operation.retry_exhausted` |
+| Migrations | `migration.started`, `migration.completed`, `migration.failed` |
+| Queues/workers | `queue.item_claimed`, `queue.item_completed`, `queue.item_failed`, `worker.started`, `worker.failed` |
+| Terminal failures | `operation.failed`, `operation.terminal_failure` |
+
+Event names are identifiers, not user-facing prose. The existing legacy Rust `log!` inventory is
+migrated incrementally; new code must use this vocabulary and the legacy inventory must not be
+expanded without an event field or an explicit `not applicable` decision in its release record.
+
 Agents uses Pino with `trace_id`, `span_id`, `trace_flags`, and `correlation_id` fields. Rust
 `log` records are bridged into the tracing subscriber when OTLP is enabled. Request summaries
 omit query strings and network addresses; credentials, authorization material, cookies, tokens,
@@ -115,10 +140,44 @@ background work. Health endpoints must distinguish process liveness from depende
 The current shared instrumentation provides `http.server.request.count`,
 `http.server.request.duration`, `http.server.request.error.count`, and
 `http.server.request.in_flight` for Rust HTTP services. Agents provides
-`kasitek.operation.count`, `kasitek.operation.duration`, and
-`kasitek.operation.in_flight` for instrumented application, provider, and worker boundaries.
-Collector internal metrics cover Collector health and processing; queue age, retry, dependency,
-and resource-saturation metrics remain service-specific follow-up work.
+`kasitek.operation.count`, `kasitek.operation.error.count`,
+`kasitek.operation.duration`, `kasitek.operation.in_flight`,
+`kasitek.operation.retry.count`, `kasitek.dependency.failure.count`, and
+`kasitek.queue.age` for instrumented application, provider, worker, and outbox boundaries.
+Collector internal metrics cover Collector health and processing. Queue age, retry, and
+dependency metrics are emitted only at boundaries that own those concepts; resource saturation is
+owned by the Collector/host platform rather than application request labels.
+
+The minimum metric contract is therefore:
+
+| Signal | Required boundary | Metric |
+| --- | --- | --- |
+| Throughput | HTTP, worker, provider, migration, queue | `*.count` with bounded outcome |
+| Errors | Every fallible boundary | `*.error.count` or an equivalent `outcome=error` series |
+| Latency | Every timed boundary | `*.duration` in seconds |
+| In-flight | HTTP and long-running work | `*.in_flight` |
+| Queue age | Queue owner only | `kasitek.queue.age` in seconds |
+| Retries | Retry owner only | `kasitek.operation.retry.count` |
+| Dependency failures | Provider/dependency boundary | `kasitek.dependency.failure.count` |
+| Resource saturation | Collector/host platform | Collector internal and platform resource metrics |
+
+Identifiers such as request IDs, run IDs, and customer IDs must not become metric attributes.
+
+## Access, retention, and deletion baseline
+
+Until a backend is selected, these are platform requirements rather than provider configuration:
+
+- telemetry is operational data and is never exposed through public application endpoints;
+- read access is limited to the release owner, platform-ops incident responders, and explicitly
+  approved engineering support personnel;
+- staging and production destinations, credentials, and access policies are separate;
+- retention and deletion must be configurable by signal and environment, with staging shorter than
+  production and deletion requests auditable by an operator;
+- no telemetry backend may become the source of truth for authorization, tenant identity, or
+  business records.
+
+The concrete retention durations, identity-provider roles, and deletion API are provider-specific
+decisions and must be recorded before durable export is enabled.
 
 Analytics metrics are not a replacement for service health metrics. Product analytics describes
 user outcomes; operational telemetry describes system behavior. A feature can require both.
@@ -132,4 +191,5 @@ operationally complete; record the gap explicitly and assign follow-up work.
 The remaining work is environmental: run the end-to-end local and staging checks, configure an
 isolated hosted Collector, and approve a durable backend. Track that evidence in the
 [OpenTelemetry infrastructure plan](https://github.com/iamenochchirima/kasitek/blob/main/docs/plans/active/OPENTELEMETRY_INFRASTRUCTURE_PLAN.md) and
-its [execution checklist](https://github.com/iamenochchirima/kasitek/blob/main/docs/plans/active/OPENTELEMETRY_INFRASTRUCTURE_CHECKLIST.md).
+its [execution checklist](https://github.com/iamenochchirima/kasitek/blob/main/docs/plans/active/OPENTELEMETRY_INFRASTRUCTURE_CHECKLIST.md) and
+[release record](https://github.com/iamenochchirima/kasitek/blob/main/docs/plans/active/OPENTELEMETRY_INFRASTRUCTURE_RELEASE_RECORD.md).

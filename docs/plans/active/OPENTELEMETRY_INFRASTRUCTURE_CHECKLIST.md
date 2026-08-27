@@ -1,10 +1,10 @@
 # Vendor-Neutral OpenTelemetry Infrastructure Checklist
 
-**Status:** Active — repository implementation complete; hosted staging and durable-backend gates remain open.
+**Status:** Active — repository implementation and release record are complete; hosted staging and durable-backend gates remain open.
 
 **Owner:** KasiTek engineering
 
-**Last updated:** 2026-08-26
+**Last updated:** 2026-08-27
 
 This checklist executes [the OpenTelemetry infrastructure plan](./OPENTELEMETRY_INFRASTRUCTURE_PLAN.md).
 It covers the infrastructure and application instrumentation boundary only. Do not mark the work
@@ -26,6 +26,8 @@ exist.
       Core, Tenants, Analytics when deployed, Agents API, Agents worker, and Agents gateway.
 - [x] Record browser/client telemetry as a separate follow-up rather than enabling it implicitly.
 - [ ] Create the implementation PR/issue and link this plan and checklist.
+- [x] Create the repository release record at
+      `docs/plans/active/OPENTELEMETRY_INFRASTRUCTURE_RELEASE_RECORD.md`.
 - [x] Classify the implementation risk and identify whether production enablement requires an
       approval gate.
 
@@ -62,13 +64,17 @@ exist.
 - [x] Define HTTP server/client, database, provider-call, webhook, migration, queue, Temporal,
       and worker span boundaries.
 - [x] Define required span status and error recording behavior.
-- [ ] Define and implement the complete minimum service metric set: request/job count, error
-      count, latency, in-flight work, queue age, retries, dependency failures, and resource
-      saturation where applicable. Request/operation metrics and existing domain metrics are
-      present; queue/resource coverage is still service-specific.
+- [x] Define and implement the minimum metric set at each instrumented boundary: request/job
+      count, error count, latency, in-flight work, queue age, retries, and dependency failures;
+      resource saturation is owned by the Collector/host platform. Queue age and retry metrics are
+      emitted by the Agents outbox owner, and the shared operation helpers cover Rust boundaries.
+- [ ] Extend metric wiring to every legacy queue and worker that is not yet wrapped by a shared
+      operation boundary.
 - [x] Keep product analytics metrics separate from service health metrics.
 - [x] Define metric units, names, attributes, and cardinality limits using OpenTelemetry conventions.
-- [ ] Define baseline trace sampling and error-preserving behavior for production.
+- [x] Define baseline trace sampling and error-preserving behavior for production: application
+      traces reach the Collector and the production template retains all error traces plus a 20%
+      probabilistic baseline.
 
 ## 2. Rust implementation
 
@@ -155,9 +161,8 @@ exist.
       Railway resource sizing remains an external deployment decision.
 - [x] Define graceful shutdown and behavior during Collector restarts.
 - [x] Validate every Collector configuration in CI.
-- [ ] Resolve whether hosted Collector runs as a separate Railway service, supported sidecar, or
-      another isolated process; the documented recommendation is a separate same-project Railway
-      service, but it has not been created.
+- [x] Resolve the hosted topology decision: use a separate same-project Railway Collector service
+      per environment; service creation remains an external deployment gate.
 
 ## 6. Local development
 
@@ -211,10 +216,13 @@ exist.
 - [x] Ensure telemetry export uses timeouts and cannot block user requests or worker progress.
 - [x] Ensure telemetry failures are visible through safe local diagnostics without recursive log
       storms.
-- [ ] Define access control for telemetry configuration and future backend access.
-- [ ] Define retention and deletion requirements before provider enablement.
-- [ ] Review sampling for error visibility, security investigations, and support workflows before
-      production; sampler controls are implemented but the production policy is open.
+- [x] Define provider-neutral access-control requirements for telemetry configuration and future
+      backend access; concrete identity-provider roles remain a provider/deployment decision.
+- [x] Define provider-neutral retention and deletion requirements before provider enablement;
+      concrete durations and deletion APIs remain a provider/deployment decision.
+- [x] Review sampling for error visibility, security investigations, and support workflows before
+      production; the production template uses error-preserving tail sampling and the release
+      record requires the deployed sampling decision.
 - [x] Verify health endpoints distinguish process liveness from dependency readiness.
 - [x] Document incident steps for exporter failure, Collector failure, telemetry leakage, and
       excessive telemetry volume.
@@ -231,9 +239,12 @@ exist.
       test remains environment-dependent.
 - [x] Add an end-to-end local test that captures all enabled signals from at least one Rust and one
       Agents service.
-- [ ] Add a release smoke test that searches telemetry by platform release ID; no durable backend
-      exists yet, so this remains a staging/provider gate.
-- [x] Record commands, versions, evidence locations, and skipped checks in this file and the plan.
+- [x] Add a local/CI release smoke assertion that searches Collector output by platform release
+      ID; a durable-backend search remains a staging/provider gate.
+- [ ] Add a durable release smoke test that searches retained telemetry by platform release ID
+      after a backend is approved.
+- [x] Record commands, versions, evidence locations, and skipped checks in this file, the plan,
+      and the [release record](./OPENTELEMETRY_INFRASTRUCTURE_RELEASE_RECORD.md).
 
 ## 10. Documentation and release integration
 
@@ -254,7 +265,9 @@ exist.
       revision used for staging and production.
 - [x] Rollback: document exporter disablement, previous artifact promotion, and Collector config
       rollback.
-- [x] Link validation and internal documentation build pass.
+- [ ] Internal documentation build and full link validation pass; the observability page compiles
+      and its new release-record link resolves, but the build is blocked by an unrelated broken
+      link in the user-edited `docs/internal/architecture/admin-analytics.md` to a removed plan.
 
 ## 11. Completion gate
 
@@ -268,7 +281,7 @@ exist.
 - [ ] Move the plan and checklist from `docs/plans/active/` to `docs/plans/completed/` only after
       implementation and required verification are complete.
 
-## Implementation evidence — 2026-08-26
+## Implementation evidence — 2026-08-27
 
 Repository evidence for the implementation slice:
 
@@ -287,11 +300,13 @@ Repository evidence for the implementation slice:
 - Privacy hardening: the legacy Actix access formatter now excludes raw URLs, query strings,
   remote addresses, referers, and user agents. Agents exception messages and stacks redact common
   credential forms before they are recorded in logs or span exception events.
-- Documentation: public and internal Docusaurus builds passed after the documentation-tree
-  cleanup; no public user/API documentation change is required for this infrastructure-only work.
-- Versioning: `VERSION` is `0.1.0`; `node scripts/release-version.mjs check` passed. The current
-  source revision is `b1fce9463f714b74e0ba6742b0f296fdbb3a8f48`; no platform release tag or
-  deployed artifact was created by this work.
+- Documentation: public Docusaurus build passed. The internal build compiles the observability
+  page but is blocked by an unrelated broken link in the user-edited
+  `docs/internal/architecture/admin-analytics.md` to a removed plan; no public user/API
+  documentation change is required for this infrastructure-only work.
+- Versioning: local validation metadata is `0.1.0`; the OTel implementation tree is recorded as
+  `7f064cceca1a8e27e34847d8f740657310098b4a`; no platform release tag or deployed artifact was
+  created by this work.
 
 Checks intentionally not claimed as complete:
 
@@ -299,6 +314,8 @@ Checks intentionally not claimed as complete:
   available. The GitHub workflow contains the containerized smoke test.
 - Railway staging service creation, private DNS, environment variables, isolated resources, and
   staging release evidence require external platform access.
+- The implementation PR/issue link and release-owner approval must be added by the repository
+  owner in the project tracker or Git hosting system.
 - Durable backend selection, retention, access control, dashboards, alerts, and production search
   by release ID are deferred to a provider-specific observability plan.
 
@@ -309,7 +326,7 @@ Change: Introduce vendor-neutral OpenTelemetry instrumentation and Collector inf
 Owner: KasiTek engineering; provisional Collector incident owner: platform-ops.
 Risk: standard for repository changes; high for production enablement until staging and durable-destination gates pass.
 Affected services and user surfaces: Rust Core/Tenants/Analytics services, Agents API/worker/gateway/maintenance processes, and Collector deployment configuration; no direct user-interface behavior change.
-Platform release version or release ID: VERSION 0.1.0; current source revision b1fce9463f714b74e0ba6742b0f296fdbb3a8f48; no release tag or deployed artifact.
+Platform release version or release ID: local validation metadata 0.1.0; implementation tree recorded in the release record; no release tag or deployed artifact.
 API/schema/migration changes: not applicable; migration execution is instrumented but schemas are unchanged.
 Feature flag or rollout method: OTEL_SDK_DISABLED, OTEL_EXPORTER_OTLP_* endpoint/protocol, resource metadata, and sampler environment variables; stdout fallback remains available.
 Analytics events and success metrics: not applicable; operational telemetry remains separate from customer analytics.
