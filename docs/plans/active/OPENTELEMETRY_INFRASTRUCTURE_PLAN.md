@@ -29,7 +29,7 @@ The repository now contains the complete repository-side server-side implementat
 boundary is checked in under `infra/observability/otel-collector/` with pinned profiles, OTLP
 receivers, memory limits, batching, redaction, health checks, local Compose startup, a generic
 production OTLP template with bounded queue/retry settings and error-preserving tail sampling, and
-Railway deployment instructions.
+Railway deployment instructions plus a checked-in Railway service definition for the Collector.
 The shared Rust crate initializes logs, traces, metrics, resources, W3C propagation, HTTP metrics,
 correlation IDs, provider spans, background spans, and graceful shutdown. Outbound request context
 is injected after entering the provider span, and legacy Rust log messages plus telemetry bootstrap

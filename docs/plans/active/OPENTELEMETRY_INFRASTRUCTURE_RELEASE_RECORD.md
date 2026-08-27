@@ -43,10 +43,12 @@ The repository implementation is split into reviewable commits:
 | Bootstrap and stdio diagnostic redaction | `b0a0cf7d` |
 | Explicitly disable PostgreSQL payload instrumentation | `edc63ee6` |
 | Finish remaining Rust operational log migration and remove unnecessary display-name telemetry | `bf9f953d` |
+| Add reproducible Railway Collector service definition | `988c93cb` |
 
 The exact implementation tree used for the repository smoke evidence is now
 `bf9f953d` (`bf9f953d` is the current repository-side implementation commit). The Collector
-configuration is unchanged from `7f064cce`; the current tree includes the follow-up worker,
+configuration content is unchanged from `7f064cce`; the Railway service definition is recorded in
+`988c93cb`. The current tree includes the follow-up worker,
 event-contract, compatibility-boundary, disabled-export fallback, documentation, and
 context-propagation, provider-child propagation, log-redaction, operational-log migration,
 bootstrap/stdio diagnostic-redaction, explicit PostgreSQL payload-instrumentation disablement, and
@@ -60,7 +62,8 @@ retested before being promoted as one artifact.
 Platform version: 0.1.0 (local validation metadata)
 Release tag: not created
 Deployed artifact digest: not created
-Collector configuration revision: 7f064cce (unchanged)
+Collector configuration revision: 7f064cce
+Railway service definition revision: 988c93cb
 Deployment environment: local verification only
 Staging release ID: not created
 Production release ID: not created

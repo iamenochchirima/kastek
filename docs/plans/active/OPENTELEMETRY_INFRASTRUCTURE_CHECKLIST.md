@@ -153,6 +153,9 @@ exist.
 - [x] Add a pinned Collector Dockerfile and provider-neutral baseline configuration.
 - [x] Add a local Compose entrypoint with OTLP and health ports.
 - [x] Document the same-project Railway service deployment shape and private endpoint.
+- [x] Add a reproducible service definition at
+      `infra/observability/otel-collector/railway.json` for the pinned image, health check, and
+      restart policy; resource sizing and service creation remain external deployment decisions.
 - [x] Validate the configuration with the pinned Collector binary.
 - [x] Run the Collector and verify its health endpoint reaches the ready state.
 - [x] Add versioned local, staging, and production Collector configuration overlays.
