@@ -320,6 +320,37 @@ describe("Tool Gateway and bounded runtime", () => {
     expect(result.response?.message.content).toBe("fallback response");
   });
 
+  it("settles each hosted model attempt and releases failed fallback reservations", async () => {
+    const events: string[] = [];
+    const adapter: ModelAdapter = {
+      provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+      complete: async (request) => {
+        if (request.model === "primary") throw new ModelProviderError("primary unavailable", "PROVIDER_DOWN", false, "openai", 503);
+        return response([], "fallback response");
+      },
+    };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "primary" },
+      fallbackModels: [{ model: { provider: "openai", model: "fallback" }, credentials }],
+      messages: [{ role: "user", content: "hello" }],
+      credentials,
+      gateway: new ModelGateway([adapter], { circuitFailureThreshold: 10 }),
+      tools: new ToolRegistry(),
+      grantedTools: new Set(),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      reserveModelCall: async ({ request }) => {
+        events.push(`reserve:${request.model}`);
+        return {
+          capture: async () => { events.push(`capture:${request.model}`); },
+          release: async () => { events.push(`release:${request.model}`); },
+        };
+      },
+    });
+    expect(result.status).toBe("completed");
+    expect(events).toEqual(["reserve:primary", "release:primary", "reserve:fallback", "capture:fallback"]);
+  });
+
   it("stops before invoking a tool when the run tool-call budget is exhausted", async () => {
     const registry = new ToolRegistry();
     let invoked = 0;

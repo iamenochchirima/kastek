@@ -38,6 +38,10 @@ export interface AgentLoopInput {
   onEvent?: (event: AgentLoopEvent) => Promise<void> | void;
   onModelResponse?: (response: ModelResponse, attempt?: { model: AgentLoopInput["model"]; credentials: ModelCredentials }) => Promise<void> | void;
   onModelError?: (error: { code: string; message: string }, attempt?: { model: AgentLoopInput["model"]; credentials: ModelCredentials }) => Promise<void> | void;
+  reserveModelCall?: (input: {
+    request: ModelRequest;
+    credentials: ModelCredentials;
+  }) => Promise<ModelCreditReservation | undefined>;
   beforeModelCall?: () => Promise<void> | void;
   beforeToolInvoke?: (input: {
     toolCallId: string;
@@ -79,6 +83,11 @@ export interface AgentLoopInput {
     arguments: Record<string, unknown>;
     approval: ToolApproval;
   };
+}
+
+export interface ModelCreditReservation {
+  capture(response: ModelResponse): Promise<void>;
+  release(reason: string): Promise<void>;
 }
 
 export interface AgentLoopResult {
@@ -195,16 +204,26 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       let lastError: unknown;
       for (const attempt of attempts) {
         lastModelAttempt = attempt;
+        let creditReservation: ModelCreditReservation | undefined;
         try {
           await input.beforeModelCall?.();
-          response = await input.gateway.complete({
+          const request: ModelRequest = {
             ...attempt.model,
             messages,
             tools: input.tools.list(input.grantedTools),
             maxTokens: attempt.model.maxTokens === undefined ? remainingTokens : Math.min(attempt.model.maxTokens, remainingTokens),
-          }, attempt.credentials);
+          };
+          creditReservation = await input.reserveModelCall?.({ request, credentials: attempt.credentials });
+          response = await input.gateway.complete(request, attempt.credentials);
+          if (creditReservation) {
+            await creditReservation.capture(response);
+            creditReservation = undefined;
+          }
           break;
         } catch (error) {
+          if (creditReservation) {
+            await creditReservation.release(error instanceof Error ? error.message : "model provider failure").catch(() => undefined);
+          }
           lastError = error;
           // A fallback is only for provider failures. Budget, policy, and
           // cancellation errors must stop the run immediately.

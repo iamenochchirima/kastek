@@ -8,7 +8,9 @@ import type { AgentRunActivities } from "./contracts";
 import { ModelGateway } from "../model/gateway";
 import { EnvironmentCredentialResolver, VaultCredentialResolver, type CredentialResolver } from "../model/credentials";
 import type { ModelPricing, ModelProvider } from "../model/types";
-import { runBoundedAgentLoop, type AgentLoopResult } from "../runtime/loop";
+import { runBoundedAgentLoop, type AgentLoopResult, type ModelCreditReservation } from "../runtime/loop";
+import type { ModelCreditPricing } from "../model/credit-pricing";
+import { actualModelCallCredits, estimateModelCallCredits, shouldChargeModelCredits } from "../model/credit-pricing";
 import { buildAgentContext } from "../runtime/context";
 import { retrievalGate } from "../runtime/context";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
@@ -35,7 +37,7 @@ import { validateWorkflowGraph, type WorkflowGraph } from "../workflows/graph";
 import { executeWorkflowGraph } from "../workflows/executor";
 import { WorkflowStateRepository } from "../db/repositories/workflow-state-repository";
 import { redactSensitiveValue } from "../tools/redaction";
-import type { ModelCredentials, ModelResponse } from "../model/types";
+import type { ModelCredentials, ModelRequest, ModelResponse } from "../model/types";
 import { buildGroundingProvenance } from "../runtime/provenance";
 import type { ToolInvocationContext } from "../tools/types";
 import type { CoreContentPost } from "../core/client";
@@ -70,6 +72,54 @@ function pricingFromConfig(config?: AppConfig): Record<string, ModelPricing> {
   } catch {
     throw new Error("MODEL_PRICING_JSON must be valid JSON");
   }
+}
+
+function creditPricingFromConfig(config?: AppConfig): ModelCreditPricing {
+  return {
+    creditsPerUsd: config?.CREDIT_USD_TO_CREDITS ?? 1_000,
+    version: config?.CREDIT_PRICING_VERSION ?? "model-cost-v1",
+  };
+}
+
+export async function reserveModelCredits(input: {
+  billingMode: AppConfig["CREDIT_BILLING_MODE"];
+  gateway: ModelGateway;
+  modelPricing: Record<string, ModelPricing>;
+  creditPricing: ModelCreditPricing;
+  coreClient?: KasitekCoreReadClient;
+  context: ToolInvocationContext;
+  runId: string;
+  request: ModelRequest;
+  credentials: ModelCredentials;
+}): Promise<ModelCreditReservation | undefined> {
+  if (!shouldChargeModelCredits(input.billingMode, input.credentials.fundingSource)) return undefined;
+  const estimatedCredits = estimateModelCallCredits(input.gateway, input.modelPricing, input.creditPricing, input.request);
+  if (input.billingMode === "shadow") return undefined;
+  if (!input.coreClient) throw new Error("CREDIT_BOUNDARY_UNAVAILABLE");
+  const reservation = await input.coreClient.reserveCredits(input.context, {
+    actionKey: "ai.model_call",
+    estimatedCredits,
+    sourceType: "AGENT_RUN",
+    sourceId: input.runId,
+    pricingVersion: input.creditPricing.version,
+    expiresAt: new Date(Date.now() + 5 * 60 * 1_000).toISOString(),
+  });
+  return {
+    capture: async (response: ModelResponse) => {
+      const actualCredits = actualModelCallCredits(input.gateway, input.modelPricing, input.creditPricing, response);
+      await input.coreClient!.captureCredits(input.context, reservation.reservation.id, actualCredits, {
+        provider: response.provider,
+        model: response.model,
+        fundingSource: input.credentials.fundingSource,
+        inputTokens: response.usage.inputTokens,
+        outputTokens: response.usage.outputTokens,
+        providerCostUsd: response.usage.estimatedCostUsd,
+      });
+    },
+    release: async (reason: string) => {
+      await input.coreClient!.releaseCredits(input.context, reservation.reservation.id, reason.slice(0, 2_000));
+    },
+  };
 }
 
 export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversationActions?: ConversationActionService, integrationTools?: IntegrationToolService): ToolRegistry {
@@ -1288,7 +1338,10 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const approvals = new ApprovalRepository(pool);
   const installationGrants = new InstallationGrantRepository(pool);
   const workflowState = new WorkflowStateRepository(pool);
-  const gateway = options.gateway ?? new ModelGateway(undefined, { pricing: pricingFromConfig(options.config) });
+  const modelPricing = pricingFromConfig(options.config);
+  const creditPricing = creditPricingFromConfig(options.config);
+  const creditBillingMode = options.config?.CREDIT_BILLING_MODE ?? "disabled";
+  const gateway = options.gateway ?? new ModelGateway(undefined, { pricing: modelPricing });
   const credentials = options.credentials ?? (options.config
     ? new VaultCredentialResolver(new CredentialVaultRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY))
     : new EnvironmentCredentialResolver());
@@ -1324,7 +1377,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           coreClient,
         );
       }
-      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, runs, modelCalls, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, workflowState, coreClient, conversationActions);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, runs, modelCalls, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, workflowState, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions);
     },
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
@@ -1883,6 +1936,9 @@ async function executeLoopForRun(
   credentials: CredentialResolver,
   tools: ToolRegistry,
   workflowState: WorkflowStateRepository,
+  modelPricing: Record<string, ModelPricing>,
+  creditPricing: ModelCreditPricing,
+  creditBillingMode: AppConfig["CREDIT_BILLING_MODE"],
   coreClient: KasitekCoreReadClient | undefined,
   conversationActions: ConversationActionService,
 ) {
@@ -2057,6 +2113,16 @@ async function executeLoopForRun(
       maxContextTokens: restrictiveLimit(configuration.maxContextTokens, installationSettings.maxContextTokens),
     },
   });
+  const modelToolContext: ToolInvocationContext = {
+    organizationId: run.organization_id,
+    agentId: run.agent_definition_id,
+    agentVersionId: run.agent_version_id,
+    installationId: run.installation_id,
+    runId: run.id,
+    conversationId: run.conversation_id ?? undefined,
+    actorId: run.created_by,
+    correlationId: run.correlation_id,
+  };
   const contextStep = await runSteps.startStep({
     runId: run.id,
     organizationId: run.organization_id,
@@ -2092,6 +2158,9 @@ async function executeLoopForRun(
       model,
       modelCredentials,
       gateway,
+      modelPricing,
+      creditPricing,
+      creditBillingMode,
       tools,
       allowedTools,
       runRepository: runs,
@@ -2107,6 +2176,7 @@ async function executeLoopForRun(
       resumeApprovedToolCall,
       resumeExternalEvent,
       coreClient,
+      modelToolContext,
       conversationActions,
     });
   }
@@ -2124,16 +2194,7 @@ async function executeLoopForRun(
     gateway,
     tools,
     grantedTools: allowedTools,
-    toolContext: {
-      organizationId: run.organization_id,
-      agentId: run.agent_definition_id,
-      agentVersionId: run.agent_version_id,
-      installationId: run.installation_id,
-      runId: run.id,
-      conversationId: run.conversation_id ?? undefined,
-      actorId: run.created_by,
-      correlationId: run.correlation_id,
-    },
+    toolContext: modelToolContext,
     limits: {
       maxIterations: typeof configuration.maxIterations === "number" ? configuration.maxIterations : undefined,
       maxToolCalls: typeof configuration.maxToolCalls === "number" ? configuration.maxToolCalls : undefined,
@@ -2148,6 +2209,19 @@ async function executeLoopForRun(
       maxEstimatedCostUsd: restrictiveLimit(modelTarget.maxEstimatedCostUsd, installationSettings.maxEstimatedCostUsd),
       maxRequests: restrictiveLimit(configuration.maxModelCalls, installationSettings.maxModelCalls),
     }),
+    reserveModelCall: async ({ request, credentials: attemptCredentials }) => {
+      return reserveModelCredits({
+        billingMode: creditBillingMode,
+        gateway,
+        modelPricing,
+        creditPricing,
+        coreClient,
+        context: modelToolContext,
+        runId: run.id,
+        request,
+        credentials: attemptCredentials,
+      });
+    },
     beforeToolInvoke: async (invocation) => {
       const manifest = tools.get(invocation.name);
       if (manifest?.requiresApproval && !invocation.approved) return;
@@ -2357,6 +2431,9 @@ async function executeConfiguredWorkflow(input: {
   model: string;
   modelCredentials: ModelCredentials;
   gateway: ModelGateway;
+  modelPricing: Record<string, ModelPricing>;
+  creditPricing: ModelCreditPricing;
+  creditBillingMode: AppConfig["CREDIT_BILLING_MODE"];
   tools: ToolRegistry;
   allowedTools: ReadonlySet<string>;
   runRepository: RunRepository;
@@ -2370,6 +2447,7 @@ async function executeConfiguredWorkflow(input: {
   controls: OperatorControlRepository;
   workflowState: WorkflowStateRepository;
   coreClient?: KasitekCoreReadClient;
+  modelToolContext: ToolInvocationContext;
   conversationActions: ConversationActionService;
   resumeApprovedToolCall?: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeApprovedToolCall"];
   resumeExternalEvent?: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeExternalEvent"];
@@ -2500,13 +2578,32 @@ async function executeConfiguredWorkflow(input: {
   const result = await executeWorkflowGraph(executionGraph, workflowStateValue, {
     model: async ({ nodeId, config, state }) => {
       const instruction = typeof config.instruction === "string" ? config.instruction : "Continue the workflow.";
-      const response = await input.gateway.complete({
+      const request: ModelRequest = {
         provider: input.modelProvider,
         model: input.model,
         messages: [...input.context.messages, { role: "user", content: JSON.stringify({ nodeId, instruction, state }) }],
         maxTokens: typeof config.maxTokens === "number" ? Math.max(1, Math.min(8_000, config.maxTokens)) : 2_000,
         temperature: typeof config.temperature === "number" ? config.temperature : undefined,
-      }, input.modelCredentials);
+      };
+      const creditReservation = await reserveModelCredits({
+        billingMode: input.creditBillingMode,
+        gateway: input.gateway,
+        modelPricing: input.modelPricing,
+        creditPricing: input.creditPricing,
+        coreClient: input.coreClient,
+        context: input.modelToolContext,
+        runId: input.run.id,
+        request,
+        credentials: input.modelCredentials,
+      });
+      let response: ModelResponse;
+      try {
+        response = await input.gateway.complete(request, input.modelCredentials);
+        await creditReservation?.capture(response);
+      } catch (error) {
+        if (creditReservation) await creditReservation.release(error instanceof Error ? error.message : "workflow model failure").catch(() => undefined);
+        throw error;
+      }
       lastModelResponse = response;
       await input.modelCalls.recordCompleted({ organizationId: input.run.organization_id, runId: input.run.id, provider: response.provider, model: response.model, fundingSource: input.modelCredentials.fundingSource, credentialReference: input.modelCredentials.credentialReference, response, correlationId: input.run.correlation_id });
       const step = await input.runSteps.startStep({ runId: input.run.id, organizationId: input.run.organization_id, stepType: "model", input: { provider: response.provider, model: response.model, nodeId } });
