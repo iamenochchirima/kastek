@@ -334,11 +334,12 @@ ownership reference, this plan/checklist, and the provider-failure runbook are p
 reference publication and privacy/legal approval remain pending.
 
 Validation evidence: Agent build and TypeScript checks pass; the full Agent suite passes with 78
-test files passing and 18 integration files skipped by environment (440 tests passed, 45 skipped);
+test files passing and 18 integration files skipped by environment (443 tests passed, 45 skipped);
 focused Agent tests include
 authenticated HTTP contract tests for direct multipart transcription, Core media acceptance,
 durable platform enqueue, organization-scoped job status, WhatsApp canonical inbound enqueue,
-Telegram voice download/enqueue, and Discord attachment download/enqueue; the
+Telegram voice/audio-file download/enqueue, malformed Telegram audio rejection, and Discord
+attachment download/enqueue; the
 database-backed Agent integration suite passes 15/15 tests for retention, operator commands,
 platform chat, durable audio enqueue/deduplication, worker completion, retry recovery, and one
 agent dispatch; Core formatting/check passes and the Core library suite passes 193 tests with 3
@@ -417,7 +418,8 @@ storage/retention failures. Add alerts for sustained provider failure and stuck 
 message/media architecture, provider configuration and failure runbook, and active plan/checklist
 are present. API reference, privacy/legal approval, and release notes remain pending.
 
-**Validation evidence:** Agent build/typecheck and focused worker/provider/HTTP tests pass; Core
+**Validation evidence:** Agent build/typecheck and focused worker/provider/HTTP/channel tests pass;
+the full Agent suite passes 443 tests with 45 environment-gated tests skipped; Core
 format/check and focused website/media tests pass; client/Admin TypeScript checks pass; the
 database-backed Agent integration suite passes 15/15 tests, including durable audio completion,
 deduplication, retry recovery, and normal text response insertion. Recorded channel fixtures,
