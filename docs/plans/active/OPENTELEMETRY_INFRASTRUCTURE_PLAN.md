@@ -266,10 +266,10 @@ The short result is: the initial implementation tree passed Rust formatting, wor
 shared-crate tests, and Clippy; the current targeted observability and analytics-producer tests
 pass; Agents type checking and the full test suite passed; all Collector profiles passed
 validation; and the local Collector received Rust and Agents traces, logs, and metrics with
-matching trace/span context and release metadata. The current full-workspace Rust formatter/check
-is blocked by an unrelated user change that declares missing
-`server/kasitek-core/src/services/early_access.rs`; one local Analytics maintenance PostgreSQL
-test also fails to discover its quarantine work row. The public documentation build passed. The
+matching trace/span context and release metadata. The current full-workspace `cargo check
+--workspace` passes. `cargo fmt --all -- --check` remains blocked only by formatting in the
+unrelated, user-untracked `server/kasitek-core/src/services/early_access.rs`; one local Analytics
+maintenance PostgreSQL test also fails to discover its quarantine work row. The public documentation build passed. The
 internal documentation build compiles the observability page but is blocked by an unrelated
 broken link in the user-edited `docs/internal/architecture/admin-analytics.md` to a removed plan.
 The CI workflow contains the containerized Rust plus Agents signal smoke. The legacy Actix access

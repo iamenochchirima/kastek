@@ -67,9 +67,10 @@ Production release ID: not created
   correlation metadata where applicable.
 - Export-disabled behavior, bounded/redacted exception fields, propagation seams, and telemetry
   contract tests passed.
-- The current full-workspace Rust formatter/check is blocked by an unrelated user change that
-  declares missing `server/kasitek-core/src/services/early_access.rs`; the targeted Rust
-  telemetry crates remain independently verified.
+- The current full-workspace `cargo check --workspace` passes. `cargo fmt --all -- --check`
+  remains blocked only by formatting in the unrelated, user-untracked
+  `server/kasitek-core/src/services/early_access.rs`; the targeted Rust telemetry crates remain
+  independently verified.
 - Public documentation build passed. The internal build compiles the observability page and its
   repository links, but remains blocked by an unrelated broken link in the user-edited
   `docs/internal/architecture/admin-analytics.md` to a removed plan. This infrastructure-only

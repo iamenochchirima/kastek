@@ -324,10 +324,11 @@ Checks intentionally not claimed as complete:
 
 - Docker container build/run could not be repeated locally because the Docker daemon is not
   available. The GitHub workflow contains the containerized smoke test.
-- The current full-workspace Rust formatter/check is blocked by an unrelated user change that
-  declares missing `server/kasitek-core/src/services/early_access.rs`; targeted observability
-  and analytics-producer tests/checks pass, and the existing Analytics maintenance PostgreSQL
-  test still fails to discover its quarantine work row in the local database.
+- The current full-workspace `cargo check --workspace` passes. `cargo fmt --all -- --check`
+  remains blocked only by formatting in the unrelated, user-untracked
+  `server/kasitek-core/src/services/early_access.rs`; targeted observability and
+  analytics-producer tests/checks pass, and the existing Analytics maintenance PostgreSQL test
+  still fails to discover its quarantine work row in the local database.
 - Railway staging service creation, private DNS, environment variables, isolated resources, and
   staging release evidence require external platform access.
 - The implementation PR/issue link and release-owner approval must be added by the repository
