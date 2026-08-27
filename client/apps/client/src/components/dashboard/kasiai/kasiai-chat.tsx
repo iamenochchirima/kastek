@@ -922,6 +922,7 @@ export function KasiAiChat({
                     modelProvider: effectiveModel?.provider,
                     model: effectiveModel?.model,
                   });
+              setRunProgress("Uploading audio…");
               const queued = await sendPlatformAudio(installation.id, {
                 file: audioFile,
                 idempotencyKey: crypto.randomUUID(),

@@ -24,14 +24,17 @@ export function AudioMessageControl({
 }: AudioMessageControlProps) {
   const [recording, setRecording] = useState(false);
   const [preparing, setPreparing] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const recordingTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
       recorderRef.current?.stop();
       streamRef.current?.getTracks().forEach((track) => track.stop());
+      if (recordingTimerRef.current !== null) window.clearInterval(recordingTimerRef.current);
     };
   }, []);
 
@@ -39,6 +42,10 @@ export function AudioMessageControl({
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     recorderRef.current = null;
+    if (recordingTimerRef.current !== null) {
+      window.clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
     setRecording(false);
     setPreparing(false);
   };
@@ -76,6 +83,11 @@ export function AudioMessageControl({
       streamRef.current = stream;
       recorderRef.current = recorder;
       recorder.start();
+      const startedAt = Date.now();
+      setElapsedSeconds(0);
+      recordingTimerRef.current = window.setInterval(() => {
+        setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+      }, 250);
       setPreparing(false);
       setRecording(true);
     } catch (error) {
@@ -97,8 +109,15 @@ export function AudioMessageControl({
     if (!disabled && !recording && !preparing) inputRef.current?.click();
   };
 
+  const elapsedLabel = `${String(Math.floor(elapsedSeconds / 60)).padStart(2, "0")}:${String(elapsedSeconds % 60).padStart(2, "0")}`;
+
   return (
-    <div className="flex items-center gap-0.5">
+    <div className="flex items-center gap-1">
+      {recording ? (
+        <span className="min-w-8 text-[11px] tabular-nums text-muted-foreground" aria-live="polite">
+          {elapsedLabel}
+        </span>
+      ) : null}
       <input
         ref={inputRef}
         type="file"
