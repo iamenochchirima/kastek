@@ -1,7 +1,7 @@
 import { fetchFromCore, requireAdminSession } from "@/lib/admin-auth";
 import { AdminMetric, AdminPageHeader } from "@/components/admin/page-header";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { OperatorAssignRunButton, OperatorAudioTranscriptionRetryButton, OperatorCancelRunButton, OperatorDeliveryReplayButton, OperatorExportRequestButton, OperatorFeatureFlagForm, OperatorHoldForm, OperatorHoldReleaseButton, OperatorInstallationButton, OperatorKillSwitchDisableButton, OperatorKillSwitchEnableButton, OperatorReconcileButton, OperatorRetryButton, OperatorRetentionApplyButton, OperatorRetentionPolicyForm, OperatorLegalHoldForm, OperatorLegalHoldReleaseButton } from "@/components/admin/operator-command-button";
+import { OperatorAssignRunButton, OperatorCancelRunButton, OperatorDeliveryReplayButton, OperatorExportRequestButton, OperatorFeatureFlagForm, OperatorHoldForm, OperatorHoldReleaseButton, OperatorInstallationButton, OperatorKillSwitchDisableButton, OperatorKillSwitchEnableButton, OperatorReconcileButton, OperatorRetryButton, OperatorRetentionApplyButton, OperatorRetentionPolicyForm, OperatorLegalHoldForm, OperatorLegalHoldReleaseButton } from "@/components/admin/operator-command-button";
 import { SupportAccessPanel } from "@/components/admin/support-access-panel";
 import { ProjectionRebuildButton } from "@/components/admin/projection-rebuild-button";
 import { OperatorSearch } from "@/components/admin/operator-search";
