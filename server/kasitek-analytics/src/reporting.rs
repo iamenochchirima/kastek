@@ -492,8 +492,13 @@ impl ReportingCache {
             match redis::Client::open(url) {
                 Ok(client) => Some(Arc::new(RedisCacheBackend::new(client)) as Arc<dyn CacheBackend>),
                 Err(error) => {
-                    log::warn!(
-                        "service=kasitek-analytics process=analytics-api reporting_cache=disabled reason=invalid_redis_url error={error}"
+                    observability::tracing::warn!(
+                        event = "dependency.unavailable",
+                        dependency = "redis",
+                        operation = "reporting_cache.configure",
+                        reason = "invalid_configuration",
+                        error_type = %std::any::type_name_of_val(&error),
+                        "reporting cache disabled"
                     );
                     None
                 }
@@ -524,8 +529,12 @@ impl ReportingCache {
             Ok(Some(value)) => value,
             Ok(None) => return CacheRead::Miss,
             Err(error) => {
-                log::warn!(
-                    "service=kasitek-analytics process=analytics-api reporting_cache=unavailable operation=get error={error}"
+                observability::tracing::warn!(
+                    event = "dependency.unavailable",
+                    dependency = "redis",
+                    operation = "reporting_cache.get",
+                    error_type = %std::any::type_name_of_val(&error),
+                    "reporting cache read unavailable"
                 );
                 return CacheRead::Unavailable;
             }
@@ -533,8 +542,11 @@ impl ReportingCache {
         let cached = match serde_json::from_str::<CachedReport>(&serialized) {
             Ok(cached) => cached,
             Err(error) => {
-                log::warn!(
-                    "service=kasitek-analytics process=analytics-api reporting_cache=unavailable operation=decode error={error}"
+                observability::tracing::warn!(
+                    event = "operation.failed",
+                    operation = "reporting_cache.decode",
+                    error_type = %std::any::type_name_of_val(&error),
+                    "reporting cache entry decode failed"
                 );
                 return CacheRead::Unavailable;
             }
@@ -560,15 +572,22 @@ impl ReportingCache {
         }) {
             Ok(value) => value,
             Err(error) => {
-                log::warn!(
-                    "service=kasitek-analytics process=analytics-api reporting_cache=unavailable operation=encode error={error}"
+                observability::tracing::warn!(
+                    event = "operation.failed",
+                    operation = "reporting_cache.encode",
+                    error_type = %std::any::type_name_of_val(&error),
+                    "reporting cache entry encode failed"
                 );
                 return;
             }
         };
         if let Err(error) = backend.set(key, &value, ttl_seconds).await {
-            log::warn!(
-                "service=kasitek-analytics process=analytics-api reporting_cache=unavailable operation=set error={error}"
+            observability::tracing::warn!(
+                event = "dependency.unavailable",
+                dependency = "redis",
+                operation = "reporting_cache.set",
+                error_type = %std::any::type_name_of_val(&error),
+                "reporting cache write unavailable"
             );
         }
     }
@@ -715,8 +734,12 @@ async fn report_handler(
                 ))
             }
             Err(error) => {
-                log::warn!(
-                    "service=kasitek-analytics process=analytics-api reporting_cache=bypassed reason=generation_lookup_failed error={error}"
+                observability::tracing::warn!(
+                    event = "operation.failed",
+                    operation = "reporting_generation.lookup",
+                    reason = "cache_bypassed",
+                    error_type = %std::any::type_name_of_val(&error),
+                    "reporting cache bypassed"
                 );
                 None
             }
@@ -771,8 +794,12 @@ fn error_response(error: ReportingError) -> HttpResponse {
         ReportingError::Unavailable(message) => HttpResponse::ServiceUnavailable()
             .json(json!({"error":"unavailable","message":message})),
         ReportingError::Database(error) => {
-            log::error!(
-                "service=kasitek-analytics process=analytics-api reporting_database_error={error}"
+            observability::tracing::error!(
+                event = "operation.failed",
+                operation = "reporting_database.request",
+                dependency = "postgres",
+                error_type = %std::any::type_name_of_val(&error),
+                "reporting database operation failed"
             );
             HttpResponse::InternalServerError().json(json!({"error":"internal_error"}))
         }

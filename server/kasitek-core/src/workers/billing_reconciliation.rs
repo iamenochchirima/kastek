@@ -20,9 +20,12 @@ pub async fn run(pool: PgPool, config: AppConfig) {
     let provider =
         crate::services::paystack::PaystackProvider::new(secret, &config.paystack_api_base_url);
     observability::tracing::info!(event = "worker.started", worker = "billing_reconciliation", provider = %provider.name(), "worker started");
-    log::info!(
-        "billing reconciliation worker configured for Paystack {} mode",
-        config.paystack_mode
+    observability::tracing::info!(
+        event = "worker.started",
+        worker = "billing_reconciliation",
+        provider = %provider.name(),
+        mode = %config.paystack_mode,
+        "billing reconciliation provider configured"
     );
     let interval_seconds = std::env::var("PAYSTACK_RECONCILIATION_INTERVAL_SECONDS")
         .ok()

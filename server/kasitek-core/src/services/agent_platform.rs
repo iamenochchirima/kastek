@@ -2174,7 +2174,13 @@ impl AgentPlatformClient {
             return Ok(Value::Null);
         }
         response.json::<Value>().await.map_err(|error| {
-            log::error!("Agent Platform returned invalid Telegram webhook JSON: {error}");
+            observability::tracing::error!(
+                event = "provider.call.failed",
+                provider = "kasitek-agents",
+                operation = "telegram_webhook",
+                error_type = %std::any::type_name_of_val(&error),
+                "Agent Platform returned invalid Telegram webhook JSON"
+            );
             AppError::BadGateway("Agent Platform returned an invalid response".to_string())
         })
     }
@@ -2564,7 +2570,13 @@ impl AgentPlatformClient {
             return Ok(Value::Null);
         }
         response.json::<Value>().await.map_err(|error| {
-            log::error!("Agent Platform returned invalid JSON: {error}");
+            observability::tracing::error!(
+                event = "provider.call.failed",
+                provider = "kasitek-agents",
+                operation = "http.request",
+                error_type = %std::any::type_name_of_val(&error),
+                "Agent Platform returned invalid JSON"
+            );
             AppError::BadGateway("Agent Platform returned an invalid response".to_string())
         })
     }
@@ -2609,7 +2621,13 @@ impl AgentPlatformClient {
             return Ok(Value::Null);
         }
         response.json::<Value>().await.map_err(|error| {
-            log::error!("Agent Platform returned invalid JSON: {error}");
+            observability::tracing::error!(
+                event = "provider.call.failed",
+                provider = "kasitek-agents",
+                operation = "http.request",
+                error_type = %std::any::type_name_of_val(&error),
+                "Agent Platform returned invalid JSON"
+            );
             AppError::BadGateway("Agent Platform returned an invalid response".to_string())
         })
     }
@@ -2685,7 +2703,13 @@ impl AgentPlatformClient {
             return Ok(Value::Null);
         }
         response.json::<Value>().await.map_err(|error| {
-            log::error!("Agent Platform returned invalid operator JSON: {error}");
+            observability::tracing::error!(
+                event = "provider.call.failed",
+                provider = "kasitek-agents",
+                operation = "operator.http.request",
+                error_type = %std::any::type_name_of_val(&error),
+                "Agent Platform returned invalid operator JSON"
+            );
             AppError::BadGateway("Agent Platform returned an invalid response".to_string())
         })
     }
@@ -2731,7 +2755,13 @@ impl AgentPlatformClient {
             return Err(self.map_status(response).await);
         }
         response.json::<Value>().await.map_err(|error| {
-            log::error!("Agent Platform returned invalid operator command JSON: {error}");
+            observability::tracing::error!(
+                event = "provider.call.failed",
+                provider = "kasitek-agents",
+                operation = "operator.command",
+                error_type = %std::any::type_name_of_val(&error),
+                "Agent Platform returned invalid operator command JSON"
+            );
             AppError::BadGateway("Agent Platform returned an invalid response".to_string())
         })
     }
@@ -2772,7 +2802,13 @@ impl AgentPlatformClient {
         } else if error.is_connect() {
             AppError::ServiceUnavailable("Agent Platform is unavailable".to_string())
         } else {
-            log::error!("Agent Platform request failed: {error}");
+            observability::tracing::error!(
+                event = "provider.call.failed",
+                provider = "kasitek-agents",
+                operation = "http.request",
+                error_type = %std::any::type_name_of_val(&error),
+                "Agent Platform request failed"
+            );
             AppError::BadGateway("Agent Platform request failed".to_string())
         }
     }

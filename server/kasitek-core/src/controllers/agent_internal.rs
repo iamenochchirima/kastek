@@ -194,11 +194,13 @@ pub async fn get_customer(
         .await?
         .ok_or_else(|| AppError::NotFound("Customer not found".to_string()))?;
 
-    log::info!(
-        "agent core read tool=customer.get org_id={} actor_id={} customer_id={}",
-        organization_id,
-        actor_id,
-        customer_id
+    observability::tracing::info!(
+        event = "http.request.completed",
+        operation = "customer.get",
+        organization_id = %organization_id,
+        actor_id = %actor_id,
+        customer_id = %customer_id,
+        "agent customer read completed"
     );
     Ok(HttpResponse::Ok().json(detail))
 }
@@ -224,10 +226,12 @@ pub async fn get_workspace_status(
     .bind(&organization_id)
     .fetch_all(pool.get_ref())
     .await?;
-    log::info!(
-        "agent core read tool=workspace.status org_id={} actor_id={}",
-        organization_id,
-        actor_id
+    observability::tracing::info!(
+        event = "http.request.completed",
+        operation = "workspace.status",
+        organization_id = %organization_id,
+        actor_id = %actor_id,
+        "agent workspace status read completed"
     );
     Ok(HttpResponse::Ok().json(json!({
         "organizationId": organization_id,
@@ -311,11 +315,13 @@ pub async fn list_workspace_connections(
         .map(|connection| agent_connection_summary(&connection))
         .collect::<Vec<_>>();
 
-    log::info!(
-        "agent core read tool=connections.list org_id={} actor_id={} count={}",
-        organization_id,
-        actor_id,
-        connections.len()
+    observability::tracing::info!(
+        event = "http.request.completed",
+        operation = "connections.list",
+        organization_id = %organization_id,
+        actor_id = %actor_id,
+        count = connections.len(),
+        "agent connection list completed"
     );
     Ok(HttpResponse::Ok().json(json!({
         "organizationId": organization_id,
@@ -368,13 +374,14 @@ pub async fn update_workspace_connection_status(
     )
     .await?;
 
-    log::info!(
-        "agent core write tool=connections.status_update org_id={} actor_id={} provider={} display_name={} status={}",
-        context.organization_id,
-        context.principal.id,
-        body.provider,
-        body.display_name,
-        status
+    observability::tracing::info!(
+        event = "http.request.completed",
+        operation = "connections.status_update",
+        organization_id = %context.organization_id,
+        actor_id = %context.principal.id,
+        provider = %body.provider,
+        status = %status,
+        "agent connection status updated"
     );
     Ok(HttpResponse::Ok().json(json!({
         "connection": agent_connection_summary(&connection),
@@ -408,11 +415,13 @@ pub async fn update_workspace_connection_status_by_id(
     )
     .await?;
 
-    log::info!(
-        "agent core write tool=connections.status_update org_id={} actor_id={} status={}",
-        context.organization_id,
-        context.principal.id,
-        status
+    observability::tracing::info!(
+        event = "http.request.completed",
+        operation = "connections.status_update",
+        organization_id = %context.organization_id,
+        actor_id = %context.principal.id,
+        status = %status,
+        "agent connection status updated"
     );
     Ok(HttpResponse::Ok().json(json!({
         "connection": agent_connection_summary(&connection),
@@ -432,10 +441,12 @@ pub async fn get_workspace_report(
     let report =
         crate::services::workspace_reporting::agent_report(pool.get_ref(), &organization_id)
             .await?;
-    log::info!(
-        "agent core read tool=workspace.report org_id={} actor_id={}",
-        organization_id,
-        actor_id
+    observability::tracing::info!(
+        event = "http.request.completed",
+        operation = "workspace.report",
+        organization_id = %organization_id,
+        actor_id = %actor_id,
+        "agent workspace report completed"
     );
     Ok(HttpResponse::Ok().json(report))
 }
@@ -1173,11 +1184,13 @@ pub async fn deliver_channel_message(
             )))
         }
     };
-    log::info!(
-        "agent channel delivery channel={} org_id={} actor_id={}",
-        channel_type,
-        organization_id,
-        actor_id
+    observability::tracing::info!(
+        event = "http.request.completed",
+        operation = "channel.delivery",
+        channel = %channel_type,
+        organization_id = %organization_id,
+        actor_id = %actor_id,
+        "agent channel delivery completed"
     );
     Ok(HttpResponse::Ok().json(result))
 }
