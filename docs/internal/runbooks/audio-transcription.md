@@ -54,8 +54,9 @@ media URLs, raw transcripts, provider responses, or message bodies into tickets.
    retention query excludes active organization, installation, and conversation holds.
 3. Use **Delete audio** for a specific completed or terminally failed job. It requires dual control,
    deletes the Core audio asset, clears the transcript/result fields, and preserves the audit event.
-4. If storage deletion fails, retain the job audit record, record the asset ID and correlation ID,
-   and escalate to Core/storage operations. Do not repeatedly submit transcription commands.
+4. If storage deletion fails, Core retains the media metadata so the deletion can be retried. Keep
+   the job audit record, record the asset ID and correlation ID, and escalate to Core/storage
+   operations. Do not repeatedly submit transcription commands without checking the storage error.
 
 ## Escalation evidence
 

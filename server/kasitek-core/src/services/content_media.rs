@@ -633,25 +633,25 @@ pub async fn delete_audio_content_media(
         .as_deref()
         .map(|key| storage_path(config, key))
         .transpose()?;
-    sqlx::query(r#"DELETE FROM "ContentMediaAsset" WHERE id = $1 AND "orgId" = $2"#)
-        .bind(asset_id)
-        .bind(org_id)
-        .execute(&mut *tx)
-        .await?;
-    tx.commit().await?;
-
     for path in [Some(object_path), preview_path].into_iter().flatten() {
         match tokio::fs::remove_file(path).await {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(_) => {
                 return Err(AppError::Internal(
-                    "Media metadata was deleted but the storage object could not be removed"
+                    "The media storage object could not be removed; metadata was retained for retry"
                         .to_string(),
                 ));
             }
         }
     }
+
+    sqlx::query(r#"DELETE FROM "ContentMediaAsset" WHERE id = $1 AND "orgId" = $2"#)
+        .bind(asset_id)
+        .bind(org_id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
     Ok(true)
 }
 
