@@ -35,12 +35,13 @@ The repository implementation is split into reviewable commits:
 | Event normalization contract tests | `64227832` |
 | Disabled-export fallback, CI regression check, and documentation cleanup | `91d0598b` |
 | HTTP and Temporal context-propagation contract tests | `eb06783f` |
+| Provider-child propagation, Rust log redaction, and provider payload hardening | `deacc9e5` |
 
 The exact implementation tree used for the repository smoke evidence is now
-`eb06783f` (`eb06783f` is the current repository-side implementation commit). The Collector
+`deacc9e5` (`deacc9e5` is the current repository-side implementation commit). The Collector
 configuration is unchanged from `7f064cce`; the current tree includes the follow-up worker,
 event-contract, compatibility-boundary, disabled-export fallback, documentation, and
-context-propagation changes. The current
+context-propagation, provider-child propagation, and log-redaction changes. The current
 branch may contain later product commits; those commits are not covered by this record and must be
 retested before being promoted as one artifact.
 
@@ -59,9 +60,10 @@ Production release ID: not created
 ## Repository verification evidence
 
 - The initial implementation tree passed Rust formatting, workspace check, shared observability
-  tests, and Clippy. Its shared observability test count was 9. On the current dirty branch, the
-  propagation follow-up passed `cargo test -p observability --lib` (10 tests) and the
-  analytics-producer tests pass (14 tests); Analytics unit and ingestion tests pass, while the
+  tests, and Clippy. Its shared observability test count was 9. The current tree passed
+  `cargo test -p observability --lib` (12 tests), `cargo test -p analytics-producer --lib` (14
+  tests), and `cargo test -p analytics-reporting --lib` (4 tests); Analytics unit and ingestion
+  tests pass, while the
   local maintenance PostgreSQL test does not discover its quarantine work row.
 - Agents type checking and the full test suite passed after the propagation regression fix: 421
   tests passed and 43 were skipped. The Temporal activity-boundary test verifies JSON string
@@ -73,10 +75,11 @@ Production release ID: not created
 - The local Collector reached readiness and received Rust and Agents logs, traces, and metrics.
   The smoke signals carried service, environment, version, release, commit, trace, span, and
   correlation metadata where applicable.
-- Export-disabled behavior, bounded/redacted exception fields, propagation seams, and telemetry
-  contract tests passed.
+- Export-disabled behavior, bounded/redacted exception fields, legacy Rust log redaction,
+  provider-response payload hardening, propagation seams, and telemetry contract tests passed.
 - The shared Rust W3C HTTP injection test passed with `traceparent` and `tracestate`, and the
-  Agents Temporal activity-boundary test passed with bounded correlation context.
+  provider-child regression test confirmed request construction observes the dependency span.
+  The Agents Temporal activity-boundary test passed with bounded correlation context.
 - The current full-workspace `cargo check --workspace` and `cargo fmt --all -- --check` pass;
   the targeted Rust telemetry crates remain independently verified.
 - Public and internal documentation builds passed after removing stale links from the internal

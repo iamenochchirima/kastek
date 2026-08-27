@@ -60,8 +60,9 @@ exist.
       indexed attributes.
 - [x] Define prohibited data: secrets, tokens, authorization headers, cookies, message bodies,
       prompts, raw provider responses, and unnecessary personal data.
-- [x] Add redaction tests for representative credential and provider fields; webhook and user
-      payload tests remain limited to the existing request/serializer contract.
+- [x] Add redaction tests for representative credential and provider fields, including bounded
+      legacy Rust `log!` messages; webhook and user payload tests remain limited to the existing
+      request/serializer contract.
 
 ### Traces and metrics
 
@@ -95,11 +96,13 @@ exist.
 - [x] Add database spans and metrics for important SQL operations without recording query values,
       credentials, or sensitive parameters.
 - [x] Add outbound HTTP/provider spans with provider name, operation, status, retry, and duration;
-      do not record tokens, authorization headers, or full payloads.
+      inject W3C context after entering the provider span, and do not record tokens, authorization
+      headers, raw provider responses, or full payloads.
 - [x] Add migration and background-worker instrumentation where applicable.
 - [x] Make exporter setup configurable and safe when disabled.
 - [x] Ensure liveness and readiness endpoints do not depend on successful telemetry export.
-- [x] Add Rust unit tests for resource mapping, log mapping, redaction, sampling, and disabled
+- [x] Add Rust unit tests for resource mapping, log mapping, redaction, provider-child propagation,
+      sampling, and disabled
       exporter behavior.
 - [x] Add a Rust signal smoke fixture proving a representative span, log, and metric reaches the
       local Collector; a full live HTTP/database integration remains a staging gate.
@@ -293,10 +296,11 @@ Repository evidence for the implementation slice:
 - Initial implementation tree: `cargo fmt --all -- --check`, `cargo check --workspace`,
   `cargo test -p observability` (9 passed), and
   `cargo clippy -p observability --all-targets --all-features -- -D warnings` passed.
-- Current targeted Rust verification: `cargo test -p observability --lib` (10 passed),
-  `cargo test -p analytics-producer --lib` (14 passed), and the Analytics unit and ingestion
-  PostgreSQL tests passed; the local Analytics maintenance PostgreSQL test remains failing at its
-  quarantine-work assertion.
+- Current targeted Rust verification: `cargo test -p observability --lib` (12 passed),
+  `cargo test -p analytics-producer --lib` (14 passed), `cargo test -p analytics-reporting --lib`
+  (4 passed), and the Core library suite passed after correcting its mock response count; the
+  Analytics unit and ingestion PostgreSQL tests passed; the local Analytics maintenance
+  PostgreSQL test remains failing at its quarantine-work assertion.
 - Agents: `pnpm exec tsc -p tsconfig.json --noEmit` and `pnpm test` passed (75 test files passed,
   17 skipped; 421 tests passed, 43 skipped). The Temporal activity-boundary test verifies that
   JSON-encoded string headers are decoded before correlation context is restored.
@@ -311,19 +315,22 @@ Repository evidence for the implementation slice:
   `service.version=0.1.0`, release ID, and commit SHA; logs and spans shared trace/span context.
   The Collector shut down cleanly after the capture.
 - Privacy hardening: the legacy Actix access formatter now excludes raw URLs, query strings,
-  remote addresses, referers, and user agents. Agents exception messages and stacks redact common
+  remote addresses, referers, and user agents. Rust legacy log messages are bounded and redact
+  common credential forms before stdout or the OpenTelemetry bridge; touched provider paths omit
+  raw response bodies and webhook payloads. Agents exception messages and stacks redact common
   credential forms before they are recorded in logs or span exception events.
 - Boundary completion: `tracing_log::LogTracer` now bridges legacy Rust `log!` records into the
   OpenTelemetry subscriber when export is enabled; the Core/Tenant source-backfill loops and
   Analytics projection/outbox boundaries now record shared operation metrics and stable events.
-  The Rust W3C HTTP injection contract test and Agents Temporal activity-boundary propagation test
-  also pass; live multi-service trace relationship evidence remains a staging gate.
+  The Rust W3C HTTP injection and provider-child context contract tests and Agents Temporal
+  activity-boundary propagation test also pass; live multi-service trace relationship evidence
+  remains a staging gate.
 - Documentation: public and internal Docusaurus builds passed. The internal documentation index
   and Admin Analytics reference were cleaned so current technical documentation no longer links
   to removed strategy or implementation-plan material; no public user/API documentation change
   is required for this infrastructure-only work.
 - Versioning: local validation metadata is `0.1.0`; the current observability implementation tree
-  is recorded as `eb06783f`; no platform release tag or deployed
+  is recorded as `deacc9e5`; no platform release tag or deployed
   artifact was created by this work.
 
 Checks intentionally not claimed as complete:

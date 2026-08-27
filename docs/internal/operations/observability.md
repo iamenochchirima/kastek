@@ -30,10 +30,11 @@ The Rust services initialize the shared `server/crates/observability` crate. Age
 the Node SDK before Fastify, PostgreSQL, Temporal, and gateway modules. HTTP instrumentation,
 Pino correlation, PostgreSQL/HTTP auto-instrumentation, provider spans, Temporal activity spans,
 background-worker spans, and graceful shutdown are enabled in the current server-side slice.
-Internal HTTP calls use the shared W3C propagator, while Temporal carries only bounded trace and
-correlation headers through its payload converter. The activity interceptor decodes those string
-payloads before restoring the async context; contract tests cover both the HTTP injection and
-Temporal activity boundary.
+Internal HTTP calls use the shared W3C propagator and construct/inject request headers inside the
+provider span, so downstream requests are children of the dependency operation rather than
+siblings of it. Temporal carries only bounded trace and correlation headers through its payload
+converter. The activity interceptor decodes those string payloads before restoring the async
+context; contract tests cover the provider-child HTTP injection and Temporal activity boundary.
 
 The debug exporter is not durable storage. Production observability is not complete until a
 durable destination, retention, access policy, resource owner, and alerting policy are approved
@@ -134,7 +135,9 @@ backfill workers, Core operational workers, the Analytics outbox publisher, and 
 projection processing now emit stable lifecycle/result events and shared operation metrics.
 Request summaries omit query strings and network addresses; credentials, authorization material,
 cookies, tokens, prompts, and message content are redacted in the application logger and Collector
-processor.
+processor. Rust legacy `log!` messages are bounded and redacted before they reach stdout or the
+OpenTelemetry bridge. New and touched provider paths record bounded status/error metadata rather
+than raw response bodies or webhook payloads.
 
 Use low-cardinality attributes for metrics and spans. Keep request IDs, customer identifiers,
 provider payloads, and message text in bounded body fields only when there is a documented support

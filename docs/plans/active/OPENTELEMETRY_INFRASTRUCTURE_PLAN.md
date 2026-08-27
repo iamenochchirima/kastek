@@ -29,7 +29,9 @@ receivers, memory limits, batching, redaction, health checks, local Compose star
 production OTLP template with bounded queue/retry settings and error-preserving tail sampling, and
 Railway deployment instructions.
 The shared Rust crate initializes logs, traces, metrics, resources, W3C propagation, HTTP metrics,
-correlation IDs, provider spans, background spans, and graceful shutdown. Agents initializes the
+correlation IDs, provider spans, background spans, and graceful shutdown. Outbound request context
+is injected after entering the provider span, and legacy Rust log messages are bounded and
+redacted before stdout or the OpenTelemetry bridge. Agents initializes the
 Node SDK before service modules, enables HTTP/PG/Pino instrumentation, adds provider and Temporal
 spans, propagates W3C/correlation context through Temporal, and retains a structured stdout
 fallback. Direct Rust HTTP injection and the Agents Temporal activity context boundaries have
@@ -250,7 +252,7 @@ Change: Introduce vendor-neutral OpenTelemetry instrumentation and Collector inf
 Owner: KasiTek engineering; provisional Collector incident owner: platform-ops.
 Risk: standard for repository changes; high for production enablement until staging and durable-destination gates pass.
 Affected services and user surfaces: Rust Core/Tenants/Analytics services, Agents API/worker/gateway/maintenance processes, and Collector deployment configuration; no direct user-interface behavior change.
-Platform release version or release ID: local validation metadata 0.1.0; implementation tree eb06783f; no release tag or deployed artifact.
+Platform release version or release ID: local validation metadata 0.1.0; implementation tree deacc9e5; no release tag or deployed artifact.
 API/schema/migration changes: not applicable; migration execution is instrumented but schemas are unchanged.
 Feature flag or rollout method: OTEL_SDK_DISABLED, OTEL_EXPORTER_OTLP_* endpoint/protocol, resource metadata, and sampler environment variables; stdout fallback remains available.
 Analytics events and success metrics: not applicable; operational telemetry remains separate from customer analytics.
@@ -265,8 +267,8 @@ Post-release review date: before any staging or production promotion.
 
 The full command-level record is maintained in the [execution checklist](./OPENTELEMETRY_INFRASTRUCTURE_CHECKLIST.md).
 The short result is: the initial implementation tree passed Rust formatting, workspace check,
-shared-crate tests, and Clippy; the current targeted observability and analytics-producer tests
-pass; Agents type checking and the full test suite passed; all Collector profiles passed
+shared-crate tests, and Clippy; the current targeted observability, analytics-producer, and
+analytics-reporting tests pass; Agents type checking and the full test suite passed; all Collector profiles passed
 validation; and the local Collector received Rust and Agents traces, logs, and metrics with
 matching trace/span context and release metadata. The current full-workspace `cargo check
 --workspace` and `cargo fmt --all -- --check` pass. One local Analytics maintenance PostgreSQL
@@ -275,12 +277,13 @@ internal documentation builds passed after stale links were removed from the int
 documentation index and Admin Analytics reference.
 The disabled-export Rust smoke also emitted both legacy `log!` and `tracing!` records to stdout
 with `OTEL_SDK_DISABLED=true`.
-The Rust W3C HTTP injection contract test and Agents Temporal activity-boundary correlation test
-passed; the latter also guards decoding of Temporal JSON string payloads before restoring async
-context.
+The Rust W3C HTTP injection and provider-child context contract tests and Agents Temporal
+activity-boundary correlation test passed; the latter also guards decoding of Temporal JSON string
+payloads before restoring async context. Legacy Rust log redaction, raw provider-response removal,
+and bounded webhook logging are covered by the implementation and targeted tests.
 The CI workflow contains the containerized Rust plus Agents signal smoke. The legacy Actix access
-formatter and Agents exception telemetry also apply the final privacy bounds described in the
-checklist.
+formatter, Rust compatibility logger, provider response handling, and Agents exception telemetry
+apply the final privacy bounds described in the checklist.
 
 The Docker daemon was unavailable in this workspace, so the containerized smoke was not run
 locally. Railway staging service creation, hosted end-to-end evidence, and durable backend,
