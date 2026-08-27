@@ -62,7 +62,7 @@ async function buildPayload(pool: Pool, key: OperatorProjectionKey): Promise<Rec
 
   if (key === "health") {
     const databaseStartedAt = Date.now();
-    const [database, installations, credentials, providers, cost, queue, tools, effects, deliveries, approvals, audit, executionModes] = await Promise.all([
+    const [database, installations, credentials, providers, cost, queue, tools, effects, deliveries, approvals, audit, executionModes, audioTranscription] = await Promise.all([
       query(pool, "SELECT 1"),
       query<{ active: string }>(pool, "SELECT COUNT(*) FILTER (WHERE status = 'active')::text AS active FROM agent_installations"),
       query<{ active: string; expiring: string }>(pool, "SELECT COUNT(*) FILTER (WHERE status = 'active' AND (expires_at IS NULL OR expires_at > now()))::text AS active, COUNT(*) FILTER (WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at <= now() + interval '7 days')::text AS expiring FROM agent_installation_credentials"),
@@ -75,6 +75,7 @@ async function buildPayload(pool: Pool, key: OperatorProjectionKey): Promise<Rec
       query<{ pending: string; expired: string }>(pool, "SELECT COUNT(*) FILTER (WHERE status = 'pending')::text AS pending, COUNT(*) FILTER (WHERE status = 'pending' AND expires_at <= now())::text AS expired FROM agent_approval_records"),
       query<{ access: string }>(pool, "SELECT COUNT(*)::text AS access FROM audit_records WHERE (action ILIKE '%support%' OR action ILIKE '%data_access%' OR resource_type = 'customer_content') AND created_at > now() - interval '24 hours'"),
       query<{ execution_mode: string; count: string }>(pool, "SELECT execution_mode, COUNT(*)::text AS count FROM agent_installations WHERE status = 'active' GROUP BY execution_mode ORDER BY execution_mode"),
+      query<{ queued: string; stale: string; failed: string }>(pool, `SELECT COUNT(*) FILTER (WHERE status IN ('queued', 'processing', 'dispatching', 'retryable_failed'))::text AS queued, COUNT(*) FILTER (WHERE status IN ('queued', 'processing', 'dispatching', 'retryable_failed') AND updated_at < now() - interval '15 minutes')::text AS stale, COUNT(*) FILTER (WHERE status = 'failed' AND updated_at > now() - interval '24 hours')::text AS failed FROM audio_transcription_jobs`),
     ]);
     const status = (degraded: boolean, unavailable = false): "ready" | "degraded" | "unavailable" => unavailable ? "unavailable" : degraded ? "degraded" : "ready";
     const providerChecks = providers.rows.map((row) => {
@@ -99,6 +100,7 @@ async function buildPayload(pool: Pool, key: OperatorProjectionKey): Promise<Rec
       rateLimits: { status: "ready" as const, detail: "Gateway rate limits are enforced at the edge and are intentionally not persisted with customer data." },
       suspiciousAccess: { status: status(Number(audit.rows[0]?.access ?? 0) > 0), events24h: Number(audit.rows[0]?.access ?? 0) },
       executionModes: { status: "ready" as const, active: indexExecutionModes(executionModes.rows) },
+      audioTranscription: { status: status(Number(audioTranscription.rows[0]?.stale ?? 0) > 0), queued: Number(audioTranscription.rows[0]?.queued ?? 0), stale: Number(audioTranscription.rows[0]?.stale ?? 0), failed24h: Number(audioTranscription.rows[0]?.failed ?? 0), providerConfigured: Boolean(process.env.ELEVENLABS_API_KEY?.trim()) },
     };
     const degradedChecks = Object.values(checks).filter((check) => check.status === "degraded" || check.status === "unavailable").length;
     return { generatedAt: new Date().toISOString(), overallStatus: degradedChecks ? "degraded" : "ready", checks, degradedChecks };

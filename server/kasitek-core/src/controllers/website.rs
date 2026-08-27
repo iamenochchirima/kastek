@@ -375,6 +375,7 @@ fn website_channel_message_payload(
 
 fn website_channel_audio_payload(
     channel_key: &str,
+    installation_id: &str,
     provider_event_id: &str,
     external_identity: &str,
     external_conversation_id: &str,
@@ -397,6 +398,7 @@ fn website_channel_audio_payload(
     let mut payload = serde_json::json!({
         "channelType": "website",
         "channelKey": channel_key,
+        "installationId": installation_id,
         "provider": "kasitek-website",
         "providerEventId": provider_event_id,
         "providerMessageId": provider_event_id,
@@ -736,8 +738,8 @@ pub async fn send_agent_website_chat_audio(
     let session =
         website::active_agent_website_visitor_session(pool.get_ref(), session_id.trim(), &origin)
             .await?;
-    let deployment = sqlx::query_as::<_, (String, String, String)>(
-        r#"SELECT deployment."orgId", organization."ownerId", deployment."publicId"
+    let deployment = sqlx::query_as::<_, (String, String, String, String)>(
+        r#"SELECT deployment."orgId", organization."ownerId", deployment."publicId", deployment."installationId"
            FROM "AgentWebsiteDeployment" deployment
            JOIN "Organization" organization ON organization.id = deployment."orgId"
            WHERE deployment.id = $1 AND deployment.status = 'ACTIVE'"#,
@@ -746,7 +748,7 @@ pub async fn send_agent_website_chat_audio(
     .fetch_optional(pool.get_ref())
     .await?
     .ok_or_else(|| AppError::NotFound("Website Chat deployment not found".to_string()))?;
-    let (organization_id, owner_id, public_id) = deployment;
+    let (organization_id, owner_id, public_id, installation_id) = deployment;
     let source_prefix = format!("website:{public_id}:{}:%", session.public_session_id);
     let recent_audio_count = sqlx::query_scalar::<_, i64>(
         r#"SELECT COUNT(*)
@@ -786,6 +788,7 @@ pub async fn send_agent_website_chat_audio(
     let text = caption.as_deref().unwrap_or("");
     let payload = website_channel_audio_payload(
         &public_id,
+        &installation_id,
         idempotency_key,
         &session.external_identity,
         &session.external_conversation_id,
@@ -884,6 +887,7 @@ mod tests {
     fn audio_payload_starts_queued_transcription_with_internal_asset_reference() {
         let payload = website_channel_audio_payload(
             "wdg_test",
+            "installation-1",
             "event-2",
             "website:wvs_test",
             "website:wdg_test:wvs_test",

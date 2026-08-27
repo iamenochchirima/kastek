@@ -13,6 +13,8 @@ import {
   type AudioTranscriptionProvider,
 } from "./provider";
 import { ElevenLabsTranscriptionProvider } from "./elevenlabs";
+import { operationalLogger } from "../telemetry/logger";
+import { recordQueueAge, recordRetry, withSpan } from "../telemetry/spans";
 
 type DispatchInput = Record<string, unknown>;
 
@@ -104,7 +106,12 @@ export class AudioTranscriptionWorker {
       this.options.config.AUDIO_TRANSCRIPTION_WORKER_BATCH_SIZE,
       this.options.config.AUDIO_TRANSCRIPTION_WORKER_LEASE_MS,
     );
-    await Promise.all(claimed.map((job) => this.process(job)));
+    claimed.forEach((job) => recordQueueAge("audio_transcription", Math.max(0, (Date.now() - new Date(job.created_at).getTime()) / 1000)));
+    await Promise.all(claimed.map((job) => withSpan(
+      "audio.transcription.job",
+      { "audio.job.status": job.status, "audio.dispatch.kind": job.dispatch_kind },
+      () => this.process(job),
+    )));
     return claimed.length;
   }
 
@@ -112,8 +119,9 @@ export class AudioTranscriptionWorker {
     while (!this.stopping) {
       try {
         await this.runOnce();
-      } catch {
+      } catch (error) {
         // A failed poll must not terminate the worker. The next poll will reclaim expired leases.
+        operationalLogger.error({ err: error, event: "audio.transcription.poll.failed" }, "Audio transcription worker poll failed");
       }
       if (!this.stopping) await new Promise((resolve) => setTimeout(resolve, this.options.config.AUDIO_TRANSCRIPTION_WORKER_POLL_INTERVAL_MS));
     }
@@ -198,17 +206,19 @@ export class AudioTranscriptionWorker {
         acceptedConversationId = accepted.conversation.id;
         acceptedMessageId = accepted.message.id;
       }
-      await this.jobs.markDispatched({
+      const completed = await this.jobs.markDispatched({
         jobId: job.id,
         workerId: this.workerId,
         conversationId: acceptedConversationId,
         messageId: acceptedMessageId,
         runId: acceptedRunId,
       });
+      if (completed) operationalLogger.info({ event: "audio.transcription.dispatched", job_id: job.id, dispatch_kind: job.dispatch_kind, run_id: acceptedRunId }, "Audio transcription dispatched to agent runtime");
     } catch (error) {
       const details = errorDetails(error);
       const exhausted = job.attempt_count >= this.options.config.AUDIO_TRANSCRIPTION_MAX_ATTEMPTS;
       if (details.retryable && !exhausted) {
+        recordRetry("audio_transcription", 1);
         await this.jobs.markRetryable({
           jobId: job.id,
           workerId: this.workerId,
@@ -220,6 +230,7 @@ export class AudioTranscriptionWorker {
             this.options.config.AUDIO_TRANSCRIPTION_RETRY_MAX_DELAY_MS,
           ),
         });
+        operationalLogger.warn({ event: "audio.transcription.retry.scheduled", job_id: job.id, attempt: job.attempt_count, error_code: details.code }, "Audio transcription retry scheduled");
       } else {
         await this.jobs.markFailed({
           jobId: job.id,
@@ -227,6 +238,7 @@ export class AudioTranscriptionWorker {
           errorCode: details.code,
           errorMessage: details.message,
         });
+        operationalLogger.warn({ event: "audio.transcription.failed", job_id: job.id, attempt: job.attempt_count, error_code: details.code, retryable: details.retryable }, "Audio transcription job failed");
       }
     }
   }

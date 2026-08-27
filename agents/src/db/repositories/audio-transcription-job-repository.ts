@@ -50,6 +50,29 @@ export interface EnqueueAudioTranscriptionJobInput {
   dispatchInput: Record<string, unknown>;
 }
 
+export interface AudioTranscriptionJobSummary {
+  id: string;
+  organization_id: string;
+  installation_id: string;
+  actor_id: string;
+  asset_id: string;
+  dispatch_kind: AudioTranscriptionDispatchKind;
+  status: AudioTranscriptionJobStatus;
+  attempt_count: number;
+  next_attempt_at: string;
+  transcript: string | null;
+  language_code: string | null;
+  result_conversation_id: string | null;
+  result_message_id: string | null;
+  result_run_id: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 function validateInput(input: EnqueueAudioTranscriptionJobInput): void {
   for (const [name, value] of Object.entries({
     organizationId: input.organizationId,
@@ -119,6 +142,50 @@ export class AudioTranscriptionJobRepository {
       [organizationId, jobId],
     );
     return result.rows[0] ?? null;
+  }
+
+  public async getById(jobId: string): Promise<AudioTranscriptionJobRecord | null> {
+    const result = await query<AudioTranscriptionJobRecord>(this.pool, `SELECT * FROM audio_transcription_jobs WHERE id = $1`, [jobId]);
+    return result.rows[0] ?? null;
+  }
+
+  public async listForOperator(input: { organizationId?: string; status?: AudioTranscriptionJobStatus; limit: number }): Promise<AudioTranscriptionJobSummary[]> {
+    const result = await query<AudioTranscriptionJobSummary>(
+      this.pool,
+      `SELECT id, organization_id, installation_id, actor_id, asset_id, dispatch_kind, status,
+              attempt_count, next_attempt_at, transcript, language_code,
+              result_conversation_id, result_message_id, result_run_id,
+              error_code, error_message, started_at, completed_at, created_at, updated_at
+       FROM audio_transcription_jobs
+       WHERE ($1::text IS NULL OR organization_id = $1)
+         AND ($2::text IS NULL OR status = $2)
+       ORDER BY created_at DESC LIMIT $3`,
+      [input.organizationId ?? null, input.status ?? null, Math.max(1, Math.min(Math.trunc(input.limit), 500))],
+    );
+    return result.rows;
+  }
+
+  public async retry(jobId: string, actorId: string): Promise<AudioTranscriptionJobRecord> {
+    return withTransaction(this.pool, async (client) => {
+      const result = await client.query<AudioTranscriptionJobRecord>(
+        `UPDATE audio_transcription_jobs
+         SET status = CASE WHEN transcript IS NULL THEN 'queued' ELSE 'dispatching' END,
+             attempt_count = 0, next_attempt_at = now(), lease_owner = NULL, lease_expires_at = NULL,
+             completed_at = NULL, result_conversation_id = NULL, result_message_id = NULL, result_run_id = NULL,
+             error_code = NULL, error_message = NULL
+         WHERE id = $1 AND status IN ('failed', 'retryable_failed')
+         RETURNING *`,
+        [jobId],
+      );
+      const job = result.rows[0];
+      if (!job) throw Object.assign(new Error("Audio transcription job is not retryable"), { statusCode: 409 });
+      await client.query(
+        `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'platform_admin', $2, 'audio_transcription_job.retried', 'audio_transcription_job', $3, $4::jsonb)`,
+        [job.organization_id, actorId, job.id, JSON.stringify({ status: job.status, assetId: job.asset_id })],
+      );
+      return job;
+    });
   }
 
   public async claimDue(workerId: string, limit: number, leaseMs: number): Promise<AudioTranscriptionJobRecord[]> {

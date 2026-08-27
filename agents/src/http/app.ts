@@ -1019,6 +1019,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         }
       }
       if (queuedAudio && typeof messageContent.assetId === "string") {
+        if (!(await controls.isFeatureEnabled(connection.organization_id, "audio_transcription_enabled", connection.installation_id))) {
+          return reply.code(200).send({ ok: true, media: "disabled" });
+        }
         const job = await audioTranscriptionJobs.enqueue({
           organizationId: connection.organization_id,
           installationId: connection.installation_id,
@@ -1205,6 +1208,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         messageContent = persistableContent;
       }
       if (queuedAudio && typeof messageContent.assetId === "string") {
+        if (!(await controls.isFeatureEnabled(connection.organization_id, "audio_transcription_enabled", connection.installation_id))) {
+          return reply.code(200).send({ ok: true, media: "disabled" });
+        }
         const job = await audioTranscriptionJobs.enqueue({
           organizationId: connection.organization_id,
           installationId: connection.installation_id,
@@ -1353,6 +1359,17 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid operator feature-flag limit");
     return { featureFlags: await controls.listFeatureFlags(limit) };
+  });
+
+  app.get<{ Querystring: { organizationId?: string; status?: string; limit?: string } }>("/v1/operator/audio-transcription/jobs", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid audio transcription job limit");
+    const status = request.query.status
+      ? z.enum(["queued", "processing", "dispatching", "completed", "retryable_failed", "failed"]).parse(request.query.status)
+      : undefined;
+    return { jobs: await audioTranscriptionJobs.listForOperator({ organizationId: request.query.organizationId?.trim() || undefined, status, limit }) };
   });
 
   app.get<{ Querystring: { limit?: string } }>("/v1/operator/holds", async (request) => {
@@ -1540,7 +1557,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       actorId: auth.actorId,
       idempotencyKey: headerValue(request, "idempotency-key"),
       command,
-      dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, controls, retention, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation },
+      dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, controls, retention, audioTranscriptionJobs, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation },
     });
     return reply.code(result.replayed ? 200 : result.command.status === "awaiting_approval" ? 202 : 201).send(result.command);
   });
@@ -1554,7 +1571,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post<{ Params: { commandId: string } }>("/v1/operator/commands/:commandId/approve", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireOperatorScope(auth, dependencies.config, "operator:write");
-    return approveOperatorCommand({ actorId: auth.actorId, commandId: request.params.commandId, dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, controls, retention, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation } });
+    return approveOperatorCommand({ actorId: auth.actorId, commandId: request.params.commandId, dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, controls, retention, audioTranscriptionJobs, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation } });
   });
 
   app.get<{ Params: { projectionKey: string } }>("/v1/operator/projections/:projectionKey", async (request) => {
@@ -2820,6 +2837,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           sourceKey: `kasiai:${request.params.installationId}:${conversationId}:${idempotencyKey}`,
         },
       );
+      if (!(await controls.isFeatureEnabled(auth.organizationId, "audio_transcription_enabled", request.params.installationId))) {
+        return reply.code(503).send({ error: "Audio transcription is disabled", code: "AUDIO_TRANSCRIPTION_DISABLED" });
+      }
       const caption = headerValue(request, "x-audio-caption")?.trim().slice(0, 4_000) ?? "";
       const context = {
         ...(headerValue(request, "x-audio-context-route")?.trim() ? { route: headerValue(request, "x-audio-context-route")!.trim().slice(0, 500) } : {}),
@@ -2937,6 +2957,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         const installationId = input.installationId ?? inboundConnection?.installation_id;
         if (!assetId) return reply.code(422).send({ error: "AUDIO_ASSET_REQUIRED", code: "AUDIO_ASSET_REQUIRED" });
         if (!installationId) return reply.code(422).send({ error: "AUDIO_INSTALLATION_REQUIRED", code: "AUDIO_INSTALLATION_REQUIRED" });
+        if (!(await controls.isFeatureEnabled(auth.organizationId, "audio_transcription_enabled", installationId))) {
+          return reply.code(503).send({ error: "Audio transcription is disabled", code: "AUDIO_TRANSCRIPTION_DISABLED" });
+        }
         const job = await audioTranscriptionJobs.enqueue({
           organizationId: auth.organizationId,
           installationId,

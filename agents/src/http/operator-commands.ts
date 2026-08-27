@@ -12,9 +12,10 @@ import { ChannelRepository } from "../db/repositories/channel-repository";
 import { MemoryRepository } from "../db/repositories/memory-repository";
 import { OperatorControlRepository, type OperatorFlagKey, type OperatorFlagScope, type OperatorHoldScope, type OperatorHoldType } from "../db/repositories/operator-control-repository";
 import { RetentionRepository } from "../db/repositories/retention-repository";
+import { AudioTranscriptionJobRepository } from "../db/repositories/audio-transcription-job-repository";
 
 export const operatorCommandInputSchema = z.object({
-  commandType: z.enum(["cancel_run", "retry_run", "replay_delivery", "delete_memory", "assign_run", "reconcile_effect", "request_export", "set_feature_flag", "clear_feature_flag", "create_hold", "release_hold", "set_retention_policy", "apply_retention_policy", "create_legal_hold", "release_legal_hold", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
+  commandType: z.enum(["cancel_run", "retry_run", "retry_audio_transcription", "replay_delivery", "delete_memory", "assign_run", "reconcile_effect", "request_export", "set_feature_flag", "clear_feature_flag", "create_hold", "release_hold", "set_retention_policy", "apply_retention_policy", "create_legal_hold", "release_legal_hold", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
   targetId: z.string().trim().min(1).max(240),
   payload: z.record(z.string(), z.unknown()).default({}),
 }).strict();
@@ -51,6 +52,7 @@ export interface OperatorCommandDependencies {
   memory?: MemoryRepository;
   controls?: OperatorControlRepository;
   retention?: RetentionRepository;
+  audioTranscriptionJobs?: AudioTranscriptionJobRepository;
   startWorkflow?: (runId: string) => Promise<void>;
   signalCancellation?: (runId: string, signal: { reason?: string }) => Promise<void>;
 }
@@ -87,6 +89,7 @@ export function publicOperatorCommand(command: OperatorCommandRecord): Record<st
       holdId: command.result.holdId,
       retentionPolicyId: command.result.retentionPolicyId,
       legalHoldId: command.result.legalHoldId,
+      audioTranscriptionJobId: command.result.audioTranscriptionJobId,
       expired: command.result.expired,
     } : null,
     error: command.error ? { code: command.error.code, message: command.error.message } : null,
@@ -160,7 +163,7 @@ function retentionDays(command: OperatorCommandRecord, key: string, minimum: num
 
 function operatorFlagKey(command: OperatorCommandRecord): OperatorFlagKey {
   const value = command.payload.flagKey;
-  if (value !== "agent_execution_enabled" && value !== "effect_execution_enabled" && value !== "mcp_enabled" && value !== "rest_enabled" && value !== "customer_handoff_enabled") {
+  if (value !== "agent_execution_enabled" && value !== "effect_execution_enabled" && value !== "mcp_enabled" && value !== "rest_enabled" && value !== "customer_handoff_enabled" && value !== "audio_transcription_enabled") {
     throw Object.assign(new Error("Unsupported feature flag"), { statusCode: 400 });
   }
   return value;
@@ -269,6 +272,24 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
       metadata: { sourceRunId: run.id, runId: retried.id },
     });
     return { status: "started", runId: retried.id, sourceRunId: run.id };
+  }
+
+  if (command.command_type === "retry_audio_transcription") {
+    if (!dependencies.audioTranscriptionJobs) throw Object.assign(new Error("Audio transcription controls are unavailable"), { statusCode: 503 });
+    const job = await dependencies.audioTranscriptionJobs.getById(command.target_id);
+    if (!job) throw Object.assign(new Error("Audio transcription job not found"), { statusCode: 404 });
+    assertExpectedResource(command, "expectedOrganizationId", job.organization_id, "Audio transcription job organization");
+    assertExpectedResource(command, "expectedInstallationId", job.installation_id, "Audio transcription job installation");
+    assertExpectedStatus(command, job.status);
+    const retried = await dependencies.audioTranscriptionJobs.retry(job.id, actorId);
+    await auditCommand(dependencies.pool, {
+      organizationId: job.organization_id,
+      actorId,
+      action: "operator_command.audio_transcription_retried",
+      commandId: command.id,
+      metadata: { audioTranscriptionJobId: job.id },
+    });
+    return { status: retried.status, audioTranscriptionJobId: retried.id };
   }
 
   if (command.command_type === "assign_run") {
