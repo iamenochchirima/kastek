@@ -25,6 +25,7 @@ const actorId = "rest-mcp-durable-test";
 
 const parityCases = [
   { name: "kasitek.core.workspace_status", method: "getWorkspaceStatus", args: {}, output: { organizationId, connections: [] } },
+  { name: "kasitek.core.connections_list", method: "listWorkspaceConnections", args: { provider: "FACEBOOK", limit: 25 }, output: { organizationId, connections: [] } },
   { name: "kasitek.core.workspace_report", method: "getWorkspaceReport", args: {}, output: { organizationId, connections: {}, content: {}, contacts: {}, inbox: {}, bookings: {}, campaigns: {}, templates: {} } },
   { name: "kasitek.core.booking_services_list", method: "listBookingServices", args: { limit: 25 }, output: { services: [], total: 0, hasMore: false } },
   { name: "kasitek.core.bookings_list", method: "listBookings", args: { limit: 25 }, output: { bookings: [] } },

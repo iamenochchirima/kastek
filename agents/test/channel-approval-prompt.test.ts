@@ -20,6 +20,13 @@ describe("channel approval prompts", () => {
     })).toBe("Publish “Launch” with 1 image to Threads?");
   });
 
+  it("names the platform for published-post deletion", () => {
+    expect(buildChannelApprovalPrompt("kasitek.core.content_post_delete_published", {
+      request: { postId: "internal-post-id", platform: "THREADS" },
+      resource: { title: "Launch", operation: { type: "delete_published", platform: "THREADS" } },
+    })).toBe("Delete “Launch” from Threads?");
+  });
+
   it("uses concise labels for non-content effects", () => {
     expect(buildChannelApprovalPrompt("kasitek.core.contact_update")).toBe("Update this contact?");
     expect(buildChannelApprovalPrompt("kasitek.core.channel_deliver")).toBe("Send this message?");

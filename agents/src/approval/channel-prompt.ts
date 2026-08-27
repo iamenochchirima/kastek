@@ -58,6 +58,8 @@ export function buildChannelApprovalPrompt(
       return `Remove the schedule for ${post}?`;
     case "kasitek.core.content_post_delete":
       return `Delete ${post}?`;
+    case "kasitek.core.content_post_delete_published":
+      return platform ? `Delete ${post} from ${platform}?` : `Delete ${post} from its connected social platform?`;
     case "kasitek.core.channel_deliver":
       return "Send this message?";
     case "kasitek.core.contact_update":

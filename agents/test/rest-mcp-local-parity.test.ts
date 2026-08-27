@@ -36,6 +36,7 @@ const context = {
 
 const parityCases = [
   { name: "kasitek.core.workspace_status", method: "getWorkspaceStatus", args: {}, output: { organizationId: context.organizationId, connections: [] } },
+  { name: "kasitek.core.connections_list", method: "listWorkspaceConnections", args: { provider: "FACEBOOK", limit: 25 }, output: { organizationId: context.organizationId, connections: [] } },
   {
     name: "kasitek.core.workspace_report",
     method: "getWorkspaceReport",

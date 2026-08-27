@@ -92,6 +92,13 @@ describe("approval preview projection", () => {
       fromStatus: "DRAFT",
       targetStatus: "DELETED",
     });
+    expect(projectContentApprovalOperation("kasitek.core.content_post_delete_published", { platform: "THREADS" }, { ...post, status: "PUBLISHED" })).toEqual({
+      type: "delete_published",
+      postId: "post-123",
+      fromStatus: "PUBLISHED",
+      platform: "THREADS",
+      targetStatus: "DELETED_FROM_PLATFORMS",
+    });
   });
 
   it("includes the operation in the immutable content resource preview", async () => {
