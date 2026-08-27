@@ -85,6 +85,15 @@ jobs:
         working-directory: server
         run: cargo clippy -p observability --all-targets --all-features -- -D warnings
 
+      - name: Test instrumented Rust services
+        working-directory: server
+        run: |
+          cargo test -p analytics-producer --lib
+          cargo test -p analytics-reporting --lib
+          cargo test -p kasitek-core --lib
+          cargo test -p kasitek-analytics --lib
+          cargo test -p kasitek-tenants
+
   agents:
     name: Agents telemetry checks
     runs-on: ubuntu-latest
@@ -115,6 +124,10 @@ jobs:
       - name: Run Agents tests
         working-directory: agents
         run: pnpm test
+
+      - name: Build Agents
+        working-directory: agents
+        run: pnpm run build
 
   collector:
     name: Collector configuration checks
