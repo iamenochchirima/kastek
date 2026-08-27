@@ -41,6 +41,43 @@ describe("thin external channel adapters", () => {
     });
   });
 
+  it("normalizes Telegram audio files and preserves their caption and duration", () => {
+    const event = new TelegramChannelAdapter().normalizeInbound({
+      update_id: 14,
+      message: {
+        message_id: 15,
+        from: { id: 11 },
+        chat: { id: 12 },
+        caption: "Meeting recording",
+        audio: { file_id: "audio-1", file_name: "meeting.mp3", mime_type: "audio/mpeg", duration: 9 },
+      },
+    });
+
+    expect(event.message).toMatchObject({
+      messageType: "attachment",
+      content: {
+        attachmentId: "audio-1",
+        mimeType: "audio/mpeg",
+        fileName: "meeting.mp3",
+        mediaKind: "audio",
+        durationMs: 9_000,
+        text: "Meeting recording",
+      },
+    });
+  });
+
+  it("rejects Telegram audio updates without a provider file id", () => {
+    expect(() => new TelegramChannelAdapter().normalizeInbound({
+      update_id: 15,
+      message: {
+        message_id: 16,
+        from: { id: 11 },
+        chat: { id: 12 },
+        voice: { duration: 2 },
+      },
+    })).toThrow("Invalid Telegram audio attachment");
+  });
+
   it("normalizes Telegram approval callback queries without creating a text message", () => {
     const event = new TelegramChannelAdapter().normalizeInbound({
       update_id: 11,

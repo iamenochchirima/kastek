@@ -52,6 +52,9 @@ export class TelegramChannelAdapter implements ChannelAdapter {
     const document = message.document && typeof message.document === "object" ? message.document as Record<string, unknown> : undefined;
     const voice = message.voice && typeof message.voice === "object" ? message.voice as Record<string, unknown> : undefined;
     const audio = message.audio && typeof message.audio === "object" ? message.audio as Record<string, unknown> : undefined;
+    if ((voice || audio) && ![voice, audio].every((attachment) => !attachment || typeof attachment.file_id === "string" && attachment.file_id.trim())) {
+      throw new Error("Invalid Telegram audio attachment");
+    }
     const photos = Array.isArray(message.photo)
       ? message.photo.filter((photo): photo is Record<string, unknown> => Boolean(photo && typeof photo === "object"))
       : [];

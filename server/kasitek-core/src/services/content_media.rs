@@ -366,14 +366,16 @@ pub async fn upload_content_media_bytes(
     org_id: &str,
     upload: ContentMediaBytesUpload,
 ) -> Result<ContentMediaAssetView, AppError> {
+    let requested_checksum = hex::encode(Sha256::digest(&upload.bytes));
     if let Some(source_key) = upload
         .source_key
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
     {
-        let existing_id = sqlx::query_scalar::<_, String>(
-            r#"SELECT id FROM "ContentMediaAsset"
+        let existing = sqlx::query_as::<_, ExistingContentMediaIdentity>(
+            r#"SELECT id, "mimeType" AS mime_type, "byteSize" AS byte_size, checksum
+               FROM "ContentMediaAsset"
                WHERE "orgId" = $1 AND metadata->>'sourceKey' = $2
                ORDER BY "createdAt" DESC LIMIT 1"#,
         )
@@ -381,8 +383,18 @@ pub async fn upload_content_media_bytes(
         .bind(source_key)
         .fetch_optional(pool)
         .await?;
-        if let Some(existing_id) = existing_id {
-            if let Some(asset) = asset_view(pool, org_id, &existing_id).await? {
+        if let Some(existing) = existing {
+            if !same_media_identity(
+                &existing,
+                upload.mime_type.trim(),
+                upload.bytes.len() as i64,
+                &requested_checksum,
+            ) {
+                return Err(AppError::Conflict(
+                    "Media idempotency key already belongs to different media".to_string(),
+                ));
+            }
+            if let Some(asset) = asset_view(pool, org_id, &existing.id).await? {
                 return Ok(asset);
             }
         }
@@ -711,6 +723,25 @@ struct ContentMediaDownloadRow {
 }
 
 #[derive(Debug, sqlx::FromRow)]
+struct ExistingContentMediaIdentity {
+    id: String,
+    mime_type: String,
+    byte_size: i64,
+    checksum: Option<String>,
+}
+
+fn same_media_identity(
+    existing: &ExistingContentMediaIdentity,
+    mime_type: &str,
+    byte_size: i64,
+    checksum: &str,
+) -> bool {
+    existing.mime_type == mime_type.trim().to_ascii_lowercase()
+        && existing.byte_size == byte_size
+        && existing.checksum.as_deref() == Some(checksum)
+}
+
+#[derive(Debug, sqlx::FromRow)]
 struct ContentMediaDeleteRow {
     kind: String,
     storage_key: String,
@@ -719,7 +750,9 @@ struct ContentMediaDeleteRow {
 
 #[cfg(test)]
 mod tests {
-    use super::{matches_file_signature, media_kind};
+    use super::{
+        matches_file_signature, media_kind, same_media_identity, ExistingContentMediaIdentity,
+    };
 
     #[test]
     fn classifies_audio_mime_types_including_ogg_variant() {
@@ -737,5 +770,29 @@ mod tests {
             &[0x1a, 0x45, 0xdf, 0xa3]
         ));
         assert!(!matches_file_signature("audio/wav", b"OggS-opus"));
+    }
+
+    #[test]
+    fn rejects_a_reused_source_key_when_the_media_identity_changes() {
+        let existing = ExistingContentMediaIdentity {
+            id: "asset-1".to_string(),
+            mime_type: "audio/ogg".to_string(),
+            byte_size: 8,
+            checksum: Some(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string(),
+            ),
+        };
+        assert!(same_media_identity(
+            &existing,
+            " audio/ogg ",
+            8,
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ));
+        assert!(!same_media_identity(
+            &existing,
+            "audio/ogg",
+            8,
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        ));
     }
 }
