@@ -68,7 +68,7 @@ jobs:
           set -euo pipefail
           if rg -n 'log::(trace|debug|info|warn|error)!' server \
             --glob '*.rs' \
-            --glob '!crates/observability/examples/otel-smoke.rs'; then
+            --glob '!server/crates/observability/examples/otel-smoke.rs'; then
             echo 'Operational Rust log macros must use the shared observability tracing API.'
             exit 1
           fi
