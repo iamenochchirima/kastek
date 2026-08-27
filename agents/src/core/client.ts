@@ -230,6 +230,8 @@ export interface CoreContentMediaAsset {
   mimeType: string;
   fileName?: string | null;
   byteSize: number;
+  checksum?: string | null;
+  durationMs?: number | null;
   processingStatus: string;
   scanStatus: string;
 }
@@ -237,6 +239,7 @@ export interface CoreContentMediaAsset {
 export interface CoreContentMediaBytes {
   bytes: Buffer;
   mimeType: string;
+  checksum?: string | null;
 }
 
 export interface CoreContentMediaInput {
@@ -664,9 +667,17 @@ export class KasitekCoreReadClient {
       }
       const bytes = Buffer.from(await response.arrayBuffer());
       if (!bytes.length) throw new CoreToolError("CORE_INVALID_RESPONSE", "kasitek-core returned an empty media object");
+      const checksumHeader = response.headers.get("x-media-checksum")?.trim().toLowerCase() || null;
+      if (checksumHeader && !/^[a-f0-9]{64}$/.test(checksumHeader)) {
+        throw new CoreToolError("CORE_INVALID_RESPONSE", "kasitek-core returned an invalid media checksum");
+      }
+      if (checksumHeader && createHash("sha256").update(bytes).digest("hex") !== checksumHeader) {
+        throw new CoreToolError("CORE_INVALID_RESPONSE", "kasitek-core returned media with a mismatched checksum");
+      }
       return {
         bytes,
         mimeType: (response.headers.get("content-type") ?? "application/octet-stream").split(";", 1)[0]!.trim().toLowerCase(),
+        checksum: checksumHeader,
       };
     } catch (error) {
       if (error instanceof CoreToolError) throw error;

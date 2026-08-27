@@ -1188,9 +1188,12 @@ pub async fn download_content_media(
         &path.into_inner(),
     )
     .await?;
-    Ok(HttpResponse::Ok()
-        .content_type(stored.mime_type)
-        .body(stored.bytes))
+    let mut response = HttpResponse::Ok();
+    response.content_type(stored.mime_type);
+    if let Some(checksum) = stored.checksum {
+        response.insert_header(("X-Media-Checksum", checksum));
+    }
+    Ok(response.body(stored.bytes))
 }
 
 pub async fn delete_audio_content_media(

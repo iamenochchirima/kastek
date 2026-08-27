@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 import { loadConfig } from "../src/config";
 import { KasitekCoreReadClient } from "../src/core/client";
 
@@ -147,6 +148,29 @@ describe("kasitek-core read boundary", () => {
     expect(init.method).toBe("POST");
     expect(init.headers).toMatchObject({ "idempotency-key": expect.any(String), "x-actor-id": "user-1" });
     expect(JSON.parse(String(init.body))).toEqual({ channelType: "whatsapp", externalConversationId: "conversation-1", text: "Hello from the approved agent" });
+  });
+
+  it("uses one authenticated reservation contract for reserve, capture, and release", async () => {
+    const responses = [
+      { orgId: "org-1", reservation: { id: "reservation-1", status: "RESERVED" }, balance: 100, reservedBalance: 40, availableBalance: 60, amount: 40, idempotent: false },
+      { orgId: "org-1", reservation: { id: "reservation-1", status: "CAPTURED" }, balance: 75, reservedBalance: 0, availableBalance: 75, amount: 25, idempotent: false },
+      { orgId: "org-1", reservation: { id: "reservation-1", status: "RELEASED" }, balance: 100, reservedBalance: 0, availableBalance: 100, amount: 0, idempotent: false },
+    ];
+    const fetchMock = vi.fn().mockImplementation(() => new Response(JSON.stringify(responses.shift()), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+    const client = new KasitekCoreReadClient(config);
+    await expect(client.reserveCredits(context, { actionKey: "ai.model_call", estimatedCredits: 40 })).resolves.toMatchObject({ reservation: { id: "reservation-1" }, availableBalance: 60 });
+    await expect(client.captureCredits(context, "reservation-1", 25)).resolves.toMatchObject({ reservation: { status: "CAPTURED" }, amount: 25 });
+    await expect(client.releaseCredits(context, "reservation-1", "provider timeout")).resolves.toMatchObject({ reservation: { status: "RELEASED" } });
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "https://core.example.test/api/internal/agents/v1/credits/reservations",
+      "https://core.example.test/api/internal/agents/v1/credits/reservations/reservation-1/capture",
+      "https://core.example.test/api/internal/agents/v1/credits/reservations/reservation-1/release",
+    ]);
+    for (const [, init] of fetchMock.mock.calls as Array<[string, RequestInit]>) {
+      expect(init.headers).toMatchObject({ "idempotency-key": expect.any(String) });
+    }
   });
 
   it("reads campaign inventory and a scoped campaign summary", async () => {
@@ -332,6 +356,23 @@ describe("kasitek-core read boundary", () => {
     expect(Buffer.from(init.body as ArrayBuffer).subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]));
   });
 
+  it("verifies the checksum returned by Core when downloading media", async () => {
+    const audio = Buffer.from("synthetic audio");
+    const checksum = createHash("sha256").update(audio).digest("hex");
+    const fetchMock = vi.fn().mockResolvedValue(new Response(audio, {
+      status: 200,
+      headers: { "content-type": "audio/ogg", "x-media-checksum": checksum },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({
+      AGENTS_DATABASE_URL: "postgres://localhost/agents",
+      KASITEK_CORE_URL: "https://core.example.test",
+      KASITEK_CORE_INTERNAL_TOKEN: "internal-token",
+    });
+    await expect(new KasitekCoreReadClient(config).downloadContentMedia(context, "asset/audio-1"))
+      .resolves.toMatchObject({ bytes: audio, mimeType: "audio/ogg", checksum });
+  });
+
   it("deletes audio media through the trusted media boundary", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ deleted: true }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
@@ -399,6 +440,22 @@ describe("kasitek-core read boundary", () => {
     expect(fetchMock.mock.calls[1]?.[0]).toBe("https://core.example.test/api/internal/agents/v1/content/posts/post-1");
     expect((fetchMock.mock.calls[1]?.[1] as RequestInit).method).toBe("DELETE");
     expect((fetchMock.mock.calls[1]?.[1] as RequestInit).headers).toHaveProperty("idempotency-key");
+  });
+
+  it("routes published deletion through the provider-deletion boundary", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      localDeleted: true,
+      providerResults: [{ platform: "THREADS", status: "DELETED" }],
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+    await expect(new KasitekCoreReadClient(config).deletePublishedContentPost(context, "post-1", "THREADS")).resolves.toMatchObject({ success: true, localDeleted: true });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://core.example.test/api/internal/agents/v1/content/posts/post-1/delete-published");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual({ platform: "THREADS" });
+    expect(init.headers).toHaveProperty("idempotency-key");
   });
 
   it("binds a delegation token to the installation and the exact core capability", async () => {

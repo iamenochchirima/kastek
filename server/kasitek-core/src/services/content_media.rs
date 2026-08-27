@@ -65,6 +65,7 @@ pub struct ContentMediaBytesUpload {
 pub struct StoredContentMedia {
     pub bytes: Vec<u8>,
     pub mime_type: String,
+    pub checksum: Option<String>,
 }
 
 fn media_kind(mime_type: &str) -> Option<&'static str> {
@@ -525,7 +526,7 @@ pub async fn download_content_media(
 ) -> Result<HttpResponse, AppError> {
     let row = sqlx::query_as::<_, ContentMediaDownloadRow>(
         r#"
-        SELECT "storageKey" AS storage_key, "mimeType" AS mime_type, "fileName" AS file_name,
+        SELECT "storageKey" AS storage_key, "mimeType" AS mime_type, "fileName" AS file_name, checksum,
                "processingStatus"::text AS processing_status, "scanStatus"::text AS scan_status
         FROM "ContentMediaAsset"
         WHERE id = $1 AND "orgId" = $2
@@ -562,7 +563,7 @@ pub async fn read_content_media_bytes(
 ) -> Result<StoredContentMedia, AppError> {
     let row = sqlx::query_as::<_, ContentMediaDownloadRow>(
         r#"
-        SELECT "storageKey" AS storage_key, "mimeType" AS mime_type, "fileName" AS file_name,
+        SELECT "storageKey" AS storage_key, "mimeType" AS mime_type, "fileName" AS file_name, checksum,
                "processingStatus"::text AS processing_status, "scanStatus"::text AS scan_status
         FROM "ContentMediaAsset"
         WHERE id = $1 AND "orgId" = $2
@@ -582,6 +583,7 @@ pub async fn read_content_media_bytes(
     Ok(StoredContentMedia {
         bytes,
         mime_type: row.mime_type,
+        checksum: row.checksum,
     })
 }
 
@@ -703,6 +705,7 @@ struct ContentMediaDownloadRow {
     storage_key: String,
     mime_type: String,
     file_name: Option<String>,
+    checksum: Option<String>,
     processing_status: String,
     scan_status: String,
 }
