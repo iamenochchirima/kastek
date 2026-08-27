@@ -331,16 +331,20 @@ User, API, internal, and operational documentation: public audio input documenta
 ownership reference, this plan/checklist, and the provider-failure runbook are present. API
 reference publication and privacy/legal approval remain pending.
 
-Validation evidence: Agent build and TypeScript checks pass; focused Agent tests pass, including
+Validation evidence: Agent build and TypeScript checks pass; the full Agent suite passes with 78
+test files passing and 18 integration files skipped by environment (440 tests passed, 45 skipped);
+focused Agent tests include
 authenticated HTTP contract tests for direct multipart transcription, Core media acceptance,
 durable platform enqueue, organization-scoped job status, WhatsApp canonical inbound enqueue,
 Telegram voice download/enqueue, and Discord attachment download/enqueue; the
 database-backed Agent integration suite passes 15/15 tests for retention, operator commands,
 platform chat, durable audio enqueue/deduplication, worker completion, retry recovery, and one
-agent dispatch; Core formatting/check and focused website/media tests pass; client/Admin
-TypeScript checks pass. Core checksum verification and deletion-retry behavior are covered by
-targeted tests/checks. Real ElevenLabs, channel-provider, widget browser, clean-install migration,
-and staging tests remain pending.
+agent dispatch; Core formatting/check passes and the Core library suite passes 193 tests with 3
+environment-gated tests ignored; client and Admin TypeScript checks pass, the client build passes,
+and the public documentation build passes. Admin lint passes with 29 pre-existing warnings and
+the client build reports the existing Geist Pixel fallback-font warning. Core checksum verification
+and deletion-retry behavior are covered by targeted tests/checks. Real ElevenLabs, channel-provider,
+widget browser, clean-install migration, and staging tests remain pending.
 
 Rollback or disable plan: do not enable client entry points; if enabled during development, disable
 the audio controls and remove the ElevenLabs key/configuration. The additive audio enum migration
