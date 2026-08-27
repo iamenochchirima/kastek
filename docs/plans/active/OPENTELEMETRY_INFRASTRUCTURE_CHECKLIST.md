@@ -303,9 +303,11 @@ Repository evidence for the implementation slice:
   `cargo test -p kasitek-analytics --lib` (66 passed), and `cargo test -p kasitek-tenants` (5
   passed). The local Analytics maintenance PostgreSQL test remains failing at its quarantine-work
   assertion; the Tenants binary test emits a pre-existing unused-parameter warning.
-- Agents: `pnpm exec tsc -p tsconfig.json --noEmit` and `pnpm test` passed (75 test files passed,
-  17 skipped; 421 tests passed, 43 skipped). The Temporal activity-boundary test verifies that
-  JSON-encoded string headers are decoded before correlation context is restored.
+- Agents: `pnpm exec tsc -p tsconfig.json --noEmit`, `pnpm test`, and `pnpm run build` passed (75
+  test files passed, 17 skipped; 421 tests passed, 43 skipped). The Temporal activity-boundary
+  test verifies that JSON-encoded string headers are decoded before correlation context is
+  restored. The observability CI workflow now runs the affected Rust service suites and the Agents
+  build in addition to the shared telemetry checks.
 - Disabled-export fallback: `OTEL_SDK_DISABLED=true LOG_FORMAT=json RUST_LOG=info cargo run
   -p observability --example otel-smoke` emitted both legacy `log!` and `tracing!` records to
   stdout without attempting an OTLP connection.
@@ -333,7 +335,7 @@ Repository evidence for the implementation slice:
   to removed strategy or implementation-plan material; no public user/API documentation change
   is required for this infrastructure-only work.
 - Versioning: local validation metadata is `0.1.0`; the current observability implementation tree
-  is recorded through `dfff04d1`; no platform release tag or deployed
+  is recorded through `4ddec15b`; no platform release tag or deployed
   artifact was created by this work.
 
 Checks intentionally not claimed as complete:

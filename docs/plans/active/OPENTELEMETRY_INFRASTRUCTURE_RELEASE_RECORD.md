@@ -38,9 +38,10 @@ The repository implementation is split into reviewable commits:
 | Provider-child propagation, Rust log redaction, and provider payload hardening | `deacc9e5` |
 | Rust operational log migration and legacy-macro CI guard | `917b530d` |
 | CI smoke-fixture exclusion correction | `dfff04d1` |
+| Service-boundary test and Agents build CI coverage | `4ddec15b` |
 
 The exact implementation tree used for the repository smoke evidence is now
-`dfff04d1` (`dfff04d1` is the current repository-side implementation commit). The Collector
+`4ddec15b` (`4ddec15b` is the current repository-side implementation commit). The Collector
 configuration is unchanged from `7f064cce`; the current tree includes the follow-up worker,
 event-contract, compatibility-boundary, disabled-export fallback, documentation, and
 context-propagation, provider-child propagation, log-redaction, and operational-log migration
@@ -68,9 +69,10 @@ Production release ID: not created
   tests), and `cargo test -p analytics-reporting --lib` (4 tests); Analytics unit and ingestion
   tests pass, while the
   local maintenance PostgreSQL test does not discover its quarantine work row.
-- Agents type checking and the full test suite passed after the propagation regression fix: 421
-  tests passed and 43 were skipped. The Temporal activity-boundary test verifies JSON string
-  payload decoding before async correlation context restoration.
+- Agents type checking, production build, and the full test suite passed after the propagation
+  regression fix: 421 tests passed and 43 were skipped. The Temporal activity-boundary test
+  verifies JSON string payload decoding before async correlation context restoration. CI now runs
+  the same Agents build and the affected Rust service suites.
 - The disabled-export Rust smoke emitted both legacy `log!` and `tracing!` records to stdout with
   `OTEL_SDK_DISABLED=true`, confirming the fallback remains visible without an OTLP endpoint.
 - All four Collector profiles passed validation with the pinned Collector `0.158.0` binary, and
