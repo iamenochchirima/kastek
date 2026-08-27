@@ -1022,7 +1022,9 @@ impl AgentPlatformClient {
     ) -> Result<Value, AppError> {
         self.request_json(
             Method::GET,
-            &format!("/v1/installations/{installation_id}/integrations/google.calendar/oauth/start"),
+            &format!(
+                "/v1/installations/{installation_id}/integrations/google.calendar/oauth/start"
+            ),
             organization_id,
             actor_id,
             &["agents:write"],
@@ -1060,7 +1062,9 @@ impl AgentPlatformClient {
     ) -> Result<Value, AppError> {
         self.request_json(
             Method::POST,
-            &format!("/v1/installations/{installation_id}/integrations/{integration_id}/local-connector"),
+            &format!(
+                "/v1/installations/{installation_id}/integrations/{integration_id}/local-connector"
+            ),
             organization_id,
             actor_id,
             &["agents:write"],

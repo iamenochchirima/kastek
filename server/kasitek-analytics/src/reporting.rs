@@ -490,7 +490,9 @@ impl ReportingCache {
                 return None;
             }
             match redis::Client::open(url) {
-                Ok(client) => Some(Arc::new(RedisCacheBackend::new(client)) as Arc<dyn CacheBackend>),
+                Ok(client) => {
+                    Some(Arc::new(RedisCacheBackend::new(client)) as Arc<dyn CacheBackend>)
+                }
                 Err(error) => {
                     observability::tracing::warn!(
                         event = "dependency.unavailable",
