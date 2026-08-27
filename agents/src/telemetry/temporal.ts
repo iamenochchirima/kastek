@@ -8,7 +8,12 @@ const PROPAGATED_KEYS = new Set(["traceparent", "tracestate", "x-correlation-id"
 
 function payloadToString(payload: Headers[string] | undefined): string | undefined {
   if (!payload?.data) return undefined;
-  return Buffer.from(payload.data).toString("utf8");
+  try {
+    const value = defaultPayloadConverter.fromPayload<unknown>(payload);
+    return typeof value === "string" ? value : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function temporalCarrier(headers: Headers): Record<string, string> {

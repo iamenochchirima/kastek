@@ -1096,10 +1096,15 @@ mod tests {
     use std::env;
 
     use super::{
-        access_log_status, display_level, format_status, is_safe_correlation_id,
-        parse_status_token, status_color, Sampler,
+        access_log_status, display_level, format_status, inject_trace_context,
+        is_safe_correlation_id, parse_status_token, status_color, Sampler,
     };
     use log::{Level, Record};
+    use opentelemetry::{
+        global,
+        trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState},
+        Context,
+    };
 
     #[test]
     fn status_colors_follow_http_outcome_classes() {
@@ -1157,6 +1162,38 @@ mod tests {
         assert!(!is_safe_correlation_id(""));
         assert!(!is_safe_correlation_id("bad value"));
         assert!(!is_safe_correlation_id(&"x".repeat(129)));
+    }
+
+    #[test]
+    fn injects_the_active_w3c_trace_context_into_http_headers() {
+        global::set_text_map_propagator(super::TraceContextPropagator::new());
+        let parent = SpanContext::new(
+            TraceId::from_bytes([
+                0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd,
+                0xee, 0xff,
+            ]),
+            SpanId::from_bytes([0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef]),
+            TraceFlags::SAMPLED,
+            true,
+            TraceState::from_key_value([("vendor", "value")]).expect("valid trace state"),
+        );
+        let _guard = Context::new().with_remote_span_context(parent).attach();
+        let mut headers = http::HeaderMap::new();
+
+        inject_trace_context(&mut headers);
+
+        assert_eq!(
+            headers
+                .get("traceparent")
+                .and_then(|value| value.to_str().ok()),
+            Some("00-00112233445566778899aabbccddeeff-0123456789abcdef-01")
+        );
+        assert_eq!(
+            headers
+                .get("tracestate")
+                .and_then(|value| value.to_str().ok()),
+            Some("vendor=value")
+        );
     }
 
     #[test]
