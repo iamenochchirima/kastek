@@ -827,6 +827,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post("/v1/audio/transcriptions", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "channels:ingest");
+    if (!(await controls.isFeatureEnabled(auth.organizationId, "audio_transcription_enabled"))) {
+      return reply.code(503).send({ error: "Audio transcription is disabled", code: "AUDIO_TRANSCRIPTION_DISABLED" });
+    }
     const part = await request.file();
     if (!part) return reply.code(400).send({ error: "AUDIO_FILE_REQUIRED", code: "AUDIO_FILE_REQUIRED" });
     const mimeType = normalizeAudioMimeType(part.mimetype);

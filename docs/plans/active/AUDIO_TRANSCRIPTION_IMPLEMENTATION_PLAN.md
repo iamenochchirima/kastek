@@ -289,7 +289,8 @@ not applicable to the current ElevenLabs batch endpoint.
    status are implemented. Quarantine/release is not implemented because scanning is not yet real.
 3. Audio minutes are not metered or deducted from credits pending product approval.
 4. `audio_transcription_enabled` is available at global, organization, and installation scope;
-   rollout and beta workspace selection remain release work.
+   direct transcription checks global/organization scope, while platform and channel ingestion
+   checks installation scope. Rollout and beta workspace selection remain release work.
 5. Real ElevenLabs, channel-provider, migration, browser, and staging acceptance remain pending.
 
 ## Release record for current implementation slice
@@ -313,9 +314,10 @@ Platform migrations `073_audio_transcription_jobs` and `075_audio_transcription_
 authenticated audio upload/status/retry endpoints; public widget session-scoped `/audio` and
 status/retry endpoints; operator job and command contracts. No destructive migration.
 
-Feature flag or rollout method: `audio_transcription_enabled` is enforced for platform and channel
-ingestion at global, organization, and installation scope. Keep it disabled outside approved
-internal/beta workspaces until the release gates below pass.
+Feature flag or rollout method: `audio_transcription_enabled` is enforced for direct transcription
+at global/organization scope and for platform/channel ingestion at global, organization, and
+installation scope. Keep it disabled outside approved internal/beta workspaces until the release
+gates below pass.
 
 Analytics events and success metrics: versioned lifecycle contracts are registered for received,
 started, completed, failed, dispatched, and user/operator retry. Events contain bounded channel,

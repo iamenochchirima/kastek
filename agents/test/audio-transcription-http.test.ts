@@ -135,6 +135,32 @@ describe("audio transcription HTTP contracts", () => {
     }
   });
 
+  it("does not call the provider when the audio feature flag is disabled", async () => {
+    const transcribe = vi.fn();
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      controls: { isFeatureEnabled: vi.fn().mockResolvedValue(false) } as never,
+      transcriptionProvider: { transcribe } as never,
+    });
+
+    try {
+      const upload = audioMultipart();
+      const response = await app.inject({
+        method: "POST",
+        url: "/v1/audio/transcriptions",
+        headers: { ...authHeaders(), "content-type": upload.contentType },
+        payload: upload.payload,
+      });
+
+      expect(response.statusCode).toBe(503);
+      expect(response.json()).toEqual({ error: "Audio transcription is disabled", code: "AUDIO_TRANSCRIPTION_DISABLED" });
+      expect(transcribe).not.toHaveBeenCalled();
+    } finally {
+      await app.close();
+    }
+  });
+
   it("stores platform audio in Core, enqueues durable work, and scopes job status to the organization", async () => {
     const enqueue = vi.fn().mockResolvedValue({
       job: { id: "job-audio-1", status: "queued", asset_id: "asset-audio-1" },
