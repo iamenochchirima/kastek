@@ -44,6 +44,7 @@ import remarkGfm from "remark-gfm";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   cancelAgentRun,
+  createPlatformConversation,
   disconnectKasiAiChannel,
   ensureKasiAi,
   getKasiAiHome,
@@ -55,6 +56,7 @@ import {
   listWhatsappConnectionOptions,
   restoreKasiAiConversation,
   retryAgentRun,
+  sendPlatformAudio,
   sendPlatformMessage,
   setKasiAiChannelDefault,
   setKasiAiConversationStatus,
@@ -73,6 +75,7 @@ import {
   type WhatsappConnectionOption,
 } from "@/lib/agent-platform";
 import { AgentApprovalPreview } from "@/components/dashboard/agents/agent-approval-preview";
+import { AudioMessageControl } from "@/components/dashboard/kasiai/audio-message-control";
 import { cn } from "@/lib/utils";
 
 type View = "chat" | "library" | "settings";
@@ -846,9 +849,14 @@ export function KasiAiChat({
     setInitialised(false);
     onOpenChange(false);
   };
-  const send = async (suggestion?: string, retryRunId?: string) => {
-    const text = (suggestion ?? draft).trim();
-    if (!text || !installation || sending || sendLocked.current) return;
+  const send = async (
+    suggestion?: string,
+    retryRunId?: string,
+    audioFile?: File,
+  ) => {
+    const text = audioFile ? "" : (suggestion ?? draft).trim();
+    if ((!text && !audioFile) || !installation || sending || sendLocked.current)
+      return;
     sendLocked.current = true;
     const selection = conversationSelection.current;
     const targetConversation = conversation;
@@ -863,8 +871,10 @@ export function KasiAiChat({
           id: `optimistic-${crypto.randomUUID()}`,
           conversation_id: targetConversation?.id ?? "new",
           direction: "inbound",
-          message_type: "text",
-          content: { text },
+          message_type: audioFile ? "attachment" : "text",
+          content: audioFile
+            ? { text: "Audio message", mediaKind: "audio" }
+            : { text },
           sequence_number: Number.MAX_SAFE_INTEGER,
           created_at: new Date().toISOString(),
         };
@@ -873,20 +883,35 @@ export function KasiAiChat({
     try {
       const accepted = retryRunId
         ? await retryAgentRun(retryRunId)
-        : await sendPlatformMessage(installation.id, {
-            message: text,
-            idempotencyKey: crypto.randomUUID(),
-            conversationId: targetConversation?.id,
-            createNew: !targetConversation,
-            modelProvider: !targetConversation
-              ? effectiveModel?.provider
-              : undefined,
-            model: !targetConversation ? effectiveModel?.model : undefined,
-            context: {
-              route: window.location.pathname,
-              pageTitle: document.title,
-            },
-          });
+        : audioFile
+          ? await (async () => {
+              const audioConversation = targetConversation
+                ? { conversation: targetConversation }
+                : await createPlatformConversation(installation.id);
+              return sendPlatformAudio(installation.id, {
+                file: audioFile,
+                idempotencyKey: crypto.randomUUID(),
+                conversationId: audioConversation.conversation.id,
+                context: {
+                  route: window.location.pathname,
+                  pageTitle: document.title,
+                },
+              });
+            })()
+          : await sendPlatformMessage(installation.id, {
+              message: text,
+              idempotencyKey: crypto.randomUUID(),
+              conversationId: targetConversation?.id,
+              createNew: !targetConversation,
+              modelProvider: !targetConversation
+                ? effectiveModel?.provider
+                : undefined,
+              model: !targetConversation ? effectiveModel?.model : undefined,
+              context: {
+                route: window.location.pathname,
+                pageTitle: document.title,
+              },
+            });
       if (selection !== conversationSelection.current) return;
       setMessages((current) =>
         mergeMessages(
@@ -1062,6 +1087,9 @@ export function KasiAiChat({
         setSending(false);
       }
     }
+  };
+  const sendAudio = (file: File) => {
+    void send(undefined, undefined, file);
   };
   const editMessage = (message: AgentMessage) => {
     setEditingMessageId(message.id);
@@ -1769,9 +1797,16 @@ export function KasiAiChat({
                           aria-label="Message KasiAi"
                         />
                         <div className="flex items-center justify-between pt-1">
-                          <span className="text-[10px] text-muted-foreground">
-                            Enter to send · Shift+Enter for a new line
-                          </span>
+                          <div className="flex min-w-0 items-center gap-1">
+                            <AudioMessageControl
+                              disabled={sending || !installation}
+                              onAudioReady={sendAudio}
+                              onError={(message) => setError(message)}
+                            />
+                            <span className="hidden text-[10px] text-muted-foreground sm:inline">
+                              Enter to send · Shift+Enter for a new line
+                            </span>
+                          </div>
                           {sending ? (
                             <Button
                               variant="outline"

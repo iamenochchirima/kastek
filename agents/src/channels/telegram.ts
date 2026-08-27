@@ -50,19 +50,23 @@ export class TelegramChannelAdapter implements ChannelAdapter {
     const conversationId = chat.id;
     if (![updateId, messageId, senderId, conversationId].every((value) => typeof value === "number" || typeof value === "string")) throw new Error("Invalid Telegram update");
     const document = message.document && typeof message.document === "object" ? message.document as Record<string, unknown> : undefined;
+    const voice = message.voice && typeof message.voice === "object" ? message.voice as Record<string, unknown> : undefined;
+    const audio = message.audio && typeof message.audio === "object" ? message.audio as Record<string, unknown> : undefined;
     const photos = Array.isArray(message.photo)
       ? message.photo.filter((photo): photo is Record<string, unknown> => Boolean(photo && typeof photo === "object"))
       : [];
     const photo = photos.at(-1);
-    const attachment = document ?? photo;
+    const attachment = document ?? audio ?? voice ?? photo;
     const attachmentId = attachment && typeof attachment.file_id === "string" ? attachment.file_id : undefined;
     const caption = typeof message.caption === "string" ? message.caption : undefined;
     const text = typeof message.text === "string" ? message.text : "";
     const content = attachmentId
       ? {
           attachmentId,
-          mimeType: typeof attachment?.mime_type === "string" ? attachment.mime_type : (photo ? "image/jpeg" : "application/octet-stream"),
+          mimeType: typeof attachment?.mime_type === "string" ? attachment.mime_type : (voice ? "audio/ogg" : photo ? "image/jpeg" : "application/octet-stream"),
           ...(typeof attachment?.file_name === "string" ? { fileName: attachment.file_name } : {}),
+          ...(typeof attachment?.duration === "number" ? { durationMs: Math.round(attachment.duration * 1000) } : {}),
+          ...(audio || voice ? { mediaKind: "audio" } : {}),
           ...(caption ? { text: caption } : {}),
         }
       : { text };

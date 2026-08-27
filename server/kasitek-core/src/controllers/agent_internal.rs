@@ -7,6 +7,7 @@
 //! and a small set of explicit, approval-gated actions are exposed here.
 
 use actix_web::{web, HttpRequest, HttpResponse};
+use chrono::{DateTime, Utc};
 use futures_util::StreamExt;
 use serde::Deserialize;
 use serde_json::json;
@@ -22,7 +23,7 @@ use crate::error::AppError;
 use crate::identity::internal_delegation;
 use crate::identity::request_context::RequestContext;
 use crate::services::whatsapp::WhatsappReplyButton;
-use crate::services::{connections, content_media, customers, website, whatsapp};
+use crate::services::{connections, content_media, credits, customers, website, whatsapp};
 
 #[derive(Debug, Default, Deserialize)]
 pub struct AgentContentInsightsQuery {
@@ -177,6 +178,171 @@ async fn resolve_internal_agent_context(
         causation_id: None,
         idempotency_key,
     })
+}
+
+fn resolve_credit_idempotency_key(
+    context: &RequestContext,
+    requested_key: Option<&str>,
+) -> Result<String, AppError> {
+    let requested_key = requested_key
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if let Some(signed_key) = context.idempotency_key.as_deref() {
+        if let Some(requested_key) = requested_key {
+            if requested_key != signed_key {
+                return Err(AppError::Conflict(
+                    "Request idempotency key does not match the signed delegation".to_string(),
+                ));
+            }
+        }
+        return Ok(signed_key.to_string());
+    }
+    requested_key
+        .map(str::to_string)
+        .ok_or_else(|| AppError::BadRequest("idempotency-key is required".to_string()))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreditReservationRequest {
+    pub action_key: String,
+    pub estimated_credits: i64,
+    pub source_type: Option<String>,
+    pub source_id: Option<String>,
+    pub pricing_version: Option<String>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub idempotency_key: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreditCaptureRequest {
+    pub actual_credits: i64,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub funding_source: Option<String>,
+    pub input_tokens: Option<i64>,
+    pub output_tokens: Option<i64>,
+    pub provider_cost_usd: Option<f64>,
+    pub metadata: Option<serde_json::Value>,
+    pub idempotency_key: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreditReleaseRequest {
+    pub reason: String,
+    pub idempotency_key: Option<String>,
+}
+
+pub async fn reserve_credits(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<CreditReservationRequest>,
+) -> Result<HttpResponse, AppError> {
+    let context =
+        resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.credits_reserve")
+            .await?;
+    let idempotency_key =
+        resolve_credit_idempotency_key(&context, body.idempotency_key.as_deref())?;
+    let result = credits::reserve_credits(
+        pool.get_ref(),
+        &context.organization_id,
+        &body.action_key,
+        body.estimated_credits,
+        body.source_type.as_deref(),
+        body.source_id.as_deref(),
+        body.pricing_version.as_deref(),
+        body.expires_at,
+        &idempotency_key,
+    )
+    .await?;
+    observability::tracing::info!(
+        event = "http.request.completed",
+        operation = "credits.reserve",
+        organization_id = %context.organization_id,
+        actor_id = %context.principal.id,
+        action_key = %body.action_key,
+        amount = body.estimated_credits,
+        idempotent = result.idempotent,
+        "agent credit reserve completed"
+    );
+    Ok(HttpResponse::Ok().json(result))
+}
+
+pub async fn capture_credits(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    reservation_id: web::Path<String>,
+    body: web::Json<CreditCaptureRequest>,
+) -> Result<HttpResponse, AppError> {
+    let context =
+        resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.credits_settle")
+            .await?;
+    let idempotency_key =
+        resolve_credit_idempotency_key(&context, body.idempotency_key.as_deref())?;
+    let result = credits::capture_credits(
+        pool.get_ref(),
+        &context.organization_id,
+        reservation_id.trim(),
+        body.actual_credits,
+        credits::CreditCaptureUsage {
+            provider: body.provider.clone(),
+            model: body.model.clone(),
+            funding_source: body.funding_source.clone(),
+            input_tokens: body.input_tokens,
+            output_tokens: body.output_tokens,
+            provider_cost_usd: body.provider_cost_usd.map(|value| value.to_string()),
+            metadata: body.metadata.clone(),
+        },
+        &idempotency_key,
+    )
+    .await?;
+    observability::tracing::info!(
+        event = "http.request.completed",
+        operation = "credits.capture",
+        organization_id = %context.organization_id,
+        actor_id = %context.principal.id,
+        reservation_id = %reservation_id,
+        amount = body.actual_credits,
+        idempotent = result.idempotent,
+        "agent credit capture completed"
+    );
+    Ok(HttpResponse::Ok().json(result))
+}
+
+pub async fn release_credits(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    reservation_id: web::Path<String>,
+    body: web::Json<CreditReleaseRequest>,
+) -> Result<HttpResponse, AppError> {
+    let context =
+        resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.credits_settle")
+            .await?;
+    let idempotency_key =
+        resolve_credit_idempotency_key(&context, body.idempotency_key.as_deref())?;
+    let result = credits::release_credits(
+        pool.get_ref(),
+        &context.organization_id,
+        reservation_id.trim(),
+        &body.reason,
+        &idempotency_key,
+    )
+    .await?;
+    observability::tracing::info!(
+        event = "http.request.completed",
+        operation = "credits.release",
+        organization_id = %context.organization_id,
+        actor_id = %context.principal.id,
+        reservation_id = %reservation_id,
+        idempotent = result.idempotent,
+        "agent credit release completed"
+    );
+    Ok(HttpResponse::Ok().json(result))
 }
 
 /// Read a customer and its scoped identities, conversations, bookings, and
@@ -899,8 +1065,15 @@ pub async fn upload_content_media(
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.split(';').next())
         .map(str::trim)
-        .filter(|value| value.starts_with("image/"))
-        .ok_or_else(|| AppError::BadRequest("An image MIME type is required".to_string()))?;
+        .filter(|value| {
+            value.starts_with("image/")
+                || value.starts_with("video/")
+                || value.starts_with("audio/")
+                || *value == "application/ogg"
+        })
+        .ok_or_else(|| {
+            AppError::BadRequest("An image, video, or audio MIME type is required".to_string())
+        })?;
     let file_name = req
         .headers()
         .get("x-media-file-name")
@@ -923,20 +1096,27 @@ pub async fn upload_content_media(
         .filter(|value| !value.is_empty())
         .map(str::to_string);
 
-    const MAX_CHANNEL_IMAGE_BYTES: usize = 20 * 1024 * 1024;
+    let max_channel_media_bytes: usize =
+        if mime_type.starts_with("audio/") || mime_type == "application/ogg" {
+            25 * 1024 * 1024
+        } else if mime_type.starts_with("image/") {
+            20 * 1024 * 1024
+        } else {
+            512 * 1024 * 1024
+        };
     let mut bytes = Vec::new();
     while let Some(chunk) = payload.next().await {
         let chunk =
             chunk.map_err(|_| AppError::BadRequest("Failed to read channel image".to_string()))?;
-        if bytes.len() + chunk.len() > MAX_CHANNEL_IMAGE_BYTES {
+        if bytes.len() + chunk.len() > max_channel_media_bytes {
             return Err(AppError::BadRequest(
-                "Images must be 20 MB or smaller".to_string(),
+                "Channel media exceeds the allowed size".to_string(),
             ));
         }
         bytes.extend_from_slice(&chunk);
     }
     if bytes.is_empty() {
-        return Err(AppError::BadRequest("An image is required".to_string()));
+        return Err(AppError::BadRequest("Media is required".to_string()));
     }
 
     let uploaded_by_id = context
@@ -1202,9 +1382,12 @@ mod tests {
 
     use super::{
         agent_connection_summary, bounded_agent_contact_limit, bounded_agent_template_limit,
-        AgentCollectionQuery,
+        resolve_credit_idempotency_key, AgentCollectionQuery,
     };
     use crate::db::models::ExternalConnection;
+    use crate::identity::principal::{Principal, PrincipalKind};
+    use crate::identity::request_context::RequestContext;
+    use std::collections::BTreeSet;
 
     #[test]
     fn agent_collection_limits_are_bounded_without_silent_clamping() {
@@ -1273,5 +1456,45 @@ mod tests {
         assert!(summary.get("id").is_none());
         assert!(summary.get("externalAccountId").is_none());
         assert!(summary.get("metadata").is_none());
+    }
+
+    fn credit_context(idempotency_key: Option<&str>) -> RequestContext {
+        RequestContext {
+            principal: Principal {
+                kind: PrincipalKind::TrustedInternalService,
+                id: "agent-platform".to_string(),
+                subject_user_id: None,
+                client_id: None,
+            },
+            organization_id: "org-1".to_string(),
+            user_id: None,
+            client_id: None,
+            installation_id: None,
+            effective_grants: BTreeSet::new(),
+            api_scopes: None,
+            correlation_id: None,
+            causation_id: None,
+            idempotency_key: idempotency_key.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn credit_idempotency_must_match_signed_delegation() {
+        let context = credit_context(Some("signed-key"));
+        assert_eq!(
+            resolve_credit_idempotency_key(&context, None).unwrap(),
+            "signed-key"
+        );
+        assert!(resolve_credit_idempotency_key(&context, Some("other-key")).is_err());
+    }
+
+    #[test]
+    fn fallback_credit_requests_require_an_idempotency_key() {
+        let context = credit_context(None);
+        assert!(resolve_credit_idempotency_key(&context, None).is_err());
+        assert_eq!(
+            resolve_credit_idempotency_key(&context, Some("request-key")).unwrap(),
+            "request-key"
+        );
     }
 }

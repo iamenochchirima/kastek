@@ -143,6 +143,8 @@ export class PlatformChatRepository {
     correlationId?: string;
     idempotencyKey: string;
     message: string;
+    messageType?: "text" | "attachment";
+    content?: Record<string, unknown>;
     context?: Record<string, unknown>;
     conversationId?: string;
     createNew?: boolean;
@@ -228,7 +230,7 @@ export class PlatformChatRepository {
           installation.agent_version_id,
           input.installationId,
           resolved.conversation.id,
-          JSON.stringify({ message: input.message, context: input.context ?? {} }),
+          JSON.stringify({ message: input.content?.assetId ? input.content : input.message, context: input.context ?? {} }),
           input.correlationId ?? null,
           input.actorId,
           input.idempotencyKey,
@@ -259,14 +261,15 @@ export class PlatformChatRepository {
           (conversation_id, organization_id, participant_id, direction, message_type, content,
            provider, provider_message_id, sequence_number, run_id, source_channel, occurred_at,
            delivery_status)
-         VALUES ($1, $2, $3, 'inbound', 'text', $4::jsonb, 'platform', $5, $6, $7,
+         VALUES ($1, $2, $3, 'inbound', $4, $5::jsonb, 'platform', $6, $7, $8,
                  'platform', now(), 'local')
          RETURNING *`,
         [
           resolved.conversation.id,
           input.organizationId,
           resolved.userParticipant.id,
-          JSON.stringify({ text: input.message }),
+          input.messageType ?? "text",
+          JSON.stringify(input.content ?? { text: input.message }),
           `${input.organizationId}:${input.idempotencyKey}`,
           nextSequence,
           run.id,

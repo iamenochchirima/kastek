@@ -1,6 +1,6 @@
 # Audio Input and Transcription Implementation Plan
 
-**Status:** Draft
+**Status:** In progress
 
 **Owner:** Product, Agent Platform, and Core Engineering
 
@@ -68,6 +68,23 @@ provider requests cannot create duplicate agent runs.
 - Anonymous widget traffic needs separate abuse controls from authenticated workspace traffic.
 - ElevenLabs documentation: [Speech-to-Text](https://elevenlabs.io/docs/overview/capabilities/speech-to-text)
   and [Speech-to-Text API](https://elevenlabs.io/docs/api-reference/speech-to-text/convert).
+
+## Boundary inventory evidence
+
+The first implementation slice confirms these ownership boundaries:
+
+- Core `MessageAttachment` remains the provider-facing inbox attachment record. Core
+  `ContentMediaAsset` is the controlled byte store and now supports additive `AUDIO` assets.
+- Agent Platform messages remain the conversation authority. Audio messages are stored as
+  `attachment` messages with `assetId`, `mimeType`, `mediaKind`, `transcript`, and bounded
+  transcription metadata in message content.
+- WhatsApp media is downloaded by Core; Telegram and Discord provider media is downloaded by Agent
+  Platform. Provider URLs are not persisted as canonical message content.
+- Authenticated KasIAI audio uses the Core media upload boundary and Agent Platform's existing
+  platform-message/run path. The website widget uses its session/origin boundary, stores audio in
+  Core, then forwards only the normalized attachment reference and transcript to Agent Platform.
+- The current slice performs transcription synchronously before dispatch. A durable transcription
+  job, lease, retry queue, and operator retry state remain required before production rollout.
 
 ## Product and technical decisions
 
@@ -234,6 +251,10 @@ anonymous clients. Error responses should use stable codes such as `AUDIO_TOO_LA
 4. Implement the provider adapter with timeouts, response validation, redaction, and error mapping.
 5. Add a durable transcription queue/worker and idempotent job lease.
 
+The current slice has the provider interface, server-side ElevenLabs adapter, audio media support,
+and synchronous channel/KasIAI/widget wiring. It deliberately does not mark the durable worker or
+transcription table complete.
+
 ### Phase 2 — external channel ingestion
 
 1. Add WhatsApp audio/voice-note normalization and authenticated media download.
@@ -258,6 +279,49 @@ anonymous clients. Error responses should use stable codes such as `AUDIO_TOO_LA
 3. Decide whether audio minutes consume credits and implement metering only after approval.
 4. Roll out behind per-channel/per-organization flags, beginning with internal and beta workspaces.
 5. Run staged external-provider tests and promote the exact tested artifact.
+
+## Release record for current implementation slice
+
+Change: Add server-side audio media validation/storage, ElevenLabs transcription integration, and
+audio ingestion paths for WhatsApp, Telegram, Discord, KasIAI, and the website widget.
+
+Owner: Agent Platform and Core Engineering.
+
+Risk: high until the durable worker, abuse limits, retention controls, and provider acceptance tests
+are complete; this slice is not production-ready.
+
+Affected services and user surfaces: `agents`, `kasitek-core`, Core content media storage, the
+KasIAI composer, and the public website chat widget.
+
+Platform release version or release ID: not assigned; unreleased working-tree implementation.
+
+API/schema/migration changes: additive `ContentMediaKind.AUDIO` migration; authenticated Agent
+Platform audio/transcription endpoints; public widget session-scoped `/audio` endpoint; audio
+message content fields described above. No destructive migration.
+
+Feature flag or rollout method: not yet implemented. Keep audio entry points disabled in deployed
+clients until the worker, abuse controls, provider key, and staging smoke checks are complete.
+
+Analytics events and success metrics: not applicable to this implementation slice; the final
+release must register received, transcribed, failed, retried, and dispatched events with duration
+and status buckets and no transcript/audio payloads.
+
+Logs, metrics, dashboards, and alerts: bounded provider error codes and correlation IDs are logged;
+durable queue metrics, provider dashboards, and alerts remain pending. Collector configuration
+revision and hosted retention are not applicable until release deployment is defined.
+
+User, API, internal, and operational documentation: this active plan and checklist are updated;
+public audio support documentation and the provider-failure runbook remain pending.
+
+Validation evidence: Agent Platform build and transcription tests pass; Core formatting/check and
+client TypeScript checks pass. Real ElevenLabs, channel-provider, widget browser, migration, and
+staging tests remain pending.
+
+Rollback or disable plan: do not enable client entry points; if enabled during development, disable
+the audio controls and remove the ElevenLabs key/configuration. The additive audio enum migration
+is retained; text paths are unchanged.
+
+Post-release review date: not assigned until staging rollout is approved.
 
 ## Reliability and security requirements
 

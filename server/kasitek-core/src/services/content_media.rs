@@ -21,6 +21,7 @@ use crate::error::AppError;
 
 const MAX_IMAGE_BYTES: u64 = 20 * 1024 * 1024;
 const MAX_VIDEO_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_AUDIO_BYTES: u64 = 25 * 1024 * 1024;
 const PUBLIC_MEDIA_TTL_SECONDS: i64 = 15 * 60;
 type HmacSha256 = Hmac<Sha256>;
 
@@ -71,6 +72,8 @@ fn media_kind(mime_type: &str) -> Option<&'static str> {
         Some("IMAGE")
     } else if mime_type.starts_with("video/") {
         Some("VIDEO")
+    } else if mime_type.starts_with("audio/") || mime_type == "application/ogg" {
+        Some("AUDIO")
     } else {
         None
     }
@@ -83,6 +86,19 @@ fn allowed_mime(mime_type: &str, kind: &str) -> bool {
             "image/jpeg" | "image/png" | "image/webp" | "image/gif"
         ),
         "VIDEO" => matches!(mime_type, "video/mp4" | "video/webm" | "video/quicktime"),
+        "AUDIO" => matches!(
+            mime_type,
+            "audio/aac"
+                | "audio/flac"
+                | "audio/mp4"
+                | "audio/m4a"
+                | "audio/mpeg"
+                | "audio/ogg"
+                | "audio/opus"
+                | "audio/wav"
+                | "audio/webm"
+                | "application/ogg"
+        ),
         _ => false,
     }
 }
@@ -95,6 +111,16 @@ fn matches_file_signature(mime_type: &str, bytes: &[u8]) -> bool {
         "image/gif" => bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a"),
         "video/mp4" | "video/quicktime" => bytes.len() >= 12 && &bytes[4..8] == b"ftyp",
         "video/webm" => bytes.starts_with(&[0x1a, 0x45, 0xdf, 0xa3]),
+        "audio/aac" => bytes.len() >= 2 && bytes[0] == 0xff && (bytes[1] & 0xf6) == 0xf0,
+        "audio/flac" => bytes.starts_with(b"fLaC"),
+        "audio/mp4" | "audio/m4a" => bytes.len() >= 12 && &bytes[4..8] == b"ftyp",
+        "audio/mpeg" => {
+            bytes.starts_with(b"ID3")
+                || (bytes.len() >= 2 && bytes[0] == 0xff && (bytes[1] & 0xe0) == 0xe0)
+        }
+        "audio/ogg" | "audio/opus" | "application/ogg" => bytes.starts_with(b"OggS"),
+        "audio/wav" => bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WAVE",
+        "audio/webm" => bytes.starts_with(&[0x1a, 0x45, 0xdf, 0xa3]),
         _ => false,
     }
 }
@@ -127,6 +153,14 @@ fn extension_for(mime_type: &str, file_name: Option<&str>) -> String {
         "video/webm" => "webm".to_string(),
         "video/quicktime" => "mov".to_string(),
         "video/mp4" => "mp4".to_string(),
+        "audio/aac" => "aac".to_string(),
+        "audio/flac" => "flac".to_string(),
+        "audio/mp4" | "audio/m4a" => "m4a".to_string(),
+        "audio/mpeg" => "mp3".to_string(),
+        "audio/ogg" | "application/ogg" => "ogg".to_string(),
+        "audio/opus" => "opus".to_string(),
+        "audio/wav" => "wav".to_string(),
+        "audio/webm" => "webm".to_string(),
         _ => file_name
             .and_then(|name| Path::new(name).extension().and_then(|value| value.to_str()))
             .filter(|value| value.len() <= 8)
@@ -388,7 +422,7 @@ async fn persist_content_media(
         AppError::BadRequest("The media file must include a MIME type".to_string())
     })?;
     let kind = media_kind(mime_type).ok_or_else(|| {
-        AppError::BadRequest("Only image and video files are supported".to_string())
+        AppError::BadRequest("Only image, video, and audio files are supported".to_string())
     })?;
     if !allowed_mime(mime_type, kind) {
         return Err(AppError::BadRequest(format!(
@@ -400,10 +434,11 @@ async fn persist_content_media(
             "The file contents do not match the declared media format".to_string(),
         ));
     }
-    let max_bytes = if kind == "IMAGE" {
-        MAX_IMAGE_BYTES
-    } else {
-        MAX_VIDEO_BYTES
+    let max_bytes = match kind {
+        "IMAGE" => MAX_IMAGE_BYTES,
+        "VIDEO" => MAX_VIDEO_BYTES,
+        "AUDIO" => MAX_AUDIO_BYTES,
+        _ => unreachable!("media_kind only returns supported kinds"),
     };
     if upload.bytes.len() as u64 > max_bytes {
         return Err(AppError::BadRequest(format!(

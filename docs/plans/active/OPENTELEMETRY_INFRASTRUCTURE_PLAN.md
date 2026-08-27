@@ -255,7 +255,7 @@ Change: Introduce vendor-neutral OpenTelemetry instrumentation and Collector inf
 Owner: KasiTek engineering; provisional Collector incident owner: platform-ops.
 Risk: standard for repository changes; high for production enablement until staging and durable-destination gates pass.
 Affected services and user surfaces: Rust Core/Tenants/Analytics services, Agents API/worker/gateway/maintenance processes, and Collector deployment configuration; no direct user-interface behavior change.
-Platform release version or release ID: local validation metadata 0.1.0; implementation tree bf9f953d; no release tag or deployed artifact.
+Platform release version or release ID: local validation metadata 0.1.0; implementation tree b2b9cedb; no release tag or deployed artifact.
 API/schema/migration changes: not applicable; migration execution is instrumented but schemas are unchanged.
 Feature flag or rollout method: OTEL_SDK_DISABLED, OTEL_EXPORTER_OTLP_* endpoint/protocol, resource metadata, and sampler environment variables; stdout fallback remains available.
 Analytics events and success metrics: not applicable; operational telemetry remains separate from customer analytics.
@@ -273,8 +273,11 @@ The short result is: the initial implementation tree passed Rust formatting, wor
 shared-crate tests, and Clippy; the current targeted observability, analytics-producer, and
 analytics-reporting tests pass; Agents type checking and the full test suite passed; all Collector profiles passed
 validation; and the local Collector received Rust and Agents traces, logs, and metrics with
-matching trace/span context and release metadata. The current full-workspace `cargo check
---workspace` and `cargo fmt --all -- --check` pass. One local Analytics maintenance PostgreSQL
+matching trace/span context and release metadata. The clean committed observability tree passes
+Rust formatting and targeted observability checks, but a clean full-workspace `cargo check
+--workspace` is blocked by three unrelated organization/analytics symbols split across the
+committed tree and the user's uncommitted product changes. The mixed working tree passes the
+workspace check with one pre-existing Tenants warning. One local Analytics maintenance PostgreSQL
 test also fails to discover its quarantine work row. The public and
 internal documentation builds passed after stale links were removed from the internal
 documentation index and Admin Analytics reference.

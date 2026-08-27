@@ -45,9 +45,10 @@ The repository implementation is split into reviewable commits:
 | Finish remaining Rust operational log migration and remove unnecessary display-name telemetry | `bf9f953d` |
 | Add reproducible Railway Collector service definition | `988c93cb` |
 | Validate the Railway Collector service definition in CI | `e99ad4e9` |
+| Format committed Rust service code | `b2b9cedb` |
 
 The exact implementation tree used for the repository smoke evidence is now
-`bf9f953d` (`bf9f953d` is the current repository-side implementation commit). The Collector
+`b2b9cedb` (`b2b9cedb` is the current repository-side implementation commit). The Collector
 configuration content is unchanged from `7f064cce`; the Railway service definition is recorded in
 `988c93cb`. The current tree includes the follow-up worker,
 event-contract, compatibility-boundary, disabled-export fallback, documentation, and
@@ -95,11 +96,15 @@ Production release ID: not created
 - The shared Rust W3C HTTP injection test passed with `traceparent` and `tracestate`, and the
   provider-child regression test confirmed request construction observes the dependency span.
   The Agents Temporal activity-boundary test passed with bounded correlation context.
-- The current full-workspace `cargo check --workspace` and `cargo fmt --all -- --check` pass;
-  the targeted Rust telemetry crates remain independently verified. The Core suite passed with
-  190 tests and 3 ignored, the Analytics suite passed with 66 tests, and the Tenants binary suite
-  passed with 5 tests. The observability CI workflow now rejects new operational Rust `log!`
-  macros outside the smoke fixture.
+- A clean checkout of the committed observability tree passes `cargo fmt --all -- --check`, the
+  shared observability tests, and Clippy. A clean `cargo check --workspace` is currently blocked
+  by three unrelated organization/analytics symbols split across the committed tree and the
+  user's uncommitted product changes (`enqueue_organization_scope_definition` and two
+  `create_org` call sites). The mixed working tree does pass `cargo check --workspace`, with one
+  pre-existing unused-parameter warning in Tenants; that mixed state is not a releasable artifact.
+  The Core suite passed with 190 tests and 3 ignored, the Analytics suite passed with 66 tests,
+  and the Tenants binary suite passed with 5 tests. The observability CI workflow now rejects new
+  operational Rust `log!` macros outside the smoke fixture.
 - Public and internal documentation builds passed after removing stale links from the internal
   documentation index and Admin Analytics reference. This infrastructure-only change has no
   public user/API behavior change, so public documentation content is `not applicable`.

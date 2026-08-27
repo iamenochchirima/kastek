@@ -2381,6 +2381,130 @@ pub async fn send_message(
     Ok(HttpResponse::Accepted().json(response))
 }
 
+pub async fn send_audio_message(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    installation_id: web::Path<String>,
+    mut body: web::Payload,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    const MAX_AUDIO_BYTES: usize = 25 * 1024 * 1024;
+    let mime_type = req
+        .headers()
+        .get("content-type")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .map(str::trim)
+        .filter(|value| {
+            matches!(
+                *value,
+                "audio/aac"
+                    | "audio/flac"
+                    | "audio/m4a"
+                    | "audio/mp4"
+                    | "audio/mpeg"
+                    | "audio/ogg"
+                    | "audio/opus"
+                    | "audio/wav"
+                    | "audio/webm"
+                    | "application/ogg"
+            )
+        })
+        .ok_or_else(|| {
+            AppError::BadRequest("A supported audio MIME type is required".to_string())
+        })?;
+    let idempotency_key = req
+        .headers()
+        .get("x-audio-idempotency-key")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| (8..=240).contains(&value.len()))
+        .ok_or_else(|| {
+            AppError::BadRequest("A valid audio idempotency key is required".to_string())
+        })?;
+    let conversation_id = req
+        .headers()
+        .get("x-audio-conversation-id")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && value.len() <= 64)
+        .ok_or_else(|| {
+            AppError::BadRequest("A conversation is required for audio messages".to_string())
+        })?;
+    let file_name = req
+        .headers()
+        .get("x-audio-file-name")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| urlencoding::decode(value).ok())
+        .map(|value| value.into_owned());
+    let caption = req
+        .headers()
+        .get("x-audio-caption")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && value.chars().count() <= 4_000);
+    let context_route = req
+        .headers()
+        .get("x-audio-context-route")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && value.chars().count() <= 500);
+    let context_title = req
+        .headers()
+        .get("x-audio-context-title")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && value.chars().count() <= 240);
+    let mut bytes = BytesMut::new();
+    while let Some(chunk) = body.next().await {
+        let chunk = chunk.map_err(|_| AppError::BadRequest("Failed to read audio".to_string()))?;
+        if bytes.len() + chunk.len() > MAX_AUDIO_BYTES {
+            return Err(AppError::BadRequest(
+                "Audio must be 25 MB or smaller".to_string(),
+            ));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    if bytes.is_empty() {
+        return Err(AppError::BadRequest("Audio is required".to_string()));
+    }
+    let valid_signature = match mime_type {
+        "audio/aac" => bytes.len() >= 2 && bytes[0] == 0xff && (bytes[1] & 0xf6) == 0xf0,
+        "audio/flac" => bytes.starts_with(b"fLaC"),
+        "audio/m4a" | "audio/mp4" => bytes.len() >= 12 && &bytes[4..8] == b"ftyp",
+        "audio/mpeg" => {
+            bytes.starts_with(b"ID3")
+                || (bytes.len() >= 2 && bytes[0] == 0xff && (bytes[1] & 0xe0) == 0xe0)
+        }
+        "audio/ogg" | "audio/opus" | "application/ogg" => bytes.starts_with(b"OggS"),
+        "audio/wav" => bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WAVE",
+        "audio/webm" => bytes.starts_with(&[0x1a, 0x45, 0xdf, 0xa3]),
+        _ => false,
+    };
+    if !valid_signature {
+        return Err(AppError::BadRequest(
+            "Audio contents do not match the declared format".to_string(),
+        ));
+    }
+    let response = client(config.get_ref())?
+        .send_platform_audio(
+            &organization_id,
+            &user.id,
+            &installation_id,
+            bytes.to_vec(),
+            mime_type,
+            file_name.as_deref(),
+            idempotency_key,
+            conversation_id,
+            caption,
+            context_route,
+            context_title,
+        )
+        .await?;
+    Ok(HttpResponse::Accepted().json(response))
+}
+
 pub async fn get_conversation(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

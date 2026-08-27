@@ -66,6 +66,9 @@ export class DiscordChannelAdapter implements ChannelAdapter {
           attachmentId,
           mimeType: typeof attachment?.content_type === "string" ? attachment.content_type : "application/octet-stream",
           ...(typeof attachment?.filename === "string" ? { fileName: attachment.filename } : {}),
+          ...(typeof attachment?.url === "string" ? { url: attachment.url } : {}),
+          ...(typeof attachment?.duration_secs === "number" ? { durationMs: Math.round(attachment.duration_secs * 1000) } : {}),
+          ...(typeof attachment?.content_type === "string" && attachment.content_type.startsWith("audio/") ? { mediaKind: "audio" } : {}),
           ...(typeof value.content === "string" && value.content ? { text: value.content } : {}),
         }
       : { text: typeof value.content === "string" ? value.content : "" };

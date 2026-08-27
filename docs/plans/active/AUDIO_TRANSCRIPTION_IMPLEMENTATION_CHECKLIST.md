@@ -21,17 +21,17 @@ product, provider, privacy, or deployment decision.
 
 ## 1. Current-system inventory
 
-- [ ] Trace the canonical Agent Platform message and attachment contracts.
-- [ ] Trace Core message, attachment, media storage, download, scan, and deletion helpers.
+- [x] Trace the canonical Agent Platform message and attachment contracts.
+- [x] Trace Core message, attachment, media storage, download, scan, and deletion helpers.
 - [ ] Confirm the authoritative attachment table for each channel and avoid duplicate media records.
-- [ ] Trace WhatsApp provider media retrieval and voice-note handling.
-- [ ] Trace Telegram update parsing, file retrieval, and outbound message delivery.
-- [ ] Trace Discord attachment parsing, download, and outbound response delivery.
-- [ ] Trace KasIAI composer, upload, conversation persistence, and agent dispatch.
-- [ ] Trace website widget session, origin, upload, message, delivery, and retry flows.
+- [x] Trace WhatsApp provider media retrieval and voice-note handling.
+- [x] Trace Telegram update parsing, file retrieval, and outbound message delivery.
+- [x] Trace Discord attachment parsing, download, and outbound response delivery.
+- [x] Trace KasIAI composer, upload, conversation persistence, and agent dispatch.
+- [x] Trace website widget session, origin, upload, message, delivery, and retry flows.
 - [ ] Trace queue/worker ownership, leases, retry conventions, dead-letter handling, and metrics.
 - [ ] Trace existing organization permissions, attachment access, retention, and audit conventions.
-- [ ] Record the boundary map and unresolved dependencies in the implementation plan.
+- [x] Record the boundary map and unresolved dependencies in the implementation plan.
 
 ## 2. Data model and migration
 
@@ -41,7 +41,7 @@ product, provider, privacy, or deployment decision.
 - [ ] Add language, duration, checksum, and provider-cost/duration metadata where appropriate.
 - [ ] Add indexes for queued work, retryable failures, organization/conversation, and retention.
 - [ ] Preserve existing text messages, attachments, provider IDs, and old clients.
-- [ ] Ensure the migration is additive, repeatable, and safe with partially processed jobs.
+- [x] Ensure the migration is additive, repeatable, and safe with partially processed jobs.
 - [ ] Add a migration rollback/disable note; do not delete audio data in the first release migration.
 - [ ] Run Prisma/schema validation and generation.
 - [ ] Run the migration against an isolated database and verify clean-install behavior.
@@ -49,11 +49,11 @@ product, provider, privacy, or deployment decision.
 
 ## 3. Provider and worker foundation
 
-- [ ] Add a server-side ElevenLabs configuration boundary with secret validation.
-- [ ] Add an `AudioTranscriptionProvider` interface independent of ElevenLabs response shapes.
+- [x] Add a server-side ElevenLabs configuration boundary with secret validation.
+- [x] Add an `AudioTranscriptionProvider` interface independent of ElevenLabs response shapes.
 - [ ] Implement Scribe v2 batch submission and polling with request timeouts.
 - [ ] Validate provider responses and normalize transcript, language, duration, and error fields.
-- [ ] Add redaction so keys, signed URLs, raw transcripts, and provider payloads do not enter logs.
+- [x] Add redaction so keys, signed URLs, raw transcripts, and provider payloads do not enter logs.
 - [ ] Add a durable transcription job with a lease, idempotency key, attempt count, and safe state.
 - [ ] Add bounded exponential retry for timeouts, 429s, and retryable 5xx responses.
 - [ ] Mark invalid media, unsupported formats, and permanent provider errors terminal.
@@ -80,8 +80,8 @@ product, provider, privacy, or deployment decision.
 
 ### WhatsApp
 
-- [ ] Recognize voice notes and audio messages as canonical audio attachments.
-- [ ] Resolve and download provider media through the authenticated WhatsApp path.
+- [x] Recognize voice notes and audio messages as canonical audio attachments.
+- [x] Resolve and download provider media through the authenticated WhatsApp path.
 - [ ] Preserve provider message/media IDs for retries and deduplication.
 - [ ] Handle missing media, expired media URLs, unsupported codecs, and provider errors.
 - [ ] Verify transcript context reaches the existing agent exactly once.
@@ -89,36 +89,36 @@ product, provider, privacy, or deployment decision.
 
 ### Telegram
 
-- [ ] Parse `message.voice` and `message.audio` in the channel adapter.
-- [ ] Resolve the Telegram file ID and copy the file into controlled storage.
-- [ ] Preserve caption text alongside the audio without losing either input.
+- [x] Parse `message.voice` and `message.audio` in the channel adapter.
+- [x] Resolve the Telegram file ID and copy the file into controlled storage.
+- [x] Preserve caption text alongside the audio without losing either input.
 - [ ] Handle malformed updates, missing files, unsupported formats, and expired retrieval.
 - [ ] Verify transcript context and normal text response.
 
 ### Discord
 
-- [ ] Detect audio attachments from MIME type and validated file metadata.
-- [ ] Copy attachments from Discord into controlled storage before the source URL expires.
-- [ ] Preserve caption/content and attachment identity.
+- [x] Detect audio attachments from MIME type and validated file metadata.
+- [x] Copy attachments from Discord into controlled storage before the source URL expires.
+- [x] Preserve caption/content and attachment identity.
 - [ ] Enforce server/channel permissions already required by the Discord adapter.
 - [ ] Verify transcript context and normal text response.
 
 ## 6. KasIAI in-app experience
 
-- [ ] Add microphone recording with permission-denied handling.
-- [ ] Add audio-file selection with client-side hints but server-side validation.
+- [x] Add microphone recording with permission-denied handling.
+- [x] Add audio-file selection with client-side hints but server-side validation.
 - [ ] Show recording timer, cancel, upload progress, and disabled duplicate-submit state.
 - [ ] Show `Uploading`, `Transcribing`, `Ready`, and `Failed` states with retry.
 - [ ] Render a compact audio player and transcript in the conversation.
-- [ ] Preserve text composition and existing send behavior.
+- [x] Preserve text composition and existing send behavior.
 - [ ] Keep transcript/audio access scoped to the active organization and conversation.
 - [ ] Verify keyboard, focus, screen-reader labels, reduced motion, and mobile layout.
 
 ## 7. Website chat-widget experience
 
-- [ ] Add a session-scoped upload/finalize API or secure signed-upload flow.
-- [ ] Preserve origin validation, session expiry, anonymous rate limits, and idempotency.
-- [ ] Add a microphone button and file upload with concise processing states.
+- [x] Add a session-scoped upload/finalize API or secure signed-upload flow.
+- [x] Preserve origin validation, session expiry, and idempotency. Anonymous rate limits remain pending.
+- [x] Add a microphone button and file upload with concise processing states.
 - [ ] Prevent sending the same attachment twice after refresh or retry.
 - [ ] Deliver transcription/agent progress through the existing widget event channel.
 - [ ] Render the audio player and transcript without exposing storage keys or provider details.
@@ -128,12 +128,12 @@ product, provider, privacy, or deployment decision.
 
 ## 8. Agent execution and response behavior
 
-- [ ] Pass only the normalized transcript into the existing agent context.
+- [x] Pass only the normalized transcript into the existing agent context.
 - [ ] Preserve original attachment metadata for Inbox and audit without adding it to the prompt unnecessarily.
 - [ ] Ensure transcript content remains subject to existing tool authorization and approval policy.
-- [ ] Ensure exactly one run is created per accepted audio message.
+- [x] Ensure exactly one run is created per accepted audio message after synchronous acceptance; durable worker idempotency remains pending.
 - [ ] Ensure agent retries do not re-transcribe or duplicate outbound replies.
-- [ ] Keep text-message processing independent when the transcription provider is unavailable.
+- [x] Keep text-message processing independent when the transcription provider is unavailable.
 - [ ] Add a user-safe failure reply for channels that cannot show asynchronous UI state.
 - [ ] Verify conversation ordering when transcription completes after later text messages.
 - [ ] Decide and test whether later text messages can overtake a pending audio job.
@@ -172,7 +172,7 @@ product, provider, privacy, or deployment decision.
 
 - [ ] Validate MIME, magic bytes, size, duration, filename, checksum, and format normalization.
 - [ ] Validate canonical audio attachment and transcript schemas.
-- [ ] Validate provider success, pending, malformed, 4xx, 429, 5xx, timeout, and retry mapping.
+- [x] Validate provider success, malformed, 4xx/429 mapping, and missing configuration.
 - [ ] Validate idempotency keys, duplicate completion, lease expiry, and retry backoff.
 - [ ] Validate safe error codes and redaction.
 - [ ] Validate language hints, captions, and empty/low-confidence transcript behavior.

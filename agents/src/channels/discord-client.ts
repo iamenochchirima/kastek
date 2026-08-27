@@ -9,6 +9,10 @@ export interface DiscordSendResult {
   status: "sent" | "unknown";
 }
 
+export interface DiscordDownloadedAttachment {
+  bytes: Uint8Array;
+}
+
 export interface DiscordComponentButton {
   customId: string;
   label: string;
@@ -65,6 +69,25 @@ export class DiscordBotClient {
       body: JSON.stringify({ content: text, ...(components ? { components } : {}) }),
     });
     return { providerMessageId: typeof result.id === "string" ? result.id : undefined, status: "sent" };
+  }
+
+  public async downloadAttachment(token: string, url: string, maxBytes = 25 * 1024 * 1024): Promise<DiscordDownloadedAttachment> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const response = await this.fetchImpl(url, {
+        headers: { authorization: `Bot ${token}` },
+        signal: controller.signal,
+      });
+      if (!response.ok) throw Object.assign(new Error(`Discord attachment download failed (${response.status})`), { code: "discord_attachment_download_failed", statusCode: 502 });
+      const length = Number(response.headers.get("content-length") ?? "0");
+      if (Number.isFinite(length) && length > maxBytes) throw Object.assign(new Error("Discord attachment is larger than the allowed limit"), { code: "discord_attachment_too_large", statusCode: 400 });
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (bytes.byteLength > maxBytes) throw Object.assign(new Error("Discord attachment is larger than the allowed limit"), { code: "discord_attachment_too_large", statusCode: 400 });
+      return { bytes };
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   public async sendApprovalPrompt(token: string, channelId: string, text: string, actions: { approve: string; reject: string }): Promise<DiscordSendResult> {

@@ -344,21 +344,24 @@ Repository evidence for the implementation slice:
   to removed strategy or implementation-plan material; no public user/API documentation change
   is required for this infrastructure-only work.
 - Versioning: local validation metadata is `0.1.0`; the current observability implementation tree
-  is recorded through `bf9f953d`; no platform release tag or deployed
+  is recorded through `b2b9cedb`; no platform release tag or deployed
   artifact was created by this work.
 
 Checks intentionally not claimed as complete:
 
 - Docker container build/run could not be repeated locally because the Docker daemon is not
   available. The GitHub workflow contains the containerized smoke test.
-- The current full-workspace `cargo check --workspace` and `cargo fmt --all -- --check` pass;
-  targeted observability and analytics-producer tests/checks pass, and the existing Analytics
-  maintenance PostgreSQL test still fails to discover its quarantine work row in the local
-  database.
+- A clean checkout of the committed observability tree passes `cargo fmt --all -- --check`,
+  `cargo test -p observability --lib`, and observability Clippy. A clean `cargo check --workspace`
+  is blocked by three unrelated organization/analytics symbols split across the committed tree
+  and the user's uncommitted product changes. The mixed working tree passes `cargo check
+  --workspace`, with one pre-existing Tenants unused-parameter warning; that mixed state is not a
+  releasable artifact. The existing Analytics maintenance PostgreSQL test still fails to discover
+  its quarantine work row in the local database.
 - Railway staging service creation, private DNS, environment variables, isolated resources, and
   staging release evidence require external platform access.
-- The implementation PR/issue link and release-owner approval must be added by the repository
-  owner in the project tracker or Git hosting system.
+- Release-owner approval must be added by the repository owner in the project tracker or Git
+  hosting system.
 - Durable backend selection, retention, access control, dashboards, alerts, and production search
   by release ID are deferred to a provider-specific observability plan.
 

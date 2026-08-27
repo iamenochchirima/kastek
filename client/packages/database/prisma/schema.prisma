@@ -1811,6 +1811,7 @@ enum SocialPlatform {
 enum ContentMediaKind {
   IMAGE
   VIDEO
+  AUDIO
 }
 
 enum ContentMediaProcessingStatus {

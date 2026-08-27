@@ -115,6 +115,7 @@ import { IntegrationToolService } from "../integrations/service";
 import { getIntegration, listIntegrations, listToolIntegrations } from "../integrations/catalog";
 import { correlationIdFromHeader, currentCorrelationId, runWithCorrelationId } from "../telemetry/context";
 import { operationalLogFields, operationalLogRedaction, operationalLogSerializers } from "../telemetry/logger";
+import { AudioTranscriptionError, ElevenLabsTranscriptionProvider, hasAudioFileSignature, isSupportedAudioMimeType, MAX_AUDIO_FILE_BYTES, normalizeAudioMimeType, type AudioTranscriptionProvider } from "../transcription";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -131,6 +132,7 @@ export interface AppDependencies {
   channelCredentials?: ChannelCredentialRepository;
   telegramClient?: TelegramBotClient;
   discordClient?: DiscordBotClient;
+  transcriptionProvider?: AudioTranscriptionProvider;
   credentials?: CredentialVaultRepository;
   /** Provider preflight used before a model credential is persisted. */
   verifyCredential?: (input: CredentialVerificationInput) => Promise<CredentialVerificationResult>;
@@ -412,7 +414,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     limits: {
       files: 1,
       fields: 0,
-      fileSize: MAX_KNOWLEDGE_FILE_BYTES,
+      fileSize: Math.max(MAX_KNOWLEDGE_FILE_BYTES, MAX_AUDIO_FILE_BYTES),
     },
   });
   const agents = dependencies.agents ?? new AgentRepository(dependencies.pool);
@@ -427,6 +429,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const channelCredentials = dependencies.channelCredentials ?? new ChannelCredentialRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
   const telegramClient = dependencies.telegramClient ?? new TelegramBotClient({ apiBaseUrl: dependencies.config.TELEGRAM_API_BASE_URL, timeoutMs: dependencies.config.TELEGRAM_API_TIMEOUT_MS });
   const discordClient = dependencies.discordClient ?? new DiscordBotClient({ apiBaseUrl: dependencies.config.DISCORD_API_BASE_URL, timeoutMs: dependencies.config.DISCORD_API_TIMEOUT_MS });
+  const transcriptionProvider = dependencies.transcriptionProvider ?? ElevenLabsTranscriptionProvider.fromConfig(dependencies.config);
   const credentials = dependencies.credentials ?? new CredentialVaultRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
   const verifyCredential = dependencies.verifyCredential ?? ((input: CredentialVerificationInput) => verifyProviderCredential(input));
   const installationCredentials = dependencies.installationCredentials ?? new InstallationCredentialRepository(dependencies.pool);
@@ -791,6 +794,45 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }
   });
 
+  app.post("/v1/audio/transcriptions", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "channels:ingest");
+    const part = await request.file();
+    if (!part) return reply.code(400).send({ error: "AUDIO_FILE_REQUIRED", code: "AUDIO_FILE_REQUIRED" });
+    const mimeType = normalizeAudioMimeType(part.mimetype);
+    if (!isSupportedAudioMimeType(mimeType)) {
+      return reply.code(422).send({ error: "AUDIO_UNSUPPORTED_FORMAT", code: "AUDIO_UNSUPPORTED_FORMAT" });
+    }
+    let bytes: Buffer;
+    try {
+      bytes = await part.toBuffer();
+    } catch (error) {
+      if ((error as { code?: string }).code === "FST_REQ_FILE_TOO_LARGE") {
+        return reply.code(413).send({ error: "AUDIO_TOO_LARGE", code: "AUDIO_TOO_LARGE" });
+      }
+      throw error;
+    }
+    if (bytes.length === 0) return reply.code(422).send({ error: "AUDIO_EMPTY", code: "AUDIO_EMPTY" });
+    if (bytes.length > MAX_AUDIO_FILE_BYTES) return reply.code(413).send({ error: "AUDIO_TOO_LARGE", code: "AUDIO_TOO_LARGE" });
+    if (!hasAudioFileSignature(mimeType, bytes)) {
+      return reply.code(422).send({ error: "AUDIO_INVALID_MEDIA", code: "AUDIO_INVALID_MEDIA" });
+    }
+    try {
+      const result = await transcriptionProvider.transcribe({
+        bytes,
+        mimeType,
+        fileName: part.filename,
+      });
+      return reply.send({ status: "completed", provider: "elevenlabs", text: result.text, ...(result.languageCode ? { languageCode: result.languageCode } : {}) });
+    } catch (error) {
+      if (error instanceof AudioTranscriptionError) {
+        request.log.warn({ code: error.code, retryable: error.retryable }, "Audio transcription failed");
+        return reply.code(error.statusCode).send({ error: error.code, code: error.code, retryable: error.retryable });
+      }
+      throw error;
+    }
+  });
+
   app.post<{ Params: { connectionId: string } }>("/v1/webhooks/telegram/:connectionId", async (request, reply) => {
     if (!secretHeaderMatches(dependencies.config.INTERNAL_AUTH_SECRET, headerValue(request, "x-kasitek-core-forward-secret"))) {
       return reply.code(401).send({ error: "Unauthorized" });
@@ -890,11 +932,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       let messageContent = parseCanonicalMessageContent(event.message.messageType, event.message.content);
       const attachmentId = typeof messageContent.attachmentId === "string" ? messageContent.attachmentId : undefined;
       const mimeType = typeof messageContent.mimeType === "string" ? messageContent.mimeType : undefined;
-      if (event.message.messageType === "attachment" && attachmentId && mimeType?.startsWith("image/")) {
+      const isAudio = mimeType?.split(";", 1)[0]?.trim().toLowerCase().startsWith("audio/") === true;
+      if (event.message.messageType === "attachment" && attachmentId && (mimeType?.startsWith("image/") || isAudio)) {
         if (!connection.credential_reference) throw new Error("Telegram channel media is not configured");
         const token = await channelCredentials.resolve(connection.organization_id, connection.credential_reference, "telegram");
         try {
-          const downloaded = await telegramClient.downloadFile(token, attachmentId);
+          const downloaded = await telegramClient.downloadFile(token, attachmentId, isAudio ? MAX_AUDIO_FILE_BYTES : undefined);
           const uploaded = await coreClient.uploadContentMedia(
             {
               organizationId: connection.organization_id,
@@ -912,9 +955,23 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
             },
           );
           messageContent = { ...messageContent, assetId: uploaded.asset.id, mediaKind: uploaded.asset.kind };
+          if (isAudio) {
+            const transcription = await transcriptionProvider.transcribe({
+              bytes: downloaded.bytes,
+              mimeType: normalizeAudioMimeType(mimeType!),
+              fileName: typeof messageContent.fileName === "string" ? messageContent.fileName : downloaded.filePath.split("/").at(-1),
+            });
+            const caption = typeof messageContent.text === "string" ? messageContent.text.trim() : "";
+            messageContent = {
+              ...messageContent,
+              text: [caption, transcription.text].filter(Boolean).join("\n\n"),
+              transcript: transcription.text,
+              transcription: { status: "completed", provider: "elevenlabs", ...(transcription.languageCode ? { languageCode: transcription.languageCode } : {}) },
+            };
+          }
         } catch (error) {
-          request.log.warn({ error: error instanceof Error ? error.message : "image ingestion failed" }, "Telegram image ingestion failed");
-          await telegramClient.sendMessage(token, event.externalConversationId, "I couldn't process that image. Please try sending it again.").catch(() => undefined);
+          request.log.warn({ code: error instanceof AudioTranscriptionError ? error.code : undefined, error: error instanceof Error ? error.message : "media ingestion failed" }, isAudio ? "Telegram audio ingestion failed" : "Telegram image ingestion failed");
+          await telegramClient.sendMessage(token, event.externalConversationId, isAudio ? "I couldn't transcribe that audio. Please try sending it again." : "I couldn't process that image. Please try sending it again.").catch(() => undefined);
           return reply.code(200).send({ ok: true, media: "failed" });
         }
       }
@@ -1025,6 +1082,60 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }
 
     try {
+      const correlationId = randomUUID();
+      let messageContent = parseCanonicalMessageContent(event.message.messageType, event.message.content);
+      const attachmentId = typeof messageContent.attachmentId === "string" ? messageContent.attachmentId : undefined;
+      const attachmentUrl = typeof messageContent.url === "string" ? messageContent.url : undefined;
+      const mimeType = typeof messageContent.mimeType === "string" ? normalizeAudioMimeType(messageContent.mimeType) : undefined;
+      const isAudio = messageContent.mediaKind === "audio" || mimeType?.startsWith("audio/") === true;
+      if (event.message.messageType === "attachment" && isAudio) {
+        if (!credential || !attachmentUrl) {
+          if (credential) await discordClient.sendMessage(credential, event.externalConversationId, "I couldn't access that audio. Please try sending it again.").catch(() => undefined);
+          return reply.code(200).send({ ok: true, media: "failed" });
+        }
+        try {
+          const downloaded = await discordClient.downloadAttachment(credential, attachmentUrl, MAX_AUDIO_FILE_BYTES);
+          const uploaded = await coreClient.uploadContentMedia(
+            {
+              organizationId: connection.organization_id,
+              installationId: connection.installation_id,
+              actorId: connection.created_by,
+              runId: randomUUID(),
+              correlationId,
+            },
+            {
+              bytes: downloaded.bytes,
+              mimeType: mimeType ?? "audio/mpeg",
+              fileName: typeof messageContent.fileName === "string" ? messageContent.fileName : undefined,
+              source: "discord",
+              sourceKey: `discord:${connection.id}:${event.message.providerMessageId ?? event.providerEventId}:${attachmentId ?? "audio"}`,
+            },
+          );
+          const transcription = await transcriptionProvider.transcribe({
+            bytes: downloaded.bytes,
+            mimeType: mimeType ?? "audio/mpeg",
+            fileName: typeof messageContent.fileName === "string" ? messageContent.fileName : undefined,
+          });
+          const caption = typeof messageContent.text === "string" ? messageContent.text.trim() : "";
+          messageContent = {
+            ...messageContent,
+            assetId: uploaded.asset.id,
+            mediaKind: uploaded.asset.kind,
+            text: [caption, transcription.text].filter(Boolean).join("\n\n"),
+            transcript: transcription.text,
+            transcription: { status: "completed", provider: "elevenlabs", ...(transcription.languageCode ? { languageCode: transcription.languageCode } : {}) },
+          };
+        } catch (error) {
+          request.log.warn({ code: error instanceof AudioTranscriptionError ? error.code : undefined, error: error instanceof Error ? error.message : "audio ingestion failed" }, "Discord audio ingestion failed");
+          await discordClient.sendMessage(credential, event.externalConversationId, "I couldn't transcribe that audio. Please try sending it again.").catch(() => undefined);
+          return reply.code(200).send({ ok: true, media: "failed" });
+        }
+      }
+      if ("url" in messageContent) {
+        const persistableContent = { ...messageContent };
+        delete persistableContent.url;
+        messageContent = persistableContent;
+      }
       const accepted = await platformChat.acceptExternalMessage({
         organizationId: connection.organization_id,
         installationId: connection.installation_id,
@@ -1036,10 +1147,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         externalIdentity: event.externalIdentity,
         externalConversationId: event.externalConversationId,
         messageType: event.message.messageType,
-        content: parseCanonicalMessageContent(event.message.messageType, event.message.content),
+        content: messageContent,
         occurredAt: event.message.occurredAt,
         displayName: typeof event.metadata.senderDisplayName === "string" ? event.metadata.senderDisplayName : undefined,
-        correlationId: randomUUID(),
+        correlationId,
       });
       const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
       if (workflowEnabled && dependencies.startWorkflow && accepted.created && accepted.run.status === "received") await dependencies.startWorkflow(accepted.run.id);
@@ -2566,6 +2677,91 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         default_credential_reference: input.defaultCredentialReference,
       });
       return { preferences };
+    },
+  );
+
+  app.post<{ Params: { installationId: string } }>(
+    "/v1/installations/:installationId/platform/audio",
+    async (request, reply) => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "chat:write");
+      const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+      if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+      requireHostedInstallation(installation);
+      const idempotencyKey = headerValue(request, "x-audio-idempotency-key")?.trim() ?? "";
+      const conversationId = headerValue(request, "x-audio-conversation-id")?.trim() ?? "";
+      if (idempotencyKey.length < 8 || idempotencyKey.length > 240 || !conversationId) {
+        return reply.code(400).send({ error: "A valid audio idempotency key and conversation are required", code: "audio_request_invalid" });
+      }
+      const part = await request.file();
+      if (!part) return reply.code(400).send({ error: "AUDIO_FILE_REQUIRED", code: "AUDIO_FILE_REQUIRED" });
+      const mimeType = normalizeAudioMimeType(part.mimetype);
+      if (!isSupportedAudioMimeType(mimeType)) return reply.code(422).send({ error: "AUDIO_UNSUPPORTED_FORMAT", code: "AUDIO_UNSUPPORTED_FORMAT" });
+      let bytes: Buffer;
+      try {
+        bytes = await part.toBuffer();
+      } catch (error) {
+        if ((error as { code?: string }).code === "FST_REQ_FILE_TOO_LARGE") return reply.code(413).send({ error: "AUDIO_TOO_LARGE", code: "AUDIO_TOO_LARGE" });
+        throw error;
+      }
+      if (!bytes.length) return reply.code(422).send({ error: "AUDIO_EMPTY", code: "AUDIO_EMPTY" });
+      if (bytes.length > MAX_AUDIO_FILE_BYTES) return reply.code(413).send({ error: "AUDIO_TOO_LARGE", code: "AUDIO_TOO_LARGE" });
+      if (!hasAudioFileSignature(mimeType, bytes)) return reply.code(422).send({ error: "AUDIO_INVALID_MEDIA", code: "AUDIO_INVALID_MEDIA" });
+
+      const correlationId = auth.correlationId ?? randomUUID();
+      const uploaded = await coreClient.uploadContentMedia(
+        {
+          organizationId: auth.organizationId,
+          installationId: request.params.installationId,
+          actorId: auth.actorId,
+          runId: randomUUID(),
+          correlationId,
+        },
+        {
+          bytes,
+          mimeType,
+          fileName: part.filename,
+          source: "kasiai",
+          sourceKey: `kasiai:${request.params.installationId}:${conversationId}:${idempotencyKey}`,
+        },
+      );
+      const transcription = await transcriptionProvider.transcribe({ bytes, mimeType, fileName: part.filename });
+      const caption = headerValue(request, "x-audio-caption")?.trim().slice(0, 4_000) ?? "";
+      const text = [caption, transcription.text].filter(Boolean).join("\n\n");
+      const context = {
+        ...(headerValue(request, "x-audio-context-route")?.trim() ? { route: headerValue(request, "x-audio-context-route")!.trim().slice(0, 500) } : {}),
+        ...(headerValue(request, "x-audio-context-title")?.trim() ? { pageTitle: headerValue(request, "x-audio-context-title")!.trim().slice(0, 240) } : {}),
+      };
+      const accepted = await platformChat.acceptMessage({
+        organizationId: auth.organizationId,
+        installationId: request.params.installationId,
+        actorId: auth.actorId,
+        correlationId,
+        idempotencyKey,
+        message: text,
+        messageType: "attachment",
+        content: {
+          text,
+          transcript: transcription.text,
+          assetId: uploaded.asset.id,
+          mimeType,
+          ...(part.filename ? { fileName: part.filename } : {}),
+          mediaKind: uploaded.asset.kind,
+          transcription: { status: "completed", provider: "elevenlabs", ...(transcription.languageCode ? { languageCode: transcription.languageCode } : {}) },
+        },
+        context,
+        conversationId,
+      });
+      const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
+      if (workflowEnabled && dependencies.startWorkflow && accepted.run.status === "received") await dependencies.startWorkflow(accepted.run.id);
+      return reply.code(202).send({
+        conversation: accepted.conversation,
+        message: accepted.message,
+        runId: accepted.run.id,
+        status: accepted.run.status,
+        created: accepted.created,
+        durable: workflowEnabled,
+      });
     },
   );
 

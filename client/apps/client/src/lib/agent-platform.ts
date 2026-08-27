@@ -1308,6 +1308,26 @@ export function sendPlatformMessage(
   });
 }
 
+export function sendPlatformAudio(
+  installationId: string,
+  input: { file: File; conversationId: string; idempotencyKey: string; caption?: string; context?: { route?: string; pageTitle?: string } },
+): Promise<{ conversation: AgentConversation; message: AgentMessage; runId: string; status: string }> {
+  const headers = new Headers({
+    "content-type": input.file.type || "application/octet-stream",
+    "x-audio-idempotency-key": input.idempotencyKey,
+    "x-audio-conversation-id": input.conversationId,
+    "x-audio-file-name": encodeURIComponent(input.file.name),
+  });
+  if (input.caption?.trim()) headers.set("x-audio-caption", input.caption.trim());
+  if (input.context?.route) headers.set("x-audio-context-route", input.context.route);
+  if (input.context?.pageTitle) headers.set("x-audio-context-title", input.context.pageTitle);
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/platform/audio`, {
+    method: "POST",
+    headers,
+    body: input.file,
+  });
+}
+
 export function getPlatformConversation(conversationId: string, options: { limit?: number; before?: string } = {}): Promise<ConversationResponse> {
   const query = new URLSearchParams();
   if (options.limit) query.set("limit", String(options.limit));

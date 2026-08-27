@@ -106,7 +106,7 @@ export class TelegramBotClient {
     const file = await this.call<{ file_path?: string; file_size?: number }>(token, "getFile", { file_id: fileId });
     if (!file.file_path) throw new Error("Telegram did not return a file path");
     if (typeof file.file_size === "number" && file.file_size > maxBytes) {
-      throw Object.assign(new Error("Telegram image is larger than 20 MB"), { code: "telegram_file_too_large", statusCode: 400 });
+      throw Object.assign(new Error("Telegram file is larger than the allowed limit"), { code: "telegram_file_too_large", statusCode: 400 });
     }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -120,11 +120,11 @@ export class TelegramBotClient {
       }
       const length = Number(response.headers.get("content-length") ?? "0");
       if (Number.isFinite(length) && length > maxBytes) {
-        throw Object.assign(new Error("Telegram image is larger than 20 MB"), { code: "telegram_file_too_large", statusCode: 400 });
+        throw Object.assign(new Error("Telegram file is larger than the allowed limit"), { code: "telegram_file_too_large", statusCode: 400 });
       }
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (bytes.byteLength > maxBytes) {
-        throw Object.assign(new Error("Telegram image is larger than 20 MB"), { code: "telegram_file_too_large", statusCode: 400 });
+        throw Object.assign(new Error("Telegram file is larger than the allowed limit"), { code: "telegram_file_too_large", statusCode: 400 });
       }
       return { bytes, filePath: file.file_path };
     } finally {

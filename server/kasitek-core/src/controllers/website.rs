@@ -1,13 +1,15 @@
 //! Anonymous website lead and waitlist transport handlers.
 
 use actix_web::{web, HttpRequest, HttpResponse};
+use futures_util::StreamExt;
+use serde_json::Value;
 use sqlx::PgPool;
 
 use crate::config::AppConfig;
 use crate::db::models::AgentWebsiteVisitorMessageRequest;
 use crate::db::models::{ProductWaitlistCreateRequest, QuoteRequestCreateRequest};
 use crate::error::AppError;
-use crate::services::{agent_platform::AgentPlatformClient, website};
+use crate::services::{agent_platform::AgentPlatformClient, content_media, website};
 
 const WEBSITE_CHAT_LOADER: &str = r#"(() => {
   const script = document.currentScript;
@@ -55,6 +57,14 @@ const WEBSITE_CHAT_LOADER: &str = r#"(() => {
       if (event.source !== frame.contentWindow || event.origin !== base || !event.data) return;
       if (event.data.type === 'kasitek:ready') { ready = true; emit({ type: 'kasitek:init', config, sessionId: session.sessionId }); }
       if (event.data.type === 'kasitek:close') instance.close();
+      if (event.data.type === 'kasitek:send-audio' && event.data.audio instanceof Blob) {
+        const audio = event.data.audio;
+        const headers = { 'Content-Type': audio.type || 'audio/webm', 'X-Audio-Idempotency-Key': crypto.randomUUID() };
+        if (typeof event.data.fileName === 'string' && event.data.fileName.trim()) headers['X-Audio-File-Name'] = encodeURIComponent(event.data.fileName.trim().slice(0, 240));
+        fetch(`${api}/sessions/${encodeURIComponent(session.sessionId)}/audio${shareSuffix}`, { method: 'POST', credentials: 'omit', headers, body: audio })
+          .then((r) => { if (!r.ok) throw new Error('Audio not accepted'); emit({ type: 'kasitek:accepted' }); })
+          .catch(() => emit({ type: 'kasitek:error', message: 'Unable to process your audio. Please try again.' }));
+      }
       if (event.data.type === 'kasitek:send' && typeof event.data.text === 'string') {
         fetch(`${api}/sessions/${encodeURIComponent(session.sessionId)}/messages${shareSuffix}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idempotencyKey: crypto.randomUUID(), text: event.data.text }) })
           .then((r) => { if (!r.ok) throw new Error('Message not accepted'); emit({ type: 'kasitek:accepted' }); })
@@ -93,6 +103,9 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     form{display:flex;gap:8px;padding:10px;border-top:1px solid #e2e8f0;flex:0 0 auto}
     input{min-width:0;flex:1;border:1px solid #cbd5e1;border-radius:9px;padding:10px;font:inherit}
     form button{background:var(--chat-primary,#3730a3);color:#fff;border-radius:9px;padding:0 13px;white-space:nowrap}
+    #audio-button,#file-button{width:38px;padding:0;background:transparent;color:#475569;font-size:18px}
+    #audio-button.recording{color:#b91c1c}
+    #file-input{display:none}
     small{display:block;padding:0 12px 10px;color:#64748b;text-align:center;flex:0 0 auto}
     small[hidden]{display:none}
     small a{color:inherit;text-decoration:none}
@@ -114,7 +127,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     <main id="messages"></main>
     <div id="typing" class="m bot typing" hidden aria-live="polite"><span>Thinking</span><i></i><i></i><i></i></div>
     <div id="error" role="alert"></div>
-    <form id="form"><input id="input" maxlength="4000" placeholder="Type a message…" aria-label="Message"><button id="send-button" type="submit">Send</button></form>
+    <form id="form"><button id="audio-button" type="button" aria-label="Record audio" title="Record audio">●</button><button id="file-button" type="button" aria-label="Attach audio" title="Attach audio">＋</button><input id="file-input" type="file" accept="audio/*"><input id="input" maxlength="4000" placeholder="Type a message…" aria-label="Message"><button id="send-button" type="submit">Send</button></form>
     <small id="branding">Powered by <a href="https://kasitek.co.za" target="_blank" rel="noopener noreferrer">KasiTek</a></small>
   </div>
   <script>
@@ -122,12 +135,18 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     const messages=q('#messages');
     const input=q('#input');
     const sendButton=q('#send-button');
+    const audioButton=q('#audio-button');
+    const fileButton=q('#file-button');
+    const fileInput=q('#file-input');
     const typing=q('#typing');
     const error=q('#error');
     const parentOrigin=(()=>{try{return new URL(document.referrer).origin}catch{return ''}})();
     const targetOrigin=parentOrigin||'*';
     let pending=false;
     let pendingTimer=null;
+    let recorder=null;
+    let stream=null;
+    let recordedChunks=[];
 
     const scrollToBottom=()=>requestAnimationFrame(()=>{messages.scrollTop=messages.scrollHeight});
     const appendPlain=(parent,text)=>{
@@ -215,6 +234,8 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
       typing.hidden=true;
       input.disabled=false;
       sendButton.disabled=false;
+      audioButton.disabled=false;
+      fileButton.disabled=false;
       sendButton.textContent='Send';
       if(pendingTimer){window.clearTimeout(pendingTimer);pendingTimer=null}
     };
@@ -223,6 +244,8 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
       typing.hidden=false;
       input.disabled=true;
       sendButton.disabled=true;
+      audioButton.disabled=true;
+      fileButton.disabled=true;
       sendButton.textContent='Sending…';
       scrollToBottom();
       if(pendingTimer)window.clearTimeout(pendingTimer);
@@ -233,6 +256,33 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
         scrollToBottom();
       },45000);
     };
+    const sendAudio=(audio,fileName)=>{
+      if(pending)return;
+      error.textContent='';
+      add('Audio message','me');
+      startPending();
+      parent.postMessage({type:'kasitek:send-audio',audio,fileName},targetOrigin);
+    };
+    const stopTracks=()=>{if(stream){stream.getTracks().forEach((track)=>track.stop());stream=null}recorder=null;audioButton.classList.remove('recording');audioButton.textContent='●';audioButton.setAttribute('aria-label','Record audio');audioButton.title='Record audio'};
+    const supportedRecordingType=()=>{if(typeof MediaRecorder==='undefined')return '';return ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/ogg'].find((value)=>MediaRecorder.isTypeSupported(value))||''};
+    audioButton.onclick=async()=>{
+      if(pending)return;
+      if(recorder){recorder.stop();return}
+      if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined'){error.textContent='Audio recording is not supported in this browser';return}
+      try{
+        stream=await navigator.mediaDevices.getUserMedia({audio:true});
+        const type=supportedRecordingType();
+        recorder=new MediaRecorder(stream,type?{mimeType:type}:undefined);
+        recordedChunks=[];
+        recorder.ondataavailable=(event)=>{if(event.data.size)recordedChunks.push(event.data)};
+        recorder.onerror=()=>{stopTracks();error.textContent='Audio recording failed'};
+        recorder.onstop=()=>{const mime=recorder.mimeType||type||'audio/webm';const blob=new Blob(recordedChunks,{type:mime});stopTracks();if(blob.size)sendAudio(blob,`website-recording.${mime.includes('ogg')?'ogg':'webm'}`);else error.textContent='No audio was recorded'};
+        recorder.start();
+        audioButton.classList.add('recording');audioButton.textContent='■';audioButton.setAttribute('aria-label','Stop recording');audioButton.title='Stop recording';
+      }catch(errorValue){stopTracks();error.textContent=errorValue?.name==='NotAllowedError'?'Microphone permission is required':'Unable to access the microphone'}
+    };
+    fileButton.onclick=()=>{if(!pending)fileInput.click()};
+    fileInput.onchange=()=>{const file=fileInput.files?.[0];fileInput.value='';if(file)sendAudio(file,file.name)};
 
     window.addEventListener('message',(event)=>{
       if((parentOrigin&&event.origin!==parentOrigin)||!event.data)return;
@@ -301,6 +351,46 @@ fn website_channel_message_payload(
     payload
 }
 
+fn website_channel_audio_payload(
+    channel_key: &str,
+    provider_event_id: &str,
+    external_identity: &str,
+    external_conversation_id: &str,
+    text: &str,
+    transcript: &str,
+    asset_id: &str,
+    mime_type: &str,
+    file_name: Option<&str>,
+    display_name: Option<&str>,
+) -> Value {
+    let mut content = serde_json::json!({
+        "text": text,
+        "transcript": transcript,
+        "assetId": asset_id,
+        "mimeType": mime_type,
+        "mediaKind": "audio",
+        "transcription": { "status": "completed", "provider": "elevenlabs" },
+    });
+    if let Some(file_name) = file_name {
+        content["fileName"] = Value::String(file_name.to_string());
+    }
+    let mut payload = serde_json::json!({
+        "channelType": "website",
+        "channelKey": channel_key,
+        "provider": "kasitek-website",
+        "providerEventId": provider_event_id,
+        "providerMessageId": provider_event_id,
+        "externalIdentity": external_identity,
+        "externalConversationId": external_conversation_id,
+        "messageType": "attachment",
+        "content": content,
+    });
+    if let Some(display_name) = display_name {
+        payload["displayName"] = Value::String(display_name.to_string());
+    }
+    payload
+}
+
 pub async fn create_quote_request(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
@@ -359,7 +449,10 @@ pub async fn agent_website_chat_preflight(req: HttpRequest) -> Result<HttpRespon
             website::normalize_origin(origin)?,
         ))
         .insert_header(("Access-Control-Allow-Methods", "GET, POST, OPTIONS"))
-        .insert_header(("Access-Control-Allow-Headers", "Content-Type"))
+        .insert_header((
+            "Access-Control-Allow-Headers",
+            "Content-Type, X-Audio-Idempotency-Key, X-Audio-File-Name, X-Audio-Caption, X-Audio-Display-Name",
+        ))
         .insert_header(("Vary", "Origin"))
         .finish())
 }
@@ -526,9 +619,181 @@ pub async fn send_agent_website_chat_message(
         .json(accepted))
 }
 
+pub async fn send_agent_website_chat_audio(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    session_id: web::Path<String>,
+    mut body: web::Payload,
+    query: web::Query<std::collections::HashMap<String, String>>,
+) -> Result<HttpResponse, AppError> {
+    const MAX_AUDIO_BYTES: usize = 25 * 1024 * 1024;
+    let share_request = query
+        .get("share")
+        .is_some_and(|value| value == "1" || value == "true");
+    let origin = req
+        .headers()
+        .get("origin")
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string)
+        .or_else(|| share_request.then(|| config.public_api_url.clone()))
+        .ok_or(AppError::Unauthorized)?;
+    let normalized_origin = website::normalize_origin(&origin)?;
+    let idempotency_key = req
+        .headers()
+        .get("x-audio-idempotency-key")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| (8..=240).contains(&value.len()))
+        .ok_or_else(|| {
+            AppError::BadRequest("A valid audio idempotency key is required".to_string())
+        })?;
+    let mime_type = req
+        .headers()
+        .get("content-type")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .map(str::trim)
+        .filter(|value| {
+            matches!(
+                *value,
+                "audio/aac"
+                    | "audio/flac"
+                    | "audio/m4a"
+                    | "audio/mp4"
+                    | "audio/mpeg"
+                    | "audio/ogg"
+                    | "audio/opus"
+                    | "audio/wav"
+                    | "audio/webm"
+                    | "application/ogg"
+            )
+        })
+        .ok_or_else(|| AppError::BadRequest("A supported audio MIME type is required".to_string()))?
+        .to_ascii_lowercase();
+    let file_name = req
+        .headers()
+        .get("x-audio-file-name")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| urlencoding::decode(value).ok())
+        .map(|value| value.into_owned());
+    let caption = req
+        .headers()
+        .get("x-audio-caption")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    if caption
+        .as_deref()
+        .is_some_and(|value| value.chars().count() > 4_000)
+    {
+        return Err(AppError::BadRequest(
+            "Audio caption is too long".to_string(),
+        ));
+    }
+    let display_name = req
+        .headers()
+        .get("x-audio-display-name")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && value.chars().count() <= 120)
+        .map(str::to_string);
+    let mut bytes = Vec::new();
+    while let Some(chunk) = body.next().await {
+        let chunk = chunk.map_err(|_| AppError::BadRequest("Failed to read audio".to_string()))?;
+        if bytes.len() + chunk.len() > MAX_AUDIO_BYTES {
+            return Err(AppError::BadRequest(
+                "Audio must be 25 MB or smaller".to_string(),
+            ));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    if bytes.is_empty() {
+        return Err(AppError::BadRequest("Audio is required".to_string()));
+    }
+
+    let session =
+        website::active_agent_website_visitor_session(pool.get_ref(), session_id.trim(), &origin)
+            .await?;
+    let deployment = sqlx::query_as::<_, (String, String, String)>(
+        r#"SELECT deployment."orgId", organization."ownerId", deployment."publicId"
+           FROM "AgentWebsiteDeployment" deployment
+           JOIN "Organization" organization ON organization.id = deployment."orgId"
+           WHERE deployment.id = $1 AND deployment.status = 'ACTIVE'"#,
+    )
+    .bind(&session.deployment_id)
+    .fetch_optional(pool.get_ref())
+    .await?
+    .ok_or_else(|| AppError::NotFound("Website Chat deployment not found".to_string()))?;
+    let (organization_id, owner_id, public_id) = deployment;
+    let source_key = format!(
+        "website:{}:{}:{}",
+        public_id, session.public_session_id, idempotency_key
+    );
+    let transcription_bytes = bytes.clone();
+    let asset = content_media::upload_content_media_bytes(
+        pool.get_ref(),
+        config.get_ref(),
+        &owner_id,
+        &organization_id,
+        content_media::ContentMediaBytesUpload {
+            file_name: file_name.clone(),
+            mime_type: mime_type.clone(),
+            bytes,
+            source: "website_widget".to_string(),
+            source_key: Some(source_key),
+        },
+    )
+    .await?;
+    let transcription = AgentPlatformClient::from_config(config.get_ref())?
+        .transcribe_audio(
+            &organization_id,
+            &owner_id,
+            transcription_bytes,
+            &mime_type,
+            file_name.as_deref(),
+        )
+        .await?;
+    let transcript = transcription
+        .get("text")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadGateway("Audio transcription returned no text".to_string()))?;
+    let text = [caption.as_deref().unwrap_or(""), transcript]
+        .into_iter()
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    let mut payload = website_channel_audio_payload(
+        &public_id,
+        idempotency_key,
+        &session.external_identity,
+        &session.external_conversation_id,
+        &text,
+        transcript,
+        &asset.id,
+        &mime_type,
+        file_name.as_deref(),
+        display_name.as_deref(),
+    );
+    if let Some(language_code) = transcription.get("languageCode").and_then(Value::as_str) {
+        payload["content"]["transcription"]["languageCode"] =
+            Value::String(language_code.to_string());
+    }
+    let accepted = AgentPlatformClient::from_config(config.get_ref())?
+        .ingest_channel_message(&organization_id, &owner_id, payload)
+        .await?;
+    Ok(HttpResponse::Accepted()
+        .insert_header(("Access-Control-Allow-Origin", normalized_origin))
+        .insert_header(("Vary", "Origin"))
+        .json(accepted))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::website_channel_message_payload;
+    use super::{website_channel_audio_payload, website_channel_message_payload};
 
     #[test]
     fn omits_optional_display_name_when_not_provided() {
@@ -559,6 +824,28 @@ mod tests {
         );
 
         assert_eq!(payload["displayName"], "Enoch");
+    }
+
+    #[test]
+    fn audio_payload_keeps_transcript_and_internal_asset_reference() {
+        let payload = website_channel_audio_payload(
+            "wdg_test",
+            "event-2",
+            "website:wvs_test",
+            "website:wdg_test:wvs_test",
+            "Please call me back\n\nPlease call me back",
+            "Please call me back",
+            "asset-1",
+            "audio/webm",
+            Some("recording.webm"),
+            None,
+        );
+
+        assert_eq!(payload["messageType"], "attachment");
+        assert_eq!(payload["content"]["assetId"], "asset-1");
+        assert_eq!(payload["content"]["transcript"], "Please call me back");
+        assert_eq!(payload["content"]["mediaKind"], "audio");
+        assert!(!payload.as_object().unwrap().contains_key("displayName"));
     }
 }
 

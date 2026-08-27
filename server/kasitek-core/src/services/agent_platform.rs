@@ -2,7 +2,11 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use bytes::Bytes;
 use hmac::{Hmac, Mac};
 use rand::RngCore;
-use reqwest::{header::HeaderMap, Client, Method, Response, StatusCode};
+use reqwest::{
+    header::HeaderMap,
+    multipart::{Form, Part},
+    Client, Method, Response, StatusCode,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::Sha256;
@@ -2126,6 +2130,83 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn send_platform_audio(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: &str,
+        bytes: Vec<u8>,
+        mime_type: &str,
+        file_name: Option<&str>,
+        idempotency_key: &str,
+        conversation_id: &str,
+        caption: Option<&str>,
+        context_route: Option<&str>,
+        context_title: Option<&str>,
+    ) -> Result<Value, AppError> {
+        let mut part = Part::bytes(bytes)
+            .mime_str(mime_type)
+            .map_err(|_| AppError::BadRequest("Audio MIME type is invalid".to_string()))?;
+        if let Some(file_name) = file_name.filter(|value| !value.trim().is_empty()) {
+            part = part.file_name(file_name.to_string());
+        }
+        let correlation_id = new_correlation_id();
+        let token = self.token(organization_id, actor_id, &["chat:write"], &correlation_id)?;
+        let mut request = self
+            .client
+            .request(
+                Method::POST,
+                format!(
+                    "{}/v1/installations/{installation_id}/platform/audio",
+                    self.base_url
+                ),
+            )
+            .timeout(self.timeout)
+            .header("Authorization", format!("Bearer {token}"))
+            .header("x-organization-id", organization_id)
+            .header("x-actor-id", actor_id)
+            .header("x-correlation-id", &correlation_id)
+            .header("x-audio-idempotency-key", idempotency_key)
+            .header("x-audio-conversation-id", conversation_id);
+        if let Some(caption) = caption.filter(|value| !value.trim().is_empty()) {
+            request = request.header("x-audio-caption", caption);
+        }
+        if let Some(route) = context_route.filter(|value| !value.trim().is_empty()) {
+            request = request.header("x-audio-context-route", route);
+        }
+        if let Some(title) = context_title.filter(|value| !value.trim().is_empty()) {
+            request = request.header("x-audio-context-title", title);
+        }
+        let response = observability::provider_result_span_with(
+            "kasitek-agents",
+            "http.request",
+            move || async move {
+                let mut trace_headers = HeaderMap::new();
+                observability::inject_trace_context(&mut trace_headers);
+                request
+                    .headers(trace_headers)
+                    .multipart(Form::new().part("file", part))
+                    .send()
+                    .await
+            },
+        )
+        .await
+        .map_err(|error| self.map_request_error(error))?;
+        if !response.status().is_success() {
+            return Err(self.map_status(response).await);
+        }
+        response.json::<Value>().await.map_err(|error| {
+            observability::tracing::error!(
+                event = "provider.call.failed",
+                provider = "kasitek-agents",
+                operation = "audio.message",
+                error_type = %std::any::type_name_of_val(&error),
+                "Agent Platform returned invalid audio message JSON"
+            );
+            AppError::BadGateway("Agent Platform returned an invalid response".to_string())
+        })
+    }
+
     pub async fn ingest_channel_message(
         &self,
         organization_id: &str,
@@ -2139,6 +2220,31 @@ impl AgentPlatformClient {
             actor_id,
             &["channels:ingest"],
             Some(body),
+        )
+        .await
+    }
+
+    pub async fn transcribe_audio(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        bytes: Vec<u8>,
+        mime_type: &str,
+        file_name: Option<&str>,
+    ) -> Result<Value, AppError> {
+        let mut part = Part::bytes(bytes)
+            .mime_str(mime_type)
+            .map_err(|_| AppError::BadRequest("Audio MIME type is invalid".to_string()))?;
+        if let Some(file_name) = file_name.filter(|value| !value.trim().is_empty()) {
+            part = part.file_name(file_name.to_string());
+        }
+        self.request_multipart(
+            Method::POST,
+            "/v1/audio/transcriptions",
+            organization_id,
+            actor_id,
+            &["channels:ingest"],
+            Form::new().part("file", part),
         )
         .await
     }
@@ -2631,6 +2737,52 @@ impl AgentPlatformClient {
                 operation = "http.request",
                 error_type = %std::any::type_name_of_val(&error),
                 "Agent Platform returned invalid JSON"
+            );
+            AppError::BadGateway("Agent Platform returned an invalid response".to_string())
+        })
+    }
+
+    async fn request_multipart(
+        &self,
+        method: Method,
+        path: &str,
+        organization_id: &str,
+        actor_id: &str,
+        scopes: &[&str],
+        body: Form,
+    ) -> Result<Value, AppError> {
+        let correlation_id = new_correlation_id();
+        let token = self.token(organization_id, actor_id, scopes, &correlation_id)?;
+        let request = self
+            .client
+            .request(method, format!("{}{}", self.base_url, path))
+            .timeout(self.timeout)
+            .header("Authorization", format!("Bearer {token}"))
+            .header("x-organization-id", organization_id)
+            .header("x-actor-id", actor_id)
+            .header("x-correlation-id", &correlation_id)
+            .multipart(body);
+        let response = observability::provider_result_span_with(
+            "kasitek-agents",
+            "http.request",
+            move || async move {
+                let mut trace_headers = HeaderMap::new();
+                observability::inject_trace_context(&mut trace_headers);
+                request.headers(trace_headers).send().await
+            },
+        )
+        .await
+        .map_err(|error| self.map_request_error(error))?;
+        if !response.status().is_success() {
+            return Err(self.map_status(response).await);
+        }
+        response.json::<Value>().await.map_err(|error| {
+            observability::tracing::error!(
+                event = "provider.call.failed",
+                provider = "kasitek-agents",
+                operation = "audio.transcription",
+                error_type = %std::any::type_name_of_val(&error),
+                "Agent Platform returned invalid transcription JSON"
             );
             AppError::BadGateway("Agent Platform returned an invalid response".to_string())
         })
