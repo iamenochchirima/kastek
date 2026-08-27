@@ -187,11 +187,11 @@ product, provider, privacy, or deployment decision.
 
 ### Channel fixture tests
 
-- [ ] WhatsApp voice note fixture.
+- [x] WhatsApp voice note/canonical inbound enqueue fixture.
 - [ ] WhatsApp audio-file fixture.
-- [ ] Telegram voice-message fixture.
+- [x] Telegram voice-message download and enqueue fixture.
 - [ ] Telegram audio-file fixture with caption.
-- [ ] Discord audio-attachment fixture.
+- [x] Discord audio-attachment download and enqueue fixture.
 - [ ] Unsupported/malicious/oversized fixture for each adapter.
 
 ### Browser E2E

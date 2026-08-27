@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppConfig } from "../src/config";
 import { buildApp } from "../src/http/app";
+import { hashChannelSecret } from "../src/db/channel-secret-crypto";
 
 const config: AppConfig = {
   NODE_ENV: "test",
@@ -14,6 +15,7 @@ const config: AppConfig = {
   TEMPORAL_TASK_QUEUE: "test",
   INTERNAL_AUTH_AUDIENCE: "test",
   AUTH_MODE: "headers",
+  INTERNAL_AUTH_SECRET: "forward-secret",
   KASITEK_CORE_URL: "https://core.example.test",
   KASITEK_CORE_INTERNAL_TOKEN: "internal-token",
   KASITEK_CORE_TIMEOUT_MS: 10_000,
@@ -45,6 +47,40 @@ function authHeaders(input: { organizationId?: string; actorId?: string } = {}):
   return {
     "x-organization-id": input.organizationId ?? "org-1",
     "x-actor-id": input.actorId ?? "actor-1",
+  };
+}
+
+function coreUploadResponse(assetId: string): Response {
+  return new Response(JSON.stringify({
+    asset: {
+      id: assetId,
+      kind: "AUDIO",
+      mimeType: "audio/ogg",
+      fileName: "voice.ogg",
+      byteSize: Buffer.from("OggS\u0000test-audio").length,
+      processingStatus: "READY",
+      scanStatus: "CLEAN",
+    },
+  }), { status: 200, headers: { "content-type": "application/json" } });
+}
+
+function channelConnection(channelType: "telegram" | "discord"): Record<string, unknown> {
+  return {
+    id: `${channelType}-connection-1`,
+    organization_id: "org-1",
+    installation_id: "install-1",
+    channel_type: channelType,
+    channel_key: `${channelType}:channel-1`,
+    credential_reference: `${channelType}-credential-1`,
+    webhook_secret_hash: hashChannelSecret("webhook-secret"),
+    webhook_url: null,
+    metadata: {},
+    status: "active",
+    installation_status: "active",
+    created_by: "actor-1",
+    created_at: "2026-08-27T00:00:00.000Z",
+    updated_at: "2026-08-27T00:00:00.000Z",
+    execution_mode: "kasitek_hosted",
   };
 }
 
@@ -232,6 +268,183 @@ describe("audio transcription HTTP contracts", () => {
       });
       expect(otherOrganizationResponse.statusCode).toBe(404);
       expect(otherOrganizationResponse.json()).toMatchObject({ error: "AUDIO_TRANSCRIPTION_JOB_NOT_FOUND" });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("queues an authenticated WhatsApp audio inbound envelope without running the agent inline", async () => {
+    const enqueue = vi.fn().mockResolvedValue({ job: { id: "job-whatsapp-1", status: "queued" }, created: true });
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      channels: { getConnectionForInbound: vi.fn().mockResolvedValue(null) } as never,
+      controls: { isFeatureEnabled: vi.fn().mockResolvedValue(true) } as never,
+      audioTranscriptionJobs: { enqueue } as never,
+    });
+
+    try {
+      const response = await app.inject({
+        method: "POST",
+        url: "/v1/channels/inbound",
+        headers: authHeaders(),
+        payload: {
+          installationId: "00000000-0000-4000-8000-000000000001",
+          channelType: "whatsapp",
+          channelKey: "whatsapp:+27123456789",
+          provider: "whatsapp",
+          providerEventId: "wamid-event-1",
+          providerMessageId: "wamid-message-1",
+          externalIdentity: "+27123456789",
+          externalConversationId: "+27123456789",
+          messageType: "attachment",
+          content: {
+            attachmentId: "provider-media-1",
+            assetId: "asset-whatsapp-1",
+            mimeType: "audio/ogg",
+            mediaKind: "audio",
+            text: "Please call me back",
+          },
+        },
+      });
+
+      expect(response.statusCode).toBe(202);
+      expect(response.json()).toEqual({
+        jobId: "job-whatsapp-1",
+        status: "queued",
+        assetId: "asset-whatsapp-1",
+        created: true,
+        durable: true,
+      });
+      expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({
+        organizationId: "org-1",
+        installationId: "00000000-0000-4000-8000-000000000001",
+        dispatchKind: "external",
+        idempotencyKey: "channel:whatsapp:wamid-event-1",
+        dispatchInput: expect.objectContaining({
+          provider: "whatsapp",
+          providerMessageId: "wamid-message-1",
+          content: expect.objectContaining({ assetId: "asset-whatsapp-1", mediaKind: "audio" }),
+        }),
+      }));
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("downloads Telegram voice notes, stores the bytes in Core, and queues transcription", async () => {
+    const enqueue = vi.fn().mockResolvedValue({ job: { id: "job-telegram-1", status: "queued" }, created: true });
+    const telegramDownload = vi.fn().mockResolvedValue({ bytes: Buffer.from("OggS\u0000telegram"), filePath: "voice/file.ogg" });
+    const coreFetch = vi.fn().mockResolvedValue(coreUploadResponse("asset-telegram-1"));
+    vi.stubGlobal("fetch", coreFetch);
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      channels: { getConnectionForWebhook: vi.fn().mockResolvedValue(channelConnection("telegram")) } as never,
+      channelCredentials: { resolve: vi.fn().mockResolvedValue("telegram-token") } as never,
+      telegramClient: { downloadFile: telegramDownload, sendMessage: vi.fn() } as never,
+      controls: { isFeatureEnabled: vi.fn().mockResolvedValue(true) } as never,
+      audioTranscriptionJobs: { enqueue } as never,
+    });
+
+    try {
+      const response = await app.inject({
+        method: "POST",
+        url: "/v1/webhooks/telegram/telegram-connection-1",
+        headers: {
+          ...authHeaders(),
+          "x-kasitek-core-forward-secret": "forward-secret",
+          "x-telegram-bot-api-secret-token": "webhook-secret",
+        },
+        payload: {
+          update_id: 13,
+          message: {
+            message_id: 14,
+            date: 1_700_000_000,
+            from: { id: 11 },
+            chat: { id: 12 },
+            caption: "Call me tomorrow",
+            voice: { file_id: "voice-1", duration: 4 },
+          },
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ ok: true, media: "queued", jobId: "job-telegram-1", created: true });
+      expect(telegramDownload).toHaveBeenCalledWith("telegram-token", "voice-1", 25 * 1024 * 1024);
+      expect(coreFetch).toHaveBeenCalledWith("https://core.example.test/api/internal/agents/v1/content/media", expect.objectContaining({ method: "POST" }));
+      expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({
+        idempotencyKey: "channel:telegram:13",
+        assetId: "asset-telegram-1",
+        dispatchInput: expect.objectContaining({
+          externalConversationId: "12",
+          content: expect.objectContaining({
+            assetId: "asset-telegram-1",
+            text: "Call me tomorrow",
+            mediaKind: "audio",
+            durationMs: 4_000,
+            transcription: { status: "queued", provider: "elevenlabs" },
+          }),
+        }),
+      }));
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("downloads Discord audio attachments, removes the source URL, and queues transcription", async () => {
+    const enqueue = vi.fn().mockResolvedValue({ job: { id: "job-discord-1", status: "queued" }, created: true });
+    const discordDownload = vi.fn().mockResolvedValue({ bytes: Buffer.from("OggS\u0000discord") });
+    const coreFetch = vi.fn().mockResolvedValue(coreUploadResponse("asset-discord-1"));
+    vi.stubGlobal("fetch", coreFetch);
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      channels: { getConnectionForWebhook: vi.fn().mockResolvedValue(channelConnection("discord")) } as never,
+      channelCredentials: { resolve: vi.fn().mockResolvedValue("discord-token") } as never,
+      discordClient: { downloadAttachment: discordDownload, sendMessage: vi.fn() } as never,
+      controls: { isFeatureEnabled: vi.fn().mockResolvedValue(true) } as never,
+      audioTranscriptionJobs: { enqueue } as never,
+    });
+
+    try {
+      const response = await app.inject({
+        method: "POST",
+        url: "/v1/webhooks/discord/discord-connection-1",
+        headers: { ...authHeaders(), "x-kasitek-core-forward-secret": "forward-secret" },
+        payload: {
+          id: "discord-event-1",
+          channel_id: "channel-1",
+          content: "Summarize this",
+          author: { id: "user-1" },
+          attachments: [{
+            id: "attachment-audio-1",
+            filename: "voice.webm",
+            content_type: "audio/webm",
+            duration_secs: 2.5,
+            url: "https://cdn.discord.test/temporary-audio",
+          }],
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ ok: true, media: "queued", jobId: "job-discord-1", created: true });
+      expect(discordDownload).toHaveBeenCalledWith("discord-token", "https://cdn.discord.test/temporary-audio", 25 * 1024 * 1024);
+      expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({
+        idempotencyKey: "channel:discord:discord-event-1",
+        assetId: "asset-discord-1",
+        dispatchInput: expect.objectContaining({
+          externalConversationId: "channel-1",
+          content: expect.objectContaining({
+            assetId: "asset-discord-1",
+            mediaKind: "audio",
+            text: "Summarize this",
+            durationMs: 2_500,
+          }),
+        }),
+      }));
+      const enqueueInput = enqueue.mock.calls[0]?.[0] as { dispatchInput: { content: Record<string, unknown> } };
+      expect(enqueueInput.dispatchInput.content).not.toHaveProperty("url");
     } finally {
       await app.close();
     }

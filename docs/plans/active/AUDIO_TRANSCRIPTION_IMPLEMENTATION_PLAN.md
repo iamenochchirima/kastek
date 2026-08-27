@@ -333,7 +333,8 @@ reference publication and privacy/legal approval remain pending.
 
 Validation evidence: Agent build and TypeScript checks pass; focused Agent tests pass, including
 authenticated HTTP contract tests for direct multipart transcription, Core media acceptance,
-durable platform enqueue, and organization-scoped job status; the
+durable platform enqueue, organization-scoped job status, WhatsApp canonical inbound enqueue,
+Telegram voice download/enqueue, and Discord attachment download/enqueue; the
 database-backed Agent integration suite passes 15/15 tests for retention, operator commands,
 platform chat, durable audio enqueue/deduplication, worker completion, retry recovery, and one
 agent dispatch; Core formatting/check and focused website/media tests pass; client/Admin
