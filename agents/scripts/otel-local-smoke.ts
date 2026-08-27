@@ -20,7 +20,7 @@ async function main(): Promise<void> {
           throw new Error("expected telemetry smoke failure");
         });
       } catch {
-        operationalLogger.warn({ event: "kasitek.local.smoke.expected_error", outcome: "handled" }, "Expected telemetry smoke failure handled");
+        operationalLogger.warn({ event: "kasitek.local.smoke.expected.error", outcome: "handled" }, "Expected telemetry smoke failure handled");
       }
       counter.add(1, { signal: "metrics" });
       operationalLogger.info({ event: "kasitek.local.smoke", outcome: "success" }, "Local telemetry smoke completed");

@@ -17,7 +17,7 @@ async fn main() {
             })
             .await;
         if expected_error.is_err() {
-            log::warn!(target: "kasitek.observability.smoke", "event=kasitek.local.smoke.expected_error outcome=handled");
+            log::warn!(target: "kasitek.observability.smoke", "event=kasitek.local.smoke.expected.error outcome=handled");
         }
         global::meter("kasitek-observability-smoke")
             .u64_counter("kasitek.local.smoke.count")

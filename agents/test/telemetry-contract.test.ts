@@ -13,6 +13,7 @@ describe("telemetry contract", () => {
     expect(isStableEventName("queue.item.completed")).toBe(true);
     expect(isStableEventName("kasiai.bootstrap.completed")).toBe(true);
     expect(isStableEventName("kasiai.release.gate.failed")).toBe(true);
+    expect(isStableEventName("kasitek.local.smoke.expected.error")).toBe(true);
     expect(isStableEventName("queue_item_completed")).toBe(false);
     expect(isStableEventName("operation.invalid.event")).toBe(true);
   });
