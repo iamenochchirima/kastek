@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
+import { enqueueAudioLifecycleEvent } from "../../analytics";
 
 export type AudioTranscriptionJobStatus =
   | "queued"
@@ -119,7 +120,18 @@ export class AudioTranscriptionJobRepository {
           JSON.stringify(input.dispatchInput),
         ],
       );
-      if (inserted.rows[0]) return { job: inserted.rows[0], created: true };
+      if (inserted.rows[0]) {
+        const job = inserted.rows[0];
+        await enqueueAudioLifecycleEvent(client, {
+          kind: "received",
+          jobId: job.id,
+          organizationId: job.organization_id,
+          dispatchKind: job.dispatch_kind,
+          dispatchInput: job.dispatch_input,
+          occurredAt: job.created_at,
+        });
+        return { job, created: true };
+      }
       const existing = await client.query<AudioTranscriptionJobRecord>(
         `SELECT * FROM audio_transcription_jobs
          WHERE organization_id = $1 AND idempotency_key = $2
@@ -184,6 +196,15 @@ export class AudioTranscriptionJobRepository {
          VALUES ($1, 'platform_admin', $2, 'audio_transcription_job.retried', 'audio_transcription_job', $3, $4::jsonb)`,
         [job.organization_id, actorId, job.id, JSON.stringify({ status: job.status, assetId: job.asset_id })],
       );
+      await enqueueAudioLifecycleEvent(client, {
+        kind: "retry",
+        jobId: job.id,
+        organizationId: job.organization_id,
+        dispatchKind: job.dispatch_kind,
+        dispatchInput: job.dispatch_input,
+        attempt: 1,
+        retryReason: "operator",
+      });
       return job;
     });
   }

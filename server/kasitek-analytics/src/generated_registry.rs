@@ -2,7 +2,7 @@
 
 pub const REGISTRY_VERSION: &str = "20260824.1";
 pub const REGISTRY_SHA256: &str =
-    "dbb1651eabe3b08534469042389909b824c1684a355a58a40233f8df8faa69fd";
+    "02ce8a2e1742e2bd788d5bc49201bb87dd25a627c9a79fc623902b4657a47473";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",

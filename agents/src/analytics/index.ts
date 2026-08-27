@@ -82,3 +82,10 @@ export {
   loadAgentConversationAnalyticsContext,
   type ConversationMessageAnalyticsRecord,
 } from "./conversation";
+export {
+  buildAudioLifecycleEvent,
+  enqueueAudioLifecycleEvent,
+  type AudioAnalyticsChannel,
+  type AudioAnalyticsEventInput,
+  type AudioAnalyticsEventKind,
+} from "./audio";

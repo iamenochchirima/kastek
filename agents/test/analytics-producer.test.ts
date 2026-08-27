@@ -17,6 +17,7 @@ import {
   buildToolInvocationLifecycleEvent,
   buildVersionLifecycleEvent,
   buildEvent,
+  buildAudioLifecycleEvent,
   buildObservation,
   buildScopeDefinition,
   canonicalJsonSha256,
@@ -49,6 +50,40 @@ function event(overrides: Partial<EventInput> = {}): EventInput {
 }
 
 describe("Agent analytics producer", () => {
+  it("builds audio lifecycle facts with bounded metadata only", () => {
+    const received = buildAudioLifecycleEvent({
+      kind: "received",
+      jobId: "audio-job-1",
+      organizationId: "org-1",
+      dispatchKind: "external",
+      dispatchInput: {
+        channelType: "whatsapp",
+        content: { mimeType: "audio/opus", durationMs: 12_000, transcript: "must not be copied" },
+      },
+      occurredAt: "2026-08-27T10:00:00.000Z",
+    });
+    expect(received.contractName).toBe("agent.audio_message.received@1");
+    expect(received.envelope.data).toMatchObject({
+      job_id: "audio-job-1",
+      channel: "whatsapp",
+      mime_type: "audio/opus",
+      duration_bucket: "5_30s",
+    });
+    expect(JSON.stringify(received.envelope.data)).not.toContain("must not be copied");
+
+    const completed = buildAudioLifecycleEvent({
+      kind: "completed",
+      jobId: "audio-job-1",
+      organizationId: "org-1",
+      dispatchKind: "external",
+      dispatchInput: { channelType: "whatsapp", content: { durationMs: 12_000 } },
+      languageCode: "en",
+      createdAt: "2026-08-27T10:00:00.000Z",
+      occurredAt: "2026-08-27T10:00:08.000Z",
+    });
+    expect(completed.envelope.data).toMatchObject({ provider: "elevenlabs", latency_bucket: "5_15s", language: "en" });
+  });
+
   it("builds terminal runtime facts with safe conditional-agent metadata", () => {
     const completed = buildCompletedAgentRunEvent({
       runId: "run-completed",

@@ -8,7 +8,7 @@
   "properties": {
     "job_id": { "type": "string", "minLength": 1 },
     "channel": { "type": "string", "enum": ["whatsapp", "telegram", "discord", "platform", "website"] },
-    "mime_type": { "type": "string", "enum": ["audio/ogg", "audio/mpeg", "audio/mp4", "audio/wav", "audio/webm", "application/ogg"] },
+    "mime_type": { "type": "string", "enum": ["audio/aac", "audio/flac", "audio/m4a", "audio/ogg", "audio/opus", "audio/mpeg", "audio/mp4", "audio/wav", "audio/webm", "application/ogg"] },
     "duration_bucket": { "type": "string", "enum": ["unknown", "0_5s", "5_30s", "30_60s", "60_180s", "over_180s"] },
     "occurred_at": { "type": "string", "format": "date-time" }
   },

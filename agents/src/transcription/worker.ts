@@ -19,6 +19,8 @@ import { ChannelCredentialRepository } from "../db/repositories/channel-credenti
 import { ChannelRepository } from "../db/repositories/channel-repository";
 import { TelegramBotClient } from "../channels/telegram-client";
 import { DiscordBotClient } from "../channels/discord-client";
+import { withTransaction } from "../db/pool";
+import { enqueueAudioLifecycleEvent, type AudioAnalyticsEventInput } from "../analytics";
 
 type DispatchInput = Record<string, unknown>;
 type AudioTranscriptionJobs = Pick<AudioTranscriptionJobRepository, "claimDue" | "markTranscribed" | "markDispatched" | "markRetryable" | "markFailed">;
@@ -149,6 +151,16 @@ export class AudioTranscriptionWorker {
     try {
       const input = job.dispatch_input;
       if (job.status === "processing") {
+        await this.recordAnalytics({
+          kind: "started",
+          jobId: job.id,
+          organizationId: job.organization_id,
+          dispatchKind: job.dispatch_kind,
+          dispatchInput: input,
+          attempt: job.attempt_count,
+          occurredAt: new Date(),
+          createdAt: job.created_at,
+        });
         const media = await this.coreClient.downloadContentMedia({
           organizationId: job.organization_id,
           installationId: job.installation_id,
@@ -169,6 +181,16 @@ export class AudioTranscriptionWorker {
           languageCode: transcription.languageCode,
         });
         if (!claimed) return;
+        await this.recordAnalytics({
+          kind: "completed",
+          jobId: job.id,
+          organizationId: job.organization_id,
+          dispatchKind: job.dispatch_kind,
+          dispatchInput: input,
+          languageCode: transcription.languageCode,
+          occurredAt: new Date(),
+          createdAt: job.created_at,
+        });
         job = {
           ...job,
           status: "dispatching",
@@ -231,7 +253,19 @@ export class AudioTranscriptionWorker {
         messageId: acceptedMessageId,
         runId: acceptedRunId,
       });
-      if (completed) operationalLogger.info({ event: "audio.transcription.dispatched", job_id: job.id, dispatch_kind: job.dispatch_kind, run_id: acceptedRunId }, "Audio transcription dispatched to agent runtime");
+      if (completed) {
+        await this.recordAnalytics({
+          kind: "dispatched",
+          jobId: job.id,
+          organizationId: job.organization_id,
+          dispatchKind: job.dispatch_kind,
+          dispatchInput: input,
+          runId: acceptedRunId,
+          occurredAt: new Date(),
+          createdAt: job.created_at,
+        });
+        operationalLogger.info({ event: "audio.transcription.dispatched", job_id: job.id, dispatch_kind: job.dispatch_kind, run_id: acceptedRunId }, "Audio transcription dispatched to agent runtime");
+      }
     } catch (error) {
       const details = errorDetails(error);
       const exhausted = job.attempt_count >= this.options.config.AUDIO_TRANSCRIPTION_MAX_ATTEMPTS;
@@ -248,6 +282,18 @@ export class AudioTranscriptionWorker {
             this.options.config.AUDIO_TRANSCRIPTION_RETRY_MAX_DELAY_MS,
           ),
         });
+        await this.recordAnalytics({
+          kind: "failed",
+          jobId: job.id,
+          organizationId: job.organization_id,
+          dispatchKind: job.dispatch_kind,
+          dispatchInput: job.dispatch_input,
+          attempt: job.attempt_count,
+          errorCode: details.code,
+          retryable: true,
+          occurredAt: new Date(),
+          createdAt: job.created_at,
+        });
         operationalLogger.warn({ event: "audio.transcription.retry.scheduled", job_id: job.id, attempt: job.attempt_count, error_code: details.code }, "Audio transcription retry scheduled");
       } else {
         const markedFailed = await this.jobs.markFailed({
@@ -257,10 +303,30 @@ export class AudioTranscriptionWorker {
           errorMessage: details.message,
         });
         if (markedFailed) {
+          await this.recordAnalytics({
+            kind: "failed",
+            jobId: job.id,
+            organizationId: job.organization_id,
+            dispatchKind: job.dispatch_kind,
+            dispatchInput: job.dispatch_input,
+            attempt: job.attempt_count,
+            errorCode: details.code,
+            retryable: false,
+            occurredAt: new Date(),
+            createdAt: job.created_at,
+          });
           await this.notifyExternalFailure(job);
           operationalLogger.warn({ event: "audio.transcription.failed", job_id: job.id, attempt: job.attempt_count, error_code: details.code, retryable: details.retryable }, "Audio transcription job failed");
         }
       }
+    }
+  }
+
+  private async recordAnalytics(input: AudioAnalyticsEventInput): Promise<void> {
+    try {
+      await withTransaction(this.options.pool, (client) => enqueueAudioLifecycleEvent(client, input));
+    } catch (error) {
+      operationalLogger.warn({ event: "audio.analytics.enqueue.failed", job_id: input.jobId, error_type: error instanceof Error ? error.name : "unknown" }, "Audio lifecycle analytics enqueue failed");
     }
   }
 
