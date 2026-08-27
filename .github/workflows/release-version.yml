@@ -1,0 +1,35 @@
+name: Release version
+
+on:
+  pull_request:
+    paths:
+      - VERSION
+      - scripts/release-version.mjs
+      - docs/internal/operations/platform-versioning.md
+      - .github/workflows/release-version.yml
+  push:
+    branches: [main]
+    tags:
+      - platform-v*
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate platform release identity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Validate VERSION and release tag
+        run: node scripts/release-version.mjs check
+
+      - name: Print release metadata
+        run: node scripts/release-version.mjs metadata
