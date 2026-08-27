@@ -64,6 +64,23 @@ const WEBSITE_CHAT_LOADER: &str = r#"(() => {
       .then((r) => r.ok ? r.json() : Promise.reject(new Error('Audio retry was not accepted')))
       .then((result) => { emit({ type: 'kasitek:accepted', jobId, status: result.status || 'queued' }); pollAudioStatus(jobId); })
       .catch(() => emit({ type: 'kasitek:error', message: 'Unable to retry your audio. Please try again.' }));
+    const audioIdempotencyKey = async (audio) => {
+      let fingerprint = `${audio.size}:${audio.type || 'audio/webm'}`;
+      try {
+        const digest = await crypto.subtle.digest('SHA-256', await audio.arrayBuffer());
+        fingerprint += `:${Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('')}`;
+      } catch (_) {}
+      const storageKey = `kasitek:audio:${deployment}:${session.sessionId}:${fingerprint}`;
+      try {
+        const existing = window.localStorage.getItem(storageKey);
+        if (existing) return { key: existing, storageKey };
+        const key = `audio-${crypto.randomUUID()}`;
+        window.localStorage.setItem(storageKey, key);
+        return { key, storageKey };
+      } catch (_) {
+        return { key: `audio-${crypto.randomUUID()}`, storageKey: '' };
+      }
+    };
     instance.open = () => { frame.style.display = 'block'; launcher.style.display = 'none'; emit({ type: 'kasitek:open' }); };
     instance.close = () => { frame.style.display = 'none'; launcher.style.display = 'flex'; };
     launcher.addEventListener('click', instance.open);
@@ -73,17 +90,20 @@ const WEBSITE_CHAT_LOADER: &str = r#"(() => {
       if (event.data.type === 'kasitek:close') instance.close();
       if (event.data.type === 'kasitek:send-audio' && event.data.audio instanceof Blob) {
         const audio = event.data.audio;
-        const headers = { 'Content-Type': audio.type || 'audio/webm', 'X-Audio-Idempotency-Key': crypto.randomUUID() };
-        if (typeof event.data.fileName === 'string' && event.data.fileName.trim()) headers['X-Audio-File-Name'] = encodeURIComponent(event.data.fileName.trim().slice(0, 240));
-        fetch(`${api}/sessions/${encodeURIComponent(session.sessionId)}/audio${shareSuffix}`, { method: 'POST', credentials: 'omit', headers, body: audio })
-          .then(async (r) => {
-            if (!r.ok) throw new Error('Audio not accepted');
-            const result = await r.json().catch(() => null);
-            const jobId = typeof result?.jobId === 'string' ? result.jobId : '';
-            if (!jobId) throw new Error('Audio job was not created');
-            emit({ type: 'kasitek:accepted', jobId, status: result.status || 'queued' });
-            pollAudioStatus(jobId);
-          })
+        audioIdempotencyKey(audio).then(({ key, storageKey }) => {
+          const headers = { 'Content-Type': audio.type || 'audio/webm', 'X-Audio-Idempotency-Key': key };
+          if (typeof event.data.fileName === 'string' && event.data.fileName.trim()) headers['X-Audio-File-Name'] = encodeURIComponent(event.data.fileName.trim().slice(0, 240));
+          return fetch(`${api}/sessions/${encodeURIComponent(session.sessionId)}/audio${shareSuffix}`, { method: 'POST', credentials: 'omit', headers, body: audio })
+            .then(async (r) => {
+              if (!r.ok) throw new Error('Audio not accepted');
+              const result = await r.json().catch(() => null);
+              const jobId = typeof result?.jobId === 'string' ? result.jobId : '';
+              if (!jobId) throw new Error('Audio job was not created');
+              if (storageKey) window.localStorage.removeItem(storageKey);
+              emit({ type: 'kasitek:accepted', jobId, status: result.status || 'queued' });
+              pollAudioStatus(jobId);
+            });
+        })
           .catch(() => emit({ type: 'kasitek:error', message: 'Unable to process your audio. Please try again.' }));
       }
       if (event.data.type === 'kasitek:retry-audio' && typeof event.data.jobId === 'string') retryAudio(event.data.jobId);
