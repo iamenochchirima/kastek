@@ -92,9 +92,10 @@ Revenue; credits remain a separate usage unit.
 
 ## Release and verification
 
-The implementation release record is maintained in
-[`ADMIN_ANALYTICS_PLAN.md`](../../plans/active/ADMIN_ANALYTICS_PLAN.md). It records the affected
-services, migrations, audit events, validation evidence, rollout, and rollback decisions.
+Release-specific evidence for this surface follows the [feature and platform release
+process](../operations/release-process.md) and belongs in the associated change or release
+record. This page remains the current technical reference for the boundary, migrations, and
+verification requirements.
 
 Admin TypeScript, lint, production build, and diff checks pass. Authenticated Core smoke checks,
 database verification, and end-to-end activity/report export checks must be rerun when the shared

@@ -77,8 +77,8 @@ recorded explicitly in the release record; a ratio sampler must not be described
 errors.
 
 Set `OTEL_SDK_DISABLED=true` or remove the OTLP endpoint to disable export. Services retain their
-structured stdout fallback and must continue to answer liveness checks when the Collector is
-unavailable.
+structured stdout fallback for both legacy Rust `log!` records and instrumented `tracing!` events,
+and must continue to answer liveness checks when the Collector is unavailable.
 
 ## Minimum release metadata
 

@@ -270,9 +270,9 @@ exist.
       revision used for staging and production.
 - [x] Rollback: document exporter disablement, previous artifact promotion, and Collector config
       rollback.
-- [ ] Internal documentation build and full link validation pass; the observability page compiles
-      and its new release-record link resolves, but the build is blocked by an unrelated broken
-      link in the user-edited `docs/internal/architecture/admin-analytics.md` to a removed plan.
+- [x] Internal documentation build and full link validation pass; stale links in the internal
+      documentation index and Admin Analytics reference were removed, and both Docusaurus builds
+      now pass.
 
 ## 11. Completion gate
 
@@ -299,6 +299,9 @@ Repository evidence for the implementation slice:
   quarantine-work assertion.
 - Agents: `pnpm exec tsc -p tsconfig.json --noEmit` and `pnpm test` passed (75 test files passed,
   17 skipped; 420 tests passed, 43 skipped).
+- Disabled-export fallback: `OTEL_SDK_DISABLED=true LOG_FORMAT=json RUST_LOG=info cargo run
+  -p observability --example otel-smoke` emitted both legacy `log!` and `tracing!` records to
+  stdout without attempting an OTLP connection.
 - Collector: `docker compose -f infra/observability/otel-collector/compose.yaml config --quiet`
   passed. The pinned Collector `0.158.0` binary validated `config.yaml`, `config.local.yaml`,
   `config.staging.yaml`, and `config.production.template.yaml` with placeholder template values.
@@ -312,10 +315,10 @@ Repository evidence for the implementation slice:
 - Boundary completion: `tracing_log::LogTracer` now bridges legacy Rust `log!` records into the
   OpenTelemetry subscriber when export is enabled; the Core/Tenant source-backfill loops and
   Analytics projection/outbox boundaries now record shared operation metrics and stable events.
-- Documentation: public Docusaurus build passed. The internal build compiles the observability
-  page but is blocked by an unrelated broken link in the user-edited
-  `docs/internal/architecture/admin-analytics.md` to a removed plan; no public user/API
-  documentation change is required for this infrastructure-only work.
+- Documentation: public and internal Docusaurus builds passed. The internal documentation index
+  and Admin Analytics reference were cleaned so current technical documentation no longer links
+  to removed strategy or implementation-plan material; no public user/API documentation change
+  is required for this infrastructure-only work.
 - Versioning: local validation metadata is `0.1.0`; the current observability implementation tree
   is recorded as `642278324a8d14baa216910144247202ac3cd320`; no platform release tag or deployed
   artifact was created by this work.
@@ -324,11 +327,10 @@ Checks intentionally not claimed as complete:
 
 - Docker container build/run could not be repeated locally because the Docker daemon is not
   available. The GitHub workflow contains the containerized smoke test.
-- The current full-workspace `cargo check --workspace` passes. `cargo fmt --all -- --check`
-  remains blocked only by formatting in the unrelated, user-untracked
-  `server/kasitek-core/src/services/early_access.rs`; targeted observability and
-  analytics-producer tests/checks pass, and the existing Analytics maintenance PostgreSQL test
-  still fails to discover its quarantine work row in the local database.
+- The current full-workspace `cargo check --workspace` and `cargo fmt --all -- --check` pass;
+  targeted observability and analytics-producer tests/checks pass, and the existing Analytics
+  maintenance PostgreSQL test still fails to discover its quarantine work row in the local
+  database.
 - Railway staging service creation, private DNS, environment variables, isolated resources, and
   staging release evidence require external platform access.
 - The implementation PR/issue link and release-owner approval must be added by the repository

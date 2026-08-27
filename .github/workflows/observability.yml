@@ -166,6 +166,18 @@ jobs:
           KASITEK_COMMIT_SHA: ${{ github.sha }}
         run: cargo run -p observability --example otel-smoke
 
+      - name: Verify Rust stdout fallback with export disabled
+        working-directory: server
+        env:
+          OTEL_SDK_DISABLED: "true"
+          LOG_FORMAT: json
+          RUST_LOG: info
+        run: |
+          set -euo pipefail
+          cargo run -p observability --example otel-smoke 2>&1 | tee disabled-otel.log
+          grep -q 'kasitek.local.smoke.event' disabled-otel.log
+          grep -q 'event=kasitek.local.smoke outcome=success' disabled-otel.log
+
       - name: Install Node dependencies
         uses: pnpm/action-setup@v4
         with:

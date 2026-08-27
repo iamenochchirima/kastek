@@ -60,6 +60,8 @@ Production release ID: not created
   tests pass, while the local maintenance PostgreSQL test does not discover its quarantine work
   row.
 - Agents type checking and the full test suite passed: 420 tests passed and 43 were skipped.
+- The disabled-export Rust smoke emitted both legacy `log!` and `tracing!` records to stdout with
+  `OTEL_SDK_DISABLED=true`, confirming the fallback remains visible without an OTLP endpoint.
 - All four Collector profiles passed validation with the pinned Collector `0.158.0` binary, and
   the Compose configuration passed validation.
 - The local Collector reached readiness and received Rust and Agents logs, traces, and metrics.
@@ -67,15 +69,11 @@ Production release ID: not created
   correlation metadata where applicable.
 - Export-disabled behavior, bounded/redacted exception fields, propagation seams, and telemetry
   contract tests passed.
-- The current full-workspace `cargo check --workspace` passes. `cargo fmt --all -- --check`
-  remains blocked only by formatting in the unrelated, user-untracked
-  `server/kasitek-core/src/services/early_access.rs`; the targeted Rust telemetry crates remain
-  independently verified.
-- Public documentation build passed. The internal build compiles the observability page and its
-  repository links, but remains blocked by an unrelated broken link in the user-edited
-  `docs/internal/architecture/admin-analytics.md` to a removed plan. This infrastructure-only
-  change has no public user/API behavior change, so public documentation content is
-  `not applicable`.
+- The current full-workspace `cargo check --workspace` and `cargo fmt --all -- --check` pass;
+  the targeted Rust telemetry crates remain independently verified.
+- Public and internal documentation builds passed after removing stale links from the internal
+  documentation index and Admin Analytics reference. This infrastructure-only change has no
+  public user/API behavior change, so public documentation content is `not applicable`.
 
 ## Hosted staging gates
 

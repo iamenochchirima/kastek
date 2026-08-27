@@ -1056,7 +1056,39 @@ fn init_legacy(default_filter: &str) {
         });
     }
 
-    builder.init();
+    // Keep the existing `log!` output format while also providing a stdout fallback for the
+    // `tracing!` calls used by the instrumented paths. The two globals are intentionally separate
+    // when OTEL is disabled: legacy log records stay on env_logger, while tracing records use the
+    // subscriber below. When OTEL initialization fails after installing LogTracer, env_logger's
+    // `try_init` simply reports that the logger is already owned and the subscriber still receives
+    // the bridged records.
+    let _ = builder.try_init();
+
+    let tracing_result = if structured_logs_enabled() {
+        let subscriber = tracing_subscriber::registry()
+            .with(tracing_filter(default_filter))
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .json()
+                    .with_target(true)
+                    .with_current_span(true)
+                    .with_span_list(false),
+            );
+        tracing::subscriber::set_global_default(subscriber)
+    } else {
+        let subscriber = tracing_subscriber::registry()
+            .with(tracing_filter(default_filter))
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_target(true)
+                    .with_ansi(colorize),
+            );
+        tracing::subscriber::set_global_default(subscriber)
+    };
+
+    if let Err(error) = tracing_result {
+        eprintln!("legacy tracing subscriber initialization failed: {error}");
+    }
 }
 
 #[cfg(test)]

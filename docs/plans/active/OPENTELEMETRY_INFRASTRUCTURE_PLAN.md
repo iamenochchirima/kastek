@@ -267,11 +267,12 @@ shared-crate tests, and Clippy; the current targeted observability and analytics
 pass; Agents type checking and the full test suite passed; all Collector profiles passed
 validation; and the local Collector received Rust and Agents traces, logs, and metrics with
 matching trace/span context and release metadata. The current full-workspace `cargo check
---workspace` passes. `cargo fmt --all -- --check` remains blocked only by formatting in the
-unrelated, user-untracked `server/kasitek-core/src/services/early_access.rs`; one local Analytics
-maintenance PostgreSQL test also fails to discover its quarantine work row. The public documentation build passed. The
-internal documentation build compiles the observability page but is blocked by an unrelated
-broken link in the user-edited `docs/internal/architecture/admin-analytics.md` to a removed plan.
+--workspace` and `cargo fmt --all -- --check` pass. One local Analytics maintenance PostgreSQL
+test also fails to discover its quarantine work row. The public and
+internal documentation builds passed after stale links were removed from the internal
+documentation index and Admin Analytics reference.
+The disabled-export Rust smoke also emitted both legacy `log!` and `tracing!` records to stdout
+with `OTEL_SDK_DISABLED=true`.
 The CI workflow contains the containerized Rust plus Agents signal smoke. The legacy Actix access
 formatter and Agents exception telemetry also apply the final privacy bounds described in the
 checklist.
