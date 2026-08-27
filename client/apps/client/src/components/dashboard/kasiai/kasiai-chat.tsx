@@ -888,7 +888,10 @@ export function KasiAiChat({
           ? await (async () => {
               const audioConversation = targetConversation
                 ? { conversation: targetConversation }
-                : await createPlatformConversation(installation.id);
+                : await createPlatformConversation(installation.id, {
+                    modelProvider: effectiveModel?.provider,
+                    model: effectiveModel?.model,
+                  });
               return sendPlatformAudio(installation.id, {
                 file: audioFile,
                 idempotencyKey: crypto.randomUUID(),

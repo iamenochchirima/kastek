@@ -2960,10 +2960,22 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
       if (!installation) return reply.code(404).send({ error: "installation_not_found" });
       requireHostedInstallation(installation);
+      const input = z.object({
+        modelProvider: z.enum([...MODEL_PROVIDERS]).optional(),
+        model: z.string().trim().min(1).max(240).optional(),
+      }).parse(request.body ?? {});
+      if (Boolean(input.modelProvider) !== Boolean(input.model)) {
+        return reply.code(400).send({ error: "Model provider and model must be changed together" });
+      }
+      if (input.modelProvider && input.model && !await isAllowedKasiAiModel(dependencies.config, input.modelProvider, input.model)) {
+        return reply.code(403).send({ error: "Selected model is not available for this workspace" });
+      }
       const resolved = await platformChat.createNewConversation({
         organizationId: auth.organizationId,
         installationId: request.params.installationId,
         actorId: auth.actorId,
+        modelProvider: input.modelProvider,
+        model: input.model,
       });
       const messages = conversations.listMessagesPage
         ? await conversations.listMessagesPage(auth.organizationId, resolved.conversation.id)

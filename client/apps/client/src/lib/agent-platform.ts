@@ -1184,10 +1184,13 @@ export function restoreKasiAiConversation(conversationId: string): Promise<Agent
   return request(`/api/agents/conversations/${encodeURIComponent(conversationId)}/restore`, { method: "POST", body: JSON.stringify({}) });
 }
 
-export function createPlatformConversation(installationId: string): Promise<ConversationResponse> {
+export function createPlatformConversation(
+  installationId: string,
+  input: { modelProvider?: KasiAiModel["provider"]; model?: string } = {},
+): Promise<ConversationResponse> {
   return request<ConversationResponse>(`/api/agents/installations/${encodeURIComponent(installationId)}/platform/conversation/new`, {
     method: "POST",
-    body: JSON.stringify({}),
+    body: JSON.stringify(input),
   });
 }
 
