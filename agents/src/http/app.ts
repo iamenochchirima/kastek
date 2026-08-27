@@ -932,8 +932,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       let messageContent = parseCanonicalMessageContent(event.message.messageType, event.message.content);
       const attachmentId = typeof messageContent.attachmentId === "string" ? messageContent.attachmentId : undefined;
       const mimeType = typeof messageContent.mimeType === "string" ? messageContent.mimeType : undefined;
-      const isAudio = mimeType?.split(";", 1)[0]?.trim().toLowerCase().startsWith("audio/") === true;
-      if (event.message.messageType === "attachment" && attachmentId && (mimeType?.startsWith("image/") || isAudio)) {
+      const isAudio = messageContent.mediaKind === "audio"
+        || mimeType?.split(";", 1)[0]?.trim().toLowerCase().startsWith("audio/") === true;
+      const resolvedMimeType = mimeType ?? (isAudio ? "audio/ogg" : "image/jpeg");
+      if (event.message.messageType === "attachment" && attachmentId && (resolvedMimeType.startsWith("image/") || isAudio)) {
         if (!connection.credential_reference) throw new Error("Telegram channel media is not configured");
         const token = await channelCredentials.resolve(connection.organization_id, connection.credential_reference, "telegram");
         try {
@@ -948,7 +950,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
             },
             {
               bytes: downloaded.bytes,
-              mimeType,
+              mimeType: resolvedMimeType,
               fileName: typeof messageContent.fileName === "string" ? messageContent.fileName : downloaded.filePath.split("/").at(-1),
               source: "telegram",
               sourceKey: `telegram:${connection.id}:${event.message.providerMessageId}:${attachmentId}`,
@@ -958,7 +960,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           if (isAudio) {
             const transcription = await transcriptionProvider.transcribe({
               bytes: downloaded.bytes,
-              mimeType: normalizeAudioMimeType(mimeType!),
+              mimeType: resolvedMimeType,
               fileName: typeof messageContent.fileName === "string" ? messageContent.fileName : downloaded.filePath.split("/").at(-1),
             });
             const caption = typeof messageContent.text === "string" ? messageContent.text.trim() : "";

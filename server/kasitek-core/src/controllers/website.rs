@@ -62,7 +62,7 @@ const WEBSITE_CHAT_LOADER: &str = r#"(() => {
         const headers = { 'Content-Type': audio.type || 'audio/webm', 'X-Audio-Idempotency-Key': crypto.randomUUID() };
         if (typeof event.data.fileName === 'string' && event.data.fileName.trim()) headers['X-Audio-File-Name'] = encodeURIComponent(event.data.fileName.trim().slice(0, 240));
         fetch(`${api}/sessions/${encodeURIComponent(session.sessionId)}/audio${shareSuffix}`, { method: 'POST', credentials: 'omit', headers, body: audio })
-          .then((r) => { if (!r.ok) throw new Error('Audio not accepted'); emit({ type: 'kasitek:accepted' }); })
+          .then(async (r) => { if (!r.ok) throw new Error('Audio not accepted'); const result = await r.json().catch(() => null); emit({ type: 'kasitek:accepted', transcript: typeof result?.message?.content?.transcript === 'string' ? result.message.content.transcript : '' }); })
           .catch(() => emit({ type: 'kasitek:error', message: 'Unable to process your audio. Please try again.' }));
       }
       if (event.data.type === 'kasitek:send' && typeof event.data.text === 'string') {
@@ -97,6 +97,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     .line.bullet{padding-left:4px}
     .bot strong{font-weight:700;color:#111827}
     .bot code{padding:1px 4px;border-radius:4px;background:#d7dce8;font-size:.9em}
+    .transcript{margin-top:7px;padding-top:7px;border-top:1px solid #ffffff55;font-size:12px;line-height:1.35;opacity:.9}
     .bot table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
     .bot th,.bot td{padding:7px 8px;border:1px solid #cbd5e1;text-align:left;vertical-align:top;overflow-wrap:anywhere;word-break:break-word}
     .bot th{background:#dce2ee;font-weight:700}
@@ -147,6 +148,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     let recorder=null;
     let stream=null;
     let recordedChunks=[];
+    let pendingAudioMessage=null;
 
     const scrollToBottom=()=>requestAnimationFrame(()=>{messages.scrollTop=messages.scrollHeight});
     const appendPlain=(parent,text)=>{
@@ -259,7 +261,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     const sendAudio=(audio,fileName)=>{
       if(pending)return;
       error.textContent='';
-      add('Audio message','me');
+      pendingAudioMessage=add('Audio message','me');
       startPending();
       parent.postMessage({type:'kasitek:send-audio',audio,fileName},targetOrigin);
     };
@@ -298,6 +300,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
       }
       if(data.type==='kasitek:accepted'){
         error.textContent='';
+        if(data.transcript&&pendingAudioMessage){const transcript=document.createElement('div');transcript.className='transcript';transcript.textContent=`Transcript: ${data.transcript}`;pendingAudioMessage.append(transcript);pendingAudioMessage=null}
       }
       if(data.type==='kasitek:reply'){
         stopPending();
@@ -727,6 +730,24 @@ pub async fn send_agent_website_chat_audio(
     .await?
     .ok_or_else(|| AppError::NotFound("Website Chat deployment not found".to_string()))?;
     let (organization_id, owner_id, public_id) = deployment;
+    let source_prefix = format!("website:{public_id}:{}:%", session.public_session_id);
+    let recent_audio_count = sqlx::query_scalar::<_, i64>(
+        r#"SELECT COUNT(*)
+           FROM "ContentMediaAsset"
+           WHERE "orgId" = $1
+             AND metadata->>'source' = 'website_widget'
+             AND metadata->>'sourceKey' LIKE $2
+             AND "createdAt" > NOW() - INTERVAL '1 hour'"#,
+    )
+    .bind(&organization_id)
+    .bind(source_prefix)
+    .fetch_one(pool.get_ref())
+    .await?;
+    if recent_audio_count >= 20 {
+        return Err(AppError::TooManyRequests(
+            "Website Chat audio upload limit reached".to_string(),
+        ));
+    }
     let source_key = format!(
         "website:{}:{}:{}",
         public_id, session.public_session_id, idempotency_key
