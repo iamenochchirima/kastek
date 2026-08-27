@@ -52,9 +52,10 @@ The repository implementation is split into reviewable commits:
 | Keep smoke events within the stable event vocabulary | `dd4b5bbc` |
 | Select Collector profiles without a shell wrapper | `b28e10cb` |
 | Register the Rust subscriber without a duplicate logger | `8d405287` |
+| Match CI identity assertions to Collector debug output | `4f0b5e9e` |
 
 The exact implementation tree used for the repository smoke evidence is now
-`8d405287` (`8d405287` is the current repository-side implementation commit). The Collector
+`4f0b5e9e` (`4f0b5e9e` is the current repository-side implementation commit). The Collector
 configuration content is unchanged from `7f064cce`; the Railway service definition is recorded in
 `988c93cb`. The current tree includes the follow-up worker,
 event-contract, compatibility-boundary, disabled-export fallback, documentation, and
