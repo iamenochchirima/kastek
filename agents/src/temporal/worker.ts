@@ -12,6 +12,10 @@ import { operationalLogger } from "../telemetry/logger";
 import { temporalActivityInterceptors, temporalClientInterceptor } from "../telemetry/temporal";
 import { startDurableRun } from "./client";
 import { AudioTranscriptionWorker } from "../transcription/worker";
+import { ChannelCredentialRepository } from "../db/repositories/channel-credential-repository";
+import { ChannelRepository } from "../db/repositories/channel-repository";
+import { TelegramBotClient } from "../channels/telegram-client";
+import { DiscordBotClient } from "../channels/discord-client";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -90,6 +94,10 @@ async function main(): Promise<void> {
   const audioTranscriptionWorker = new AudioTranscriptionWorker({
     pool,
     config,
+    channels: new ChannelRepository(pool),
+    channelCredentials: new ChannelCredentialRepository(pool, config.AGENTS_CREDENTIAL_ENCRYPTION_KEY),
+    telegramClient: new TelegramBotClient({ apiBaseUrl: config.TELEGRAM_API_BASE_URL, timeoutMs: config.TELEGRAM_API_TIMEOUT_MS }),
+    discordClient: new DiscordBotClient({ apiBaseUrl: config.DISCORD_API_BASE_URL, timeoutMs: config.DISCORD_API_TIMEOUT_MS }),
     startWorkflow: (runId) => startDurableRun(client, config, { runId }),
   });
   const audioTranscriptionLoop = audioTranscriptionWorker.run();

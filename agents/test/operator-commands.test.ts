@@ -10,6 +10,7 @@ describe("operator command contract", () => {
   it("requires a second operator for effect and kill-switch mutations", () => {
     expect(requiredApprovals("cancel_run")).toBe(1);
     expect(requiredApprovals("retry_run")).toBe(2);
+    expect(requiredApprovals("retry_audio_transcription")).toBe(2);
     expect(requiredApprovals("replay_delivery")).toBe(2);
     expect(requiredApprovals("delete_memory")).toBe(2);
     expect(requiredApprovals("assign_run")).toBe(2);
@@ -35,6 +36,7 @@ describe("operator command contract", () => {
   it("keeps every mutating command explicit, bounded, and dual-controlled", () => {
     const dualControlCommands = [
       "retry_run",
+      "retry_audio_transcription",
       "replay_delivery",
       "delete_memory",
       "assign_run",

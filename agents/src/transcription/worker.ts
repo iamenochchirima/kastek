@@ -15,15 +15,25 @@ import {
 import { ElevenLabsTranscriptionProvider } from "./elevenlabs";
 import { operationalLogger } from "../telemetry/logger";
 import { recordQueueAge, recordRetry, withSpan } from "../telemetry/spans";
+import { ChannelCredentialRepository } from "../db/repositories/channel-credential-repository";
+import { ChannelRepository } from "../db/repositories/channel-repository";
+import { TelegramBotClient } from "../channels/telegram-client";
+import { DiscordBotClient } from "../channels/discord-client";
 
 type DispatchInput = Record<string, unknown>;
+type AudioTranscriptionJobs = Pick<AudioTranscriptionJobRepository, "claimDue" | "markTranscribed" | "markDispatched" | "markRetryable" | "markFailed">;
 
 export interface AudioTranscriptionWorkerOptions {
   pool: Pool;
   config: AppConfig;
+  jobs?: AudioTranscriptionJobs;
   provider?: AudioTranscriptionProvider;
   coreClient?: KasitekCoreReadClient;
   platformChat?: PlatformChatRepository;
+  channels?: ChannelRepository;
+  channelCredentials?: ChannelCredentialRepository;
+  telegramClient?: TelegramBotClient;
+  discordClient?: DiscordBotClient;
   startWorkflow?: (runId: string) => Promise<void>;
   workerId?: string;
 }
@@ -85,14 +95,22 @@ export class AudioTranscriptionWorker {
   private readonly provider: AudioTranscriptionProvider;
   private readonly coreClient: KasitekCoreReadClient;
   private readonly platformChat: PlatformChatRepository;
+  private readonly channels: ChannelRepository;
+  private readonly channelCredentials: ChannelCredentialRepository;
+  private readonly telegramClient: TelegramBotClient;
+  private readonly discordClient: DiscordBotClient;
   private readonly workerId: string;
   private stopping = false;
 
   public constructor(private readonly options: AudioTranscriptionWorkerOptions) {
-    this.jobs = new AudioTranscriptionJobRepository(options.pool);
+    this.jobs = options.jobs ?? new AudioTranscriptionJobRepository(options.pool);
     this.provider = options.provider ?? ElevenLabsTranscriptionProvider.fromConfig(options.config);
     this.coreClient = options.coreClient ?? new KasitekCoreReadClient(options.config);
     this.platformChat = options.platformChat ?? new PlatformChatRepository(options.pool);
+    this.channels = options.channels ?? new ChannelRepository(options.pool);
+    this.channelCredentials = options.channelCredentials ?? new ChannelCredentialRepository(options.pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
+    this.telegramClient = options.telegramClient ?? new TelegramBotClient({ apiBaseUrl: options.config.TELEGRAM_API_BASE_URL, timeoutMs: options.config.TELEGRAM_API_TIMEOUT_MS });
+    this.discordClient = options.discordClient ?? new DiscordBotClient({ apiBaseUrl: options.config.DISCORD_API_BASE_URL, timeoutMs: options.config.DISCORD_API_TIMEOUT_MS });
     this.workerId = options.workerId?.trim() || `audio-transcription-${randomUUID()}`;
   }
 
@@ -232,14 +250,45 @@ export class AudioTranscriptionWorker {
         });
         operationalLogger.warn({ event: "audio.transcription.retry.scheduled", job_id: job.id, attempt: job.attempt_count, error_code: details.code }, "Audio transcription retry scheduled");
       } else {
-        await this.jobs.markFailed({
+        const markedFailed = await this.jobs.markFailed({
           jobId: job.id,
           workerId: this.workerId,
           errorCode: details.code,
           errorMessage: details.message,
         });
-        operationalLogger.warn({ event: "audio.transcription.failed", job_id: job.id, attempt: job.attempt_count, error_code: details.code, retryable: details.retryable }, "Audio transcription job failed");
+        if (markedFailed) {
+          await this.notifyExternalFailure(job);
+          operationalLogger.warn({ event: "audio.transcription.failed", job_id: job.id, attempt: job.attempt_count, error_code: details.code, retryable: details.retryable }, "Audio transcription job failed");
+        }
       }
+    }
+  }
+
+  private async notifyExternalFailure(job: AudioTranscriptionJobRecord): Promise<void> {
+    if (job.dispatch_kind !== "external") return;
+    const input = job.dispatch_input;
+    const channelType = recordString(input, "channelType");
+    const channelKey = recordString(input, "channelKey");
+    const externalConversationId = recordString(input, "externalConversationId");
+    if (!channelType || !channelKey || !externalConversationId || !["telegram", "discord"].includes(channelType)) return;
+    try {
+      const connection = await this.channels.getConnectionForInbound({
+        organizationId: job.organization_id,
+        channelType,
+        channelKey,
+      });
+      if (!connection?.credential_reference) return;
+      const message = "I couldn't transcribe that audio. Please try sending it again.";
+      if (channelType === "telegram") {
+        const token = await this.channelCredentials.resolve(job.organization_id, connection.credential_reference, "telegram");
+        await this.telegramClient.sendMessage(token, externalConversationId, message);
+      } else {
+        const token = await this.channelCredentials.resolve(job.organization_id, connection.credential_reference, "discord");
+        await this.discordClient.sendMessage(token, externalConversationId, message);
+      }
+      operationalLogger.info({ event: "audio.transcription.failure.notified", job_id: job.id, channel: channelType }, "Audio transcription failure notification sent");
+    } catch {
+      operationalLogger.warn({ event: "audio.transcription.failure.notification.failed", job_id: job.id, channel: channelType }, "Could not send audio transcription failure notification");
     }
   }
 }
