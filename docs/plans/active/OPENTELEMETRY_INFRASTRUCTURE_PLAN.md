@@ -30,8 +30,8 @@ boundary is checked in under `infra/observability/otel-collector/` with pinned p
 receivers, memory limits, batching, redaction, health checks, local Compose startup, a generic
 production OTLP template with bounded queue/retry settings and error-preserving tail sampling, and
 Railway deployment instructions plus a checked-in Railway service definition for the Collector. The
-image contains the checked-in profiles and selects staging through the allow-listed
-`OTEL_COLLECTOR_CONFIG` variable.
+image contains the checked-in profiles, and the staging service selects its profile through the
+Railway per-service Custom Start Command.
 The shared Rust crate initializes logs, traces, metrics, resources, W3C propagation, HTTP metrics,
 correlation IDs, provider spans, background spans, and graceful shutdown. Outbound request context
 is injected after entering the provider span, and legacy Rust log messages plus telemetry bootstrap
