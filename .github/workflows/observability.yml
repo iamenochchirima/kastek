@@ -263,8 +263,8 @@ jobs:
           grep -q "kasitek-agents" collector.log
           grep -q "ci-local-smoke" collector.log
           grep -q "kasitek.local.smoke.count" collector.log
-          grep -q 'trace_id' collector.log
-          grep -q 'span_id' collector.log
+          grep -qi 'trace id' collector.log
+          grep -qi 'span id' collector.log
           if grep -q 'operation.invalid.event' collector.log; then
             echo 'Collector received an invalid operational event name.'
             exit 1
