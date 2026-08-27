@@ -25,7 +25,7 @@ exist.
 - [x] Confirm the enabled service inventory for local, staging, and production:
       Core, Tenants, Analytics when deployed, Agents API, Agents worker, and Agents gateway.
 - [x] Record browser/client telemetry as a separate follow-up rather than enabling it implicitly.
-- [ ] Create the implementation PR/issue and link this plan and checklist.
+- [x] Create and link the implementation issue: [#2](https://github.com/iamenochchirima/kasitek/issues/2).
 - [x] Create the repository release record at
       `docs/plans/active/OPENTELEMETRY_INFRASTRUCTURE_RELEASE_RECORD.md`.
 - [x] Classify the implementation risk and identify whether production enablement requires an

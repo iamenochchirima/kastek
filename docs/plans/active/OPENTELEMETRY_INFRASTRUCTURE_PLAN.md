@@ -6,6 +6,8 @@
 
 **Last updated:** 2026-08-27
 
+**Tracking issue:** [#2](https://github.com/iamenochchirima/kasitek/issues/2)
+
 ## Objective
 
 Establish a vendor-neutral observability foundation for KasiTek using OpenTelemetry APIs, SDKs,

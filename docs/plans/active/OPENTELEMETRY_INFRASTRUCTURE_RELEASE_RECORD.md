@@ -4,6 +4,7 @@ title: OpenTelemetry Infrastructure Release Record
 owner: KasiTek engineering
 last_reviewed: 2026-08-27
 status: repository evidence complete; hosted staging and durable-destination gates pending
+tracking_issue: https://github.com/iamenochchirima/kasitek/issues/2
 ---
 
 # OpenTelemetry Infrastructure Release Record
