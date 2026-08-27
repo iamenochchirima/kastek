@@ -53,14 +53,17 @@ For this monorepo service:
    check, and restart policy.
 4. Configure resource limits appropriate to the environment; sizing is not encoded in this
    provider-neutral service definition.
-5. Set each application service's OTLP endpoint to the Collector's private address, for example:
+5. Set the Collector service variable `OTEL_COLLECTOR_CONFIG=config.staging.yaml`. The image
+   contains the checked-in profiles and rejects unsupported profile values. Keep the production
+   template undeployed until a durable destination is approved.
+6. Set each application service's OTLP endpoint to the Collector's private address, for example:
 
    ```text
    OTEL_EXPORTER_OTLP_ENDPOINT=http://${{otel-collector.RAILWAY_PRIVATE_DOMAIN}}:4318
    OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
    ```
 
-6. Keep staging and production Collector services and variables separate.
+7. Keep staging and production Collector services and variables separate.
 
 Railway services in the same environment can communicate through private DNS. The Collector
 should listen on OTLP ports `4317` and `4318` internally; those ports do not need public domains.

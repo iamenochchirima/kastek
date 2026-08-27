@@ -144,6 +144,9 @@ jobs:
       - name: Validate Railway service definition
         run: python3 -m json.tool infra/observability/otel-collector/railway.json >/dev/null
 
+      - name: Check Collector entrypoint syntax
+        run: sh -n infra/observability/otel-collector/entrypoint.sh
+
       - name: Validate pinned Collector profiles
         env:
           OTEL_BACKEND_ENDPOINT: http://127.0.0.1:4318
@@ -170,6 +173,25 @@ jobs:
 
       - name: Build Collector image
         run: docker build -t kasitek-otel-collector:ci infra/observability/otel-collector
+
+      - name: Verify staging profile selection
+        run: |
+          set -euo pipefail
+          docker run -d --name kasitek-otel-collector-staging-profile-ci \
+            -e PORT=13133 \
+            -e OTEL_COLLECTOR_CONFIG=config.staging.yaml \
+            -p 13134:13133 \
+            kasitek-otel-collector:ci
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:13134/ >/dev/null; then
+              docker rm -f kasitek-otel-collector-staging-profile-ci
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs kasitek-otel-collector-staging-profile-ci
+          docker rm -f kasitek-otel-collector-staging-profile-ci
+          exit 1
 
       - name: Start local Collector
         run: |

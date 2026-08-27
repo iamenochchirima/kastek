@@ -61,6 +61,11 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://${{otel-collector.RAILWAY_PRIVATE_DOMAIN}}:43
 OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 ```
 
+For the staging Collector service, set the non-secret variable
+`OTEL_COLLECTOR_CONFIG=config.staging.yaml`. The image contains the checked-in profiles and rejects
+unsupported profile names. Do not select `config.production.template.yaml` until a durable backend
+and its access policy have been approved.
+
 Use a separate staging Collector and staging variables. Never copy production endpoint or
 authentication values into staging. The current hosted shape is documented in the
 [Collector README](https://github.com/iamenochchirima/kasitek/blob/main/infra/observability/otel-collector/README.md).
