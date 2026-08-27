@@ -135,4 +135,48 @@ describe("AudioTranscriptionWorker", () => {
     expect(sendMessage).toHaveBeenCalledWith("telegram-token", "chat-1", "I couldn't transcribe that audio. Please try sending it again.");
     expect(jobs.markRetryable).not.toHaveBeenCalled();
   });
+
+  it("uses the Core delivery boundary for WhatsApp terminal failures", async () => {
+    const source = job({
+      dispatch_kind: "external",
+      dispatch_input: {
+        channelType: "whatsapp",
+        externalConversationId: "core-conversation-1",
+        provider: "meta-whatsapp",
+      },
+    });
+    const jobs = {
+      claimDue: vi.fn().mockResolvedValue([source]),
+      markTranscribed: vi.fn(),
+      markDispatched: vi.fn(),
+      markRetryable: vi.fn(),
+      markFailed: vi.fn().mockResolvedValue(true),
+    };
+    const deliverChannelMessage = vi.fn().mockResolvedValue({ status: "sent" });
+    const worker = new AudioTranscriptionWorker({
+      pool: {} as never,
+      config: config(),
+      jobs: jobs as never,
+      provider: { transcribe: vi.fn().mockRejectedValue(new AudioTranscriptionError("bad audio", "AUDIO_TRANSCRIPTION_INVALID_MEDIA", false, 422)) },
+      coreClient: { downloadContentMedia: vi.fn().mockResolvedValue({ bytes: Buffer.from("audio"), mimeType: "audio/ogg" }), deliverChannelMessage } as never,
+      platformChat: {} as never,
+      channels: {} as never,
+      channelCredentials: {} as never,
+      telegramClient: {} as never,
+      discordClient: {} as never,
+      workerId: "worker-1",
+    });
+
+    await expect(worker.runOnce()).resolves.toBe(1);
+    expect(deliverChannelMessage).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      installationId: source.installation_id,
+      actorId: source.actor_id,
+      runId: source.id,
+      correlationId: source.correlation_id,
+      channelType: "whatsapp",
+      externalConversationId: "core-conversation-1",
+      text: "I couldn't transcribe that audio. Please try sending it again.",
+    });
+  });
 });

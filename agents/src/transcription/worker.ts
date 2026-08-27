@@ -91,7 +91,7 @@ function errorDetails(error: unknown): { code: string; message: string; retryabl
 }
 
 export class AudioTranscriptionWorker {
-  private readonly jobs: AudioTranscriptionJobRepository;
+  private readonly jobs: AudioTranscriptionJobs;
   private readonly provider: AudioTranscriptionProvider;
   private readonly coreClient: KasitekCoreReadClient;
   private readonly platformChat: PlatformChatRepository;
@@ -270,21 +270,37 @@ export class AudioTranscriptionWorker {
     const channelType = recordString(input, "channelType");
     const channelKey = recordString(input, "channelKey");
     const externalConversationId = recordString(input, "externalConversationId");
-    if (!channelType || !channelKey || !externalConversationId || !["telegram", "discord"].includes(channelType)) return;
+    if (!channelType || !externalConversationId) return;
     try {
-      const connection = await this.channels.getConnectionForInbound({
-        organizationId: job.organization_id,
-        channelType,
-        channelKey,
-      });
-      if (!connection?.credential_reference) return;
       const message = "I couldn't transcribe that audio. Please try sending it again.";
-      if (channelType === "telegram") {
-        const token = await this.channelCredentials.resolve(job.organization_id, connection.credential_reference, "telegram");
-        await this.telegramClient.sendMessage(token, externalConversationId, message);
+      if (channelType === "whatsapp") {
+        await this.coreClient.deliverChannelMessage({
+          organizationId: job.organization_id,
+          installationId: job.installation_id,
+          actorId: job.actor_id,
+          runId: job.id,
+          correlationId: job.correlation_id,
+          channelType,
+          externalConversationId,
+          text: message,
+        });
+      } else if (channelType === "telegram" || channelType === "discord") {
+        if (!channelKey) return;
+        const connection = await this.channels.getConnectionForInbound({
+          organizationId: job.organization_id,
+          channelType,
+          channelKey,
+        });
+        if (!connection?.credential_reference) return;
+        if (channelType === "telegram") {
+          const token = await this.channelCredentials.resolve(job.organization_id, connection.credential_reference, "telegram");
+          await this.telegramClient.sendMessage(token, externalConversationId, message);
+        } else {
+          const token = await this.channelCredentials.resolve(job.organization_id, connection.credential_reference, "discord");
+          await this.discordClient.sendMessage(token, externalConversationId, message);
+        }
       } else {
-        const token = await this.channelCredentials.resolve(job.organization_id, connection.credential_reference, "discord");
-        await this.discordClient.sendMessage(token, externalConversationId, message);
+        return;
       }
       operationalLogger.info({ event: "audio.transcription.failure.notified", job_id: job.id, channel: channelType }, "Audio transcription failure notification sent");
     } catch {
