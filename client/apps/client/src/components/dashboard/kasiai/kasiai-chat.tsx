@@ -49,6 +49,7 @@ import {
   ensureKasiAi,
   getKasiAiHome,
   decideAgentRunApproval,
+  getAudioTranscriptionJob,
   getAgentRun,
   getPlatformConversation,
   issueKasiAiWhatsappPairing,
@@ -185,7 +186,9 @@ function mergeMessages(
         (candidate) =>
           candidate.run_id &&
           candidate.direction === message.direction &&
-          messageText(candidate) === messageText(message),
+          (messageText(candidate) === messageText(message) ||
+            (typeof candidate.content.assetId === "string" &&
+              candidate.content.assetId === message.content.assetId)),
       ),
   );
   return sorted([
@@ -362,6 +365,23 @@ function pauseForRunPoll(signal: AbortSignal) {
     }, 800);
     signal.addEventListener("abort", abort, { once: true });
   });
+}
+
+async function waitForAudioTranscriptionJob(
+  jobId: string,
+  signal: AbortSignal,
+): Promise<Awaited<ReturnType<typeof getAudioTranscriptionJob>>> {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+    try {
+      const job = await getAudioTranscriptionJob(jobId);
+      if (["completed", "failed"].includes(job.status)) return job;
+    } catch {
+      // Keep polling; the job remains durable server-side.
+    }
+    await pauseForRunPoll(signal);
+  }
+  throw new Error("Audio transcription is taking longer than expected");
 }
 
 async function waitForRunTerminal(
@@ -881,6 +901,8 @@ export function KasiAiChat({
         };
     if (optimistic) setMessages((items) => [...items, optimistic]);
     let acceptedRunId: string | null = null;
+    const controller = new AbortController();
+    streamAbort.current = controller;
     try {
       const accepted = retryRunId
         ? await retryAgentRun(retryRunId)
@@ -892,7 +914,7 @@ export function KasiAiChat({
                     modelProvider: effectiveModel?.provider,
                     model: effectiveModel?.model,
                   });
-              return sendPlatformAudio(installation.id, {
+              const queued = await sendPlatformAudio(installation.id, {
                 file: audioFile,
                 idempotencyKey: crypto.randomUUID(),
                 conversationId: audioConversation.conversation.id,
@@ -901,6 +923,31 @@ export function KasiAiChat({
                   pageTitle: document.title,
                 },
               });
+              if (optimistic) {
+                setMessages((current) =>
+                  current.map((message) =>
+                    message.id === optimistic.id
+                      ? { ...message, conversation_id: audioConversation.conversation.id, content: { ...message.content, assetId: queued.assetId, transcription: { status: "queued", provider: "elevenlabs" } } }
+                      : message,
+                  ),
+                );
+              }
+              setRunProgress("Transcribing audio…");
+              setRunEvents([{ event: "audio.transcription", label: "Transcribing audio" }]);
+              const job = await waitForAudioTranscriptionJob(queued.jobId, controller.signal);
+              if (job.status !== "completed") throw new Error(job.errorMessage || "Audio transcription failed");
+              if (!job.runId) throw new Error("Audio run was not created");
+              const conversationResult = await getPlatformConversation(audioConversation.conversation.id);
+              const audioMessage = [...conversationResult.messages].reverse().find(
+                (message) => message.direction === "inbound" && message.content.assetId === queued.assetId && message.run_id === job.runId,
+              );
+              if (!audioMessage) throw new Error("Transcribed audio message was not available");
+              return {
+                conversation: conversationResult.conversation,
+                message: audioMessage,
+                runId: job.runId,
+                status: "received",
+              };
             })()
           : await sendPlatformMessage(installation.id, {
               message: text,
@@ -935,8 +982,6 @@ export function KasiAiChat({
       setLastRunId(accepted.runId);
       setRunProgress("Run accepted; building context…");
       setRunEvents([{ event: "run.received", label: "Run accepted" }]);
-      const controller = new AbortController();
-      streamAbort.current = controller;
       let cursor = 0;
       let terminal = false;
       for (let attempt = 0; attempt < 3 && !terminal; attempt += 1) {

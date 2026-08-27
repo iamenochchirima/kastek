@@ -1314,7 +1314,7 @@ export function sendPlatformMessage(
 export function sendPlatformAudio(
   installationId: string,
   input: { file: File; conversationId: string; idempotencyKey: string; caption?: string; context?: { route?: string; pageTitle?: string } },
-): Promise<{ conversation: AgentConversation; message: AgentMessage; runId: string; status: string }> {
+): Promise<{ jobId: string; status: string; assetId: string; created: boolean; durable: boolean }> {
   const headers = new Headers({
     "content-type": input.file.type || "application/octet-stream",
     "x-audio-idempotency-key": input.idempotencyKey,
@@ -1329,6 +1329,23 @@ export function sendPlatformAudio(
     headers,
     body: input.file,
   });
+}
+
+export type AudioTranscriptionJob = {
+  jobId: string;
+  status: "queued" | "processing" | "dispatching" | "completed" | "retryable_failed" | "failed";
+  assetId: string;
+  transcript?: string;
+  languageCode?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  createdAt: string;
+  completedAt?: string;
+  runId?: string;
+};
+
+export function getAudioTranscriptionJob(jobId: string): Promise<AudioTranscriptionJob> {
+  return request(`/api/agents/audio/transcription-jobs/${encodeURIComponent(jobId)}`);
 }
 
 export function getPlatformConversation(conversationId: string, options: { limit?: number; before?: string } = {}): Promise<ConversationResponse> {

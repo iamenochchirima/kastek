@@ -1,0 +1,233 @@
+import { randomUUID } from "node:crypto";
+import type { Pool } from "pg";
+import type { AppConfig } from "../config";
+import { KasitekCoreReadClient, CoreToolError } from "../core/client";
+import { PlatformChatRepository } from "../db/repositories/platform-chat-repository";
+import {
+  AudioTranscriptionJobRepository,
+  transcriptionRetryDelayMs,
+  type AudioTranscriptionJobRecord,
+} from "../db/repositories/audio-transcription-job-repository";
+import {
+  AudioTranscriptionError,
+  type AudioTranscriptionProvider,
+} from "./provider";
+import { ElevenLabsTranscriptionProvider } from "./elevenlabs";
+
+type DispatchInput = Record<string, unknown>;
+
+export interface AudioTranscriptionWorkerOptions {
+  pool: Pool;
+  config: AppConfig;
+  provider?: AudioTranscriptionProvider;
+  coreClient?: KasitekCoreReadClient;
+  platformChat?: PlatformChatRepository;
+  startWorkflow?: (runId: string) => Promise<void>;
+  workerId?: string;
+}
+
+function recordValue(input: DispatchInput, key: string): unknown {
+  return input[key];
+}
+
+function recordString(input: DispatchInput, key: string): string | undefined {
+  const value = recordValue(input, key);
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function recordObject(input: DispatchInput, key: string): Record<string, unknown> {
+  const value = recordValue(input, key);
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function completedContent(content: Record<string, unknown>, transcript: string, languageCode?: string): Record<string, unknown> {
+  const caption = typeof content.text === "string" ? content.text.trim() : "";
+  return {
+    ...content,
+    text: [caption, transcript].filter(Boolean).join("\n\n"),
+    transcript,
+    transcription: {
+      status: "completed",
+      provider: "elevenlabs",
+      ...(languageCode ? { languageCode } : {}),
+    },
+  };
+}
+
+function errorDetails(error: unknown): { code: string; message: string; retryable: boolean } {
+  if (error instanceof AudioTranscriptionError) {
+    return { code: error.code, message: error.message, retryable: error.retryable };
+  }
+  if (error instanceof CoreToolError) {
+    return {
+      code: error.code,
+      message: error.message,
+      retryable: !["CORE_NOT_FOUND", "CORE_INVALID_RESPONSE", "CORE_UNAUTHORIZED"].includes(error.code),
+    };
+  }
+  const code = typeof (error as { code?: unknown })?.code === "string"
+    ? (error as { code: string }).code
+    : "AUDIO_TRANSCRIPTION_JOB_FAILED";
+  const message = error instanceof Error ? error.message : "Audio transcription job failed";
+  return {
+    code: code.slice(0, 120),
+    message: message.slice(0, 2_000),
+    retryable: !["channel_identity_not_paired", "conversation_handoff_active", "AUDIO_JOB_INVALID"].includes(code),
+  };
+}
+
+export class AudioTranscriptionWorker {
+  private readonly jobs: AudioTranscriptionJobRepository;
+  private readonly provider: AudioTranscriptionProvider;
+  private readonly coreClient: KasitekCoreReadClient;
+  private readonly platformChat: PlatformChatRepository;
+  private readonly workerId: string;
+  private stopping = false;
+
+  public constructor(private readonly options: AudioTranscriptionWorkerOptions) {
+    this.jobs = new AudioTranscriptionJobRepository(options.pool);
+    this.provider = options.provider ?? ElevenLabsTranscriptionProvider.fromConfig(options.config);
+    this.coreClient = options.coreClient ?? new KasitekCoreReadClient(options.config);
+    this.platformChat = options.platformChat ?? new PlatformChatRepository(options.pool);
+    this.workerId = options.workerId?.trim() || `audio-transcription-${randomUUID()}`;
+  }
+
+  public stop(): void {
+    this.stopping = true;
+  }
+
+  public async runOnce(): Promise<number> {
+    const claimed = await this.jobs.claimDue(
+      this.workerId,
+      this.options.config.AUDIO_TRANSCRIPTION_WORKER_BATCH_SIZE,
+      this.options.config.AUDIO_TRANSCRIPTION_WORKER_LEASE_MS,
+    );
+    await Promise.all(claimed.map((job) => this.process(job)));
+    return claimed.length;
+  }
+
+  public async run(): Promise<void> {
+    while (!this.stopping) {
+      try {
+        await this.runOnce();
+      } catch {
+        // A failed poll must not terminate the worker. The next poll will reclaim expired leases.
+      }
+      if (!this.stopping) await new Promise((resolve) => setTimeout(resolve, this.options.config.AUDIO_TRANSCRIPTION_WORKER_POLL_INTERVAL_MS));
+    }
+  }
+
+  private async process(job: AudioTranscriptionJobRecord): Promise<void> {
+    try {
+      const input = job.dispatch_input;
+      if (job.status === "processing") {
+        const media = await this.coreClient.downloadContentMedia({
+          organizationId: job.organization_id,
+          installationId: job.installation_id,
+          actorId: job.actor_id,
+          runId: job.id,
+          correlationId: job.correlation_id,
+        }, job.asset_id);
+        const transcription = await this.provider.transcribe({
+          bytes: media.bytes,
+          mimeType: media.mimeType,
+          fileName: recordString(input, "fileName"),
+          languageHint: recordString(input, "languageHint"),
+        });
+        const claimed = await this.jobs.markTranscribed({
+          jobId: job.id,
+          workerId: this.workerId,
+          transcript: transcription.text,
+          languageCode: transcription.languageCode,
+        });
+        if (!claimed) return;
+        job = {
+          ...job,
+          status: "dispatching",
+          transcript: transcription.text,
+          language_code: transcription.languageCode ?? null,
+        };
+      }
+
+      if (job.status !== "dispatching" || !job.transcript) throw Object.assign(new Error("Audio job has no transcript to dispatch"), { code: "AUDIO_JOB_INVALID" });
+      const content = completedContent(recordObject(input, "content"), job.transcript, job.language_code ?? undefined);
+      let acceptedRunId: string;
+      let acceptedConversationId: string;
+      let acceptedMessageId: string;
+      if (job.dispatch_kind === "platform") {
+        const accepted = await this.platformChat.acceptMessage({
+          organizationId: job.organization_id,
+          installationId: job.installation_id,
+          actorId: job.actor_id,
+          correlationId: job.correlation_id,
+          idempotencyKey: recordString(input, "idempotencyKey") ?? job.idempotency_key,
+          message: typeof content.text === "string" ? content.text : job.transcript,
+          messageType: recordString(input, "messageType") === "attachment" ? "attachment" : "text",
+          content,
+          context: recordObject(input, "context"),
+          conversationId: recordString(input, "conversationId"),
+          createNew: recordValue(input, "createNew") === true,
+          modelProvider: recordString(input, "modelProvider"),
+          model: recordString(input, "model"),
+        });
+        if (accepted.run.status === "received" && this.options.startWorkflow) await this.options.startWorkflow(accepted.run.id);
+        acceptedRunId = accepted.run.id;
+        acceptedConversationId = accepted.conversation.id;
+        acceptedMessageId = accepted.message.id;
+      } else {
+        const accepted = await this.platformChat.acceptExternalMessage({
+          organizationId: job.organization_id,
+          installationId: recordString(input, "installationId") ?? job.installation_id,
+          channelType: recordString(input, "channelType") ?? "unknown",
+          channelKey: recordString(input, "channelKey"),
+          provider: recordString(input, "provider") ?? "unknown",
+          providerEventId: recordString(input, "providerEventId") ?? job.idempotency_key,
+          providerMessageId: recordString(input, "providerMessageId") ?? job.idempotency_key,
+          externalIdentity: recordString(input, "externalIdentity") ?? "unknown",
+          externalConversationId: recordString(input, "externalConversationId") ?? "unknown",
+          messageType: recordString(input, "messageType") ?? "attachment",
+          content,
+          occurredAt: recordString(input, "occurredAt"),
+          displayName: recordString(input, "displayName"),
+          correlationId: job.correlation_id,
+        });
+        if (accepted.run.status === "received" && this.options.startWorkflow) await this.options.startWorkflow(accepted.run.id);
+        acceptedRunId = accepted.run.id;
+        acceptedConversationId = accepted.conversation.id;
+        acceptedMessageId = accepted.message.id;
+      }
+      await this.jobs.markDispatched({
+        jobId: job.id,
+        workerId: this.workerId,
+        conversationId: acceptedConversationId,
+        messageId: acceptedMessageId,
+        runId: acceptedRunId,
+      });
+    } catch (error) {
+      const details = errorDetails(error);
+      const exhausted = job.attempt_count >= this.options.config.AUDIO_TRANSCRIPTION_MAX_ATTEMPTS;
+      if (details.retryable && !exhausted) {
+        await this.jobs.markRetryable({
+          jobId: job.id,
+          workerId: this.workerId,
+          errorCode: details.code,
+          errorMessage: details.message,
+          delayMs: transcriptionRetryDelayMs(
+            job.attempt_count,
+            this.options.config.AUDIO_TRANSCRIPTION_RETRY_BASE_DELAY_MS,
+            this.options.config.AUDIO_TRANSCRIPTION_RETRY_MAX_DELAY_MS,
+          ),
+        });
+      } else {
+        await this.jobs.markFailed({
+          jobId: job.id,
+          workerId: this.workerId,
+          errorCode: details.code,
+          errorMessage: details.message,
+        });
+      }
+    }
+  }
+}

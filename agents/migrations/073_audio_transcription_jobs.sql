@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS audio_transcription_jobs (
   lease_expires_at TIMESTAMPTZ,
   transcript TEXT,
   language_code TEXT,
+  result_conversation_id UUID,
+  result_message_id UUID,
+  result_run_id UUID,
   error_code TEXT,
   error_message TEXT,
   started_at TIMESTAMPTZ,
@@ -29,6 +32,7 @@ CREATE TABLE IF NOT EXISTS audio_transcription_jobs (
   CHECK (status <> 'completed' OR completed_at IS NOT NULL),
   CHECK (transcript IS NULL OR length(transcript) BETWEEN 1 AND 200000),
   CHECK (language_code IS NULL OR length(language_code) BETWEEN 1 AND 32),
+  CHECK ((status = 'completed') = (result_run_id IS NOT NULL)),
   CHECK (error_code IS NULL OR length(error_code) BETWEEN 1 AND 120),
   CHECK (error_message IS NULL OR length(error_message) BETWEEN 1 AND 2_000)
 );

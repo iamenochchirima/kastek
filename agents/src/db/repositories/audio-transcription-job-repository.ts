@@ -28,6 +28,9 @@ export interface AudioTranscriptionJobRecord {
   lease_expires_at: string | null;
   transcript: string | null;
   language_code: string | null;
+  result_conversation_id: string | null;
+  result_message_id: string | null;
+  result_run_id: string | null;
   error_code: string | null;
   error_message: string | null;
   started_at: string | null;
@@ -176,14 +179,21 @@ export class AudioTranscriptionJobRepository {
     return (result.rowCount ?? 0) === 1;
   }
 
-  public async markDispatched(jobId: string, workerId: string): Promise<boolean> {
+  public async markDispatched(input: {
+    jobId: string;
+    workerId: string;
+    conversationId?: string;
+    messageId?: string;
+    runId: string;
+  }): Promise<boolean> {
     const result = await query(
       this.pool,
       `UPDATE audio_transcription_jobs
        SET status = 'completed', completed_at = now(), lease_owner = NULL, lease_expires_at = NULL,
+           result_conversation_id = $3, result_message_id = $4, result_run_id = $5,
            error_code = NULL, error_message = NULL
        WHERE id = $1 AND lease_owner = $2 AND status = 'dispatching'`,
-      [jobId, workerId],
+      [input.jobId, input.workerId, input.conversationId ?? null, input.messageId ?? null, input.runId],
     );
     return (result.rowCount ?? 0) === 1;
   }

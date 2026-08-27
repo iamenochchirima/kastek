@@ -2224,6 +2224,23 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn get_audio_transcription_job(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        job_id: &str,
+    ) -> Result<Value, AppError> {
+        self.request_json(
+            Method::GET,
+            &format!("/v1/audio/transcription-jobs/{job_id}"),
+            organization_id,
+            actor_id,
+            &["chat:read"],
+            None,
+        )
+        .await
+    }
+
     pub async fn transcribe_audio(
         &self,
         organization_id: &str,

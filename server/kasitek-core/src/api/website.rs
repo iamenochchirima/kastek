@@ -49,6 +49,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         web::post().to(website::send_agent_website_chat_audio),
     );
     cfg.route(
+        "/api/widget/v1/sessions/{sessionId}/audio/{jobId}",
+        web::get().to(website::get_agent_website_chat_audio_status),
+    );
+    cfg.route(
+        "/api/widget/v1/sessions/{sessionId}/audio/{jobId}",
+        web::method(Method::OPTIONS).to(website::agent_website_chat_preflight),
+    );
+    cfg.route(
         "/api/widget/v1/sessions/{sessionId}/audio",
         web::method(Method::OPTIONS).to(website::agent_website_chat_preflight),
     );
