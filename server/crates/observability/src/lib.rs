@@ -37,7 +37,7 @@ use opentelemetry_sdk::{
 };
 use regex::{Captures, Regex};
 use serde_json::json;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{layer::SubscriberExt, EnvFilter};
 
 pub use tracing;
 pub use tracing_actix_web::{DefaultRootSpanBuilder, RootSpanBuilder, TracingLogger};
@@ -315,7 +315,7 @@ fn init_otel(default_filter: &str, service_name: &str) -> Result<(), String> {
     let otel_layer = tracing_opentelemetry::layer()
         .with_tracer(tracer_provider.tracer(service_name.to_string()));
     let log_layer = OpenTelemetryTracingBridge::new(logger_provider);
-    tracing_subscriber::registry()
+    let subscriber = tracing_subscriber::registry()
         .with(tracing_filter(default_filter))
         .with(otel_layer)
         .with(log_layer)
@@ -325,8 +325,8 @@ fn init_otel(default_filter: &str, service_name: &str) -> Result<(), String> {
                 .with_target(true)
                 .with_current_span(true)
                 .with_span_list(false),
-        )
-        .try_init()
+        );
+    tracing::subscriber::set_global_default(subscriber)
         .map_err(|error| format!("failed to initialize tracing subscriber: {error}"))
 }
 
