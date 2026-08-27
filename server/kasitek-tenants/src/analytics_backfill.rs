@@ -55,8 +55,11 @@ pub struct BackfillStats {
 
 pub async fn run(pool: PgPool) {
     let Some(settings) = settings_from_env() else {
-        log::warn!(
-            "[tenant-analytics-backfill] disabled; set ANALYTICS_TENANT_INGESTION_TOKEN to enable Tenant source reconstruction"
+        observability::tracing::warn!(
+            event = "worker.disabled",
+            worker = "tenant_analytics_backfill",
+            reason = "missing_ingestion_token",
+            "worker disabled"
         );
         return;
     };
@@ -67,40 +70,61 @@ pub async fn run(pool: PgPool) {
     ) {
         Ok(client) => client,
         Err(error) => {
-            log::error!("[tenant-analytics-backfill] invalid transport configuration: {error}");
+            observability::tracing::error!(
+                event = "worker.startup.failed",
+                worker = "tenant_analytics_backfill",
+                error_type = %std::any::type_name_of_val(&error),
+                "worker transport configuration failed"
+            );
             return;
         }
     };
-    log::info!(
-        "[tenant-analytics-backfill] started producer_id={} endpoint={} batch_size={}",
-        settings.producer_id,
-        settings.endpoint,
-        settings.batch_size
+    observability::tracing::info!(
+        event = "worker.started",
+        worker = "tenant_analytics_backfill",
+        producer_id = %settings.producer_id,
+        batch_size = settings.batch_size,
+        "worker started"
     );
 
     loop {
         match client.claim_source_backfill_work().await {
             Ok(Some(work)) if work.source_service == "tenant-platform" => {
-                match process_source_reconstruction(&pool, &client, &settings, &work).await {
-                    Ok(stats) => log::info!(
-                        "[tenant-analytics-backfill] completed pass job={} records={} rejected={}",
-                        work.job_id,
-                        stats.records,
-                        stats.rejected_records
+                match observability::result_span(
+                    "queue",
+                    "tenant_analytics_backfill.process",
+                    process_source_reconstruction(&pool, &client, &settings, &work),
+                )
+                .await
+                {
+                    Ok(stats) => observability::tracing::info!(
+                        event = "queue.item.completed",
+                        worker = "tenant_analytics_backfill",
+                        records = stats.records,
+                        rejected_records = stats.rejected_records,
+                        "backfill job completed"
                     ),
-                    Err(error) => log::error!(
-                        "[tenant-analytics-backfill] pass failed job={} error={}",
-                        work.job_id,
-                        error
+                    Err(_) => observability::tracing::error!(
+                        event = "queue.item.failed",
+                        worker = "tenant_analytics_backfill",
+                        error_code = "backfill_processing_failed",
+                        "backfill job failed"
                     ),
                 }
             }
-            Ok(Some(work)) => log::warn!(
-                "[tenant-analytics-backfill] ignoring job for source service {}",
-                work.source_service
+            Ok(Some(work)) => observability::tracing::warn!(
+                event = "queue.item.ignored",
+                worker = "tenant_analytics_backfill",
+                source_service = %work.source_service,
+                "backfill job belongs to another source service"
             ),
             Ok(None) => {}
-            Err(error) => log::error!("[tenant-analytics-backfill] claim failed: {error}"),
+            Err(error) => observability::tracing::error!(
+                event = "queue.claim.failed",
+                worker = "tenant_analytics_backfill",
+                error_type = %std::any::type_name_of_val(&error),
+                "backfill work claim failed"
+            ),
         }
         tokio::time::sleep(poll_interval()).await;
     }

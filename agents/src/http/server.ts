@@ -45,6 +45,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  operationalLogger.error({ err: error, event: "agents_api.startup_failed" }, "Agent API startup failed");
+  operationalLogger.error({ err: error, event: "agents.api.startup.failed" }, "Agent API startup failed");
   void shutdownTelemetry().finally(() => { process.exitCode = 1; });
 });

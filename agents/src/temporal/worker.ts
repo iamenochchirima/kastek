@@ -59,13 +59,13 @@ async function main(): Promise<void> {
         try {
           await client.workflow.getHandle(`agent-run-${approval.run_id}`).signal("agent.expire", { reason: "Approval expired" });
         } catch (error) {
-          operationalLogger.warn({ err: error, event: "approval.expiry_signal_failed", run_id: approval.run_id }, "Could not signal expired approval");
+          operationalLogger.warn({ err: error, event: "approval.expiry.signal.failed", run_id: approval.run_id }, "Could not signal expired approval");
         }
       }));
-      if (stale.length) operationalLogger.warn({ event: "effect.reconciliation_required", count: stale.length }, "Provider outcomes require reconciliation");
+      if (stale.length) operationalLogger.warn({ event: "effect.reconciliation.required", count: stale.length }, "Provider outcomes require reconciliation");
       if (expired.length) operationalLogger.warn({ event: "approval.expired", count: expired.length }, "Approvals expired");
     } catch (error) {
-      operationalLogger.error({ err: error, event: "agent_recovery.sweep_failed" }, "Agent recovery sweep failed");
+      operationalLogger.error({ err: error, event: "agent.recovery.sweep.failed" }, "Agent recovery sweep failed");
     } finally {
       reconciling = false;
     }
@@ -98,6 +98,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  operationalLogger.error({ err: error, event: "agents_worker.startup_failed" }, "Agent worker startup failed");
+  operationalLogger.error({ err: error, event: "agents.worker.startup.failed" }, "Agent worker startup failed");
   void shutdownTelemetry().finally(() => { process.exitCode = 1; });
 });

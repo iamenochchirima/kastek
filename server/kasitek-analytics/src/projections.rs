@@ -521,6 +521,7 @@ async fn promote_empty_generation(
 #[derive(Clone, Debug)]
 struct ClaimedWork {
     work_id: i64,
+    available_at: DateTime<Utc>,
     fact_kind: FactKind,
     reporting_scope_id: i64,
     root_scope_id: i64,
@@ -617,7 +618,17 @@ pub async fn process_once(
         return Ok(false);
     };
 
-    match process_work(pool, registry, worker_id, &work).await {
+    if let Ok(age) = Utc::now().signed_duration_since(work.available_at).to_std() {
+        observability::record_queue_age("analytics.projection", age);
+    }
+
+    match observability::result_span(
+        "queue",
+        "analytics_projection.process",
+        process_work(pool, registry, worker_id, &work),
+    )
+    .await
+    {
         Ok(()) => Ok(true),
         Err(error) => {
             mark_failed(pool, &work, worker_id, &error.to_string()).await?;
@@ -661,11 +672,15 @@ pub async fn run(pool: PgPool, registry: RegistrySnapshot) -> Result<(), std::io
         tokio::select! {
             _ = tokio::signal::ctrl_c() => break,
             _ = interval.tick() => {
-                if let Err(error) = crate::maintenance::run_once(
-                    &pool,
-                    &registry,
-                    &worker_id,
-                    lease_seconds,
+                if let Err(error) = observability::result_span(
+                    "worker",
+                    "analytics_projection.maintenance",
+                    crate::maintenance::run_once(
+                        &pool,
+                        &registry,
+                        &worker_id,
+                        lease_seconds,
+                    ),
                 )
                 .await
                 {
@@ -728,7 +743,7 @@ async fn claim_work(
            WHERE work.work_id = candidate.work_id
            RETURNING work.work_id, work.fact_kind, work.reporting_scope_id, work.root_scope_id,
                      work.source_window_start, work.source_window_end, work.max_source_storage_id,
-                     work.generation_id, work.attempt_count"#,
+                     work.generation_id, work.attempt_count, work.available_at"#,
     )
     .bind(PROJECTION_NAME)
     .bind(PROJECTION_VERSION)
@@ -748,6 +763,7 @@ fn parse_claimed_work(row: PgRow) -> Result<ClaimedWork, sqlx::Error> {
     }
     Ok(ClaimedWork {
         work_id: row.try_get("work_id")?,
+        available_at: row.try_get("available_at")?,
         fact_kind: if fact_kind == "event" {
             FactKind::Event
         } else {

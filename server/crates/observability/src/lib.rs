@@ -38,6 +38,7 @@ use opentelemetry_sdk::{
 use serde_json::json;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
+pub use tracing;
 pub use tracing_actix_web::{DefaultRootSpanBuilder, RootSpanBuilder, TracingLogger};
 
 const UNKNOWN_VALUE: &str = "unknown";
@@ -161,6 +162,8 @@ fn tracing_filter(default_filter: &str) -> EnvFilter {
 }
 
 fn init_otel(default_filter: &str, service_name: &str) -> Result<(), String> {
+    tracing_log::LogTracer::init()
+        .map_err(|error| format!("failed to initialize log-to-tracing bridge: {error}"))?;
     let resource = telemetry_resource(service_name);
     let span_exporter = opentelemetry_otlp::SpanExporter::builder()
         .with_http()

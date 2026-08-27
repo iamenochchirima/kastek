@@ -212,7 +212,7 @@ export class DiscordGatewaySupervisor {
     for (const connection of connections) {
       if (this.sessions.has(connection.id) || !connection.credential_reference) continue;
       const token = await this.credentials.resolve(connection.organization_id, connection.credential_reference, "discord").catch((error) => {
-        operationalLogger.warn({ err: error, event: "discord.credential_unavailable", connection_id: connection.id }, "Discord credential unavailable");
+        operationalLogger.warn({ err: error, event: "discord.credential.unavailable", connection_id: connection.id }, "Discord credential unavailable");
         return undefined;
       });
       if (!token) continue;
@@ -227,11 +227,11 @@ export class DiscordGatewaySupervisor {
             organizationId: connection.organization_id,
             connectionId: connection.id,
             metadata: { ...connection.metadata, gateway: { status } },
-          }).catch((error) => operationalLogger.warn({ err: error, event: "discord.status_update_failed", connection_id: connection.id }, "Could not update Discord connection status"));
+          }).catch((error) => operationalLogger.warn({ err: error, event: "discord.status.update.failed", connection_id: connection.id }, "Could not update Discord connection status"));
         },
       });
       this.sessions.set(connection.id, session);
-      void session.start().catch((error) => operationalLogger.warn({ err: error, event: "discord.session_failed", connection_id: connection.id }, "Discord session failed"));
+      void session.start().catch((error) => operationalLogger.warn({ err: error, event: "discord.session.failed", connection_id: connection.id }, "Discord session failed"));
     }
   }
 }

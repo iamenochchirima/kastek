@@ -7,7 +7,7 @@ use analytics_producer::{
 use chrono::Utc;
 use kasitek_analytics::{
     app,
-    config::{AnalyticsConfig, IngestionCredential},
+    config::{AnalyticsConfig, IngestionCredential, ReportingResolverCredential},
     contracts::ProcessKind,
     ingestion::IngestionAuthenticator,
     metrics::{MetricsAccess, ProcessMetrics},
@@ -48,6 +48,7 @@ fn analytics_config(database_url: String) -> AnalyticsConfig {
         reporting_public_keys_json: None,
         reporting_issuers: vec!["kasitek-core".to_string()],
         reporting_audience: "kasitek-analytics-reporting".to_string(),
+        reporting_resolver_credentials: Vec::<ReportingResolverCredential>::new(),
         ingestion_credentials: vec![IngestionCredential {
             source_service: SOURCE_SERVICE.to_string(),
             producer_id: PRODUCER_ID.to_string(),

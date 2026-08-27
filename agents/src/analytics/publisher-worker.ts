@@ -15,7 +15,7 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const token = config.ANALYTICS_AGENT_INGESTION_TOKEN;
   if (!token) {
-    operationalLogger.warn({ event: "analytics_publisher.disabled", reason: "missing_ingestion_token" }, "Analytics publisher disabled");
+    operationalLogger.warn({ event: "analytics.publisher.disabled", reason: "missing_ingestion_token" }, "Analytics publisher disabled");
     await shutdownTelemetry();
     return;
   }
@@ -46,7 +46,7 @@ async function main(): Promise<void> {
       if (stats.retryable > 0) recordRetry("analytics.outbox", stats.retryable);
       if (stats.claimed > 0 || stats.leasesReleased > 0) {
         operationalLogger.info({
-          event: "analytics_publisher.batch_completed",
+          event: "analytics.publisher.batch.completed",
           claimed: stats.claimed,
           delivered: stats.delivered,
           retryable: stats.retryable,
@@ -55,7 +55,7 @@ async function main(): Promise<void> {
         }, "Analytics publisher batch completed");
       }
     } catch (error) {
-      operationalLogger.error({ err: error, event: "analytics_publisher.iteration_failed" }, "Analytics publisher iteration failed");
+      operationalLogger.error({ err: error, event: "analytics.publisher.iteration.failed" }, "Analytics publisher iteration failed");
     } finally {
       publishing = false;
     }
@@ -74,6 +74,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  operationalLogger.error({ err: error, event: "analytics_publisher.startup_failed" }, "Analytics publisher startup failed");
+  operationalLogger.error({ err: error, event: "analytics.publisher.startup.failed" }, "Analytics publisher startup failed");
   void shutdownTelemetry().finally(() => { process.exitCode = 1; });
 });

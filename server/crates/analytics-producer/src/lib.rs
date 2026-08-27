@@ -319,6 +319,7 @@ pub struct OutboxRow {
     pub delivery_status: String,
     pub attempt_count: i32,
     pub next_attempt_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
     pub lease_owner: Option<String>,
     pub lease_expires_at: Option<DateTime<Utc>>,
 }
@@ -1111,6 +1112,7 @@ fn outbox_row(row: PgRow) -> Result<OutboxRow, ProducerError> {
         delivery_status: row.get("delivery_status"),
         attempt_count: row.get("attempt_count"),
         next_attempt_at: row.get("next_attempt_at"),
+        created_at: row.get("created_at"),
         lease_owner: row.get("lease_owner"),
         lease_expires_at: row.get("lease_expires_at"),
     })

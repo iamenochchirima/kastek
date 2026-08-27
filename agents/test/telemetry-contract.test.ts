@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { operationalLogRedaction, operationalLogSerializers } from "../src/telemetry/logger";
+import { isStableEventName, operationalLogRedaction, operationalLogSerializers } from "../src/telemetry/logger";
 import { redactTelemetryText } from "../src/telemetry/redaction";
 import { boundedAttribute } from "../src/telemetry/spans";
 
@@ -7,6 +7,12 @@ describe("telemetry contract", () => {
   it("bounds span attribute values", () => {
     expect(boundedAttribute("x".repeat(200), 128)).toHaveLength(128);
     expect(boundedAttribute(undefined)).toBe("unknown");
+  });
+
+  it("requires lowercase dot-separated operational event names", () => {
+    expect(isStableEventName("queue.item.completed")).toBe(true);
+    expect(isStableEventName("queue_item_completed")).toBe(false);
+    expect(isStableEventName("operation.invalid.event")).toBe(true);
   });
 
   it("keeps credential and content fields on the prohibited-field list", () => {

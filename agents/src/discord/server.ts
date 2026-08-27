@@ -10,7 +10,7 @@ import { operationalLogger } from "../telemetry/logger";
 async function main(): Promise<void> {
   const config = loadConfig();
   if (!config.DISCORD_GATEWAY_ENABLED) {
-    operationalLogger.info({ event: "discord_gateway.disabled", reason: "feature_disabled" }, "Discord gateway disabled");
+    operationalLogger.info({ event: "discord.gateway.disabled", reason: "feature_disabled" }, "Discord gateway disabled");
     await shutdownTelemetry();
     return;
   }
@@ -29,10 +29,10 @@ async function main(): Promise<void> {
   };
   process.once("SIGINT", () => void close().finally(() => process.exit(0)));
   process.once("SIGTERM", () => void close().finally(() => process.exit(0)));
-  operationalLogger.info({ event: "discord_gateway.started" }, "Discord gateway started");
+  operationalLogger.info({ event: "discord.gateway.started" }, "Discord gateway started");
 }
 
 main().catch((error) => {
-  operationalLogger.error({ err: error, event: "discord_gateway.startup_failed" }, "Discord gateway startup failed");
+  operationalLogger.error({ err: error, event: "discord.gateway.startup.failed" }, "Discord gateway startup failed");
   void shutdownTelemetry().finally(() => { process.exitCode = 1; });
 });

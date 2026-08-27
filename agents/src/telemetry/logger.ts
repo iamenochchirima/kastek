@@ -65,12 +65,27 @@ export const operationalLogSerializers = {
   }),
 };
 
+/** Operational event identifiers are stable, lowercase, dot-separated names. */
+export function isStableEventName(value: unknown): value is string {
+  return typeof value === "string" && /^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+$/.test(value);
+}
+
 /** Shared operational logger for workers, migrations, and non-Fastify processes. */
 export const operationalLogger = pino({
   level: process.env.LOG_LEVEL ?? "info",
   base: operationalLogFields(),
   redact: operationalLogRedaction,
   serializers: operationalLogSerializers,
+  formatters: {
+    log: (object: Record<string, unknown>) => {
+      if (object.event === undefined || isStableEventName(object.event)) return object;
+      return {
+        ...object,
+        event: "operation.invalid.event",
+        invalid_event: redactTelemetryText(object.event, 128),
+      };
+    },
+  },
   mixin: () => {
     const correlationId = currentCorrelationId();
     return correlationId ? { correlation_id: correlationId } : {};

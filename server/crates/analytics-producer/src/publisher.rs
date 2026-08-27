@@ -451,6 +451,20 @@ pub async fn publish_outbox_once(
     settings: &AnalyticsPublisherSettings,
     now: DateTime<Utc>,
 ) -> Result<PublishStats, PublisherError> {
+    observability::result_span(
+        "worker",
+        "analytics_outbox.publish_batch",
+        publish_outbox_once_inner(pool, client, settings, now),
+    )
+    .await
+}
+
+async fn publish_outbox_once_inner(
+    pool: &PgPool,
+    client: &AnalyticsIngestionClient,
+    settings: &AnalyticsPublisherSettings,
+    now: DateTime<Utc>,
+) -> Result<PublishStats, PublisherError> {
     settings.validate()?;
     let leases_released = release_expired_leases(pool, now, settings.batch_size).await?;
     let rows = claim_outbox_batch(
@@ -466,6 +480,12 @@ pub async fn publish_outbox_once(
             leases_released,
             ..PublishStats::default()
         });
+    }
+
+    if let Some(oldest) = rows.iter().map(|row| row.created_at).min() {
+        if let Ok(age) = now.signed_duration_since(oldest).to_std() {
+            observability::record_queue_age("analytics.outbox", age);
+        }
     }
 
     let outcomes = match client.send_batch(&settings.producer_id, &rows).await {
@@ -486,6 +506,13 @@ pub async fn publish_outbox_once(
         }
         apply_delivery_outcome(pool, &row.outbox_id, &settings.publisher_id, outcome).await?;
     }
+    if stats.retryable > 0 {
+        observability::record_retry(
+            "worker",
+            "analytics_outbox.delivery",
+            stats.retryable as u64,
+        );
+    }
     Ok(stats)
 }
 
@@ -494,6 +521,29 @@ pub async fn publish_outbox_once(
 /// The source outbox is authoritative for transport counts and sequence watermarks. Analytics
 /// owns the comparison and repair decision; producers only publish the summary for each stream.
 pub async fn reconcile_outbox_once(
+    pool: &PgPool,
+    client: &AnalyticsIngestionClient,
+    producer_id: &str,
+    source_service: &str,
+    after: Option<&ReconciliationCursor>,
+    max_streams: i64,
+) -> Result<ReconciliationStats, PublisherError> {
+    observability::result_span(
+        "worker",
+        "analytics_outbox.reconcile",
+        reconcile_outbox_once_inner(
+            pool,
+            client,
+            producer_id,
+            source_service,
+            after,
+            max_streams,
+        ),
+    )
+    .await
+}
+
+async fn reconcile_outbox_once_inner(
     pool: &PgPool,
     client: &AnalyticsIngestionClient,
     producer_id: &str,
@@ -827,6 +877,7 @@ mod tests {
             delivery_status: "leased".to_string(),
             attempt_count: 1,
             next_attempt_at: Utc::now(),
+            created_at: Utc::now(),
             lease_owner: Some("publisher".to_string()),
             lease_expires_at: Some(Utc::now()),
         }
