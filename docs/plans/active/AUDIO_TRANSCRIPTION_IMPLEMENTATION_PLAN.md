@@ -83,8 +83,9 @@ The first implementation slice confirms these ownership boundaries:
 - Authenticated KasIAI audio uses the Core media upload boundary and Agent Platform's existing
   platform-message/run path. The website widget uses its session/origin boundary, stores audio in
   Core, then forwards only the normalized attachment reference and transcript to Agent Platform.
-- The current slice performs transcription synchronously before dispatch. A durable transcription
-  job, lease, retry queue, and operator retry state remain required before production rollout.
+- The current slice queues transcription durably. Agent Platform owns the job lease, bounded retry,
+  terminal failure, operator retry/delete, and the single dispatch after transcription. ElevenLabs
+  is currently called as one bounded batch request; provider-side polling is not used.
 
 ## Product and technical decisions
 
@@ -141,24 +142,25 @@ updates the derived transcription record, not the original attachment.
 - Website widget: add a short-lived session upload endpoint or a server-mediated upload. The
   browser receives only an attachment ID and upload state, never a provider credential.
 
-All paths must stream bytes, enforce limits before persistence, sniff the file type rather than
-trusting only the filename or client MIME type, calculate a checksum, scan the object, and reject
-quarantined media before transcription.
+The current implementation enforces a 25 MB limit, supported MIME types, and known file signatures
+before transcription. Core owns organization/session media authorization and short-lived playback
+URLs. Streaming, checksum/duration inspection, and malware scanning/quarantine remain release gates
+because the current upload paths still buffer request bytes and Core marks uploaded media ready.
 
 ### 3. Transcription provider boundary
 
-Define an internal interface similar to:
+The current provider boundary is intentionally batch-oriented:
 
 ```text
 AudioTranscriptionProvider
-├── submit(audio_reference, language_hint, key_terms) -> provider_job
-├── poll(provider_job) -> pending | completed(transcript) | failed(error)
-└── cancel/delete(provider_job) where supported
+└── transcribe(audio_bytes, mime_type, file_name, language_hint)
+    -> completed(transcript, language) | bounded failure
 ```
 
-The worker owns provider calls. The browser, external channel adapters, and agent prompt never
-call ElevenLabs directly. Provider responses are normalized into a bounded internal result; raw
-provider payloads are not retained by default.
+The worker owns provider calls. The browser, external channel adapters, and agent prompt never call
+ElevenLabs directly. Provider responses are normalized into a bounded internal result; raw provider
+payloads are not retained by default. A submit/poll interface can be added if a future provider
+requires asynchronous provider jobs.
 
 ### 4. Durable worker flow
 
@@ -167,7 +169,7 @@ attachment received
   → validate and store
   → enqueue transcription job
   → claim job with lease/idempotency key
-  → submit or poll ElevenLabs
+  → batch transcribe with ElevenLabs
   → persist transcript or bounded failure
   → enqueue one agent run
   → deliver normal text response
@@ -251,34 +253,42 @@ anonymous clients. Error responses should use stable codes such as `AUDIO_TOO_LA
 4. Implement the provider adapter with timeouts, response validation, redaction, and error mapping.
 5. Add a durable transcription queue/worker and idempotent job lease.
 
-The current slice has the provider interface, server-side ElevenLabs adapter, audio media support,
-and synchronous channel/KasIAI/widget wiring. It deliberately does not mark the durable worker or
-transcription table complete.
+The current slice has the provider interface, server-side ElevenLabs batch adapter, audio media
+support, durable `audio_transcription_jobs`, worker leases/retries, idempotent dispatch, channel /
+KasIAI/widget wiring, lifecycle analytics, operator retry/delete, and retention cleanup. Polling is
+not applicable to the current ElevenLabs batch endpoint.
 
 ### Phase 2 — external channel ingestion
 
-1. Add WhatsApp audio/voice-note normalization and authenticated media download.
-2. Add Telegram voice/audio normalization and file retrieval.
-3. Add Discord audio attachment normalization and controlled copying.
-4. Ensure the transcript is placed into the existing agent context and the existing run path is
-   invoked exactly once.
-5. Add safe external-channel failure replies and operator visibility.
+1. WhatsApp audio/voice-note normalization and authenticated media download are implemented.
+2. Telegram voice/audio normalization and file retrieval are implemented.
+3. Discord audio attachment normalization and controlled copying are implemented.
+4. The worker places the bounded transcript into the existing agent context and uses the existing
+   idempotent message/run path exactly once.
+5. External-channel failure replies, lifecycle events, and operator visibility are implemented;
+   recorded provider fixtures and real-channel acceptance remain pending.
 
 ### Phase 3 — KasIAI and website widget
 
-1. Add in-app recording/upload and attachment status UI.
-2. Add widget upload/finalize/message APIs with session and origin enforcement.
-3. Add widget recording/upload controls and processing states.
-4. Add transcript/audio rendering to KasIAI and widget conversations.
-5. Verify mobile, tablet, desktop, keyboard, focus, permission denial, cancellation, and retry.
+1. KasIAI recording/file selection, durable upload, processing states, retry, audio playback, and
+   transcript rendering are implemented.
+2. Widget upload/message/status/retry APIs enforce session and origin ownership.
+3. Widget recording/file upload, polling status, failure, retry, audio playback, and transcript
+   rendering are implemented.
+4. Text composition and text-only paths remain separate from audio submission.
+5. Mobile, tablet, desktop, keyboard, focus, permission denial, cancellation, and accessibility
+   browser evidence remains pending.
 
 ### Phase 4 — operations, usage, and rollout
 
-1. Add structured logs, metrics, analytics registry events, dashboards, and alerts.
-2. Add admin tools for failed jobs, retry, quarantine, deletion, retention, and provider status.
-3. Decide whether audio minutes consume credits and implement metering only after approval.
-4. Roll out behind per-channel/per-organization flags, beginning with internal and beta workspaces.
-5. Run staged external-provider tests and promote the exact tested artifact.
+1. Lifecycle analytics, bounded structured logs, queue/provider spans, and the operator health
+   projection are implemented. Hosted dashboards and alerts remain deployment work.
+2. Admin tools for safe job inspection, retry, deletion, retention, and provider configuration
+   status are implemented. Quarantine/release is not implemented because scanning is not yet real.
+3. Audio minutes are not metered or deducted from credits pending product approval.
+4. `audio_transcription_enabled` is available at global, organization, and installation scope;
+   rollout and beta workspace selection remain release work.
+5. Real ElevenLabs, channel-provider, migration, browser, and staging acceptance remain pending.
 
 ## Release record for current implementation slice
 
@@ -287,35 +297,41 @@ audio ingestion paths for WhatsApp, Telegram, Discord, KasIAI, and the website w
 
 Owner: Agent Platform and Core Engineering.
 
-Risk: high until the durable worker, abuse limits, retention controls, and provider acceptance tests
-are complete; this slice is not production-ready.
+Risk: high until streaming, duration validation, malware scanning, provider acceptance, and rollout
+evidence are complete; this slice is not production-ready.
 
 Affected services and user surfaces: `agents`, `kasitek-core`, Core content media storage, the
 KasIAI composer, and the public website chat widget.
 
-Platform release version or release ID: not assigned; unreleased working-tree implementation.
+Platform release version or release ID: not assigned; implementation commits are available in the
+repository, but no staging artifact has been selected.
 
-API/schema/migration changes: additive `ContentMediaKind.AUDIO` migration; authenticated Agent
-Platform audio/transcription endpoints; public widget session-scoped `/audio` endpoint; audio
-message content fields described above. No destructive migration.
+API/schema/migration changes: Core migration `20260827120000_add_audio_content_media`; Agent
+Platform migrations `073_audio_transcription_jobs` and `075_audio_transcription_retention`;
+authenticated audio upload/status/retry endpoints; public widget session-scoped `/audio` and
+status/retry endpoints; operator job and command contracts. No destructive migration.
 
-Feature flag or rollout method: not yet implemented. Keep audio entry points disabled in deployed
-clients until the worker, abuse controls, provider key, and staging smoke checks are complete.
+Feature flag or rollout method: `audio_transcription_enabled` is enforced for platform and channel
+ingestion at global, organization, and installation scope. Keep it disabled outside approved
+internal/beta workspaces until the release gates below pass.
 
-Analytics events and success metrics: not applicable to this implementation slice; the final
-release must register received, transcribed, failed, retried, and dispatched events with duration
-and status buckets and no transcript/audio payloads.
+Analytics events and success metrics: versioned lifecycle contracts are registered for received,
+started, completed, failed, dispatched, and user/operator retry. Events contain bounded channel,
+provider, status, duration/latency buckets, attempt, and safe error code fields; transcript/audio
+payloads are excluded. Hosted dashboards and metric ownership are not assigned yet.
 
-Logs, metrics, dashboards, and alerts: bounded provider error codes and correlation IDs are logged;
-durable queue metrics, provider dashboards, and alerts remain pending. Collector configuration
-revision and hosted retention are not applicable until release deployment is defined.
+Logs, metrics, dashboards, and alerts: bounded provider error codes, correlation IDs, lifecycle
+logs, queue age/retry metrics, and provider spans are implemented. Hosted dashboards, alert
+thresholds/owners, Collector configuration revision, and hosted retention are not applicable until
+the release environment is selected.
 
-User, API, internal, and operational documentation: this active plan and checklist are updated;
-public audio support documentation and the provider-failure runbook remain pending.
+User, API, internal, and operational documentation: public audio input documentation, the internal
+ownership reference, this plan/checklist, and the provider-failure runbook are present. API
+reference publication and privacy/legal approval remain pending.
 
-Validation evidence: Agent Platform build and transcription tests pass; Core formatting/check and
-client TypeScript checks pass. Real ElevenLabs, channel-provider, widget browser, migration, and
-staging tests remain pending.
+Validation evidence: Agent build and TypeScript checks pass; focused Agent tests pass; Core
+formatting/check and focused website/media tests pass; client/Admin TypeScript checks pass. Real
+ElevenLabs, channel-provider, widget browser, migration, and staging tests remain pending.
 
 Rollback or disable plan: do not enable client entry points; if enabled during development, disable
 the audio controls and remove the ElevenLabs key/configuration. The additive audio enum migration
@@ -340,7 +356,7 @@ Post-release review date: not assigned until staging rollout is approved.
   existing conversations.
 - Keep a text fallback for provider outage; the platform must remain usable for text messages.
 
-## Release record
+## Release record for production rollout
 
 **Change:** Add audio input and ElevenLabs-backed transcription to WhatsApp, Telegram, Discord,
 KasIAI, and the website chat widget.
@@ -356,18 +372,17 @@ and media APIs, PostgreSQL, object storage, queue/worker infrastructure, WhatsAp
 connectors, KasIAI, website widget, Inbox/Admin operations, analytics, billing/credits, and privacy
 documentation.
 
-**Platform release version or release ID:** assign the platform version, commit SHA, service
-artifact versions, configuration revision, and migration versions before staging. `not applicable`
-until a release artifact is selected.
+**Platform release version or release ID:** not assigned. Before staging, record the platform
+version, commit SHA, service artifact versions, configuration revision, and migration versions.
 
-**API/schema/migration changes:** additive audio attachment/transcription fields or a dedicated
-transcription table; authenticated upload/finalize APIs; widget attachment/message contract;
-provider-neutral transcript response; queue/job state. Exact migration versions are `not applicable`
-until the schema design is approved.
+**API/schema/migration changes:** Core migration `20260827120000_add_audio_content_media`; Agent
+Platform migrations `073_audio_transcription_jobs` and `075_audio_transcription_retention`;
+authenticated upload/status/retry APIs; widget upload/status/retry contract; provider-neutral job
+response; queue/job state. No destructive migration.
 
-**Feature flag or rollout method:** per-channel and per-organization `audio_transcription` flags;
-start with internal workspaces, then beta customers. Disable new jobs without deleting existing
-media or transcripts if rollback is needed.
+**Feature flag or rollout method:** `audio_transcription_enabled` at global, organization, and
+installation scope; start with internal workspaces, then beta customers. Disable new jobs without
+deleting existing media or transcripts if rollback is needed.
 
 **Analytics events and success metrics:** register `audio_message_received`,
 `audio_transcription_started`, `audio_transcription_completed`, `audio_transcription_failed`,
@@ -383,13 +398,14 @@ latency, and bounded error code. Redact transcripts, message bodies, URLs with c
 provider secrets. Add dashboards for queue depth, stale jobs, provider failures, latency, and
 storage/retention failures. Add alerts for sustained provider failure and stuck jobs.
 
-**User, API, internal, and operational documentation:** update public channel/widget help,
-internal message/media architecture, provider configuration, data-retention/privacy, support
-runbook, API contract, and release notes when the feature is available.
+**User, API, internal, and operational documentation:** public audio input help, internal
+message/media architecture, provider configuration and failure runbook, and active plan/checklist
+are present. API reference, privacy/legal approval, and release notes remain pending.
 
-**Validation evidence:** unit and provider contract tests, database migration test, recorded channel
-fixtures, widget/KasIAI browser tests, mocked provider failure/retry tests, manual ElevenLabs
-staging smoke, and full multi-surface acceptance evidence.
+**Validation evidence:** Agent build/typecheck and focused worker/provider/HTTP tests pass; Core
+format/check and focused website/media tests pass; client/Admin TypeScript checks pass. Database
+integration, recorded channel fixtures, browser E2E, manual ElevenLabs staging smoke, and full
+multi-surface acceptance remain pending.
 
 **Rollback or disable plan:** turn off the audio flag, stop new transcription submissions, allow or
 cancel in-flight jobs according to the provider policy, retain conversation integrity, and keep
@@ -418,10 +434,11 @@ text-only agent behavior available. Delete test media and transcripts from isola
 
 1. Confirm whether ElevenLabs processing is permitted for customer audio under the planned privacy
    and data-retention policy.
-2. Confirm object-storage authority and whether current media helpers support audio streaming and
-   deletion.
-3. Confirm the queue/worker owner and whether Core or Agent Platform owns transcription jobs.
-4. Confirm initial duration/size/format limits and language expectations.
-5. Confirm whether audio transcription is free during beta or consumes credits.
-6. Confirm the first supported external channel for a real-provider staging test.
-7. Assign release owner, analytics owner, privacy reviewer, and support owner.
+2. Add streaming, duration inspection, checksum validation, and a real malware scanner/quarantine
+   boundary before general availability.
+3. Confirm initial duration and language expectations; the current enforced size ceiling is 25 MB
+   and the supported MIME allowlist is documented.
+4. Confirm whether audio transcription is free during beta or consumes credits.
+5. Complete isolated migration, channel-fixture, browser, and real-provider staging acceptance.
+6. Assign release owner, analytics owner, privacy reviewer, support owner, dashboard/alert owners,
+   and a post-release review date.

@@ -28,6 +28,7 @@ const sidebars = {
         "operations/clients",
         "operations/leads",
         "operations/conversations",
+        "operations/audio-input",
       ],
     },
     {

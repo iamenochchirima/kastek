@@ -12,6 +12,7 @@ This is the canonical home for private Kasitek documentation.
 ## Technical Documents
 
 - [Architecture](./architecture/kasitek-technical-blueprint.md)
+- [Audio Input and Transcription](./architecture/audio-transcription.md)
 - [Admin Analytics and Reporting](./architecture/admin-analytics.md)
 - [Access Control](./access-control.md)
 - [Local Development](./development/local-development.md)
