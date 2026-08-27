@@ -1350,10 +1350,20 @@ pub async fn list_website_deployments(
         .map(|deployment| {
             let mut value = serde_json::to_value(deployment).unwrap_or_else(|_| Value::Null);
             if let Value::Object(ref mut object) = value {
-                if let Some(public_id) = object.get("publicId").and_then(Value::as_str) {
+                if let Some(public_id) = object
+                    .get("publicId")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+                {
                     object.insert(
                         "shareUrl".to_string(),
                         Value::String(format!("{share_base}/api/widget/v1/share/{public_id}")),
+                    );
+                    object.insert(
+                        "embedCode".to_string(),
+                        Value::String(format!(
+                            "<script async src=\"{share_base}/api/widget/v1/loader.js\" data-kasitek-deployment=\"{public_id}\"></script>"
+                        )),
                     );
                 }
             }

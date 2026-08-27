@@ -8,11 +8,12 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import Script from "next/script";
 import { ProductWorkspacePreview } from "@/components/product-workspace-preview";
 import { ServiceDeliveryMontage } from "@/components/service-delivery-montage";
 import { PartnershipWorkspacePreview } from "@/components/partnership-workspace-preview";
 import { LabsFooter, LabsHeader } from "@/components/labs-site-chrome";
-import { appUrl } from "@/lib/site-config";
+import { appUrl, widgetLoaderUrl } from "@/lib/site-config";
 
 const disciplines = [
   {
@@ -52,10 +53,10 @@ export default function LabsLandingPage() {
   return (
     <main className="labs-page">
       <LabsHeader home />
-      <script
+      <Script
         async
-        src="http://localhost:4000/api/widget/v1/loader.js"
-        data-kasitek-deployment="wdg_vr6p4v6p62qsospw8ocs0f10"
+        src={widgetLoaderUrl}
+        data-kasitek-deployment="wdg_iruyvssvwje6hd4na7bjfj09"
       />
 
       <section className="hero" id="top">

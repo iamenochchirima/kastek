@@ -60,6 +60,12 @@ The public tenant context currently exposes:
 
 That branding is used to style the tenant login and portal experience dynamically.
 
+## Website Chat embed
+
+Website Chat deployments provide an embed snippet with an absolute Kasitek API URL. Copy the
+snippet from the deployment controls and paste it into the target website; the website does not
+need to know or proxy the Kasitek API domain.
+
 ## Feature flags through branding
 
 The current portal also reads feature configuration from `widgetConfig`.

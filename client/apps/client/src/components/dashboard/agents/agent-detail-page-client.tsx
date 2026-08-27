@@ -31,7 +31,6 @@ import { AgentModelPicker } from "./agent-model-picker";
 import { AgentRuntimeLimits, defaultAgentRuntimeLimits, parseAgentRuntimeLimits, type AgentRuntimeLimitsValue } from "./agent-runtime-limits";
 import { AgentToolIntegrations } from "./agent-tool-integrations";
 import { listWorkspaceConnections, type WorkspaceConnection } from "@/lib/connections";
-import { apiUrl } from "@/lib/server-api";
 import {
   archiveAgent,
   deleteAgent,
@@ -2063,6 +2062,32 @@ const DEFAULT_WEBSITE_APPEARANCE: AgentWebsiteDeployment["appearance"] = {
   showBranding: true,
 };
 
+function absoluteOrigin(value?: string | null) {
+  try {
+    const url = value ? new URL(value) : null;
+    return url && (url.protocol === "http:" || url.protocol === "https:") ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+function websiteEmbedCode(deployment: AgentWebsiteDeployment) {
+  const embedSource = deployment.embedCode?.match(/\ssrc="([^"]+)"/)?.[1];
+  if (deployment.embedCode && absoluteOrigin(embedSource)) return deployment.embedCode;
+
+  const publicOrigin = absoluteOrigin(deployment.shareUrl);
+  if (!publicOrigin) return null;
+  return `<script async src="${publicOrigin}/api/widget/v1/loader.js" data-kasitek-deployment="${deployment.publicId}"></script>`;
+}
+
+function preserveWebsiteUrls(deployment: AgentWebsiteDeployment, previous?: AgentWebsiteDeployment) {
+  return {
+    ...deployment,
+    embedCode: deployment.embedCode ?? previous?.embedCode,
+    shareUrl: deployment.shareUrl ?? previous?.shareUrl,
+  };
+}
+
 function websiteAppearance(deployment: AgentWebsiteDeployment) {
   return { ...DEFAULT_WEBSITE_APPEARANCE, ...(deployment.appearance || {}) };
 }
@@ -2109,7 +2134,7 @@ function WebsiteChatDeployments({ agentId, installationId, agentName, onClose }:
         displayName: agentName,
         welcomeText: `Hi, I’m ${agentName}. How can I help?`,
       });
-      setDeployments((current) => [result.deployment, ...current]);
+      setDeployments((current) => [{ ...result.deployment, embedCode: result.embedCode, shareUrl: result.shareUrl }, ...current]);
       setOrigin("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to create Website Chat deployment");
@@ -2135,8 +2160,8 @@ function WebsiteChatDeployments({ agentId, installationId, agentName, onClose }:
         colorPreset: draft.colorPreset,
         appearance: draft.appearance,
       });
-      setDeployments((current) => current.map((entry) => entry.id === draft.id ? result.deployment : entry));
-      setDraft(result.deployment);
+      setDeployments((current) => current.map((entry) => entry.id === draft.id ? preserveWebsiteUrls(result.deployment, entry) : entry));
+      setDraft(preserveWebsiteUrls(result.deployment, draft));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to save Website Chat appearance");
     } finally {
@@ -2150,8 +2175,8 @@ function WebsiteChatDeployments({ agentId, installationId, agentName, onClose }:
     setError(null);
     try {
       const result = await setAgentWebsiteDeploymentStatus(installationId, deployment.id, status);
-      setDeployments((current) => current.map((entry) => entry.id === deployment.id ? result.deployment : entry));
-      if (draft?.id === deployment.id) setDraft(result.deployment);
+      setDeployments((current) => current.map((entry) => entry.id === deployment.id ? preserveWebsiteUrls(result.deployment, entry) : entry));
+      if (draft?.id === deployment.id) setDraft(preserveWebsiteUrls(result.deployment, draft));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to update Website Chat status");
     } finally {
@@ -2172,12 +2197,12 @@ function WebsiteChatDeployments({ agentId, installationId, agentName, onClose }:
         {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
         <div className="flex flex-col gap-2 sm:flex-row"><label className="sr-only" htmlFor="website-chat-origin">Website origin</label><Input id="website-chat-origin" value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder="https://example.com" className="h-10 min-w-0 flex-1" /><Button type="button" disabled={!origin.trim() || creating} onClick={() => void createDeployment()}>{creating ? "Adding…" : "Add origin"}</Button></div>
         {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : deployments.length ? <div className="space-y-3">{deployments.map((deployment) => {
-          const embed = `<script async src="${apiUrl("/api/widget/v1/loader.js")}" data-kasitek-deployment="${deployment.publicId}"></script>`;
-          const shareUrl = deployment.shareUrl || apiUrl(`/api/widget/v1/share/${deployment.publicId}`);
+          const embed = websiteEmbedCode(deployment);
+          const shareUrl = deployment.shareUrl && absoluteOrigin(deployment.shareUrl) ? deployment.shareUrl : null;
           return <div key={deployment.id} className="rounded-xl border border-border p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0"><p className="font-medium text-foreground">{deployment.displayName || agentName}</p><p className="mt-1 truncate font-mono text-xs text-muted-foreground">{deployment.publicId}</p><p className="mt-2 text-xs text-muted-foreground">{deployment.allowedOrigins.join(", ")}</p></div>
-              <div className="flex flex-wrap items-center gap-2"><Badge className="border-border bg-secondary text-muted-foreground">{deployment.status.toLowerCase()}</Badge><Button type="button" variant="outline" size="sm" onClick={() => editDeployment(deployment)}>Appearance</Button><Button type="button" variant="outline" size="sm" onClick={() => void navigator.clipboard?.writeText(embed)}><Copy className="mr-1.5 h-3.5 w-3.5" />Copy embed</Button><Button type="button" variant="outline" size="sm" onClick={() => void navigator.clipboard?.writeText(shareUrl)}>Copy share link</Button>{deployment.status === "ACTIVE" ? <Button type="button" variant="outline" size="sm" disabled={changingStatus === deployment.id} onClick={() => void changeStatus(deployment, "PAUSED")}>Pause</Button> : null}{deployment.status === "PAUSED" ? <Button type="button" variant="outline" size="sm" disabled={changingStatus === deployment.id} onClick={() => void changeStatus(deployment, "ACTIVE")}>Resume</Button> : null}{deployment.status !== "REVOKED" ? <Button type="button" variant="ghost" size="sm" disabled={changingStatus === deployment.id} onClick={() => void changeStatus(deployment, "REVOKED")}>Revoke</Button> : null}</div>
+              <div className="flex flex-wrap items-center gap-2"><Badge className="border-border bg-secondary text-muted-foreground">{deployment.status.toLowerCase()}</Badge><Button type="button" variant="outline" size="sm" onClick={() => editDeployment(deployment)}>Appearance</Button><Button type="button" variant="outline" size="sm" disabled={!embed} onClick={() => embed && void navigator.clipboard?.writeText(embed)}><Copy className="mr-1.5 h-3.5 w-3.5" />Copy embed</Button><Button type="button" variant="outline" size="sm" disabled={!shareUrl} onClick={() => shareUrl && void navigator.clipboard?.writeText(shareUrl)}>Copy share link</Button>{deployment.status === "ACTIVE" ? <Button type="button" variant="outline" size="sm" disabled={changingStatus === deployment.id} onClick={() => void changeStatus(deployment, "PAUSED")}>Pause</Button> : null}{deployment.status === "PAUSED" ? <Button type="button" variant="outline" size="sm" disabled={changingStatus === deployment.id} onClick={() => void changeStatus(deployment, "ACTIVE")}>Resume</Button> : null}{deployment.status !== "REVOKED" ? <Button type="button" variant="ghost" size="sm" disabled={changingStatus === deployment.id} onClick={() => void changeStatus(deployment, "REVOKED")}>Revoke</Button> : null}</div>
             </div>
             {selectedId === deployment.id && draft ? <div className="mt-4 grid gap-4 border-t border-border pt-4 lg:grid-cols-[1fr_220px]">
               <div className="space-y-3">

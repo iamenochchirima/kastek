@@ -14,6 +14,7 @@ export type AgentInstallation = {
 export type AgentWebsiteDeployment = {
   id: string;
   publicId: string;
+  embedCode?: string;
   shareUrl?: string;
   orgId: string;
   installationId: string;
