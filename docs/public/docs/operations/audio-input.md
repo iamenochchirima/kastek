@@ -36,5 +36,32 @@ Audio can be queued, transcribing, ready, or failed. A failed transcription can 
 KasIAI or Website Chat where the control is shown. Text-only messaging continues to work when
 audio input is disabled or the transcription provider is unavailable.
 
+## Website Chat contract
+
+Website Chat sends the audio bytes to:
+
+```text
+POST /api/widget/v1/sessions/{sessionId}/audio
+```
+
+The request uses the audio MIME type as `Content-Type`, the approved page origin as `Origin`, and
+an `X-Audio-Idempotency-Key` between 8 and 240 characters. `X-Audio-File-Name` is optional. A
+successful response returns `202` with a `jobId`, `assetId`, and queued status.
+
+Poll the job at:
+
+```text
+GET /api/widget/v1/sessions/{sessionId}/audio/{jobId}
+```
+
+Retry a failed job at:
+
+```text
+POST /api/widget/v1/sessions/{sessionId}/audio/{jobId}/retry
+```
+
+The browser keeps the idempotency key until the upload is accepted, so a refresh or lost response
+can safely repeat the request. The same session and origin checks apply to status and retry.
+
 Audio input sends media to the configured transcription provider. Do not include confidential
 information in a recording unless the workspace administrator has approved that processing path.
