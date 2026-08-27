@@ -14,6 +14,14 @@ members = [
 ]
 resolver = "2"
 
+# Keep fast local iteration while avoiding full debug information in every
+# dependency artifact. Incremental compilation remains enabled intentionally.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 [workspace.package]
 edition = "2021"
 version = "0.1.0"

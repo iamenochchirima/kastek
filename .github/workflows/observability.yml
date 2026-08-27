@@ -59,6 +59,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: 1.88.0
           components: rustfmt, clippy
 
       - name: Check formatting
@@ -167,6 +168,8 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.88.0
 
       - name: Build Collector image
         run: docker build -t kasitek-otel-collector:ci infra/observability/otel-collector
