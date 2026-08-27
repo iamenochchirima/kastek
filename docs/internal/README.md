@@ -15,6 +15,7 @@ This is the canonical home for private Kasitek documentation.
 - [Founding Partner Launch Plan](./go-to-market/founding-partner-launch-plan.md)
 - [Client-Ready Platform Checklist](./execution/client-ready-platform-checklist.md)
 - [Architecture](./architecture/kasitek-technical-blueprint.md)
+- [Admin Analytics and Reporting](./architecture/admin-analytics.md)
 
 ## Structure
 
