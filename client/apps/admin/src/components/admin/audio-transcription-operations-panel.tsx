@@ -15,11 +15,19 @@ type AudioTranscriptionJob = {
   created_at: string;
 };
 
-export function AudioTranscriptionOperationsPanel({ jobs, canCommand }: { jobs: AudioTranscriptionJob[]; canCommand: boolean }) {
+export function AudioTranscriptionOperationsPanel({ jobs, canCommand, provider }: { jobs: AudioTranscriptionJob[]; canCommand: boolean; provider?: { provider: string; model: string; credentialConfigured: boolean } }) {
   return <article className="v-card overflow-hidden">
     <div className="border-b border-border px-5 py-4">
-      <h2 className="text-sm font-semibold text-foreground">Audio transcription jobs</h2>
-      <p className="mt-1 text-xs text-muted-foreground">Safe job state only; audio, transcripts, provider payloads, and storage keys stay out of the operator list.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Audio transcription jobs</h2>
+          <p className="mt-1 text-xs text-muted-foreground">Safe job state only; audio, transcripts, provider payloads, and storage keys stay out of the operator list.</p>
+        </div>
+        <div className="text-right">
+          <StatusBadge value={provider?.credentialConfigured ? "ready" : "not configured"} />
+          <p className="mt-1 text-[11px] text-muted-foreground">{provider ? `${provider.provider} · ${provider.model}` : "Provider status unavailable"}</p>
+        </div>
+      </div>
     </div>
     {jobs.length === 0 ? <p className="px-5 py-8 text-sm text-muted-foreground">No audio transcription jobs have been recorded.</p> : <div className="divide-y divide-border">
       {jobs.map((job) => <div key={job.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">

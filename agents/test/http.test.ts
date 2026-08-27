@@ -2053,6 +2053,7 @@ describe("Agent Platform HTTP foundation", () => {
       database: { status: "ready" },
       temporal: { enabled: false },
       model: { provider: "openrouter", credentialConfigured: expect.any(Boolean) },
+      audioTranscription: { provider: "elevenlabs", model: "scribe_v2", credentialConfigured: false },
     });
     expect(JSON.stringify(response.json())).not.toContain("API_KEY");
     await app.close();

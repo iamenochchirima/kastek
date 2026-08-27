@@ -1435,10 +1435,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         database: { status: "ready", latencyMs: Date.now() - startedAt },
         temporal: { enabled: dependencies.config.TEMPORAL_ENABLED, mode: dependencies.config.TEMPORAL_MODE, address: dependencies.config.TEMPORAL_ADDRESS, namespace: dependencies.config.TEMPORAL_NAMESPACE, taskQueue: dependencies.config.TEMPORAL_TASK_QUEUE },
         model: { provider, model: dependencies.config.KASIAI_MODEL, credentialConfigured: Boolean(credentialKey && process.env[credentialKey]?.trim()) },
+        audioTranscription: { provider: "elevenlabs", model: dependencies.config.ELEVENLABS_TRANSCRIPTION_MODEL ?? "scribe_v2", credentialConfigured: Boolean(dependencies.config.ELEVENLABS_API_KEY?.trim()) },
       };
     } catch (error) {
       app.log.error(error);
-      return { scope: "platform", status: "degraded", checkedAt, database: { status: "unavailable", latencyMs: Date.now() - startedAt }, temporal: { enabled: dependencies.config.TEMPORAL_ENABLED, mode: dependencies.config.TEMPORAL_MODE }, model: { provider: dependencies.config.KASIAI_MODEL_PROVIDER, model: dependencies.config.KASIAI_MODEL, credentialConfigured: false } };
+      return { scope: "platform", status: "degraded", checkedAt, database: { status: "unavailable", latencyMs: Date.now() - startedAt }, temporal: { enabled: dependencies.config.TEMPORAL_ENABLED, mode: dependencies.config.TEMPORAL_MODE }, model: { provider: dependencies.config.KASIAI_MODEL_PROVIDER, model: dependencies.config.KASIAI_MODEL, credentialConfigured: false }, audioTranscription: { provider: "elevenlabs", model: dependencies.config.ELEVENLABS_TRANSCRIPTION_MODEL, credentialConfigured: Boolean(dependencies.config.ELEVENLABS_API_KEY?.trim()) } };
     }
   });
 
@@ -4087,6 +4088,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           model,
           credentialConfigured: Boolean(credentialKey && process.env[credentialKey]?.trim()),
         },
+        audioTranscription: {
+          provider: "elevenlabs",
+          model: dependencies.config.ELEVENLABS_TRANSCRIPTION_MODEL ?? "scribe_v2",
+          credentialConfigured: Boolean(dependencies.config.ELEVENLABS_API_KEY?.trim()),
+        },
       };
     } catch (error) {
       app.log.error(error);
@@ -4099,6 +4105,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           provider: dependencies.config.KASIAI_MODEL_PROVIDER ?? "openrouter",
           model: dependencies.config.KASIAI_MODEL ?? "openai/gpt-4o-mini",
           credentialConfigured: false,
+        },
+        audioTranscription: {
+          provider: "elevenlabs",
+          model: dependencies.config.ELEVENLABS_TRANSCRIPTION_MODEL ?? "scribe_v2",
+          credentialConfigured: Boolean(dependencies.config.ELEVENLABS_API_KEY?.trim()),
         },
       };
     }

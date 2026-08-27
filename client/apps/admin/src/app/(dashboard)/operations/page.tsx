@@ -24,7 +24,7 @@ type Summary = {
   approvals?: Record<string, number>;
 };
 type HealthCheck = { status: string; detail?: string; latencyMs?: number; active?: number; expiring7d?: number; failed24h?: number; unknown24h?: number; expiredPending?: number; events24h?: number; staleQueued?: number; staleRunning?: number; queued?: number; unknown?: number; executing?: number; providers?: Array<{ name: string; status: string; calls24h: number; failures24h: number; failureRate: number }>; agent?: string; mcp?: string; rest?: string };
-type Health = { overallStatus?: string; degradedChecks?: number; checks?: Record<string, HealthCheck>; status?: string; database?: { status: string; latencyMs: number }; temporal?: { enabled: boolean; mode: string; address?: string; namespace?: string; taskQueue?: string }; model?: { provider: string; model: string; credentialConfigured: boolean } };
+type Health = { overallStatus?: string; degradedChecks?: number; checks?: Record<string, HealthCheck>; status?: string; database?: { status: string; latencyMs: number }; temporal?: { enabled: boolean; mode: string; address?: string; namespace?: string; taskQueue?: string }; model?: { provider: string; model: string; credentialConfigured: boolean }; audioTranscription?: { provider: string; model: string; credentialConfigured: boolean } };
 type Run = { id: string; organization_id: string; installation_id: string; conversation_id?: string | null; status: string; trigger_type: string; created_at: string; correlation_id: string; assignee_id?: string | null; assignment_revision?: number | null };
 type Effect = { id: string; organization_id: string; installation_id?: string; run_id: string; capability: string; status: string; updated_at: string };
 type Grant = { id: string; adminId: string; organizationId: string; resourceType: string; resourceId?: string | null; reason: string; expiresAt: string; revokedAt?: string | null };
@@ -153,7 +153,7 @@ export default async function OperationsPage() {
       <article className="v-card overflow-hidden"><div className="border-b border-border px-5 py-4"><h2 className="text-sm font-semibold text-foreground">Queues and projection lag</h2><p className="mt-1 text-xs text-muted-foreground">Readiness and age indicators for rebuildable operator state.</p></div><div className="space-y-2 p-5">{projectionEntries.length ? projectionEntries.map((entry) => <div key={entry.projectionKey} className="flex justify-between text-sm"><span className="text-foreground">{entry.projectionKey}</span><span className="text-muted-foreground">{entry.ageSeconds ?? 0}s old</span></div>) : <p className="text-sm text-muted-foreground">Projection lag is not available.</p>}</div></article>
     </section>
     <OperatorSearch canCommand={canCommand} />
-    <AudioTranscriptionOperationsPanel jobs={audioTranscriptionJobs.jobs} canCommand={canCommand} />
+    <AudioTranscriptionOperationsPanel jobs={audioTranscriptionJobs.jobs} canCommand={canCommand} provider={health.audioTranscription} />
     <OperatorNotifications initialNotifications={notifications.notifications} />
     <OperatorRunbooks />
     <section className="v-card overflow-hidden">
