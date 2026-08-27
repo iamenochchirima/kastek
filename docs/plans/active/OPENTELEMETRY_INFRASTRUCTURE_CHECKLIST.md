@@ -159,6 +159,8 @@ exist.
 - [x] Validate the configuration with the pinned Collector binary.
 - [x] Run the Collector and verify its health endpoint reaches the ready state.
 - [x] Add versioned local, staging, and production Collector configuration overlays.
+- [x] Make the Collector image select the staging profile through the allow-listed
+      `OTEL_COLLECTOR_CONFIG` variable and fail closed on unsupported profiles.
 - [x] Configure OTLP HTTP and gRPC receivers; hosted protocol selection remains HTTP/protobuf.
 - [x] Configure resource normalization without replacing application service or release identity.
 - [x] Add memory limiting and bounded batching.

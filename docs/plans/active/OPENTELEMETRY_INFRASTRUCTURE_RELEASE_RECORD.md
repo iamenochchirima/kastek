@@ -48,9 +48,10 @@ The repository implementation is split into reviewable commits:
 | Format committed Rust service code | `b2b9cedb` |
 | Normalize one-shot Agents events and smoke trigger paths | `29eae0a8` |
 | Use portable Python command for Collector validation | `198c1c5c` |
+| Make Collector profiles selectable in the image | `b6fd6e8c` |
 
 The exact implementation tree used for the repository smoke evidence is now
-`198c1c5c` (`198c1c5c` is the current repository-side implementation commit). The Collector
+`b6fd6e8c` (`b6fd6e8c` is the current repository-side implementation commit). The Collector
 configuration content is unchanged from `7f064cce`; the Railway service definition is recorded in
 `988c93cb`. The current tree includes the follow-up worker,
 event-contract, compatibility-boundary, disabled-export fallback, documentation, and
@@ -107,7 +108,8 @@ Production release ID: not created
   The Core suite passed with 190 tests and 3 ignored, the Analytics suite passed with 66 tests,
   and the Tenants binary suite passed with 5 tests. The observability CI workflow now rejects new
   operational Rust `log!` macros outside the smoke fixture and runs when the Agents local OTel
-  smoke script changes, and validates the Railway JSON with `python3`.
+  smoke script changes, validates the Railway JSON with `python3`, and boots the selected staging
+  profile from the built image in CI.
 - Public and internal documentation builds passed after removing stale links from the internal
   documentation index and Admin Analytics reference. This infrastructure-only change has no
   public user/API behavior change, so public documentation content is `not applicable`.

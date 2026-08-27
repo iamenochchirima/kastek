@@ -29,7 +29,9 @@ The repository now contains the complete repository-side server-side implementat
 boundary is checked in under `infra/observability/otel-collector/` with pinned profiles, OTLP
 receivers, memory limits, batching, redaction, health checks, local Compose startup, a generic
 production OTLP template with bounded queue/retry settings and error-preserving tail sampling, and
-Railway deployment instructions plus a checked-in Railway service definition for the Collector.
+Railway deployment instructions plus a checked-in Railway service definition for the Collector. The
+image contains the checked-in profiles and selects staging through the allow-listed
+`OTEL_COLLECTOR_CONFIG` variable.
 The shared Rust crate initializes logs, traces, metrics, resources, W3C propagation, HTTP metrics,
 correlation IDs, provider spans, background spans, and graceful shutdown. Outbound request context
 is injected after entering the provider span, and legacy Rust log messages plus telemetry bootstrap
@@ -255,7 +257,7 @@ Change: Introduce vendor-neutral OpenTelemetry instrumentation and Collector inf
 Owner: KasiTek engineering; provisional Collector incident owner: platform-ops.
 Risk: standard for repository changes; high for production enablement until staging and durable-destination gates pass.
 Affected services and user surfaces: Rust Core/Tenants/Analytics services, Agents API/worker/gateway/maintenance processes, and Collector deployment configuration; no direct user-interface behavior change.
-Platform release version or release ID: local validation metadata 0.1.0; implementation tree 198c1c5c; no release tag or deployed artifact.
+Platform release version or release ID: local validation metadata 0.1.0; implementation tree b6fd6e8c; no release tag or deployed artifact.
 API/schema/migration changes: not applicable; migration execution is instrumented but schemas are unchanged.
 Feature flag or rollout method: OTEL_SDK_DISABLED, OTEL_EXPORTER_OTLP_* endpoint/protocol, resource metadata, and sampler environment variables; stdout fallback remains available.
 Analytics events and success metrics: not applicable; operational telemetry remains separate from customer analytics.
