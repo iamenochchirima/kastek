@@ -327,6 +327,10 @@ Repository evidence for the implementation slice:
   and Agents traces, logs, and metrics. Both smoke fixtures carried `service.name`, environment,
   `service.version=0.1.0`, release ID, and commit SHA; logs and spans shared trace/span context.
   The Collector shut down cleanly after the capture.
+- Pinned-image smoke: Podman built the checked-in Collector image successfully, the explicit
+  staging profile command reached `/` ready state, and the local profile received all three
+  signals from the Rust and Agents fixtures. The capture included both service names, release ID,
+  metric name, trace ID, and span ID, and no invalid operational event normalization occurred.
 - Privacy hardening: the legacy Actix access formatter now excludes raw URLs, query strings,
   remote addresses, referers, and user agents. Rust legacy log messages and telemetry bootstrap
   diagnostics are bounded and redact common credential forms before stdout/stderr or the
@@ -348,13 +352,13 @@ Repository evidence for the implementation slice:
   to removed strategy or implementation-plan material; no public user/API documentation change
   is required for this infrastructure-only work.
 - Versioning: local validation metadata is `0.1.0`; the current observability implementation tree
-  is recorded through `198c1c5c`; no platform release tag or deployed
+  is recorded through `8d405287`; no platform release tag or deployed
   artifact was created by this work.
 
 Checks intentionally not claimed as complete:
 
-- Docker container build/run could not be repeated locally because the Docker daemon is not
-  available. The GitHub workflow contains the containerized smoke test.
+- The Docker daemon is not available locally, but Podman built and ran the pinned Collector image
+  successfully. The GitHub workflow contains the equivalent containerized smoke test using Docker.
 - A clean checkout of the committed observability tree passes `cargo fmt --all -- --check`,
   `cargo test -p observability --lib`, and observability Clippy. A clean `cargo check --workspace`
   is blocked by three unrelated organization/analytics symbols split across the committed tree

@@ -49,9 +49,12 @@ The repository implementation is split into reviewable commits:
 | Normalize one-shot Agents events and smoke trigger paths | `29eae0a8` |
 | Use portable Python command for Collector validation | `198c1c5c` |
 | Make Collector profiles selectable in the image | `b6fd6e8c` |
+| Keep smoke events within the stable event vocabulary | `dd4b5bbc` |
+| Select Collector profiles without a shell wrapper | `b28e10cb` |
+| Register the Rust subscriber without a duplicate logger | `8d405287` |
 
 The exact implementation tree used for the repository smoke evidence is now
-`b6fd6e8c` (`b6fd6e8c` is the current repository-side implementation commit). The Collector
+`8d405287` (`8d405287` is the current repository-side implementation commit). The Collector
 configuration content is unchanged from `7f064cce`; the Railway service definition is recorded in
 `988c93cb`. The current tree includes the follow-up worker,
 event-contract, compatibility-boundary, disabled-export fallback, documentation, and
@@ -99,6 +102,12 @@ Production release ID: not created
 - The shared Rust W3C HTTP injection test passed with `traceparent` and `tracestate`, and the
   provider-child regression test confirmed request construction observes the dependency span.
   The Agents Temporal activity-boundary test passed with bounded correlation context.
+- The pinned Collector image was built successfully with Podman from the checked-in Dockerfile.
+  Its staging profile reached the health endpoint when started with the explicit
+  `/otelcol-contrib --config=/etc/otelcol/config.staging.yaml` command, and the local profile
+  received Rust and Agents logs, traces, and metrics from the real `0.158.0` image. The smoke
+  output included both service names, the release ID, metric name, trace ID, and span ID, with no
+  `operation.invalid.event` normalization.
 - A clean checkout of the committed observability tree passes `cargo fmt --all -- --check`, the
   shared observability tests, and Clippy. A clean `cargo check --workspace` is currently blocked
   by three unrelated organization/analytics symbols split across the committed tree and the
