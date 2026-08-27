@@ -290,9 +290,13 @@ exist.
 
 Repository evidence for the implementation slice:
 
-- Rust: `cargo fmt --all -- --check`, `cargo check --workspace`,
+- Initial implementation tree: `cargo fmt --all -- --check`, `cargo check --workspace`,
   `cargo test -p observability` (9 passed), and
   `cargo clippy -p observability --all-targets --all-features -- -D warnings` passed.
+- Current targeted Rust verification: `cargo test -p observability --lib` (9 passed),
+  `cargo test -p analytics-producer --lib` (14 passed), and the Analytics unit and ingestion
+  PostgreSQL tests passed; the local Analytics maintenance PostgreSQL test remains failing at its
+  quarantine-work assertion.
 - Agents: `pnpm exec tsc -p tsconfig.json --noEmit` and `pnpm test` passed (75 test files passed,
   17 skipped; 420 tests passed, 43 skipped).
 - Collector: `docker compose -f infra/observability/otel-collector/compose.yaml config --quiet`
