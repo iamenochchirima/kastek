@@ -136,9 +136,10 @@ backfill workers, Core operational workers, the Analytics outbox publisher, and 
 projection processing now emit stable lifecycle/result events and shared operation metrics.
 Request summaries omit query strings and network addresses; credentials, authorization material,
 cookies, tokens, prompts, and message content are redacted in the application logger and Collector
-processor. Rust legacy `log!` messages are bounded and redacted before they reach stdout or the
-OpenTelemetry bridge. New and touched provider paths record bounded status/error metadata rather
-than raw response bodies or webhook payloads.
+processor. Rust legacy `log!` messages, Rust telemetry bootstrap diagnostics, and Agents stdio or
+telemetry-bootstrap diagnostics are bounded and redacted before they reach stdout or stderr. New
+and touched provider paths record bounded status/error metadata rather than raw response bodies or
+webhook payloads.
 
 Use low-cardinality attributes for metrics and spans. Keep request IDs, customer identifiers,
 provider payloads, and message text in bounded body fields only when there is a documented support

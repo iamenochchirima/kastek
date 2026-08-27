@@ -123,7 +123,7 @@ exist.
 - [x] Migrate touched operational paths from console output to the structured logger.
 - [x] Define and test behavior for remaining legacy console output during the migration period:
       no `console.*` calls remain in `agents/src`; stdio and telemetry fallback diagnostics use
-      direct stderr intentionally.
+      direct stderr intentionally, with bounded/redacted exception text.
 - [x] Configure API, worker, and gateway shutdown hooks to flush telemetry without hanging process
       termination.
 - [x] Add tests for HTTP requests, provider failures, webhook handling, Temporal execution, and
@@ -220,6 +220,8 @@ exist.
       prompts, and personal data.
 - [x] Add automated redaction tests for Agents and Collector processing; Rust uses the shared
       compatibility bridge and bounded request/span fields.
+- [x] Bound and redact Rust telemetry bootstrap diagnostics and Agents telemetry/stdio fallback
+      diagnostics before writing directly to stderr.
 - [x] Set maximum message, exception, attribute, and header sizes.
 - [x] Set maximum queue sizes and define drop behavior when buffers fill.
 - [x] Ensure telemetry export uses timeouts and cannot block user requests or worker progress.
@@ -319,10 +321,11 @@ Repository evidence for the implementation slice:
   `service.version=0.1.0`, release ID, and commit SHA; logs and spans shared trace/span context.
   The Collector shut down cleanly after the capture.
 - Privacy hardening: the legacy Actix access formatter now excludes raw URLs, query strings,
-  remote addresses, referers, and user agents. Rust legacy log messages are bounded and redact
-  common credential forms before stdout or the OpenTelemetry bridge; touched provider paths omit
-  raw response bodies and webhook payloads. Agents exception messages and stacks redact common
-  credential forms before they are recorded in logs or span exception events.
+  remote addresses, referers, and user agents. Rust legacy log messages and telemetry bootstrap
+  diagnostics are bounded and redact common credential forms before stdout/stderr or the
+  OpenTelemetry bridge; touched provider paths omit raw response bodies and webhook payloads.
+  Agents exception messages, stacks, telemetry-bootstrap diagnostics, and stdio fallback errors
+  redact common credential forms before they are recorded or returned.
 - Boundary completion: `tracing_log::LogTracer` now bridges legacy Rust `log!` records into the
   OpenTelemetry subscriber when export is enabled; the Core/Tenant source-backfill loops and
   Analytics projection/outbox boundaries now record shared operation metrics and stable events.
@@ -335,7 +338,7 @@ Repository evidence for the implementation slice:
   to removed strategy or implementation-plan material; no public user/API documentation change
   is required for this infrastructure-only work.
 - Versioning: local validation metadata is `0.1.0`; the current observability implementation tree
-  is recorded through `4ddec15b`; no platform release tag or deployed
+  is recorded through `b0a0cf7d`; no platform release tag or deployed
   artifact was created by this work.
 
 Checks intentionally not claimed as complete:
