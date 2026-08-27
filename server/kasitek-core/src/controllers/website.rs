@@ -863,6 +863,7 @@ pub async fn get_agent_website_chat_audio_status(
         .get("assetId")
         .and_then(Value::as_str)
         .filter(|value| !value.trim().is_empty())
+        .map(str::to_string)
         .ok_or_else(|| AppError::NotFound("Website Chat audio not found".to_string()))?;
     let source_prefix = format!("website:{public_id}:{}:", session.public_session_id);
     let belongs_to_session = sqlx::query_scalar::<_, bool>(
@@ -873,7 +874,7 @@ pub async fn get_agent_website_chat_audio_status(
                AND metadata->>'sourceKey' LIKE $3
            )"#,
     )
-    .bind(asset_id)
+    .bind(&asset_id)
     .bind(&organization_id)
     .bind(format!("{source_prefix}%"))
     .fetch_one(pool.get_ref())
@@ -886,7 +887,7 @@ pub async fn get_agent_website_chat_audio_status(
     if let Some(payload) = status.as_object_mut() {
         payload.insert(
             "audioUrl".to_string(),
-            Value::String(content_media::public_media_url(config.get_ref(), asset_id)),
+            Value::String(content_media::public_media_url(config.get_ref(), &asset_id)),
         );
     }
     Ok(HttpResponse::Ok()
