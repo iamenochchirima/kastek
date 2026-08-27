@@ -19,14 +19,6 @@ import {
   type AgentIntegration,
 } from "@/lib/agent-platform";
 
-const categoryLabels: Record<string, string> = {
-  messaging: "Messaging",
-  productivity: "Productivity",
-  search: "Search",
-  apple: "Apple",
-  observability: "Observability",
-};
-
 function IntegrationLogo({ integration }: { integration: AgentIntegration }) {
   const channelIcons: Record<string, IconType> = {
     discord: SiDiscord,
@@ -83,11 +75,6 @@ export function AgentToolIntegrations({ installationId, embedded = false, refres
   useEffect(() => { void refresh(); }, [refresh, refreshKey]);
 
   const visibleIntegrations = useMemo(() => onChannelAction ? integrations : integrations.filter((integration) => integration.kind !== "channel"), [integrations, onChannelAction]);
-  const grouped = useMemo(() => visibleIntegrations.reduce<Record<string, AgentIntegration[]>>((groups, integration) => {
-    (groups[integration.category] ??= []).push(integration);
-    return groups;
-  }, {}), [visibleIntegrations]);
-
   const openConfiguration = (integration: AgentIntegration) => {
     setSelected(integration);
     setApiKey("");
@@ -144,10 +131,8 @@ export function AgentToolIntegrations({ installationId, embedded = false, refres
   const content = <>
     {error ? <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
     {loading ? <div className="grid gap-3 sm:grid-cols-2"><div className="h-36 animate-pulse rounded-xl border border-border bg-secondary/30" /><div className="h-36 animate-pulse rounded-xl border border-border bg-secondary/30" /></div> : null}
-    {!loading ? Object.entries(grouped).map(([category, entries]) => <div key={category} className="space-y-3">
-      <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{categoryLabels[category] ?? category}</h3>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {entries.map((integration) => {
+    {!loading ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {visibleIntegrations.map((integration) => {
           const connected = isConnected(integration);
           const pending = busyIntegration === integration.id;
           const canConfigure = integration.kind !== "channel" && integration.configurable && integration.auth !== "observability";
@@ -166,8 +151,7 @@ export function AgentToolIntegrations({ installationId, embedded = false, refres
             </CardContent>
           </Card>;
         })}
-      </div>
-    </div>) : null}
+      </div> : null}
 
     <Dialog open={Boolean(selected)} onOpenChange={(open) => { if (!open && !saving) setSelected(null); }}>
       <DialogContent>

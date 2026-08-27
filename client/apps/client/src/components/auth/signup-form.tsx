@@ -38,6 +38,10 @@ export default function SignupForm() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [passwordSetupSent, setPasswordSetupSent] = useState(false);
+  const [referralCode] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("referralCode") ?? "";
+  });
   const passwordStrength = getPasswordStrength(password);
 
   if (process.env.NEXT_PUBLIC_KASITEK_ACCESS_MODE !== "public") {
@@ -52,8 +56,11 @@ export default function SignupForm() {
   }
 
   const handleGoogleSignIn = () => {
+    const callbackPath = referralCode
+      ? `/workspace?referralCode=${encodeURIComponent(referralCode)}`
+      : "/workspace";
     window.location.assign(
-      apiUrl(`/api/auth/google/start?callbackUrl=${encodeURIComponent("/workspace")}`),
+      apiUrl(`/api/auth/google/start?callbackUrl=${encodeURIComponent(callbackPath)}`),
     );
   };
 
@@ -76,6 +83,7 @@ export default function SignupForm() {
         email,
         password,
         name,
+        referralCode: referralCode || undefined,
       }),
     });
 

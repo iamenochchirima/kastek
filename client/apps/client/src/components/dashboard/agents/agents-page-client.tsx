@@ -8,8 +8,6 @@ import {
   DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -19,23 +17,16 @@ import {
   PageHeaderDescription,
   PageHeaderTitle,
 } from "@/components/ui/page-header";
-import { ArrowLeft, Bot, Info, MessageSquare, Sparkles, UserRound, X } from "lucide-react";
-import { useState } from "react";
+import { Bot, Info, MessageSquare, Sparkles, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { setAgentInstallationStatus, type AgentAudience, type AgentAudienceCounts, type AgentDefinition, type AgentOperationsSummary, type AgentTemplate } from "@/lib/agent-platform";
+import { setAgentInstallationStatus, type AgentAudienceCounts, type AgentDefinition, type AgentOperationsSummary } from "@/lib/agent-platform";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 import { AgentChatPanel } from "./agent-chat-panel";
+import { listAgentCreationDrafts, type AgentCreationDraftSummary } from "@/lib/agent-creation-drafts";
 
 export type AgentListItem = AgentDefinition;
 export type AgentView = "agents" | "external";
-
-type SelectableTemplate = {
-  value: string;
-  label: string;
-  description: string;
-  available: boolean;
-};
 
 function statusClass(status: string) {
   if (status === "active") return "border-status-success/30 bg-status-success-soft text-status-success";
@@ -80,42 +71,60 @@ function audienceClass(agent: AgentDefinition): string {
     : "border-border bg-secondary text-muted-foreground";
 }
 
+function draftPath(draft: AgentCreationDraftSummary): string {
+  const params = new URLSearchParams({ flow: draft.kind, audience: draft.audience });
+  if (draft.templateKey) params.set("template", draft.templateKey);
+  return `/agents/new?${params.toString()}`;
+}
+
+function draftStepLabel(draft: AgentCreationDraftSummary): string {
+  const step = draft.step ?? 1;
+  if (draft.kind === "general") return `Step ${step} of 4`;
+  return `Step ${step} of 5`;
+}
+
 export function AgentsPageClient({
   initialAgents,
   initialCounts,
-  initialTemplates,
   initialTemplateKey,
+  userId,
   initialView = "agents",
   agentsUnavailable = false,
   initialOperations = null,
 }: {
   initialAgents: AgentListItem[];
   initialCounts?: AgentAudienceCounts;
-  initialTemplates: AgentTemplate[];
   initialTemplateKey?: string;
+  userId?: string;
   initialView?: AgentView;
   agentsUnavailable?: boolean;
   initialOperations?: AgentOperationsSummary | null;
 }) {
   const router = useRouter();
-  const [createOpen, setCreateOpen] = useState(Boolean(initialTemplateKey));
-  const [createStep, setCreateStep] = useState<"audience" | "type" | "custom">("audience");
-  const [createAudience, setCreateAudience] = useState<AgentAudience>("personal");
   const [chatAgent, setChatAgent] = useState<AgentDefinition | null>(null);
   const [activeView, setActiveView] = useState<AgentView>(initialView);
-  const templates: SelectableTemplate[] = initialTemplates.map((template) => ({ value: template.key, label: template.name, description: template.description, available: true }));
+  const [browserDrafts, setBrowserDrafts] = useState<AgentCreationDraftSummary[]>([]);
   const visibleAgents = initialAgents.filter((agent) => activeView === "external" ? isExternalAgent(agent) : !isExternalAgent(agent));
 
-  const closeCreate = () => {
-    setCreateOpen(false);
-    setCreateStep("audience");
-    setCreateAudience("personal");
-  };
+  useEffect(() => {
+    const refreshDrafts = () => setBrowserDrafts(listAgentCreationDrafts(userId));
+    refreshDrafts();
+    const handleFocus = () => refreshDrafts();
+    const handleStorage = () => refreshDrafts();
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [userId]);
 
-  const openCreateRoute = (path: string) => {
-    closeCreate();
-    router.push(path);
-  };
+  useEffect(() => {
+    if (!initialTemplateKey) return;
+    router.replace(`/agents/new?flow=custom&audience=personal&template=${encodeURIComponent(initialTemplateKey)}`);
+  }, [initialTemplateKey, router]);
+
+  const openCreate = () => router.push("/agents/new");
 
   return (
     <div className="min-h-[100dvh] p-4 sm:p-6">
@@ -126,7 +135,7 @@ export function AgentsPageClient({
             <PageHeaderDescription>Installed agents.</PageHeaderDescription>
           </PageHeaderContent>
           <PageHeaderActions>
-          <Button type="button" onClick={() => { setCreateStep("audience"); setCreateOpen(true); }}>Create agent</Button>
+          <Button type="button" onClick={openCreate}>Create agent</Button>
           </PageHeaderActions>
         </PageHeader>
 
@@ -154,6 +163,13 @@ export function AgentsPageClient({
           </button>
         </div>
 
+        {activeView === "agents" && browserDrafts.length ? <section aria-labelledby="unfinished-drafts-heading" className="space-y-3">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div><h2 id="unfinished-drafts-heading" className="text-lg font-semibold text-foreground">Unfinished drafts</h2><p className="mt-1 text-sm text-muted-foreground">Continue where you left off.</p></div>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">{browserDrafts.map((draft) => <CreationDraftCard key={draft.key} draft={draft} onResume={() => router.push(draftPath(draft))} />)}</div>
+        </section> : null}
+
         {agentsUnavailable ? (
           <Card><CardContent className="flex flex-col items-start gap-4 p-8"><Info className="h-7 w-7 text-status-attention" /><div><h2 className="text-xl font-semibold text-foreground">Agents are unavailable</h2><p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">The Agent Platform could not be reached. Your existing installations are unchanged; try refreshing in a moment.</p></div><Button type="button" variant="outline" onClick={() => router.refresh()}>Retry</Button></CardContent></Card>
         ) : visibleAgents.length ? (
@@ -168,104 +184,38 @@ export function AgentsPageClient({
                 <h2 className="text-xl font-semibold text-foreground">{activeView === "external" ? "No external agents yet" : "No installed agents yet"}</h2>
                 <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">{activeView === "external" ? "External connections will appear here." : "Install KasiAI or choose an available template to get started."}</p>
               </div>
-              {activeView === "agents" ? <Button type="button" onClick={() => { setCreateStep("audience"); setCreateOpen(true); }}>Create agent</Button> : null}
+              {activeView === "agents" ? <Button type="button" onClick={openCreate}>Create agent</Button> : null}
             </CardContent>
           </Card>
         )}
       </div>
 
-      {createOpen ? initialTemplateKey ? (
-        <TemplateDialog templates={templates} onClose={closeCreate} initialTemplateKey={initialTemplateKey} />
-      ) : (
-        <CreateAgentDialog audience={createAudience} step={createStep} onAudienceChange={setCreateAudience} onStepChange={setCreateStep} onClose={closeCreate} onChooseGeneral={() => openCreateRoute(`/agents/new/general?audience=${createAudience}`)} onChooseCustom={() => setCreateStep("custom")} onBrowseTemplates={() => openCreateRoute(`/agents/templates?audience=${createAudience}`)} onStartFromScratch={() => openCreateRoute(`/agents/new?audience=${createAudience}`)} />
-      ) : null}
       {chatAgent?.installation_id ? <AgentChatDialog agent={chatAgent} onClose={() => setChatAgent(null)} /> : null}
     </div>
   );
 }
 
-function CreateAgentDialog({
-  audience,
-  step,
-  onAudienceChange,
-  onStepChange,
-  onClose,
-  onChooseGeneral,
-  onChooseCustom,
-  onBrowseTemplates,
-  onStartFromScratch,
-}: {
-  audience: AgentAudience;
-  step: "audience" | "type" | "custom";
-  onAudienceChange: (audience: AgentAudience) => void;
-  onStepChange: (step: "audience" | "type" | "custom") => void;
-  onClose: () => void;
-  onChooseGeneral: () => void;
-  onChooseCustom: () => void;
-  onBrowseTemplates: () => void;
-  onStartFromScratch: () => void;
-}) {
+function CreationDraftCard({ draft, onResume }: { draft: AgentCreationDraftSummary; onResume: () => void }) {
+  const isCustom = draft.kind === "custom";
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:!max-w-3xl sm:p-8">
-        <div className="flex items-start justify-between gap-4">
-          <DialogHeader>
-            <DialogTitle>Create an agent</DialogTitle>
-            <DialogDescription>{step === "audience" ? "Choose who it will serve." : "Choose a starting point."}</DialogDescription>
-          </DialogHeader>
+    <Card className="border-primary/25 bg-primary/[0.03]">
+      <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="truncate font-semibold text-foreground">{draft.name?.trim() || "Untitled agent"}</h3>
+            <Badge className="border-primary/20 bg-primary/10 text-primary">Draft</Badge>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <span>{draft.audience === "customer_service" ? "Customer service" : "Personal"}</span>
+            <span aria-hidden="true">·</span>
+            <span>{isCustom ? "Custom agent" : "General-purpose agent"}</span>
+            <span aria-hidden="true">·</span>
+            <span>{draftStepLabel(draft)}</span>
+          </div>
         </div>
-
-        {step === "audience" ? (
-          <div className="mt-6 grid items-stretch gap-4 md:grid-cols-2">
-            <button type="button" onClick={() => { onAudienceChange("personal"); onStepChange("type"); }} className={`flex min-h-[220px] flex-col rounded-xl border p-6 text-left transition-colors md:min-h-[244px] ${audience === "personal" ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/60 hover:bg-secondary/35"}`}>
-              <UserRound className="h-6 w-6 text-primary" />
-              <h3 className="mt-5 text-base font-semibold text-foreground">Personal agent</h3>
-              <p className="mt-2 text-sm leading-5 text-muted-foreground">Private assistant for your work, knowledge, and everyday tasks.</p>
-              <span className="mt-auto pt-5 text-sm font-medium text-primary">Continue</span>
-            </button>
-            <button type="button" onClick={() => { onAudienceChange("customer_service"); onStepChange("type"); }} className={`flex min-h-[220px] flex-col rounded-xl border p-6 text-left transition-colors md:min-h-[244px] ${audience === "customer_service" ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/60 hover:bg-secondary/35"}`}>
-              <MessageSquare className="h-6 w-6 text-primary" />
-              <h3 className="mt-5 text-base font-semibold text-foreground">Customer service agent</h3>
-              <p className="mt-2 text-sm leading-5 text-muted-foreground">Customer-facing assistant for conversations, support, and service workflows.</p>
-              <span className="mt-auto pt-5 text-sm font-medium text-primary">Continue</span>
-            </button>
-          </div>
-        ) : step === "type" ? (
-          <div className="mt-8 grid items-stretch gap-5 md:grid-cols-2">
-            <div className="flex min-h-[260px] flex-col rounded-xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35 md:min-h-[320px] md:p-8">
-              <h3 className="text-base font-semibold text-foreground">General-purpose agent</h3>
-              <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-muted-foreground">Start with a role, approved knowledge, and response preferences.</p>
-              <div className="mt-6 flex flex-wrap justify-center gap-2" aria-label="Common general-purpose use cases">
-                {['Customer support', 'Lead qualification', 'Booking assistant', 'Internal helpdesk'].map((useCase) => <span key={useCase} className="rounded-full border border-border bg-secondary px-2 py-1 text-[11px] text-muted-foreground">{useCase}</span>)}
-              </div>
-              <Button type="button" className="mx-auto mt-auto w-full max-w-[240px] whitespace-normal leading-4" onClick={onChooseGeneral}>Use general-purpose</Button>
-            </div>
-            <div className="flex min-h-[260px] flex-col rounded-xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35 md:min-h-[320px] md:p-8">
-              <h3 className="text-base font-semibold text-foreground">Custom agent</h3>
-              <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-muted-foreground">Build a workflow from a canvas. Connect tools, knowledge, channels, and services when you need them.</p>
-              <Button type="button" variant="outline" className="mx-auto mt-auto w-full max-w-[240px] whitespace-normal leading-4" onClick={onChooseCustom}>Use custom</Button>
-            </div>
-          </div>
-        ) : (
-          <div className="mt-6 space-y-4">
-            <button type="button" onClick={() => onStepChange("type")} className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="mr-1.5 h-4 w-4" />Back</button>
-            <div className="grid items-stretch gap-4 md:grid-cols-2">
-              <div className="flex min-h-[200px] flex-col rounded-xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35 md:min-h-[218px]">
-                <h3 className="text-base font-semibold text-foreground">Start from scratch</h3>
-                <p className="mx-auto mt-3 max-w-xs text-sm leading-5 text-muted-foreground">Build your agent on a clean workflow canvas.</p>
-                <Button type="button" className="mx-auto mt-auto w-full max-w-[190px]" onClick={onStartFromScratch}>Start from scratch</Button>
-              </div>
-              <div className="flex min-h-[200px] flex-col rounded-xl border border-border bg-card p-6 text-center transition-colors hover:border-primary/60 hover:bg-secondary/35 md:min-h-[218px]">
-                <h3 className="text-base font-semibold text-foreground">Browse templates</h3>
-                <p className="mx-auto mt-3 max-w-xs text-sm leading-5 text-muted-foreground">Choose a prepared workflow, then configure its services.</p>
-                <Button type="button" variant="outline" className="mx-auto mt-auto w-full max-w-[190px]" onClick={onBrowseTemplates}>Browse templates</Button>
-              </div>
-            </div>
-          </div>
-        )}
-        <DialogFooter className="mt-6 border-t border-border pt-4"><Button type="button" variant="outline" onClick={onClose}>Cancel</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <Button type="button" variant="outline" className="shrink-0" onClick={onResume}>Resume</Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -371,50 +321,6 @@ function AgentChatDialog({ agent, onClose }: { agent: AgentDefinition; onClose: 
           </Button>
         </DialogClose>
         <AgentChatPanel installationId={agent.installation_id!} active={active} agentName={agent.name} modal />
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function TemplateDialog({ templates, onClose, initialTemplateKey }: { templates: SelectableTemplate[]; onClose: () => void; initialTemplateKey?: string }) {
-  const [selected, setSelected] = useState(initialTemplateKey ?? "");
-  const [step, setStep] = useState<"select" | "configure" | "review">(initialTemplateKey ? "configure" : "select");
-  const selectedTemplate = templates.find((template) => template.value === selected);
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[calc(100svh-2rem)] max-w-3xl overflow-y-auto">
-        <div className="flex items-start justify-between gap-4">
-          <DialogHeader>
-            <DialogTitle>Choose an agent template</DialogTitle>
-            <DialogDescription>Choose a blueprint, then configure it in the builder.</DialogDescription>
-          </DialogHeader>
-        </div>
-        {step === "select" ? <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          {templates.map((template) => (
-            <button
-              key={template.value}
-              type="button"
-              disabled={!template.available}
-              onClick={() => { setSelected(template.value); setStep("configure"); }}
-              className={`rounded-xl border p-4 text-left transition-colors ${selected === template.value ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-secondary/40"} ${!template.available ? "cursor-not-allowed opacity-60" : ""}`}
-            >
-              <div className="flex items-center justify-between gap-2"><span className="font-medium text-foreground">{template.label}</span><Badge className={template.available ? "border-status-success/30 bg-status-success-soft text-status-success" : "border-border bg-secondary text-muted-foreground"}>{template.available ? "Available" : "Coming soon"}</Badge></div>
-              <p className="mt-2 text-sm leading-5 text-muted-foreground">{template.description}</p>
-            </button>
-          ))}
-        </div> : null}
-        {step === "configure" && selectedTemplate ? (
-          <div className="mt-6 space-y-4">
-            <div className="rounded-xl border border-border bg-card p-4"><p className="text-sm font-semibold text-foreground">{selectedTemplate.label}</p><p className="mt-1 text-sm leading-5 text-muted-foreground">{selectedTemplate.description}</p><p className="mt-3 text-xs text-muted-foreground">This blueprint supplies the starting instructions and policy. You will review capabilities, connections, and the workflow before publishing.</p></div>
-          </div>
-        ) : null}
-        {step === "review" && selectedTemplate ? <div className="mt-6 space-y-4"><h3 className="font-semibold text-foreground">Open the custom builder</h3><dl className="divide-y divide-border rounded-xl border border-border bg-card text-sm"><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">Blueprint</dt><dd className="font-medium text-foreground">{selectedTemplate.label}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-muted-foreground">What happens next</dt><dd className="max-w-[65%] text-right font-medium text-foreground">Instructions, policy, and configuration load into an editable draft</dd></div></dl><p className="text-sm text-muted-foreground">Nothing is installed from this preview. The builder creates a draft, validates it, and only publishes after you review it.</p></div> : null}
-        <DialogFooter className="mt-6">
-          <Button type="button" variant="outline" onClick={step === "select" ? onClose : () => setStep(step === "review" ? "configure" : "select")}>{step === "select" ? "Close" : "Back"}</Button>
-          {step === "configure" ? <Button type="button" disabled={!selectedTemplate?.available} onClick={() => setStep("review")}>Review</Button> : null}
-          {step === "review" && selectedTemplate ? <Button asChild type="button"><Link href={`/agents/new?template=${encodeURIComponent(selectedTemplate.value)}`}>Open custom builder</Link></Button> : null}
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Expand,
   FileText,
   Globe2,
   LoaderCircle,
@@ -27,6 +28,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { agentCreationDraftKey, clearAgentCreationDraft, readAgentCreationDraft, writeAgentCreationDraft } from "@/lib/agent-creation-drafts";
 import {
   createAgent,
   createAgentInstallation,
@@ -45,6 +47,7 @@ import {
   type AgentVersion,
 } from "@/lib/agent-platform";
 import { AgentWorkflowEditor, starterGraph, type WorkflowGraphValue } from "./agent-workflow-editor";
+import { isWebsiteCrawlPreview, WebsiteSourcePreviewDialog, type WebsiteCrawlPreview } from "./website-source-preview-dialog";
 import {
   AgentRuntimeLimits,
   defaultAgentRuntimeLimits,
@@ -62,15 +65,30 @@ import {
 
 type Step = 1 | 2 | 3 | 4 | 5;
 type KnowledgeRetry = { sourceId: string; kind: "text" | "file"; label: string };
-type WebsiteCrawlPreview = {
-  sourceId: string;
-  crawlId: string;
-  status: string;
-  total?: number;
-  completed?: number;
-  pages?: number;
-  preview?: string;
+type CustomAgentBrowserDraft = {
+  step?: Step;
+  name?: string;
+  roles?: string[];
+  roleSummary?: string;
+  knowledgeText?: string;
+  websiteUrl?: string;
+  instructions?: string;
+  knowledgeOutlineInserted?: boolean;
+  knowledgeConfirmed?: boolean;
+  provider?: string;
+  model?: string;
+  runtimeLimits?: Partial<AgentRuntimeLimitsValue>;
+  workflow?: WorkflowGraphValue;
+  advancedOpen?: boolean;
+  websiteCrawl?: WebsiteCrawlPreview;
+  crawlAgent?: { id: string; name: string };
 };
+
+function isWorkflowDraft(value: unknown): value is WorkflowGraphValue {
+  if (!value || typeof value !== "object") return false;
+  const workflow = value as { nodes?: unknown; edges?: unknown };
+  return Array.isArray(workflow.nodes) && Array.isArray(workflow.edges);
+}
 
 const runtimeLimitKeys: Array<keyof AgentRuntimeLimitsValue> = [
   "maxIterations",
@@ -197,8 +215,9 @@ function CustomerServiceSetup({ template }: { template?: AgentTemplate }) {
   );
 }
 
-export function CreateAgentPageClient({ audience = "personal", initialTemplate, initialDraft }: { audience?: AgentAudience; initialTemplate?: AgentTemplate; initialDraft?: { agent: AgentDefinition; version: AgentVersion } }) {
+export function CreateAgentPageClient({ audience = "personal", userId, initialTemplate, initialDraft, onBackToStart }: { audience?: AgentAudience; userId?: string; initialTemplate?: AgentTemplate; initialDraft?: { agent: AgentDefinition; version: AgentVersion }; onBackToStart?: () => void }) {
   const router = useRouter();
+  const draftKey = agentCreationDraftKey("custom", audience, userId, initialTemplate?.key);
   const initialDraftConfiguration = initialDraft?.version.configuration ?? {};
   const configuredRole = typeof initialDraftConfiguration.agentRole === "string"
     ? initialDraftConfiguration.agentRole
@@ -225,8 +244,9 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
   const [instructions, setInstructions] = useState(initialDraft?.version.instructions ?? "");
   const [knowledgeOutlineInserted, setKnowledgeOutlineInserted] = useState(false);
   const [knowledgeConfirmed, setKnowledgeConfirmed] = useState(configuredKnowledgeSetup?.confirmed === true);
-  const [crawlAgent, setCrawlAgent] = useState<AgentDefinition | null>(null);
+  const [crawlAgent, setCrawlAgent] = useState<{ id: string; name: string } | null>(null);
   const [websiteCrawl, setWebsiteCrawl] = useState<WebsiteCrawlPreview | null>(null);
+  const [websitePreviewOpen, setWebsitePreviewOpen] = useState(false);
   const websitePreviewRef = useRef<string | undefined>(undefined);
   const [crawlingWebsite, setCrawlingWebsite] = useState(false);
   const [provider, setProvider] = useState(() => typeof initialDraftConfiguration.provider === "string" ? initialDraftConfiguration.provider : templateConfigurationString(initialTemplate, "provider", "openrouter"));
@@ -247,8 +267,10 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
   const [publishStage, setPublishStage] = useState<"idle" | "publishing" | "indexing-text" | "indexing-file" | "crawling-website">("idle");
   const [retryingKnowledge, setRetryingKnowledge] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [draft, setDraft] = useState<{ agent: AgentDefinition; version: AgentVersion } | null>(initialDraft ?? null);
+  const [draft, setDraft] = useState<{ agent: Pick<AgentDefinition, "id" | "name">; version: AgentVersion } | null>(initialDraft ?? null);
   const [created, setCreated] = useState<{ id: string; name: string; knowledgeWarning?: string; knowledgeRetries: KnowledgeRetry[]; websiteCrawlStarted?: boolean } | null>(null);
+  const [draftHydrated, setDraftHydrated] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
 
   const role = roles[0] ?? defaultRole;
   const roleOptions = getAgentRoleOptions(audience);
@@ -261,14 +283,75 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
     templateInstructions: initialTemplate?.instructions,
   }), [audience, initialTemplate?.instructions, name, role, roles, roleSummary]);
   const effectiveInstructions = instructions.trim() || generatedInstructions;
-  const knowledgeReady = Boolean(knowledgeText.trim() || knowledgeFile || websiteUrl.trim());
-  const knowledgeHasPlaceholders = containsKnowledgePlaceholders(knowledgeText);
+  const knowledgeReady = Boolean(knowledgeText.trim() || knowledgeFile || websiteCrawl?.sourceId);
+  const knowledgeHasPlaceholders = containsKnowledgePlaceholders(knowledgeText) && !knowledgeFile && !websiteCrawl?.sourceId;
   const readinessIssues = [
     !workflow || !workflowValid ? "Complete the workflow before publishing." : null,
     audience === "customer_service" && !knowledgeReady ? "Add at least one approved knowledge source for a customer-service agent." : null,
-    audience === "customer_service" && !knowledgeConfirmed ? "Confirm that the knowledge is current and approved." : null,
     knowledgeHasPlaceholders ? "Replace the bracketed knowledge examples before publishing." : null,
   ].filter((issue): issue is string => Boolean(issue));
+
+  useEffect(() => {
+    const saved = readAgentCreationDraft<CustomAgentBrowserDraft>(draftKey);
+    if (saved) {
+      const savedRoles = Array.isArray(saved.roles)
+        ? saved.roles.filter((value): value is AgentRoleKey => getAgentRoleOptions(audience).some((option) => option.key === value))
+        : [];
+      const savedStep = typeof saved.step === "number" && saved.step >= 1 && saved.step <= 5 ? saved.step as Step : 1;
+      setStep(savedStep);
+      setName(typeof saved.name === "string" ? saved.name : "");
+      setRoles(savedRoles.length ? savedRoles : [defaultRole]);
+      setRoleSummary(typeof saved.roleSummary === "string" ? saved.roleSummary : "");
+      setKnowledgeText(typeof saved.knowledgeText === "string" ? saved.knowledgeText : "");
+      setWebsiteUrl(typeof saved.websiteUrl === "string" ? saved.websiteUrl : "");
+      if (isWebsiteCrawlPreview(saved.websiteCrawl)) {
+        setWebsiteCrawl(saved.websiteCrawl);
+        websitePreviewRef.current = saved.websiteCrawl.preview;
+      }
+      if (saved.crawlAgent && typeof saved.crawlAgent.id === "string" && typeof saved.crawlAgent.name === "string") {
+        setCrawlAgent({ id: saved.crawlAgent.id, name: saved.crawlAgent.name });
+      }
+      setInstructions(typeof saved.instructions === "string" ? saved.instructions : "");
+      setKnowledgeOutlineInserted(saved.knowledgeOutlineInserted === true);
+      setKnowledgeConfirmed(saved.knowledgeConfirmed === true);
+      if (typeof saved.provider === "string" && AGENT_MODEL_PROVIDERS.includes(saved.provider as typeof AGENT_MODEL_PROVIDERS[number])) setProvider(saved.provider);
+      if (typeof saved.model === "string") setModel(saved.model);
+      if (saved.runtimeLimits && typeof saved.runtimeLimits === "object") setRuntimeLimits((current) => ({ ...current, ...saved.runtimeLimits }));
+      if (isWorkflowDraft(saved.workflow)) {
+        setWorkflow(saved.workflow);
+        setWorkflowValid(true);
+      }
+      setAdvancedOpen(saved.advancedOpen === true);
+      setDraftRestored(true);
+    }
+    setDraftHydrated(true);
+  }, [audience, defaultRole, draftKey]);
+
+  useEffect(() => {
+    if (!draftHydrated || created) return;
+    if (!name.trim() && !roleSummary.trim() && !knowledgeText.trim() && !websiteUrl.trim() && !instructions.trim()) {
+      clearAgentCreationDraft(draftKey);
+      return;
+    }
+    writeAgentCreationDraft(draftKey, {
+      step,
+      name,
+      roles,
+      roleSummary,
+      knowledgeText,
+      websiteUrl,
+      instructions,
+      knowledgeOutlineInserted,
+      knowledgeConfirmed,
+      provider,
+      model,
+      runtimeLimits,
+      workflow,
+      advancedOpen,
+      websiteCrawl,
+      crawlAgent,
+    });
+  }, [advancedOpen, crawlAgent, created, draftHydrated, draftKey, instructions, knowledgeConfirmed, knowledgeOutlineInserted, knowledgeText, model, name, provider, roleSummary, roles, runtimeLimits, step, websiteCrawl, websiteUrl, workflow]);
 
   const crawlSourceId = websiteCrawl?.sourceId;
   const crawlStatus = websiteCrawl?.status;
@@ -285,7 +368,7 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
         if (status.status === "completed") {
           try {
             const source = await getAgentKnowledgeSource(crawlSourceId);
-            preview = source.text.trim().slice(0, 2_400) || undefined;
+            preview = source.text.trim() || undefined;
           } catch {
             // Status can complete just before source ingestion is readable.
           }
@@ -314,18 +397,43 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
     };
   }, [crawlSourceId, crawlStatus]);
 
+  useEffect(() => {
+    if (!websiteCrawl || websiteCrawl.status !== "completed" || websiteCrawl.preview || !websiteCrawl.sourceId) return;
+    let cancelled = false;
+    void getAgentKnowledgeSource(websiteCrawl.sourceId).then((source) => {
+      if (cancelled) return;
+      const preview = source.text.trim() || undefined;
+      websitePreviewRef.current = preview;
+      setWebsiteCrawl((current) => current?.sourceId === websiteCrawl.sourceId ? { ...current, preview } : current);
+    }).catch(() => {
+      // The saved crawl metadata remains useful if the source is temporarily unavailable.
+    });
+    return () => { cancelled = true; };
+  }, [websiteCrawl]);
+
   const crawlWebsite = async () => {
     if (!name.trim() || !websiteUrl.trim() || crawlingWebsite) return;
     setCrawlingWebsite(true);
     setError(null);
     try {
-      const agent = crawlAgent ?? await createAgent({
+      let agent = crawlAgent;
+      if (!agent && websiteCrawl?.sourceId) {
+        try {
+          const existingSource = await getAgentKnowledgeSource(websiteCrawl.sourceId);
+          if (existingSource.source.agent_definition_id) {
+            agent = { id: existingSource.source.agent_definition_id, name: name.trim() };
+          }
+        } catch {
+          // If the old source is unavailable, create a fresh draft agent below.
+        }
+      }
+      agent ??= await createAgent({
         name: name.trim(),
         description: roleSummary.trim() || getAgentRole(role, audience).summary,
         creationProfile: "custom",
         agentAudience: audience,
       });
-      if (!crawlAgent) setCrawlAgent(agent);
+      if (!crawlAgent) setCrawlAgent({ id: agent.id, name: agent.name });
       const started = await startAgentWebsiteCrawl({ agentId: agent.id, name: `${agent.name} website`, url: websiteUrl.trim() });
       websitePreviewRef.current = undefined;
       setWebsiteCrawl({ sourceId: started.source.id, crawlId: started.crawlId, status: started.status });
@@ -353,7 +461,8 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
     if (loading) return;
     setError(null);
     if (step === 1) {
-      router.push("/agents");
+      if (onBackToStart) onBackToStart();
+      else router.push("/agents");
       return;
     }
     setStep((current) => (current - 1) as Step);
@@ -523,6 +632,7 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
           knowledgeErrors.push(`Website: ${cause instanceof Error ? cause.message : "could not start the crawl"}`);
         }
       }
+      clearAgentCreationDraft(draftKey);
       setCreated({ id: draft.agent.id, name: draft.agent.name, knowledgeWarning: knowledgeErrors.length ? knowledgeErrors.join(" ") : undefined, knowledgeRetries, websiteCrawlStarted });
       setDraft(null);
     } catch (cause) {
@@ -601,7 +711,7 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
 
   return (
     <div className="min-h-[100dvh] px-4 py-6 sm:px-6 lg:px-8"><div className="mx-auto max-w-5xl">
-      <div className="flex items-center justify-between gap-4"><Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back</Link><p className="text-xs font-medium text-muted-foreground">Build a custom agent</p></div>
+      <div className="flex items-center justify-between gap-4">{onBackToStart ? <button type="button" onClick={onBackToStart} className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back</button> : <Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back</Link>}<div className="flex items-center gap-3"><p className="text-xs font-medium text-muted-foreground">Build a custom agent</p>{draftHydrated ? <span className="text-xs text-muted-foreground">{draftRestored ? "Draft restored" : "Autosave on"}</span> : null}</div></div>
       <div className="mt-8"><Progress step={step} /></div>
       <Card className="mt-10 rounded-3xl border-border/80 shadow-xl shadow-black/10"><CardContent className="p-6 sm:p-10 lg:p-14"><div className="mx-auto max-w-3xl">
         <div className="text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">{step === 2 ? <PlugZap className="h-7 w-7" /> : step === 3 ? <BookOpen className="h-7 w-7" /> : step === 4 ? <Workflow className="h-7 w-7" /> : step === 5 ? <SlidersHorizontal className="h-7 w-7" /> : <Bot className="h-7 w-7" />}</div><h1 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">{stepTitle}</h1><p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{stepDescription}</p></div>
@@ -609,13 +719,13 @@ export function CreateAgentPageClient({ audience = "personal", initialTemplate, 
         <div className="mt-9 space-y-6">
           {step === 1 ? <div className="space-y-6"><Field label="Agent name" hint="Visible to customers and workspace members."><Input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Support operations agent" className="mt-2 h-12 px-4 text-base" /></Field><div><p className="text-sm font-medium text-foreground">Responsibilities</p><p className="mt-1 text-sm text-muted-foreground">Select everything this agent should handle.</p><div className="mt-3 space-y-2">{roleOptions.map((option) => { const selected = roles.includes(option.key); return <button key={option.key} type="button" onClick={() => setRoles((current) => selected ? (current.length === 1 ? current : current.filter((key) => key !== option.key)) : [...current, option.key])} className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors ${selected ? "border-primary bg-primary/10" : "border-border bg-secondary/10 hover:border-primary/50"}`} aria-pressed={selected}><span aria-hidden="true" className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded border ${selected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/50 bg-background"}`}>{selected ? <Check className="h-3.5 w-3.5" /> : null}</span><span><span className="font-semibold text-foreground">{option.label}</span><span className="mt-1 block text-sm leading-5 text-muted-foreground">{option.summary}</span></span></button>; })}</div></div><Field label="Role context" hint="Optional. This stays a summary, not the agent's instructions."><Textarea value={roleSummary} onChange={(event) => setRoleSummary(event.target.value)} rows={3} maxLength={500} placeholder={getAgentRole(role, audience).summary} className="mt-2 resize-y px-4 py-3 leading-6" /></Field></div> : null}
           {step === 2 ? <div className="space-y-4"><Card className="rounded-2xl border-border bg-secondary/20"><CardContent className="space-y-4 p-5"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-status-success-soft text-status-success"><CheckCircle2 className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">Text gateway ready</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">The agent will start with an isolated text conversation. No credentials or external services are needed to create it.</p></div><Badge className="ml-auto border-status-success/30 bg-status-success-soft text-status-success">Ready</Badge></div></CardContent></Card><Card className="rounded-2xl border-border"><CardContent className="space-y-4 p-5"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary text-muted-foreground"><PlugZap className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">External tools</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">No integrations are selected. After the agent is working, connect Email, Calendar, CRM, MCP, REST, or other services from its details page.</p></div><Badge className="ml-auto border-border bg-secondary text-muted-foreground">Not selected</Badge></div>{initialTemplate?.requiredConnections.length ? <div className="rounded-xl border border-status-attention/30 bg-status-attention-soft px-4 py-3 text-sm text-status-attention"><p className="font-medium">This blueprint may need later setup</p><p className="mt-1">{initialTemplate.requiredConnections.join(", ")}</p></div> : null}</CardContent></Card><p className="text-xs leading-5 text-muted-foreground">Connections and capabilities are installation-scoped. Keeping them optional here lets you test the baseline before granting access.</p></div> : null}
-          {step === 3 ? <div className="space-y-4"><div className="grid gap-4 md:grid-cols-2"><Card className="h-full rounded-2xl border-border bg-secondary/20"><CardContent className="flex h-full flex-col p-5 sm:p-6"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Globe2 className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">Website source</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Crawl public pages and add their content and links.</p></div></div><div className="mt-6 flex flex-col gap-2 sm:flex-row"><Input type="url" value={websiteUrl} onChange={(event) => { setWebsiteUrl(event.target.value); websitePreviewRef.current = undefined; setWebsiteCrawl(null); setKnowledgeConfirmed(false); }} placeholder="https://example.com" className="h-11" /><Button type="button" variant="outline" className="h-11 shrink-0" disabled={!name.trim() || !websiteUrl.trim() || crawlingWebsite || ["starting", "scraping", "processing"].includes(websiteCrawl?.status ?? "")} onClick={() => void crawlWebsite()}>{crawlingWebsite ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Crawling…</> : websiteCrawl?.status === "completed" ? "Re-crawl" : "Crawl website"}</Button></div><p className="mt-3 text-xs text-muted-foreground">{websiteCrawl?.status === "completed" ? `Website indexed · ${websiteCrawl.pages ?? websiteCrawl.completed ?? 0} pages` : websiteCrawl?.status === "failed" || websiteCrawl?.status === "cancelled" ? "Crawl failed. Check the URL and try again." : websiteCrawl ? `Crawling pages…${websiteCrawl.completed !== undefined && websiteCrawl.total ? ` ${websiteCrawl.completed}/${websiteCrawl.total}` : ""}` : "Crawl now and review the indexed content before publishing."}</p>{websiteCrawl?.preview ? <pre className="mt-4 max-h-48 overflow-auto whitespace-pre-wrap rounded-xl border border-border bg-background/60 p-3 text-xs leading-5 text-muted-foreground">{websiteCrawl.preview}</pre> : null}</CardContent></Card><label className="flex min-h-[196px] cursor-pointer flex-col rounded-2xl border border-border bg-secondary/20 p-5 transition-colors hover:border-primary/50 hover:bg-secondary/30 sm:p-6"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Upload className="h-5 w-5" /></div><div><p className="font-semibold text-foreground">Upload a file</p><p className="mt-1 text-xs leading-5 text-muted-foreground">PDF, Word, Excel, CSV, or text.</p></div></div><span className="mt-5 flex flex-1 items-center justify-center rounded-xl border border-dashed border-border bg-background/30 px-4 py-6 text-center text-sm text-muted-foreground">{knowledgeFile ? knowledgeFile.name : "Choose a file · up to 20 MB"}</span><input type="file" className="sr-only" accept=".txt,.text,.md,.markdown,.csv,.pdf,.docx,.xlsx,.xls,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (file && file.size > 20 * 1024 * 1024) { setError("Files must be 20 MB or smaller."); setKnowledgeFile(null); return; } setError(null); setKnowledgeFile(file); setKnowledgeConfirmed(false); }} /></label></div><Card className="rounded-2xl border-border bg-secondary/20"><CardContent className="p-5 sm:p-6"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><FileText className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">Paste approved information</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Add facts, FAQs, policies, and escalation rules.</p></div></div><Textarea autoFocus value={knowledgeText} onChange={(event) => { setKnowledgeText(event.target.value); setKnowledgeOutlineInserted(false); setKnowledgeConfirmed(false); }} rows={7} maxLength={200_000} placeholder="Business facts, services, prices, hours, policies, and approved answers…" className="mt-5 resize-y px-4 py-3 leading-6" /><div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground"><span className="flex items-center gap-2"><BookOpen className="h-4 w-4 shrink-0 text-primary" />{audience === "customer_service" ? "Required before publishing." : "Optional for personal agents."}</span><Button type="button" variant="outline" size="sm" onClick={() => { setKnowledgeText(knowledgeOutline(audience, roles)); setKnowledgeOutlineInserted(true); setKnowledgeConfirmed(false); }}>Insert outline</Button></div>{knowledgeHasPlaceholders ? <p className="rounded-lg border border-status-attention/30 bg-status-attention-soft px-3 py-2 text-xs text-status-attention">Replace the bracketed examples before publishing.</p> : null}{audience === "customer_service" ? <label className="mt-3 flex items-start gap-3 rounded-xl border border-border bg-background/40 p-3 text-sm"><Checkbox checked={knowledgeConfirmed} onCheckedChange={(checked) => setKnowledgeConfirmed(checked === true)} /><span className="leading-5 text-foreground">I confirm these sources are current and approved for customer responses.</span></label> : null}</CardContent></Card></div> : null}
+          {step === 3 ? <div className="space-y-4"><div className="grid gap-4 md:grid-cols-2"><Card className="h-full rounded-2xl border-border bg-secondary/20"><CardContent className="flex h-full flex-col p-5 sm:p-6"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Globe2 className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">Website source</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Crawl public pages and add their content and links.</p></div></div><div className="mt-6 flex flex-col gap-2 sm:flex-row"><Input type="url" value={websiteUrl} onChange={(event) => { setWebsiteUrl(event.target.value); websitePreviewRef.current = undefined; setWebsiteCrawl(null); setWebsitePreviewOpen(false); setKnowledgeConfirmed(false); }} placeholder="https://example.com" className="h-11" /><Button type="button" variant="outline" className="h-11 shrink-0" disabled={!name.trim() || !websiteUrl.trim() || crawlingWebsite || ["starting", "scraping", "processing"].includes(websiteCrawl?.status ?? "")} onClick={() => void crawlWebsite()}>{crawlingWebsite ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Crawling…</> : websiteCrawl?.status === "completed" ? "Re-crawl" : "Crawl website"}</Button></div><p className="mt-3 text-xs text-muted-foreground">{websiteCrawl?.status === "completed" ? `Website indexed · ${websiteCrawl.pages ?? websiteCrawl.completed ?? 0} pages` : websiteCrawl?.status === "failed" || websiteCrawl?.status === "cancelled" ? "Crawl failed. Check the URL and try again." : websiteCrawl ? `Crawling pages…${websiteCrawl.completed !== undefined && websiteCrawl.total ? ` ${websiteCrawl.completed}/${websiteCrawl.total}` : ""}` : "Crawl now and review the indexed content before publishing."}</p>{websiteCrawl?.preview ? <div className="mt-4 space-y-2"><pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-xl border border-border bg-background/60 p-3 text-xs leading-5 text-muted-foreground">{websiteCrawl.preview}</pre><Button type="button" variant="outline" size="sm" onClick={() => setWebsitePreviewOpen(true)}><Expand className="mr-1.5 h-3.5 w-3.5" />Expand preview</Button></div> : null}</CardContent></Card><label className="flex min-h-[196px] cursor-pointer flex-col rounded-2xl border border-border bg-secondary/20 p-5 transition-colors hover:border-primary/50 hover:bg-secondary/30 sm:p-6"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Upload className="h-5 w-5" /></div><div><p className="font-semibold text-foreground">Upload a file</p><p className="mt-1 text-xs leading-5 text-muted-foreground">PDF, Word, Excel, CSV, or text.</p></div></div><span className="mt-5 flex flex-1 items-center justify-center rounded-xl border border-dashed border-border bg-background/30 px-4 py-6 text-center text-sm text-muted-foreground">{knowledgeFile ? knowledgeFile.name : "Choose a file · up to 20 MB"}</span><input type="file" className="sr-only" accept=".txt,.text,.md,.markdown,.csv,.pdf,.docx,.xlsx,.xls,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (file && file.size > 20 * 1024 * 1024) { setError("Files must be 20 MB or smaller."); setKnowledgeFile(null); return; } setError(null); setKnowledgeFile(file); setKnowledgeConfirmed(false); }} /></label></div><Card className="rounded-2xl border-border bg-secondary/20"><CardContent className="p-5 sm:p-6"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><FileText className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">Paste approved information</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Add facts, FAQs, policies, and escalation rules.</p></div></div><Textarea autoFocus value={knowledgeText} onChange={(event) => { setKnowledgeText(event.target.value); setKnowledgeOutlineInserted(false); setKnowledgeConfirmed(false); }} rows={7} maxLength={200_000} placeholder="Business facts, services, prices, hours, policies, and approved answers…" className="mt-5 resize-y px-4 py-3 leading-6" /><div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground"><span className="flex items-center gap-2"><BookOpen className="h-4 w-4 shrink-0 text-primary" />{audience === "customer_service" ? "Required before publishing." : "Optional for personal agents."}</span><Button type="button" variant="outline" size="sm" onClick={() => { setKnowledgeText(knowledgeOutline(audience, roles)); setKnowledgeOutlineInserted(true); setKnowledgeConfirmed(false); }}>Insert outline</Button></div>{knowledgeHasPlaceholders ? <p className="rounded-lg border border-status-attention/30 bg-status-attention-soft px-3 py-2 text-xs text-status-attention">Replace the bracketed examples before publishing.</p> : null}{audience === "customer_service" ? <label className="mt-3 flex items-start gap-3 rounded-xl border border-border bg-background/40 p-3 text-sm"><Checkbox checked={knowledgeConfirmed} onCheckedChange={(checked) => setKnowledgeConfirmed(checked === true)} /><span className="leading-5 text-foreground">I confirm these sources are current and approved for customer responses.</span></label> : null}</CardContent></Card></div> : null}
           {step === 4 ? <div className="space-y-4"><div className="rounded-2xl border border-border bg-secondary/20 p-5"><div className="flex items-start gap-3"><Workflow className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><div><h2 className="font-semibold text-foreground">Baseline workflow</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">The starter graph is already configured. You can keep it as-is or add declarative steps for this process.</p></div></div></div><AgentWorkflowEditor configuration={initialTemplate?.configuration ?? {}} onChange={setWorkflow} onValidityChange={setWorkflowValid} /></div> : null}
           {step === 5 ? <div className="space-y-4"><dl className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-secondary/20 text-sm"><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Agent</dt><dd className="font-medium text-foreground sm:text-right">{name}</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Responsibilities</dt><dd className="text-foreground sm:max-w-[70%] sm:text-right">{roles.map((key) => getAgentRole(key, audience).label).join(", ")}</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Knowledge</dt><dd className="font-medium text-foreground sm:text-right">{websiteUrl.trim() ? `${knowledgeText.trim() ? "Pasted information + " : ""}${knowledgeFile ? `${knowledgeFile.name} + ` : ""}Website crawl` : knowledgeText.trim() && knowledgeFile ? `Pasted information + ${knowledgeFile.name}` : knowledgeText.trim() ? "Pasted information" : knowledgeFile ? knowledgeFile.name : "None yet"}</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Tools</dt><dd className="font-medium text-foreground sm:text-right">None selected</dd></div><div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8"><dt className="text-muted-foreground">Workflow</dt><dd className="font-medium text-foreground sm:text-right">{workflow?.nodes.length ?? 0} nodes · {workflow?.edges.length ?? 0} edges</dd></div></dl><Card className="rounded-2xl border-primary/25 bg-primary/5"><CardContent className="space-y-3 p-5"><div className="flex items-center justify-between gap-3"><div><h2 className="font-semibold text-foreground">Generated behavior</h2><p className="mt-1 text-sm text-muted-foreground">Built from the selected role, audience, and configured knowledge rules.</p></div><Badge className="border-primary/20 bg-primary/10 text-primary">Preview</Badge></div><pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-xl border border-border bg-background/70 p-4 text-xs leading-5 text-muted-foreground">{effectiveInstructions}</pre></CardContent></Card>{readinessIssues.length ? <div className="rounded-2xl border border-status-attention/30 bg-status-attention-soft p-5"><h2 className="font-semibold text-status-attention">Before publishing</h2><ul className="mt-2 space-y-1 text-sm text-status-attention">{readinessIssues.map((issue) => <li key={issue}>• {issue}</li>)}</ul></div> : <div className="rounded-2xl border border-status-success/30 bg-status-success-soft p-4 text-sm text-status-success">Setup is ready for draft creation.</div>}<details open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)} className="rounded-2xl border border-border bg-secondary/10 p-5"><summary className="cursor-pointer list-none text-sm font-semibold text-foreground">Advanced settings <span className="ml-1 font-normal text-muted-foreground">edit behavior, model, and runtime limits</span></summary><div className="mt-5 space-y-5"><div className="grid gap-3 sm:grid-cols-[0.65fr_1.35fr]"><Field label="Provider"><Select value={provider} onValueChange={setProvider}><SelectTrigger className="mt-2 h-10"><SelectValue /></SelectTrigger><SelectContent>{AGENT_MODEL_PROVIDERS.map((providerId) => <SelectItem key={providerId} value={providerId}>{AGENT_MODEL_PROVIDER_LABELS[providerId]}</SelectItem>)}</SelectContent></Select></Field><Field label="Model"><Input value={model} onChange={(event) => setModel(event.target.value)} placeholder="provider/model" className="mt-2 h-10" /></Field></div><Field label="Advanced instructions" hint="Optional override"><Textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={7} maxLength={200000} placeholder={generatedInstructions} className="mt-2 resize-y font-mono leading-6" /></Field><AgentRuntimeLimits value={runtimeLimits} onChange={setRuntimeLimits} /></div></details></div> : null}
         </div>
         {error ? <p className="mt-6 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p> : null}
         <div className="mt-10 flex items-center justify-between gap-3 border-t border-border pt-6"><Button type="button" variant="outline" disabled={loading} onClick={goBack}>{step === 1 ? "Cancel" : <><ChevronLeft className="mr-1 h-4 w-4" />Back</>}</Button>{step < 5 ? <Button type="button" disabled={!canContinue || loading} onClick={goNext}>Continue <ChevronRight className="ml-1 h-4 w-4" /></Button> : <Button type="button" disabled={loading || !workflow || !workflowValid} onClick={() => void submit()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Creating draft…</> : "Create draft"}</Button>}</div>
       </div></CardContent></Card>
-    </div></div>
+    </div><WebsiteSourcePreviewDialog open={websitePreviewOpen} onOpenChange={setWebsitePreviewOpen} url={websiteUrl} pages={websiteCrawl?.pages ?? websiteCrawl?.completed} content={websiteCrawl?.preview ?? ""} /></div>
   );
 }

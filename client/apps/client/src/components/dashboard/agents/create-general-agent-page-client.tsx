@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, BookOpen, Bot, Check, CheckCircle2, ChevronLeft, ChevronRight, FileText, Globe2, LoaderCircle, Upload } from "lucide-react";
+import { ArrowLeft, BookOpen, Bot, Check, CheckCircle2, ChevronLeft, ChevronRight, Expand, FileText, Globe2, LoaderCircle, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,25 +10,33 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { agentCreationDraftKey, clearAgentCreationDraft, readAgentCreationDraft, writeAgentCreationDraft } from "@/lib/agent-creation-drafts";
 import { createAgent, createAgentInstallation, createAgentKnowledgeSource, createAgentVersion, getAgentKnowledgeSource, getAgentWebsiteCrawl, ingestAgentKnowledgeSourceFile, ingestAgentKnowledgeSourceText, publishAgentVersion, startAgentWebsiteCrawl } from "@/lib/agent-platform";
 import { containsKnowledgePlaceholders, generatedAgentInstructions, getAgentRole, getAgentRoleOptions, knowledgeOutline, type AgentRoleKey } from "./agent-creation-config";
+import { isWebsiteCrawlPreview, WebsiteSourcePreviewDialog, type WebsiteCrawlPreview } from "./website-source-preview-dialog";
 
 type Step = 1 | 2 | 3 | 4;
 type AgentAudience = "personal" | "customer_service";
-type WebsiteCrawlPreview = {
-  sourceId: string;
-  crawlId: string;
-  status: string;
-  total?: number;
-  completed?: number;
-  pages?: number;
-  preview?: string;
+type GeneralAgentBrowserDraft = {
+  step?: Step;
+  name?: string;
+  roles?: string[];
+  roleSummary?: string;
+  knowledgeText?: string;
+  websiteUrl?: string;
+  knowledgeOutlineInserted?: boolean;
+  knowledgeConfirmed?: boolean;
+  tone?: string;
+  responseDetail?: string;
+  websiteCrawl?: WebsiteCrawlPreview;
+  crawlAgent?: { id: string; name: string };
 };
 
 const model = { provider: "openrouter", name: "openai/gpt-oss-20b:free" };
 
-export function CreateGeneralAgentPageClient({ audience = "personal" }: { audience?: AgentAudience }) {
+export function CreateGeneralAgentPageClient({ audience = "personal", userId, onBackToStart }: { audience?: AgentAudience; userId?: string; onBackToStart?: () => void }) {
   const router = useRouter();
+  const draftKey = agentCreationDraftKey("general", audience, userId);
   const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState("");
   const defaultRole = getAgentRole(undefined, audience).key;
@@ -41,6 +49,7 @@ export function CreateGeneralAgentPageClient({ audience = "personal" }: { audien
   const [knowledgeConfirmed, setKnowledgeConfirmed] = useState(false);
   const [crawlAgent, setCrawlAgent] = useState<{ id: string; name: string } | null>(null);
   const [websiteCrawl, setWebsiteCrawl] = useState<WebsiteCrawlPreview | null>(null);
+  const [websitePreviewOpen, setWebsitePreviewOpen] = useState(false);
   const websitePreviewRef = useRef<string | undefined>(undefined);
   const [crawlingWebsite, setCrawlingWebsite] = useState(false);
   const [tone, setTone] = useState("balanced");
@@ -48,16 +57,77 @@ export function CreateGeneralAgentPageClient({ audience = "personal" }: { audien
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<{ id: string; name: string; knowledgeWarning?: string; websiteCrawlStarted?: boolean } | null>(null);
+  const [draftHydrated, setDraftHydrated] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
 
   const role = roles[0] ?? defaultRole;
   const canContinue = step === 1 ? name.trim().length > 0 && roles.length > 0 : true;
+  const handleBack = () => {
+    if (step === 1) {
+      if (onBackToStart) onBackToStart();
+      else router.push("/agents");
+      return;
+    }
+    setStep((current) => (current - 1) as Step);
+  };
   // Keep the no-code setup focused on roles that work without an external
   // scheduling integration. Booking remains available through templates or
   // the custom builder once a calendar capability is configured.
   const roleOptions = getAgentRoleOptions(audience).filter((option) => option.key !== "booking_assistant");
   const generatedInstructions = generatedAgentInstructions({ name: name.trim() || "user-configured assistant", audience, role, roles, roleSummary, tone, responseDetail });
-  const knowledgeReady = Boolean(knowledgeText.trim() || knowledgeFile || websiteUrl.trim());
-  const knowledgeHasPlaceholders = containsKnowledgePlaceholders(knowledgeText);
+  const knowledgeReady = Boolean(knowledgeText.trim() || knowledgeFile || websiteCrawl?.sourceId);
+  const knowledgeHasPlaceholders = containsKnowledgePlaceholders(knowledgeText) && !knowledgeFile && !websiteCrawl?.sourceId;
+
+  useEffect(() => {
+    const saved = readAgentCreationDraft<GeneralAgentBrowserDraft>(draftKey);
+    if (saved) {
+      const savedRoles = Array.isArray(saved.roles)
+        ? saved.roles.filter((value): value is AgentRoleKey => getAgentRoleOptions(audience).some((option) => option.key === value))
+        : [];
+      const savedStep = typeof saved.step === "number" && saved.step >= 1 && saved.step <= 4 ? saved.step as Step : 1;
+      setStep(savedStep);
+      setName(typeof saved.name === "string" ? saved.name : "");
+      setRoles(savedRoles.length ? savedRoles : [defaultRole]);
+      setRoleSummary(typeof saved.roleSummary === "string" ? saved.roleSummary : "");
+      setKnowledgeText(typeof saved.knowledgeText === "string" ? saved.knowledgeText : "");
+      setWebsiteUrl(typeof saved.websiteUrl === "string" ? saved.websiteUrl : "");
+      if (isWebsiteCrawlPreview(saved.websiteCrawl)) {
+        setWebsiteCrawl(saved.websiteCrawl);
+        websitePreviewRef.current = saved.websiteCrawl.preview;
+      }
+      if (saved.crawlAgent && typeof saved.crawlAgent.id === "string" && typeof saved.crawlAgent.name === "string") {
+        setCrawlAgent({ id: saved.crawlAgent.id, name: saved.crawlAgent.name });
+      }
+      setKnowledgeOutlineInserted(saved.knowledgeOutlineInserted === true);
+      setKnowledgeConfirmed(saved.knowledgeConfirmed === true);
+      setTone(typeof saved.tone === "string" ? saved.tone : "balanced");
+      setResponseDetail(typeof saved.responseDetail === "string" ? saved.responseDetail : "standard");
+      setDraftRestored(true);
+    }
+    setDraftHydrated(true);
+  }, [audience, defaultRole, draftKey]);
+
+  useEffect(() => {
+    if (!draftHydrated || created) return;
+    if (!name.trim() && !roleSummary.trim() && !knowledgeText.trim() && !websiteUrl.trim()) {
+      clearAgentCreationDraft(draftKey);
+      return;
+    }
+    writeAgentCreationDraft(draftKey, {
+      step,
+      name,
+      roles,
+      roleSummary,
+      knowledgeText,
+      websiteUrl,
+      knowledgeOutlineInserted,
+      knowledgeConfirmed,
+      tone,
+      responseDetail,
+      websiteCrawl,
+      crawlAgent,
+    });
+  }, [created, crawlAgent, draftHydrated, draftKey, knowledgeConfirmed, knowledgeOutlineInserted, knowledgeText, name, responseDetail, roleSummary, roles, step, tone, websiteCrawl, websiteUrl]);
 
   const crawlSourceId = websiteCrawl?.sourceId;
   const crawlStatus = websiteCrawl?.status;
@@ -74,7 +144,7 @@ export function CreateGeneralAgentPageClient({ audience = "personal" }: { audien
         if (status.status === "completed") {
           try {
             const source = await getAgentKnowledgeSource(crawlSourceId);
-            preview = source.text.trim().slice(0, 2_400) || undefined;
+            preview = source.text.trim() || undefined;
           } catch {
             // The crawl status is still useful if the preview request races ingestion.
           }
@@ -103,12 +173,37 @@ export function CreateGeneralAgentPageClient({ audience = "personal" }: { audien
     };
   }, [crawlSourceId, crawlStatus]);
 
+  useEffect(() => {
+    if (!websiteCrawl || websiteCrawl.status !== "completed" || websiteCrawl.preview || !websiteCrawl.sourceId) return;
+    let cancelled = false;
+    void getAgentKnowledgeSource(websiteCrawl.sourceId).then((source) => {
+      if (cancelled) return;
+      const preview = source.text.trim() || undefined;
+      websitePreviewRef.current = preview;
+      setWebsiteCrawl((current) => current?.sourceId === websiteCrawl.sourceId ? { ...current, preview } : current);
+    }).catch(() => {
+      // The saved crawl metadata remains useful if the source is temporarily unavailable.
+    });
+    return () => { cancelled = true; };
+  }, [websiteCrawl]);
+
   const crawlWebsite = async () => {
     if (!name.trim() || !websiteUrl.trim() || crawlingWebsite) return;
     setCrawlingWebsite(true);
     setError(null);
     try {
-      const agent = crawlAgent ?? await createAgent({
+      let agent = crawlAgent;
+      if (!agent && websiteCrawl?.sourceId) {
+        try {
+          const existingSource = await getAgentKnowledgeSource(websiteCrawl.sourceId);
+          if (existingSource.source.agent_definition_id) {
+            agent = { id: existingSource.source.agent_definition_id, name: name.trim() };
+          }
+        } catch {
+          // If the old source is unavailable, create a fresh draft agent below.
+        }
+      }
+      agent ??= await createAgent({
         name: name.trim(),
         description: roleSummary.trim() || getAgentRole(role, audience).summary,
         creationProfile: "general",
@@ -133,11 +228,6 @@ export function CreateGeneralAgentPageClient({ audience = "personal" }: { audien
     if (!name.trim() || !roles.length || loading) return;
     if (audience === "customer_service" && !knowledgeReady) {
       setError("Add at least one approved knowledge source before creating a customer-service agent.");
-      setStep(2);
-      return;
-    }
-    if (audience === "customer_service" && !knowledgeConfirmed) {
-      setError("Confirm that the knowledge is current and approved before creating this agent.");
       setStep(2);
       return;
     }
@@ -210,6 +300,7 @@ export function CreateGeneralAgentPageClient({ audience = "personal" }: { audien
           knowledgeErrors.push(cause instanceof Error ? cause.message : "The website crawl could not be started");
         }
       }
+      clearAgentCreationDraft(draftKey);
       setCreated({ id: agent.id, name: agent.name, knowledgeWarning: knowledgeErrors.length ? knowledgeErrors.join(" ") : undefined, websiteCrawlStarted });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to create the general-purpose agent");
@@ -250,8 +341,8 @@ export function CreateGeneralAgentPageClient({ audience = "personal" }: { audien
       <div className="min-h-[100dvh] px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-5xl">
         <div className="flex items-center justify-between gap-4">
-          <Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back</Link>
-          <p className="text-xs font-medium text-muted-foreground">Create a {audience === "customer_service" ? "customer service" : "personal"} agent</p>
+          {onBackToStart ? <button type="button" onClick={onBackToStart} className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back</button> : <Link href="/agents" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back</Link>}
+          <div className="flex items-center gap-3"><p className="text-xs font-medium text-muted-foreground">Create a {audience === "customer_service" ? "customer service" : "personal"} agent</p>{draftHydrated ? <span className="text-xs text-muted-foreground">{draftRestored ? "Draft restored" : "Autosave on"}</span> : null}</div>
         </div>
 
         <nav aria-label="Creation progress" className="mx-auto mt-8 max-w-3xl">
@@ -294,7 +385,7 @@ export function CreateGeneralAgentPageClient({ audience = "personal" }: { audien
                 </> : null}
                 {step === 2 ? <>
                   <div className="grid gap-4 md:grid-cols-2">
-                    <Card className="h-full rounded-2xl border-border bg-secondary/20"><CardContent className="flex h-full flex-col p-5 sm:p-6"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Globe2 className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">Website source</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Crawl public pages and add their content and links.</p></div></div><div className="mt-6 flex flex-col gap-2 sm:flex-row"><Input type="url" value={websiteUrl} onChange={(event) => { setWebsiteUrl(event.target.value); websitePreviewRef.current = undefined; setWebsiteCrawl(null); setKnowledgeConfirmed(false); }} placeholder="https://example.com" className="h-11" /><Button type="button" variant="outline" className="h-11 shrink-0" disabled={!name.trim() || !websiteUrl.trim() || crawlingWebsite || ["starting", "scraping", "processing"].includes(websiteCrawl?.status ?? "")} onClick={() => void crawlWebsite()}>{crawlingWebsite ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Crawling…</> : websiteCrawl?.status === "completed" ? "Re-crawl" : "Crawl website"}</Button></div><p className="mt-3 text-xs text-muted-foreground">{websiteCrawl?.status === "completed" ? `Website indexed · ${websiteCrawl.pages ?? websiteCrawl.completed ?? 0} pages` : websiteCrawl?.status === "failed" || websiteCrawl?.status === "cancelled" ? "Crawl failed. Check the URL and try again." : websiteCrawl ? `Crawling pages…${websiteCrawl.completed !== undefined && websiteCrawl.total ? ` ${websiteCrawl.completed}/${websiteCrawl.total}` : ""}` : "Crawl now and review the indexed content before publishing."}</p>{websiteCrawl?.preview ? <pre className="mt-4 max-h-48 overflow-auto whitespace-pre-wrap rounded-xl border border-border bg-background/60 p-3 text-xs leading-5 text-muted-foreground">{websiteCrawl.preview}</pre> : null}</CardContent></Card>
+                    <Card className="h-full rounded-2xl border-border bg-secondary/20"><CardContent className="flex h-full flex-col p-5 sm:p-6"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Globe2 className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">Website source</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Crawl public pages and add their content and links.</p></div></div><div className="mt-6 flex flex-col gap-2 sm:flex-row"><Input type="url" value={websiteUrl} onChange={(event) => { setWebsiteUrl(event.target.value); websitePreviewRef.current = undefined; setWebsiteCrawl(null); setWebsitePreviewOpen(false); setKnowledgeConfirmed(false); }} placeholder="https://example.com" className="h-11" /><Button type="button" variant="outline" className="h-11 shrink-0" disabled={!name.trim() || !websiteUrl.trim() || crawlingWebsite || ["starting", "scraping", "processing"].includes(websiteCrawl?.status ?? "")} onClick={() => void crawlWebsite()}>{crawlingWebsite ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Crawling…</> : websiteCrawl?.status === "completed" ? "Re-crawl" : "Crawl website"}</Button></div><p className="mt-3 text-xs text-muted-foreground">{websiteCrawl?.status === "completed" ? `Website indexed · ${websiteCrawl.pages ?? websiteCrawl.completed ?? 0} pages` : websiteCrawl?.status === "failed" || websiteCrawl?.status === "cancelled" ? "Crawl failed. Check the URL and try again." : websiteCrawl ? `Crawling pages…${websiteCrawl.completed !== undefined && websiteCrawl.total ? ` ${websiteCrawl.completed}/${websiteCrawl.total}` : ""}` : "Crawl now and review the indexed content before publishing."}</p>{websiteCrawl?.preview ? <div className="mt-4 space-y-2"><pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-xl border border-border bg-background/60 p-3 text-xs leading-5 text-muted-foreground">{websiteCrawl.preview}</pre><Button type="button" variant="outline" size="sm" onClick={() => setWebsitePreviewOpen(true)}><Expand className="mr-1.5 h-3.5 w-3.5" />Expand preview</Button></div> : null}</CardContent></Card>
                     <label className="flex min-h-[196px] cursor-pointer flex-col rounded-2xl border border-border bg-secondary/20 p-5 transition-colors hover:border-primary/50 hover:bg-secondary/30 sm:p-6"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Upload className="h-5 w-5" /></div><div><p className="font-semibold text-foreground">Upload a file</p><p className="mt-1 text-xs leading-5 text-muted-foreground">PDF, Word, Excel, CSV, or text.</p></div></div><span className="mt-5 flex flex-1 items-center justify-center rounded-xl border border-dashed border-border bg-background/30 px-4 py-6 text-center text-sm text-muted-foreground">{knowledgeFile ? knowledgeFile.name : "Choose a file · up to 20 MB"}</span><input type="file" className="sr-only" accept=".txt,.text,.md,.markdown,.csv,.pdf,.docx,.xlsx,.xls,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (file && file.size > 20 * 1024 * 1024) { setError("Files must be 20 MB or smaller."); setKnowledgeFile(null); return; } setError(null); setKnowledgeFile(file); setKnowledgeConfirmed(false); }} /></label>
                   </div>
                   <Card className="rounded-2xl border-border bg-secondary/20"><CardContent className="p-5 sm:p-6"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><FileText className="h-5 w-5" /></div><div><h2 className="font-semibold text-foreground">Paste approved information</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Add facts, FAQs, policies, or service details.</p></div></div><Textarea autoFocus value={knowledgeText} onChange={(event) => { setKnowledgeText(event.target.value); setKnowledgeOutlineInserted(false); setKnowledgeConfirmed(false); }} rows={7} maxLength={200_000} placeholder="Business facts, services, prices, hours, policies, and approved answers…" className="mt-5 resize-y px-4 py-3 leading-6" /><div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground"><span className="flex items-center gap-2"><BookOpen className="h-4 w-4 shrink-0 text-primary" />{audience === "customer_service" ? "Required before creating this agent." : "Optional for personal agents."}</span><Button type="button" variant="outline" size="sm" onClick={() => { setKnowledgeText(knowledgeOutline(audience, roles)); setKnowledgeOutlineInserted(true); setKnowledgeConfirmed(false); }}>Insert outline</Button></div>{knowledgeHasPlaceholders ? <p className="mt-3 rounded-lg border border-status-attention/30 bg-status-attention-soft px-3 py-2 text-xs text-status-attention">Replace the bracketed examples before creating the agent.</p> : null}{audience === "customer_service" ? <label className="mt-3 flex items-start gap-3 rounded-xl border border-border bg-background/40 p-3 text-sm"><Checkbox checked={knowledgeConfirmed} onCheckedChange={(checked) => setKnowledgeConfirmed(checked === true)} /><span className="leading-5 text-foreground">I confirm these sources are current and approved for customer responses.</span></label> : null}</CardContent></Card>
@@ -321,11 +412,12 @@ export function CreateGeneralAgentPageClient({ audience = "personal" }: { audien
               </div>
 
               {error ? <p className="mt-6 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{error}</p> : null}
-              <div className="mt-10 flex items-center justify-between gap-3 border-t border-border pt-6"><Button type="button" variant="outline" disabled={loading} onClick={() => setStep((current) => current === 1 ? 1 : (current - 1) as Step)}>{step === 1 ? "Cancel" : <><ChevronLeft className="mr-1 h-4 w-4" />Back</>}</Button>{step < 4 ? <Button type="button" disabled={!canContinue} onClick={() => setStep((current) => (current + 1) as Step)}>Continue <ChevronRight className="ml-1 h-4 w-4" /></Button> : <Button type="button" disabled={loading} onClick={() => void create()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Creating…</> : "Create agent"}</Button>}</div>
+              <div className="mt-10 flex items-center justify-between gap-3 border-t border-border pt-6"><Button type="button" variant="outline" disabled={loading} onClick={handleBack}>{step === 1 ? "Cancel" : <><ChevronLeft className="mr-1 h-4 w-4" />Back</>}</Button>{step < 4 ? <Button type="button" disabled={!canContinue} onClick={() => setStep((current) => (current + 1) as Step)}>Continue <ChevronRight className="ml-1 h-4 w-4" /></Button> : <Button type="button" disabled={loading} onClick={() => void create()}>{loading ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Creating…</> : "Create agent"}</Button>}</div>
             </div>
           </CardContent>
         </Card>
       </div>
+      <WebsiteSourcePreviewDialog open={websitePreviewOpen} onOpenChange={setWebsitePreviewOpen} url={websiteUrl} pages={websiteCrawl?.pages ?? websiteCrawl?.completed} content={websiteCrawl?.preview ?? ""} />
     </div>
   );
 }

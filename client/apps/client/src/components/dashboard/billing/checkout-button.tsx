@@ -4,7 +4,15 @@ import { apiUrl } from "@/lib/server-api";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
-export function CheckoutButton({ planKey, disabled = false }: { planKey: string; disabled?: boolean }) {
+export function CheckoutButton({
+  planKey,
+  disabled = false,
+  label = "Choose plan",
+}: {
+  planKey: string;
+  disabled?: boolean;
+  label?: string;
+}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [idempotencyKey] = useState(() => crypto.randomUUID());
@@ -38,7 +46,7 @@ export function CheckoutButton({ planKey, disabled = false }: { planKey: string;
         onClick={startCheckout}
         className="w-full"
       >
-        {loading ? "Opening checkout..." : disabled ? "Checkout unavailable" : "Choose plan"}
+        {loading ? "Opening checkout..." : label}
       </Button>
       {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
     </div>

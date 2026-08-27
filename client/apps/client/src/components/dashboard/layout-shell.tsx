@@ -269,6 +269,7 @@ function DesktopTopbar({
             <DropdownMenuItem asChild><Link href="/workspace/settings?section=profile"><UserRound className="mr-2 size-4" />Profile</Link></DropdownMenuItem>
             <DropdownMenuItem asChild><Link href="/workspace/team"><Users className="mr-2 size-4" />Team</Link></DropdownMenuItem>
             <DropdownMenuItem asChild><Link href="/workspace/settings"><Settings className="mr-2 size-4" />Settings</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link href="/upgrade"><Sparkles className="mr-2 size-4" />Upgrade</Link></DropdownMenuItem>
             <DropdownMenuItem
               onSelect={(event) => {
                 event.preventDefault();
@@ -360,6 +361,7 @@ function MobileTopbar({
           <DropdownMenuItem asChild><Link href="/workspace/settings?section=profile"><UserRound className="mr-2 h-4 w-4" />Profile</Link></DropdownMenuItem>
           <DropdownMenuItem asChild><Link href="/workspace/team"><Users className="mr-2 h-4 w-4" />Team</Link></DropdownMenuItem>
           <DropdownMenuItem asChild><Link href="/workspace/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link></DropdownMenuItem>
+          <DropdownMenuItem asChild><Link href="/upgrade"><Sparkles className="mr-2 h-4 w-4" />Upgrade</Link></DropdownMenuItem>
           <DropdownMenuItem
             onSelect={(event) => {
               event.preventDefault();
@@ -425,7 +427,7 @@ function NavigationSection({
           ? billingSummary?.features?.find((candidate) => candidate.key === item.featureKey)
           : null;
         const locked = Boolean(item.featureKey && feature && !feature.enabled);
-        const href = locked ? "/billing" : item.href;
+        const href = locked ? "/upgrade" : item.href;
 
         return (
           <motion.div key={item.href} variants={VANTAGE_LIST_ITEM_VARIANTS} initial="hidden" animate="visible" custom={index}>

@@ -1,6 +1,3 @@
-import { BillingPanel } from "@/components/dashboard/billing/billing-panel";
-import { fetchBillingPlans, fetchBillingSummary } from "@/lib/billing";
-import { getRustSession } from "@/lib/rust-auth";
 import { redirect } from "next/navigation";
 
 export const metadata = {
@@ -12,14 +9,10 @@ export default async function BillingPage({
 }: {
   searchParams: Promise<{ payment?: string; reference?: string; trxref?: string }>;
 }) {
-  const session = await getRustSession();
-  if (!session?.user?.id) redirect("/login");
-
-  const [summary, planResponse, query] = await Promise.all([
-    fetchBillingSummary().catch(() => null),
-    fetchBillingPlans().catch(() => ({ plans: [] })),
-    searchParams,
-  ]);
-
-  return <BillingPanel summary={summary} planResponse={planResponse} query={query} />;
+  const query = await searchParams;
+  const params = new URLSearchParams({ section: "billing" });
+  for (const key of ["payment", "reference", "trxref"] as const) {
+    if (query[key]) params.set(key, query[key]!);
+  }
+  redirect(`/workspace/settings?${params.toString()}`);
 }

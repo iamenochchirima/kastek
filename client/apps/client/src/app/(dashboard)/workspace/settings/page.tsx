@@ -1,6 +1,6 @@
 import { getRustSession } from "@/lib/rust-auth";
 import { fetchOrgs, fetchOrgMembers, getActiveOrgId, type Org } from "@/lib/orgs";
-import { fetchBillingPlans, fetchBillingSummary } from "@/lib/billing";
+import { fetchBillingCredits, fetchBillingPlans, fetchBillingSummary, fetchBillingUsage } from "@/lib/billing";
 import { fetchRustJson } from "@/lib/rust-server-api";
 import { redirect } from "next/navigation";
 import { WorkspaceSettingsClient, type WorkspaceProfile } from "./workspace-settings-client";
@@ -28,16 +28,18 @@ export default async function WorkspaceSettingsPage({
   const activeId = await getActiveOrgId();
   const org: Org | undefined = (activeId ? orgs.find((item) => item.id === activeId) : undefined) ?? orgs[0];
   if (!org) redirect("/workspace");
-  const [members, billingSummary, billingPlans, profile] = await Promise.all([
+  const [members, billingSummary, billingPlans, billingCredits, billingUsage, profile] = await Promise.all([
     fetchOrgMembers(org.id).catch(() => []),
     fetchBillingSummary().catch(() => null),
     fetchBillingPlans().catch(() => ({ plans: [] })),
+    fetchBillingCredits().catch(() => null),
+    fetchBillingUsage().catch(() => null),
     fetchRustJson<WorkspaceProfile>("/api/profile").catch(() => null),
   ]);
   if (!profile?.user) redirect("/login");
   const role = members.find((member) => member.userId === session.user.id)?.role ?? "MEMBER";
-  const initialTab = ["profile", "organization", "appearance", "notifications", "billing"].includes(sectionValue ?? "")
-    ? sectionValue as "profile" | "organization" | "appearance" | "notifications" | "billing"
+  const initialTab = ["profile", "organization", "appearance", "notifications", "billing", "usage"].includes(sectionValue ?? "")
+    ? sectionValue as "profile" | "organization" | "appearance" | "notifications" | "billing" | "usage"
     : "profile";
   const query = {
     payment: Array.isArray(payment) ? payment[0] : payment,
@@ -53,6 +55,8 @@ export default async function WorkspaceSettingsPage({
       initialTab={initialTab}
       billingSummary={billingSummary}
       billingPlans={billingPlans}
+      billingCredits={billingCredits}
+      billingUsage={billingUsage}
       billingQuery={query}
     />
   );
