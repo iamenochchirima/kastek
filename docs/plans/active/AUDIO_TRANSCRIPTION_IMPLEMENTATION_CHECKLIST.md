@@ -59,7 +59,7 @@ product, provider, privacy, or deployment decision.
 - [x] Mark invalid media, unsupported formats, and permanent provider errors terminal.
 - [x] Add terminal/operator-review state and dual-control retry action.
 - [x] Enqueue exactly one agent dispatch after completed transcription.
-- [x] Ensure duplicate worker claims and retries are safe; duplicate-completion integration evidence remains pending.
+- [x] Ensure duplicate worker claims and retries are safe; media idempotency keys are bound to MIME, byte size, and SHA-256, while duplicate-completion integration evidence remains pending.
 - [x] Add provider health and configuration diagnostics without exposing secrets.
 
 ## 4. Media security and privacy
@@ -170,7 +170,7 @@ product, provider, privacy, or deployment decision.
 - [-] Validate MIME, magic bytes, size, and format normalization; Core-to-Agent SHA-256 verification is covered, while duration and deeper filename/codec validation remain pending.
 - [x] Validate the canonical audio attachment/job/transcript contract through authenticated route, repository, and worker tests.
 - [x] Validate provider success, malformed, 4xx/429 mapping, and missing configuration.
-- [-] Validate idempotency keys, lease expiry, and retry backoff in code; duplicate completion and full lease integration coverage remain pending.
+- [-] Validate idempotency keys, lease expiry, and retry backoff in code; media-key mismatch protection and retry recovery are covered, while duplicate completion and full lease integration coverage remain pending.
 - [x] Validate safe error codes and redaction.
 - [x] Validate language hints, captions, and empty-transcript behavior; low-confidence handling is not applicable to the current provider response.
 
@@ -190,7 +190,7 @@ product, provider, privacy, or deployment decision.
 - [x] WhatsApp voice note/canonical inbound enqueue fixture.
 - [ ] WhatsApp audio-file fixture.
 - [x] Telegram voice-message download and enqueue fixture.
-- [ ] Telegram audio-file fixture with caption.
+- [x] Telegram audio-file fixture with caption and duration normalization.
 - [x] Discord audio-attachment download and enqueue fixture.
 - [ ] Unsupported/malicious/oversized fixture for each adapter.
 

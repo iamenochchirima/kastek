@@ -34,10 +34,11 @@ validated audio asset
   -> normal text agent run and reply
 ```
 
-The job is unique by organization and idempotency key. A worker lease, attempt count, bounded
-backoff, and terminal failure state make provider and delivery failures recoverable. If a dispatch
-fails after transcription, the job remains in `dispatching` and is retried without calling the
-provider again.
+The job is unique by organization and idempotency key. Core also binds a reused media source key to
+the original MIME type, byte size, and SHA-256, rejecting a different payload under the same key. A
+worker lease, attempt count, bounded backoff, and terminal failure state make provider and delivery
+failures recoverable. If a dispatch fails after transcription, the job remains in `dispatching` and
+is retried without calling the provider again.
 
 ## Security and retention
 

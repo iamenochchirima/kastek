@@ -61,7 +61,8 @@ POST /api/widget/v1/sessions/{sessionId}/audio/{jobId}/retry
 ```
 
 The browser keeps the idempotency key until the upload is accepted, so a refresh or lost response
-can safely repeat the request. The same session and origin checks apply to status and retry.
+can safely repeat the request. Reusing a key with different audio is rejected. The same session and
+origin checks apply to status and retry.
 
 Audio input sends media to the configured transcription provider. Do not include confidential
 information in a recording unless the workspace administrator has approved that processing path.
