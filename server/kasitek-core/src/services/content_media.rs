@@ -636,3 +636,26 @@ struct ContentMediaDownloadRow {
     processing_status: String,
     scan_status: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{matches_file_signature, media_kind};
+
+    #[test]
+    fn classifies_audio_mime_types_including_ogg_variant() {
+        assert_eq!(media_kind("audio/webm"), Some("AUDIO"));
+        assert_eq!(media_kind("application/ogg"), Some("AUDIO"));
+        assert_eq!(media_kind("application/octet-stream"), None);
+    }
+
+    #[test]
+    fn validates_audio_signatures() {
+        assert!(matches_file_signature("audio/ogg", b"OggS-opus"));
+        assert!(matches_file_signature("application/ogg", b"OggS-opus"));
+        assert!(matches_file_signature(
+            "audio/webm",
+            &[0x1a, 0x45, 0xdf, 0xa3]
+        ));
+        assert!(!matches_file_signature("audio/wav", b"OggS-opus"));
+    }
+}
