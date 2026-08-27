@@ -89,15 +89,22 @@ pub async fn create_org(
     }
 
     let slug = orgs::unique_slug(pool.get_ref(), &base_slug).await?;
-    let _ = config; // available for future use
-
     let logo = body
         .logo
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty());
 
-    let org = orgs::create_org(pool.get_ref(), &user.id, name, &slug, logo).await?;
+    let org = orgs::create_org(
+        pool.get_ref(),
+        &user.id,
+        name,
+        &slug,
+        logo,
+        config.trial_credits,
+        config.trial_duration_days,
+    )
+    .await?;
     Ok(HttpResponse::Created().json(serde_json::json!({ "org": org })))
 }
 

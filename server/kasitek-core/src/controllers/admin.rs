@@ -325,7 +325,16 @@ pub async fn provision_launch_user(
         .bind(&user_id).bind(name).bind(&email).execute(pool.get_ref()).await?;
     let base_slug = orgs::slugify(workspace_name);
     let slug = orgs::unique_slug(pool.get_ref(), &base_slug).await?;
-    let org = orgs::create_org(pool.get_ref(), &user_id, workspace_name, &slug, None).await?;
+    let org = orgs::create_org(
+        pool.get_ref(),
+        &user_id,
+        workspace_name,
+        &slug,
+        None,
+        config.trial_credits,
+        config.trial_duration_days,
+    )
+    .await?;
     let invitation = orgs::create_invitation(
         pool.get_ref(),
         config.get_ref(),

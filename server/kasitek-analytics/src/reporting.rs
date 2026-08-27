@@ -829,8 +829,57 @@ pub async fn authorize_transaction(
         .await
         .map_err(authorization_context_error)?;
 
+    // Product gateways issue signed grants without a separate Analytics write. Register the
+    // already-verified grant lazily so the database-backed audit/RLS context exists before the
+    // reporting query runs. ON CONFLICT preserves revocation and any prior immutable metadata.
+    let issuer_service_identity_id: String = sqlx::query_scalar(
+        r#"SELECT service_identity_id
+           FROM analytics.service_identity
+           WHERE issuer = $1 AND status = 'active'"#,
+    )
+    .bind(&grant.issuer)
+    .fetch_optional(&mut **transaction)
+    .await?
+    .ok_or(ReportingError::Unauthorized)?;
+    let principal_type = serde_json::to_string(&grant.principal_type)
+        .unwrap_or_default()
+        .trim_matches('"')
+        .to_string();
+    let descendant_mode = serde_json::to_string(&grant.descendant_mode)
+        .unwrap_or_default()
+        .trim_matches('"')
+        .to_string();
+    sqlx::query(
+        r#"INSERT INTO analytics.reporting_grant (
+             grant_id, issuer_service_identity_id, audience, principal_type, principal_id,
+             scope_id, root_scope_id, descendant_mode, explicit_descendant_scope_ids,
+             permissions, metric_keys, dimension_keys, policy_version, issued_at, not_before,
+             expires_at, correlation_id
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+           ON CONFLICT (grant_id) DO NOTHING"#,
+    )
+    .bind(&grant.grant_id)
+    .bind(&issuer_service_identity_id)
+    .bind(&grant.audience)
+    .bind(principal_type)
+    .bind(&grant.principal_id)
+    .bind(grant.scope_id)
+    .bind(grant.root_scope_id)
+    .bind(descendant_mode)
+    .bind(serde_json::to_value(&grant.explicit_descendant_scope_ids).unwrap_or(Value::Null))
+    .bind(serde_json::to_value(&grant.permissions).unwrap_or(Value::Null))
+    .bind(serde_json::to_value(&grant.metric_keys).unwrap_or(Value::Null))
+    .bind(serde_json::to_value(&grant.dimension_keys).unwrap_or(Value::Null))
+    .bind(&grant.policy_version)
+    .bind(grant.issued_at)
+    .bind(grant.not_before)
+    .bind(grant.expires_at)
+    .bind(&grant.correlation_id)
+    .execute(&mut **transaction)
+    .await?;
+
     let grant_row = sqlx::query(
-        r#"SELECT g.audience, g.principal_type, g.principal_id, g.scope_id, g.root_scope_id,
+        r#"SELECT g.issuer_service_identity_id, g.audience, g.principal_type, g.principal_id, g.scope_id, g.root_scope_id,
                   g.descendant_mode, g.explicit_descendant_scope_ids, g.permissions,
                   g.metric_keys, g.dimension_keys, g.policy_version, g.issued_at,
                   g.not_before, g.expires_at, g.correlation_id, g.revoked_at, si.issuer
@@ -844,6 +893,8 @@ pub async fn authorize_transaction(
     .await?
     .ok_or(ReportingError::Unauthorized)?;
     let database_grant: String = grant_row.try_get("audience")?;
+    let database_issuer_service_identity_id: String =
+        grant_row.try_get("issuer_service_identity_id")?;
     let database_issuer: String = grant_row.try_get("issuer")?;
     let database_scope_id: i64 = grant_row.try_get("scope_id")?;
     let database_root_scope_id: i64 = grant_row.try_get("root_scope_id")?;
@@ -856,7 +907,8 @@ pub async fn authorize_transaction(
     let database_permissions: Value = grant_row.try_get("permissions")?;
     let database_metric_keys: Value = grant_row.try_get("metric_keys")?;
     let database_dimension_keys: Value = grant_row.try_get("dimension_keys")?;
-    if database_grant != grant.audience
+    if database_issuer_service_identity_id != issuer_service_identity_id
+        || database_grant != grant.audience
         || database_issuer != grant.issuer
         || database_scope_id != grant.scope_id
         || database_root_scope_id != grant.root_scope_id
@@ -1389,7 +1441,22 @@ fn select_metrics<'a>(
             .ok_or_else(|| {
                 ReportingError::InvalidRequest(format!("metric set {metric_set} is not registered"))
             })?;
-        set.metrics.clone()
+        if !set.scope_kinds.iter().any(|kind| kind == &scope.scope_kind) {
+            return Err(ReportingError::Forbidden);
+        }
+        set.metrics
+            .iter()
+            .filter(|identity| {
+                registry.metrics.iter().any(|metric| {
+                    metric_identity(metric) == **identity
+                        && metric
+                            .scope_kinds
+                            .iter()
+                            .any(|kind| kind == &scope.scope_kind)
+                })
+            })
+            .cloned()
+            .collect()
     } else {
         request.metrics.clone()
     };
@@ -2558,6 +2625,31 @@ mod tests {
             validate_request_shape(&request),
             Err(ReportingError::InvalidRequest(_))
         ));
+    }
+
+    #[test]
+    fn scoped_metric_sets_fit_the_interactive_metric_bound() {
+        let registry = crate::registry::load_registry().expect("repository registry");
+        for metric_set in &registry.metric_sets {
+            for scope_kind in &metric_set.scope_kinds {
+                let mut scope = sample_scope();
+                scope.scope_kind = scope_kind.clone();
+                let request = ReportQueryRequest {
+                    metric_set: Some(format!("{}@{}", metric_set.key, metric_set.version)),
+                    metrics: Vec::new(),
+                    ..sample_request()
+                };
+                let metrics = select_metrics(&registry, &sample_grant(), &scope, &request)
+                    .expect("metric set should be valid for its declared scope");
+                assert!(
+                    metrics.len() <= MAX_METRICS,
+                    "metric set {}@{} exceeds the interactive metric limit for {}",
+                    metric_set.key,
+                    metric_set.version,
+                    scope.scope_kind
+                );
+            }
+        }
     }
 
     #[test]

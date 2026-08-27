@@ -1,5 +1,6 @@
 pub mod analytics_backfill;
 pub mod analytics_publisher;
+pub mod analytics_scope_bootstrap;
 pub mod billing_reconciliation;
 pub mod public_webhooks;
 pub mod social_insights;

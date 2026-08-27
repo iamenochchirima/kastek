@@ -23,6 +23,7 @@ tokio.workspace = true
 
 [dev-dependencies]
 analytics-producer = { path = "../crates/analytics-producer" }
+analytics-reporting = { path = "../crates/analytics-reporting" }
 kasitek-core = { path = "../kasitek-core" }
 
 [[bin]]

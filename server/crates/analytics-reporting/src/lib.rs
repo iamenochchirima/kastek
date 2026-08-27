@@ -105,6 +105,10 @@ impl ReportingGrantIssuer {
     ) -> Result<Self, ReportingClientError> {
         let issuer = issuer.into();
         let audience = audience.into();
+        let key_id = key_id.and_then(|value| {
+            let value = value.trim().to_string();
+            (!value.is_empty()).then_some(value)
+        });
         if issuer.trim().is_empty() || audience.trim().is_empty() {
             return Err(ReportingClientError::Configuration(
                 "reporting issuer and audience cannot be empty".to_string(),
@@ -431,6 +435,36 @@ mod tests {
         assert_eq!(claims.custom.root_scope_id, 42);
         assert_eq!(claims.custom.policy_version, REPORTING_POLICY_VERSION);
         assert!(claims.expires_at.is_some());
+    }
+
+    #[test]
+    fn treats_a_blank_key_id_as_legacy_key_mode() {
+        let key_pair = jwt_simple::prelude::ES256KeyPair::generate();
+        let issuer = ReportingGrantIssuer::from_pem(
+            &key_pair.to_pem().unwrap(),
+            "kasitek-core",
+            REPORTING_AUDIENCE,
+            Some("   ".to_string()),
+        )
+        .unwrap();
+        let token = issuer
+            .issue(ReportingGrantInput {
+                principal_id: "user-1".to_string(),
+                scope_id: 1,
+                root_scope_id: 1,
+                descendant_mode: DescendantMode::None,
+                permissions: BTreeSet::from(["analytics:read".to_string()]),
+                metric_keys: vec![],
+                dimension_keys: vec![],
+                correlation_id: None,
+            })
+            .unwrap();
+        assert_eq!(
+            jwt_simple::prelude::Token::decode_metadata(&token)
+                .unwrap()
+                .key_id(),
+            None
+        );
     }
 
     #[test]

@@ -16,6 +16,28 @@ const DEFAULT_PRODUCER_ID: &str = "core-customer-analytics";
 const DEFAULT_PUBLISHER_ID: &str = "core-analytics-publisher";
 
 pub async fn run(pool: PgPool) {
+    match super::analytics_scope_bootstrap::enqueue_missing_scope_definitions(&pool).await {
+        Ok(queued) if queued > 0 => {
+            observability::tracing::info!(
+                event = "queue.item.completed",
+                worker = "analytics_publisher",
+                phase = "scope_bootstrap",
+                queued,
+                "organization scopes queued"
+            )
+        }
+        Ok(_) => {}
+        Err(error) => {
+            observability::tracing::error!(
+                event = "queue.item.failed",
+                worker = "analytics_publisher",
+                phase = "scope_bootstrap",
+                error_type = %std::any::type_name_of_val(&error),
+                "organization scope bootstrap failed"
+            )
+        }
+    }
+
     let Some(settings) = settings_from_env() else {
         observability::tracing::warn!(
             event = "worker.disabled",
