@@ -4,7 +4,7 @@ const path = require("path");
 
 const config = {
   title: "Kasitek Internal Docs",
-  tagline: "Private strategy, architecture, and execution documentation",
+  tagline: "Private technical documentation",
   url: "https://internal-docs.kasitek.co.za",
   baseUrl: "/",
   organizationName: "kasitek",
@@ -41,27 +41,26 @@ const config = {
       title: "Kasitek Internal",
       items: [
         { to: "/", label: "Home", position: "left" },
-        { to: "/features", label: "Features", position: "left" },
-        { to: "/white-paper/kasitek-white-paper", label: "White Paper", position: "left" },
-        { to: "/roadmap/product-roadmap", label: "Roadmap", position: "left" },
+        { to: "/development", label: "Development", position: "left" },
         { to: "/architecture", label: "Architecture", position: "left" },
+        { to: "/operations/release-process", label: "Operations", position: "left" },
       ],
     },
     footer: {
       style: "dark",
       links: [
         {
-          title: "Main Docs",
+          title: "Technical Docs",
           items: [
-            { label: "Product Features", to: "/features" },
-            { label: "White Paper", to: "/white-paper/kasitek-white-paper" },
-            { label: "Product Roadmap", to: "/roadmap/product-roadmap" },
+            { label: "Internal Home", to: "/" },
+            { label: "Development", to: "/development" },
+            { label: "Release Process", to: "/operations/release-process" },
+            { label: "Runbooks", to: "/runbooks/admin-operations" },
           ],
         },
         {
           title: "Architecture",
           items: [
-            { label: "Internal Home", to: "/" },
             { label: "Architecture", to: "/architecture" },
           ],
         },

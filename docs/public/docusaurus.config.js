@@ -60,11 +60,12 @@ const config = {
           ],
         },
         {
-          title: "Modules",
+          title: "Reference",
           items: [
             { label: "Lead Pipeline", to: "/operations/leads" },
             { label: "Email Sending", to: "/workspace/email-sending" },
-            { label: "Content Pipeline", to: "/modules/content-pipeline" },
+            { label: "API", to: "/api/public-v1" },
+            { label: "URL Structure", to: "/reference/url-structure" },
           ],
         },
       ],

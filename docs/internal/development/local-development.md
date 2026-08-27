@@ -25,6 +25,18 @@ Use the versions pinned by the repository where they exist:
 Check the installed versions before debugging application failures. A mismatched toolchain can
 look like a code or dependency problem.
 
+## Rust build output
+
+All Rust services are members of the `server` workspace and share `server/target`. The development
+profile keeps incremental compilation enabled for local iteration but stores reduced debug
+information. Remove accumulated development artifacts when needed:
+
+```bash
+cargo clean --manifest-path server/Cargo.toml --profile dev
+```
+
+The target directory is disposable and is not part of the runtime or release artifact.
+
 ## Environment files
 
 The local stack uses the root dotenv-vault as the merged source of truth. The working copies are

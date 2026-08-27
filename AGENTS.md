@@ -4,9 +4,24 @@ This file defines the default working structure for implementation tasks in this
 
 ## Project Direction
 
-Use [`PROJECT_PLAN.md`](PROJECT_PLAN.md) as the repository's single reusable planning template when
+Use [`docs/plans/templates/PROJECT_PLAN.md`](docs/plans/templates/PROJECT_PLAN.md) as the repository's single reusable planning template when
 a durable plan is useful. It contains no active product decisions; derive scope, ownership, and
 constraints from the current task and codebase.
+
+## Documentation and Release Impact
+
+For feature, API, data, integration, observability, deployment, or user-workflow changes:
+
+- Read [`docs/internal/operations/release-process.md`](docs/internal/operations/release-process.md)
+  and include its release-record decisions in the plan or pull request.
+- Update current technical documentation in `docs/internal/` or supported user/API documentation
+  in `docs/public/docs/` in the same change when behavior or contracts change.
+- Keep temporary implementation plans and checklists in `docs/plans/active/`; move finished work
+  to `docs/plans/completed/`.
+- Do not add roadmaps, go-to-market material, strategy, or historical execution notes to live
+  documentation navigation.
+- Add or update analytics, logging, metrics, runbook, version, migration, and rollback evidence
+  when the change affects those areas. Record `not applicable` explicitly when it does not.
 
 ## Default Rule
 
@@ -331,6 +346,17 @@ Prefer:
 The interface should explain itself through good design. If it requires a
 paragraph explaining how to use it, first consider whether the UI itself should
 be improved.
+
+## Release completeness
+
+For any non-trivial feature, API, data, integration, background-worker, or operational change,
+read [`docs/internal/operations/release-process.md`](docs/internal/operations/release-process.md)
+and account for release impact in the written plan. Before considering the work complete, record
+the decisions for documentation, analytics, structured logging, version/release identity,
+validation, rollout, and rollback. Use `not applicable` explicitly when a concern does not apply.
+
+The release-process document is canonical. Keep this file to enforcement rules and links; do not
+copy the full release checklist into `AGENTS.md`.
 
 ## Verification Rule
 

@@ -1,12 +1,11 @@
-# Archived planning documents
+# Archived documentation and planning material
 
-This directory contains planning documents that are retained for history but
-are no longer the active source of truth.
+This directory contains material retained for history but no longer used as an active source of
+truth.
 
 - `agents/` contains superseded agent architecture and implementation plans.
-- `TENANT_PLATFORM_EXECUTION_PLAN.md` is the duplicate root copy of the active
-  tenant plan at [`docs/internal/execution/TENANT_PLATFORM_EXECUTION_PLAN.md`](../internal/execution/TENANT_PLATFORM_EXECUTION_PLAN.md).
+- `legacy/` contains retired strategy, roadmap, go-to-market, white-paper, and other non-technical
+  material.
 
-Active work belongs in the relevant `docs/internal/execution/` checklist or in
-the canonical root architecture documents listed in the repository's agent
-archive index.
+Active technical documentation belongs in `docs/internal/`. Active implementation work belongs in
+`docs/plans/active/`. Completed plans belong in `docs/plans/completed/`.

@@ -1,10 +1,12 @@
 ---
 title: Implemented Features
+owner: engineering
+last_reviewed: 2026-08-25
 ---
 
 # Implemented Features
 
-This page separates areas that are live in the tenant backend from areas that are currently exposed in the tenant portal but still depend on placeholder responses.
+This page lists user-facing capabilities that are currently backed by the tenant runtime.
 
 ## Backend-backed today
 
@@ -34,24 +36,3 @@ The following are backed by live tenant backend routes and database access:
 - workspace email sending configuration
 - Resend-backed custom sender domains
 - test email sending
-
-## Portal-visible but still using placeholder data
-
-The following surfaces currently rely on the temporary `client/packages/api-client-react` placeholder layer:
-
-- content pipeline generation and history
-- reporting dashboards and metrics
-- nurturing sequences and nurturing stats
-- AEO content and citation metrics
-- review campaigns and review stats
-- ad campaigns and ad creatives
-- voice agents and call logs
-
-## Why this matters
-
-This distinction helps users and operators set correct expectations:
-
-- some areas are already operational
-- some areas are already productized in the portal but still waiting for deeper backend integration
-
-That split is real in the current codebase and should be documented openly rather than hidden.

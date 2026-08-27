@@ -8,7 +8,7 @@ Public documentation site for the KasiTek platform.
 - domain: `docs.kasitek.co.za`
 - hosting: Vercel
 
-Internal documentation is now a separate standalone site under `docs/internal-site`.
+Internal technical documentation is a separate standalone site under `docs/internal-site`.
 
 ## Runtime expectation
 
@@ -36,13 +36,17 @@ pnpm build
 
 ## Content model
 
-The public docs are structured around:
+The public docs are structured around current supported behavior:
 
 - getting started
 - workspace setup
 - operations
 - client portal
-- service modules
-- implementation reference
+- API and URL reference
 
-Internal-only docs live separately under `docs/internal`.
+Internal-only docs and temporary implementation plans live separately under `docs/internal` and
+`docs/plans`.
+
+Public documentation must be updated when a released feature changes user behavior, supported
+configuration, or a public API. Future work, internal architecture, and temporary checklists do
+not belong here.

@@ -2,6 +2,8 @@
 title: Architecture
 slug: /architecture
 sidebar_position: 4
+owner: engineering
+last_reviewed: 2026-08-25
 ---
 
 # Kasitek Platform Architecture
@@ -61,7 +63,7 @@ For example, KasiReach uses customer, audience, consent, campaign, messaging, in
 
 ### 1.3 Out of scope
 
-This document does not define release dates, sales packaging, screen designs, individual provider API fields, or step-by-step implementation tasks. Those belong in the [Product Roadmap](../roadmap/product-roadmap.md), [Product Features](../features/product-features.md), product specifications, contracts, and delivery plans.
+This document does not define release dates, sales packaging, screen designs, individual provider API fields, or step-by-step implementation tasks. Product specifications, contracts, and delivery plans belong in their respective technical references and in `docs/plans/` when they are temporary execution records.
 
 ## 2. Architecture charter
 
@@ -809,37 +811,14 @@ An accepted asynchronous request returns a durable operation identifier whose st
 
 ## 16. Implementation status
 
-This section is the only current-state view in this document. It uses the visible [Product Features](../features/product-features.md) and [Product Roadmap](../roadmap/product-roadmap.md) as its baseline; it is not a repository audit.
+This document defines target architecture and governance. It is not the authoritative status board
+for feature delivery. Current implementation evidence belongs in the owning service documentation,
+tests, deployment records, and release records. Temporary sequencing and blockers belong in
+`docs/plans/active/`; completed execution records belong in `docs/plans/completed/`.
 
-### 16.1 Status definitions
-
-- **Implemented:** documented as live for real customer use.
-- **Partial:** some required capability is live or in progress, but the target boundary is incomplete.
-- **Planned:** accepted product direction without a complete implementation.
-- **Research:** direction still being validated.
-- **Needs verification:** the visible documents do not establish enough evidence.
-
-### 16.2 Target-to-current matrix
-
-| Target architecture area | Status | Visible evidence or gap |
-| --- | --- | --- |
-| Connected cross-product business context | Planned | Product Features lists shared customer, conversation, campaign, content, and workflow context as planned. |
-| Direct organisation and team access model | Planned | Organisation, workspace, and team access are listed as planned. |
-| Separate white-label runtime and database | Needs verification | Accepted architecture direction; implementation completeness is not established by the visible product documents. |
-| Tenant staff and tenant client identities | Planned | Branded workspace plus tenant staff and client accounts are listed as planned. |
-| Multi-client agency management | Planned | Listed as planned. |
-| WhatsApp agent and routing | Implemented | WhatsApp Business Cloud API agent, multi-agent routing, lead qualification, FAQ flows, and document sending are listed as live. |
-| Voice and appointment workflows | Partial | Both are listed as in progress. |
-| Human handoff and unified inbox | Planned | Handoff is planned; KasiInbox remains a future portfolio direction. |
-| WhatsApp campaigns | Partial | Broadcast capability is listed as in progress; segmentation, scheduling, analytics, consent, and follow-up are planned. |
-| Social connections and publishing | Partial | Facebook and Instagram connection/publishing are in progress; broader scheduling, content, analytics, and collaboration are planned. |
-| Capability registry and governed agent execution | Planned | Native tool access, approvals, and execution history are planned. |
-| External agent access through MCP | Planned | MCP access is planned. A2A delegation remains research. |
-| Canonical event and outbox architecture | Needs verification | Target decision established here; implementation evidence is not present in the visible product documents. |
-| Security, privacy, recovery, and service objectives | Needs verification | Target controls are established here and require a dedicated evidence review. |
-| Unified reporting and analytics | Planned | Product-specific analytics and unified cross-product reporting are planned. |
-
-Implementation status must be updated from verified evidence. A roadmap date or an accepted architecture decision does not by itself make an item implemented.
+Do not mark an architectural capability implemented from a roadmap date or an accepted design
+decision. Link verified code, contract, migration, test, and operational evidence when recording
+status elsewhere.
 
 ## 17. Architecture decision register
 

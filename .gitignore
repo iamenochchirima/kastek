@@ -22,6 +22,10 @@ out/
 # production
 /build
 
+# Docusaurus generated output; build these directories in CI or during local preview.
+docs/**/.docusaurus/
+docs/**/build/
+
 # misc
 .DS_Store
 *.pem

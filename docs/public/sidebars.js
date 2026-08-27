@@ -38,14 +38,12 @@ const sidebars = {
     },
     {
       type: "category",
-      label: "Modules",
+      label: "API",
       items: [
-        "modules/content-pipeline",
-        "modules/reporting",
-        "modules/nurturing",
-        "modules/aeo",
-        "modules/reputation",
-        "modules/voice-agents",
+        "api/public-v1",
+        "api/agent-connection-guide",
+        "api/agent-rest",
+        "api/mcp-integration",
       ],
     },
     {
