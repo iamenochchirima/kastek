@@ -2,6 +2,7 @@ import "../src/telemetry";
 import { trace, metrics, SpanStatusCode } from "@opentelemetry/api";
 import { shutdownTelemetry } from "../src/telemetry";
 import { operationalLogger } from "../src/telemetry/logger";
+import { redactTelemetryText } from "../src/telemetry/redaction";
 import { withProviderSpan, withSpan } from "../src/telemetry/spans";
 
 async function main(): Promise<void> {
@@ -36,6 +37,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  process.stderr.write(`${redactTelemetryText(error instanceof Error ? error.message : error, 512)}\n`);
   process.exitCode = 1;
 });

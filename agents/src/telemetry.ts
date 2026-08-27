@@ -67,6 +67,9 @@ if (telemetryConfigured()) {
         "@opentelemetry/instrumentation-aws-lambda": { enabled: false },
         "@opentelemetry/instrumentation-fs": { enabled: false },
         "@opentelemetry/instrumentation-host-metrics": { enabled: false },
+        "@opentelemetry/instrumentation-pg": {
+          enhancedDatabaseReporting: false,
+        },
         "@opentelemetry/instrumentation-pino": {
           disableLogCorrelation: false,
           disableLogSending: false,
