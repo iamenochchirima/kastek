@@ -13,10 +13,14 @@ async fn main() -> Result<(), AnalyticsError> {
     observability::init_with_service(&config.log_filter, "kasitek-analytics-worker");
     let _telemetry_guard = observability::ShutdownGuard;
     let registry = kasitek_analytics::registry::load_registry()?;
-    log::info!(
-        "service=kasitek-analytics process=analytics-worker status=registry_loaded registry_sha256={} metrics_registry_version={}",
-        registry.sha256,
-        registry.metrics_registry_version
+    observability::tracing::info!(
+        event = "service.startup",
+        service = "kasitek-analytics",
+        process = "analytics-worker",
+        phase = "registry_loaded",
+        registry_sha256 = %registry.sha256,
+        metrics_registry_version = %registry.metrics_registry_version,
+        "analytics registry loaded"
     );
     let pool = create_pool(&config)?;
     worker::run(pool, registry)

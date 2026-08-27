@@ -226,10 +226,11 @@ pub async fn send_push_notification_to_user(
             Ok(()) => {
                 delivered += 1;
                 if let Err(error) = touch_push_subscription(pool, &subscription.endpoint).await {
-                    log::warn!(
-                        "failed to update push subscription lastUsedAt endpoint={}: {}",
-                        subscription.endpoint,
-                        error
+                    observability::tracing::warn!(
+                        event = "operation.failed",
+                        operation = "push_subscription.touch",
+                        error_type = %std::any::type_name_of_val(&error),
+                        "push subscription timestamp update failed"
                     );
                 }
             }
@@ -243,18 +244,22 @@ pub async fn send_push_notification_to_user(
                     if let Err(delete_error) =
                         delete_stale_push_subscription(pool, &subscription.endpoint).await
                     {
-                        log::warn!(
-                            "failed to delete stale push subscription endpoint={}: {}",
-                            subscription.endpoint,
-                            delete_error
+                        observability::tracing::warn!(
+                            event = "operation.failed",
+                            operation = "push_subscription.delete_stale",
+                            error_type = %std::any::type_name_of_val(&delete_error),
+                            "stale push subscription deletion failed"
                         );
                     }
                 }
-                log::warn!(
-                    "failed to send web push to user_id={} endpoint={}: {}",
-                    user_id,
-                    subscription.endpoint,
-                    message
+                observability::tracing::warn!(
+                    event = "provider.call.failed",
+                    provider = "web_push",
+                    operation = "notification.send",
+                    user_id = %user_id,
+                    stale_subscription,
+                    error_type = "delivery_failed",
+                    "web push delivery failed"
                 );
             }
         }

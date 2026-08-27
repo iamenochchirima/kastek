@@ -1192,11 +1192,13 @@ pub(crate) async fn send_marketing_template(
     let status = response.status();
     let raw: Value = response.json().await.unwrap_or(Value::Null);
     if !status.is_success() {
-        log::error!(
-            "whatsapp campaign send rejected status={} payload={} response={}",
-            status,
-            payload,
-            raw
+        observability::tracing::error!(
+            event = "provider.call.failed",
+            provider = "whatsapp",
+            operation = "campaign.send",
+            status = status.as_u16(),
+            error_type = "provider_rejected",
+            "WhatsApp campaign send rejected"
         );
         return Err(AppError::BadRequest(format!(
             "WhatsApp Cloud API send failed ({}): {}",
@@ -1310,21 +1312,27 @@ async fn recover_stuck_processing_campaign_recipients(
     .await?;
 
     if !recovered.is_empty() {
-        log::warn!(
-            "[whatsapp-marketing-worker] recovered {} stale processing recipient(s) older than {} seconds",
-            recovered.len(),
-            campaign_processing_timeout().num_seconds()
+        observability::tracing::warn!(
+            event = "queue.item.completed",
+            worker = "whatsapp_campaigns",
+            phase = "stale_recovery",
+            recovered = recovered.len(),
+            timeout_seconds = campaign_processing_timeout().num_seconds(),
+            "stale WhatsApp campaign recipients recovered"
         );
     }
 
     Ok(recovered
         .into_iter()
         .map(|(user_id, campaign_id, recipient_id)| {
-            log::warn!(
-                "[whatsapp-marketing-worker] recovered stale processing recipient recipient_id={} campaign_id={} user_id={}",
-                recipient_id,
-                campaign_id,
-                user_id
+            observability::tracing::info!(
+                event = "queue.item.completed",
+                worker = "whatsapp_campaigns",
+                phase = "stale_recovery",
+                recipient_id = %recipient_id,
+                campaign_id = %campaign_id,
+                user_id = %user_id,
+                "stale WhatsApp campaign recipient recovered"
             );
             (user_id, campaign_id)
         })
@@ -1562,15 +1570,17 @@ async fn process_claimed_campaign_recipient(
         .and_then(|v| v.as_array());
     let body_parameters = build_body_parameters(&contact, mappings);
 
-    log::info!(
-        "[campaign-send] attempting campaign_id={} recipient_id={} contact_id={} phone={} template={} language={} body_parameters={}",
-        campaign.id,
-        recipient_id,
-        contact.id,
-        contact.phone,
-        campaign.template_name,
-        campaign.template_language,
-        serde_json::to_string(&body_parameters).unwrap_or_else(|_| "[]".to_string())
+    observability::tracing::info!(
+        event = "provider.call.completed",
+        provider = "whatsapp",
+        operation = "campaign.send",
+        campaign_id = %campaign.id,
+        recipient_id = %recipient_id,
+        contact_id = %contact.id,
+        template = %campaign.template_name,
+        language = %campaign.template_language,
+        body_parameter_count = body_parameters.len(),
+        "WhatsApp campaign send starting"
     );
 
     match send_marketing_template(
@@ -1662,13 +1672,15 @@ async fn process_claimed_campaign_recipient(
             )
             .await?;
 
-            log::info!(
-                "[campaign-send] accepted campaign_id={} recipient_id={} contact_id={} phone={} wa_message_id={}",
-                campaign.id,
-                recipient_id,
-                contact.id,
-                contact.phone,
-                message_id
+            observability::tracing::info!(
+                event = "provider.call.completed",
+                provider = "whatsapp",
+                operation = "campaign.send",
+                campaign_id = %campaign.id,
+                recipient_id = %recipient_id,
+                contact_id = %contact.id,
+                message_id = %message_id,
+                "WhatsApp campaign send accepted"
             );
         }
         Err(error) => {
@@ -1761,16 +1773,16 @@ async fn process_claimed_campaign_recipient(
             }
             transaction.commit().await?;
 
-            log::error!(
-                "[campaign-send] request failed campaign_id={} recipient_id={} contact_id={} phone={} code={:?} message={} request_payload={} response_payload={}",
-                campaign.id,
-                recipient_id,
-                contact.id,
-                contact.phone,
-                code,
-                message,
-                request_payload,
-                response_payload
+            observability::tracing::error!(
+                event = "provider.call.failed",
+                provider = "whatsapp",
+                operation = "campaign.send",
+                campaign_id = %campaign.id,
+                recipient_id = %recipient_id,
+                contact_id = %contact.id,
+                error_code = ?code,
+                outcome = %status,
+                "WhatsApp campaign send failed"
             );
         }
     }
@@ -1814,11 +1826,13 @@ pub async fn process_queued_campaign_recipients(
         }
         for (user_id, campaign_id) in changed_campaigns {
             if let Err(error) = publish_campaign_updated(pool, &user_id, &campaign_id).await {
-                log::warn!(
-                    "failed to publish campaign realtime update campaign_id={} user_id={}: {}",
-                    campaign_id,
-                    user_id,
-                    error
+                observability::tracing::warn!(
+                    event = "operation.failed",
+                    operation = "campaign.realtime_publish",
+                    campaign_id = %campaign_id,
+                    user_id = %user_id,
+                    error_type = %std::any::type_name_of_val(&error),
+                    "WhatsApp campaign realtime update failed"
                 );
             }
         }
@@ -1842,10 +1856,13 @@ pub async fn process_queued_campaign_recipients(
                 if let Err(release_error) =
                     release_processing_campaign_recipient(pool, &recipient_id).await
                 {
-                    log::error!(
-                        "failed to release claimed campaign recipient recipient_id={} after error: {}",
-                        recipient_id,
-                        release_error
+                    observability::tracing::error!(
+                        event = "queue.item.failed",
+                        worker = "whatsapp_campaigns",
+                        phase = "release_claim",
+                        recipient_id = %recipient_id,
+                        error_type = %std::any::type_name_of_val(&release_error),
+                        "claimed campaign recipient release failed"
                     );
                 }
                 return Err(error);
@@ -1855,11 +1872,13 @@ pub async fn process_queued_campaign_recipients(
 
     for (user_id, campaign_id) in changed_campaigns {
         if let Err(error) = publish_campaign_updated(pool, &user_id, &campaign_id).await {
-            log::warn!(
-                "failed to publish campaign realtime update campaign_id={} user_id={}: {}",
-                campaign_id,
-                user_id,
-                error
+            observability::tracing::warn!(
+                event = "operation.failed",
+                operation = "campaign.realtime_publish",
+                campaign_id = %campaign_id,
+                user_id = %user_id,
+                error_type = %std::any::type_name_of_val(&error),
+                "WhatsApp campaign realtime update failed"
             );
         }
     }

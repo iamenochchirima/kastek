@@ -20,20 +20,47 @@ pub async fn whatsapp_stream(
         yield Ok::<Bytes, Error>(Bytes::from_static(b"event: ready\ndata: {}\n\n"));
 
         let Some(mut pubsub) = pubsub else {
-            log::warn!("[realtime] no redis client available, falling back to keepalive-only mode");
+            observability::tracing::warn!(
+                event = "dependency.unavailable",
+                dependency = "redis",
+                operation = "realtime.subscribe",
+                reason = "missing_configuration",
+                "realtime stream using keepalive-only mode"
+            );
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(15)).await;
                 yield Ok(Bytes::from_static(b": keepalive\n\n"));
             }
         };
 
-        log::info!("[realtime] subscribing to channel: {}", channel);
+        observability::tracing::info!(
+            event = "provider.call.completed",
+            provider = "redis",
+            operation = "realtime.subscribe",
+            channel = %channel,
+            phase = "starting",
+            "realtime subscription starting"
+        );
         if let Err(error) = pubsub.subscribe(&channel).await {
-            log::error!("[realtime] failed to subscribe to {}: {}", channel, error);
+            observability::tracing::error!(
+                event = "dependency.unavailable",
+                dependency = "redis",
+                operation = "realtime.subscribe",
+                channel = %channel,
+                error_type = %std::any::type_name_of_val(&error),
+                "realtime subscription failed"
+            );
             yield Err(actix_web::error::ErrorInternalServerError(error));
             return;
         }
-        log::info!("[realtime] subscribed to {} successfully", channel);
+        observability::tracing::info!(
+            event = "provider.call.completed",
+            provider = "redis",
+            operation = "realtime.subscribe",
+            channel = %channel,
+            phase = "completed",
+            "realtime subscription established"
+        );
 
         let mut messages = pubsub.on_message();
         loop {

@@ -26,10 +26,14 @@ async fn main() -> Result<(), AnalyticsError> {
     let _telemetry_guard = observability::ShutdownGuard;
     let registry = kasitek_analytics::registry::load_registry()?;
     let registry_access = web::Data::new(registry.clone());
-    log::info!(
-        "service=kasitek-analytics process=analytics-api status=registry_loaded registry_sha256={} metrics_registry_version={}",
-        registry.sha256,
-        registry.metrics_registry_version
+    observability::tracing::info!(
+        event = "service.startup",
+        service = "kasitek-analytics",
+        process = "analytics-api",
+        phase = "registry_loaded",
+        registry_sha256 = %registry.sha256,
+        metrics_registry_version = %registry.metrics_registry_version,
+        "analytics registry loaded"
     );
     let pool = create_pool(&config)?;
     let metrics = web::Data::new(ProcessMetrics::default());
@@ -46,10 +50,12 @@ async fn main() -> Result<(), AnalyticsError> {
     let rollout_cache = web::Data::new(RolloutDecisionCache::from_config(&config));
     let bind_address = (config.api_host.clone(), config.api_port);
 
-    log::info!(
-        "service=kasitek-analytics process=analytics-api status=starting host={} port={}",
-        config.api_host,
-        config.api_port
+    observability::tracing::info!(
+        event = "service.startup",
+        service = "kasitek-analytics",
+        process = "analytics-api",
+        port = config.api_port,
+        "server starting"
     );
 
     HttpServer::new(move || {

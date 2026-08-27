@@ -64,7 +64,13 @@ pub async fn send_email(
     text: &str,
 ) -> Result<(), AppError> {
     let Some(api_key) = config.resend_api_key.as_ref() else {
-        log::warn!("AUTH_RESEND_KEY not configured; email not sent");
+        observability::tracing::warn!(
+            event = "dependency.unavailable",
+            dependency = "resend",
+            operation = "auth.email.send",
+            reason = "missing_configuration",
+            "authentication email not sent"
+        );
         return Ok(());
     };
 
@@ -81,7 +87,13 @@ pub async fn send_email(
         .await?;
 
     if response.status() != StatusCode::OK && response.status() != StatusCode::CREATED {
-        log::error!("resend rejected email: status={}", response.status());
+        observability::tracing::error!(
+            event = "provider.call.failed",
+            provider = "resend",
+            operation = "auth.email.send",
+            status = response.status().as_u16(),
+            "email provider rejected authentication email"
+        );
         return Err(AppError::Internal("Failed to send email".to_string()));
     }
 
@@ -94,9 +106,12 @@ pub async fn send_sms_message(
     message: &str,
 ) -> Result<(), AppError> {
     let Some(base_url) = config.zoomconnect_send_url.as_ref() else {
-        log::warn!(
-            "ZOOMCONNECT_SEND_URL not configured. sms to {} not sent",
-            phone
+        observability::tracing::warn!(
+            event = "dependency.unavailable",
+            dependency = "zoomconnect",
+            operation = "sms.send",
+            reason = "missing_configuration",
+            "SMS not sent"
         );
         return Ok(());
     };

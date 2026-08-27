@@ -976,10 +976,12 @@ pub async fn create_waitlist_entry(
     .await;
 
     if let Err(error) = crate::services::early_access::record_submission(pool, &id).await {
-        log::error!(
-            "early-access submission audit failed application_id={} error={}",
-            id,
-            error
+        observability::tracing::error!(
+            event = "operation.failed",
+            operation = "early_access.submission_audit",
+            application_id = %id,
+            error_type = %std::any::type_name_of_val(&error),
+            "early-access submission audit failed"
         );
     }
 

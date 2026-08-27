@@ -91,28 +91,37 @@ pub async fn list_channels(
     if let Err(error) =
         social::ensure_meta_instagram_app_webhooks(pool.get_ref(), &org_id, config.get_ref()).await
     {
-        log::warn!(
-            "failed to ensure Meta Instagram app webhook subscription org_id={}: {}",
-            org_id,
-            error
+        observability::tracing::warn!(
+            event = "provider.call.failed",
+            provider = "meta",
+            operation = "instagram_app_webhooks.ensure",
+            org_id = %org_id,
+            error_type = %std::any::type_name_of_val(&error),
+            "failed to ensure Instagram app webhooks"
         );
     }
     if let Err(error) =
         social::ensure_meta_page_webhook_subscriptions(pool.get_ref(), &org_id).await
     {
-        log::warn!(
-            "failed to ensure Meta Page webhook subscriptions org_id={}: {}",
-            org_id,
-            error
+        observability::tracing::warn!(
+            event = "provider.call.failed",
+            provider = "meta",
+            operation = "page_webhooks.ensure",
+            org_id = %org_id,
+            error_type = %std::any::type_name_of_val(&error),
+            "failed to ensure Page webhooks"
         );
     }
     if let Err(error) =
         social::ensure_instagram_account_webhook_subscriptions(pool.get_ref(), &org_id).await
     {
-        log::warn!(
-            "failed to ensure Instagram account webhook subscriptions org_id={}: {}",
-            org_id,
-            error
+        observability::tracing::warn!(
+            event = "provider.call.failed",
+            provider = "instagram",
+            operation = "account_webhooks.ensure",
+            org_id = %org_id,
+            error_type = %std::any::type_name_of_val(&error),
+            "failed to ensure Instagram account webhooks"
         );
     }
     let channels = social::list_social_channels(pool.get_ref(), &org_id).await?;
@@ -888,9 +897,12 @@ pub async fn meta_oauth_callback(
     let instagram_app_subscription = if include_instagram_accounts && instagram_count > 0 {
         let result = social::subscribe_meta_instagram_app_webhooks(config.get_ref()).await;
         if let Err(error) = &result {
-            log::warn!(
-                "failed to configure Instagram messaging webhooks for the Meta app: {}",
-                error
+            observability::tracing::warn!(
+                event = "provider.call.failed",
+                provider = "meta",
+                operation = "instagram_app_webhooks.configure",
+                error_type = %std::any::type_name_of_val(error),
+                "failed to configure Instagram messaging webhooks"
             );
         }
         Some(result)
@@ -938,10 +950,12 @@ pub async fn meta_oauth_callback(
             .await?;
         }
         if let Err(error) = subscription_result {
-            log::warn!(
-                "failed to subscribe Meta Page {} to webhooks: {}",
-                page.id,
-                error
+            observability::tracing::warn!(
+                event = "provider.call.failed",
+                provider = "meta",
+                operation = "page_webhooks.subscribe",
+                error_type = %std::any::type_name_of_val(&error),
+                "failed to subscribe Page webhooks"
             );
         }
     }
@@ -1051,10 +1065,12 @@ pub async fn instagram_oauth_callback(
     )
     .await?;
     if let Err(error) = subscription_result {
-        log::warn!(
-            "failed to subscribe Instagram account {} to webhooks: {}",
-            account_id,
-            error
+        observability::tracing::warn!(
+            event = "provider.call.failed",
+            provider = "instagram",
+            operation = "account_webhooks.subscribe",
+            error_type = %std::any::type_name_of_val(&error),
+            "failed to subscribe Instagram account webhooks"
         );
     }
 
@@ -1112,7 +1128,13 @@ pub async fn linkedin_oauth_callback(
     let tokens = social::exchange_linkedin_code_for_tokens(config.get_ref(), code)
         .await
         .map_err(|error| {
-            log::warn!("LinkedIn OAuth token exchange failed: {error}");
+            observability::tracing::warn!(
+                event = "provider.call.failed",
+                provider = "linkedin",
+                operation = "oauth.token_exchange",
+                error_type = %std::any::type_name_of_val(&error),
+                "LinkedIn OAuth token exchange failed"
+            );
             match error {
                 AppError::BadRequest(message) => {
                     AppError::BadRequest(format!("LinkedIn token exchange failed: {message}"))
@@ -1128,7 +1150,13 @@ pub async fn linkedin_oauth_callback(
     )
     .await
     .map_err(|error| {
-        log::warn!("LinkedIn OAuth profile lookup failed: {error}");
+        observability::tracing::warn!(
+            event = "provider.call.failed",
+            provider = "linkedin",
+            operation = "oauth.profile_lookup",
+            error_type = %std::any::type_name_of_val(&error),
+            "LinkedIn OAuth profile lookup failed"
+        );
         match error {
             AppError::BadRequest(message) => {
                 AppError::BadRequest(format!("LinkedIn profile lookup failed: {message}"))
@@ -1260,10 +1288,13 @@ pub struct ThreadsSignedRequestForm {
 async fn sync_removed_threads_connections(pool: &PgPool, org_ids: Vec<String>) {
     for org_id in org_ids {
         if let Err(error) = connections::sync_org_connections(pool, &org_id).await {
-            log::warn!(
-                "failed to sync connections after Threads removal org_id={}: {}",
-                org_id,
-                error
+            observability::tracing::warn!(
+                event = "operation.failed",
+                operation = "social_connections.sync_after_uninstall",
+                provider = "threads",
+                org_id = %org_id,
+                error_type = %std::any::type_name_of_val(&error),
+                "failed to sync connections after Threads removal"
             );
         }
     }

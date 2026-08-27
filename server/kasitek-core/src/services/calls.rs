@@ -277,7 +277,13 @@ pub async fn record_twilio_webhook(
     .fetch_optional(pool)
     .await?;
     let Some(connection) = connection else {
-        log::warn!("received Twilio call for an unregistered number");
+        observability::tracing::warn!(
+            event = "provider.call.failed",
+            provider = "twilio",
+            operation = "call.webhook.resolve_connection",
+            reason = "connection_not_found",
+            "Twilio call received for an unregistered number"
+        );
         return Ok(None);
     };
 

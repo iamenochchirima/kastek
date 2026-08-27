@@ -81,7 +81,10 @@ async fn main() -> std::io::Result<()> {
 
     match std::env::var("KASITEK_PROCESS").ok().as_deref() {
         Some("analytics-publisher") => {
-            log::info!("starting tenant analytics publisher and backfill workers");
+            observability::tracing::info!(
+                event = "worker.started",
+                worker = "analytics_publisher_and_backfill"
+            );
             tokio::join!(
                 observability::in_span(
                     "worker",
@@ -97,7 +100,7 @@ async fn main() -> std::io::Result<()> {
             return Ok(());
         }
         Some("analytics-backfill-worker") => {
-            log::info!("starting tenant analytics backfill worker");
+            observability::tracing::info!(event = "worker.started", worker = "analytics_backfill");
             observability::in_span(
                 "worker",
                 "analytics_backfill",
@@ -113,7 +116,13 @@ async fn main() -> std::io::Result<()> {
     let allowed_origins = config.allowed_origins.clone();
     let allow_loopback_origins = environment_allows_loopback_origins(&config.environment);
 
-    log::info!("starting tenant server on port {}", port);
+    observability::tracing::info!(
+        event = "service.startup",
+        service = "kasitek-tenants",
+        process = "api",
+        port,
+        "server starting"
+    );
 
     HttpServer::new(move || {
         let mut cors = Cors::default()

@@ -123,12 +123,15 @@ pub async fn resolve(config: &AppConfig, req: &HttpRequest) -> Result<RequestCon
         return Err(AppError::Unauthorized);
     }
     if !realtime::claim_delegation_replay(&config.agents_delegation_issuer, &jti).await? {
-        log::warn!(
-            "[agent-delegation] rejected replayed request installation_id={} run_id={} invocation_id={} correlation_id={}",
-            claims.custom.installation_id,
-            claims.custom.run_id,
-            claims.custom.invocation_id,
-            claims.custom.correlation_id,
+        observability::tracing::warn!(
+            event = "operation.failed",
+            operation = "agent_delegation.replay_check",
+            reason = "replayed_request",
+            installation_id = %claims.custom.installation_id,
+            run_id = %claims.custom.run_id,
+            invocation_id = %claims.custom.invocation_id,
+            correlation_id = %claims.custom.correlation_id,
+            "delegated request replay rejected"
         );
         return Err(AppError::Unauthorized);
     }

@@ -456,11 +456,13 @@ pub async fn create_invitation(
     {
         // The invitation is durable and can be resent by an operator. Email
         // delivery must not turn a successful approval into an unknown state.
-        log::error!(
-            "invitation email delivery failed invitation_id={} recipient={} error={}",
-            inv.id,
-            email,
-            error
+        observability::tracing::error!(
+            event = "provider.call.failed",
+            provider = "resend",
+            operation = "organization_invitation.email",
+            invitation_id = %inv.id,
+            error_type = %std::any::type_name_of_val(&error),
+            "invitation email delivery failed"
         );
     }
 

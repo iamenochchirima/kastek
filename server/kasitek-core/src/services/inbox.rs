@@ -384,7 +384,14 @@ async fn fetch_meta_attachment_payload(
     let response = match request.send().await {
         Ok(response) => response,
         Err(_error) => {
-            log::warn!("[meta-media] request failed");
+            observability::tracing::warn!(
+                event = "provider.call.failed",
+                provider = "meta",
+                operation = "attachment.lookup",
+                lookup = %lookup,
+                error_type = "request",
+                "Meta attachment lookup failed"
+            );
             return None;
         }
     };
@@ -392,19 +399,30 @@ async fn fetch_meta_attachment_payload(
     let payload = match response.json::<Value>().await {
         Ok(payload) => payload,
         Err(_error) => {
-            log::warn!("[meta-media] invalid response status={}", status);
+            observability::tracing::warn!(
+                event = "provider.call.failed",
+                provider = "meta",
+                operation = "attachment.lookup",
+                lookup = %lookup,
+                status = status.as_u16(),
+                error_type = "invalid_response",
+                "Meta attachment lookup returned invalid JSON"
+            );
             return None;
         }
     };
     if !status.is_success() {
         let code = payload.pointer("/error/code").and_then(Value::as_i64);
         let error_type = payload.pointer("/error/type").and_then(Value::as_str);
-        log::warn!(
-            "[meta-media] lookup={} status={} graph_code={:?} graph_type={:?}",
-            lookup,
-            status,
-            code,
-            error_type
+        observability::tracing::warn!(
+            event = "provider.call.failed",
+            provider = "meta",
+            operation = "attachment.lookup",
+            lookup = %lookup,
+            status = status.as_u16(),
+            graph_code = ?code,
+            graph_type = ?error_type,
+            "Meta attachment lookup rejected"
         );
         return None;
     }
@@ -437,9 +455,14 @@ async fn resolve_meta_message_attachment_url(
         if let Some(url) = select_meta_attachment_url(&payload, provider_media_id, prefer_sticker) {
             return Some(url);
         }
-        log::warn!(
-            "[meta-media] lookup=message_node attachment_not_found count={}",
-            meta_attachment_data(&payload).map_or(0, Vec::len)
+        observability::tracing::info!(
+            event = "provider.call.completed",
+            provider = "meta",
+            operation = "attachment.lookup",
+            lookup = "message_node",
+            result = "attachment_not_found",
+            count = meta_attachment_data(&payload).map_or(0, Vec::len),
+            "Meta attachment was not found on the message node"
         );
     }
 
@@ -674,13 +697,17 @@ pub async fn download_message_attachment(
         .or(mime_type)
         .unwrap_or_else(|| "application/octet-stream".to_string());
     if attachment_kind == "sticker" {
-        log::info!(
-            "[meta-media] kind=sticker attachment_id={} provider_media_id={} source={} content_type={} bytes={}",
-            attachment_id,
-            provider_media_id.as_deref().unwrap_or("none"),
-            media_source,
-            content_type,
-            bytes.len()
+        observability::tracing::info!(
+            event = "provider.call.completed",
+            provider = "meta",
+            operation = "attachment.download",
+            kind = %attachment_kind,
+            attachment_id = %attachment_id,
+            provider_media_id = %provider_media_id.as_deref().unwrap_or("none"),
+            source = %media_source,
+            content_type = %content_type,
+            bytes = bytes.len(),
+            "Meta sticker attachment downloaded"
         );
     }
     let extension = content_type.split('/').nth(1).unwrap_or("bin");
@@ -1125,19 +1152,25 @@ async fn try_deliver_meta_text_message(
         if let Err(error) =
             publish_message_created(&event_pool, &event_user_id, &event_message_id).await
         {
-            log::warn!(
-                "failed to publish sent Meta message message_id={}: {}",
-                event_message_id,
-                error
+            observability::tracing::warn!(
+                event = "operation.failed",
+                operation = "inbox.realtime_publish",
+                provider = "meta",
+                message_id = %event_message_id,
+                error_type = %std::any::type_name_of_val(&error),
+                "sent Meta message realtime publish failed"
             );
         }
         if let Err(error) =
             publish_conversation_updated(&event_pool, &event_user_id, &event_conversation_id).await
         {
-            log::warn!(
-                "failed to publish Meta conversation update conversation_id={}: {}",
-                event_conversation_id,
-                error
+            observability::tracing::warn!(
+                event = "operation.failed",
+                operation = "inbox.realtime_publish",
+                provider = "meta",
+                conversation_id = %event_conversation_id,
+                error_type = %std::any::type_name_of_val(&error),
+                "Meta conversation realtime publish failed"
             );
         }
     });
@@ -1210,19 +1243,26 @@ pub async fn mark_conversation_read(
             Some(meta_scope) => match try_send_meta_mark_seen(&meta_scope).await {
                 Ok(()) => provider_receipt_sent = true,
                 Err(error) => {
-                    log::warn!(
-                        "failed to send Meta read receipt conversation_id={} channel={}: {}",
-                        conversation.id,
-                        conversation.channel,
-                        error
+                    observability::tracing::warn!(
+                        event = "provider.call.failed",
+                        provider = "meta",
+                        operation = "read_receipt.send",
+                        conversation_id = %conversation.id,
+                        channel = %conversation.channel,
+                        error_type = %std::any::type_name_of_val(&error),
+                        "Meta read receipt failed"
                     );
                 }
             },
             None => {
-                log::warn!(
-                    "could not resolve connected Meta channel for read receipt conversation_id={} channel={}",
-                    conversation.id,
-                    conversation.channel
+                observability::tracing::warn!(
+                    event = "operation.failed",
+                    operation = "read_receipt.resolve_channel",
+                    provider = "meta",
+                    conversation_id = %conversation.id,
+                    channel = %conversation.channel,
+                    reason = "channel_not_found",
+                    "Meta channel could not be resolved for read receipt"
                 );
             }
         }
@@ -1253,7 +1293,12 @@ pub async fn process_meta_webhook_payload(
     config: &AppConfig,
     payload: Value,
 ) -> Result<(), AppError> {
-    log::info!("[meta-webhook] payload received");
+    observability::tracing::info!(
+        event = "provider.webhook.received",
+        provider = "meta",
+        operation = "webhook.process",
+        "Meta webhook payload received"
+    );
     let object = payload
         .get("object")
         .and_then(|value| value.as_str())
@@ -1301,10 +1346,14 @@ pub async fn process_meta_webhook_payload(
 
             let channel = resolve_meta_channel(pool, &object, asset_id).await?;
             let Some(channel) = channel else {
-                log::warn!(
-                    "ignoring Meta webhook with unresolved or ambiguous asset object={} asset_id={}",
-                    object,
-                    asset_id
+                observability::tracing::warn!(
+                    event = "provider.call.failed",
+                    provider = "meta",
+                    operation = "webhook.resolve_channel",
+                    object = %object,
+                    asset_id = %asset_id,
+                    reason = "channel_not_found",
+                    "Meta webhook ignored because its channel could not be resolved"
                 );
                 continue;
             };
@@ -1319,14 +1368,17 @@ pub async fn process_meta_webhook_payload(
             } else {
                 "unsupported"
             };
-            log::info!(
-                "[meta-webhook] event={} object={} channel_id={} asset_id={} sender_id={} recipient_id={}",
-                event_kind,
-                object,
-                channel.id,
-                asset_id,
-                sender_id,
-                recipient_id
+            observability::tracing::info!(
+                event = "provider.call.completed",
+                provider = "meta",
+                operation = "webhook.receive",
+                event_kind = %event_kind,
+                object = %object,
+                channel_id = %channel.id,
+                asset_id = %asset_id,
+                sender_id = %sender_id,
+                recipient_id = %recipient_id,
+                "Meta webhook event received"
             );
 
             if let Some(delivery) = event.get("delivery") {
@@ -1547,11 +1599,14 @@ pub async fn process_meta_webhook_payload(
             )
             .await
             {
-                log::warn!(
-                    "failed to send push notification for incoming meta message conversation_id={} user_id={}: {}",
-                    conversation_id,
-                    channel.user_id,
-                    error
+                observability::tracing::warn!(
+                    event = "operation.failed",
+                    operation = "push_notification.send",
+                    provider = "meta",
+                    conversation_id = %conversation_id,
+                    user_id = %channel.user_id,
+                    error_type = %std::any::type_name_of_val(&error),
+                    "push notification for Meta message failed"
                 );
             }
         }
@@ -1851,10 +1906,13 @@ async fn resolve_meta_customer_name(
     let access_token = match social::decrypt_social_secret(encrypted_access_token) {
         Ok(token) => token,
         Err(error) => {
-            log::warn!(
-                "failed to decrypt Meta channel token while resolving sender profile channel_id={}: {}",
-                channel.id,
-                error
+            observability::tracing::warn!(
+                event = "operation.failed",
+                operation = "sender_profile.decrypt_token",
+                provider = "meta",
+                channel_id = %channel.id,
+                error_type = %std::any::type_name_of_val(&error),
+                "Meta sender profile token decryption failed"
             );
             return Ok(None);
         }
@@ -1874,7 +1932,13 @@ async fn resolve_meta_customer_name(
     {
         Ok(client) => client,
         Err(error) => {
-            log::warn!("failed to create Meta profile client: {error}");
+            observability::tracing::warn!(
+                event = "operation.failed",
+                operation = "sender_profile.client",
+                provider = "meta",
+                error_type = %std::any::type_name_of_val(&error),
+                "Meta sender profile client creation failed"
+            );
             return Ok(None);
         }
     };
@@ -1887,20 +1951,26 @@ async fn resolve_meta_customer_name(
     let response = match response {
         Ok(response) if response.status().is_success() => response,
         Ok(response) => {
-            log::warn!(
-                "Meta sender profile lookup failed channel_id={} customer_id={} status={}",
-                channel.id,
-                customer_id,
-                response.status()
+            observability::tracing::warn!(
+                event = "provider.call.failed",
+                provider = "meta",
+                operation = "sender_profile.lookup",
+                channel_id = %channel.id,
+                customer_id = %customer_id,
+                status = response.status().as_u16(),
+                "Meta sender profile lookup rejected"
             );
             return Ok(None);
         }
         Err(error) => {
-            log::warn!(
-                "Meta sender profile lookup failed channel_id={} customer_id={}: {}",
-                channel.id,
-                customer_id,
-                error
+            observability::tracing::warn!(
+                event = "provider.call.failed",
+                provider = "meta",
+                operation = "sender_profile.lookup",
+                channel_id = %channel.id,
+                customer_id = %customer_id,
+                error_type = %std::any::type_name_of_val(&error),
+                "Meta sender profile lookup failed"
             );
             return Ok(None);
         }
@@ -1908,11 +1978,14 @@ async fn resolve_meta_customer_name(
     let profile = match response.json::<Value>().await {
         Ok(profile) => profile,
         Err(error) => {
-            log::warn!(
-                "failed to decode Meta sender profile channel_id={} customer_id={}: {}",
-                channel.id,
-                customer_id,
-                error
+            observability::tracing::warn!(
+                event = "provider.call.failed",
+                provider = "meta",
+                operation = "sender_profile.decode",
+                channel_id = %channel.id,
+                customer_id = %customer_id,
+                error_type = %std::any::type_name_of_val(&error),
+                "Meta sender profile response decode failed"
             );
             return Ok(None);
         }
@@ -2182,12 +2255,15 @@ async fn apply_meta_delivery_event(
                 sync_missing_meta_outbound_message(pool, channel, customer_id, provider_message_id)
                     .await
             {
-                log::warn!(
-                    "failed to sync missing Meta outbound message channel_id={} customer_id={} provider_message_id={}: {}",
-                    channel.id,
-                    customer_id,
-                    provider_message_id,
-                    error
+                observability::tracing::warn!(
+                    event = "operation.failed",
+                    operation = "message.sync_missing_outbound",
+                    provider = "meta",
+                    channel_id = %channel.id,
+                    customer_id = %customer_id,
+                    provider_message_id = %provider_message_id,
+                    error_type = %std::any::type_name_of_val(&error),
+                    "missing Meta outbound message sync failed"
                 );
             }
         }
@@ -2441,21 +2517,24 @@ async fn apply_meta_read_event(
     transaction.commit().await?;
 
     if updated_ids.is_empty() {
-        log::warn!(
-            "[meta-webhook] read receipt matched no outbound message channel_id={} platform={} message_ids={:?} watermark={:?}",
-            channel.id,
-            channel.platform,
-            message_ids,
-            watermark
+        observability::tracing::warn!(
+            event = "provider.call.failed",
+            provider = "meta",
+            operation = "read_receipt.apply",
+            channel_id = %channel.id,
+            platform = %channel.platform,
+            matched = 0,
+            "Meta read receipt matched no outbound message"
         );
     } else {
-        log::info!(
-            "[meta-webhook] marked {} outbound message(s) read channel_id={} platform={} message_ids={:?} watermark={:?}",
-            updated_ids.len(),
-            channel.id,
-            channel.platform,
-            message_ids,
-            watermark
+        observability::tracing::info!(
+            event = "provider.call.completed",
+            provider = "meta",
+            operation = "read_receipt.apply",
+            channel_id = %channel.id,
+            platform = %channel.platform,
+            matched = updated_ids.len(),
+            "Meta read receipt applied"
         );
     }
     for message_id in updated_ids {
@@ -2523,10 +2602,14 @@ async fn apply_meta_reaction_event(
     .fetch_optional(pool)
     .await?;
     let Some((message_id, conversation_id)) = target else {
-        log::info!(
-            "[meta-webhook] reaction target not found channel_id={} provider_message_id={}",
-            channel.id,
-            target_provider_message_id
+        observability::tracing::info!(
+            event = "provider.call.completed",
+            provider = "meta",
+            operation = "reaction.apply",
+            channel_id = %channel.id,
+            provider_message_id = %target_provider_message_id,
+            result = "target_not_found",
+            "Meta reaction target not found"
         );
         return Ok(());
     };
@@ -2846,7 +2929,12 @@ async fn load_conversation_by_id(
 
 async fn publish_event_best_effort(org_id: &str, event: Value) {
     if let Err(error) = realtime::publish_inbox_event(org_id, &event).await {
-        log::warn!("failed to publish inbox realtime event: {}", error);
+        observability::tracing::warn!(
+            event = "operation.failed",
+            operation = "inbox.realtime_publish",
+            error_type = %std::any::type_name_of_val(&error),
+            "inbox realtime event publish failed"
+        );
     }
 }
 

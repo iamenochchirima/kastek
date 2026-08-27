@@ -785,7 +785,12 @@ pub(crate) async fn load_message_by_id(
 
 async fn publish_event_best_effort(org_id: &str, event: Value) {
     if let Err(error) = realtime::publish_whatsapp_event(org_id, &event).await {
-        log::warn!("failed to publish whatsapp realtime event: {}", error);
+        observability::tracing::warn!(
+            event = "operation.failed",
+            operation = "whatsapp.realtime_publish",
+            error_type = %std::any::type_name_of_val(&error),
+            "WhatsApp realtime event publish failed"
+        );
     }
 }
 

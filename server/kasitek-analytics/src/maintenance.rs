@@ -435,10 +435,14 @@ pub async fn run_once(
 ) -> Result<bool, sqlx::Error> {
     let summary = schedule_work(pool).await?;
     if summary.reconciliation_work_created > 0 || summary.quarantine_work_created > 0 {
-        log::debug!(
-            "service=kasitek-analytics process=analytics-worker reconciliation_work_created={} quarantine_work_created={}",
-            summary.reconciliation_work_created,
-            summary.quarantine_work_created
+        observability::tracing::debug!(
+            event = "queue.item.completed",
+            service = "kasitek-analytics",
+            process = "analytics-worker",
+            phase = "schedule",
+            reconciliation_work_created = summary.reconciliation_work_created,
+            quarantine_work_created = summary.quarantine_work_created,
+            "analytics maintenance work scheduled"
         );
     }
     process_backfill_once(pool, registry, worker_id, lease_seconds).await

@@ -236,13 +236,15 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
     } else {
         provider_status
     };
-    log::info!(
-        "[whatsapp-status] received message_id={} next_status={} timestamp={} code={:?} message={:?}",
-        message_id,
-        next_status,
-        timestamp,
-        failure_code,
-        failure_message
+    observability::tracing::info!(
+        event = "provider.call.completed",
+        provider = "whatsapp",
+        operation = "message.status_webhook",
+        message_id = %message_id,
+        next_status = %next_status,
+        timestamp = %timestamp,
+        error_code = ?failure_code,
+        "WhatsApp message status received"
     );
 
     if let Some(recipient) = sqlx::query_as::<_, WhatsappCampaignRecipientRow>(
@@ -465,33 +467,41 @@ async fn handle_status(pool: &PgPool, status_payload: &Value) -> Result<(), AppE
                     .execute(pool)
                     .await?;
 
-                    log::error!(
-                        "[whatsapp-status] campaign delivery failed campaign_id={} recipient_id={} message_id={} code={:?} message={:?} payload={}",
-                        campaign.id,
-                        recipient.id,
-                        message_id,
-                        failure_code,
-                        failure_message,
-                        status_payload
+                    observability::tracing::error!(
+                        event = "provider.call.failed",
+                        provider = "whatsapp",
+                        operation = "campaign.delivery_status",
+                        campaign_id = %campaign.id,
+                        recipient_id = %recipient.id,
+                        message_id = %message_id,
+                        error_code = ?failure_code,
+                        outcome = %next_status,
+                        "WhatsApp campaign delivery failed"
                     );
                 } else {
-                    log::error!(
-                        "[whatsapp-status] failed status for campaign recipient without campaign row recipient_id={} message_id={} code={:?} message={:?} payload={}",
-                        recipient.id,
-                        message_id,
-                        failure_code,
-                        failure_message,
-                        status_payload
+                    observability::tracing::error!(
+                        event = "provider.call.failed",
+                        provider = "whatsapp",
+                        operation = "campaign.delivery_status",
+                        recipient_id = %recipient.id,
+                        message_id = %message_id,
+                        error_code = ?failure_code,
+                        outcome = %next_status,
+                        reason = "campaign_not_found",
+                        "WhatsApp campaign delivery status had no campaign row"
                     );
                 }
             }
-            log::info!(
-                "[whatsapp-status] mapped to campaign recipient recipient_id={} campaign_id={} prior_status={} next_status={} wa_message_id={}",
-                recipient.id,
-                recipient.campaign_id,
-                recipient.status,
-                next_status,
-                message_id
+            observability::tracing::info!(
+                event = "provider.call.completed",
+                provider = "whatsapp",
+                operation = "campaign.delivery_status",
+                recipient_id = %recipient.id,
+                campaign_id = %recipient.campaign_id,
+                previous_status = %recipient.status,
+                next_status = %next_status,
+                message_id = %message_id,
+                "WhatsApp campaign delivery status applied"
             );
             recompute_campaign_stats(pool, &recipient.campaign_id).await?;
             if let Some(user_id) = sqlx::query_scalar::<_, String>(
@@ -693,9 +703,13 @@ async fn handle_incoming_messages(
         return Ok(());
     };
     let Some(org_id) = connection.org_id.as_deref() else {
-        log::warn!(
-            "ignoring WhatsApp webhook for connection without organisation: {}",
-            connection.id
+        observability::tracing::warn!(
+            event = "provider.call.failed",
+            provider = "whatsapp",
+            operation = "webhook.resolve_organization",
+            connection_id = %connection.id,
+            reason = "organization_not_found",
+            "WhatsApp webhook ignored for connection without organization"
         );
         return Ok(());
     };
@@ -755,12 +769,23 @@ async fn handle_incoming_messages(
                 {
                     Ok(response) => Some(response),
                     Err(error) => {
-                        log::warn!("WhatsApp approval decision failed: {}", error);
+                        observability::tracing::warn!(
+                            event = "operation.failed",
+                            operation = "whatsapp.approval.decide",
+                            error_type = %std::any::type_name_of_val(&error),
+                            "WhatsApp approval decision failed"
+                        );
                         None
                     }
                 },
                 Err(error) => {
-                    log::warn!("WhatsApp approval client is unavailable: {}", error);
+                    observability::tracing::warn!(
+                        event = "dependency.unavailable",
+                        dependency = "agent_platform",
+                        operation = "whatsapp.approval.decide",
+                        error_type = %std::any::type_name_of_val(&error),
+                        "WhatsApp approval client unavailable"
+                    );
                     None
                 }
             };
@@ -778,7 +803,13 @@ async fn handle_incoming_messages(
             )
             .await
             {
-                log::warn!("WhatsApp approval acknowledgement failed: {}", error);
+                observability::tracing::warn!(
+                    event = "provider.call.failed",
+                    provider = "whatsapp",
+                    operation = "approval.acknowledge",
+                    error_type = %std::any::type_name_of_val(&error),
+                    "WhatsApp approval acknowledgement failed"
+                );
             }
             continue;
         }
@@ -817,7 +848,13 @@ async fn handle_incoming_messages(
             )
             .await
             {
-                log::warn!("KasiAi WhatsApp pairing acknowledgement failed: {}", error);
+                observability::tracing::warn!(
+                    event = "provider.call.failed",
+                    provider = "whatsapp",
+                    operation = "pairing.acknowledge",
+                    error_type = %std::any::type_name_of_val(&error),
+                    "KasiAi WhatsApp pairing acknowledgement failed"
+                );
             }
             // Pairing tokens are credentials. Never persist them in the business
             // Inbox or forward them into model-visible conversation history.
@@ -989,11 +1026,22 @@ async fn handle_incoming_messages(
                         {
                             Ok(asset) => agent_media = Some((asset, mime_type)),
                             Err(error) => {
-                                log::warn!("WhatsApp image storage failed: {}", error);
+                                observability::tracing::warn!(
+                                    event = "operation.failed",
+                                    operation = "whatsapp.image.store",
+                                    error_type = %std::any::type_name_of_val(&error),
+                                    "WhatsApp image storage failed"
+                                );
                             }
                         }
                     }
-                    Err(error) => log::warn!("WhatsApp image download failed: {}", error),
+                    Err(error) => observability::tracing::warn!(
+                        event = "provider.call.failed",
+                        provider = "whatsapp",
+                        operation = "image.download",
+                        error_type = %std::any::type_name_of_val(&error),
+                        "WhatsApp image download failed"
+                    ),
                 }
                 if agent_media.is_none() {
                     if let Err(error) = send_text_message(
@@ -1005,7 +1053,13 @@ async fn handle_incoming_messages(
                     )
                     .await
                     {
-                        log::warn!("WhatsApp image failure acknowledgement failed: {}", error);
+                        observability::tracing::warn!(
+                            event = "provider.call.failed",
+                            provider = "whatsapp",
+                            operation = "image.failure_acknowledge",
+                            error_type = %std::any::type_name_of_val(&error),
+                            "WhatsApp image failure acknowledgement failed"
+                        );
                     }
                 }
             }
@@ -1039,28 +1093,38 @@ async fn handle_incoming_messages(
                     "content": message_content,
                     "displayName": profile_name,
                 });
-                log::info!(
-                    "[whatsapp-agent] forwarding inbound message conversation_id={} channel_key={} provider_message_id={}",
-                    conversation_id,
-                    payload["channelKey"].as_str().unwrap_or("unknown"),
-                    provider_message_id,
+                observability::tracing::info!(
+                    event = "provider.call.completed",
+                    provider = "kasitek-agents",
+                    operation = "channel.ingest",
+                    conversation_id = %conversation_id,
+                    channel_key = %payload["channelKey"].as_str().unwrap_or("unknown"),
+                    provider_message_id = %provider_message_id,
+                    "WhatsApp inbound message forwarding started"
                 );
                 if let Err(error) = agent_client
                     .ingest_channel_message(org_id, &connection.user_id, payload)
                     .await
                 {
-                    log::warn!(
-                        "[whatsapp-agent] inbound message was not accepted conversation_id={} channel_key={}: {}",
-                        conversation_id,
-                        channel_key,
-                        error
+                    observability::tracing::warn!(
+                        event = "provider.call.failed",
+                        provider = "kasitek-agents",
+                        operation = "channel.ingest",
+                        conversation_id = %conversation_id,
+                        channel_key = %channel_key,
+                        error_type = %std::any::type_name_of_val(&error),
+                        "WhatsApp inbound message was not accepted"
                     );
                 }
             } else {
-                log::warn!(
-                    "[whatsapp-agent] Agent Platform is not configured for inbound message conversation_id={} channel_key={}",
-                    conversation_id,
-                    channel_key,
+                observability::tracing::warn!(
+                    event = "dependency.unavailable",
+                    dependency = "agent_platform",
+                    operation = "channel.ingest",
+                    conversation_id = %conversation_id,
+                    channel_key = %channel_key,
+                    reason = "missing_configuration",
+                    "Agent Platform is not configured for inbound WhatsApp message"
                 );
             }
         }
@@ -1084,11 +1148,14 @@ async fn handle_incoming_messages(
         )
         .await
         {
-            log::warn!(
-                "failed to send push notification for incoming whatsapp message conversation_id={} user_id={}: {}",
-                conversation_id,
-                connection.user_id,
-                error
+            observability::tracing::warn!(
+                event = "operation.failed",
+                operation = "push_notification.send",
+                provider = "whatsapp",
+                conversation_id = %conversation_id,
+                user_id = %connection.user_id,
+                error_type = %std::any::type_name_of_val(&error),
+                "push notification for incoming WhatsApp message failed"
             );
         }
 
@@ -1350,10 +1417,14 @@ pub async fn process_webhook_payload(
                                 .update_channel_delivery_status(&org_id, &user_id, payload)
                                 .await
                             {
-                                log::debug!(
-                                    "WhatsApp status did not map to a KasiAi delivery message_id={}: {}",
-                                    provider_message_id,
-                                    error
+                                observability::tracing::debug!(
+                                    event = "operation.failed",
+                                    operation = "channel.delivery_status",
+                                    provider = "kasitek-agents",
+                                    message_id = %provider_message_id,
+                                    error_type = %std::any::type_name_of_val(&error),
+                                    reason = "message_not_mapped",
+                                    "WhatsApp status did not map to a KasiAi delivery"
                                 );
                             }
                         }

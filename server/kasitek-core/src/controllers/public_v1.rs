@@ -984,7 +984,13 @@ pub async fn create_content_draft(
     )
     .await
     {
-        log::warn!("failed to enqueue content.created webhook: {error}");
+        observability::tracing::warn!(
+            event = "queue.item.failed",
+            queue = "public_webhooks",
+            operation = "content.created.enqueue",
+            error_type = %std::any::type_name_of_val(&error),
+            "failed to enqueue content.created webhook"
+        );
     }
     Ok(response_with_context(&context)
         .status(actix_web::http::StatusCode::CREATED)
@@ -1014,7 +1020,13 @@ pub async fn update_content_draft(
     )
     .await
     {
-        log::warn!("failed to enqueue content.updated webhook: {error}");
+        observability::tracing::warn!(
+            event = "queue.item.failed",
+            queue = "public_webhooks",
+            operation = "content.updated.enqueue",
+            error_type = %std::any::type_name_of_val(&error),
+            "failed to enqueue content.updated webhook"
+        );
     }
     Ok(response_with_context(&context).json(json!({ "post": post })))
 }

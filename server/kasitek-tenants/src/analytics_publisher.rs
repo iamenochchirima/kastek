@@ -17,8 +17,11 @@ const DEFAULT_PUBLISHER_ID: &str = "tenant-platform-analytics-publisher";
 
 pub async fn run(pool: PgPool) {
     let Some(settings) = settings_from_env() else {
-        log::warn!(
-            "[tenant-analytics-publisher] disabled; set ANALYTICS_TENANT_INGESTION_TOKEN to enable Tenant publication"
+        observability::tracing::warn!(
+            event = "worker.disabled",
+            worker = "analytics_publisher",
+            reason = "missing_ingestion_token",
+            "tenant analytics publication disabled"
         );
         return;
     };
@@ -29,15 +32,22 @@ pub async fn run(pool: PgPool) {
     ) {
         Ok(client) => client,
         Err(error) => {
-            log::error!("[tenant-analytics-publisher] invalid transport configuration: {error}");
+            observability::tracing::error!(
+                event = "worker.failed",
+                worker = "analytics_publisher",
+                phase = "configuration",
+                error_type = %std::any::type_name_of_val(&error),
+                "tenant analytics publisher configuration invalid"
+            );
             return;
         }
     };
-    log::info!(
-        "[tenant-analytics-publisher] started producer_id={} endpoint={} batch_size={}",
-        settings.producer_id,
-        settings.endpoint,
-        settings.batch_size
+    observability::tracing::info!(
+        event = "worker.started",
+        worker = "analytics_publisher",
+        producer_id = %settings.producer_id,
+        batch_size = settings.batch_size,
+        "tenant analytics publisher started"
     );
     let reconciliation_every = reconciliation_interval();
     let reconciliation_stream_limit = reconciliation_stream_limit();
@@ -45,16 +55,27 @@ pub async fn run(pool: PgPool) {
     let mut reconciliation_cursor: Option<ReconciliationCursor> = None;
     loop {
         match publish_outbox_once(&pool, &client, &settings, Utc::now()).await {
-            Ok(stats) if stats.claimed > 0 || stats.leases_released > 0 => log::info!(
-                "[tenant-analytics-publisher] claimed={} delivered={} retryable={} quarantined={} leases_released={}",
-                stats.claimed,
-                stats.delivered,
-                stats.retryable,
-                stats.quarantined,
-                stats.leases_released
-            ),
+            Ok(stats) if stats.claimed > 0 || stats.leases_released > 0 => {
+                observability::tracing::info!(
+                    event = "queue.item.completed",
+                    worker = "analytics_publisher",
+                    phase = "publication",
+                    claimed = stats.claimed,
+                    delivered = stats.delivered,
+                    retryable = stats.retryable,
+                    quarantined = stats.quarantined,
+                    leases_released = stats.leases_released,
+                    "tenant analytics publication batch completed"
+                )
+            }
             Ok(_) => {}
-            Err(error) => log::error!("[tenant-analytics-publisher] iteration failed: {error}"),
+            Err(error) => observability::tracing::error!(
+                event = "queue.item.failed",
+                worker = "analytics_publisher",
+                phase = "publication",
+                error_type = %std::any::type_name_of_val(&error),
+                "tenant analytics publication batch failed"
+            ),
         }
         if Instant::now() >= next_reconciliation {
             match reconcile_outbox_once(
@@ -70,16 +91,25 @@ pub async fn run(pool: PgPool) {
                 Ok(stats) => {
                     reconciliation_cursor = stats.next_cursor;
                     if stats.attempted > 0 || stats.mismatched > 0 {
-                        log::info!(
-                            "[tenant-analytics-publisher] reconciled={} complete={} mismatched={}",
-                            stats.attempted,
-                            stats.complete,
-                            stats.mismatched
+                        observability::tracing::info!(
+                            event = "queue.item.completed",
+                            worker = "analytics_publisher",
+                            phase = "reconciliation",
+                            attempted = stats.attempted,
+                            complete = stats.complete,
+                            mismatched = stats.mismatched,
+                            "tenant analytics reconciliation completed"
                         );
                     }
                 }
                 Err(error) => {
-                    log::error!("[tenant-analytics-publisher] reconciliation failed: {error}")
+                    observability::tracing::error!(
+                        event = "queue.item.failed",
+                        worker = "analytics_publisher",
+                        phase = "reconciliation",
+                        error_type = %std::any::type_name_of_val(&error),
+                        "tenant analytics reconciliation failed"
+                    )
                 }
             }
             next_reconciliation = Instant::now() + reconciliation_every;

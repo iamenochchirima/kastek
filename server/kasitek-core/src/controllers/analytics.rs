@@ -150,25 +150,49 @@ pub async fn query(
 
 fn map_reporting_error(error: ReportingClientError) -> AppError {
     match error {
-        ReportingClientError::Configuration(message) => {
-            log::error!("customer analytics gateway configuration failed: {message}");
+        ReportingClientError::Configuration(_message) => {
+            observability::tracing::error!(
+                event = "dependency.unavailable",
+                dependency = "customer_analytics",
+                operation = "configuration",
+                error_type = "configuration",
+                "customer analytics gateway configuration failed"
+            );
             AppError::ServiceUnavailable("Customer analytics is not configured".to_string())
         }
-        ReportingClientError::Signing(message) => {
-            log::error!("customer analytics grant signing failed: {message}");
+        ReportingClientError::Signing(_message) => {
+            observability::tracing::error!(
+                event = "operation.failed",
+                operation = "customer_analytics.grant_signing",
+                error_type = "signing",
+                "customer analytics grant signing failed"
+            );
             AppError::Internal("Customer analytics authorization failed".to_string())
         }
         ReportingClientError::Request(error) => {
-            log::warn!("customer analytics request failed: {error}");
+            observability::tracing::warn!(
+                event = "dependency.unavailable",
+                dependency = "customer_analytics",
+                operation = "request",
+                error_type = %std::any::type_name_of_val(&error),
+                "customer analytics request failed"
+            );
             AppError::ServiceUnavailable(
                 "Customer analytics is temporarily unavailable".to_string(),
             )
         }
-        ReportingClientError::Upstream { status, body } => {
-            log::warn!(
-                "customer analytics upstream rejected gateway request: status={status} body={body}"
+        ReportingClientError::Upstream {
+            status,
+            body: _body,
+        } => {
+            observability::tracing::warn!(
+                event = "provider.call.failed",
+                provider = "customer_analytics",
+                operation = "report",
+                status,
+                "customer analytics upstream rejected gateway request"
             );
-            if status == 400 {
+            if status == 400 || status == 422 {
                 AppError::BadRequest("Customer analytics rejected the report request".to_string())
             } else if status == 401 || status == 403 {
                 AppError::BadGateway("Customer analytics authorization failed".to_string())
@@ -180,8 +204,14 @@ fn map_reporting_error(error: ReportingClientError) -> AppError {
                 )
             }
         }
-        ReportingClientError::InvalidResponse(message) => {
-            log::error!("customer analytics returned invalid response: {message}");
+        ReportingClientError::InvalidResponse(_message) => {
+            observability::tracing::error!(
+                event = "provider.call.failed",
+                provider = "customer_analytics",
+                operation = "report",
+                error_type = "invalid_response",
+                "customer analytics returned invalid response"
+            );
             AppError::BadGateway("Customer analytics returned an invalid response".to_string())
         }
     }

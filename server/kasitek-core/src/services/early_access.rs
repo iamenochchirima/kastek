@@ -297,13 +297,14 @@ pub(crate) async fn record_event(
     .bind(metadata)
     .execute(pool)
     .await?;
-    log::info!(
-        "early-access lifecycle transition application_id={} from_status={} to_status={} action={} actor_id={}",
-        application_id,
-        from_status.unwrap_or("none"),
-        to_status,
-        action,
-        actor_id.unwrap_or("system")
+    observability::tracing::info!(
+        event = "early_access.lifecycle.transition",
+        application_id = %application_id,
+        from_status = from_status.unwrap_or("none"),
+        to_status = %to_status,
+        action = %action,
+        actor_present = actor_id.is_some(),
+        "early-access lifecycle transition recorded"
     );
     Ok(())
 }

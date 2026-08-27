@@ -565,7 +565,13 @@ pub async fn send_email(
         .await?;
 
     if response.status() != StatusCode::OK && response.status() != StatusCode::CREATED {
-        log::error!("email rejected by resend: status={}", response.status());
+        observability::tracing::error!(
+            event = "provider.call.failed",
+            provider = "resend",
+            operation = "workspace.email.send",
+            status = response.status().as_u16(),
+            "email provider rejected workspace email"
+        );
         return Err(AppError::Internal("Failed to send email".to_string()));
     }
 
@@ -585,11 +591,12 @@ pub async fn send_client_invite_email(
     expires_at: DateTime<Utc>,
 ) -> Result<bool, AppError> {
     if config.resend_api_key.is_none() {
-        log::warn!(
-            "tenant invite email not sent because no Resend key is configured: to={} workspace={} client={}",
-            to,
-            tenant_client_name,
-            workspace_name
+        observability::tracing::warn!(
+            event = "dependency.unavailable",
+            dependency = "resend",
+            operation = "tenant_invite.send",
+            reason = "missing_configuration",
+            "tenant invite email not sent"
         );
         return Ok(false);
     }
@@ -630,10 +637,12 @@ pub async fn send_tenant_admin_invite_email(
     expires_at: DateTime<Utc>,
 ) -> Result<bool, AppError> {
     let Some(api_key) = config.resend_api_key.as_ref() else {
-        log::warn!(
-            "tenant admin invite email not sent because no Resend key is configured: to={} workspace={}",
-            to,
-            workspace_name
+        observability::tracing::warn!(
+            event = "dependency.unavailable",
+            dependency = "resend",
+            operation = "tenant_admin_invite.send",
+            reason = "missing_configuration",
+            "tenant admin invite email not sent"
         );
         return Ok(false);
     };
@@ -667,9 +676,12 @@ pub async fn send_tenant_admin_invite_email(
         .await?;
 
     if response.status() != StatusCode::OK && response.status() != StatusCode::CREATED {
-        log::error!(
-            "tenant admin invite email rejected by resend: status={}",
-            response.status()
+        observability::tracing::error!(
+            event = "provider.call.failed",
+            provider = "resend",
+            operation = "tenant_admin_invite.send",
+            status = response.status().as_u16(),
+            "email provider rejected tenant admin invite"
         );
         return Err(AppError::Internal(
             "Failed to send tenant admin invite email".to_string(),

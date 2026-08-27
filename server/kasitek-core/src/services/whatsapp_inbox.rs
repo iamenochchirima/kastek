@@ -234,10 +234,13 @@ pub async fn deliver_agent_message(
                 )
                 .await
                 {
-                    log::warn!(
-                        "failed to mark WhatsApp connection unhealthy after agent delivery authentication failure connection_id={}: {}",
-                        connection_id,
-                        health_error
+                    observability::tracing::warn!(
+                        event = "dependency.unavailable",
+                        dependency = "agent_platform",
+                        operation = "whatsapp.delivery.health_record",
+                        connection_id = %connection_id,
+                        error_type = %std::any::type_name_of_val(&health_error),
+                        "WhatsApp connection health update failed after agent delivery authentication failure"
                     );
                 }
             }
@@ -570,13 +573,16 @@ async fn process_claimed_inbox_message(
     .fetch_optional(&mut **tx)
     .await?
     .flatten();
-    log::info!(
-        "[whatsapp-inbox-worker] sending queued message message_id={} conversation_id={} phone_number_id={} recipient_phone={} reply_to={:?}",
-        job.id,
-        job.conversation_id,
-        job.phone_number_id,
-        phone,
-        reply_to_whatsapp_message_id
+    observability::tracing::info!(
+        event = "provider.call.completed",
+        provider = "whatsapp",
+        operation = "message.send",
+        worker = "whatsapp_inbox",
+        message_id = %job.id,
+        conversation_id = %job.conversation_id,
+        phone_number_id = %job.phone_number_id,
+        reply_to = ?reply_to_whatsapp_message_id,
+        "queued WhatsApp message send starting"
     );
     let (whatsapp_message_id, _) = send_text_message(
         &job.phone_number_id,
@@ -668,20 +674,24 @@ async fn process_single_queued_inbox_message(
     let responder_type = job.responder_type.clone();
     let user_id = job.user_id.clone();
     let text = display_text(&job.content);
-    log::info!(
-        "[whatsapp-inbox-worker] claimed queued message message_id={} conversation_id={} explicit={:?}",
-        message_id,
-        conversation_id,
-        explicit_message_id
+    observability::tracing::info!(
+        event = "queue.item.claimed",
+        worker = "whatsapp_inbox",
+        message_id = %message_id,
+        conversation_id = %conversation_id,
+        explicit = ?explicit_message_id,
+        "queued WhatsApp message claimed"
     );
 
     match process_claimed_inbox_message(&mut tx, job).await {
         Ok((_user_id, _conversation_id, _message_id, _whatsapp_message_id)) => {
             tx.commit().await?;
-            log::info!(
-                "[whatsapp-inbox-worker] completed queued message message_id={} conversation_id={}",
-                message_id,
-                conversation_id
+            observability::tracing::info!(
+                event = "queue.item.completed",
+                worker = "whatsapp_inbox",
+                message_id = %message_id,
+                conversation_id = %conversation_id,
+                "queued WhatsApp message completed"
             );
             publish_message_updated(
                 pool,
@@ -719,11 +729,13 @@ async fn process_single_queued_inbox_message(
                 ))
             })?;
             tx.commit().await?;
-            log::error!(
-                "[whatsapp-inbox-worker] failed queued message message_id={} conversation_id={} error={}",
-                message_id,
-                conversation_id,
-                error
+            observability::tracing::error!(
+                event = "queue.item.failed",
+                worker = "whatsapp_inbox",
+                message_id = %message_id,
+                conversation_id = %conversation_id,
+                error_type = %std::any::type_name_of_val(&error),
+                "queued WhatsApp message failed"
             );
             publish_message_updated(
                 pool,
@@ -1233,12 +1245,15 @@ pub async fn send_conversation_message(
     };
     let created_message_id = cuid2::create_id();
     let occurred_at = Utc::now();
-    log::info!(
-        "[whatsapp-inbox-api] queueing message message_id={} conversation_id={} user_id={} has_reply={}",
-        created_message_id,
-        conversation.id,
-        user_id,
-        input.reply_to_message_id.as_deref().is_some_and(|value| !value.trim().is_empty())
+    observability::tracing::info!(
+        event = "queue.item.claimed",
+        worker = "whatsapp_inbox",
+        operation = "message.queue",
+        message_id = %created_message_id,
+        conversation_id = %conversation.id,
+        user_id = %user_id,
+        has_reply = input.reply_to_message_id.as_deref().is_some_and(|value| !value.trim().is_empty()),
+        "WhatsApp message queued"
     );
     let mut tx = pool.begin().await?;
     sqlx::query(
@@ -1296,10 +1311,12 @@ pub async fn send_conversation_message(
     publish_message_created(pool, user_id, &created_message_id).await?;
     publish_conversation_updated(pool, user_id, &conversation.id).await?;
     if let Err(error) = realtime::enqueue_whatsapp_inbox_message(&created_message_id).await {
-        log::warn!(
-            "failed to enqueue whatsapp inbox message {}: {}",
-            created_message_id,
-            error
+        observability::tracing::warn!(
+            event = "operation.failed",
+            operation = "whatsapp_inbox.enqueue",
+            message_id = %created_message_id,
+            error_type = %std::any::type_name_of_val(&error),
+            "WhatsApp inbox enqueue failed"
         );
     }
     Ok(json!({ "success": true, "queued": true, "messageId": created_message_id }))
@@ -1642,10 +1659,12 @@ pub async fn mark_conversation_read(
                 }
             }
             Err(error) => {
-                log::warn!(
-                    "[whatsapp-inbox-api] failed to decrypt token while marking conversation {} read: {}",
-                    conversation.id,
-                    error
+                observability::tracing::warn!(
+                    event = "operation.failed",
+                    operation = "whatsapp.read_receipt.decrypt_token",
+                    conversation_id = %conversation.id,
+                    error_type = %std::any::type_name_of_val(&error),
+                    "WhatsApp token decryption failed while marking conversation read"
                 );
             }
         }

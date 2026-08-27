@@ -63,6 +63,16 @@ jobs:
         working-directory: server
         run: cargo fmt --all -- --check
 
+      - name: Reject new legacy Rust log macros
+        run: |
+          set -euo pipefail
+          if rg -n 'log::(trace|debug|info|warn|error)!' server \
+            --glob '*.rs' \
+            --glob '!crates/observability/examples/otel-smoke.rs'; then
+            echo 'Operational Rust log macros must use the shared observability tracing API.'
+            exit 1
+          fi
+
       - name: Check workspace
         working-directory: server
         run: cargo check --workspace

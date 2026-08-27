@@ -21,7 +21,14 @@ pub struct DelegationReplayStore {
 impl DelegationReplayStore {
     pub fn connect(redis_url: &str, ttl: Duration) -> Result<Self, AppError> {
         let client = redis::Client::open(redis_url).map_err(|error| {
-            log::error!("[agent-delegation] invalid Redis replay-store URL: {error}");
+            observability::tracing::error!(
+                event = "dependency.unavailable",
+                dependency = "redis",
+                operation = "delegation_replay.connect",
+                reason = "invalid_configuration",
+                error_type = %std::any::type_name_of_val(&error),
+                "delegation replay store configuration invalid"
+            );
             AppError::Unauthorized
         })?;
         Ok(Self { client, ttl })
@@ -33,7 +40,13 @@ impl DelegationReplayStore {
             .get_multiplexed_async_connection()
             .await
             .map_err(|error| {
-                log::error!("[agent-delegation] failed to connect to Redis: {error}");
+                observability::tracing::error!(
+                    event = "dependency.unavailable",
+                    dependency = "redis",
+                    operation = "delegation_replay.connect",
+                    error_type = %std::any::type_name_of_val(&error),
+                    "delegation replay store unavailable"
+                );
                 AppError::Unauthorized
             })?;
         let key = format!("agents:delegation:{}:{jti}", issuer.trim());
@@ -47,7 +60,13 @@ impl DelegationReplayStore {
             .query_async::<Option<String>>(&mut connection)
             .await
             .map_err(|error| {
-                log::error!("[agent-delegation] failed to claim replay key: {error}");
+                observability::tracing::error!(
+                    event = "dependency.unavailable",
+                    dependency = "redis",
+                    operation = "delegation_replay.claim",
+                    error_type = %std::any::type_name_of_val(&error),
+                    "delegation replay claim failed"
+                );
                 AppError::Unauthorized
             })?;
         Ok(claimed.is_some())
@@ -82,7 +101,13 @@ fn whatsapp_inbox_queue_key() -> &'static str {
 /// not a best-effort condition.
 pub async fn claim_delegation_replay(issuer: &str, jti: &str) -> Result<bool, AppError> {
     let Some(client) = redis_client() else {
-        log::error!("[agent-delegation] REDIS_URL is required for delegation replay protection");
+        observability::tracing::error!(
+            event = "dependency.unavailable",
+            dependency = "redis",
+            operation = "delegation_replay",
+            reason = "missing_configuration",
+            "delegation replay protection unavailable"
+        );
         return Err(AppError::Unauthorized);
     };
     DelegationReplayStore {
@@ -119,9 +144,13 @@ pub async fn publish_whatsapp_event(org_id: &str, event: &Value) -> Result<(), A
 
 pub async fn publish_inbox_event(org_id: &str, event: &Value) -> Result<(), AppError> {
     let Some(client) = redis_client() else {
-        log::warn!(
-            "[realtime] no redis client, skipping publish for organisation {}",
-            org_id
+        observability::tracing::warn!(
+            event = "dependency.unavailable",
+            dependency = "redis",
+            operation = "realtime.publish",
+            organization_id = %org_id,
+            reason = "missing_configuration",
+            "realtime publish skipped"
         );
         return Ok(());
     };
@@ -132,17 +161,32 @@ pub async fn publish_inbox_event(org_id: &str, event: &Value) -> Result<(), AppE
         .get_multiplexed_async_connection()
         .await
         .map_err(|e| {
-            log::error!("[realtime] failed to connect to redis for publish: {}", e);
+            observability::tracing::error!(
+                event = "dependency.unavailable",
+                dependency = "redis",
+                operation = "realtime.publish.connect",
+                error_type = %std::any::type_name_of_val(&e),
+                "realtime Redis unavailable"
+            );
             AppError::Internal("Failed to connect to realtime Redis".to_string())
         })?;
     let subscribers: i64 = conn.publish(&channel, payload).await.map_err(|e| {
-        log::error!("[realtime] failed to publish to {}: {}", channel, e);
+        observability::tracing::error!(
+            event = "operation.failed",
+            operation = "realtime.publish",
+            organization_id = %org_id,
+            error_type = %std::any::type_name_of_val(&e),
+            "realtime event publish failed"
+        );
         AppError::Internal("Failed to publish realtime event".to_string())
     })?;
-    log::info!(
-        "[realtime] published to {} ({} subscribers)",
-        channel,
-        subscribers
+    observability::tracing::info!(
+        event = "provider.call.completed",
+        provider = "redis",
+        operation = "realtime.publish",
+        organization_id = %org_id,
+        subscribers,
+        "realtime event published"
     );
     Ok(())
 }

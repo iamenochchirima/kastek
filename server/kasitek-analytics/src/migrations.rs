@@ -22,10 +22,12 @@ pub async fn run(pool: &PgPool) -> Result<(), AnalyticsError> {
         .execute(&mut *connection)
         .await?;
 
-    log::info!(
-        "service={} process=analytics-migrate status=locked lock_key={}",
-        SERVICE_NAME,
-        MIGRATION_LOCK_KEY
+    observability::tracing::info!(
+        event = "migration.started",
+        service = SERVICE_NAME,
+        process = "analytics-migrate",
+        phase = "lock_acquired",
+        "analytics migration lock acquired"
     );
 
     let migration_result = MIGRATOR.run(&mut *connection).await;

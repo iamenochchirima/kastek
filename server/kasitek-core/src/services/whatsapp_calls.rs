@@ -194,7 +194,12 @@ async fn call_signal_rows(
 
 async fn publish_call_event(org_id: &str, event: Value) {
     if let Err(error) = realtime::publish_whatsapp_event(org_id, &event).await {
-        log::warn!("failed to publish whatsapp call realtime event: {}", error);
+        observability::tracing::warn!(
+            event = "operation.failed",
+            operation = "whatsapp_call.realtime_publish",
+            error_type = %std::any::type_name_of_val(&error),
+            "WhatsApp call realtime event publish failed"
+        );
     }
 }
 
@@ -573,7 +578,13 @@ pub async fn ingest_webhook_calls(
         .and_then(|payload| payload.as_str());
 
     let Some(phone_number_id) = phone_number_id else {
-        log::warn!("whatsapp call webhook received without metadata.phone_number_id");
+        observability::tracing::warn!(
+            event = "provider.call.failed",
+            provider = "whatsapp",
+            operation = "call.webhook.receive",
+            reason = "missing_phone_number_id",
+            "WhatsApp call webhook missing phone number ID"
+        );
         return Ok(());
     };
 
@@ -601,9 +612,12 @@ pub async fn ingest_webhook_calls(
         connection_display_number,
     )) = connection
     else {
-        log::warn!(
-            "whatsapp call webhook received for unknown phone_number_id={}",
-            phone_number_id
+        observability::tracing::warn!(
+            event = "provider.call.failed",
+            provider = "whatsapp",
+            operation = "call.webhook.resolve_connection",
+            reason = "connection_not_found",
+            "WhatsApp call webhook connection not found"
         );
         return Ok(());
     };
@@ -713,16 +727,17 @@ pub async fn ingest_webhook_calls(
             .and_then(|payload| payload.as_str())
             .map(|value| format!("call.webhook.{}", value.trim().to_lowercase()))
             .unwrap_or_else(|| "call.webhook.update".to_string());
-        log::info!(
-            "whatsapp call webhook received wa_call_id={} user_id={} connection_id={} event_type={} direction={} status={} from_phone={} to_phone={}",
-            wa_call_id,
-            user_id,
-            connection_id,
-            event_type,
-            direction,
-            status,
-            from_phone,
-            to_phone
+        observability::tracing::info!(
+            event = "provider.call.completed",
+            provider = "whatsapp",
+            operation = "call.webhook.receive",
+            call_id = %wa_call_id,
+            user_id = %user_id,
+            connection_id = %connection_id,
+            event_type = %event_type,
+            direction = %direction,
+            status = %status,
+            "WhatsApp call webhook received"
         );
         let raw_payload = json!({
             "source": "whatsapp-webhook",
@@ -784,13 +799,16 @@ pub async fn ingest_webhook_calls(
             .bind(&existing.id)
             .execute(pool)
             .await?;
-            log::info!(
-                "whatsapp call session updated session_id={} wa_call_id={} user_id={} previous_status={} next_status={}",
-                existing.id,
-                wa_call_id,
-                user_id,
-                previous_status,
-                status
+            observability::tracing::info!(
+                event = "provider.call.completed",
+                provider = "whatsapp",
+                operation = "call.session.update",
+                session_id = %existing.id,
+                call_id = %wa_call_id,
+                user_id = %user_id,
+                previous_status = %previous_status,
+                next_status = %status,
+                "WhatsApp call session updated"
             );
             existing.id.clone()
         } else {
@@ -826,13 +844,16 @@ pub async fn ingest_webhook_calls(
             .bind(error_message.as_deref())
             .execute(pool)
             .await?;
-            log::info!(
-                "whatsapp call session created session_id={} wa_call_id={} user_id={} status={} conversation_id={:?}",
-                session_id,
-                wa_call_id,
-                user_id,
-                status,
-                conversation_id
+            observability::tracing::info!(
+                event = "provider.call.completed",
+                provider = "whatsapp",
+                operation = "call.session.create",
+                session_id = %session_id,
+                call_id = %wa_call_id,
+                user_id = %user_id,
+                status = %status,
+                conversation_id = ?conversation_id,
+                "WhatsApp call session created"
             );
             session_id
         };
@@ -885,11 +906,14 @@ pub async fn ingest_webhook_calls(
             )
             .await
             {
-                log::warn!(
-                    "failed to send push notification for incoming whatsapp call call_id={} user_id={}: {}",
-                    call_row.id,
-                    user_id,
-                    error
+                observability::tracing::warn!(
+                    event = "operation.failed",
+                    operation = "push_notification.send",
+                    provider = "whatsapp",
+                    call_id = %call_row.id,
+                    user_id = %user_id,
+                    error_type = %std::any::type_name_of_val(&error),
+                    "push notification for incoming WhatsApp call failed"
                 );
             }
         }

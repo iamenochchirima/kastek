@@ -199,28 +199,50 @@ mod tests {
 
 impl From<sqlx::Error> for AppError {
     fn from(error: sqlx::Error) -> Self {
-        log::error!("sqlx error: {:?}", error);
+        observability::tracing::error!(
+            event = "dependency.unavailable",
+            dependency = "postgres",
+            operation = "query",
+            error_type = %std::any::type_name_of_val(&error),
+            "database operation failed"
+        );
         Self::Internal("Database operation failed".to_string())
     }
 }
 
 impl From<bcrypt::BcryptError> for AppError {
     fn from(error: bcrypt::BcryptError) -> Self {
-        log::error!("bcrypt error: {:?}", error);
+        observability::tracing::error!(
+            event = "operation.failed",
+            operation = "password.hash_or_verify",
+            error_type = %std::any::type_name_of_val(&error),
+            "password operation failed"
+        );
         Self::Internal("Password operation failed".to_string())
     }
 }
 
 impl From<reqwest::Error> for AppError {
     fn from(error: reqwest::Error) -> Self {
-        log::error!("http error: {:?}", error);
+        observability::tracing::error!(
+            event = "dependency.unavailable",
+            dependency = "http",
+            operation = "request",
+            error_type = %std::any::type_name_of_val(&error),
+            "external request failed"
+        );
         Self::Internal("External request failed".to_string())
     }
 }
 
 impl From<csv::Error> for AppError {
     fn from(error: csv::Error) -> Self {
-        log::error!("csv error: {:?}", error);
+        observability::tracing::error!(
+            event = "operation.failed",
+            operation = "report.csv_export",
+            error_type = %std::any::type_name_of_val(&error),
+            "report export failed"
+        );
         Self::Internal("Report export failed".to_string())
     }
 }

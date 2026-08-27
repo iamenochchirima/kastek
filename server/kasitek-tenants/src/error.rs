@@ -35,10 +35,12 @@ impl ResponseError for AppError {
     }
 
     fn error_response(&self) -> HttpResponse {
-        log::error!(
-            "tenant request failed: status={} error={:?}",
-            self.status_code(),
-            self
+        observability::tracing::error!(
+            event = "http.request.failed",
+            service = "kasitek-tenants",
+            status = self.status_code().as_u16(),
+            error_type = %std::any::type_name_of_val(self),
+            "tenant request failed"
         );
         HttpResponse::build(self.status_code()).json(serde_json::json!({
             "error": self.to_string()

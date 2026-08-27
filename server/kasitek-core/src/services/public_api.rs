@@ -269,10 +269,11 @@ pub async fn middleware(
         .map(|state| state.config.public_api_rate_limit_per_minute);
     if let (Some(handle), Some(state)) = (handle.as_ref(), state.as_ref()) {
         if let Err(error) = finish_request(&state.pool, &handle, response.status().as_u16()).await {
-            log::warn!(
-                "failed to finalize public API audit {}: {}",
-                handle.id,
-                error
+            observability::tracing::warn!(
+                event = "operation.failed",
+                operation = "public_api.audit.finalize",
+                error_type = %std::any::type_name_of_val(&error),
+                "failed to finalize public API audit"
             );
         }
         // Do not emit a webhook about webhook administration itself. Every
@@ -285,10 +286,12 @@ pub async fn middleware(
             )
             .await
             {
-                log::warn!(
-                    "failed to enqueue public webhook event for {}: {}",
-                    handle.id,
-                    error
+                observability::tracing::warn!(
+                    event = "queue.item.failed",
+                    queue = "public_webhooks",
+                    operation = "public_api.audit_event.enqueue",
+                    error_type = %std::any::type_name_of_val(&error),
+                    "failed to enqueue public webhook event"
                 );
             }
         }

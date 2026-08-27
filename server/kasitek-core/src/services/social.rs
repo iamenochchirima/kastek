@@ -979,21 +979,25 @@ pub async fn ensure_instagram_account_webhook_subscriptions(
         let access_token = match decrypt_social_secret(&encrypted_access_token) {
             Ok(token) => token,
             Err(error) => {
-                log::warn!(
-                    "failed to decrypt Instagram token while refreshing webhooks channel_id={}: {}",
-                    channel_id,
-                    error
+                observability::tracing::warn!(
+                    event = "operation.failed",
+                    operation = "instagram_webhooks.refresh.decrypt_token",
+                    channel_id = %channel_id,
+                    error_type = %std::any::type_name_of_val(&error),
+                    "failed to decrypt Instagram token while refreshing webhooks"
                 );
                 continue;
             }
         };
         if let Err(error) = subscribe_instagram_webhooks(&access_token, &instagram_account_id).await
         {
-            log::warn!(
-                "failed to refresh Instagram webhook fields channel_id={} instagram_account_id={}: {}",
-                channel_id,
-                instagram_account_id,
-                error
+            observability::tracing::warn!(
+                event = "provider.call.failed",
+                provider = "instagram",
+                operation = "account_webhooks.refresh",
+                channel_id = %channel_id,
+                error_type = %std::any::type_name_of_val(&error),
+                "failed to refresh Instagram webhook fields"
             );
             continue;
         }
@@ -1190,20 +1194,24 @@ pub async fn ensure_meta_page_webhook_subscriptions(
         let access_token = match decrypt_social_secret(&encrypted_access_token) {
             Ok(token) => token,
             Err(error) => {
-                log::warn!(
-                    "failed to decrypt Meta Page token while refreshing webhooks channel_id={}: {}",
-                    channel_id,
-                    error
+                observability::tracing::warn!(
+                    event = "operation.failed",
+                    operation = "meta_page_webhooks.refresh.decrypt_token",
+                    channel_id = %channel_id,
+                    error_type = %std::any::type_name_of_val(&error),
+                    "failed to decrypt Meta Page token while refreshing webhooks"
                 );
                 continue;
             }
         };
         if let Err(error) = subscribe_meta_page_webhooks(&access_token, &page_id).await {
-            log::warn!(
-                "failed to refresh Meta Page webhook fields channel_id={} page_id={}: {}",
-                channel_id,
-                page_id,
-                error
+            observability::tracing::warn!(
+                event = "provider.call.failed",
+                provider = "meta",
+                operation = "page_webhooks.refresh",
+                channel_id = %channel_id,
+                error_type = %std::any::type_name_of_val(&error),
+                "failed to refresh Meta Page webhook fields"
             );
             continue;
         }
@@ -1284,9 +1292,14 @@ pub async fn refresh_social_channel_identity(
         )
         .await
         {
-            log::error!(
-                "failed to record {provider} social identity refresh analytics outcome: {}",
-                error
+            observability::tracing::error!(
+                event = "operation.failed",
+                operation = "social_identity_refresh.record_outcome",
+                provider = %provider,
+                org_id = %org_id,
+                channel_id = %channel_id,
+                error_type = %std::any::type_name_of_val(&error),
+                "failed to record social identity refresh outcome"
             );
         }
     }

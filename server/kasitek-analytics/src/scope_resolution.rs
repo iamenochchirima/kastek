@@ -117,7 +117,12 @@ async fn resolve_handler(
             "error": "reporting scope is not available"
         })),
         Err(error) => {
-            log::error!("reporting scope resolution failed: {error}");
+            observability::tracing::error!(
+                event = "operation.failed",
+                operation = "reporting.resolve_scope",
+                error_type = %std::any::type_name_of_val(&error),
+                "reporting scope resolution failed"
+            );
             HttpResponse::InternalServerError().json(serde_json::json!({
                 "error": "reporting scope resolution failed"
             }))

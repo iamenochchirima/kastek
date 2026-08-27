@@ -658,13 +658,16 @@ pub async fn run(pool: PgPool, registry: RegistrySnapshot) -> Result<(), std::io
         .filter(|value| *value > 0)
         .unwrap_or(DEFAULT_BATCH_SIZE);
 
-    log::info!(
-        "service={} process=analytics-worker status=started projection={} version={} worker_id={} batch_size={}",
-        SERVICE_NAME,
-        PROJECTION_NAME,
-        PROJECTION_VERSION,
-        worker_id,
-        batch_size
+    observability::tracing::info!(
+        event = "worker.started",
+        service = SERVICE_NAME,
+        process = "analytics-worker",
+        worker = "projections",
+        projection = PROJECTION_NAME,
+        version = PROJECTION_VERSION,
+        worker_id = %worker_id,
+        batch_size,
+        "analytics projection worker started"
     );
 
     let mut interval = tokio::time::interval(Duration::from_millis(poll_interval));
@@ -684,10 +687,14 @@ pub async fn run(pool: PgPool, registry: RegistrySnapshot) -> Result<(), std::io
                 )
                 .await
                 {
-                    log::error!(
-                        "service={} process=analytics-worker status=maintenance_failed error={}",
-                        SERVICE_NAME,
-                        error
+                    observability::tracing::error!(
+                        event = "queue.item.failed",
+                        service = SERVICE_NAME,
+                        process = "analytics-worker",
+                        worker = "projections",
+                        phase = "maintenance",
+                        error_type = %std::any::type_name_of_val(&error),
+                        "analytics projection maintenance failed"
                     );
                 }
                 for _ in 0..batch_size {
@@ -695,7 +702,15 @@ pub async fn run(pool: PgPool, registry: RegistrySnapshot) -> Result<(), std::io
                         Ok(true) => {}
                         Ok(false) => break,
                         Err(error) => {
-                            log::error!("service={} process=analytics-worker projection={} status=failed error={}", SERVICE_NAME, PROJECTION_NAME, error);
+                            observability::tracing::error!(
+                                event = "queue.item.failed",
+                                service = SERVICE_NAME,
+                                process = "analytics-worker",
+                                worker = "projections",
+                                projection = PROJECTION_NAME,
+                                error_type = %std::any::type_name_of_val(&error),
+                                "analytics projection item failed"
+                            );
                             break;
                         }
                     }
@@ -704,10 +719,12 @@ pub async fn run(pool: PgPool, registry: RegistrySnapshot) -> Result<(), std::io
         }
     }
 
-    log::info!(
-        "service={} process=analytics-worker status=stopping projection={}",
-        SERVICE_NAME,
-        PROJECTION_NAME
+    observability::tracing::info!(
+        event = "service.shutdown",
+        service = SERVICE_NAME,
+        process = "analytics-worker",
+        projection = PROJECTION_NAME,
+        "analytics projection worker stopping"
     );
     Ok(())
 }

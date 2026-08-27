@@ -319,13 +319,18 @@ impl RolloutDecisionCache {
                 return None;
             }
             match redis::Client::open(url) {
-                Ok(client) => {
-                    Some(Arc::new(RedisDecisionCacheBackend::new(client))
-                        as Arc<dyn DecisionCacheBackend>)
-                }
+                Ok(client) => Some(Arc::new(RedisDecisionCacheBackend::new(client))
+                    as Arc<dyn DecisionCacheBackend>),
                 Err(error) => {
-                    log::warn!(
-                        "service=kasitek-analytics process=analytics-api rollout_cache=disabled reason=invalid_redis_url error={error}"
+                    observability::tracing::warn!(
+                        event = "dependency.unavailable",
+                        service = "kasitek-analytics",
+                        process = "analytics-api",
+                        dependency = "rollout_cache",
+                        operation = "connect",
+                        reason = "invalid_configuration",
+                        error_type = %std::any::type_name_of_val(&error),
+                        "rollout cache disabled"
                     );
                     None
                 }
@@ -360,8 +365,14 @@ impl RolloutDecisionCache {
             Ok(Some(value)) => value,
             Ok(None) => return DecisionCacheRead::Miss,
             Err(error) => {
-                log::warn!(
-                    "service=kasitek-analytics process=analytics-api rollout_cache=unavailable operation=get error={error}"
+                observability::tracing::warn!(
+                    event = "dependency.unavailable",
+                    service = "kasitek-analytics",
+                    process = "analytics-api",
+                    dependency = "rollout_cache",
+                    operation = "get",
+                    error_type = %std::any::type_name_of_val(&error),
+                    "rollout cache read failed"
                 );
                 return DecisionCacheRead::Unavailable;
             }
@@ -369,8 +380,13 @@ impl RolloutDecisionCache {
         let cached = match serde_json::from_str::<CachedDecision>(&serialized) {
             Ok(cached) => cached,
             Err(error) => {
-                log::warn!(
-                    "service=kasitek-analytics process=analytics-api rollout_cache=unavailable operation=decode error={error}"
+                observability::tracing::warn!(
+                    event = "operation.failed",
+                    service = "kasitek-analytics",
+                    process = "analytics-api",
+                    operation = "rollout_cache.decode",
+                    error_type = %std::any::type_name_of_val(&error),
+                    "rollout cache value could not be decoded"
                 );
                 return DecisionCacheRead::Unavailable;
             }
@@ -401,15 +417,26 @@ impl RolloutDecisionCache {
         }) {
             Ok(value) => value,
             Err(error) => {
-                log::warn!(
-                    "service=kasitek-analytics process=analytics-api rollout_cache=unavailable operation=encode error={error}"
+                observability::tracing::warn!(
+                    event = "operation.failed",
+                    service = "kasitek-analytics",
+                    process = "analytics-api",
+                    operation = "rollout_cache.encode",
+                    error_type = %std::any::type_name_of_val(&error),
+                    "rollout cache value could not be encoded"
                 );
                 return;
             }
         };
         if let Err(error) = backend.set(key, &value, ttl_seconds).await {
-            log::warn!(
-                "service=kasitek-analytics process=analytics-api rollout_cache=unavailable operation=set error={error}"
+            observability::tracing::warn!(
+                event = "dependency.unavailable",
+                service = "kasitek-analytics",
+                process = "analytics-api",
+                dependency = "rollout_cache",
+                operation = "set",
+                error_type = %std::any::type_name_of_val(&error),
+                "rollout cache write failed"
             );
         }
     }
@@ -1315,8 +1342,14 @@ fn error_response(error: RolloutError) -> HttpResponse {
         RolloutError::InvalidRequest(message) => HttpResponse::UnprocessableEntity()
             .json(json!({ "error": "invalid_request", "message": message })),
         RolloutError::Database(error) => {
-            log::error!(
-                "service=kasitek-analytics process=analytics-api rollout_database_error={error}"
+            observability::tracing::error!(
+                event = "dependency.unavailable",
+                service = "kasitek-analytics",
+                process = "analytics-api",
+                dependency = "postgres",
+                operation = "rollout",
+                error_type = %std::any::type_name_of_val(&error),
+                "rollout database operation failed"
             );
             HttpResponse::ServiceUnavailable().json(json!({ "error": "analytics_unavailable" }))
         }

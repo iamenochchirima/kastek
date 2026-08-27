@@ -469,9 +469,11 @@ pub async fn refresh_connection(
         )
         .await
         {
-            log::error!(
-                "failed to record WhatsApp connection refresh analytics outcome: {}",
-                error
+            observability::tracing::error!(
+                event = "operation.failed",
+                operation = "whatsapp.connection_refresh.analytics_record",
+                error_type = %std::any::type_name_of_val(&error),
+                "WhatsApp connection refresh analytics outcome recording failed"
             );
         }
     }

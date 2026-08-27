@@ -18,7 +18,12 @@ fn background_workers_enabled_for_api() -> bool {
 }
 
 fn spawn_background_workers(pool: sqlx::PgPool, config: AppConfig) {
-    log::info!("starting background workers in api server process");
+    observability::tracing::info!(
+        event = "service.startup",
+        component = "background_workers",
+        process = "api",
+        "background workers initialized"
+    );
 
     tokio::spawn(observability::in_span(
         "worker",
@@ -76,7 +81,7 @@ async fn main() -> std::io::Result<()> {
 
     match std::env::var("KASITEK_PROCESS").ok().as_deref() {
         Some("social-publishing-worker") => {
-            log::info!("starting social publishing worker");
+            observability::tracing::info!(event = "worker.started", worker = "social_publishing");
             observability::in_span(
                 "worker",
                 "social_publishing",
@@ -86,7 +91,7 @@ async fn main() -> std::io::Result<()> {
             return Ok(());
         }
         Some("social-insights-worker") => {
-            log::info!("starting social insights worker");
+            observability::tracing::info!(event = "worker.started", worker = "social_insights");
             observability::in_span(
                 "worker",
                 "social_insights",
@@ -96,7 +101,7 @@ async fn main() -> std::io::Result<()> {
             return Ok(());
         }
         Some("whatsapp-marketing-worker") => {
-            log::info!("starting whatsapp marketing worker");
+            observability::tracing::info!(event = "worker.started", worker = "whatsapp_campaigns");
             observability::in_span(
                 "worker",
                 "whatsapp_marketing",
@@ -106,7 +111,7 @@ async fn main() -> std::io::Result<()> {
             return Ok(());
         }
         Some("whatsapp-inbox-worker") => {
-            log::info!("starting whatsapp inbox worker");
+            observability::tracing::info!(event = "worker.started", worker = "whatsapp_inbox");
             observability::in_span(
                 "worker",
                 "whatsapp_inbox",
@@ -116,7 +121,10 @@ async fn main() -> std::io::Result<()> {
             return Ok(());
         }
         Some("billing-reconciliation-worker") => {
-            log::info!("starting billing reconciliation worker");
+            observability::tracing::info!(
+                event = "worker.started",
+                worker = "billing_reconciliation"
+            );
             observability::in_span(
                 "worker",
                 "billing_reconciliation",
@@ -126,7 +134,7 @@ async fn main() -> std::io::Result<()> {
             return Ok(());
         }
         Some("analytics-publisher") => {
-            log::info!("starting analytics publisher worker");
+            observability::tracing::info!(event = "worker.started", worker = "analytics_publisher");
             tokio::join!(
                 observability::in_span(
                     "worker",
@@ -142,7 +150,7 @@ async fn main() -> std::io::Result<()> {
             return Ok(());
         }
         Some("analytics-backfill-worker") => {
-            log::info!("starting analytics backfill worker");
+            observability::tracing::info!(event = "worker.started", worker = "analytics_backfill");
             observability::in_span(
                 "worker",
                 "analytics_backfill",
@@ -152,7 +160,7 @@ async fn main() -> std::io::Result<()> {
             return Ok(());
         }
         Some("public-webhooks-worker") => {
-            log::info!("starting public webhooks worker");
+            observability::tracing::info!(event = "worker.started", worker = "public_webhooks");
             observability::in_span(
                 "worker",
                 "public_webhooks",
@@ -162,7 +170,7 @@ async fn main() -> std::io::Result<()> {
             return Ok(());
         }
         Some("all-workers") => {
-            log::info!("starting all workers");
+            observability::tracing::info!(event = "worker.started", worker = "all");
             tokio::join!(
                 observability::in_span(
                     "worker",
@@ -217,12 +225,21 @@ async fn main() -> std::io::Result<()> {
     if background_workers_enabled_for_api() {
         spawn_background_workers(db_pool.clone(), config.clone());
     } else {
-        log::info!(
-            "background workers disabled for api server process; queued jobs require a separate worker deployment"
+        observability::tracing::info!(
+            event = "worker.disabled",
+            process = "api",
+            reason = "separate_worker_deployment_required",
+            "background workers disabled"
         );
     }
 
-    log::info!("starting kasitek server on port {}", port);
+    observability::tracing::info!(
+        event = "service.startup",
+        service = "kasitek-core",
+        process = "api",
+        port,
+        "server starting"
+    );
 
     HttpServer::new(move || {
         let mut cors = Cors::default()
