@@ -53,9 +53,10 @@ For this monorepo service:
    check, and restart policy.
 4. Configure resource limits appropriate to the environment; sizing is not encoded in this
    provider-neutral service definition.
-5. Set the Collector service variable `OTEL_COLLECTOR_CONFIG=config.staging.yaml`. The image
-   contains the checked-in profiles and rejects unsupported profile values. Keep the production
-   template undeployed until a durable destination is approved.
+5. Set the Collector service's Custom Start Command to
+   `/otelcol-contrib --config=/etc/otelcol/config.staging.yaml`. The image contains the checked-in
+   profiles; select the profile explicitly per Railway environment. Keep the production template
+   undeployed until a durable destination is approved.
 6. Set each application service's OTLP endpoint to the Collector's private address, for example:
 
    ```text
