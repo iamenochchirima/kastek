@@ -201,6 +201,8 @@ export type AdminUserWhereInput = {
   assignedLeads?: Prisma.QuoteRequestListRelationFilter
   supportAccessGrants?: Prisma.AdminSupportAccessGrantListRelationFilter
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantListRelationFilter
+  savedReports?: Prisma.AdminSavedReportListRelationFilter
+  reportExportEvents?: Prisma.AdminReportExportAuditEventListRelationFilter
 }
 
 export type AdminUserOrderByWithRelationInput = {
@@ -214,6 +216,8 @@ export type AdminUserOrderByWithRelationInput = {
   assignedLeads?: Prisma.QuoteRequestOrderByRelationAggregateInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantOrderByRelationAggregateInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantOrderByRelationAggregateInput
+  savedReports?: Prisma.AdminSavedReportOrderByRelationAggregateInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventOrderByRelationAggregateInput
 }
 
 export type AdminUserWhereUniqueInput = Prisma.AtLeast<{
@@ -230,6 +234,8 @@ export type AdminUserWhereUniqueInput = Prisma.AtLeast<{
   assignedLeads?: Prisma.QuoteRequestListRelationFilter
   supportAccessGrants?: Prisma.AdminSupportAccessGrantListRelationFilter
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantListRelationFilter
+  savedReports?: Prisma.AdminSavedReportListRelationFilter
+  reportExportEvents?: Prisma.AdminReportExportAuditEventListRelationFilter
 }, "id" | "email">
 
 export type AdminUserOrderByWithAggregationInput = {
@@ -269,6 +275,8 @@ export type AdminUserCreateInput = {
   assignedLeads?: Prisma.QuoteRequestCreateNestedManyWithoutAssignedToInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutAdminInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutGrantedByInput
+  savedReports?: Prisma.AdminSavedReportCreateNestedManyWithoutCreatedByInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventCreateNestedManyWithoutAdminInput
 }
 
 export type AdminUserUncheckedCreateInput = {
@@ -282,6 +290,8 @@ export type AdminUserUncheckedCreateInput = {
   assignedLeads?: Prisma.QuoteRequestUncheckedCreateNestedManyWithoutAssignedToInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutAdminInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutGrantedByInput
+  savedReports?: Prisma.AdminSavedReportUncheckedCreateNestedManyWithoutCreatedByInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventUncheckedCreateNestedManyWithoutAdminInput
 }
 
 export type AdminUserUpdateInput = {
@@ -295,6 +305,8 @@ export type AdminUserUpdateInput = {
   assignedLeads?: Prisma.QuoteRequestUpdateManyWithoutAssignedToNestedInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutAdminNestedInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUpdateManyWithoutGrantedByNestedInput
+  savedReports?: Prisma.AdminSavedReportUpdateManyWithoutCreatedByNestedInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventUpdateManyWithoutAdminNestedInput
 }
 
 export type AdminUserUncheckedUpdateInput = {
@@ -308,6 +320,8 @@ export type AdminUserUncheckedUpdateInput = {
   assignedLeads?: Prisma.QuoteRequestUncheckedUpdateManyWithoutAssignedToNestedInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutAdminNestedInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutGrantedByNestedInput
+  savedReports?: Prisma.AdminSavedReportUncheckedUpdateManyWithoutCreatedByNestedInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventUncheckedUpdateManyWithoutAdminNestedInput
 }
 
 export type AdminUserCreateManyInput = {
@@ -380,6 +394,34 @@ export type AdminUserNullableScalarRelationFilter = {
   isNot?: Prisma.AdminUserWhereInput | null
 }
 
+export type AdminUserCreateNestedOneWithoutSavedReportsInput = {
+  create?: Prisma.XOR<Prisma.AdminUserCreateWithoutSavedReportsInput, Prisma.AdminUserUncheckedCreateWithoutSavedReportsInput>
+  connectOrCreate?: Prisma.AdminUserCreateOrConnectWithoutSavedReportsInput
+  connect?: Prisma.AdminUserWhereUniqueInput
+}
+
+export type AdminUserUpdateOneRequiredWithoutSavedReportsNestedInput = {
+  create?: Prisma.XOR<Prisma.AdminUserCreateWithoutSavedReportsInput, Prisma.AdminUserUncheckedCreateWithoutSavedReportsInput>
+  connectOrCreate?: Prisma.AdminUserCreateOrConnectWithoutSavedReportsInput
+  upsert?: Prisma.AdminUserUpsertWithoutSavedReportsInput
+  connect?: Prisma.AdminUserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.AdminUserUpdateToOneWithWhereWithoutSavedReportsInput, Prisma.AdminUserUpdateWithoutSavedReportsInput>, Prisma.AdminUserUncheckedUpdateWithoutSavedReportsInput>
+}
+
+export type AdminUserCreateNestedOneWithoutReportExportEventsInput = {
+  create?: Prisma.XOR<Prisma.AdminUserCreateWithoutReportExportEventsInput, Prisma.AdminUserUncheckedCreateWithoutReportExportEventsInput>
+  connectOrCreate?: Prisma.AdminUserCreateOrConnectWithoutReportExportEventsInput
+  connect?: Prisma.AdminUserWhereUniqueInput
+}
+
+export type AdminUserUpdateOneRequiredWithoutReportExportEventsNestedInput = {
+  create?: Prisma.XOR<Prisma.AdminUserCreateWithoutReportExportEventsInput, Prisma.AdminUserUncheckedCreateWithoutReportExportEventsInput>
+  connectOrCreate?: Prisma.AdminUserCreateOrConnectWithoutReportExportEventsInput
+  upsert?: Prisma.AdminUserUpsertWithoutReportExportEventsInput
+  connect?: Prisma.AdminUserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.AdminUserUpdateToOneWithWhereWithoutReportExportEventsInput, Prisma.AdminUserUpdateWithoutReportExportEventsInput>, Prisma.AdminUserUncheckedUpdateWithoutReportExportEventsInput>
+}
+
 export type AdminUserCreateNestedOneWithoutSupportAccessGrantsInput = {
   create?: Prisma.XOR<Prisma.AdminUserCreateWithoutSupportAccessGrantsInput, Prisma.AdminUserUncheckedCreateWithoutSupportAccessGrantsInput>
   connectOrCreate?: Prisma.AdminUserCreateOrConnectWithoutSupportAccessGrantsInput
@@ -424,6 +466,150 @@ export type AdminUserUpdateOneWithoutAssignedLeadsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.AdminUserUpdateToOneWithWhereWithoutAssignedLeadsInput, Prisma.AdminUserUpdateWithoutAssignedLeadsInput>, Prisma.AdminUserUncheckedUpdateWithoutAssignedLeadsInput>
 }
 
+export type AdminUserCreateWithoutSavedReportsInput = {
+  id?: string
+  name: string
+  email: string
+  password: string
+  role?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  assignedLeads?: Prisma.QuoteRequestCreateNestedManyWithoutAssignedToInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutAdminInput
+  supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutGrantedByInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventCreateNestedManyWithoutAdminInput
+}
+
+export type AdminUserUncheckedCreateWithoutSavedReportsInput = {
+  id?: string
+  name: string
+  email: string
+  password: string
+  role?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  assignedLeads?: Prisma.QuoteRequestUncheckedCreateNestedManyWithoutAssignedToInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutAdminInput
+  supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutGrantedByInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventUncheckedCreateNestedManyWithoutAdminInput
+}
+
+export type AdminUserCreateOrConnectWithoutSavedReportsInput = {
+  where: Prisma.AdminUserWhereUniqueInput
+  create: Prisma.XOR<Prisma.AdminUserCreateWithoutSavedReportsInput, Prisma.AdminUserUncheckedCreateWithoutSavedReportsInput>
+}
+
+export type AdminUserUpsertWithoutSavedReportsInput = {
+  update: Prisma.XOR<Prisma.AdminUserUpdateWithoutSavedReportsInput, Prisma.AdminUserUncheckedUpdateWithoutSavedReportsInput>
+  create: Prisma.XOR<Prisma.AdminUserCreateWithoutSavedReportsInput, Prisma.AdminUserUncheckedCreateWithoutSavedReportsInput>
+  where?: Prisma.AdminUserWhereInput
+}
+
+export type AdminUserUpdateToOneWithWhereWithoutSavedReportsInput = {
+  where?: Prisma.AdminUserWhereInput
+  data: Prisma.XOR<Prisma.AdminUserUpdateWithoutSavedReportsInput, Prisma.AdminUserUncheckedUpdateWithoutSavedReportsInput>
+}
+
+export type AdminUserUpdateWithoutSavedReportsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  password?: Prisma.StringFieldUpdateOperationsInput | string
+  role?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  assignedLeads?: Prisma.QuoteRequestUpdateManyWithoutAssignedToNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutAdminNestedInput
+  supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUpdateManyWithoutGrantedByNestedInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventUpdateManyWithoutAdminNestedInput
+}
+
+export type AdminUserUncheckedUpdateWithoutSavedReportsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  password?: Prisma.StringFieldUpdateOperationsInput | string
+  role?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  assignedLeads?: Prisma.QuoteRequestUncheckedUpdateManyWithoutAssignedToNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutAdminNestedInput
+  supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutGrantedByNestedInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventUncheckedUpdateManyWithoutAdminNestedInput
+}
+
+export type AdminUserCreateWithoutReportExportEventsInput = {
+  id?: string
+  name: string
+  email: string
+  password: string
+  role?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  assignedLeads?: Prisma.QuoteRequestCreateNestedManyWithoutAssignedToInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutAdminInput
+  supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutGrantedByInput
+  savedReports?: Prisma.AdminSavedReportCreateNestedManyWithoutCreatedByInput
+}
+
+export type AdminUserUncheckedCreateWithoutReportExportEventsInput = {
+  id?: string
+  name: string
+  email: string
+  password: string
+  role?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  assignedLeads?: Prisma.QuoteRequestUncheckedCreateNestedManyWithoutAssignedToInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutAdminInput
+  supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutGrantedByInput
+  savedReports?: Prisma.AdminSavedReportUncheckedCreateNestedManyWithoutCreatedByInput
+}
+
+export type AdminUserCreateOrConnectWithoutReportExportEventsInput = {
+  where: Prisma.AdminUserWhereUniqueInput
+  create: Prisma.XOR<Prisma.AdminUserCreateWithoutReportExportEventsInput, Prisma.AdminUserUncheckedCreateWithoutReportExportEventsInput>
+}
+
+export type AdminUserUpsertWithoutReportExportEventsInput = {
+  update: Prisma.XOR<Prisma.AdminUserUpdateWithoutReportExportEventsInput, Prisma.AdminUserUncheckedUpdateWithoutReportExportEventsInput>
+  create: Prisma.XOR<Prisma.AdminUserCreateWithoutReportExportEventsInput, Prisma.AdminUserUncheckedCreateWithoutReportExportEventsInput>
+  where?: Prisma.AdminUserWhereInput
+}
+
+export type AdminUserUpdateToOneWithWhereWithoutReportExportEventsInput = {
+  where?: Prisma.AdminUserWhereInput
+  data: Prisma.XOR<Prisma.AdminUserUpdateWithoutReportExportEventsInput, Prisma.AdminUserUncheckedUpdateWithoutReportExportEventsInput>
+}
+
+export type AdminUserUpdateWithoutReportExportEventsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  password?: Prisma.StringFieldUpdateOperationsInput | string
+  role?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  assignedLeads?: Prisma.QuoteRequestUpdateManyWithoutAssignedToNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutAdminNestedInput
+  supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUpdateManyWithoutGrantedByNestedInput
+  savedReports?: Prisma.AdminSavedReportUpdateManyWithoutCreatedByNestedInput
+}
+
+export type AdminUserUncheckedUpdateWithoutReportExportEventsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  password?: Prisma.StringFieldUpdateOperationsInput | string
+  role?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  assignedLeads?: Prisma.QuoteRequestUncheckedUpdateManyWithoutAssignedToNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutAdminNestedInput
+  supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutGrantedByNestedInput
+  savedReports?: Prisma.AdminSavedReportUncheckedUpdateManyWithoutCreatedByNestedInput
+}
+
 export type AdminUserCreateWithoutSupportAccessGrantsInput = {
   id?: string
   name: string
@@ -434,6 +620,8 @@ export type AdminUserCreateWithoutSupportAccessGrantsInput = {
   updatedAt?: Date | string
   assignedLeads?: Prisma.QuoteRequestCreateNestedManyWithoutAssignedToInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutGrantedByInput
+  savedReports?: Prisma.AdminSavedReportCreateNestedManyWithoutCreatedByInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventCreateNestedManyWithoutAdminInput
 }
 
 export type AdminUserUncheckedCreateWithoutSupportAccessGrantsInput = {
@@ -446,6 +634,8 @@ export type AdminUserUncheckedCreateWithoutSupportAccessGrantsInput = {
   updatedAt?: Date | string
   assignedLeads?: Prisma.QuoteRequestUncheckedCreateNestedManyWithoutAssignedToInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutGrantedByInput
+  savedReports?: Prisma.AdminSavedReportUncheckedCreateNestedManyWithoutCreatedByInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventUncheckedCreateNestedManyWithoutAdminInput
 }
 
 export type AdminUserCreateOrConnectWithoutSupportAccessGrantsInput = {
@@ -463,6 +653,8 @@ export type AdminUserCreateWithoutSupportAccessGrantsIssuedInput = {
   updatedAt?: Date | string
   assignedLeads?: Prisma.QuoteRequestCreateNestedManyWithoutAssignedToInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutAdminInput
+  savedReports?: Prisma.AdminSavedReportCreateNestedManyWithoutCreatedByInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventCreateNestedManyWithoutAdminInput
 }
 
 export type AdminUserUncheckedCreateWithoutSupportAccessGrantsIssuedInput = {
@@ -475,6 +667,8 @@ export type AdminUserUncheckedCreateWithoutSupportAccessGrantsIssuedInput = {
   updatedAt?: Date | string
   assignedLeads?: Prisma.QuoteRequestUncheckedCreateNestedManyWithoutAssignedToInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutAdminInput
+  savedReports?: Prisma.AdminSavedReportUncheckedCreateNestedManyWithoutCreatedByInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventUncheckedCreateNestedManyWithoutAdminInput
 }
 
 export type AdminUserCreateOrConnectWithoutSupportAccessGrantsIssuedInput = {
@@ -503,6 +697,8 @@ export type AdminUserUpdateWithoutSupportAccessGrantsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   assignedLeads?: Prisma.QuoteRequestUpdateManyWithoutAssignedToNestedInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUpdateManyWithoutGrantedByNestedInput
+  savedReports?: Prisma.AdminSavedReportUpdateManyWithoutCreatedByNestedInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventUpdateManyWithoutAdminNestedInput
 }
 
 export type AdminUserUncheckedUpdateWithoutSupportAccessGrantsInput = {
@@ -515,6 +711,8 @@ export type AdminUserUncheckedUpdateWithoutSupportAccessGrantsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   assignedLeads?: Prisma.QuoteRequestUncheckedUpdateManyWithoutAssignedToNestedInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutGrantedByNestedInput
+  savedReports?: Prisma.AdminSavedReportUncheckedUpdateManyWithoutCreatedByNestedInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventUncheckedUpdateManyWithoutAdminNestedInput
 }
 
 export type AdminUserUpsertWithoutSupportAccessGrantsIssuedInput = {
@@ -538,6 +736,8 @@ export type AdminUserUpdateWithoutSupportAccessGrantsIssuedInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   assignedLeads?: Prisma.QuoteRequestUpdateManyWithoutAssignedToNestedInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutAdminNestedInput
+  savedReports?: Prisma.AdminSavedReportUpdateManyWithoutCreatedByNestedInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventUpdateManyWithoutAdminNestedInput
 }
 
 export type AdminUserUncheckedUpdateWithoutSupportAccessGrantsIssuedInput = {
@@ -550,6 +750,8 @@ export type AdminUserUncheckedUpdateWithoutSupportAccessGrantsIssuedInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   assignedLeads?: Prisma.QuoteRequestUncheckedUpdateManyWithoutAssignedToNestedInput
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutAdminNestedInput
+  savedReports?: Prisma.AdminSavedReportUncheckedUpdateManyWithoutCreatedByNestedInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventUncheckedUpdateManyWithoutAdminNestedInput
 }
 
 export type AdminUserCreateWithoutAssignedLeadsInput = {
@@ -562,6 +764,8 @@ export type AdminUserCreateWithoutAssignedLeadsInput = {
   updatedAt?: Date | string
   supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutAdminInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutGrantedByInput
+  savedReports?: Prisma.AdminSavedReportCreateNestedManyWithoutCreatedByInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventCreateNestedManyWithoutAdminInput
 }
 
 export type AdminUserUncheckedCreateWithoutAssignedLeadsInput = {
@@ -574,6 +778,8 @@ export type AdminUserUncheckedCreateWithoutAssignedLeadsInput = {
   updatedAt?: Date | string
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutAdminInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutGrantedByInput
+  savedReports?: Prisma.AdminSavedReportUncheckedCreateNestedManyWithoutCreatedByInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventUncheckedCreateNestedManyWithoutAdminInput
 }
 
 export type AdminUserCreateOrConnectWithoutAssignedLeadsInput = {
@@ -602,6 +808,8 @@ export type AdminUserUpdateWithoutAssignedLeadsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutAdminNestedInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUpdateManyWithoutGrantedByNestedInput
+  savedReports?: Prisma.AdminSavedReportUpdateManyWithoutCreatedByNestedInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventUpdateManyWithoutAdminNestedInput
 }
 
 export type AdminUserUncheckedUpdateWithoutAssignedLeadsInput = {
@@ -614,6 +822,8 @@ export type AdminUserUncheckedUpdateWithoutAssignedLeadsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutAdminNestedInput
   supportAccessGrantsIssued?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutGrantedByNestedInput
+  savedReports?: Prisma.AdminSavedReportUncheckedUpdateManyWithoutCreatedByNestedInput
+  reportExportEvents?: Prisma.AdminReportExportAuditEventUncheckedUpdateManyWithoutAdminNestedInput
 }
 
 
@@ -625,12 +835,16 @@ export type AdminUserCountOutputType = {
   assignedLeads: number
   supportAccessGrants: number
   supportAccessGrantsIssued: number
+  savedReports: number
+  reportExportEvents: number
 }
 
 export type AdminUserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   assignedLeads?: boolean | AdminUserCountOutputTypeCountAssignedLeadsArgs
   supportAccessGrants?: boolean | AdminUserCountOutputTypeCountSupportAccessGrantsArgs
   supportAccessGrantsIssued?: boolean | AdminUserCountOutputTypeCountSupportAccessGrantsIssuedArgs
+  savedReports?: boolean | AdminUserCountOutputTypeCountSavedReportsArgs
+  reportExportEvents?: boolean | AdminUserCountOutputTypeCountReportExportEventsArgs
 }
 
 /**
@@ -664,6 +878,20 @@ export type AdminUserCountOutputTypeCountSupportAccessGrantsIssuedArgs<ExtArgs e
   where?: Prisma.AdminSupportAccessGrantWhereInput
 }
 
+/**
+ * AdminUserCountOutputType without action
+ */
+export type AdminUserCountOutputTypeCountSavedReportsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.AdminSavedReportWhereInput
+}
+
+/**
+ * AdminUserCountOutputType without action
+ */
+export type AdminUserCountOutputTypeCountReportExportEventsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.AdminReportExportAuditEventWhereInput
+}
+
 
 export type AdminUserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -676,6 +904,8 @@ export type AdminUserSelect<ExtArgs extends runtime.Types.Extensions.InternalArg
   assignedLeads?: boolean | Prisma.AdminUser$assignedLeadsArgs<ExtArgs>
   supportAccessGrants?: boolean | Prisma.AdminUser$supportAccessGrantsArgs<ExtArgs>
   supportAccessGrantsIssued?: boolean | Prisma.AdminUser$supportAccessGrantsIssuedArgs<ExtArgs>
+  savedReports?: boolean | Prisma.AdminUser$savedReportsArgs<ExtArgs>
+  reportExportEvents?: boolean | Prisma.AdminUser$reportExportEventsArgs<ExtArgs>
   _count?: boolean | Prisma.AdminUserCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["adminUser"]>
 
@@ -714,6 +944,8 @@ export type AdminUserInclude<ExtArgs extends runtime.Types.Extensions.InternalAr
   assignedLeads?: boolean | Prisma.AdminUser$assignedLeadsArgs<ExtArgs>
   supportAccessGrants?: boolean | Prisma.AdminUser$supportAccessGrantsArgs<ExtArgs>
   supportAccessGrantsIssued?: boolean | Prisma.AdminUser$supportAccessGrantsIssuedArgs<ExtArgs>
+  savedReports?: boolean | Prisma.AdminUser$savedReportsArgs<ExtArgs>
+  reportExportEvents?: boolean | Prisma.AdminUser$reportExportEventsArgs<ExtArgs>
   _count?: boolean | Prisma.AdminUserCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type AdminUserIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -725,6 +957,8 @@ export type $AdminUserPayload<ExtArgs extends runtime.Types.Extensions.InternalA
     assignedLeads: Prisma.$QuoteRequestPayload<ExtArgs>[]
     supportAccessGrants: Prisma.$AdminSupportAccessGrantPayload<ExtArgs>[]
     supportAccessGrantsIssued: Prisma.$AdminSupportAccessGrantPayload<ExtArgs>[]
+    savedReports: Prisma.$AdminSavedReportPayload<ExtArgs>[]
+    reportExportEvents: Prisma.$AdminReportExportAuditEventPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -1131,6 +1365,8 @@ export interface Prisma__AdminUserClient<T, Null = never, ExtArgs extends runtim
   assignedLeads<T extends Prisma.AdminUser$assignedLeadsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AdminUser$assignedLeadsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$QuoteRequestPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   supportAccessGrants<T extends Prisma.AdminUser$supportAccessGrantsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AdminUser$supportAccessGrantsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AdminSupportAccessGrantPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   supportAccessGrantsIssued<T extends Prisma.AdminUser$supportAccessGrantsIssuedArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AdminUser$supportAccessGrantsIssuedArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AdminSupportAccessGrantPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  savedReports<T extends Prisma.AdminUser$savedReportsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AdminUser$savedReportsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AdminSavedReportPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  reportExportEvents<T extends Prisma.AdminUser$reportExportEventsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AdminUser$reportExportEventsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AdminReportExportAuditEventPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1624,6 +1860,54 @@ export type AdminUser$supportAccessGrantsIssuedArgs<ExtArgs extends runtime.Type
   take?: number
   skip?: number
   distinct?: Prisma.AdminSupportAccessGrantScalarFieldEnum | Prisma.AdminSupportAccessGrantScalarFieldEnum[]
+}
+
+/**
+ * AdminUser.savedReports
+ */
+export type AdminUser$savedReportsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the AdminSavedReport
+   */
+  select?: Prisma.AdminSavedReportSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the AdminSavedReport
+   */
+  omit?: Prisma.AdminSavedReportOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AdminSavedReportInclude<ExtArgs> | null
+  where?: Prisma.AdminSavedReportWhereInput
+  orderBy?: Prisma.AdminSavedReportOrderByWithRelationInput | Prisma.AdminSavedReportOrderByWithRelationInput[]
+  cursor?: Prisma.AdminSavedReportWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.AdminSavedReportScalarFieldEnum | Prisma.AdminSavedReportScalarFieldEnum[]
+}
+
+/**
+ * AdminUser.reportExportEvents
+ */
+export type AdminUser$reportExportEventsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the AdminReportExportAuditEvent
+   */
+  select?: Prisma.AdminReportExportAuditEventSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the AdminReportExportAuditEvent
+   */
+  omit?: Prisma.AdminReportExportAuditEventOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AdminReportExportAuditEventInclude<ExtArgs> | null
+  where?: Prisma.AdminReportExportAuditEventWhereInput
+  orderBy?: Prisma.AdminReportExportAuditEventOrderByWithRelationInput | Prisma.AdminReportExportAuditEventOrderByWithRelationInput[]
+  cursor?: Prisma.AdminReportExportAuditEventWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.AdminReportExportAuditEventScalarFieldEnum | Prisma.AdminReportExportAuditEventScalarFieldEnum[]
 }
 
 /**

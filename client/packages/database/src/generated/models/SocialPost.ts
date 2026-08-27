@@ -252,6 +252,7 @@ export type SocialPostWhereInput = {
   variants?: Prisma.SocialPostVariantListRelationFilter
   publishJobs?: Prisma.SocialPublishJobListRelationFilter
   media?: Prisma.SocialPostMediaListRelationFilter
+  insightObservations?: Prisma.SocialPostInsightObservationListRelationFilter
 }
 
 export type SocialPostOrderByWithRelationInput = {
@@ -275,6 +276,7 @@ export type SocialPostOrderByWithRelationInput = {
   variants?: Prisma.SocialPostVariantOrderByRelationAggregateInput
   publishJobs?: Prisma.SocialPublishJobOrderByRelationAggregateInput
   media?: Prisma.SocialPostMediaOrderByRelationAggregateInput
+  insightObservations?: Prisma.SocialPostInsightObservationOrderByRelationAggregateInput
 }
 
 export type SocialPostWhereUniqueInput = Prisma.AtLeast<{
@@ -301,6 +303,7 @@ export type SocialPostWhereUniqueInput = Prisma.AtLeast<{
   variants?: Prisma.SocialPostVariantListRelationFilter
   publishJobs?: Prisma.SocialPublishJobListRelationFilter
   media?: Prisma.SocialPostMediaListRelationFilter
+  insightObservations?: Prisma.SocialPostInsightObservationListRelationFilter
 }, "id">
 
 export type SocialPostOrderByWithAggregationInput = {
@@ -361,6 +364,7 @@ export type SocialPostCreateInput = {
   variants?: Prisma.SocialPostVariantCreateNestedManyWithoutPostInput
   publishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutPostInput
   media?: Prisma.SocialPostMediaCreateNestedManyWithoutPostInput
+  insightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutPostInput
 }
 
 export type SocialPostUncheckedCreateInput = {
@@ -381,6 +385,7 @@ export type SocialPostUncheckedCreateInput = {
   variants?: Prisma.SocialPostVariantUncheckedCreateNestedManyWithoutPostInput
   publishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutPostInput
   media?: Prisma.SocialPostMediaUncheckedCreateNestedManyWithoutPostInput
+  insightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutPostInput
 }
 
 export type SocialPostUpdateInput = {
@@ -401,6 +406,7 @@ export type SocialPostUpdateInput = {
   variants?: Prisma.SocialPostVariantUpdateManyWithoutPostNestedInput
   publishJobs?: Prisma.SocialPublishJobUpdateManyWithoutPostNestedInput
   media?: Prisma.SocialPostMediaUpdateManyWithoutPostNestedInput
+  insightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutPostNestedInput
 }
 
 export type SocialPostUncheckedUpdateInput = {
@@ -421,6 +427,7 @@ export type SocialPostUncheckedUpdateInput = {
   variants?: Prisma.SocialPostVariantUncheckedUpdateManyWithoutPostNestedInput
   publishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutPostNestedInput
   media?: Prisma.SocialPostMediaUncheckedUpdateManyWithoutPostNestedInput
+  insightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutPostNestedInput
 }
 
 export type SocialPostCreateManyInput = {
@@ -708,6 +715,20 @@ export type SocialPostUpdateOneRequiredWithoutPublishJobsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.SocialPostUpdateToOneWithWhereWithoutPublishJobsInput, Prisma.SocialPostUpdateWithoutPublishJobsInput>, Prisma.SocialPostUncheckedUpdateWithoutPublishJobsInput>
 }
 
+export type SocialPostCreateNestedOneWithoutInsightObservationsInput = {
+  create?: Prisma.XOR<Prisma.SocialPostCreateWithoutInsightObservationsInput, Prisma.SocialPostUncheckedCreateWithoutInsightObservationsInput>
+  connectOrCreate?: Prisma.SocialPostCreateOrConnectWithoutInsightObservationsInput
+  connect?: Prisma.SocialPostWhereUniqueInput
+}
+
+export type SocialPostUpdateOneRequiredWithoutInsightObservationsNestedInput = {
+  create?: Prisma.XOR<Prisma.SocialPostCreateWithoutInsightObservationsInput, Prisma.SocialPostUncheckedCreateWithoutInsightObservationsInput>
+  connectOrCreate?: Prisma.SocialPostCreateOrConnectWithoutInsightObservationsInput
+  upsert?: Prisma.SocialPostUpsertWithoutInsightObservationsInput
+  connect?: Prisma.SocialPostWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.SocialPostUpdateToOneWithWhereWithoutInsightObservationsInput, Prisma.SocialPostUpdateWithoutInsightObservationsInput>, Prisma.SocialPostUncheckedUpdateWithoutInsightObservationsInput>
+}
+
 export type SocialPostCreateNestedOneWithoutMediaInput = {
   create?: Prisma.XOR<Prisma.SocialPostCreateWithoutMediaInput, Prisma.SocialPostUncheckedCreateWithoutMediaInput>
   connectOrCreate?: Prisma.SocialPostCreateOrConnectWithoutMediaInput
@@ -739,6 +760,7 @@ export type SocialPostCreateWithoutOrgInput = {
   variants?: Prisma.SocialPostVariantCreateNestedManyWithoutPostInput
   publishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutPostInput
   media?: Prisma.SocialPostMediaCreateNestedManyWithoutPostInput
+  insightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutPostInput
 }
 
 export type SocialPostUncheckedCreateWithoutOrgInput = {
@@ -758,6 +780,7 @@ export type SocialPostUncheckedCreateWithoutOrgInput = {
   variants?: Prisma.SocialPostVariantUncheckedCreateNestedManyWithoutPostInput
   publishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutPostInput
   media?: Prisma.SocialPostMediaUncheckedCreateNestedManyWithoutPostInput
+  insightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutPostInput
 }
 
 export type SocialPostCreateOrConnectWithoutOrgInput = {
@@ -823,6 +846,7 @@ export type SocialPostCreateWithoutUserInput = {
   variants?: Prisma.SocialPostVariantCreateNestedManyWithoutPostInput
   publishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutPostInput
   media?: Prisma.SocialPostMediaCreateNestedManyWithoutPostInput
+  insightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutPostInput
 }
 
 export type SocialPostUncheckedCreateWithoutUserInput = {
@@ -842,6 +866,7 @@ export type SocialPostUncheckedCreateWithoutUserInput = {
   variants?: Prisma.SocialPostVariantUncheckedCreateNestedManyWithoutPostInput
   publishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutPostInput
   media?: Prisma.SocialPostMediaUncheckedCreateNestedManyWithoutPostInput
+  insightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutPostInput
 }
 
 export type SocialPostCreateOrConnectWithoutUserInput = {
@@ -887,6 +912,7 @@ export type SocialPostCreateWithoutPrimaryChannelInput = {
   variants?: Prisma.SocialPostVariantCreateNestedManyWithoutPostInput
   publishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutPostInput
   media?: Prisma.SocialPostMediaCreateNestedManyWithoutPostInput
+  insightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutPostInput
 }
 
 export type SocialPostUncheckedCreateWithoutPrimaryChannelInput = {
@@ -906,6 +932,7 @@ export type SocialPostUncheckedCreateWithoutPrimaryChannelInput = {
   variants?: Prisma.SocialPostVariantUncheckedCreateNestedManyWithoutPostInput
   publishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutPostInput
   media?: Prisma.SocialPostMediaUncheckedCreateNestedManyWithoutPostInput
+  insightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutPostInput
 }
 
 export type SocialPostCreateOrConnectWithoutPrimaryChannelInput = {
@@ -951,6 +978,7 @@ export type SocialPostCreateWithoutVariantsInput = {
   primaryChannel?: Prisma.SocialChannelConnectionCreateNestedOneWithoutPostsInput
   publishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutPostInput
   media?: Prisma.SocialPostMediaCreateNestedManyWithoutPostInput
+  insightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutPostInput
 }
 
 export type SocialPostUncheckedCreateWithoutVariantsInput = {
@@ -970,6 +998,7 @@ export type SocialPostUncheckedCreateWithoutVariantsInput = {
   updatedAt?: Date | string
   publishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutPostInput
   media?: Prisma.SocialPostMediaUncheckedCreateNestedManyWithoutPostInput
+  insightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutPostInput
 }
 
 export type SocialPostCreateOrConnectWithoutVariantsInput = {
@@ -1005,6 +1034,7 @@ export type SocialPostUpdateWithoutVariantsInput = {
   primaryChannel?: Prisma.SocialChannelConnectionUpdateOneWithoutPostsNestedInput
   publishJobs?: Prisma.SocialPublishJobUpdateManyWithoutPostNestedInput
   media?: Prisma.SocialPostMediaUpdateManyWithoutPostNestedInput
+  insightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutPostNestedInput
 }
 
 export type SocialPostUncheckedUpdateWithoutVariantsInput = {
@@ -1024,6 +1054,7 @@ export type SocialPostUncheckedUpdateWithoutVariantsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   publishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutPostNestedInput
   media?: Prisma.SocialPostMediaUncheckedUpdateManyWithoutPostNestedInput
+  insightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutPostNestedInput
 }
 
 export type SocialPostCreateWithoutPublishJobsInput = {
@@ -1043,6 +1074,7 @@ export type SocialPostCreateWithoutPublishJobsInput = {
   primaryChannel?: Prisma.SocialChannelConnectionCreateNestedOneWithoutPostsInput
   variants?: Prisma.SocialPostVariantCreateNestedManyWithoutPostInput
   media?: Prisma.SocialPostMediaCreateNestedManyWithoutPostInput
+  insightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutPostInput
 }
 
 export type SocialPostUncheckedCreateWithoutPublishJobsInput = {
@@ -1062,6 +1094,7 @@ export type SocialPostUncheckedCreateWithoutPublishJobsInput = {
   updatedAt?: Date | string
   variants?: Prisma.SocialPostVariantUncheckedCreateNestedManyWithoutPostInput
   media?: Prisma.SocialPostMediaUncheckedCreateNestedManyWithoutPostInput
+  insightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutPostInput
 }
 
 export type SocialPostCreateOrConnectWithoutPublishJobsInput = {
@@ -1097,6 +1130,7 @@ export type SocialPostUpdateWithoutPublishJobsInput = {
   primaryChannel?: Prisma.SocialChannelConnectionUpdateOneWithoutPostsNestedInput
   variants?: Prisma.SocialPostVariantUpdateManyWithoutPostNestedInput
   media?: Prisma.SocialPostMediaUpdateManyWithoutPostNestedInput
+  insightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutPostNestedInput
 }
 
 export type SocialPostUncheckedUpdateWithoutPublishJobsInput = {
@@ -1115,6 +1149,103 @@ export type SocialPostUncheckedUpdateWithoutPublishJobsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   variants?: Prisma.SocialPostVariantUncheckedUpdateManyWithoutPostNestedInput
+  media?: Prisma.SocialPostMediaUncheckedUpdateManyWithoutPostNestedInput
+  insightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutPostNestedInput
+}
+
+export type SocialPostCreateWithoutInsightObservationsInput = {
+  id?: string
+  title?: string | null
+  prompt?: string | null
+  content: string
+  channels?: Prisma.SocialPostCreatechannelsInput | $Enums.SocialPlatform[]
+  status?: $Enums.SocialPostStatus
+  scheduledFor?: Date | string | null
+  publishedAt?: Date | string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  user: Prisma.UserCreateNestedOneWithoutSocialPostsInput
+  org?: Prisma.OrganizationCreateNestedOneWithoutSocialPostsInput
+  primaryChannel?: Prisma.SocialChannelConnectionCreateNestedOneWithoutPostsInput
+  variants?: Prisma.SocialPostVariantCreateNestedManyWithoutPostInput
+  publishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutPostInput
+  media?: Prisma.SocialPostMediaCreateNestedManyWithoutPostInput
+}
+
+export type SocialPostUncheckedCreateWithoutInsightObservationsInput = {
+  id?: string
+  userId: string
+  orgId?: string | null
+  primaryChannelId?: string | null
+  title?: string | null
+  prompt?: string | null
+  content: string
+  channels?: Prisma.SocialPostCreatechannelsInput | $Enums.SocialPlatform[]
+  status?: $Enums.SocialPostStatus
+  scheduledFor?: Date | string | null
+  publishedAt?: Date | string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  variants?: Prisma.SocialPostVariantUncheckedCreateNestedManyWithoutPostInput
+  publishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutPostInput
+  media?: Prisma.SocialPostMediaUncheckedCreateNestedManyWithoutPostInput
+}
+
+export type SocialPostCreateOrConnectWithoutInsightObservationsInput = {
+  where: Prisma.SocialPostWhereUniqueInput
+  create: Prisma.XOR<Prisma.SocialPostCreateWithoutInsightObservationsInput, Prisma.SocialPostUncheckedCreateWithoutInsightObservationsInput>
+}
+
+export type SocialPostUpsertWithoutInsightObservationsInput = {
+  update: Prisma.XOR<Prisma.SocialPostUpdateWithoutInsightObservationsInput, Prisma.SocialPostUncheckedUpdateWithoutInsightObservationsInput>
+  create: Prisma.XOR<Prisma.SocialPostCreateWithoutInsightObservationsInput, Prisma.SocialPostUncheckedCreateWithoutInsightObservationsInput>
+  where?: Prisma.SocialPostWhereInput
+}
+
+export type SocialPostUpdateToOneWithWhereWithoutInsightObservationsInput = {
+  where?: Prisma.SocialPostWhereInput
+  data: Prisma.XOR<Prisma.SocialPostUpdateWithoutInsightObservationsInput, Prisma.SocialPostUncheckedUpdateWithoutInsightObservationsInput>
+}
+
+export type SocialPostUpdateWithoutInsightObservationsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  title?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  prompt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  content?: Prisma.StringFieldUpdateOperationsInput | string
+  channels?: Prisma.SocialPostUpdatechannelsInput | $Enums.SocialPlatform[]
+  status?: Prisma.EnumSocialPostStatusFieldUpdateOperationsInput | $Enums.SocialPostStatus
+  scheduledFor?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  user?: Prisma.UserUpdateOneRequiredWithoutSocialPostsNestedInput
+  org?: Prisma.OrganizationUpdateOneWithoutSocialPostsNestedInput
+  primaryChannel?: Prisma.SocialChannelConnectionUpdateOneWithoutPostsNestedInput
+  variants?: Prisma.SocialPostVariantUpdateManyWithoutPostNestedInput
+  publishJobs?: Prisma.SocialPublishJobUpdateManyWithoutPostNestedInput
+  media?: Prisma.SocialPostMediaUpdateManyWithoutPostNestedInput
+}
+
+export type SocialPostUncheckedUpdateWithoutInsightObservationsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  userId?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  primaryChannelId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  title?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  prompt?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  content?: Prisma.StringFieldUpdateOperationsInput | string
+  channels?: Prisma.SocialPostUpdatechannelsInput | $Enums.SocialPlatform[]
+  status?: Prisma.EnumSocialPostStatusFieldUpdateOperationsInput | $Enums.SocialPostStatus
+  scheduledFor?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  publishedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  variants?: Prisma.SocialPostVariantUncheckedUpdateManyWithoutPostNestedInput
+  publishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutPostNestedInput
   media?: Prisma.SocialPostMediaUncheckedUpdateManyWithoutPostNestedInput
 }
 
@@ -1135,6 +1266,7 @@ export type SocialPostCreateWithoutMediaInput = {
   primaryChannel?: Prisma.SocialChannelConnectionCreateNestedOneWithoutPostsInput
   variants?: Prisma.SocialPostVariantCreateNestedManyWithoutPostInput
   publishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutPostInput
+  insightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutPostInput
 }
 
 export type SocialPostUncheckedCreateWithoutMediaInput = {
@@ -1154,6 +1286,7 @@ export type SocialPostUncheckedCreateWithoutMediaInput = {
   updatedAt?: Date | string
   variants?: Prisma.SocialPostVariantUncheckedCreateNestedManyWithoutPostInput
   publishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutPostInput
+  insightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutPostInput
 }
 
 export type SocialPostCreateOrConnectWithoutMediaInput = {
@@ -1189,6 +1322,7 @@ export type SocialPostUpdateWithoutMediaInput = {
   primaryChannel?: Prisma.SocialChannelConnectionUpdateOneWithoutPostsNestedInput
   variants?: Prisma.SocialPostVariantUpdateManyWithoutPostNestedInput
   publishJobs?: Prisma.SocialPublishJobUpdateManyWithoutPostNestedInput
+  insightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutPostNestedInput
 }
 
 export type SocialPostUncheckedUpdateWithoutMediaInput = {
@@ -1208,6 +1342,7 @@ export type SocialPostUncheckedUpdateWithoutMediaInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   variants?: Prisma.SocialPostVariantUncheckedUpdateManyWithoutPostNestedInput
   publishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutPostNestedInput
+  insightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutPostNestedInput
 }
 
 export type SocialPostCreateManyOrgInput = {
@@ -1243,6 +1378,7 @@ export type SocialPostUpdateWithoutOrgInput = {
   variants?: Prisma.SocialPostVariantUpdateManyWithoutPostNestedInput
   publishJobs?: Prisma.SocialPublishJobUpdateManyWithoutPostNestedInput
   media?: Prisma.SocialPostMediaUpdateManyWithoutPostNestedInput
+  insightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutPostNestedInput
 }
 
 export type SocialPostUncheckedUpdateWithoutOrgInput = {
@@ -1262,6 +1398,7 @@ export type SocialPostUncheckedUpdateWithoutOrgInput = {
   variants?: Prisma.SocialPostVariantUncheckedUpdateManyWithoutPostNestedInput
   publishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutPostNestedInput
   media?: Prisma.SocialPostMediaUncheckedUpdateManyWithoutPostNestedInput
+  insightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutPostNestedInput
 }
 
 export type SocialPostUncheckedUpdateManyWithoutOrgInput = {
@@ -1313,6 +1450,7 @@ export type SocialPostUpdateWithoutUserInput = {
   variants?: Prisma.SocialPostVariantUpdateManyWithoutPostNestedInput
   publishJobs?: Prisma.SocialPublishJobUpdateManyWithoutPostNestedInput
   media?: Prisma.SocialPostMediaUpdateManyWithoutPostNestedInput
+  insightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutPostNestedInput
 }
 
 export type SocialPostUncheckedUpdateWithoutUserInput = {
@@ -1332,6 +1470,7 @@ export type SocialPostUncheckedUpdateWithoutUserInput = {
   variants?: Prisma.SocialPostVariantUncheckedUpdateManyWithoutPostNestedInput
   publishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutPostNestedInput
   media?: Prisma.SocialPostMediaUncheckedUpdateManyWithoutPostNestedInput
+  insightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutPostNestedInput
 }
 
 export type SocialPostUncheckedUpdateManyWithoutUserInput = {
@@ -1383,6 +1522,7 @@ export type SocialPostUpdateWithoutPrimaryChannelInput = {
   variants?: Prisma.SocialPostVariantUpdateManyWithoutPostNestedInput
   publishJobs?: Prisma.SocialPublishJobUpdateManyWithoutPostNestedInput
   media?: Prisma.SocialPostMediaUpdateManyWithoutPostNestedInput
+  insightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutPostNestedInput
 }
 
 export type SocialPostUncheckedUpdateWithoutPrimaryChannelInput = {
@@ -1402,6 +1542,7 @@ export type SocialPostUncheckedUpdateWithoutPrimaryChannelInput = {
   variants?: Prisma.SocialPostVariantUncheckedUpdateManyWithoutPostNestedInput
   publishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutPostNestedInput
   media?: Prisma.SocialPostMediaUncheckedUpdateManyWithoutPostNestedInput
+  insightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutPostNestedInput
 }
 
 export type SocialPostUncheckedUpdateManyWithoutPrimaryChannelInput = {
@@ -1429,12 +1570,14 @@ export type SocialPostCountOutputType = {
   variants: number
   publishJobs: number
   media: number
+  insightObservations: number
 }
 
 export type SocialPostCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   variants?: boolean | SocialPostCountOutputTypeCountVariantsArgs
   publishJobs?: boolean | SocialPostCountOutputTypeCountPublishJobsArgs
   media?: boolean | SocialPostCountOutputTypeCountMediaArgs
+  insightObservations?: boolean | SocialPostCountOutputTypeCountInsightObservationsArgs
 }
 
 /**
@@ -1468,6 +1611,13 @@ export type SocialPostCountOutputTypeCountMediaArgs<ExtArgs extends runtime.Type
   where?: Prisma.SocialPostMediaWhereInput
 }
 
+/**
+ * SocialPostCountOutputType without action
+ */
+export type SocialPostCountOutputTypeCountInsightObservationsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.SocialPostInsightObservationWhereInput
+}
+
 
 export type SocialPostSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -1490,6 +1640,7 @@ export type SocialPostSelect<ExtArgs extends runtime.Types.Extensions.InternalAr
   variants?: boolean | Prisma.SocialPost$variantsArgs<ExtArgs>
   publishJobs?: boolean | Prisma.SocialPost$publishJobsArgs<ExtArgs>
   media?: boolean | Prisma.SocialPost$mediaArgs<ExtArgs>
+  insightObservations?: boolean | Prisma.SocialPost$insightObservationsArgs<ExtArgs>
   _count?: boolean | Prisma.SocialPostCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["socialPost"]>
 
@@ -1558,6 +1709,7 @@ export type SocialPostInclude<ExtArgs extends runtime.Types.Extensions.InternalA
   variants?: boolean | Prisma.SocialPost$variantsArgs<ExtArgs>
   publishJobs?: boolean | Prisma.SocialPost$publishJobsArgs<ExtArgs>
   media?: boolean | Prisma.SocialPost$mediaArgs<ExtArgs>
+  insightObservations?: boolean | Prisma.SocialPost$insightObservationsArgs<ExtArgs>
   _count?: boolean | Prisma.SocialPostCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type SocialPostIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1580,6 +1732,7 @@ export type $SocialPostPayload<ExtArgs extends runtime.Types.Extensions.Internal
     variants: Prisma.$SocialPostVariantPayload<ExtArgs>[]
     publishJobs: Prisma.$SocialPublishJobPayload<ExtArgs>[]
     media: Prisma.$SocialPostMediaPayload<ExtArgs>[]
+    insightObservations: Prisma.$SocialPostInsightObservationPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -1996,6 +2149,7 @@ export interface Prisma__SocialPostClient<T, Null = never, ExtArgs extends runti
   variants<T extends Prisma.SocialPost$variantsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.SocialPost$variantsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPostVariantPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   publishJobs<T extends Prisma.SocialPost$publishJobsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.SocialPost$publishJobsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPublishJobPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   media<T extends Prisma.SocialPost$mediaArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.SocialPost$mediaArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPostMediaPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  insightObservations<T extends Prisma.SocialPost$insightObservationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.SocialPost$insightObservationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPostInsightObservationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2542,6 +2696,30 @@ export type SocialPost$mediaArgs<ExtArgs extends runtime.Types.Extensions.Intern
   take?: number
   skip?: number
   distinct?: Prisma.SocialPostMediaScalarFieldEnum | Prisma.SocialPostMediaScalarFieldEnum[]
+}
+
+/**
+ * SocialPost.insightObservations
+ */
+export type SocialPost$insightObservationsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the SocialPostInsightObservation
+   */
+  select?: Prisma.SocialPostInsightObservationSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the SocialPostInsightObservation
+   */
+  omit?: Prisma.SocialPostInsightObservationOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.SocialPostInsightObservationInclude<ExtArgs> | null
+  where?: Prisma.SocialPostInsightObservationWhereInput
+  orderBy?: Prisma.SocialPostInsightObservationOrderByWithRelationInput | Prisma.SocialPostInsightObservationOrderByWithRelationInput[]
+  cursor?: Prisma.SocialPostInsightObservationWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.SocialPostInsightObservationScalarFieldEnum | Prisma.SocialPostInsightObservationScalarFieldEnum[]
 }
 
 /**

@@ -235,6 +235,16 @@ export type VerificationToken = Prisma.VerificationTokenModel
  */
 export type AdminUser = Prisma.AdminUserModel
 /**
+ * Model AdminSavedReport
+ * 
+ */
+export type AdminSavedReport = Prisma.AdminSavedReportModel
+/**
+ * Model AdminReportExportAuditEvent
+ * 
+ */
+export type AdminReportExportAuditEvent = Prisma.AdminReportExportAuditEventModel
+/**
  * Model AdminSupportAccessGrant
  * 
  */
@@ -274,6 +284,11 @@ export type QuoteRequest = Prisma.QuoteRequestModel
  * 
  */
 export type ProductWaitlistEntry = Prisma.ProductWaitlistEntryModel
+/**
+ * Model ProductWaitlistEvent
+ * 
+ */
+export type ProductWaitlistEvent = Prisma.ProductWaitlistEventModel
 /**
  * Model Quotation
  * 

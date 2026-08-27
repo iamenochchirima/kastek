@@ -174,7 +174,8 @@ export type SocialPlatform = (typeof SocialPlatform)[keyof typeof SocialPlatform
 
 export const ContentMediaKind = {
   IMAGE: 'IMAGE',
-  VIDEO: 'VIDEO'
+  VIDEO: 'VIDEO',
+  AUDIO: 'AUDIO'
 } as const
 
 export type ContentMediaKind = (typeof ContentMediaKind)[keyof typeof ContentMediaKind]

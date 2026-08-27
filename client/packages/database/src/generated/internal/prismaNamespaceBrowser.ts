@@ -90,6 +90,8 @@ export const ModelName = {
   Session: 'Session',
   VerificationToken: 'VerificationToken',
   AdminUser: 'AdminUser',
+  AdminSavedReport: 'AdminSavedReport',
+  AdminReportExportAuditEvent: 'AdminReportExportAuditEvent',
   AdminSupportAccessGrant: 'AdminSupportAccessGrant',
   AdminSupportAccessAuditEvent: 'AdminSupportAccessAuditEvent',
   AdminWebhookReplayCommand: 'AdminWebhookReplayCommand',
@@ -98,6 +100,7 @@ export const ModelName = {
   OnboardingConversation: 'OnboardingConversation',
   QuoteRequest: 'QuoteRequest',
   ProductWaitlistEntry: 'ProductWaitlistEntry',
+  ProductWaitlistEvent: 'ProductWaitlistEvent',
   Quotation: 'Quotation',
   Invoice: 'Invoice',
   InvoiceRun: 'InvoiceRun',
@@ -842,6 +845,32 @@ export const AdminUserScalarFieldEnum = {
 export type AdminUserScalarFieldEnum = (typeof AdminUserScalarFieldEnum)[keyof typeof AdminUserScalarFieldEnum]
 
 
+export const AdminSavedReportScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  reportKey: 'reportKey',
+  config: 'config',
+  createdById: 'createdById',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AdminSavedReportScalarFieldEnum = (typeof AdminSavedReportScalarFieldEnum)[keyof typeof AdminSavedReportScalarFieldEnum]
+
+
+export const AdminReportExportAuditEventScalarFieldEnum = {
+  id: 'id',
+  adminId: 'adminId',
+  reportKey: 'reportKey',
+  days: 'days',
+  format: 'format',
+  status: 'status',
+  createdAt: 'createdAt'
+} as const
+
+export type AdminReportExportAuditEventScalarFieldEnum = (typeof AdminReportExportAuditEventScalarFieldEnum)[keyof typeof AdminReportExportAuditEventScalarFieldEnum]
+
+
 export const AdminSupportAccessGrantScalarFieldEnum = {
   id: 'id',
   adminId: 'adminId',
@@ -972,11 +1001,40 @@ export const ProductWaitlistEntryScalarFieldEnum = {
   notes: 'notes',
   source: 'source',
   status: 'status',
+  cohort: 'cohort',
+  contactConsentAt: 'contactConsentAt',
+  reviewNotes: 'reviewNotes',
+  decisionReason: 'decisionReason',
+  reviewedById: 'reviewedById',
+  reviewedAt: 'reviewedAt',
+  approvedById: 'approvedById',
+  approvedAt: 'approvedAt',
+  organizationId: 'organizationId',
+  invitationId: 'invitationId',
+  activatedAt: 'activatedAt',
+  earlyAccessEndsAt: 'earlyAccessEndsAt',
+  entitlementGrantIds: 'entitlementGrantIds',
+  creditGrantId: 'creditGrantId',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
 export type ProductWaitlistEntryScalarFieldEnum = (typeof ProductWaitlistEntryScalarFieldEnum)[keyof typeof ProductWaitlistEntryScalarFieldEnum]
+
+
+export const ProductWaitlistEventScalarFieldEnum = {
+  id: 'id',
+  waitlistEntryId: 'waitlistEntryId',
+  fromStatus: 'fromStatus',
+  toStatus: 'toStatus',
+  action: 'action',
+  actorId: 'actorId',
+  reason: 'reason',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type ProductWaitlistEventScalarFieldEnum = (typeof ProductWaitlistEventScalarFieldEnum)[keyof typeof ProductWaitlistEventScalarFieldEnum]
 
 
 export const QuotationScalarFieldEnum = {

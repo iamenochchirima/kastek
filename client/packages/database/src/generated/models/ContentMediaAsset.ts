@@ -768,14 +768,6 @@ export type EnumContentMediaKindFieldUpdateOperationsInput = {
   set?: $Enums.ContentMediaKind
 }
 
-export type BigIntFieldUpdateOperationsInput = {
-  set?: bigint | number
-  increment?: bigint | number
-  decrement?: bigint | number
-  multiply?: bigint | number
-  divide?: bigint | number
-}
-
 export type EnumContentMediaProcessingStatusFieldUpdateOperationsInput = {
   set?: $Enums.ContentMediaProcessingStatus
 }

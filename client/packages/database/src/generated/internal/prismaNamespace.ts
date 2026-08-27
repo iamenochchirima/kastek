@@ -423,6 +423,8 @@ export const ModelName = {
   Session: 'Session',
   VerificationToken: 'VerificationToken',
   AdminUser: 'AdminUser',
+  AdminSavedReport: 'AdminSavedReport',
+  AdminReportExportAuditEvent: 'AdminReportExportAuditEvent',
   AdminSupportAccessGrant: 'AdminSupportAccessGrant',
   AdminSupportAccessAuditEvent: 'AdminSupportAccessAuditEvent',
   AdminWebhookReplayCommand: 'AdminWebhookReplayCommand',
@@ -431,6 +433,7 @@ export const ModelName = {
   OnboardingConversation: 'OnboardingConversation',
   QuoteRequest: 'QuoteRequest',
   ProductWaitlistEntry: 'ProductWaitlistEntry',
+  ProductWaitlistEvent: 'ProductWaitlistEvent',
   Quotation: 'Quotation',
   Invoice: 'Invoice',
   InvoiceRun: 'InvoiceRun',
@@ -491,7 +494,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "organization" | "organizationMember" | "organizationOnboardingProfile" | "organizationInvitation" | "externalConnection" | "externalConnectionCapability" | "externalConnectionConsumer" | "product" | "productPlan" | "userProductTour" | "planEntitlement" | "organizationSubscription" | "organizationEntitlementGrant" | "usageEvent" | "referralCode" | "referralAttribution" | "creditAccount" | "creditGrant" | "creditLedgerEntry" | "creditReservation" | "creditUsageEvent" | "creditAdminOperation" | "publicApiRequest" | "developerApiKey" | "agentWebsiteDeployment" | "agentWebsiteVisitorSession" | "agentWebsiteDeliveryEvent" | "publicApiWebhookSubscription" | "publicApiWebhookDelivery" | "billingCheckout" | "billingInvoice" | "paystackWebhookEvent" | "billingReconciliationIssue" | "user" | "pushSubscription" | "account" | "session" | "verificationToken" | "adminUser" | "adminSupportAccessGrant" | "adminSupportAccessAuditEvent" | "adminWebhookReplayCommand" | "adminWebhookReplayAuditEvent" | "businessProfile" | "onboardingConversation" | "quoteRequest" | "productWaitlistEntry" | "quotation" | "invoice" | "invoiceRun" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "customer" | "customerIdentity" | "bookingService" | "booking" | "conversation" | "communicationCall" | "communicationCallLeg" | "message" | "messageAttachment" | "messageReference" | "messageReaction" | "messageEvent" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "whatsappCallSession" | "whatsappCallEvent" | "socialChannelConnection" | "socialDataDeletionRequest" | "socialWebhookEvent" | "socialOAuthAuthorization" | "socialPost" | "socialPostVariant" | "socialPublishJob" | "socialPostInsightObservation" | "socialPostInsightSyncState" | "contentMediaAsset" | "contentMediaRendition" | "socialPostMedia" | "socialPostVariantMedia" | "whatsappContact" | "whatsappContactListMembership" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent"
+    modelProps: "organization" | "organizationMember" | "organizationOnboardingProfile" | "organizationInvitation" | "externalConnection" | "externalConnectionCapability" | "externalConnectionConsumer" | "product" | "productPlan" | "userProductTour" | "planEntitlement" | "organizationSubscription" | "organizationEntitlementGrant" | "usageEvent" | "referralCode" | "referralAttribution" | "creditAccount" | "creditGrant" | "creditLedgerEntry" | "creditReservation" | "creditUsageEvent" | "creditAdminOperation" | "publicApiRequest" | "developerApiKey" | "agentWebsiteDeployment" | "agentWebsiteVisitorSession" | "agentWebsiteDeliveryEvent" | "publicApiWebhookSubscription" | "publicApiWebhookDelivery" | "billingCheckout" | "billingInvoice" | "paystackWebhookEvent" | "billingReconciliationIssue" | "user" | "pushSubscription" | "account" | "session" | "verificationToken" | "adminUser" | "adminSavedReport" | "adminReportExportAuditEvent" | "adminSupportAccessGrant" | "adminSupportAccessAuditEvent" | "adminWebhookReplayCommand" | "adminWebhookReplayAuditEvent" | "businessProfile" | "onboardingConversation" | "quoteRequest" | "productWaitlistEntry" | "productWaitlistEvent" | "quotation" | "invoice" | "invoiceRun" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "customer" | "customerIdentity" | "bookingService" | "booking" | "conversation" | "communicationCall" | "communicationCallLeg" | "message" | "messageAttachment" | "messageReference" | "messageReaction" | "messageEvent" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "whatsappCallSession" | "whatsappCallEvent" | "socialChannelConnection" | "socialDataDeletionRequest" | "socialWebhookEvent" | "socialOAuthAuthorization" | "socialPost" | "socialPostVariant" | "socialPublishJob" | "socialPostInsightObservation" | "socialPostInsightSyncState" | "contentMediaAsset" | "contentMediaRendition" | "socialPostMedia" | "socialPostVariantMedia" | "whatsappContact" | "whatsappContactListMembership" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -3381,6 +3384,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    AdminSavedReport: {
+      payload: Prisma.$AdminSavedReportPayload<ExtArgs>
+      fields: Prisma.AdminSavedReportFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.AdminSavedReportFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminSavedReportPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.AdminSavedReportFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminSavedReportPayload>
+        }
+        findFirst: {
+          args: Prisma.AdminSavedReportFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminSavedReportPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.AdminSavedReportFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminSavedReportPayload>
+        }
+        findMany: {
+          args: Prisma.AdminSavedReportFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminSavedReportPayload>[]
+        }
+        create: {
+          args: Prisma.AdminSavedReportCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminSavedReportPayload>
+        }
+        createMany: {
+          args: Prisma.AdminSavedReportCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.AdminSavedReportCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminSavedReportPayload>[]
+        }
+        delete: {
+          args: Prisma.AdminSavedReportDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminSavedReportPayload>
+        }
+        update: {
+          args: Prisma.AdminSavedReportUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminSavedReportPayload>
+        }
+        deleteMany: {
+          args: Prisma.AdminSavedReportDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.AdminSavedReportUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.AdminSavedReportUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminSavedReportPayload>[]
+        }
+        upsert: {
+          args: Prisma.AdminSavedReportUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminSavedReportPayload>
+        }
+        aggregate: {
+          args: Prisma.AdminSavedReportAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateAdminSavedReport>
+        }
+        groupBy: {
+          args: Prisma.AdminSavedReportGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AdminSavedReportGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.AdminSavedReportCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AdminSavedReportCountAggregateOutputType> | number
+        }
+      }
+    }
+    AdminReportExportAuditEvent: {
+      payload: Prisma.$AdminReportExportAuditEventPayload<ExtArgs>
+      fields: Prisma.AdminReportExportAuditEventFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.AdminReportExportAuditEventFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminReportExportAuditEventPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.AdminReportExportAuditEventFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminReportExportAuditEventPayload>
+        }
+        findFirst: {
+          args: Prisma.AdminReportExportAuditEventFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminReportExportAuditEventPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.AdminReportExportAuditEventFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminReportExportAuditEventPayload>
+        }
+        findMany: {
+          args: Prisma.AdminReportExportAuditEventFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminReportExportAuditEventPayload>[]
+        }
+        create: {
+          args: Prisma.AdminReportExportAuditEventCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminReportExportAuditEventPayload>
+        }
+        createMany: {
+          args: Prisma.AdminReportExportAuditEventCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.AdminReportExportAuditEventCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminReportExportAuditEventPayload>[]
+        }
+        delete: {
+          args: Prisma.AdminReportExportAuditEventDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminReportExportAuditEventPayload>
+        }
+        update: {
+          args: Prisma.AdminReportExportAuditEventUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminReportExportAuditEventPayload>
+        }
+        deleteMany: {
+          args: Prisma.AdminReportExportAuditEventDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.AdminReportExportAuditEventUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.AdminReportExportAuditEventUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminReportExportAuditEventPayload>[]
+        }
+        upsert: {
+          args: Prisma.AdminReportExportAuditEventUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AdminReportExportAuditEventPayload>
+        }
+        aggregate: {
+          args: Prisma.AdminReportExportAuditEventAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateAdminReportExportAuditEvent>
+        }
+        groupBy: {
+          args: Prisma.AdminReportExportAuditEventGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AdminReportExportAuditEventGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.AdminReportExportAuditEventCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AdminReportExportAuditEventCountAggregateOutputType> | number
+        }
+      }
+    }
     AdminSupportAccessGrant: {
       payload: Prisma.$AdminSupportAccessGrantPayload<ExtArgs>
       fields: Prisma.AdminSupportAccessGrantFieldRefs
@@ -3970,6 +4121,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.ProductWaitlistEntryCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.ProductWaitlistEntryCountAggregateOutputType> | number
+        }
+      }
+    }
+    ProductWaitlistEvent: {
+      payload: Prisma.$ProductWaitlistEventPayload<ExtArgs>
+      fields: Prisma.ProductWaitlistEventFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ProductWaitlistEventFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEventPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ProductWaitlistEventFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEventPayload>
+        }
+        findFirst: {
+          args: Prisma.ProductWaitlistEventFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEventPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ProductWaitlistEventFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEventPayload>
+        }
+        findMany: {
+          args: Prisma.ProductWaitlistEventFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEventPayload>[]
+        }
+        create: {
+          args: Prisma.ProductWaitlistEventCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEventPayload>
+        }
+        createMany: {
+          args: Prisma.ProductWaitlistEventCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ProductWaitlistEventCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEventPayload>[]
+        }
+        delete: {
+          args: Prisma.ProductWaitlistEventDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEventPayload>
+        }
+        update: {
+          args: Prisma.ProductWaitlistEventUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEventPayload>
+        }
+        deleteMany: {
+          args: Prisma.ProductWaitlistEventDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ProductWaitlistEventUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ProductWaitlistEventUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEventPayload>[]
+        }
+        upsert: {
+          args: Prisma.ProductWaitlistEventUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ProductWaitlistEventPayload>
+        }
+        aggregate: {
+          args: Prisma.ProductWaitlistEventAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateProductWaitlistEvent>
+        }
+        groupBy: {
+          args: Prisma.ProductWaitlistEventGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ProductWaitlistEventGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ProductWaitlistEventCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ProductWaitlistEventCountAggregateOutputType> | number
         }
       }
     }
@@ -8023,6 +8248,32 @@ export const AdminUserScalarFieldEnum = {
 export type AdminUserScalarFieldEnum = (typeof AdminUserScalarFieldEnum)[keyof typeof AdminUserScalarFieldEnum]
 
 
+export const AdminSavedReportScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  reportKey: 'reportKey',
+  config: 'config',
+  createdById: 'createdById',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AdminSavedReportScalarFieldEnum = (typeof AdminSavedReportScalarFieldEnum)[keyof typeof AdminSavedReportScalarFieldEnum]
+
+
+export const AdminReportExportAuditEventScalarFieldEnum = {
+  id: 'id',
+  adminId: 'adminId',
+  reportKey: 'reportKey',
+  days: 'days',
+  format: 'format',
+  status: 'status',
+  createdAt: 'createdAt'
+} as const
+
+export type AdminReportExportAuditEventScalarFieldEnum = (typeof AdminReportExportAuditEventScalarFieldEnum)[keyof typeof AdminReportExportAuditEventScalarFieldEnum]
+
+
 export const AdminSupportAccessGrantScalarFieldEnum = {
   id: 'id',
   adminId: 'adminId',
@@ -8153,11 +8404,40 @@ export const ProductWaitlistEntryScalarFieldEnum = {
   notes: 'notes',
   source: 'source',
   status: 'status',
+  cohort: 'cohort',
+  contactConsentAt: 'contactConsentAt',
+  reviewNotes: 'reviewNotes',
+  decisionReason: 'decisionReason',
+  reviewedById: 'reviewedById',
+  reviewedAt: 'reviewedAt',
+  approvedById: 'approvedById',
+  approvedAt: 'approvedAt',
+  organizationId: 'organizationId',
+  invitationId: 'invitationId',
+  activatedAt: 'activatedAt',
+  earlyAccessEndsAt: 'earlyAccessEndsAt',
+  entitlementGrantIds: 'entitlementGrantIds',
+  creditGrantId: 'creditGrantId',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
 export type ProductWaitlistEntryScalarFieldEnum = (typeof ProductWaitlistEntryScalarFieldEnum)[keyof typeof ProductWaitlistEntryScalarFieldEnum]
+
+
+export const ProductWaitlistEventScalarFieldEnum = {
+  id: 'id',
+  waitlistEntryId: 'waitlistEntryId',
+  fromStatus: 'fromStatus',
+  toStatus: 'toStatus',
+  action: 'action',
+  actorId: 'actorId',
+  reason: 'reason',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type ProductWaitlistEventScalarFieldEnum = (typeof ProductWaitlistEventScalarFieldEnum)[keyof typeof ProductWaitlistEventScalarFieldEnum]
 
 
 export const QuotationScalarFieldEnum = {
@@ -9756,6 +10036,8 @@ export type GlobalOmitConfig = {
   session?: Prisma.SessionOmit
   verificationToken?: Prisma.VerificationTokenOmit
   adminUser?: Prisma.AdminUserOmit
+  adminSavedReport?: Prisma.AdminSavedReportOmit
+  adminReportExportAuditEvent?: Prisma.AdminReportExportAuditEventOmit
   adminSupportAccessGrant?: Prisma.AdminSupportAccessGrantOmit
   adminSupportAccessAuditEvent?: Prisma.AdminSupportAccessAuditEventOmit
   adminWebhookReplayCommand?: Prisma.AdminWebhookReplayCommandOmit
@@ -9764,6 +10046,7 @@ export type GlobalOmitConfig = {
   onboardingConversation?: Prisma.OnboardingConversationOmit
   quoteRequest?: Prisma.QuoteRequestOmit
   productWaitlistEntry?: Prisma.ProductWaitlistEntryOmit
+  productWaitlistEvent?: Prisma.ProductWaitlistEventOmit
   quotation?: Prisma.QuotationOmit
   invoice?: Prisma.InvoiceOmit
   invoiceRun?: Prisma.InvoiceRunOmit

@@ -20,8 +20,18 @@ export type WhatsappCampaignRecipientModel = runtime.Types.Result.DefaultSelecti
 
 export type AggregateWhatsappCampaignRecipient = {
   _count: WhatsappCampaignRecipientCountAggregateOutputType | null
+  _avg: WhatsappCampaignRecipientAvgAggregateOutputType | null
+  _sum: WhatsappCampaignRecipientSumAggregateOutputType | null
   _min: WhatsappCampaignRecipientMinAggregateOutputType | null
   _max: WhatsappCampaignRecipientMaxAggregateOutputType | null
+}
+
+export type WhatsappCampaignRecipientAvgAggregateOutputType = {
+  attemptCount: number | null
+}
+
+export type WhatsappCampaignRecipientSumAggregateOutputType = {
+  attemptCount: number | null
 }
 
 export type WhatsappCampaignRecipientMinAggregateOutputType = {
@@ -38,6 +48,8 @@ export type WhatsappCampaignRecipientMinAggregateOutputType = {
   deliveredAt: Date | null
   readAt: Date | null
   failedAt: Date | null
+  attemptCount: number | null
+  lastAttemptAt: Date | null
   errorCode: string | null
   errorMessage: string | null
   createdAt: Date | null
@@ -58,6 +70,8 @@ export type WhatsappCampaignRecipientMaxAggregateOutputType = {
   deliveredAt: Date | null
   readAt: Date | null
   failedAt: Date | null
+  attemptCount: number | null
+  lastAttemptAt: Date | null
   errorCode: string | null
   errorMessage: string | null
   createdAt: Date | null
@@ -79,6 +93,8 @@ export type WhatsappCampaignRecipientCountAggregateOutputType = {
   deliveredAt: number
   readAt: number
   failedAt: number
+  attemptCount: number
+  lastAttemptAt: number
   errorCode: number
   errorMessage: number
   createdAt: number
@@ -86,6 +102,14 @@ export type WhatsappCampaignRecipientCountAggregateOutputType = {
   _all: number
 }
 
+
+export type WhatsappCampaignRecipientAvgAggregateInputType = {
+  attemptCount?: true
+}
+
+export type WhatsappCampaignRecipientSumAggregateInputType = {
+  attemptCount?: true
+}
 
 export type WhatsappCampaignRecipientMinAggregateInputType = {
   id?: true
@@ -101,6 +125,8 @@ export type WhatsappCampaignRecipientMinAggregateInputType = {
   deliveredAt?: true
   readAt?: true
   failedAt?: true
+  attemptCount?: true
+  lastAttemptAt?: true
   errorCode?: true
   errorMessage?: true
   createdAt?: true
@@ -121,6 +147,8 @@ export type WhatsappCampaignRecipientMaxAggregateInputType = {
   deliveredAt?: true
   readAt?: true
   failedAt?: true
+  attemptCount?: true
+  lastAttemptAt?: true
   errorCode?: true
   errorMessage?: true
   createdAt?: true
@@ -142,6 +170,8 @@ export type WhatsappCampaignRecipientCountAggregateInputType = {
   deliveredAt?: true
   readAt?: true
   failedAt?: true
+  attemptCount?: true
+  lastAttemptAt?: true
   errorCode?: true
   errorMessage?: true
   createdAt?: true
@@ -187,6 +217,18 @@ export type WhatsappCampaignRecipientAggregateArgs<ExtArgs extends runtime.Types
   /**
    * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
    * 
+   * Select which fields to average
+  **/
+  _avg?: WhatsappCampaignRecipientAvgAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
+   * Select which fields to sum
+  **/
+  _sum?: WhatsappCampaignRecipientSumAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
    * Select which fields to find the minimum value
   **/
   _min?: WhatsappCampaignRecipientMinAggregateInputType
@@ -217,6 +259,8 @@ export type WhatsappCampaignRecipientGroupByArgs<ExtArgs extends runtime.Types.E
   take?: number
   skip?: number
   _count?: WhatsappCampaignRecipientCountAggregateInputType | true
+  _avg?: WhatsappCampaignRecipientAvgAggregateInputType
+  _sum?: WhatsappCampaignRecipientSumAggregateInputType
   _min?: WhatsappCampaignRecipientMinAggregateInputType
   _max?: WhatsappCampaignRecipientMaxAggregateInputType
 }
@@ -236,11 +280,15 @@ export type WhatsappCampaignRecipientGroupByOutputType = {
   deliveredAt: Date | null
   readAt: Date | null
   failedAt: Date | null
+  attemptCount: number
+  lastAttemptAt: Date | null
   errorCode: string | null
   errorMessage: string | null
   createdAt: Date
   updatedAt: Date
   _count: WhatsappCampaignRecipientCountAggregateOutputType | null
+  _avg: WhatsappCampaignRecipientAvgAggregateOutputType | null
+  _sum: WhatsappCampaignRecipientSumAggregateOutputType | null
   _min: WhatsappCampaignRecipientMinAggregateOutputType | null
   _max: WhatsappCampaignRecipientMaxAggregateOutputType | null
 }
@@ -278,6 +326,8 @@ export type WhatsappCampaignRecipientWhereInput = {
   deliveredAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaignRecipient"> | Date | string | null
   readAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaignRecipient"> | Date | string | null
   failedAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaignRecipient"> | Date | string | null
+  attemptCount?: Prisma.IntFilter<"WhatsappCampaignRecipient"> | number
+  lastAttemptAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaignRecipient"> | Date | string | null
   errorCode?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
   errorMessage?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
   createdAt?: Prisma.DateTimeFilter<"WhatsappCampaignRecipient"> | Date | string
@@ -302,6 +352,8 @@ export type WhatsappCampaignRecipientOrderByWithRelationInput = {
   deliveredAt?: Prisma.SortOrderInput | Prisma.SortOrder
   readAt?: Prisma.SortOrderInput | Prisma.SortOrder
   failedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  attemptCount?: Prisma.SortOrder
+  lastAttemptAt?: Prisma.SortOrderInput | Prisma.SortOrder
   errorCode?: Prisma.SortOrderInput | Prisma.SortOrder
   errorMessage?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -330,6 +382,8 @@ export type WhatsappCampaignRecipientWhereUniqueInput = Prisma.AtLeast<{
   deliveredAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaignRecipient"> | Date | string | null
   readAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaignRecipient"> | Date | string | null
   failedAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaignRecipient"> | Date | string | null
+  attemptCount?: Prisma.IntFilter<"WhatsappCampaignRecipient"> | number
+  lastAttemptAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaignRecipient"> | Date | string | null
   errorCode?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
   errorMessage?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
   createdAt?: Prisma.DateTimeFilter<"WhatsappCampaignRecipient"> | Date | string
@@ -354,13 +408,17 @@ export type WhatsappCampaignRecipientOrderByWithAggregationInput = {
   deliveredAt?: Prisma.SortOrderInput | Prisma.SortOrder
   readAt?: Prisma.SortOrderInput | Prisma.SortOrder
   failedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  attemptCount?: Prisma.SortOrder
+  lastAttemptAt?: Prisma.SortOrderInput | Prisma.SortOrder
   errorCode?: Prisma.SortOrderInput | Prisma.SortOrder
   errorMessage?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.WhatsappCampaignRecipientCountOrderByAggregateInput
+  _avg?: Prisma.WhatsappCampaignRecipientAvgOrderByAggregateInput
   _max?: Prisma.WhatsappCampaignRecipientMaxOrderByAggregateInput
   _min?: Prisma.WhatsappCampaignRecipientMinOrderByAggregateInput
+  _sum?: Prisma.WhatsappCampaignRecipientSumOrderByAggregateInput
 }
 
 export type WhatsappCampaignRecipientScalarWhereWithAggregatesInput = {
@@ -381,6 +439,8 @@ export type WhatsappCampaignRecipientScalarWhereWithAggregatesInput = {
   deliveredAt?: Prisma.DateTimeNullableWithAggregatesFilter<"WhatsappCampaignRecipient"> | Date | string | null
   readAt?: Prisma.DateTimeNullableWithAggregatesFilter<"WhatsappCampaignRecipient"> | Date | string | null
   failedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"WhatsappCampaignRecipient"> | Date | string | null
+  attemptCount?: Prisma.IntWithAggregatesFilter<"WhatsappCampaignRecipient"> | number
+  lastAttemptAt?: Prisma.DateTimeNullableWithAggregatesFilter<"WhatsappCampaignRecipient"> | Date | string | null
   errorCode?: Prisma.StringNullableWithAggregatesFilter<"WhatsappCampaignRecipient"> | string | null
   errorMessage?: Prisma.StringNullableWithAggregatesFilter<"WhatsappCampaignRecipient"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"WhatsappCampaignRecipient"> | Date | string
@@ -400,6 +460,8 @@ export type WhatsappCampaignRecipientCreateInput = {
   deliveredAt?: Date | string | null
   readAt?: Date | string | null
   failedAt?: Date | string | null
+  attemptCount?: number
+  lastAttemptAt?: Date | string | null
   errorCode?: string | null
   errorMessage?: string | null
   createdAt?: Date | string
@@ -424,6 +486,8 @@ export type WhatsappCampaignRecipientUncheckedCreateInput = {
   deliveredAt?: Date | string | null
   readAt?: Date | string | null
   failedAt?: Date | string | null
+  attemptCount?: number
+  lastAttemptAt?: Date | string | null
   errorCode?: string | null
   errorMessage?: string | null
   createdAt?: Date | string
@@ -444,6 +508,8 @@ export type WhatsappCampaignRecipientUpdateInput = {
   deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   failedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  lastAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -468,6 +534,8 @@ export type WhatsappCampaignRecipientUncheckedUpdateInput = {
   deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   failedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  lastAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -490,6 +558,8 @@ export type WhatsappCampaignRecipientCreateManyInput = {
   deliveredAt?: Date | string | null
   readAt?: Date | string | null
   failedAt?: Date | string | null
+  attemptCount?: number
+  lastAttemptAt?: Date | string | null
   errorCode?: string | null
   errorMessage?: string | null
   createdAt?: Date | string
@@ -509,6 +579,8 @@ export type WhatsappCampaignRecipientUpdateManyMutationInput = {
   deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   failedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  lastAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -530,6 +602,8 @@ export type WhatsappCampaignRecipientUncheckedUpdateManyInput = {
   deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   failedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  lastAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -566,10 +640,16 @@ export type WhatsappCampaignRecipientCountOrderByAggregateInput = {
   deliveredAt?: Prisma.SortOrder
   readAt?: Prisma.SortOrder
   failedAt?: Prisma.SortOrder
+  attemptCount?: Prisma.SortOrder
+  lastAttemptAt?: Prisma.SortOrder
   errorCode?: Prisma.SortOrder
   errorMessage?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+}
+
+export type WhatsappCampaignRecipientAvgOrderByAggregateInput = {
+  attemptCount?: Prisma.SortOrder
 }
 
 export type WhatsappCampaignRecipientMaxOrderByAggregateInput = {
@@ -586,6 +666,8 @@ export type WhatsappCampaignRecipientMaxOrderByAggregateInput = {
   deliveredAt?: Prisma.SortOrder
   readAt?: Prisma.SortOrder
   failedAt?: Prisma.SortOrder
+  attemptCount?: Prisma.SortOrder
+  lastAttemptAt?: Prisma.SortOrder
   errorCode?: Prisma.SortOrder
   errorMessage?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -606,10 +688,16 @@ export type WhatsappCampaignRecipientMinOrderByAggregateInput = {
   deliveredAt?: Prisma.SortOrder
   readAt?: Prisma.SortOrder
   failedAt?: Prisma.SortOrder
+  attemptCount?: Prisma.SortOrder
+  lastAttemptAt?: Prisma.SortOrder
   errorCode?: Prisma.SortOrder
   errorMessage?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+}
+
+export type WhatsappCampaignRecipientSumOrderByAggregateInput = {
+  attemptCount?: Prisma.SortOrder
 }
 
 export type WhatsappCampaignRecipientNullableScalarRelationFilter = {
@@ -734,6 +822,8 @@ export type WhatsappCampaignRecipientCreateWithoutContactInput = {
   deliveredAt?: Date | string | null
   readAt?: Date | string | null
   failedAt?: Date | string | null
+  attemptCount?: number
+  lastAttemptAt?: Date | string | null
   errorCode?: string | null
   errorMessage?: string | null
   createdAt?: Date | string
@@ -756,6 +846,8 @@ export type WhatsappCampaignRecipientUncheckedCreateWithoutContactInput = {
   deliveredAt?: Date | string | null
   readAt?: Date | string | null
   failedAt?: Date | string | null
+  attemptCount?: number
+  lastAttemptAt?: Date | string | null
   errorCode?: string | null
   errorMessage?: string | null
   createdAt?: Date | string
@@ -807,6 +899,8 @@ export type WhatsappCampaignRecipientScalarWhereInput = {
   deliveredAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaignRecipient"> | Date | string | null
   readAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaignRecipient"> | Date | string | null
   failedAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaignRecipient"> | Date | string | null
+  attemptCount?: Prisma.IntFilter<"WhatsappCampaignRecipient"> | number
+  lastAttemptAt?: Prisma.DateTimeNullableFilter<"WhatsappCampaignRecipient"> | Date | string | null
   errorCode?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
   errorMessage?: Prisma.StringNullableFilter<"WhatsappCampaignRecipient"> | string | null
   createdAt?: Prisma.DateTimeFilter<"WhatsappCampaignRecipient"> | Date | string
@@ -826,6 +920,8 @@ export type WhatsappCampaignRecipientCreateWithoutCampaignInput = {
   deliveredAt?: Date | string | null
   readAt?: Date | string | null
   failedAt?: Date | string | null
+  attemptCount?: number
+  lastAttemptAt?: Date | string | null
   errorCode?: string | null
   errorMessage?: string | null
   createdAt?: Date | string
@@ -848,6 +944,8 @@ export type WhatsappCampaignRecipientUncheckedCreateWithoutCampaignInput = {
   deliveredAt?: Date | string | null
   readAt?: Date | string | null
   failedAt?: Date | string | null
+  attemptCount?: number
+  lastAttemptAt?: Date | string | null
   errorCode?: string | null
   errorMessage?: string | null
   createdAt?: Date | string
@@ -894,6 +992,8 @@ export type WhatsappCampaignRecipientCreateWithoutSendEventsInput = {
   deliveredAt?: Date | string | null
   readAt?: Date | string | null
   failedAt?: Date | string | null
+  attemptCount?: number
+  lastAttemptAt?: Date | string | null
   errorCode?: string | null
   errorMessage?: string | null
   createdAt?: Date | string
@@ -917,6 +1017,8 @@ export type WhatsappCampaignRecipientUncheckedCreateWithoutSendEventsInput = {
   deliveredAt?: Date | string | null
   readAt?: Date | string | null
   failedAt?: Date | string | null
+  attemptCount?: number
+  lastAttemptAt?: Date | string | null
   errorCode?: string | null
   errorMessage?: string | null
   createdAt?: Date | string
@@ -952,6 +1054,8 @@ export type WhatsappCampaignRecipientUpdateWithoutSendEventsInput = {
   deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   failedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  lastAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -975,6 +1079,8 @@ export type WhatsappCampaignRecipientUncheckedUpdateWithoutSendEventsInput = {
   deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   failedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  lastAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -995,6 +1101,8 @@ export type WhatsappCampaignRecipientCreateManyContactInput = {
   deliveredAt?: Date | string | null
   readAt?: Date | string | null
   failedAt?: Date | string | null
+  attemptCount?: number
+  lastAttemptAt?: Date | string | null
   errorCode?: string | null
   errorMessage?: string | null
   createdAt?: Date | string
@@ -1014,6 +1122,8 @@ export type WhatsappCampaignRecipientUpdateWithoutContactInput = {
   deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   failedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  lastAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1036,6 +1146,8 @@ export type WhatsappCampaignRecipientUncheckedUpdateWithoutContactInput = {
   deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   failedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  lastAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1057,6 +1169,8 @@ export type WhatsappCampaignRecipientUncheckedUpdateManyWithoutContactInput = {
   deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   failedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  lastAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1077,6 +1191,8 @@ export type WhatsappCampaignRecipientCreateManyCampaignInput = {
   deliveredAt?: Date | string | null
   readAt?: Date | string | null
   failedAt?: Date | string | null
+  attemptCount?: number
+  lastAttemptAt?: Date | string | null
   errorCode?: string | null
   errorMessage?: string | null
   createdAt?: Date | string
@@ -1096,6 +1212,8 @@ export type WhatsappCampaignRecipientUpdateWithoutCampaignInput = {
   deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   failedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  lastAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1118,6 +1236,8 @@ export type WhatsappCampaignRecipientUncheckedUpdateWithoutCampaignInput = {
   deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   failedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  lastAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1139,6 +1259,8 @@ export type WhatsappCampaignRecipientUncheckedUpdateManyWithoutCampaignInput = {
   deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   readAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   failedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  lastAttemptAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   errorCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   errorMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1191,6 +1313,8 @@ export type WhatsappCampaignRecipientSelect<ExtArgs extends runtime.Types.Extens
   deliveredAt?: boolean
   readAt?: boolean
   failedAt?: boolean
+  attemptCount?: boolean
+  lastAttemptAt?: boolean
   errorCode?: boolean
   errorMessage?: boolean
   createdAt?: boolean
@@ -1216,6 +1340,8 @@ export type WhatsappCampaignRecipientSelectCreateManyAndReturn<ExtArgs extends r
   deliveredAt?: boolean
   readAt?: boolean
   failedAt?: boolean
+  attemptCount?: boolean
+  lastAttemptAt?: boolean
   errorCode?: boolean
   errorMessage?: boolean
   createdAt?: boolean
@@ -1239,6 +1365,8 @@ export type WhatsappCampaignRecipientSelectUpdateManyAndReturn<ExtArgs extends r
   deliveredAt?: boolean
   readAt?: boolean
   failedAt?: boolean
+  attemptCount?: boolean
+  lastAttemptAt?: boolean
   errorCode?: boolean
   errorMessage?: boolean
   createdAt?: boolean
@@ -1262,13 +1390,15 @@ export type WhatsappCampaignRecipientSelectScalar = {
   deliveredAt?: boolean
   readAt?: boolean
   failedAt?: boolean
+  attemptCount?: boolean
+  lastAttemptAt?: boolean
   errorCode?: boolean
   errorMessage?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type WhatsappCampaignRecipientOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "campaignId" | "contactId" | "snapshotPhone" | "snapshotFullName" | "snapshotLocation" | "snapshotListLabel" | "snapshotMetadata" | "status" | "waMessageId" | "sentAt" | "deliveredAt" | "readAt" | "failedAt" | "errorCode" | "errorMessage" | "createdAt" | "updatedAt", ExtArgs["result"]["whatsappCampaignRecipient"]>
+export type WhatsappCampaignRecipientOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "campaignId" | "contactId" | "snapshotPhone" | "snapshotFullName" | "snapshotLocation" | "snapshotListLabel" | "snapshotMetadata" | "status" | "waMessageId" | "sentAt" | "deliveredAt" | "readAt" | "failedAt" | "attemptCount" | "lastAttemptAt" | "errorCode" | "errorMessage" | "createdAt" | "updatedAt", ExtArgs["result"]["whatsappCampaignRecipient"]>
 export type WhatsappCampaignRecipientInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   campaign?: boolean | Prisma.WhatsappCampaignDefaultArgs<ExtArgs>
   contact?: boolean | Prisma.WhatsappContactDefaultArgs<ExtArgs>
@@ -1306,6 +1436,8 @@ export type $WhatsappCampaignRecipientPayload<ExtArgs extends runtime.Types.Exte
     deliveredAt: Date | null
     readAt: Date | null
     failedAt: Date | null
+    attemptCount: number
+    lastAttemptAt: Date | null
     errorCode: string | null
     errorMessage: string | null
     createdAt: Date
@@ -1750,6 +1882,8 @@ export interface WhatsappCampaignRecipientFieldRefs {
   readonly deliveredAt: Prisma.FieldRef<"WhatsappCampaignRecipient", 'DateTime'>
   readonly readAt: Prisma.FieldRef<"WhatsappCampaignRecipient", 'DateTime'>
   readonly failedAt: Prisma.FieldRef<"WhatsappCampaignRecipient", 'DateTime'>
+  readonly attemptCount: Prisma.FieldRef<"WhatsappCampaignRecipient", 'Int'>
+  readonly lastAttemptAt: Prisma.FieldRef<"WhatsappCampaignRecipient", 'DateTime'>
   readonly errorCode: Prisma.FieldRef<"WhatsappCampaignRecipient", 'String'>
   readonly errorMessage: Prisma.FieldRef<"WhatsappCampaignRecipient", 'String'>
   readonly createdAt: Prisma.FieldRef<"WhatsappCampaignRecipient", 'DateTime'>

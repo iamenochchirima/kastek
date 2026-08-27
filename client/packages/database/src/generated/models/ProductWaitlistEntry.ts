@@ -34,6 +34,19 @@ export type ProductWaitlistEntryMinAggregateOutputType = {
   notes: string | null
   source: string | null
   status: string | null
+  cohort: string | null
+  contactConsentAt: Date | null
+  reviewNotes: string | null
+  decisionReason: string | null
+  reviewedById: string | null
+  reviewedAt: Date | null
+  approvedById: string | null
+  approvedAt: Date | null
+  organizationId: string | null
+  invitationId: string | null
+  activatedAt: Date | null
+  earlyAccessEndsAt: Date | null
+  creditGrantId: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -48,6 +61,19 @@ export type ProductWaitlistEntryMaxAggregateOutputType = {
   notes: string | null
   source: string | null
   status: string | null
+  cohort: string | null
+  contactConsentAt: Date | null
+  reviewNotes: string | null
+  decisionReason: string | null
+  reviewedById: string | null
+  reviewedAt: Date | null
+  approvedById: string | null
+  approvedAt: Date | null
+  organizationId: string | null
+  invitationId: string | null
+  activatedAt: Date | null
+  earlyAccessEndsAt: Date | null
+  creditGrantId: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -63,6 +89,20 @@ export type ProductWaitlistEntryCountAggregateOutputType = {
   notes: number
   source: number
   status: number
+  cohort: number
+  contactConsentAt: number
+  reviewNotes: number
+  decisionReason: number
+  reviewedById: number
+  reviewedAt: number
+  approvedById: number
+  approvedAt: number
+  organizationId: number
+  invitationId: number
+  activatedAt: number
+  earlyAccessEndsAt: number
+  entitlementGrantIds: number
+  creditGrantId: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -79,6 +119,19 @@ export type ProductWaitlistEntryMinAggregateInputType = {
   notes?: true
   source?: true
   status?: true
+  cohort?: true
+  contactConsentAt?: true
+  reviewNotes?: true
+  decisionReason?: true
+  reviewedById?: true
+  reviewedAt?: true
+  approvedById?: true
+  approvedAt?: true
+  organizationId?: true
+  invitationId?: true
+  activatedAt?: true
+  earlyAccessEndsAt?: true
+  creditGrantId?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -93,6 +146,19 @@ export type ProductWaitlistEntryMaxAggregateInputType = {
   notes?: true
   source?: true
   status?: true
+  cohort?: true
+  contactConsentAt?: true
+  reviewNotes?: true
+  decisionReason?: true
+  reviewedById?: true
+  reviewedAt?: true
+  approvedById?: true
+  approvedAt?: true
+  organizationId?: true
+  invitationId?: true
+  activatedAt?: true
+  earlyAccessEndsAt?: true
+  creditGrantId?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -108,6 +174,20 @@ export type ProductWaitlistEntryCountAggregateInputType = {
   notes?: true
   source?: true
   status?: true
+  cohort?: true
+  contactConsentAt?: true
+  reviewNotes?: true
+  decisionReason?: true
+  reviewedById?: true
+  reviewedAt?: true
+  approvedById?: true
+  approvedAt?: true
+  organizationId?: true
+  invitationId?: true
+  activatedAt?: true
+  earlyAccessEndsAt?: true
+  entitlementGrantIds?: true
+  creditGrantId?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -196,6 +276,20 @@ export type ProductWaitlistEntryGroupByOutputType = {
   notes: string | null
   source: string
   status: string
+  cohort: string
+  contactConsentAt: Date | null
+  reviewNotes: string | null
+  decisionReason: string | null
+  reviewedById: string | null
+  reviewedAt: Date | null
+  approvedById: string | null
+  approvedAt: Date | null
+  organizationId: string | null
+  invitationId: string | null
+  activatedAt: Date | null
+  earlyAccessEndsAt: Date | null
+  entitlementGrantIds: runtime.JsonValue
+  creditGrantId: string | null
   createdAt: Date
   updatedAt: Date
   _count: ProductWaitlistEntryCountAggregateOutputType | null
@@ -232,8 +326,23 @@ export type ProductWaitlistEntryWhereInput = {
   notes?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
   source?: Prisma.StringFilter<"ProductWaitlistEntry"> | string
   status?: Prisma.StringFilter<"ProductWaitlistEntry"> | string
+  cohort?: Prisma.StringFilter<"ProductWaitlistEntry"> | string
+  contactConsentAt?: Prisma.DateTimeNullableFilter<"ProductWaitlistEntry"> | Date | string | null
+  reviewNotes?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
+  decisionReason?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
+  reviewedById?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
+  reviewedAt?: Prisma.DateTimeNullableFilter<"ProductWaitlistEntry"> | Date | string | null
+  approvedById?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
+  approvedAt?: Prisma.DateTimeNullableFilter<"ProductWaitlistEntry"> | Date | string | null
+  organizationId?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
+  invitationId?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
+  activatedAt?: Prisma.DateTimeNullableFilter<"ProductWaitlistEntry"> | Date | string | null
+  earlyAccessEndsAt?: Prisma.DateTimeNullableFilter<"ProductWaitlistEntry"> | Date | string | null
+  entitlementGrantIds?: Prisma.JsonFilter<"ProductWaitlistEntry">
+  creditGrantId?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
   createdAt?: Prisma.DateTimeFilter<"ProductWaitlistEntry"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"ProductWaitlistEntry"> | Date | string
+  events?: Prisma.ProductWaitlistEventListRelationFilter
 }
 
 export type ProductWaitlistEntryOrderByWithRelationInput = {
@@ -247,8 +356,23 @@ export type ProductWaitlistEntryOrderByWithRelationInput = {
   notes?: Prisma.SortOrderInput | Prisma.SortOrder
   source?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  cohort?: Prisma.SortOrder
+  contactConsentAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  reviewNotes?: Prisma.SortOrderInput | Prisma.SortOrder
+  decisionReason?: Prisma.SortOrderInput | Prisma.SortOrder
+  reviewedById?: Prisma.SortOrderInput | Prisma.SortOrder
+  reviewedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  approvedById?: Prisma.SortOrderInput | Prisma.SortOrder
+  approvedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  organizationId?: Prisma.SortOrderInput | Prisma.SortOrder
+  invitationId?: Prisma.SortOrderInput | Prisma.SortOrder
+  activatedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  earlyAccessEndsAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  entitlementGrantIds?: Prisma.SortOrder
+  creditGrantId?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  events?: Prisma.ProductWaitlistEventOrderByRelationAggregateInput
 }
 
 export type ProductWaitlistEntryWhereUniqueInput = Prisma.AtLeast<{
@@ -265,8 +389,23 @@ export type ProductWaitlistEntryWhereUniqueInput = Prisma.AtLeast<{
   notes?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
   source?: Prisma.StringFilter<"ProductWaitlistEntry"> | string
   status?: Prisma.StringFilter<"ProductWaitlistEntry"> | string
+  cohort?: Prisma.StringFilter<"ProductWaitlistEntry"> | string
+  contactConsentAt?: Prisma.DateTimeNullableFilter<"ProductWaitlistEntry"> | Date | string | null
+  reviewNotes?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
+  decisionReason?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
+  reviewedById?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
+  reviewedAt?: Prisma.DateTimeNullableFilter<"ProductWaitlistEntry"> | Date | string | null
+  approvedById?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
+  approvedAt?: Prisma.DateTimeNullableFilter<"ProductWaitlistEntry"> | Date | string | null
+  organizationId?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
+  invitationId?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
+  activatedAt?: Prisma.DateTimeNullableFilter<"ProductWaitlistEntry"> | Date | string | null
+  earlyAccessEndsAt?: Prisma.DateTimeNullableFilter<"ProductWaitlistEntry"> | Date | string | null
+  entitlementGrantIds?: Prisma.JsonFilter<"ProductWaitlistEntry">
+  creditGrantId?: Prisma.StringNullableFilter<"ProductWaitlistEntry"> | string | null
   createdAt?: Prisma.DateTimeFilter<"ProductWaitlistEntry"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"ProductWaitlistEntry"> | Date | string
+  events?: Prisma.ProductWaitlistEventListRelationFilter
 }, "id">
 
 export type ProductWaitlistEntryOrderByWithAggregationInput = {
@@ -280,6 +419,20 @@ export type ProductWaitlistEntryOrderByWithAggregationInput = {
   notes?: Prisma.SortOrderInput | Prisma.SortOrder
   source?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  cohort?: Prisma.SortOrder
+  contactConsentAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  reviewNotes?: Prisma.SortOrderInput | Prisma.SortOrder
+  decisionReason?: Prisma.SortOrderInput | Prisma.SortOrder
+  reviewedById?: Prisma.SortOrderInput | Prisma.SortOrder
+  reviewedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  approvedById?: Prisma.SortOrderInput | Prisma.SortOrder
+  approvedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  organizationId?: Prisma.SortOrderInput | Prisma.SortOrder
+  invitationId?: Prisma.SortOrderInput | Prisma.SortOrder
+  activatedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  earlyAccessEndsAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  entitlementGrantIds?: Prisma.SortOrder
+  creditGrantId?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.ProductWaitlistEntryCountOrderByAggregateInput
@@ -301,6 +454,20 @@ export type ProductWaitlistEntryScalarWhereWithAggregatesInput = {
   notes?: Prisma.StringNullableWithAggregatesFilter<"ProductWaitlistEntry"> | string | null
   source?: Prisma.StringWithAggregatesFilter<"ProductWaitlistEntry"> | string
   status?: Prisma.StringWithAggregatesFilter<"ProductWaitlistEntry"> | string
+  cohort?: Prisma.StringWithAggregatesFilter<"ProductWaitlistEntry"> | string
+  contactConsentAt?: Prisma.DateTimeNullableWithAggregatesFilter<"ProductWaitlistEntry"> | Date | string | null
+  reviewNotes?: Prisma.StringNullableWithAggregatesFilter<"ProductWaitlistEntry"> | string | null
+  decisionReason?: Prisma.StringNullableWithAggregatesFilter<"ProductWaitlistEntry"> | string | null
+  reviewedById?: Prisma.StringNullableWithAggregatesFilter<"ProductWaitlistEntry"> | string | null
+  reviewedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"ProductWaitlistEntry"> | Date | string | null
+  approvedById?: Prisma.StringNullableWithAggregatesFilter<"ProductWaitlistEntry"> | string | null
+  approvedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"ProductWaitlistEntry"> | Date | string | null
+  organizationId?: Prisma.StringNullableWithAggregatesFilter<"ProductWaitlistEntry"> | string | null
+  invitationId?: Prisma.StringNullableWithAggregatesFilter<"ProductWaitlistEntry"> | string | null
+  activatedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"ProductWaitlistEntry"> | Date | string | null
+  earlyAccessEndsAt?: Prisma.DateTimeNullableWithAggregatesFilter<"ProductWaitlistEntry"> | Date | string | null
+  entitlementGrantIds?: Prisma.JsonWithAggregatesFilter<"ProductWaitlistEntry">
+  creditGrantId?: Prisma.StringNullableWithAggregatesFilter<"ProductWaitlistEntry"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"ProductWaitlistEntry"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"ProductWaitlistEntry"> | Date | string
 }
@@ -316,8 +483,23 @@ export type ProductWaitlistEntryCreateInput = {
   notes?: string | null
   source?: string
   status?: string
+  cohort?: string
+  contactConsentAt?: Date | string | null
+  reviewNotes?: string | null
+  decisionReason?: string | null
+  reviewedById?: string | null
+  reviewedAt?: Date | string | null
+  approvedById?: string | null
+  approvedAt?: Date | string | null
+  organizationId?: string | null
+  invitationId?: string | null
+  activatedAt?: Date | string | null
+  earlyAccessEndsAt?: Date | string | null
+  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  creditGrantId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  events?: Prisma.ProductWaitlistEventCreateNestedManyWithoutWaitlistEntryInput
 }
 
 export type ProductWaitlistEntryUncheckedCreateInput = {
@@ -331,8 +513,23 @@ export type ProductWaitlistEntryUncheckedCreateInput = {
   notes?: string | null
   source?: string
   status?: string
+  cohort?: string
+  contactConsentAt?: Date | string | null
+  reviewNotes?: string | null
+  decisionReason?: string | null
+  reviewedById?: string | null
+  reviewedAt?: Date | string | null
+  approvedById?: string | null
+  approvedAt?: Date | string | null
+  organizationId?: string | null
+  invitationId?: string | null
+  activatedAt?: Date | string | null
+  earlyAccessEndsAt?: Date | string | null
+  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  creditGrantId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  events?: Prisma.ProductWaitlistEventUncheckedCreateNestedManyWithoutWaitlistEntryInput
 }
 
 export type ProductWaitlistEntryUpdateInput = {
@@ -346,8 +543,23 @@ export type ProductWaitlistEntryUpdateInput = {
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   source?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  cohort?: Prisma.StringFieldUpdateOperationsInput | string
+  contactConsentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  reviewNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  decisionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reviewedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reviewedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  approvedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  approvedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  organizationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  invitationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  activatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  earlyAccessEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  creditGrantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  events?: Prisma.ProductWaitlistEventUpdateManyWithoutWaitlistEntryNestedInput
 }
 
 export type ProductWaitlistEntryUncheckedUpdateInput = {
@@ -361,8 +573,23 @@ export type ProductWaitlistEntryUncheckedUpdateInput = {
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   source?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  cohort?: Prisma.StringFieldUpdateOperationsInput | string
+  contactConsentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  reviewNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  decisionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reviewedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reviewedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  approvedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  approvedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  organizationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  invitationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  activatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  earlyAccessEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  creditGrantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  events?: Prisma.ProductWaitlistEventUncheckedUpdateManyWithoutWaitlistEntryNestedInput
 }
 
 export type ProductWaitlistEntryCreateManyInput = {
@@ -376,6 +603,20 @@ export type ProductWaitlistEntryCreateManyInput = {
   notes?: string | null
   source?: string
   status?: string
+  cohort?: string
+  contactConsentAt?: Date | string | null
+  reviewNotes?: string | null
+  decisionReason?: string | null
+  reviewedById?: string | null
+  reviewedAt?: Date | string | null
+  approvedById?: string | null
+  approvedAt?: Date | string | null
+  organizationId?: string | null
+  invitationId?: string | null
+  activatedAt?: Date | string | null
+  earlyAccessEndsAt?: Date | string | null
+  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  creditGrantId?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -391,6 +632,20 @@ export type ProductWaitlistEntryUpdateManyMutationInput = {
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   source?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  cohort?: Prisma.StringFieldUpdateOperationsInput | string
+  contactConsentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  reviewNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  decisionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reviewedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reviewedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  approvedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  approvedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  organizationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  invitationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  activatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  earlyAccessEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  creditGrantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -406,6 +661,20 @@ export type ProductWaitlistEntryUncheckedUpdateManyInput = {
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   source?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.StringFieldUpdateOperationsInput | string
+  cohort?: Prisma.StringFieldUpdateOperationsInput | string
+  contactConsentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  reviewNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  decisionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reviewedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reviewedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  approvedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  approvedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  organizationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  invitationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  activatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  earlyAccessEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  creditGrantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -421,6 +690,20 @@ export type ProductWaitlistEntryCountOrderByAggregateInput = {
   notes?: Prisma.SortOrder
   source?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  cohort?: Prisma.SortOrder
+  contactConsentAt?: Prisma.SortOrder
+  reviewNotes?: Prisma.SortOrder
+  decisionReason?: Prisma.SortOrder
+  reviewedById?: Prisma.SortOrder
+  reviewedAt?: Prisma.SortOrder
+  approvedById?: Prisma.SortOrder
+  approvedAt?: Prisma.SortOrder
+  organizationId?: Prisma.SortOrder
+  invitationId?: Prisma.SortOrder
+  activatedAt?: Prisma.SortOrder
+  earlyAccessEndsAt?: Prisma.SortOrder
+  entitlementGrantIds?: Prisma.SortOrder
+  creditGrantId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -435,6 +718,19 @@ export type ProductWaitlistEntryMaxOrderByAggregateInput = {
   notes?: Prisma.SortOrder
   source?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  cohort?: Prisma.SortOrder
+  contactConsentAt?: Prisma.SortOrder
+  reviewNotes?: Prisma.SortOrder
+  decisionReason?: Prisma.SortOrder
+  reviewedById?: Prisma.SortOrder
+  reviewedAt?: Prisma.SortOrder
+  approvedById?: Prisma.SortOrder
+  approvedAt?: Prisma.SortOrder
+  organizationId?: Prisma.SortOrder
+  invitationId?: Prisma.SortOrder
+  activatedAt?: Prisma.SortOrder
+  earlyAccessEndsAt?: Prisma.SortOrder
+  creditGrantId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -449,8 +745,26 @@ export type ProductWaitlistEntryMinOrderByAggregateInput = {
   notes?: Prisma.SortOrder
   source?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  cohort?: Prisma.SortOrder
+  contactConsentAt?: Prisma.SortOrder
+  reviewNotes?: Prisma.SortOrder
+  decisionReason?: Prisma.SortOrder
+  reviewedById?: Prisma.SortOrder
+  reviewedAt?: Prisma.SortOrder
+  approvedById?: Prisma.SortOrder
+  approvedAt?: Prisma.SortOrder
+  organizationId?: Prisma.SortOrder
+  invitationId?: Prisma.SortOrder
+  activatedAt?: Prisma.SortOrder
+  earlyAccessEndsAt?: Prisma.SortOrder
+  creditGrantId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+}
+
+export type ProductWaitlistEntryScalarRelationFilter = {
+  is?: Prisma.ProductWaitlistEntryWhereInput
+  isNot?: Prisma.ProductWaitlistEntryWhereInput
 }
 
 export type ProductWaitlistEntryCreateproductsInput = {
@@ -462,6 +776,181 @@ export type ProductWaitlistEntryUpdateproductsInput = {
   push?: string | string[]
 }
 
+export type ProductWaitlistEntryCreateNestedOneWithoutEventsInput = {
+  create?: Prisma.XOR<Prisma.ProductWaitlistEntryCreateWithoutEventsInput, Prisma.ProductWaitlistEntryUncheckedCreateWithoutEventsInput>
+  connectOrCreate?: Prisma.ProductWaitlistEntryCreateOrConnectWithoutEventsInput
+  connect?: Prisma.ProductWaitlistEntryWhereUniqueInput
+}
+
+export type ProductWaitlistEntryUpdateOneRequiredWithoutEventsNestedInput = {
+  create?: Prisma.XOR<Prisma.ProductWaitlistEntryCreateWithoutEventsInput, Prisma.ProductWaitlistEntryUncheckedCreateWithoutEventsInput>
+  connectOrCreate?: Prisma.ProductWaitlistEntryCreateOrConnectWithoutEventsInput
+  upsert?: Prisma.ProductWaitlistEntryUpsertWithoutEventsInput
+  connect?: Prisma.ProductWaitlistEntryWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.ProductWaitlistEntryUpdateToOneWithWhereWithoutEventsInput, Prisma.ProductWaitlistEntryUpdateWithoutEventsInput>, Prisma.ProductWaitlistEntryUncheckedUpdateWithoutEventsInput>
+}
+
+export type ProductWaitlistEntryCreateWithoutEventsInput = {
+  id?: string
+  businessName: string
+  contactPerson: string
+  phone?: string | null
+  email: string
+  businessType?: string | null
+  products?: Prisma.ProductWaitlistEntryCreateproductsInput | string[]
+  notes?: string | null
+  source?: string
+  status?: string
+  cohort?: string
+  contactConsentAt?: Date | string | null
+  reviewNotes?: string | null
+  decisionReason?: string | null
+  reviewedById?: string | null
+  reviewedAt?: Date | string | null
+  approvedById?: string | null
+  approvedAt?: Date | string | null
+  organizationId?: string | null
+  invitationId?: string | null
+  activatedAt?: Date | string | null
+  earlyAccessEndsAt?: Date | string | null
+  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  creditGrantId?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type ProductWaitlistEntryUncheckedCreateWithoutEventsInput = {
+  id?: string
+  businessName: string
+  contactPerson: string
+  phone?: string | null
+  email: string
+  businessType?: string | null
+  products?: Prisma.ProductWaitlistEntryCreateproductsInput | string[]
+  notes?: string | null
+  source?: string
+  status?: string
+  cohort?: string
+  contactConsentAt?: Date | string | null
+  reviewNotes?: string | null
+  decisionReason?: string | null
+  reviewedById?: string | null
+  reviewedAt?: Date | string | null
+  approvedById?: string | null
+  approvedAt?: Date | string | null
+  organizationId?: string | null
+  invitationId?: string | null
+  activatedAt?: Date | string | null
+  earlyAccessEndsAt?: Date | string | null
+  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  creditGrantId?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type ProductWaitlistEntryCreateOrConnectWithoutEventsInput = {
+  where: Prisma.ProductWaitlistEntryWhereUniqueInput
+  create: Prisma.XOR<Prisma.ProductWaitlistEntryCreateWithoutEventsInput, Prisma.ProductWaitlistEntryUncheckedCreateWithoutEventsInput>
+}
+
+export type ProductWaitlistEntryUpsertWithoutEventsInput = {
+  update: Prisma.XOR<Prisma.ProductWaitlistEntryUpdateWithoutEventsInput, Prisma.ProductWaitlistEntryUncheckedUpdateWithoutEventsInput>
+  create: Prisma.XOR<Prisma.ProductWaitlistEntryCreateWithoutEventsInput, Prisma.ProductWaitlistEntryUncheckedCreateWithoutEventsInput>
+  where?: Prisma.ProductWaitlistEntryWhereInput
+}
+
+export type ProductWaitlistEntryUpdateToOneWithWhereWithoutEventsInput = {
+  where?: Prisma.ProductWaitlistEntryWhereInput
+  data: Prisma.XOR<Prisma.ProductWaitlistEntryUpdateWithoutEventsInput, Prisma.ProductWaitlistEntryUncheckedUpdateWithoutEventsInput>
+}
+
+export type ProductWaitlistEntryUpdateWithoutEventsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  businessName?: Prisma.StringFieldUpdateOperationsInput | string
+  contactPerson?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  businessType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  products?: Prisma.ProductWaitlistEntryUpdateproductsInput | string[]
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  source?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  cohort?: Prisma.StringFieldUpdateOperationsInput | string
+  contactConsentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  reviewNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  decisionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reviewedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reviewedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  approvedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  approvedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  organizationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  invitationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  activatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  earlyAccessEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  creditGrantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type ProductWaitlistEntryUncheckedUpdateWithoutEventsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  businessName?: Prisma.StringFieldUpdateOperationsInput | string
+  contactPerson?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  businessType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  products?: Prisma.ProductWaitlistEntryUpdateproductsInput | string[]
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  source?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  cohort?: Prisma.StringFieldUpdateOperationsInput | string
+  contactConsentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  reviewNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  decisionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reviewedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reviewedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  approvedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  approvedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  organizationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  invitationId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  activatedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  earlyAccessEndsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  entitlementGrantIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  creditGrantId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+
+/**
+ * Count Type ProductWaitlistEntryCountOutputType
+ */
+
+export type ProductWaitlistEntryCountOutputType = {
+  events: number
+}
+
+export type ProductWaitlistEntryCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  events?: boolean | ProductWaitlistEntryCountOutputTypeCountEventsArgs
+}
+
+/**
+ * ProductWaitlistEntryCountOutputType without action
+ */
+export type ProductWaitlistEntryCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ProductWaitlistEntryCountOutputType
+   */
+  select?: Prisma.ProductWaitlistEntryCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * ProductWaitlistEntryCountOutputType without action
+ */
+export type ProductWaitlistEntryCountOutputTypeCountEventsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ProductWaitlistEventWhereInput
+}
 
 
 export type ProductWaitlistEntrySelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -475,8 +964,24 @@ export type ProductWaitlistEntrySelect<ExtArgs extends runtime.Types.Extensions.
   notes?: boolean
   source?: boolean
   status?: boolean
+  cohort?: boolean
+  contactConsentAt?: boolean
+  reviewNotes?: boolean
+  decisionReason?: boolean
+  reviewedById?: boolean
+  reviewedAt?: boolean
+  approvedById?: boolean
+  approvedAt?: boolean
+  organizationId?: boolean
+  invitationId?: boolean
+  activatedAt?: boolean
+  earlyAccessEndsAt?: boolean
+  entitlementGrantIds?: boolean
+  creditGrantId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  events?: boolean | Prisma.ProductWaitlistEntry$eventsArgs<ExtArgs>
+  _count?: boolean | Prisma.ProductWaitlistEntryCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["productWaitlistEntry"]>
 
 export type ProductWaitlistEntrySelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -490,6 +995,20 @@ export type ProductWaitlistEntrySelectCreateManyAndReturn<ExtArgs extends runtim
   notes?: boolean
   source?: boolean
   status?: boolean
+  cohort?: boolean
+  contactConsentAt?: boolean
+  reviewNotes?: boolean
+  decisionReason?: boolean
+  reviewedById?: boolean
+  reviewedAt?: boolean
+  approvedById?: boolean
+  approvedAt?: boolean
+  organizationId?: boolean
+  invitationId?: boolean
+  activatedAt?: boolean
+  earlyAccessEndsAt?: boolean
+  entitlementGrantIds?: boolean
+  creditGrantId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }, ExtArgs["result"]["productWaitlistEntry"]>
@@ -505,6 +1024,20 @@ export type ProductWaitlistEntrySelectUpdateManyAndReturn<ExtArgs extends runtim
   notes?: boolean
   source?: boolean
   status?: boolean
+  cohort?: boolean
+  contactConsentAt?: boolean
+  reviewNotes?: boolean
+  decisionReason?: boolean
+  reviewedById?: boolean
+  reviewedAt?: boolean
+  approvedById?: boolean
+  approvedAt?: boolean
+  organizationId?: boolean
+  invitationId?: boolean
+  activatedAt?: boolean
+  earlyAccessEndsAt?: boolean
+  entitlementGrantIds?: boolean
+  creditGrantId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }, ExtArgs["result"]["productWaitlistEntry"]>
@@ -520,15 +1053,37 @@ export type ProductWaitlistEntrySelectScalar = {
   notes?: boolean
   source?: boolean
   status?: boolean
+  cohort?: boolean
+  contactConsentAt?: boolean
+  reviewNotes?: boolean
+  decisionReason?: boolean
+  reviewedById?: boolean
+  reviewedAt?: boolean
+  approvedById?: boolean
+  approvedAt?: boolean
+  organizationId?: boolean
+  invitationId?: boolean
+  activatedAt?: boolean
+  earlyAccessEndsAt?: boolean
+  entitlementGrantIds?: boolean
+  creditGrantId?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type ProductWaitlistEntryOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "businessName" | "contactPerson" | "phone" | "email" | "businessType" | "products" | "notes" | "source" | "status" | "createdAt" | "updatedAt", ExtArgs["result"]["productWaitlistEntry"]>
+export type ProductWaitlistEntryOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "businessName" | "contactPerson" | "phone" | "email" | "businessType" | "products" | "notes" | "source" | "status" | "cohort" | "contactConsentAt" | "reviewNotes" | "decisionReason" | "reviewedById" | "reviewedAt" | "approvedById" | "approvedAt" | "organizationId" | "invitationId" | "activatedAt" | "earlyAccessEndsAt" | "entitlementGrantIds" | "creditGrantId" | "createdAt" | "updatedAt", ExtArgs["result"]["productWaitlistEntry"]>
+export type ProductWaitlistEntryInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  events?: boolean | Prisma.ProductWaitlistEntry$eventsArgs<ExtArgs>
+  _count?: boolean | Prisma.ProductWaitlistEntryCountOutputTypeDefaultArgs<ExtArgs>
+}
+export type ProductWaitlistEntryIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
+export type ProductWaitlistEntryIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
 
 export type $ProductWaitlistEntryPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "ProductWaitlistEntry"
-  objects: {}
+  objects: {
+    events: Prisma.$ProductWaitlistEventPayload<ExtArgs>[]
+  }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     businessName: string
@@ -540,6 +1095,20 @@ export type $ProductWaitlistEntryPayload<ExtArgs extends runtime.Types.Extension
     notes: string | null
     source: string
     status: string
+    cohort: string
+    contactConsentAt: Date | null
+    reviewNotes: string | null
+    decisionReason: string | null
+    reviewedById: string | null
+    reviewedAt: Date | null
+    approvedById: string | null
+    approvedAt: Date | null
+    organizationId: string | null
+    invitationId: string | null
+    activatedAt: Date | null
+    earlyAccessEndsAt: Date | null
+    entitlementGrantIds: runtime.JsonValue
+    creditGrantId: string | null
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["productWaitlistEntry"]>
@@ -936,6 +1505,7 @@ readonly fields: ProductWaitlistEntryFieldRefs;
  */
 export interface Prisma__ProductWaitlistEntryClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
+  events<T extends Prisma.ProductWaitlistEntry$eventsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ProductWaitlistEntry$eventsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProductWaitlistEventPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -975,6 +1545,20 @@ export interface ProductWaitlistEntryFieldRefs {
   readonly notes: Prisma.FieldRef<"ProductWaitlistEntry", 'String'>
   readonly source: Prisma.FieldRef<"ProductWaitlistEntry", 'String'>
   readonly status: Prisma.FieldRef<"ProductWaitlistEntry", 'String'>
+  readonly cohort: Prisma.FieldRef<"ProductWaitlistEntry", 'String'>
+  readonly contactConsentAt: Prisma.FieldRef<"ProductWaitlistEntry", 'DateTime'>
+  readonly reviewNotes: Prisma.FieldRef<"ProductWaitlistEntry", 'String'>
+  readonly decisionReason: Prisma.FieldRef<"ProductWaitlistEntry", 'String'>
+  readonly reviewedById: Prisma.FieldRef<"ProductWaitlistEntry", 'String'>
+  readonly reviewedAt: Prisma.FieldRef<"ProductWaitlistEntry", 'DateTime'>
+  readonly approvedById: Prisma.FieldRef<"ProductWaitlistEntry", 'String'>
+  readonly approvedAt: Prisma.FieldRef<"ProductWaitlistEntry", 'DateTime'>
+  readonly organizationId: Prisma.FieldRef<"ProductWaitlistEntry", 'String'>
+  readonly invitationId: Prisma.FieldRef<"ProductWaitlistEntry", 'String'>
+  readonly activatedAt: Prisma.FieldRef<"ProductWaitlistEntry", 'DateTime'>
+  readonly earlyAccessEndsAt: Prisma.FieldRef<"ProductWaitlistEntry", 'DateTime'>
+  readonly entitlementGrantIds: Prisma.FieldRef<"ProductWaitlistEntry", 'Json'>
+  readonly creditGrantId: Prisma.FieldRef<"ProductWaitlistEntry", 'String'>
   readonly createdAt: Prisma.FieldRef<"ProductWaitlistEntry", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"ProductWaitlistEntry", 'DateTime'>
 }
@@ -994,6 +1578,10 @@ export type ProductWaitlistEntryFindUniqueArgs<ExtArgs extends runtime.Types.Ext
    */
   omit?: Prisma.ProductWaitlistEntryOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ProductWaitlistEntryInclude<ExtArgs> | null
+  /**
    * Filter, which ProductWaitlistEntry to fetch.
    */
   where: Prisma.ProductWaitlistEntryWhereUniqueInput
@@ -1012,6 +1600,10 @@ export type ProductWaitlistEntryFindUniqueOrThrowArgs<ExtArgs extends runtime.Ty
    */
   omit?: Prisma.ProductWaitlistEntryOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ProductWaitlistEntryInclude<ExtArgs> | null
+  /**
    * Filter, which ProductWaitlistEntry to fetch.
    */
   where: Prisma.ProductWaitlistEntryWhereUniqueInput
@@ -1029,6 +1621,10 @@ export type ProductWaitlistEntryFindFirstArgs<ExtArgs extends runtime.Types.Exte
    * Omit specific fields from the ProductWaitlistEntry
    */
   omit?: Prisma.ProductWaitlistEntryOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ProductWaitlistEntryInclude<ExtArgs> | null
   /**
    * Filter, which ProductWaitlistEntry to fetch.
    */
@@ -1078,6 +1674,10 @@ export type ProductWaitlistEntryFindFirstOrThrowArgs<ExtArgs extends runtime.Typ
    */
   omit?: Prisma.ProductWaitlistEntryOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ProductWaitlistEntryInclude<ExtArgs> | null
+  /**
    * Filter, which ProductWaitlistEntry to fetch.
    */
   where?: Prisma.ProductWaitlistEntryWhereInput
@@ -1126,6 +1726,10 @@ export type ProductWaitlistEntryFindManyArgs<ExtArgs extends runtime.Types.Exten
    */
   omit?: Prisma.ProductWaitlistEntryOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ProductWaitlistEntryInclude<ExtArgs> | null
+  /**
    * Filter, which ProductWaitlistEntries to fetch.
    */
   where?: Prisma.ProductWaitlistEntryWhereInput
@@ -1168,6 +1772,10 @@ export type ProductWaitlistEntryCreateArgs<ExtArgs extends runtime.Types.Extensi
    * Omit specific fields from the ProductWaitlistEntry
    */
   omit?: Prisma.ProductWaitlistEntryOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ProductWaitlistEntryInclude<ExtArgs> | null
   /**
    * The data needed to create a ProductWaitlistEntry.
    */
@@ -1216,6 +1824,10 @@ export type ProductWaitlistEntryUpdateArgs<ExtArgs extends runtime.Types.Extensi
    * Omit specific fields from the ProductWaitlistEntry
    */
   omit?: Prisma.ProductWaitlistEntryOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ProductWaitlistEntryInclude<ExtArgs> | null
   /**
    * The data needed to update a ProductWaitlistEntry.
    */
@@ -1283,6 +1895,10 @@ export type ProductWaitlistEntryUpsertArgs<ExtArgs extends runtime.Types.Extensi
    */
   omit?: Prisma.ProductWaitlistEntryOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ProductWaitlistEntryInclude<ExtArgs> | null
+  /**
    * The filter to search for the ProductWaitlistEntry to update in case it exists.
    */
   where: Prisma.ProductWaitlistEntryWhereUniqueInput
@@ -1309,6 +1925,10 @@ export type ProductWaitlistEntryDeleteArgs<ExtArgs extends runtime.Types.Extensi
    */
   omit?: Prisma.ProductWaitlistEntryOmit<ExtArgs> | null
   /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ProductWaitlistEntryInclude<ExtArgs> | null
+  /**
    * Filter which ProductWaitlistEntry to delete.
    */
   where: Prisma.ProductWaitlistEntryWhereUniqueInput
@@ -1329,6 +1949,30 @@ export type ProductWaitlistEntryDeleteManyArgs<ExtArgs extends runtime.Types.Ext
 }
 
 /**
+ * ProductWaitlistEntry.events
+ */
+export type ProductWaitlistEntry$eventsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ProductWaitlistEvent
+   */
+  select?: Prisma.ProductWaitlistEventSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ProductWaitlistEvent
+   */
+  omit?: Prisma.ProductWaitlistEventOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ProductWaitlistEventInclude<ExtArgs> | null
+  where?: Prisma.ProductWaitlistEventWhereInput
+  orderBy?: Prisma.ProductWaitlistEventOrderByWithRelationInput | Prisma.ProductWaitlistEventOrderByWithRelationInput[]
+  cursor?: Prisma.ProductWaitlistEventWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ProductWaitlistEventScalarFieldEnum | Prisma.ProductWaitlistEventScalarFieldEnum[]
+}
+
+/**
  * ProductWaitlistEntry without action
  */
 export type ProductWaitlistEntryDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1340,4 +1984,8 @@ export type ProductWaitlistEntryDefaultArgs<ExtArgs extends runtime.Types.Extens
    * Omit specific fields from the ProductWaitlistEntry
    */
   omit?: Prisma.ProductWaitlistEntryOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ProductWaitlistEntryInclude<ExtArgs> | null
 }
