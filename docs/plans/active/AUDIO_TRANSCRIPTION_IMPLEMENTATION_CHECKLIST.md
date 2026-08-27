@@ -168,7 +168,7 @@ product, provider, privacy, or deployment decision.
 ### Unit and contract tests
 
 - [-] Validate MIME, magic bytes, size, and format normalization; Core-to-Agent SHA-256 verification is covered, while duration and deeper filename/codec validation remain pending.
-- [x] Validate the canonical audio attachment/job/transcript contract through route, repository, and worker tests.
+- [x] Validate the canonical audio attachment/job/transcript contract through authenticated route, repository, and worker tests.
 - [x] Validate provider success, malformed, 4xx/429 mapping, and missing configuration.
 - [-] Validate idempotency keys, lease expiry, and retry backoff in code; duplicate completion and full lease integration coverage remain pending.
 - [x] Validate safe error codes and redaction.
@@ -177,7 +177,7 @@ product, provider, privacy, or deployment decision.
 ### Database and service integration tests
 
 - [ ] Create an audio attachment and verify durable job state.
-- [x] Complete a transcription and verify one normalized transcript.
+- [x] Complete a transcription and verify one normalized transcript; authenticated HTTP coverage also verifies the accepted Core asset and organization-scoped status response.
 - [x] Verify one agent dispatch and one normal text response.
 - [x] Retry a provider failure and verify no duplicate transcript or agent run.
 - [ ] Verify permanent media/provider failure becomes operator-visible and user-safe.
@@ -217,7 +217,7 @@ product, provider, privacy, or deployment decision.
 ## 12. Documentation and release closure
 
 - [x] Update public docs for supported audio input and limitations.
-- [-] Update widget/API integration docs with upload and transcript contracts; public behavior is documented, while a dedicated API reference page remains pending.
+- [-] Update widget/API integration docs with upload and transcript contracts; public behavior and authenticated route tests are documented, while a dedicated API reference page remains pending.
 - [x] Update internal architecture docs with message/media/transcription ownership.
 - [x] Add ElevenLabs configuration and provider-failure runbook.
 - [ ] Add privacy/data-retention and deletion documentation.

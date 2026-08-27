@@ -331,7 +331,9 @@ User, API, internal, and operational documentation: public audio input documenta
 ownership reference, this plan/checklist, and the provider-failure runbook are present. API
 reference publication and privacy/legal approval remain pending.
 
-Validation evidence: Agent build and TypeScript checks pass; focused Agent tests pass; the
+Validation evidence: Agent build and TypeScript checks pass; focused Agent tests pass, including
+authenticated HTTP contract tests for direct multipart transcription, Core media acceptance,
+durable platform enqueue, and organization-scoped job status; the
 database-backed Agent integration suite passes 15/15 tests for retention, operator commands,
 platform chat, durable audio enqueue/deduplication, worker completion, retry recovery, and one
 agent dispatch; Core formatting/check and focused website/media tests pass; client/Admin
