@@ -31,6 +31,10 @@ pub struct ProductWaitlistCreateRequest {
     pub business_type: Option<String>,
     pub products: Option<Vec<String>>,
     pub notes: Option<String>,
+    #[serde(rename = "contactConsent")]
+    pub contact_consent: Option<bool>,
+    /// Honeypot field for low-cost bot rejection. Real clients never render it.
+    pub website: Option<String>,
 }
 #[derive(Debug, Clone, FromRow)]
 pub struct BusinessProfileRow {

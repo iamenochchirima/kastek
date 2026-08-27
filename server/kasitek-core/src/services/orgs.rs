@@ -443,7 +443,7 @@ pub async fn create_invitation(
 
     let invite_url = format!("{}/invite/{}", config.auth_url, token);
     let sender_label = invited_by_name.unwrap_or("A team member");
-    send_email(
+    if let Err(error) = send_email(
         config,
         email,
         &format!("You're invited to join {} on KasiTek", org_name),
@@ -452,7 +452,17 @@ pub async fn create_invitation(
             sender_label, org_name, invite_url
         ),
     )
-    .await?;
+    .await
+    {
+        // The invitation is durable and can be resent by an operator. Email
+        // delivery must not turn a successful approval into an unknown state.
+        log::error!(
+            "invitation email delivery failed invitation_id={} recipient={} error={}",
+            inv.id,
+            email,
+            error
+        );
+    }
 
     Ok(inv)
 }

@@ -6,7 +6,14 @@ use sqlx::{FromRow, PgPool, Postgres, Transaction};
 use crate::error::AppError;
 
 const ADMIN_SOURCES: &[&str] = &["MANUAL", "PROMOTIONAL", "COMPENSATION"];
-const SYSTEM_SOURCES: &[&str] = &["PLAN", "TRIAL", "REFERRAL", "PURCHASE", "MIGRATION"];
+const SYSTEM_SOURCES: &[&str] = &[
+    "PLAN",
+    "TRIAL",
+    "REFERRAL",
+    "PURCHASE",
+    "MIGRATION",
+    "EARLY_ACCESS",
+];
 
 #[derive(Debug, Serialize, FromRow)]
 pub struct CreditBalance {
@@ -368,7 +375,7 @@ fn validate_system_source(source: &str) -> Result<String, AppError> {
     let source = source.trim().to_uppercase();
     if !SYSTEM_SOURCES.contains(&source.as_str()) {
         return Err(AppError::BadRequest(
-            "System credit source must be PLAN, TRIAL, REFERRAL, PURCHASE, or MIGRATION"
+            "System credit source must be PLAN, TRIAL, REFERRAL, PURCHASE, MIGRATION, or EARLY_ACCESS"
                 .to_string(),
         ));
     }

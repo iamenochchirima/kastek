@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Activity, BarChart3, Building2, ChevronDown, ChevronLeft, ChevronRight, FileText, Gauge, Globe2, Handshake,
-  Inbox, KeyRound, Mail, Menu, Palette, ReceiptText, Send, Users,
+  Inbox, KeyRound, Mail, Menu, Palette, ReceiptText, Send, UserPlus, Users,
 } from "lucide-react";
 import { buttonClassName } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/dialog";
@@ -49,6 +49,7 @@ const navigation: NavGroup[] = [
     { href: "/web-services", label: "Web services", icon: Globe2 },
   ] },
   { label: "Platform", items: [
+    { href: "/early-access", label: "Early access", icon: UserPlus },
     { href: "/access", label: "User access", icon: Users },
     { href: "/agencies", label: "Agencies", icon: Building2 },
   ] },
@@ -109,7 +110,7 @@ function Navigation({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate
 function Brand({ collapsed = false }: { collapsed?: boolean }) {
   return <Link href="/dashboard" aria-label="KasiTek Labs" className={`flex items-center gap-2.5 px-2 ${collapsed ? "justify-center" : ""}`}>
     <Image src="/logo.png" alt="" aria-hidden="true" width={32} height={32} priority className="size-8 shrink-0 object-contain" />
-    {!collapsed ? <span className="text-sm font-semibold tracking-[-0.02em] text-foreground">Kasitek <span className="font-normal text-muted-foreground">Labs</span></span> : null}
+    {!collapsed ? <span className="flex items-center gap-1.5 text-sm font-semibold tracking-[-0.02em] text-foreground">Kasitek <span className="font-normal text-muted-foreground">Labs</span> <span className="rounded-full border border-current/25 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Beta</span></span> : null}
   </Link>;
 }
 

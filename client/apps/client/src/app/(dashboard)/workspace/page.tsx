@@ -57,6 +57,9 @@ export default async function WorkspacePage() {
 
   const response = await fetchRustJson<{ summary: WorkspaceSummary }>("/api/workspace/summary");
   const summary = response.summary;
+  const earlyAccessResponse = await fetchRustJson<{
+    earlyAccess: { status: string; endsAt: string | null } | null;
+  }>("/api/early-access/status").catch(() => null);
 
   return (
     <div className="px-4 py-6 lg:px-6">
@@ -70,6 +73,16 @@ export default async function WorkspacePage() {
             <Button asChild><Link href="/campaigns/create">New campaign</Link></Button>
           </PageHeaderActions>
         </PageHeader>
+
+        {earlyAccessResponse?.earlyAccess ? (
+          <section className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/25 bg-primary/5 px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Beta access</p>
+              <p className="mt-0.5 text-xs capitalize text-muted-foreground">{earlyAccessResponse.earlyAccess.status}{earlyAccessResponse.earlyAccess.endsAt ? ` · ends ${new Date(earlyAccessResponse.earlyAccess.endsAt).toLocaleDateString()}` : ""}</p>
+            </div>
+            <span className="rounded-full border border-primary/25 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">Beta</span>
+          </section>
+        ) : null}
 
         <WorkspaceAnalyticsOverview />
 

@@ -325,7 +325,7 @@ function MobileTopbar({
       <Link href="/workspace" className="flex min-w-0 items-center gap-2 text-left no-underline">
         <Image src="/logo.png" alt="KasiTek" width={24} height={24} className="h-6 w-6 rounded-sm" />
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground">KasiTek</p>
+          <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-foreground">KasiTek <span className="rounded-full border border-current/25 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Beta</span></p>
           <p className="truncate text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{sectionLabel}</p>
         </div>
       </Link>
@@ -499,7 +499,7 @@ function SidebarContent({
           className={cn("flex min-w-0 items-center gap-2 text-left no-underline transition-opacity hover:opacity-90", collapsed && "justify-center")}
         >
           <Image src="/logo.png" alt="KasiTek" width={32} height={32} className="h-8 w-8 rounded-md" />
-          {!collapsed ? <span className="text-[13px] font-semibold text-foreground">KasiTek</span> : null}
+          {!collapsed ? <span className="flex items-center gap-1.5 text-[13px] font-semibold text-foreground">KasiTek <span className="rounded-full border border-current/25 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Beta</span></span> : null}
         </Link>
 
       </div>

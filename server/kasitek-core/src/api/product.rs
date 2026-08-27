@@ -6,15 +6,19 @@ use actix_web::web;
 use crate::controllers::{
     admin, admin_billing, admin_conversations, admin_invoices, admin_leads, admin_notifications,
     admin_outreach, admin_quotations, admin_web_services, agent_internal, agent_platform, ai,
-    analytics, auth, billing, bookings, calls, connections, customers, developers, health, inbox,
-    notifications, onboarding, orgs, product_tour, profile, realtime, referrals, social, whatsapp,
-    whatsapp_calls, workspace,
+    analytics, auth, billing, bookings, calls, connections, customers, developers, early_access,
+    health, inbox, notifications, onboarding, orgs, product_tour, profile, realtime, referrals,
+    social, whatsapp, whatsapp_calls, workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.route("/", web::get().to(health::root));
     cfg.route("/health", web::get().to(health::health_check));
     cfg.route("/api/workspace/summary", web::get().to(workspace::summary));
+    cfg.route(
+        "/api/early-access/status",
+        web::get().to(early_access::status),
+    );
     cfg.service(
         web::scope("/api/analytics")
             .route("/catalog", web::get().to(analytics::catalog))

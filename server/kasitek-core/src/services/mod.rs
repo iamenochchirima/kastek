@@ -13,6 +13,7 @@ pub mod content_media;
 pub mod credits;
 pub mod customers;
 pub mod developer_api_keys;
+pub mod early_access;
 pub mod inbox;
 pub mod message_domain;
 pub mod notifications;

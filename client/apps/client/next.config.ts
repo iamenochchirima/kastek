@@ -24,6 +24,7 @@ const nextConfig: NextConfig = {
       { source: "/privacy-policy", destination: `${publicSiteUrl}/privacy-policy`, permanent: true },
       { source: "/terms", destination: `${publicSiteUrl}/terms`, permanent: true },
       { source: "/waitlist", destination: `${publicSiteUrl}/waitlist`, permanent: true },
+      { source: "/early-access", destination: `${publicSiteUrl}/early-access`, permanent: true },
       { source: "/fliers", destination: publicSiteUrl, permanent: true },
       { source: "/solutions", destination: publicSiteUrl, permanent: true },
       { source: "/solutions/:path*", destination: publicSiteUrl, permanent: true },

@@ -616,6 +616,37 @@ fn normalize_required(value: Option<&str>, field: &str) -> Result<String, AppErr
         .ok_or_else(|| AppError::BadRequest(format!("{field} is required")))
 }
 
+fn normalize_required_with_limit(
+    value: Option<&str>,
+    field: &str,
+    max_length: usize,
+) -> Result<String, AppError> {
+    let value = normalize_required(value, field)?;
+    if value.chars().count() > max_length {
+        return Err(AppError::BadRequest(format!(
+            "{field} must be at most {max_length} characters"
+        )));
+    }
+    Ok(value)
+}
+
+fn normalize_optional_with_limit(
+    value: Option<&str>,
+    field: &str,
+    max_length: usize,
+) -> Result<Option<String>, AppError> {
+    let value = normalize_optional(value);
+    if value
+        .as_deref()
+        .is_some_and(|value| value.chars().count() > max_length)
+    {
+        return Err(AppError::BadRequest(format!(
+            "{field} must be at most {max_length} characters"
+        )));
+    }
+    Ok(value)
+}
+
 fn normalize_optional(value: Option<&str>) -> Option<String> {
     value
         .map(str::trim)
@@ -651,7 +682,22 @@ async fn list_admin_ids(pool: &PgPool) -> Result<Vec<String>, AppError> {
         .map_err(AppError::from)
 }
 
-async fn publish_admin_notification(
+async fn existing_early_access_application_id(
+    pool: &PgPool,
+    email: &str,
+) -> Result<Option<String>, AppError> {
+    Ok(sqlx::query_scalar::<_, String>(
+        r#"SELECT id FROM "ProductWaitlistEntry"
+           WHERE lower(email) = lower($1)
+             AND status IN ('new', 'reviewing', 'approved', 'invited', 'active')
+           ORDER BY "createdAt" DESC LIMIT 1"#,
+    )
+    .bind(email)
+    .fetch_optional(pool)
+    .await?)
+}
+
+pub(crate) async fn publish_admin_notification(
     pool: &PgPool,
     event_type: &str,
     title: &str,
@@ -823,11 +869,14 @@ pub async fn create_waitlist_entry(
     config: &AppConfig,
     input: ProductWaitlistCreateRequest,
 ) -> Result<serde_json::Value, AppError> {
-    let business_name = normalize_required(input.business_name.as_deref(), "Business name")?;
-    let contact_person = normalize_required(input.contact_person.as_deref(), "Contact person")?;
-    let email = normalize_required(input.email.as_deref(), "Email")?.to_lowercase();
+    let business_name =
+        normalize_required_with_limit(input.business_name.as_deref(), "Business name", 160)?;
+    let contact_person =
+        normalize_required_with_limit(input.contact_person.as_deref(), "Contact person", 160)?;
+    let email = normalize_required_with_limit(input.email.as_deref(), "Email", 320)?.to_lowercase();
     validate_email(&email)?;
-    let business_type = normalize_optional(input.business_type.as_deref());
+    let business_type =
+        normalize_optional_with_limit(input.business_type.as_deref(), "Business type", 80)?;
     if business_type
         .as_deref()
         .is_some_and(|value| !VALID_BUSINESS_TYPES.contains(&value))
@@ -836,7 +885,9 @@ pub async fn create_waitlist_entry(
     }
 
     let products = normalize_string_list(input.products.as_ref());
-    if products.is_empty()
+    if products.len() > 10
+        || products.iter().any(|product| product.chars().count() > 80)
+        || products.is_empty()
         || products
             .iter()
             .any(|product| !VALID_PRODUCTS.contains(&product.as_str()))
@@ -845,34 +896,70 @@ pub async fn create_waitlist_entry(
             "Invalid product selection".to_string(),
         ));
     }
+    if input.contact_consent != Some(true) {
+        return Err(AppError::BadRequest(
+            "Consent to be contacted is required".to_string(),
+        ));
+    }
+    if input
+        .website
+        .as_deref()
+        .is_some_and(|value| !value.trim().is_empty())
+    {
+        return Err(AppError::BadRequest("Invalid application".to_string()));
+    }
+    let phone = normalize_optional_with_limit(input.phone.as_deref(), "Phone", 40)?;
+    let notes = normalize_optional_with_limit(input.notes.as_deref(), "Primary use case", 4_000)?;
+
+    if let Some(existing_id) = existing_early_access_application_id(pool, &email).await? {
+        return Ok(json!({
+            "message": "Early-access application received",
+            "id": existing_id
+        }));
+    }
 
     let id = cuid2::create_id();
-    sqlx::query(
+    match sqlx::query(
         r#"
         INSERT INTO "ProductWaitlistEntry" (
             id, "businessName", "contactPerson", phone, email, "businessType",
-            products, notes, source, status, "createdAt", "updatedAt"
+            products, notes, source, status, "contactConsentAt", "createdAt", "updatedAt"
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'website', 'new', NOW(), NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'website', 'new', NOW(), NOW(), NOW())
         "#,
     )
     .bind(&id)
     .bind(&business_name)
     .bind(&contact_person)
-    .bind(normalize_optional(input.phone.as_deref()))
+    .bind(phone)
     .bind(&email)
     .bind(&business_type)
     .bind(&products)
-    .bind(normalize_optional(input.notes.as_deref()))
+    .bind(notes)
     .execute(pool)
-    .await?;
+    .await
+    {
+        Ok(_) => {}
+        Err(sqlx::Error::Database(error)) if error.code().as_deref() == Some("23505") => {
+            if let Some(existing_id) = existing_early_access_application_id(pool, &email).await? {
+                return Ok(json!({
+                    "message": "Early-access application received",
+                    "id": existing_id
+                }));
+            }
+            return Err(AppError::Conflict(
+                "An active early-access application already exists".to_string(),
+            ));
+        }
+        Err(error) => return Err(error.into()),
+    }
 
     let _ = publish_admin_notification(
         pool,
-        "product_waitlist.created",
-        "New product waitlist signup",
+        "early_access.submitted",
+        "New early-access application",
         &format!(
-            "{} joined the waitlist for {}.",
+            "{} applied for early access to {}.",
             business_name,
             products.join(", ")
         ),
@@ -884,9 +971,17 @@ pub async fn create_waitlist_entry(
             "email": email,
             "products": products,
         }),
-        &format!("product_waitlist.created:{id}"),
+        &format!("early_access.submitted:{id}"),
     )
     .await;
+
+    if let Err(error) = crate::services::early_access::record_submission(pool, &id).await {
+        log::error!(
+            "early-access submission audit failed application_id={} error={}",
+            id,
+            error
+        );
+    }
 
     let admin_email =
         std::env::var("ADMIN_EMAIL").unwrap_or_else(|_| "iamenochchirima@gmail.com".to_string());
@@ -902,7 +997,7 @@ pub async fn create_waitlist_entry(
     .await;
 
     Ok(json!({
-        "message": "Waitlist signup submitted successfully",
+        "message": "Early-access application received",
         "id": id
     }))
 }

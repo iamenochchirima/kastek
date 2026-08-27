@@ -1088,22 +1088,59 @@ model QuoteRequest {
 }
 
 model ProductWaitlistEntry {
-  id            String   @id @default(cuid())
-  businessName  String
-  contactPerson String
-  phone         String?
-  email         String
-  businessType  String?
-  products      String[]
-  notes         String?  @db.Text
-  source        String   @default("website")
-  status        String   @default("new")
+  id                   String                @id @default(cuid())
+  businessName         String
+  contactPerson        String
+  phone                String?
+  email                String
+  businessType         String?
+  products             String[]
+  notes                String?               @db.Text
+  source               String                @default("website")
+  status               String                @default("new")
+  cohort               String                @default("beta")
+  contactConsentAt     DateTime?
+  reviewNotes          String?               @db.Text
+  decisionReason       String?               @db.Text
+  reviewedById         String?
+  reviewedAt           DateTime?
+  approvedById         String?
+  approvedAt           DateTime?
+  organizationId       String?
+  invitationId         String?
+  activatedAt          DateTime?
+  earlyAccessEndsAt    DateTime?
+  entitlementGrantIds  Json                  @default("[]")
+  creditGrantId        String?
+
+  events ProductWaitlistEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([status])
+  @@index([status, createdAt])
+  @@index([cohort, status, createdAt])
+  @@index([email])
+  @@index([organizationId])
+  @@index([earlyAccessEndsAt])
   @@index([source])
+}
+
+model ProductWaitlistEvent {
+  id              String               @id @default(cuid())
+  waitlistEntryId String
+  fromStatus      String?
+  toStatus        String
+  action          String
+  actorId         String?
+  reason          String?              @db.Text
+  metadata        Json                 @default("{}")
+  createdAt       DateTime             @default(now())
+
+  waitlistEntry ProductWaitlistEntry @relation(fields: [waitlistEntryId], references: [id], onDelete: Cascade)
+
+  @@index([waitlistEntryId, createdAt])
+  @@index([action, createdAt])
 }
 
 model Quotation {

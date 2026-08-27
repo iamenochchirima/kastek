@@ -52,8 +52,9 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         "/api/quote-requests",
         web::post().to(website::create_quote_request),
     );
-    cfg.route(
-        "/api/waitlist",
-        web::post().to(website::create_waitlist_entry),
+    cfg.service(
+        web::resource("/api/waitlist")
+            .app_data(web::JsonConfig::default().limit(32 * 1024))
+            .route(web::post().to(website::create_waitlist_entry)),
     );
 }

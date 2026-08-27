@@ -30,6 +30,7 @@ export function LabsHeader({ home = false, tone = "dark" }: LabsHeaderProps) {
           Kasitek
           <small>Labs</small>
         </span>
+        <span className="beta-tag">Beta</span>
       </Link>
 
       <nav className="desktop-nav" aria-label="Main navigation">
@@ -37,6 +38,7 @@ export function LabsHeader({ home = false, tone = "dark" }: LabsHeaderProps) {
         <a href={`${sectionPrefix}#approach`}>Services</a>
         <a href={`${sectionPrefix}#partners`}>Partnership</a>
         <Link href="/pricing">Pricing</Link>
+        <Link href="/early-access">Early access</Link>
       </nav>
 
       <div className="header-actions">
@@ -56,6 +58,7 @@ export function LabsHeader({ home = false, tone = "dark" }: LabsHeaderProps) {
           <a href={`${sectionPrefix}#approach`}>Services</a>
           <a href={`${sectionPrefix}#partners`}>Partnership</a>
           <Link href="/pricing">Pricing</Link>
+          <Link href="/early-access">Early access</Link>
           <Link href="/get-quote">Get a quote</Link>
           <a href={appUrl} target="_blank" rel="noreferrer">Get started ↗</a>
         </div>
@@ -85,6 +88,7 @@ export function LabsFooter() {
               Kasitek
               <small>Labs</small>
             </span>
+            <span className="beta-tag">Beta</span>
           </Link>
           <p>
             AI products, delivery and infrastructure for business operations.

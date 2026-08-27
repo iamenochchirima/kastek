@@ -3,11 +3,13 @@ id: intro
 title: KasiTek Platform Docs
 sidebar_position: 1
 slug: /
+owner: engineering
+last_reviewed: 2026-08-25
 ---
 
 # KasiTek Platform Docs
 
-These docs cover the user-facing parts of the current KasiTek platform based on the live codebase, not just product plans.
+These docs cover the user-facing parts of the current KasiTek platform based on the live codebase.
 
 Today the platform has three practical layers:
 
@@ -22,7 +24,7 @@ The current public docs focus on the tenant-facing product:
 - branded email sending
 - client account management
 - lead and conversation visibility
-- the current service modules exposed in the tenant portal
+- the current public API and integration references
 
 ## What is live today
 
@@ -36,12 +38,16 @@ The strongest live backend-backed areas right now are:
 - client-scoped conversation views
 - custom portal domains
 - workspace email sending configuration with Resend-backed custom domains
+- beta early-access applications and invitation-based workspace activation
 
-## What is exposed in the portal but still lighter-weight
+The documentation set intentionally excludes product roadmaps, go-to-market material, and planned
+surfaces that are not yet backed by a supported implementation.
 
-Several modules are already present in the portal UI, but some of them still rely on the temporary `api-client-react` layer and placeholder responses rather than dedicated tenant backend services.
+## Beta early access
 
-Those areas are documented here as current product surfaces, with notes where they are still in a preview or staged state.
+KasiTek is currently in beta. Businesses can [apply for early access](https://kasitek.co.za/early-access).
+Applications are reviewed before an invitation is issued. Approved invitations create a
+time-bounded workspace package; the beta label does not grant access by itself.
 
 ## Recommended reading order
 

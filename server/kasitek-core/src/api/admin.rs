@@ -7,8 +7,8 @@ use crate::controllers::{
     admin, admin_activity, admin_analytics, admin_billing, admin_conversations, admin_invoices,
     admin_leads, admin_notifications, admin_operations, admin_outreach, admin_quotations,
     admin_reports, admin_web_services, agent_internal, agent_platform, ai, auth, billing, bookings,
-    calls, connections, customers, health, inbox, notifications, onboarding, orgs, product_tour,
-    profile, public_v1, realtime, social, whatsapp, whatsapp_calls, workspace,
+    calls, connections, customers, early_access, health, inbox, notifications, onboarding, orgs,
+    product_tour, profile, public_v1, realtime, social, whatsapp, whatsapp_calls, workspace,
 };
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -134,6 +134,15 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route(
                 "/access/{id}/revoke",
                 web::post().to(admin::revoke_launch_access),
+            )
+            .service(
+                web::scope("/early-access")
+                    .route("", web::get().to(early_access::list))
+                    .route("/{id}", web::get().to(early_access::get))
+                    .route("/{id}/review", web::post().to(early_access::review))
+                    .route("/{id}/approve", web::post().to(early_access::approve))
+                    .route("/{id}/resend", web::post().to(early_access::resend))
+                    .route("/{id}/revoke", web::post().to(early_access::revoke)),
             )
             .route(
                 "/billing/reconcile/paystack",
