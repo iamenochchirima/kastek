@@ -933,7 +933,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const attachmentId = typeof messageContent.attachmentId === "string" ? messageContent.attachmentId : undefined;
       const mimeType = typeof messageContent.mimeType === "string" ? messageContent.mimeType : undefined;
       const isAudio = messageContent.mediaKind === "audio"
-        || mimeType?.split(";", 1)[0]?.trim().toLowerCase().startsWith("audio/") === true;
+        || mimeType?.split(";", 1)[0]?.trim().toLowerCase().startsWith("audio/") === true
+        || mimeType?.split(";", 1)[0]?.trim().toLowerCase() === "application/ogg";
       const resolvedMimeType = mimeType ?? (isAudio ? "audio/ogg" : "image/jpeg");
       if (event.message.messageType === "attachment" && attachmentId && (resolvedMimeType.startsWith("image/") || isAudio)) {
         if (!connection.credential_reference) throw new Error("Telegram channel media is not configured");
@@ -1089,7 +1090,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const attachmentId = typeof messageContent.attachmentId === "string" ? messageContent.attachmentId : undefined;
       const attachmentUrl = typeof messageContent.url === "string" ? messageContent.url : undefined;
       const mimeType = typeof messageContent.mimeType === "string" ? normalizeAudioMimeType(messageContent.mimeType) : undefined;
-      const isAudio = messageContent.mediaKind === "audio" || mimeType?.startsWith("audio/") === true;
+      const isAudio = messageContent.mediaKind === "audio"
+        || mimeType?.startsWith("audio/") === true
+        || mimeType === "application/ogg";
       if (event.message.messageType === "attachment" && isAudio) {
         if (!credential || !attachmentUrl) {
           if (credential) await discordClient.sendMessage(credential, event.externalConversationId, "I couldn't access that audio. Please try sending it again.").catch(() => undefined);
