@@ -1,13 +1,14 @@
 import { fetchFromCore, requireAdminSession } from "@/lib/admin-auth";
 import { AdminMetric, AdminPageHeader } from "@/components/admin/page-header";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { OperatorAssignRunButton, OperatorCancelRunButton, OperatorDeliveryReplayButton, OperatorExportRequestButton, OperatorFeatureFlagForm, OperatorHoldForm, OperatorHoldReleaseButton, OperatorInstallationButton, OperatorKillSwitchDisableButton, OperatorKillSwitchEnableButton, OperatorReconcileButton, OperatorRetryButton, OperatorRetentionApplyButton, OperatorRetentionPolicyForm, OperatorLegalHoldForm, OperatorLegalHoldReleaseButton } from "@/components/admin/operator-command-button";
+import { OperatorAssignRunButton, OperatorAudioTranscriptionRetryButton, OperatorCancelRunButton, OperatorDeliveryReplayButton, OperatorExportRequestButton, OperatorFeatureFlagForm, OperatorHoldForm, OperatorHoldReleaseButton, OperatorInstallationButton, OperatorKillSwitchDisableButton, OperatorKillSwitchEnableButton, OperatorReconcileButton, OperatorRetryButton, OperatorRetentionApplyButton, OperatorRetentionPolicyForm, OperatorLegalHoldForm, OperatorLegalHoldReleaseButton } from "@/components/admin/operator-command-button";
 import { SupportAccessPanel } from "@/components/admin/support-access-panel";
 import { ProjectionRebuildButton } from "@/components/admin/projection-rebuild-button";
 import { OperatorSearch } from "@/components/admin/operator-search";
 import { OperatorNotifications } from "@/components/admin/operator-notifications";
 import { OperatorRunbooks } from "@/components/admin/operator-runbooks";
 import { AdminWebhookReplayButton } from "@/components/admin/admin-webhook-replay-button";
+import { AudioTranscriptionOperationsPanel } from "@/components/admin/audio-transcription-operations-panel";
 
 type Summary = {
   scope: string;
@@ -35,6 +36,7 @@ type AuditRecord = { id: string; organization_id?: string | null; actor_type: st
 type ExportRequest = { id: string; command_id: string; organization_id: string; requested_by: string; scope_type: string; scope_id?: string | null; status: string; created_at: string; updated_at: string; completed_at?: string | null };
 type KillSwitch = { id: string; organization_id?: string | null; scope_type: string; scope_id: string; reason: string; enabled: boolean; created_by: string; created_at: string; disabled_at?: string | null };
 type FeatureFlag = { id: string; scope_type: string; scope_id: string; organization_id?: string | null; flag_key: string; enabled: boolean; reason: string; expires_at: string; revision: number; updated_at: string };
+type AudioTranscriptionJob = { id: string; organization_id: string; installation_id: string; asset_id: string; dispatch_kind: string; status: string; attempt_count: number; next_attempt_at: string; error_code?: string | null; error_message?: string | null; started_at?: string | null; completed_at?: string | null; created_at: string; updated_at: string };
 type OperatorHold = { id: string; organization_id: string; scope_type: string; scope_id: string; hold_type: string; reason: string; status: "active" | "released"; expires_at: string; created_at: string; released_at?: string | null; revision: number };
 type RetentionPolicy = { organizationId: string; revision: number; memoryDays: number; conversationDays: number; eventDays: number; auditDays: number; attachmentDays: number; updatedAt: string };
 type LegalHold = { id: string; organizationId: string; scopeType: string; scopeId: string; status: "active" | "released"; expiresAt?: string | null; revision: number };
@@ -61,7 +63,7 @@ async function readJson<T>(path: string, fallback: T): Promise<T> {
 
 export default async function OperationsPage() {
   const admin = await requireAdminSession();
-  const [summary, health, retention, runs, exports, killSwitches, featureFlags, holds, effects, grants, alerts, runHealth, deliveryHealth, providerWorkers, usageCost, projectionLag, audit, notifications, coreWebhookDeliveries] = await Promise.all([
+  const [summary, health, retention, runs, exports, killSwitches, featureFlags, audioTranscriptionJobs, holds, effects, grants, alerts, runHealth, deliveryHealth, providerWorkers, usageCost, projectionLag, audit, notifications, coreWebhookDeliveries] = await Promise.all([
     readJson<Summary>("/api/admin/operations/summary", { scope: "platform", generatedAt: "", runs: {}, installations: {}, definitions: {}, effects: [], auditRecords: 0, estimatedModelCostUsd: "0" }),
     readJson<Health>("/api/admin/operations/health", { status: "unavailable" }),
     readJson<Retention>("/api/admin/operations/projections/retention", { generatedAt: "", datasets: [], deletionJobs: {}, exportRequests: {} }),
@@ -69,6 +71,7 @@ export default async function OperationsPage() {
     readJson<{ exports: ExportRequest[] }>("/api/admin/operations/exports?limit=12", { exports: [] }),
     readJson<{ killSwitches: KillSwitch[] }>("/api/admin/operations/kill-switches?limit=24", { killSwitches: [] }),
     readJson<{ featureFlags: FeatureFlag[] }>("/api/admin/operations/feature-flags?limit=24", { featureFlags: [] }),
+    readJson<{ jobs: AudioTranscriptionJob[] }>("/api/admin/operations/audio-transcription/jobs?limit=24", { jobs: [] }),
     readJson<{ holds: OperatorHold[] }>("/api/admin/operations/holds?limit=24", { holds: [] }),
     readJson<{ effects: Effect[] }>("/api/admin/operations/effects/reconciliation?limit=8", { effects: [] }),
     readJson<{ grants: Grant[] }>("/api/admin/operations/support-grants", { grants: [] }),
@@ -150,6 +153,7 @@ export default async function OperationsPage() {
       <article className="v-card overflow-hidden"><div className="border-b border-border px-5 py-4"><h2 className="text-sm font-semibold text-foreground">Queues and projection lag</h2><p className="mt-1 text-xs text-muted-foreground">Readiness and age indicators for rebuildable operator state.</p></div><div className="space-y-2 p-5">{projectionEntries.length ? projectionEntries.map((entry) => <div key={entry.projectionKey} className="flex justify-between text-sm"><span className="text-foreground">{entry.projectionKey}</span><span className="text-muted-foreground">{entry.ageSeconds ?? 0}s old</span></div>) : <p className="text-sm text-muted-foreground">Projection lag is not available.</p>}</div></article>
     </section>
     <OperatorSearch canCommand={canCommand} />
+    <AudioTranscriptionOperationsPanel jobs={audioTranscriptionJobs.jobs} canCommand={canCommand} />
     <OperatorNotifications initialNotifications={notifications.notifications} />
     <OperatorRunbooks />
     <section className="v-card overflow-hidden">

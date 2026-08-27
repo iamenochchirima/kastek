@@ -2,10 +2,16 @@
 
 pub const REGISTRY_VERSION: &str = "20260824.1";
 pub const REGISTRY_SHA256: &str =
-    "d74695d552cfbd40d71b83b089b0e7b0ed0a2a1dbfd96c71077bd244d9ccf4a8";
+    "dbb1651eabe3b08534469042389909b824c1684a355a58a40233f8df8faa69fd";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",
+    "agent.audio_agent.dispatched@1",
+    "agent.audio_message.received@1",
+    "agent.audio_transcription.completed@1",
+    "agent.audio_transcription.failed@1",
+    "agent.audio_transcription.started@1",
+    "agent.audio_user.retry@1",
     "agent.conversation.lifecycle@1",
     "agent.conversation.message@1",
     "agent.definition.lifecycle@1",
@@ -40,6 +46,7 @@ pub const CONTRACT_KEYS: &[&str] = &[
     "conversation.message.lifecycle@1",
     "conversation.message.received@1",
     "conversation.response.recorded@1",
+    "core.scope.definition@1",
     "tenant.client.assignment@1",
     "tenant.client.lifecycle@1",
     "tenant.lead.lifecycle@1",

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kasitek.co.za/analytics/contracts/events/agent/audio_message_received/v1.schema.json",
+  "title": "Agent audio message received attributes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["job_id", "channel", "mime_type", "duration_bucket", "occurred_at"],
+  "properties": {
+    "job_id": { "type": "string", "minLength": 1 },
+    "channel": { "type": "string", "enum": ["whatsapp", "telegram", "discord", "platform", "website"] },
+    "mime_type": { "type": "string", "enum": ["audio/ogg", "audio/mpeg", "audio/mp4", "audio/wav", "audio/webm", "application/ogg"] },
+    "duration_bucket": { "type": "string", "enum": ["unknown", "0_5s", "5_30s", "30_60s", "60_180s", "over_180s"] },
+    "occurred_at": { "type": "string", "format": "date-time" }
+  },
+  "x-kasitek": {
+    "identity": "agent.audio_message.received@1",
+    "owner": "agent-platform",
+    "privacy_class": "aggregate",
+    "prohibited_fields": ["transcript", "audio_url", "storage_key", "filename", "credential", "token", "phone_number", "email"]
+  }
+}

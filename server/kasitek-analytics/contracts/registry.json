@@ -124,6 +124,54 @@
       "privacy_class": "aggregate"
     },
     {
+      "identity": "agent.audio_message.received@1",
+      "schema": "events/agent/audio_message_received/v1.schema.json",
+      "examples": ["examples/agent/audio_message_received.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.audio_transcription.started@1",
+      "schema": "events/agent/audio_transcription_started/v1.schema.json",
+      "examples": ["examples/agent/audio_transcription_started.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.audio_transcription.completed@1",
+      "schema": "events/agent/audio_transcription_completed/v1.schema.json",
+      "examples": ["examples/agent/audio_transcription_completed.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.audio_transcription.failed@1",
+      "schema": "events/agent/audio_transcription_failed/v1.schema.json",
+      "examples": ["examples/agent/audio_transcription_failed.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.audio_agent.dispatched@1",
+      "schema": "events/agent/audio_agent_dispatched/v1.schema.json",
+      "examples": ["examples/agent/audio_agent_dispatched.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "agent.audio_user.retry@1",
+      "schema": "events/agent/audio_user_retry/v1.schema.json",
+      "examples": ["examples/agent/audio_user_retry.json"],
+      "owner": "agent-platform",
+      "category": "event",
+      "privacy_class": "aggregate"
+    },
+    {
       "identity": "campaign.recipient.sent@1",
       "schema": "events/campaign/recipient_sent/v1.schema.json",
       "examples": ["examples/campaign/recipient_sent.json"],
@@ -312,6 +360,14 @@
       "schema": "events/tenant/scope_definition/v1.schema.json",
       "examples": ["examples/tenant/scope_definition.json"],
       "owner": "tenant-platform",
+      "category": "scope_definition",
+      "privacy_class": "aggregate"
+    },
+    {
+      "identity": "core.scope.definition@1",
+      "schema": "events/core/scope_definition/v1.schema.json",
+      "examples": ["examples/core/scope_definition.json"],
+      "owner": "core",
       "category": "scope_definition",
       "privacy_class": "aggregate"
     }

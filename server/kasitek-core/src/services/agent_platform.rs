@@ -597,6 +597,18 @@ impl AgentPlatformClient {
             .await
     }
 
+    pub async fn operator_audio_transcription_jobs(
+        &self,
+        operator_id: &str,
+        limit: Option<u32>,
+    ) -> Result<Value, AppError> {
+        let path = limit
+            .map(|value| format!("/v1/operator/audio-transcription/jobs?limit={value}"))
+            .unwrap_or_else(|| "/v1/operator/audio-transcription/jobs".to_string());
+        self.request_operator_json(Method::GET, &path, operator_id, &["operator:read"], None)
+            .await
+    }
+
     pub async fn operator_holds(
         &self,
         operator_id: &str,
@@ -3216,7 +3228,7 @@ mod tests {
 
     #[tokio::test]
     async fn operator_reads_and_commands_use_the_scoped_core_to_agent_boundary() {
-        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 18]).await;
+        let (base_url, server) = mock_agent_server(vec![(200, r#"{"ok":true}"#); 19]).await;
         let client = test_client(&base_url);
 
         client.operator_summary("operator-1").await.unwrap();
@@ -3231,6 +3243,10 @@ mod tests {
             .unwrap();
         client
             .operator_feature_flags("operator-1", Some(25))
+            .await
+            .unwrap();
+        client
+            .operator_audio_transcription_jobs("operator-1", Some(25))
             .await
             .unwrap();
         client.operator_holds("operator-1", Some(25)).await.unwrap();
@@ -3290,13 +3306,14 @@ mod tests {
             .unwrap();
 
         let requests = server.await.unwrap();
-        assert_eq!(requests.len(), 18);
+        assert_eq!(requests.len(), 19);
         let expected_paths = [
             "GET /v1/operator/summary HTTP/1.1",
             "GET /v1/operator/runs?limit=25 HTTP/1.1",
             "GET /v1/operator/exports?limit=25 HTTP/1.1",
             "GET /v1/operator/kill-switches?limit=25 HTTP/1.1",
             "GET /v1/operator/feature-flags?limit=25 HTTP/1.1",
+            "GET /v1/operator/audio-transcription/jobs?limit=25 HTTP/1.1",
             "GET /v1/operator/holds?limit=25 HTTP/1.1",
             "GET /v1/operator/retention/policies?limit=25 HTTP/1.1",
             "GET /v1/operator/retention/legal-holds?limit=25 HTTP/1.1",
@@ -3317,22 +3334,22 @@ mod tests {
                 "unexpected request: {request}"
             );
         }
-        for request in requests.iter().take(15) {
+        for request in requests.iter().take(16) {
             assert_operator_request(request, "operator:read");
         }
-        for request in requests.iter().skip(15) {
+        for request in requests.iter().skip(16) {
             assert_operator_request(request, "operator:write");
         }
         assert_eq!(
-            request_header(&requests[15], "idempotency-key").as_deref(),
+            request_header(&requests[16], "idempotency-key").as_deref(),
             Some("operator-command-1")
         );
         assert_eq!(
-            request_body(&requests[15]),
+            request_body(&requests[16]),
             r#"{"commandType":"cancel_run","targetId":"run-1"}"#
         );
-        assert_eq!(request_body(&requests[16]), "{}");
-        assert_eq!(request_body(&requests[17]), r#"{"keys":["summary"]}"#);
+        assert_eq!(request_body(&requests[17]), "{}");
+        assert_eq!(request_body(&requests[18]), r#"{"keys":["summary"]}"#);
     }
 
     #[tokio::test]

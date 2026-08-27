@@ -1,0 +1,9 @@
+{
+  "job_id": "job_01HZX8Z2D4",
+  "provider": "elevenlabs",
+  "channel": "whatsapp",
+  "duration_bucket": "5_30s",
+  "latency_bucket": "5_15s",
+  "language": "en",
+  "occurred_at": "2026-08-27T10:00:08Z"
+}

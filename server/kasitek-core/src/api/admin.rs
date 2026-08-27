@@ -56,6 +56,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         "/feature-flags",
                         web::get().to(admin_operations::feature_flags),
                     )
+                    .route(
+                        "/audio-transcription/jobs",
+                        web::get().to(admin_operations::audio_transcription_jobs),
+                    )
                     .route("/holds", web::get().to(admin_operations::holds))
                     .route(
                         "/retention/policies",

@@ -110,7 +110,7 @@ export function OperatorReconcileButton({ effectId, expectedOrganizationId, expe
 }
 
 function OperatorRecoveryCommandButton({ commandType, targetId, label, completedMessage, payload = {}, confirmMessage }: {
-  commandType: "cancel_run" | "retry_run" | "replay_delivery" | "delete_memory" | "request_export" | "kill_switch_disable" | "release_hold" | "apply_retention_policy" | "release_legal_hold";
+  commandType: "cancel_run" | "retry_run" | "retry_audio_transcription" | "replay_delivery" | "delete_memory" | "request_export" | "kill_switch_disable" | "release_hold" | "apply_retention_policy" | "release_legal_hold";
   targetId: string;
   label: string;
   completedMessage: string;
@@ -170,6 +170,17 @@ function OperatorRecoveryCommandButton({ commandType, targetId, label, completed
 
 export function OperatorRetryButton({ runId, expectedOrganizationId, expectedInstallationId, expectedConversationId }: { runId: string; expectedOrganizationId?: string; expectedInstallationId?: string; expectedConversationId?: string | null }) {
   return <OperatorRecoveryCommandButton commandType="retry_run" targetId={runId} label="Retry run" completedMessage="Run retry dispatched." payload={{ ...(expectedOrganizationId ? { expectedOrganizationId } : {}), ...(expectedInstallationId ? { expectedInstallationId } : {}), ...(expectedConversationId ? { expectedConversationId } : {}) }} />;
+}
+
+export function OperatorAudioTranscriptionRetryButton({ jobId, status, expectedOrganizationId, expectedInstallationId }: { jobId: string; status: string; expectedOrganizationId: string; expectedInstallationId: string }) {
+  return <OperatorRecoveryCommandButton
+    commandType="retry_audio_transcription"
+    targetId={jobId}
+    label="Retry transcription"
+    completedMessage="Transcription retry queued."
+    payload={{ expectedStatus: status, expectedOrganizationId, expectedInstallationId }}
+    confirmMessage="Retry this audio transcription? A second operator must approve."
+  />;
 }
 
 export function OperatorCancelRunButton({ runId, expectedOrganizationId, expectedInstallationId, expectedConversationId }: { runId: string; expectedOrganizationId?: string; expectedInstallationId?: string; expectedConversationId?: string | null }) {
@@ -289,7 +300,7 @@ export function OperatorFeatureFlagForm() {
   const [reason, setReason] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const expires = expiresAt ? new Date(expiresAt).toISOString() : "";
-  return <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"><select value={flagKey} onChange={(event) => setFlagKey(event.target.value)} className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground"><option value="agent_execution_enabled">Agent execution</option><option value="effect_execution_enabled">External effects</option><option value="mcp_enabled">MCP</option><option value="rest_enabled">REST</option></select><select value={scopeType} onChange={(event) => { const value = event.target.value as typeof scopeType; setScopeType(value); if (value === "global") setScopeId("global"); }} className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground"><option value="global">Global</option><option value="organization">Organization</option><option value="installation">Installation</option></select><input value={scopeId} onChange={(event) => setScopeId(event.target.value)} placeholder="Scope ID" className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><input value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} placeholder="Organization ID" className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason" className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><label className="flex items-center gap-2 text-xs text-foreground"><input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} /> Enable flag</label><OperatorDualControlForm commandType="set_feature_flag" targetId={`${scopeType}:${scopeId}:${flagKey}`} payload={{ flagKey, scopeType, scopeId: scopeType === "global" ? "global" : scopeId, ...(scopeType !== "global" ? { organizationId } : {}), enabled, reason, expiresAt: expires }} label="Save flag" completedMessage="Feature flag saved." /></div>;
+  return <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"><select value={flagKey} onChange={(event) => setFlagKey(event.target.value)} className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground"><option value="agent_execution_enabled">Agent execution</option><option value="effect_execution_enabled">External effects</option><option value="mcp_enabled">MCP</option><option value="rest_enabled">REST</option><option value="audio_transcription_enabled">Audio transcription</option></select><select value={scopeType} onChange={(event) => { const value = event.target.value as typeof scopeType; setScopeType(value); if (value === "global") setScopeId("global"); }} className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground"><option value="global">Global</option><option value="organization">Organization</option><option value="installation">Installation</option></select><input value={scopeId} onChange={(event) => setScopeId(event.target.value)} placeholder="Scope ID" className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><input value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} placeholder="Organization ID" className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason" className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground" /><label className="flex items-center gap-2 text-xs text-foreground"><input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} /> Enable flag</label><OperatorDualControlForm commandType="set_feature_flag" targetId={`${scopeType}:${scopeId}:${flagKey}`} payload={{ flagKey, scopeType, scopeId: scopeType === "global" ? "global" : scopeId, ...(scopeType !== "global" ? { organizationId } : {}), enabled, reason, expiresAt: expires }} label="Save flag" completedMessage="Feature flag saved." /></div>;
 }
 
 export function OperatorHoldForm() {

@@ -168,6 +168,24 @@ pub async fn feature_flags(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn audio_transcription_jobs(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<LimitQuery>,
+) -> Result<HttpResponse, AppError> {
+    let admin = operator(&req, pool.get_ref()).await?;
+    if query.limit.is_some_and(|limit| !(1..=500).contains(&limit)) {
+        return Err(AppError::BadRequest(
+            "Audio transcription job limit must be between 1 and 500".to_string(),
+        ));
+    }
+    let response = AgentPlatformClient::from_config(config.get_ref())?
+        .operator_audio_transcription_jobs(&admin.id, query.limit)
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn holds(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

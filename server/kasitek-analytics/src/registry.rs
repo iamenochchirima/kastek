@@ -249,6 +249,90 @@ const CONTRACT_SOURCES: &[ContractSource] = &[
         )],
     },
     ContractSource {
+        path: "events/agent/audio_message_received/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/agent/audio_message_received/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/agent/audio_message_received.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/agent/audio_message_received.json"
+            )),
+        )],
+    },
+    ContractSource {
+        path: "events/agent/audio_transcription_started/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/agent/audio_transcription_started/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/agent/audio_transcription_started.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/agent/audio_transcription_started.json"
+            )),
+        )],
+    },
+    ContractSource {
+        path: "events/agent/audio_transcription_completed/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/agent/audio_transcription_completed/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/agent/audio_transcription_completed.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/agent/audio_transcription_completed.json"
+            )),
+        )],
+    },
+    ContractSource {
+        path: "events/agent/audio_transcription_failed/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/agent/audio_transcription_failed/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/agent/audio_transcription_failed.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/agent/audio_transcription_failed.json"
+            )),
+        )],
+    },
+    ContractSource {
+        path: "events/agent/audio_agent_dispatched/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/agent/audio_agent_dispatched/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/agent/audio_agent_dispatched.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/agent/audio_agent_dispatched.json"
+            )),
+        )],
+    },
+    ContractSource {
+        path: "events/agent/audio_user_retry/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/agent/audio_user_retry/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/agent/audio_user_retry.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/agent/audio_user_retry.json"
+            )),
+        )],
+    },
+    ContractSource {
         path: "events/campaign/recipient_sent/v1.schema.json",
         schema: include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -581,6 +665,20 @@ const CONTRACT_SOURCES: &[ContractSource] = &[
             include_str!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/contracts/examples/tenant/scope_definition.json"
+            )),
+        )],
+    },
+    ContractSource {
+        path: "events/core/scope_definition/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/core/scope_definition/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/core/scope_definition.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/core/scope_definition.json"
             )),
         )],
     },
@@ -1516,7 +1614,7 @@ mod tests {
     #[test]
     fn repository_registry_is_valid_and_deterministic() {
         let registry = load_registry().expect("repository registry should validate");
-        assert_eq!(registry.contracts.len(), 39);
+        assert_eq!(registry.contracts.len(), 46);
         assert_eq!(registry.metrics.len(), 44);
         assert_eq!(registry.dimensions.len(), 68);
         assert_eq!(registry.metric_sets.len(), 2);
