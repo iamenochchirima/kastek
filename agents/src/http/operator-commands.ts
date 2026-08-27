@@ -207,7 +207,7 @@ async function applyAudioRetention(
   dependencies: OperatorCommandDependencies,
 ): Promise<{ deleted: number; failed: number }> {
   if (!dependencies.audioTranscriptionJobs || !dependencies.retention || !dependencies.coreClient) {
-    throw Object.assign(new Error("Audio retention controls are unavailable"), { statusCode: 503 });
+    return { deleted: 0, failed: 0 };
   }
   const policy = await dependencies.retention.getPolicy(organizationId);
   const candidates = await dependencies.audioTranscriptionJobs.listRetentionCandidates(
