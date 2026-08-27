@@ -41,14 +41,15 @@ The repository implementation is split into reviewable commits:
 | Service-boundary test and Agents build CI coverage | `4ddec15b` |
 | Bootstrap and stdio diagnostic redaction | `b0a0cf7d` |
 | Explicitly disable PostgreSQL payload instrumentation | `edc63ee6` |
+| Finish remaining Rust operational log migration and remove unnecessary display-name telemetry | `bf9f953d` |
 
 The exact implementation tree used for the repository smoke evidence is now
-`edc63ee6` (`edc63ee6` is the current repository-side implementation commit). The Collector
+`bf9f953d` (`bf9f953d` is the current repository-side implementation commit). The Collector
 configuration is unchanged from `7f064cce`; the current tree includes the follow-up worker,
 event-contract, compatibility-boundary, disabled-export fallback, documentation, and
 context-propagation, provider-child propagation, log-redaction, operational-log migration,
-bootstrap/stdio diagnostic-redaction, and explicit PostgreSQL payload-instrumentation disablement
-changes. The current
+bootstrap/stdio diagnostic-redaction, explicit PostgreSQL payload-instrumentation disablement, and
+the final remaining operational log migration changes. The current
 branch may contain later product commits; those commits are not covered by this record and must be
 retested before being promoted as one artifact.
 

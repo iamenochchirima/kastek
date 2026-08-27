@@ -253,7 +253,7 @@ Change: Introduce vendor-neutral OpenTelemetry instrumentation and Collector inf
 Owner: KasiTek engineering; provisional Collector incident owner: platform-ops.
 Risk: standard for repository changes; high for production enablement until staging and durable-destination gates pass.
 Affected services and user surfaces: Rust Core/Tenants/Analytics services, Agents API/worker/gateway/maintenance processes, and Collector deployment configuration; no direct user-interface behavior change.
-Platform release version or release ID: local validation metadata 0.1.0; implementation tree edc63ee6; no release tag or deployed artifact.
+Platform release version or release ID: local validation metadata 0.1.0; implementation tree bf9f953d; no release tag or deployed artifact.
 API/schema/migration changes: not applicable; migration execution is instrumented but schemas are unchanged.
 Feature flag or rollout method: OTEL_SDK_DISABLED, OTEL_EXPORTER_OTLP_* endpoint/protocol, resource metadata, and sampler environment variables; stdout fallback remains available.
 Analytics events and success metrics: not applicable; operational telemetry remains separate from customer analytics.
