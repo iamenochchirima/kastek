@@ -44,6 +44,7 @@ The repository implementation is split into reviewable commits:
 | Explicitly disable PostgreSQL payload instrumentation | `edc63ee6` |
 | Finish remaining Rust operational log migration and remove unnecessary display-name telemetry | `bf9f953d` |
 | Add reproducible Railway Collector service definition | `988c93cb` |
+| Validate the Railway Collector service definition in CI | `e99ad4e9` |
 
 The exact implementation tree used for the repository smoke evidence is now
 `bf9f953d` (`bf9f953d` is the current repository-side implementation commit). The Collector
