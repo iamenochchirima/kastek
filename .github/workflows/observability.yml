@@ -142,7 +142,7 @@ jobs:
         run: docker compose -f infra/observability/otel-collector/compose.yaml config --quiet
 
       - name: Validate Railway service definition
-        run: python -m json.tool infra/observability/otel-collector/railway.json >/dev/null
+        run: python3 -m json.tool infra/observability/otel-collector/railway.json >/dev/null
 
       - name: Validate pinned Collector profiles
         env:
