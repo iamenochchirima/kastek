@@ -123,9 +123,10 @@ The minimum event vocabulary is:
 | Queues/workers | `queue.item.claimed`, `queue.item.completed`, `queue.item.failed`, `queue.item.ignored`, `queue.claim.failed`, `worker.started`, `worker.disabled`, `worker.failed` |
 | Terminal failures | `operation.failed`, `operation.terminal.failure` |
 
-Event names are identifiers, not user-facing prose. The existing legacy Rust `log!` inventory is
-migrated incrementally; new code must use this vocabulary and the legacy inventory must not be
-expanded without an event field or an explicit `not applicable` decision in its release record.
+Event names are identifiers, not user-facing prose. Production Rust operational `log!` callsites
+have been migrated to the shared tracing API. The two remaining `log!` calls are intentional smoke
+fixture records used to verify the compatibility fallback; CI rejects new operational macros.
+New code must use this vocabulary and must not reintroduce legacy logging.
 
 Agents uses Pino with `trace_id`, `span_id`, `trace_flags`, and `correlation_id` fields. Its
 operational logger accepts lowercase dot-separated event names and normalizes invalid event

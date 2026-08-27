@@ -51,9 +51,10 @@ exist.
       Agents logger boundary.
 - [x] Apply stable events to modified Agents paths and the Core/Tenant worker, source-backfill,
       Analytics outbox, and Analytics projection boundaries.
-- [ ] Migrate the remaining legacy Rust `log!` callsites for startup, shutdown, request
-      completion, provider call, retry, migration, queue transition, and terminal-failure paths;
-      the logger bridge preserves them safely while this incremental migration remains open.
+- [x] Migrate the legacy Rust `log!` callsites for startup, shutdown, request completion, provider
+      call, retry, migration, queue transition, and terminal-failure paths. Only the two
+      observability smoke-fixture records retain `log!` macros, and CI rejects new operational
+      Rust `log!` macros.
 - [x] Define severity mapping across Rust `log`/`tracing` and Agents/Pino.
 - [x] Define exception type, message, stack, and cause fields with bounded sizes.
 - [x] Define attribute cardinality limits and fields that must remain in the body instead of
@@ -298,9 +299,10 @@ Repository evidence for the implementation slice:
   `cargo clippy -p observability --all-targets --all-features -- -D warnings` passed.
 - Current targeted Rust verification: `cargo test -p observability --lib` (12 passed),
   `cargo test -p analytics-producer --lib` (14 passed), `cargo test -p analytics-reporting --lib`
-  (4 passed), and the Core library suite passed after correcting its mock response count; the
-  Analytics unit and ingestion PostgreSQL tests passed; the local Analytics maintenance
-  PostgreSQL test remains failing at its quarantine-work assertion.
+  (4 passed), `cargo test -p kasitek-core --lib` (190 passed, 3 ignored),
+  `cargo test -p kasitek-analytics --lib` (66 passed), and `cargo test -p kasitek-tenants` (5
+  passed). The local Analytics maintenance PostgreSQL test remains failing at its quarantine-work
+  assertion; the Tenants binary test emits a pre-existing unused-parameter warning.
 - Agents: `pnpm exec tsc -p tsconfig.json --noEmit` and `pnpm test` passed (75 test files passed,
   17 skipped; 421 tests passed, 43 skipped). The Temporal activity-boundary test verifies that
   JSON-encoded string headers are decoded before correlation context is restored.
@@ -324,13 +326,14 @@ Repository evidence for the implementation slice:
   Analytics projection/outbox boundaries now record shared operation metrics and stable events.
   The Rust W3C HTTP injection and provider-child context contract tests and Agents Temporal
   activity-boundary propagation test also pass; live multi-service trace relationship evidence
-  remains a staging gate.
+  remains a staging gate. All production Rust operational log callsites now use the shared
+  structured tracing API; CI rejects new legacy macros outside the smoke fixture.
 - Documentation: public and internal Docusaurus builds passed. The internal documentation index
   and Admin Analytics reference were cleaned so current technical documentation no longer links
   to removed strategy or implementation-plan material; no public user/API documentation change
   is required for this infrastructure-only work.
 - Versioning: local validation metadata is `0.1.0`; the current observability implementation tree
-  is recorded as `deacc9e5`; no platform release tag or deployed
+  is recorded through `dfff04d1`; no platform release tag or deployed
   artifact was created by this work.
 
 Checks intentionally not claimed as complete:

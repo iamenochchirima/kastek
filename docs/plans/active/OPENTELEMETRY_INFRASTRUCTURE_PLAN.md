@@ -281,9 +281,10 @@ The Rust W3C HTTP injection and provider-child context contract tests and Agents
 activity-boundary correlation test passed; the latter also guards decoding of Temporal JSON string
 payloads before restoring async context. Legacy Rust log redaction, raw provider-response removal,
 and bounded webhook logging are covered by the implementation and targeted tests.
-The CI workflow contains the containerized Rust plus Agents signal smoke. The legacy Actix access
-formatter, Rust compatibility logger, provider response handling, and Agents exception telemetry
-apply the final privacy bounds described in the checklist.
+The CI workflow contains the containerized Rust plus Agents signal smoke and rejects new
+operational Rust `log!` macros outside the smoke fixture. The legacy Actix access formatter, Rust
+compatibility logger, provider response handling, and Agents exception telemetry apply the final
+privacy bounds described in the checklist.
 
 The Docker daemon was unavailable in this workspace, so the containerized smoke was not run
 locally. Railway staging service creation, hosted end-to-end evidence, and durable backend,
@@ -332,5 +333,5 @@ The implementation is complete only when all of the following are true:
 - Dependency versions must be selected from the current Rust and Node toolchains during
   implementation and checked into the normal lockfiles.
 - No `console.*` calls remain in `agents/src`; direct stderr is retained only for stdio and
-  telemetry-bootstrap failure diagnostics. Remaining Rust legacy log prose is an incremental
-  event-name migration, not a reason to block the shared telemetry foundation.
+  telemetry-bootstrap failure diagnostics. Production Rust operational log callsites have been
+  migrated; the only remaining legacy macros are intentional smoke-fixture records guarded by CI.

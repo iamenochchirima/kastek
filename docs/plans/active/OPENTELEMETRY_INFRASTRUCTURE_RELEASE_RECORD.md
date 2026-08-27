@@ -36,12 +36,15 @@ The repository implementation is split into reviewable commits:
 | Disabled-export fallback, CI regression check, and documentation cleanup | `91d0598b` |
 | HTTP and Temporal context-propagation contract tests | `eb06783f` |
 | Provider-child propagation, Rust log redaction, and provider payload hardening | `deacc9e5` |
+| Rust operational log migration and legacy-macro CI guard | `917b530d` |
+| CI smoke-fixture exclusion correction | `dfff04d1` |
 
 The exact implementation tree used for the repository smoke evidence is now
-`deacc9e5` (`deacc9e5` is the current repository-side implementation commit). The Collector
+`dfff04d1` (`dfff04d1` is the current repository-side implementation commit). The Collector
 configuration is unchanged from `7f064cce`; the current tree includes the follow-up worker,
 event-contract, compatibility-boundary, disabled-export fallback, documentation, and
-context-propagation, provider-child propagation, and log-redaction changes. The current
+context-propagation, provider-child propagation, log-redaction, and operational-log migration
+changes. The current
 branch may contain later product commits; those commits are not covered by this record and must be
 retested before being promoted as one artifact.
 
@@ -81,7 +84,10 @@ Production release ID: not created
   provider-child regression test confirmed request construction observes the dependency span.
   The Agents Temporal activity-boundary test passed with bounded correlation context.
 - The current full-workspace `cargo check --workspace` and `cargo fmt --all -- --check` pass;
-  the targeted Rust telemetry crates remain independently verified.
+  the targeted Rust telemetry crates remain independently verified. The Core suite passed with
+  190 tests and 3 ignored, the Analytics suite passed with 66 tests, and the Tenants binary suite
+  passed with 5 tests. The observability CI workflow now rejects new operational Rust `log!`
+  macros outside the smoke fixture.
 - Public and internal documentation builds passed after removing stale links from the internal
   documentation index and Admin Analytics reference. This infrastructure-only change has no
   public user/API behavior change, so public documentation content is `not applicable`.
