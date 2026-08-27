@@ -4,6 +4,7 @@ import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentation
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION, ATTR_DEPLOYMENT_ENVIRONMENT_NAME } from "@opentelemetry/semantic-conventions";
 import { currentCorrelationId } from "./telemetry/context";
+import { redactTelemetryText } from "./telemetry/redaction";
 
 if (existsSync(".env") && typeof process.loadEnvFile === "function") process.loadEnvFile(".env");
 
@@ -80,7 +81,8 @@ if (telemetryConfigured()) {
     sdk.start();
   } catch (error) {
     sdk = undefined;
-    process.stderr.write(`OpenTelemetry initialization failed; continuing with structured stdout logging: ${error instanceof Error ? error.message : String(error)}\n`);
+    const message = redactTelemetryText(error instanceof Error ? error.message : error, 512);
+    process.stderr.write(`OpenTelemetry initialization failed; continuing with structured stdout logging: ${message}\n`);
   }
 }
 
@@ -88,7 +90,8 @@ export async function shutdownTelemetry(): Promise<void> {
   if (!sdk) return;
   shutdownPromise ??= Promise.race([
     sdk.shutdown().catch((error: unknown) => {
-      process.stderr.write(`OpenTelemetry shutdown failed: ${error instanceof Error ? error.message : String(error)}\n`);
+      const message = redactTelemetryText(error instanceof Error ? error.message : error, 512);
+      process.stderr.write(`OpenTelemetry shutdown failed: ${message}\n`);
     }),
     new Promise<void>((resolve) => {
       const timer = setTimeout(() => {

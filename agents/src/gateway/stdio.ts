@@ -2,6 +2,7 @@ import "../telemetry";
 import { shutdownTelemetry } from "../telemetry";
 import { createInterface } from "node:readline";
 import { stdin, stdout } from "node:process";
+import { redactTelemetryText } from "../telemetry/redaction";
 import {
   inspectMcpRequest,
   MCP_COMPATIBILITY_PROTOCOL_VERSION,
@@ -155,7 +156,7 @@ export async function runStdioBridge(input: {
       const response = await forwardStdioMessage({ endpoint: input.endpoint, token: input.token, message, fetchImpl: input.fetchImpl });
       if (response) destination.write(`${response}\n`);
     } catch (error) {
-      const messageText = error instanceof Error ? error.message : "agent_platform_unavailable";
+      const messageText = redactTelemetryText(error instanceof Error ? error.message : "agent_platform_unavailable", 512);
       destination.write(`${JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32000, message: messageText } })}\n`);
     }
   }
@@ -172,7 +173,8 @@ if (process.argv[1]?.endsWith("stdio.js") || process.argv[1]?.endsWith("stdio.ts
   } else {
     runStdioBridge({ endpoint, token, probeProtocol })
       .catch((error) => {
-        process.stderr.write(`${error instanceof Error ? error.message : "stdio_bridge_failed"}\n`);
+        const message = redactTelemetryText(error instanceof Error ? error.message : "stdio_bridge_failed", 512);
+        process.stderr.write(`${message}\n`);
         process.exitCode = 1;
       })
       .finally(() => shutdownTelemetry());

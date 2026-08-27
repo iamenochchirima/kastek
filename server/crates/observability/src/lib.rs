@@ -1061,8 +1061,9 @@ where
 pub fn init_with_service(default_filter: &str, service_name: &str) {
     if otel_export_configured() {
         if let Err(error) = init_otel(default_filter, service_name) {
+            let diagnostic = redact_telemetry_text(error, 512);
             eprintln!(
-                "OpenTelemetry initialization failed; continuing with stdout logging: {error}"
+                "OpenTelemetry initialization failed; continuing with stdout logging: {diagnostic}"
             );
             init_legacy(default_filter);
         }
@@ -1181,7 +1182,8 @@ fn init_legacy(default_filter: &str) {
     };
 
     if let Err(error) = tracing_result {
-        eprintln!("legacy tracing subscriber initialization failed: {error}");
+        let diagnostic = redact_telemetry_text(error.to_string(), 512);
+        eprintln!("legacy tracing subscriber initialization failed: {diagnostic}");
     }
 }
 
