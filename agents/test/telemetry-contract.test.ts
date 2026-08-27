@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isStableEventName, operationalLogRedaction, operationalLogSerializers } from "../src/telemetry/logger";
+import { isStableEventName, normalizeOperationalEvent, operationalLogRedaction, operationalLogSerializers } from "../src/telemetry/logger";
 import { redactTelemetryText } from "../src/telemetry/redaction";
 import { boundedAttribute } from "../src/telemetry/spans";
 
@@ -13,6 +13,14 @@ describe("telemetry contract", () => {
     expect(isStableEventName("queue.item.completed")).toBe(true);
     expect(isStableEventName("queue_item_completed")).toBe(false);
     expect(isStableEventName("operation.invalid.event")).toBe(true);
+  });
+
+  it("normalizes invalid event names without throwing or preserving unbounded text", () => {
+    expect(normalizeOperationalEvent({ event: "queue_item_completed", detail: "safe" })).toEqual({
+      event: "operation.invalid.event",
+      invalid_event: "queue_item_completed",
+      detail: "safe",
+    });
   });
 
   it("keeps credential and content fields on the prohibited-field list", () => {

@@ -70,6 +70,15 @@ export function isStableEventName(value: unknown): value is string {
   return typeof value === "string" && /^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+$/.test(value);
 }
 
+export function normalizeOperationalEvent(object: Record<string, unknown>): Record<string, unknown> {
+  if (object.event === undefined || isStableEventName(object.event)) return object;
+  return {
+    ...object,
+    event: "operation.invalid.event",
+    invalid_event: redactTelemetryText(object.event, 128),
+  };
+}
+
 /** Shared operational logger for workers, migrations, and non-Fastify processes. */
 export const operationalLogger = pino({
   level: process.env.LOG_LEVEL ?? "info",
@@ -77,14 +86,7 @@ export const operationalLogger = pino({
   redact: operationalLogRedaction,
   serializers: operationalLogSerializers,
   formatters: {
-    log: (object: Record<string, unknown>) => {
-      if (object.event === undefined || isStableEventName(object.event)) return object;
-      return {
-        ...object,
-        event: "operation.invalid.event",
-        invalid_event: redactTelemetryText(object.event, 128),
-      };
-    },
+    log: normalizeOperationalEvent,
   },
   mixin: () => {
     const correlationId = currentCorrelationId();
