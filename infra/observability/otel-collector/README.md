@@ -49,17 +49,18 @@ For this monorepo service:
 
 1. Add a new service from the KasiTek GitHub repository.
 2. Set the service root directory to `/infra/observability/otel-collector`.
-3. Let Railway build the pinned `Dockerfile`.
-4. Set the service health check to `/` on the Collector health port.
-5. Configure restart-on-failure and resource limits appropriate to the environment.
-6. Set each application service's OTLP endpoint to the Collector's private address, for example:
+3. Let Railway use the checked-in `railway.json`, which selects the pinned `Dockerfile`, health
+   check, and restart policy.
+4. Configure resource limits appropriate to the environment; sizing is not encoded in this
+   provider-neutral service definition.
+5. Set each application service's OTLP endpoint to the Collector's private address, for example:
 
    ```text
    OTEL_EXPORTER_OTLP_ENDPOINT=http://${{otel-collector.RAILWAY_PRIVATE_DOMAIN}}:4318
    OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
    ```
 
-7. Keep staging and production Collector services and variables separate.
+6. Keep staging and production Collector services and variables separate.
 
 Railway services in the same environment can communicate through private DNS. The Collector
 should listen on OTLP ports `4317` and `4318` internally; those ports do not need public domains.
