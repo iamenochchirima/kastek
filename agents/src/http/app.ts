@@ -116,6 +116,7 @@ import { getIntegration, listIntegrations, listToolIntegrations } from "../integ
 import { correlationIdFromHeader, currentCorrelationId, runWithCorrelationId } from "../telemetry/context";
 import { operationalLogFields, operationalLogRedaction, operationalLogSerializers } from "../telemetry/logger";
 import { AudioTranscriptionError, ElevenLabsTranscriptionProvider, hasAudioFileSignature, isSupportedAudioMimeType, MAX_AUDIO_FILE_BYTES, normalizeAudioMimeType, type AudioTranscriptionProvider } from "../transcription";
+import { AudioTranscriptionJobRepository } from "../db/repositories/audio-transcription-job-repository";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -133,6 +134,7 @@ export interface AppDependencies {
   telegramClient?: TelegramBotClient;
   discordClient?: DiscordBotClient;
   transcriptionProvider?: AudioTranscriptionProvider;
+  audioTranscriptionJobs?: AudioTranscriptionJobRepository;
   credentials?: CredentialVaultRepository;
   /** Provider preflight used before a model credential is persisted. */
   verifyCredential?: (input: CredentialVerificationInput) => Promise<CredentialVerificationResult>;
@@ -202,6 +204,26 @@ function requireScope(auth: AuthContext, config: AppConfig, scope: string): void
   if (!auth.scopes.includes(scope)) {
     throw Object.assign(new Error(`Missing internal scope: ${scope}`), { statusCode: 403 });
   }
+}
+
+function isAudioContent(content: Record<string, unknown>): boolean {
+  if (typeof content.mediaKind === "string" && content.mediaKind.trim().toLowerCase() === "audio") return true;
+  if (typeof content.mimeType !== "string") return false;
+  const mimeType = normalizeAudioMimeType(content.mimeType);
+  return mimeType.startsWith("audio/") || mimeType === "application/ogg";
+}
+
+function hasCompletedTranscription(content: Record<string, unknown>): boolean {
+  const transcription = content.transcription;
+  return Boolean(
+    content.transcript
+      && typeof content.transcript === "string"
+      && content.transcript.trim()
+      && transcription
+      && typeof transcription === "object"
+      && !Array.isArray(transcription)
+      && (transcription as Record<string, unknown>).status === "completed",
+  );
 }
 
 function requireOperatorScope(auth: AuthContext, config: AppConfig, scope: "operator:read" | "operator:write"): void {
@@ -430,6 +452,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const telegramClient = dependencies.telegramClient ?? new TelegramBotClient({ apiBaseUrl: dependencies.config.TELEGRAM_API_BASE_URL, timeoutMs: dependencies.config.TELEGRAM_API_TIMEOUT_MS });
   const discordClient = dependencies.discordClient ?? new DiscordBotClient({ apiBaseUrl: dependencies.config.DISCORD_API_BASE_URL, timeoutMs: dependencies.config.DISCORD_API_TIMEOUT_MS });
   const transcriptionProvider = dependencies.transcriptionProvider ?? ElevenLabsTranscriptionProvider.fromConfig(dependencies.config);
+  const audioTranscriptionJobs = dependencies.audioTranscriptionJobs ?? new AudioTranscriptionJobRepository(dependencies.pool);
   const credentials = dependencies.credentials ?? new CredentialVaultRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
   const verifyCredential = dependencies.verifyCredential ?? ((input: CredentialVerificationInput) => verifyProviderCredential(input));
   const installationCredentials = dependencies.installationCredentials ?? new InstallationCredentialRepository(dependencies.pool);
@@ -833,6 +856,24 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }
   });
 
+  app.get<{ Params: { jobId: string } }>("/v1/audio/transcription-jobs/:jobId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "chat:read");
+    const job = await audioTranscriptionJobs.get(auth.organizationId, request.params.jobId);
+    if (!job) return reply.code(404).send({ error: "AUDIO_TRANSCRIPTION_JOB_NOT_FOUND", code: "AUDIO_TRANSCRIPTION_JOB_NOT_FOUND" });
+    return reply.send({
+      jobId: job.id,
+      status: job.status,
+      assetId: job.asset_id,
+      ...(job.transcript ? { transcript: job.transcript } : {}),
+      ...(job.language_code ? { languageCode: job.language_code } : {}),
+      ...(job.error_code ? { errorCode: job.error_code } : {}),
+      ...(job.error_message ? { errorMessage: job.error_message } : {}),
+      createdAt: job.created_at,
+      ...(job.completed_at ? { completedAt: job.completed_at } : {}),
+    });
+  });
+
   app.post<{ Params: { connectionId: string } }>("/v1/webhooks/telegram/:connectionId", async (request, reply) => {
     if (!secretHeaderMatches(dependencies.config.INTERNAL_AUTH_SECRET, headerValue(request, "x-kasitek-core-forward-secret"))) {
       return reply.code(401).send({ error: "Unauthorized" });
@@ -930,6 +971,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     try {
       const correlationId = randomUUID();
       let messageContent = parseCanonicalMessageContent(event.message.messageType, event.message.content);
+      let queuedAudio = false;
       const attachmentId = typeof messageContent.attachmentId === "string" ? messageContent.attachmentId : undefined;
       const mimeType = typeof messageContent.mimeType === "string" ? messageContent.mimeType : undefined;
       const isAudio = messageContent.mediaKind === "audio"
@@ -957,26 +999,48 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
               sourceKey: `telegram:${connection.id}:${event.message.providerMessageId}:${attachmentId}`,
             },
           );
-          messageContent = { ...messageContent, assetId: uploaded.asset.id, mediaKind: uploaded.asset.kind };
+          messageContent = { ...messageContent, assetId: uploaded.asset.id, mediaKind: isAudio ? "audio" : uploaded.asset.kind };
           if (isAudio) {
-            const transcription = await transcriptionProvider.transcribe({
-              bytes: downloaded.bytes,
-              mimeType: resolvedMimeType,
-              fileName: typeof messageContent.fileName === "string" ? messageContent.fileName : downloaded.filePath.split("/").at(-1),
-            });
             const caption = typeof messageContent.text === "string" ? messageContent.text.trim() : "";
             messageContent = {
               ...messageContent,
-              text: [caption, transcription.text].filter(Boolean).join("\n\n"),
-              transcript: transcription.text,
-              transcription: { status: "completed", provider: "elevenlabs", ...(transcription.languageCode ? { languageCode: transcription.languageCode } : {}) },
+              text: caption,
+              transcription: { status: "queued", provider: "elevenlabs" },
             };
+            queuedAudio = true;
           }
         } catch (error) {
           request.log.warn({ code: error instanceof AudioTranscriptionError ? error.code : undefined, error: error instanceof Error ? error.message : "media ingestion failed" }, isAudio ? "Telegram audio ingestion failed" : "Telegram image ingestion failed");
           await telegramClient.sendMessage(token, event.externalConversationId, isAudio ? "I couldn't transcribe that audio. Please try sending it again." : "I couldn't process that image. Please try sending it again.").catch(() => undefined);
           return reply.code(200).send({ ok: true, media: "failed" });
         }
+      }
+      if (queuedAudio && typeof messageContent.assetId === "string") {
+        const job = await audioTranscriptionJobs.enqueue({
+          organizationId: connection.organization_id,
+          installationId: connection.installation_id,
+          actorId: connection.created_by,
+          correlationId,
+          idempotencyKey: `channel:${event.provider}:${event.providerEventId}`,
+          assetId: messageContent.assetId,
+          dispatchKind: "external",
+          dispatchInput: {
+            installationId: connection.installation_id,
+            channelType: event.channelType,
+            channelKey: connection.channel_key,
+            provider: event.provider,
+            providerEventId: event.providerEventId,
+            providerMessageId: event.message.providerMessageId!,
+            externalIdentity: event.externalIdentity,
+            externalConversationId: event.externalConversationId,
+            messageType: event.message.messageType,
+            content: messageContent,
+            occurredAt: event.message.occurredAt,
+            displayName: typeof event.metadata.senderDisplayName === "string" ? event.metadata.senderDisplayName : undefined,
+            fileName: typeof messageContent.fileName === "string" ? messageContent.fileName : undefined,
+          },
+        });
+        return reply.code(200).send({ ok: true, media: "queued", jobId: job.job.id, created: job.created });
       }
       const accepted = await platformChat.acceptExternalMessage({
         organizationId: connection.organization_id,
@@ -1087,6 +1151,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     try {
       const correlationId = randomUUID();
       let messageContent = parseCanonicalMessageContent(event.message.messageType, event.message.content);
+      let queuedAudio = false;
       const attachmentId = typeof messageContent.attachmentId === "string" ? messageContent.attachmentId : undefined;
       const attachmentUrl = typeof messageContent.url === "string" ? messageContent.url : undefined;
       const mimeType = typeof messageContent.mimeType === "string" ? normalizeAudioMimeType(messageContent.mimeType) : undefined;
@@ -1116,20 +1181,15 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
               sourceKey: `discord:${connection.id}:${event.message.providerMessageId ?? event.providerEventId}:${attachmentId ?? "audio"}`,
             },
           );
-          const transcription = await transcriptionProvider.transcribe({
-            bytes: downloaded.bytes,
-            mimeType: mimeType ?? "audio/mpeg",
-            fileName: typeof messageContent.fileName === "string" ? messageContent.fileName : undefined,
-          });
           const caption = typeof messageContent.text === "string" ? messageContent.text.trim() : "";
           messageContent = {
             ...messageContent,
             assetId: uploaded.asset.id,
-            mediaKind: uploaded.asset.kind,
-            text: [caption, transcription.text].filter(Boolean).join("\n\n"),
-            transcript: transcription.text,
-            transcription: { status: "completed", provider: "elevenlabs", ...(transcription.languageCode ? { languageCode: transcription.languageCode } : {}) },
+            mediaKind: "audio",
+            text: caption,
+            transcription: { status: "queued", provider: "elevenlabs" },
           };
+          queuedAudio = true;
         } catch (error) {
           request.log.warn({ code: error instanceof AudioTranscriptionError ? error.code : undefined, error: error instanceof Error ? error.message : "audio ingestion failed" }, "Discord audio ingestion failed");
           await discordClient.sendMessage(credential, event.externalConversationId, "I couldn't transcribe that audio. Please try sending it again.").catch(() => undefined);
@@ -1140,6 +1200,33 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         const persistableContent = { ...messageContent };
         delete persistableContent.url;
         messageContent = persistableContent;
+      }
+      if (queuedAudio && typeof messageContent.assetId === "string") {
+        const job = await audioTranscriptionJobs.enqueue({
+          organizationId: connection.organization_id,
+          installationId: connection.installation_id,
+          actorId: connection.created_by,
+          correlationId,
+          idempotencyKey: `channel:${event.provider}:${event.providerEventId}`,
+          assetId: messageContent.assetId,
+          dispatchKind: "external",
+          dispatchInput: {
+            installationId: connection.installation_id,
+            channelType: event.channelType,
+            channelKey: connection.channel_key,
+            provider: event.provider,
+            providerEventId: event.providerEventId,
+            providerMessageId: event.message.providerMessageId ?? event.providerEventId,
+            externalIdentity: event.externalIdentity,
+            externalConversationId: event.externalConversationId,
+            messageType: event.message.messageType,
+            content: messageContent,
+            occurredAt: event.message.occurredAt,
+            displayName: typeof event.metadata.senderDisplayName === "string" ? event.metadata.senderDisplayName : undefined,
+            fileName: typeof messageContent.fileName === "string" ? messageContent.fileName : undefined,
+          },
+        });
+        return reply.code(200).send({ ok: true, media: "queued", jobId: job.job.id, created: job.created });
       }
       const accepted = await platformChat.acceptExternalMessage({
         organizationId: connection.organization_id,
@@ -2730,42 +2817,44 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           sourceKey: `kasiai:${request.params.installationId}:${conversationId}:${idempotencyKey}`,
         },
       );
-      const transcription = await transcriptionProvider.transcribe({ bytes, mimeType, fileName: part.filename });
       const caption = headerValue(request, "x-audio-caption")?.trim().slice(0, 4_000) ?? "";
-      const text = [caption, transcription.text].filter(Boolean).join("\n\n");
       const context = {
         ...(headerValue(request, "x-audio-context-route")?.trim() ? { route: headerValue(request, "x-audio-context-route")!.trim().slice(0, 500) } : {}),
         ...(headerValue(request, "x-audio-context-title")?.trim() ? { pageTitle: headerValue(request, "x-audio-context-title")!.trim().slice(0, 240) } : {}),
       };
-      const accepted = await platformChat.acceptMessage({
+      const content = {
+        text: caption,
+        assetId: uploaded.asset.id,
+        mimeType,
+        ...(part.filename ? { fileName: part.filename } : {}),
+        mediaKind: "audio",
+        transcription: { status: "queued", provider: "elevenlabs" },
+      };
+      const job = await audioTranscriptionJobs.enqueue({
         organizationId: auth.organizationId,
         installationId: request.params.installationId,
         actorId: auth.actorId,
         correlationId,
         idempotencyKey,
-        message: text,
-        messageType: "attachment",
-        content: {
-          text,
-          transcript: transcription.text,
-          assetId: uploaded.asset.id,
-          mimeType,
-          ...(part.filename ? { fileName: part.filename } : {}),
-          mediaKind: uploaded.asset.kind,
-          transcription: { status: "completed", provider: "elevenlabs", ...(transcription.languageCode ? { languageCode: transcription.languageCode } : {}) },
+        assetId: uploaded.asset.id,
+        dispatchKind: "platform",
+        dispatchInput: {
+          idempotencyKey,
+          installationId: request.params.installationId,
+          actorId: auth.actorId,
+          messageType: "attachment",
+          content,
+          context,
+          conversationId,
+          fileName: part.filename || undefined,
         },
-        context,
-        conversationId,
       });
-      const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
-      if (workflowEnabled && dependencies.startWorkflow && accepted.run.status === "received") await dependencies.startWorkflow(accepted.run.id);
       return reply.code(202).send({
-        conversation: accepted.conversation,
-        message: accepted.message,
-        runId: accepted.run.id,
-        status: accepted.run.status,
-        created: accepted.created,
-        durable: workflowEnabled,
+        jobId: job.job.id,
+        status: job.job.status,
+        assetId: uploaded.asset.id,
+        created: job.created,
+        durable: true,
       });
     },
   );
@@ -2796,6 +2885,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const auth = requireAuth(request, dependencies.config);
       requireScope(auth, dependencies.config, "channels:ingest");
       const input = z.object({
+        installationId: z.string().uuid().optional(),
         channelType: z.string().trim().min(1).max(80),
         channelKey: z.string().trim().min(1).max(160).optional(),
         provider: z.string().trim().min(1).max(80),
@@ -2839,6 +2929,34 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         }
       }
       input.content = parseCanonicalMessageContent(input.messageType, input.content);
+      if (isAudioContent(input.content) && !hasCompletedTranscription(input.content)) {
+        const assetId = typeof input.content.assetId === "string" ? input.content.assetId : "";
+        const installationId = input.installationId ?? inboundConnection?.installation_id;
+        if (!assetId) return reply.code(422).send({ error: "AUDIO_ASSET_REQUIRED", code: "AUDIO_ASSET_REQUIRED" });
+        if (!installationId) return reply.code(422).send({ error: "AUDIO_INSTALLATION_REQUIRED", code: "AUDIO_INSTALLATION_REQUIRED" });
+        const job = await audioTranscriptionJobs.enqueue({
+          organizationId: auth.organizationId,
+          installationId,
+          actorId: inboundConnection?.created_by ?? auth.actorId,
+          correlationId: auth.correlationId ?? randomUUID(),
+          idempotencyKey: `channel:${input.provider}:${input.providerEventId}`,
+          assetId,
+          dispatchKind: "external",
+          dispatchInput: {
+            ...input,
+            installationId,
+            content: input.content,
+            fileName: typeof input.content.fileName === "string" ? input.content.fileName : undefined,
+          },
+        });
+        return reply.code(job.created ? 202 : 200).send({
+          jobId: job.job.id,
+          status: job.job.status,
+          assetId,
+          created: job.created,
+          durable: true,
+        });
+      }
       const accepted = await platformChat.acceptExternalMessage({
         organizationId: auth.organizationId,
         correlationId: auth.correlationId,

@@ -360,7 +360,6 @@ fn website_channel_audio_payload(
     external_identity: &str,
     external_conversation_id: &str,
     text: &str,
-    transcript: &str,
     asset_id: &str,
     mime_type: &str,
     file_name: Option<&str>,
@@ -368,11 +367,10 @@ fn website_channel_audio_payload(
 ) -> Value {
     let mut content = serde_json::json!({
         "text": text,
-        "transcript": transcript,
         "assetId": asset_id,
         "mimeType": mime_type,
         "mediaKind": "audio",
-        "transcription": { "status": "completed", "provider": "elevenlabs" },
+        "transcription": { "status": "queued", "provider": "elevenlabs" },
     });
     if let Some(file_name) = file_name {
         content["fileName"] = Value::String(file_name.to_string());
@@ -752,7 +750,6 @@ pub async fn send_agent_website_chat_audio(
         "website:{}:{}:{}",
         public_id, session.public_session_id, idempotency_key
     );
-    let transcription_bytes = bytes.clone();
     let asset = content_media::upload_content_media_bytes(
         pool.get_ref(),
         config.get_ref(),
@@ -767,42 +764,18 @@ pub async fn send_agent_website_chat_audio(
         },
     )
     .await?;
-    let transcription = AgentPlatformClient::from_config(config.get_ref())?
-        .transcribe_audio(
-            &organization_id,
-            &owner_id,
-            transcription_bytes,
-            &mime_type,
-            file_name.as_deref(),
-        )
-        .await?;
-    let transcript = transcription
-        .get("text")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::BadGateway("Audio transcription returned no text".to_string()))?;
-    let text = [caption.as_deref().unwrap_or(""), transcript]
-        .into_iter()
-        .filter(|value| !value.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n\n");
-    let mut payload = website_channel_audio_payload(
+    let text = caption.as_deref().unwrap_or("");
+    let payload = website_channel_audio_payload(
         &public_id,
         idempotency_key,
         &session.external_identity,
         &session.external_conversation_id,
-        &text,
-        transcript,
+        text,
         &asset.id,
         &mime_type,
         file_name.as_deref(),
         display_name.as_deref(),
     );
-    if let Some(language_code) = transcription.get("languageCode").and_then(Value::as_str) {
-        payload["content"]["transcription"]["languageCode"] =
-            Value::String(language_code.to_string());
-    }
     let accepted = AgentPlatformClient::from_config(config.get_ref())?
         .ingest_channel_message(&organization_id, &owner_id, payload)
         .await?;
@@ -848,13 +821,12 @@ mod tests {
     }
 
     #[test]
-    fn audio_payload_keeps_transcript_and_internal_asset_reference() {
+    fn audio_payload_starts_queued_transcription_with_internal_asset_reference() {
         let payload = website_channel_audio_payload(
             "wdg_test",
             "event-2",
             "website:wvs_test",
             "website:wdg_test:wvs_test",
-            "Please call me back\n\nPlease call me back",
             "Please call me back",
             "asset-1",
             "audio/webm",
@@ -864,8 +836,8 @@ mod tests {
 
         assert_eq!(payload["messageType"], "attachment");
         assert_eq!(payload["content"]["assetId"], "asset-1");
-        assert_eq!(payload["content"]["transcript"], "Please call me back");
         assert_eq!(payload["content"]["mediaKind"], "audio");
+        assert_eq!(payload["content"]["transcription"]["status"], "queued");
         assert!(!payload.as_object().unwrap().contains_key("displayName"));
     }
 }

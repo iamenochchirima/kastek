@@ -993,7 +993,6 @@ async fn handle_incoming_messages(
         publish_message_created(pool, &connection.user_id, &message_id).await?;
         publish_conversation_updated(pool, &connection.user_id, &conversation_id).await?;
         let mut agent_media = None;
-        let mut agent_audio_bytes: Option<(Vec<u8>, String)> = None;
         if let (Some(media), Some(provider_message_id)) = (media.as_ref(), wa_message_id) {
             if media.kind == "image" || media.kind == "audio" {
                 let media_is_audio = media.kind == "audio";
@@ -1018,11 +1017,6 @@ async fn handle_incoming_messages(
                                 "image/jpeg"
                             })
                             .to_string();
-                        let transcription_bytes = if media_is_audio {
-                            Some(bytes.clone())
-                        } else {
-                            None
-                        };
                         match content_media::upload_content_media_bytes(
                             pool,
                             config,
@@ -1043,9 +1037,6 @@ async fn handle_incoming_messages(
                         {
                             Ok(asset) => {
                                 agent_media = Some((asset, mime_type.clone()));
-                                if let Some(bytes) = transcription_bytes {
-                                    agent_audio_bytes = Some((bytes, mime_type));
-                                }
                             }
                             Err(error) => {
                                 observability::tracing::warn!(
@@ -1100,70 +1091,22 @@ async fn handle_incoming_messages(
         }
         if let Some(provider_message_id) = wa_message_id {
             if let Ok(agent_client) = AgentPlatformClient::from_config(config) {
-                let mut agent_transcription = None;
-                if let Some((bytes, mime_type)) = agent_audio_bytes {
-                    match agent_client
-                        .transcribe_audio(
-                            org_id,
-                            &connection.user_id,
-                            bytes,
-                            &mime_type,
-                            media.as_ref().and_then(|value| value.filename.as_deref()),
-                        )
-                        .await
-                    {
-                        Ok(transcription) => agent_transcription = Some(transcription),
-                        Err(error) => {
-                            observability::tracing::warn!(
-                                event = "provider.call.failed",
-                                provider = "elevenlabs",
-                                operation = "audio.transcription",
-                                conversation_id = %conversation_id,
-                                error_type = %std::any::type_name_of_val(&error),
-                                "WhatsApp audio transcription failed"
-                            );
-                            let access_token =
-                                decrypt_social_secret(&connection.access_token_encrypted)?;
-                            let _ = send_text_message(
-                                &connection.phone_number_id,
-                                &access_token,
-                                &normalized_phone,
-                                "I couldn't transcribe that audio. Please try sending it again.",
-                                Some(provider_message_id),
-                            )
-                            .await;
-                            continue;
-                        }
-                    }
-                }
                 let (message_type, message_content) = match agent_media.as_ref() {
-                    Some((asset, mime_type)) => (
-                        "attachment",
-                        json!({
+                    Some((asset, mime_type)) => {
+                        let mut attachment = json!({
                             "assetId": asset.id,
                             "attachmentId": media.as_ref().map(|value| value.media_id.as_str()),
                             "mimeType": mime_type,
                             "fileName": media.as_ref().and_then(|value| value.filename.as_deref()),
                             "mediaKind": asset.kind,
-                            "text": agent_transcription
-                                .as_ref()
-                                .and_then(|value| value.get("text"))
-                                .and_then(Value::as_str)
-                                .map(|transcript| {
-                                    if content.trim().is_empty() {
-                                        transcript.to_string()
-                                    } else {
-                                        format!("{}\n\n{}", content.trim(), transcript)
-                                    }
-                                })
-                                .unwrap_or_else(|| content.clone()),
-                            "transcript": agent_transcription
-                                .as_ref()
-                                .and_then(|value| value.get("text"))
-                                .and_then(Value::as_str),
-                            "transcription": agent_transcription,
-                        }),
-                    ),
+                            "text": content.clone(),
+                        });
+                        if media.as_ref().is_some_and(|value| value.kind == "audio") {
+                            attachment["transcription"] =
+                                json!({ "status": "queued", "provider": "elevenlabs" });
+                        }
+                        ("attachment", attachment)
+                    }
                     None if media.is_none() => ("text", json!({ "text": content })),
                     None => continue,
                 };

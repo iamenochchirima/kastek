@@ -234,6 +234,11 @@ export interface CoreContentMediaAsset {
   scanStatus: string;
 }
 
+export interface CoreContentMediaBytes {
+  bytes: Buffer;
+  mimeType: string;
+}
+
 export interface CoreContentMediaInput {
   assetId: string;
   sortOrder?: number;
@@ -626,6 +631,52 @@ export class KasitekCoreReadClient {
     );
   }
 
+  public async downloadContentMedia(
+    context: CoreRequestContext,
+    assetId: string,
+  ): Promise<CoreContentMediaBytes> {
+    const baseUrl = this.config.KASITEK_CORE_URL?.replace(/\/$/, "");
+    const staticToken = this.config.KASITEK_CORE_INTERNAL_TOKEN?.trim();
+    if (!baseUrl || (!staticToken && !this.config.KASITEK_CORE_DELEGATION_PRIVATE_KEY)) {
+      throw new CoreToolError("CORE_UNAVAILABLE", "kasitek-core capability boundary is not configured");
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.config.KASITEK_CORE_TIMEOUT_MS);
+    try {
+      const response = await fetch(`${baseUrl}/api/internal/agents/v1/content/media/${encodeURIComponent(assetId)}`, {
+        method: "GET",
+        headers: {
+          authorization: `Bearer ${this.token(context, "kasitek.core.content_media_read", "1.0.0")}`,
+          "x-organization-id": context.organizationId,
+          "x-actor-id": context.actorId ?? "kasitek-agent-platform",
+          "x-agent-run-id": context.runId,
+          "x-correlation-id": context.correlationId,
+          accept: "application/octet-stream",
+        },
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        if (response.status === 404) throw new CoreToolError("CORE_NOT_FOUND", "Media asset not found");
+        if (response.status === 409) throw new CoreToolError("CORE_NOT_READY", "Media asset is not ready");
+        if (response.status === 401 || response.status === 403) throw new CoreToolError("CORE_UNAUTHORIZED", "kasitek-core rejected the agent credential");
+        throw new CoreToolError("CORE_REQUEST_FAILED", `kasitek-core returned ${response.status}${body ? `: ${body.slice(0, 240)}` : ""}`);
+      }
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (!bytes.length) throw new CoreToolError("CORE_INVALID_RESPONSE", "kasitek-core returned an empty media object");
+      return {
+        bytes,
+        mimeType: (response.headers.get("content-type") ?? "application/octet-stream").split(";", 1)[0]!.trim().toLowerCase(),
+      };
+    } catch (error) {
+      if (error instanceof CoreToolError) throw error;
+      if (error instanceof DOMException && error.name === "AbortError") throw new CoreToolError("CORE_TIMEOUT", "kasitek-core media read timed out");
+      throw new CoreToolError("CORE_REQUEST_FAILED", error instanceof Error ? error.message : "kasitek-core media read failed");
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   public async publishContentPost(context: ToolInvocationContext, postId: string, platform: string): Promise<{ post: CoreContentPost; result: unknown }> {
     return this.requestJson<{ post: CoreContentPost; result: unknown }>(context, `/api/internal/agents/v1/content/posts/${encodeURIComponent(postId)}/publish`, "Content publish", {
       method: "POST",
@@ -830,6 +881,7 @@ export class KasitekCoreReadClient {
     if (routePath.includes("/contacts")) return "kasitek.core.contacts_list";
     if (method === "POST" && routePath.endsWith("/content/posts")) return "kasitek.core.content_post_draft";
     if (method === "POST" && routePath.endsWith("/content/media")) return "kasitek.core.content_media_upload";
+    if (routePath.includes("/content/media/")) return "kasitek.core.content_media_read";
     if (routePath.endsWith("/content/posts")) return "kasitek.core.content_posts_list";
     if (routePath.endsWith("/content/posts/insights")) return "kasitek.core.content_posts_insights_report";
     if (routePath.endsWith("/insights") && routePath.includes("/content/posts/")) return "kasitek.core.content_post_insights";

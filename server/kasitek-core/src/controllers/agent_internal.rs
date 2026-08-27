@@ -1173,6 +1173,26 @@ pub async fn upload_content_media(
     Ok(HttpResponse::Created().json(json!({ "asset": asset })))
 }
 
+pub async fn download_content_media(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (organization_id, _) =
+        require_internal_agent(config.get_ref(), &req, "kasitek.core.content_media_read").await?;
+    let stored = content_media::read_content_media_bytes(
+        pool.get_ref(),
+        config.get_ref(),
+        &organization_id,
+        &path.into_inner(),
+    )
+    .await?;
+    Ok(HttpResponse::Ok()
+        .content_type(stored.mime_type)
+        .body(stored.bytes))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct AgentContentPublishRequest {
     pub platform: String,

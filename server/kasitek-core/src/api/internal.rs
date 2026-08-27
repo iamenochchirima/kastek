@@ -90,6 +90,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::post().to(agent_internal::upload_content_media),
             )
             .route(
+                "/content/media/{id}",
+                web::get().to(agent_internal::download_content_media),
+            )
+            .route(
                 "/content/posts/{id}",
                 web::get().to(agent_internal::get_content_post),
             )
@@ -124,6 +128,18 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route(
                 "/channels/deliver",
                 web::post().to(agent_internal::deliver_channel_message),
+            )
+            .route(
+                "/credits/reservations",
+                web::post().to(agent_internal::reserve_credits),
+            )
+            .route(
+                "/credits/reservations/{reservationId}/capture",
+                web::post().to(agent_internal::capture_credits),
+            )
+            .route(
+                "/credits/reservations/{reservationId}/release",
+                web::post().to(agent_internal::release_credits),
             ),
     );
     cfg.service(
@@ -510,6 +526,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route(
                 "/installations/{installationId}/platform/messages",
                 web::post().to(agent_platform::send_message),
+            )
+            .route(
+                "/installations/{installationId}/platform/audio",
+                web::post().to(agent_platform::send_audio_message),
             )
             .route(
                 "/conversations/{conversationId}",

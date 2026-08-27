@@ -10,6 +10,8 @@ import { RunRepository } from "../db/repositories/run-repository";
 import { ApprovalRepository } from "../db/repositories/approval-repository";
 import { operationalLogger } from "../telemetry/logger";
 import { temporalActivityInterceptors, temporalClientInterceptor } from "../telemetry/temporal";
+import { startDurableRun } from "./client";
+import { AudioTranscriptionWorker } from "../transcription/worker";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -85,8 +87,16 @@ async function main(): Promise<void> {
     maxConcurrentActivityTaskExecutions: 20,
     maxConcurrentWorkflowTaskExecutions: 100,
   });
+  const audioTranscriptionWorker = new AudioTranscriptionWorker({
+    pool,
+    config,
+    startWorkflow: (runId) => startDurableRun(client, config, { runId }),
+  });
+  const audioTranscriptionLoop = audioTranscriptionWorker.run();
   const close = async (): Promise<void> => {
     clearInterval(reconciliationTimer);
+    audioTranscriptionWorker.stop();
+    await audioTranscriptionLoop;
     await worker.shutdown();
     await connection.close();
     await pool.end();
