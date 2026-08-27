@@ -77,6 +77,7 @@ import {
 import { AgentApprovalPreview } from "@/components/dashboard/agents/agent-approval-preview";
 import { AudioMessageControl } from "@/components/dashboard/kasiai/audio-message-control";
 import { cn } from "@/lib/utils";
+import { apiUrl } from "@/lib/server-api";
 
 type View = "chat" | "library" | "settings";
 type SettingsSection = "general" | "model" | "connections" | "memory";
@@ -1560,6 +1561,18 @@ export function KasiAiChat({
                                     retryable && "ring-1 ring-destructive/60",
                                   )}
                                 >
+                                  {message.content?.mediaKind === "audio" &&
+                                  typeof message.content.assetId === "string" ? (
+                                    <audio
+                                      controls
+                                      preload="metadata"
+                                      className="mb-2 h-9 w-full min-w-52 max-w-sm"
+                                      src={apiUrl(
+                                        `/api/social/media/${encodeURIComponent(message.content.assetId)}`,
+                                      )}
+                                      aria-label="Audio message"
+                                    />
+                                  ) : null}
                                   {message.direction === "outbound" ? (
                                     <ReactMarkdown
                                       remarkPlugins={[remarkGfm]}
