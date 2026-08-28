@@ -178,8 +178,12 @@ remain a simple product-status label.
 8. [x] Add durable invitation retry behavior, admin notifications, structured lifecycle logs, and
    idempotency.
 9. [x] Add unit, database integration, and HTTP smoke tests for the implemented paths.
-10. [x] Update internal/public documentation, migration notes, runbook, and rollback evidence.
-11. [ ] Run an isolated staging journey using a disposable applicant, admin, email sink, and
+10. [x] Align the private-mode app gateway and authentication screens with invitation-only access.
+11. [x] Add invitation link/token redemption and a branded invitation-required OAuth error path.
+12. [x] Reject uninvited Google accounts before user creation and allow recovery of orphaned OAuth
+    rows through invitation activation.
+13. [x] Update internal/public documentation, migration notes, runbook, and rollback evidence.
+14. [ ] Run an isolated staging journey using a disposable applicant, admin, email sink, and
     organisation; promote the exact verified artifact only after all release gates pass.
 
 ## Verification
@@ -203,7 +207,7 @@ remain a simple product-status label.
 ## Release record
 
 **Change:** Add the controlled early-access application and approval lifecycle, plus an informational
-Beta product tag.
+Beta product tag and private-mode invitation redemption/OAuth handling.
 
 **Owner:** Product and Platform Engineering; release owner to be assigned before staging.
 
@@ -240,6 +244,8 @@ need an event.
 email attempts, grant creation/revocation, and failures; metrics for application volume,
 activation failures, pending invitations, expiring grants, and provider errors. Redact tokens and
 personal data. Add a runbook for stuck or partially completed approvals.
+Uninvited Google OAuth attempts also emit a bounded structured warning without email addresses,
+tokens, or provider payloads.
 
 **User, API, internal, and operational documentation:** update public access documentation only
 after the flow is live; update internal access-control, billing, support, configuration, and
