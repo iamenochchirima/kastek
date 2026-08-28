@@ -19,6 +19,7 @@ This is the canonical home for private Kasitek documentation.
 - [Release Process](./operations/release-process.md)
 - [Platform Versioning](./operations/platform-versioning.md)
 - [Environments](./operations/environments.md)
+- [Railway Deployment Topology](./operations/deployment-topology.md)
 - [Observability](./operations/observability.md)
 - [Documentation Maintenance](./operations/documentation-maintenance.md)
 
