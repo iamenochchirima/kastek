@@ -2,8 +2,8 @@
 id: opentelemetry-infrastructure-release-record
 title: OpenTelemetry Infrastructure Release Record
 owner: KasiTek engineering
-last_reviewed: 2026-08-27
-status: repository evidence complete; hosted staging and durable-destination gates pending
+last_reviewed: 2026-08-28
+status: repository evidence and Production transport validation complete; durable destination pending
 tracking_issue: https://github.com/iamenochchirima/kasitek/issues/2
 ---
 
@@ -53,6 +53,7 @@ The repository implementation is split into reviewable commits:
 | Select Collector profiles without a shell wrapper | `b28e10cb` |
 | Register the Rust subscriber without a duplicate logger | `8d405287` |
 | Match CI identity assertions to Collector debug output | `4f0b5e9e` |
+| Agents runtime CA trust and Gateway deployment compatibility | `b2c1dbc3`, `425bcf73` |
 
 The exact implementation tree used for the repository smoke evidence is now
 `4f0b5e9e` (`4f0b5e9e` is the current repository-side implementation commit). The Collector
@@ -123,6 +124,29 @@ Production release ID: not created
 - Public and internal documentation builds passed after removing stale links from the internal
   documentation index and Admin Analytics reference. This infrastructure-only change has no
   public user/API behavior change, so public documentation content is `not applicable`.
+
+## Production Railway verification
+
+The following checks were completed against the Railway `production` environment on 2026-08-28.
+They verify service startup and OTLP transport; they do not approve durable Production
+observability.
+
+| Check | Evidence |
+| --- | --- |
+| Railway service inventory | All 12 Production services reported `SUCCESS` and `stopped=false`, including the four PostgreSQL services, Core, Tenants, Agents API/worker, Analytics API/worker, MCP Gateway, and Collector. |
+| Core API | `/health` returned HTTP 200 after setting the service-scoped `PORT=4000`. The previous 502 was caused by the process listening on 8080 while the domain targeted 4000. |
+| Core database | All 69 checked-in Prisma migrations report applied through `prisma migrate status`; the migration was run over a temporary Railway SSH tunnel. |
+| Agents database | The compiled Agents migration command completed as a one-shot deployment before the worker was restored. |
+| Analytics database | The Analytics migration binary completed as a one-shot deployment before the worker was restored. |
+| Tenants API | `/health` returned HTTP 200. Tenant SQLx migrations run at application startup. |
+| MCP Gateway | `/health` and `/health/ready` returned HTTP 200. |
+| Collector | The health endpoint returned HTTP 200 and the Collector received OTLP traces and metrics from the running services. |
+| Durable retention | Not configured. The Production Collector currently uses the debug exporter, which writes received signals to Railway logs for transport validation only. |
+
+The current Railway deployment IDs are recorded in the deployment handoff rather than treated as
+source version identity. The Railway project is connected to `iamenochchirima/kasitek`, while this
+local checkout's `origin` is `iamenochchirima/kasiai`; reconcile those repositories before relying
+on Git-triggered deployments as the source of the exact artifact.
 
 ## Hosted staging gates
 

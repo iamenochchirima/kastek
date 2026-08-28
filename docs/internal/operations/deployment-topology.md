@@ -34,12 +34,12 @@ be configured or reused rather than duplicated inside the same Railway environme
 
 | Service | Root directory | Builder | Dockerfile path | Build command | Pre-deploy command | Start command | Health and port | Exposure |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Core API | `/server` | Railpack | Not applicable | `mkdir -p bin && cargo build --release -p kasitek-core && cp target/release/server bin/server` | Not currently packaged | `./bin/server` | `/health`, Railway `PORT` (default `4000`) | Public |
+| Core API | `/server` | Railpack | Not applicable | `mkdir -p bin && cargo build --release -p kasitek-core && cp target/release/server bin/server` | Manual Prisma migration before deployment; see below | `./bin/server` | `/health`, `PORT=4000` | Public |
 | Tenants API | `/server` | Railpack | Not applicable | `mkdir -p bin && cargo build --release -p kasitek-tenants && cp target/release/kasitek-tenants bin/kasitek-tenants` | Not applicable; the process currently runs tenant SQLx migrations at startup | `./bin/kasitek-tenants` | `/health`, `TENANT_SERVER_PORT` or Railway `PORT` (default `8090`) | Public |
-| Agents API | `/agents` | Dockerfile | `Dockerfile` | Leave blank; the Dockerfile builds the image | `node dist/db/migrate.js` | `node dist/http/server.js` | `/health/ready`, `4100` | Private |
+| Agents API | `/agents` | Dockerfile | `Dockerfile` | Leave blank; the Dockerfile builds the image | Manual one-shot migration before deployment; see below | `node dist/http/server.js` | `/health/ready`, `4100` | Private |
 | Agents Worker | `/agents` | Dockerfile | `Dockerfile` | Leave blank; the Dockerfile builds the image | None; deploy Agents API first | `node dist/temporal/worker.js` | No HTTP health check | Private |
 | MCP Gateway | `/agents` | Dockerfile | `Dockerfile` | Leave blank; the Dockerfile builds the image | None | `node dist/gateway/server.js` | `/health/ready`, `4200` | Public when external MCP clients are enabled |
-| Analytics API | `/server` | Dockerfile | `kasitek-analytics/Dockerfile` | Leave blank; the Dockerfile builds the image | `/usr/local/bin/analytics-migrate` | `/usr/local/bin/analytics-api` | `/health/ready`, `4300` | Private |
+| Analytics API | `/server` | Dockerfile | `kasitek-analytics/Dockerfile` | Leave blank; the Dockerfile builds the image | Manual one-shot migration before deployment; see below | `/usr/local/bin/analytics-api` | `/health/ready`, `4300` | Private |
 | Analytics Worker | `/server` | Dockerfile | `kasitek-analytics/Dockerfile` | Leave blank; the Dockerfile builds the image | None; deploy Analytics API first | `/usr/local/bin/analytics-worker` | No HTTP health check | Private |
 
 For the Analytics services, if Railway does not provide a Dockerfile path field, add this
@@ -55,41 +55,88 @@ by both Analytics services; the Start Command selects the process that each serv
 The Agents Dockerfile is directly under `/agents`, so it does not need
 `RAILWAY_DOCKERFILE_PATH`.
 
+## Shared Railway variables
+
+Use Railway shared variables for values that are identical for every service in one environment.
+The current Production shared set is:
+
+```text
+NODE_ENV=production
+LOG_LEVEL=info
+OTEL_DEPLOYMENT_ENVIRONMENT=production
+OTEL_EXPORTER_OTLP_ENDPOINT=http://${{otel-collector.RAILWAY_PRIVATE_DOMAIN}}:4318
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+```
+
+Keep database URLs, service ports, provider credentials, signing keys, and other service-specific
+settings on the service that consumes them. Reference a database service's private URL using its
+actual exported variable, for example:
+
+```text
+DATABASE_URL=${{core-db.DATABASE_URL}}
+AGENTS_DATABASE_URL=${{agents-db.DATABASE_URL}}
+ANALYTICS_DATABASE_URL=${{analytics-db.DATABASE_URL}}
+KASITEK_TENANTS_DATABASE_URL=${{tenents-db.DATABASE_URL}}
+```
+
+Do not use `DATABASE_PRIVATE_URL` for these Railway Postgres services; this project exposes the
+private connection as `DATABASE_URL`. Do not put private signing keys in shared variables merely
+because more than one process needs related public configuration. Move any existing shared private
+key into service-scoped variables during the next key rotation.
+
+`OTEL_SERVICE_NAME` remains service-specific so telemetry can distinguish API, worker, gateway,
+and migration processes. The shared OTLP endpoint is the transport boundary; it is not a durable
+telemetry destination by itself.
+
 ## Migration behavior
 
 Migrations are release steps, not long-running services.
 
+The current Railway project does not expose a pre-deploy command field for these services. Run a
+migration as a one-shot deployment by temporarily changing the service's Start Command to the
+migration command, deploying once, verifying a successful exit, and restoring the normal Start
+Command immediately. Never leave a migration command as the long-running service command.
+
 ### Agents
 
-The Agents API image contains the compiled migration file. Configure the Agents API's Railway
-pre-deploy command as:
+The Agents image contains the compiled migration file. For a one-shot deployment, temporarily use:
 
 ```text
 node dist/db/migrate.js
 ```
 
-Railway runs it in a temporary container before starting the API. Do not use `pnpm run migrate`
-in the production image: that script references the source tree and the development `tsx`
-dependency, which are not included in the runtime image.
+After the command exits successfully, restore `node dist/http/server.js`. Do not use
+`pnpm run migrate` in the production image: that script references the source tree and the
+development `tsx` dependency, which are not included in the runtime image.
 
 ### Analytics
 
-The Analytics API image contains the migration binary. Configure the Analytics API's Railway
-pre-deploy command as:
+The Analytics image contains the migration binary. For a one-shot deployment, temporarily use:
 
 ```text
 /usr/local/bin/analytics-migrate
 ```
 
-The Analytics API and worker must not start serving or processing data until the migration has
-completed successfully. The migration binary uses the Analytics database and must never receive a
-Core, Tenants, or Agents database URL.
+After the command exits successfully, restore `/usr/local/bin/analytics-api` on the API or
+`/usr/local/bin/analytics-worker` on the worker. The migration binary uses the Analytics database
+and must never receive a Core, Tenants, or Agents database URL.
 
 ### Core
 
-Core has SQL files and an existing manual database setup process, but no dedicated production
-migration binary or Railway pre-deploy command is currently packaged. Treat Core schema changes as
-a release blocker until the controlled migration procedure is recorded for the affected release.
+Core's operational schema is owned by the client Prisma migration chain. The Rust process does not
+run these migrations automatically. Before a new Core database is used, open a temporary Railway
+SSH tunnel and run the migrations from the repository root in a second terminal:
+
+```text
+railway connect core-db --environment production --tunnel-only --ssh --port 15432
+railway run --project <project-id> --environment production --service core --no-local -- sh -c 'url=$(printf "%s" "$DATABASE_URL" | sed "s/@[^/]*:5432/@127.0.0.1:15432/"); DIRECT_URL="$url" pnpm --dir client/packages/database exec prisma migrate deploy'
+```
+
+Verify `No pending migrations to apply` before deploying or restarting Core. The current
+Production Core database has all 69 checked-in Prisma migrations applied. Existing databases must
+follow the baseline procedure in
+[Client database migration baseline](../architecture/client-database-migration-baseline.md),
+including backup and schema review before `migrate resolve`.
 
 ### Tenants
 
@@ -131,17 +178,18 @@ Railway services until independent scaling, isolation, or reliability evidence j
 
 ## OpenTelemetry Collector
 
-Create one private Collector service per Railway environment when a durable telemetry backend is
-configured.
+Create one private Collector service per Railway environment. Until a durable telemetry backend
+is configured, the Production service may run the debug profile only for transport validation.
 
 | Service | Root directory | Builder | Start command | Health and port | Exposure |
 | --- | --- | --- | --- | --- | --- |
-| OTel Collector | `/infra/observability/otel-collector` | Dockerfile | `/otelcol-contrib --config=/etc/otelcol/config.production.template.yaml` | `/`, `13133` | Private |
+| OTel Collector | `/infra/observability/otel-collector` | Dockerfile | `/otelcol-contrib --config=/etc/otelcol/config.yaml` (temporary debug profile) | `/`, `13133` | Private |
 
-The Production Collector template requires `OTEL_BACKEND_ENDPOINT` and `OTEL_BACKEND_AUTH`.
-Until Axiom or another durable backend is configured, do not run the Production Collector and do
-not claim that Production telemetry has durable retention. The staging Collector profile is for
-verification and is not a Production logging destination.
+The durable Production Collector template requires `OTEL_BACKEND_ENDPOINT` and
+`OTEL_BACKEND_AUTH`. The current Production service uses the debug profile, so it proves private
+OTLP transport and keeps signals visible in Railway logs, but it does not provide durable
+retention, search, alerting, or an incident history. Switch to the durable profile only after a
+backend, retention, access policy, and owner are approved.
 
 Application services use the Collector's private address after it is available:
 
@@ -156,7 +204,7 @@ OTEL_SERVICE_NAME=<unique service name>
 
 The following are dependencies, tools, or deployment steps rather than application services:
 
-- Agents and Analytics database migrations; use pre-deploy commands.
+- Agents and Analytics database migrations; use one-shot deployments when no pre-deploy field is available.
 - `analytics-registry`; run it as a validation command, not a server.
 - MCP stdio; it is a local bridge.
 - Core's individual embedded workers.
@@ -167,16 +215,22 @@ The following are dependencies, tools, or deployment steps rather than applicati
 
 ## Production deployment order
 
-1. Confirm Production variables, secrets, databases, and domains are correct.
-2. Deploy `agents-api`; confirm its pre-deploy migration succeeds and `/health/ready` is healthy.
-3. Deploy `agents-worker`.
-4. Deploy `agents-gateway` and configure its public MCP domain if required.
-5. Deploy `analytics-api`; confirm its pre-deploy migration succeeds and `/health/ready` is healthy.
-6. Deploy `analytics-worker`.
-7. Update Core's private Agents and Analytics URLs, then deploy Core.
-8. Update Tenants' production variables, then deploy Tenants.
-9. Run production smoke checks using the release ID and commit SHA.
-10. Configure the OTel Collector only after its durable backend is ready.
+1. Confirm Production shared variables, service-scoped variables, secrets, databases, and domains
+   are correct.
+2. Apply Agents and Analytics migrations as one-shot deployments; confirm each exits successfully.
+3. Apply the Core Prisma migration chain through the temporary database tunnel; confirm no pending
+   migrations remain.
+4. Deploy `agents-api`; confirm `/health/ready` is healthy.
+5. Deploy `agents-worker`.
+6. Deploy `MCP-Gateway` and configure its public MCP domain if required.
+7. Deploy `analytics-api`; confirm `/health/ready` is healthy.
+8. Deploy `analytics-worker`.
+9. Update Core's private Agents and Analytics URLs, then deploy Core with `PORT=4000` and confirm
+   `/health` is healthy.
+10. Update Tenants' production variables, then deploy Tenants and confirm `/health` is healthy.
+11. Confirm the Collector receives OTLP signals. Treat the debug profile as temporary until a
+    durable backend is configured.
+12. Run production smoke checks using the release ID and commit SHA.
 
 Record the deployed commit, platform release ID, migration results, service revisions, health
 checks, and rollback target in the release record defined by

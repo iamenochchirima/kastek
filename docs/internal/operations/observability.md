@@ -207,8 +207,11 @@ For a feature release, link the relevant dashboard or query, alert, log search, 
 release record. If a new failure mode has no owner or response procedure, the release is not
 operationally complete; record the gap explicitly and assign follow-up work.
 
-The remaining work is environmental: run the end-to-end local and staging checks, configure an
-isolated hosted Collector, and approve a durable backend. Track that evidence in the
+The repository boundary is now running in the Railway Production environment with a debug
+Collector profile, and the running services are sending OTLP signals to it. The debug profile is
+transport evidence only: it does not provide durable retention, search, alerting, or incident
+history. The remaining work is to isolate and verify staging, record a real release/artifact
+identity, and approve and configure a durable backend. Track that evidence in the
 [OpenTelemetry infrastructure plan](https://github.com/iamenochchirima/kasitek/blob/main/docs/plans/active/OPENTELEMETRY_INFRASTRUCTURE_PLAN.md) and
 its [execution checklist](https://github.com/iamenochchirima/kasitek/blob/main/docs/plans/active/OPENTELEMETRY_INFRASTRUCTURE_CHECKLIST.md) and
 [release record](https://github.com/iamenochchirima/kasitek/blob/main/docs/plans/active/OPENTELEMETRY_INFRASTRUCTURE_RELEASE_RECORD.md).
