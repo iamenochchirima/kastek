@@ -1,11 +1,12 @@
 import "../telemetry";
 import { shutdownTelemetry } from "../telemetry";
+import { existsSync } from "node:fs";
 import { z } from "zod";
 import { buildGateway } from "./app";
 
 // Keep local gateway startup consistent with the Agent API and worker. Deployment
 // environments inject these values directly, while local development uses agents/.env.
-if (typeof process.loadEnvFile === "function") process.loadEnvFile(".env");
+if (typeof process.loadEnvFile === "function" && existsSync(".env")) process.loadEnvFile(".env");
 
 const config = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
