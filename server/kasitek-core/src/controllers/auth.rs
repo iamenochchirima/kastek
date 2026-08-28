@@ -21,6 +21,18 @@ fn auth_server_base_url(config: &AppConfig) -> String {
     std::env::var("API_BASE_URL").unwrap_or_else(|_| config.public_api_url.clone())
 }
 
+fn invitation_required_redirect(config: &AppConfig) -> HttpResponse {
+    HttpResponse::Found()
+        .append_header((
+            "Location",
+            format!(
+                "{}/auth-error?code=INVITE_REQUIRED",
+                config.frontend_url.trim_end_matches('/')
+            ),
+        ))
+        .finish()
+}
+
 fn google_redirect_uri(config: &AppConfig) -> String {
     format!("{}/api/auth/google/callback", auth_server_base_url(config))
 }
@@ -467,13 +479,47 @@ pub async fn google_oauth_callback(
         .await?;
         user_id
     } else {
-        let existing_user = sqlx::query_scalar::<_, String>(
-            r#"SELECT id FROM "User" WHERE lower(email) = lower($1) LIMIT 1"#,
+        let existing_user = sqlx::query_as::<_, (String, bool)>(
+            r#"SELECT id, password IS NOT NULL
+               FROM "User" WHERE lower(email) = lower($1) LIMIT 1"#,
         )
         .bind(&email)
         .fetch_optional(pool.get_ref())
         .await?;
-        let user_id = if let Some(existing_user_id) = existing_user {
+        let user_id = if let Some((existing_user_id, has_password)) = existing_user {
+            if config.private_release_mode && !has_password {
+                let has_membership = sqlx::query_scalar::<_, bool>(
+                    r#"SELECT EXISTS(
+                         SELECT 1 FROM "OrganizationMember" WHERE "userId" = $1
+                       )"#,
+                )
+                .bind(&existing_user_id)
+                .fetch_one(pool.get_ref())
+                .await?;
+                let has_pending_invitation = sqlx::query_scalar::<_, bool>(
+                    r#"SELECT EXISTS(
+                         SELECT 1 FROM "OrganizationInvitation"
+                         WHERE lower(email) = lower($1)
+                           AND "acceptedAt" IS NULL
+                           AND "revokedAt" IS NULL
+                           AND "expiresAt" > NOW()
+                       )"#,
+                )
+                .bind(&email)
+                .fetch_one(pool.get_ref())
+                .await?;
+
+                if !has_membership && !has_pending_invitation {
+                    observability::tracing::warn!(
+                        event = "auth.google.denied",
+                        provider = "google",
+                        reason = "invitation_required",
+                        "new Google account rejected while KasiTek is invite-only"
+                    );
+                    return Ok(invitation_required_redirect(config.get_ref()));
+                }
+            }
+
             sqlx::query(
                 r#"
                 UPDATE "User"
@@ -491,6 +537,16 @@ pub async fn google_oauth_callback(
             .await?;
             existing_user_id
         } else {
+            if config.private_release_mode {
+                observability::tracing::warn!(
+                    event = "auth.google.denied",
+                    provider = "google",
+                    reason = "invitation_required",
+                    "new Google account rejected while KasiTek is invite-only"
+                );
+                return Ok(invitation_required_redirect(config.get_ref()));
+            }
+
             let new_user_id = cuid2::create_id();
             sqlx::query(
                 r#"
@@ -504,12 +560,6 @@ pub async fn google_oauth_callback(
             .bind(image)
             .execute(pool.get_ref())
             .await?;
-
-            if config.private_release_mode {
-                return Err(AppError::Forbidden(
-                    "KasiTek is currently available by invitation only. Use the invitation link sent to you.".to_string(),
-                ));
-            }
 
             // Public signup mode creates a personal organisation for new Google users.
             let org_name = name

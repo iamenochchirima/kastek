@@ -15,6 +15,7 @@ export const metadata: Metadata = {
 
 export default async function AppGatewayPage() {
   const session = await getRustSession();
+  const privateAccess = process.env.NEXT_PUBLIC_KASITEK_ACCESS_MODE !== "public";
 
   if (session?.user) {
     redirect(
@@ -61,18 +62,32 @@ export default async function AppGatewayPage() {
           <section
             className="w-full max-w-[440px] rounded-xl border border-border bg-card p-7 shadow-lg sm:p-9"
             aria-labelledby="access-heading"
-          >
+            >
             <p className="text-sm font-medium text-muted-foreground">Workspace access</p>
             <h1 id="access-heading" className="mt-3 text-[2rem] font-semibold tracking-[-0.035em] text-foreground">
-              Welcome back
+              {privateAccess ? "Welcome to early access" : "Welcome back"}
             </h1>
             <p className="mt-3 max-w-sm text-sm leading-6 text-muted-foreground">
-              Sign in to continue to your KasiTek workspace.
+              {privateAccess
+                ? "Sign in or redeem your invitation to continue."
+                : "Sign in to continue to your KasiTek workspace."}
             </p>
 
             <div className="mt-8 grid gap-3">
             <Button asChild size="lg"><Link href="/login">Sign in<ArrowRight className="h-4 w-4" /></Link></Button>
-            <Button asChild variant="outline" size="lg"><Link href="/signup">Create an account</Link></Button>
+            {privateAccess ? (
+              <>
+                <Button asChild variant="outline" size="lg"><Link href="/invite">Redeem invitation</Link></Button>
+                <a
+                  href={publicSiteUrl + "/early-access"}
+                  className="text-center text-sm font-medium text-primary hover:underline"
+                >
+                  Request early access
+                </a>
+              </>
+            ) : (
+              <Button asChild variant="outline" size="lg"><Link href="/signup">Create an account</Link></Button>
+            )}
             </div>
 
           </section>

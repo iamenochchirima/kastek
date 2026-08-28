@@ -28,6 +28,8 @@ are ready to be re-enabled.
 
 By default, the API server also starts the WhatsApp inbox, WhatsApp marketing, and social publishing workers in the same process.
 
+In private mode, the client app directs users to invitation redemption when they do not yet have an activated account. The invitation link or token is required before a new account can be created.
+
 ## Agent Platform bridge
 
 The direct product exposes authenticated KasiAi and platform-agent routes through `kasitek-core`.

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { apiUrl } from "@/lib/server-api";
+import { publicSiteUrl } from "@/lib/public-site";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -13,6 +14,7 @@ export default function LoginForm() {
   const callbackUrl = searchParams.get("callbackUrl") ?? undefined;
   const verified = searchParams.get("verified") ?? undefined;
   const router = useRouter();
+  const privateAccess = process.env.NEXT_PUBLIC_KASITEK_ACCESS_MODE !== "public";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -82,6 +84,24 @@ export default function LoginForm() {
 
   return (
     <div className="space-y-6">
+      {privateAccess && (
+        <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+          <p className="font-medium text-foreground">KasiTek is in early access</p>
+          <p className="mt-1 text-muted-foreground">
+            New accounts need an invitation.{" "}
+            <Link href="/invite" className="font-medium text-primary hover:underline">
+              Redeem invitation
+            </Link>
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            No invitation yet?{" "}
+            <a href={publicSiteUrl + "/early-access"} className="font-medium text-primary hover:underline">
+              Request early access
+            </a>
+          </p>
+        </div>
+      )}
+
       {verified && (
         <div className="rounded-xl border border-status-success/30 bg-status-success-soft px-4 py-3 text-center text-sm text-status-success">
           Email verified successfully. You can now sign in.
@@ -185,7 +205,7 @@ export default function LoginForm() {
         </Button>
       </form>
 
-      {process.env.NEXT_PUBLIC_KASITEK_ACCESS_MODE === "public" && (
+      {!privateAccess && (
         <p className="text-center text-sm text-muted-foreground">
           Don&apos;t have an account? <Link href="/signup" className="text-primary hover:underline">Sign up</Link>
         </p>

@@ -578,17 +578,19 @@ pub async fn activate_invitation_with_new_user(
 
     let email: String = invitation.try_get("email").unwrap_or_default();
     let existing_user = sqlx::query(
-        r#"SELECT id, password, "emailVerified" FROM "User" WHERE lower(email) = lower($1) LIMIT 1"#,
+        r#"SELECT id,
+                  password IS NOT NULL AS "hasPassword",
+                  EXISTS(SELECT 1 FROM "Account" a WHERE a."userId" = "User".id) AS "hasAccount"
+           FROM "User" WHERE lower(email) = lower($1) LIMIT 1"#,
     )
     .bind(&email)
     .fetch_optional(&mut *tx)
     .await?;
     let password_hash = hash(password, DEFAULT_COST)?;
     let user_id = if let Some(existing_user) = existing_user {
-        let existing_password: Option<String> = existing_user.try_get("password").unwrap_or(None);
-        let existing_verified: Option<DateTime<Utc>> =
-            existing_user.try_get("emailVerified").unwrap_or(None);
-        if existing_password.is_some() || existing_verified.is_some() {
+        let has_password: bool = existing_user.try_get("hasPassword").unwrap_or(false);
+        let has_account: bool = existing_user.try_get("hasAccount").unwrap_or(false);
+        if has_password || has_account {
             return Err(AppError::Conflict(
                 "An account already exists for this email. Sign in with that email to accept the invitation.".to_string(),
             ));

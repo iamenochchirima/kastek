@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { apiUrl } from "@/lib/server-api";
+import { publicSiteUrl } from "@/lib/public-site";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -50,6 +51,8 @@ export default function SignupForm() {
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-2xl text-primary">✉️</div>
         <h2 className="text-2xl font-semibold tracking-tight text-foreground">KasiTek is currently invite-only</h2>
         <p className="text-muted-foreground">Use the secure link sent by your workspace administrator to create your account. Once activated, you can always sign in normally.</p>
+        <Button asChild className="w-full"><Link href="/invite">Redeem invitation</Link></Button>
+        <a href={publicSiteUrl + "/early-access"} className="block text-center text-sm text-primary hover:underline">Request early access</a>
         <Link href="/login" className="inline-block text-sm text-primary hover:underline">Already have an account? Sign in</Link>
       </div>
     );
