@@ -11,6 +11,12 @@ FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 RUN corepack enable
+# Temporal's native TLS transport uses the system trust store. The slim image
+# does not include CA certificates, so cloud workers otherwise fail with
+# NativeCertsNotFound during startup.
+RUN apt-get update \
+  && apt-get install --no-install-recommends -y ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile --prod
 COPY --from=build /app/dist ./dist
