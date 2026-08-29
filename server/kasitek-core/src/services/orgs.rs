@@ -377,6 +377,58 @@ pub async fn create_invitation(
     email: &str,
     role: &str,
 ) -> Result<OrgInvitationRow, AppError> {
+    create_invitation_inner(
+        pool,
+        config,
+        org_id,
+        org_name,
+        invited_by_id,
+        invited_by_name,
+        email,
+        role,
+        false,
+    )
+    .await
+}
+
+/// Create an invitation for an early-access applicant whose workspace
+/// membership was provisioned before the invitation was redeemed. Normal team
+/// invitations must continue rejecting existing active members.
+pub async fn create_invitation_for_existing_member(
+    pool: &PgPool,
+    config: &AppConfig,
+    org_id: &str,
+    org_name: &str,
+    invited_by_id: &str,
+    invited_by_name: Option<&str>,
+    email: &str,
+    role: &str,
+) -> Result<OrgInvitationRow, AppError> {
+    create_invitation_inner(
+        pool,
+        config,
+        org_id,
+        org_name,
+        invited_by_id,
+        invited_by_name,
+        email,
+        role,
+        true,
+    )
+    .await
+}
+
+async fn create_invitation_inner(
+    pool: &PgPool,
+    config: &AppConfig,
+    org_id: &str,
+    org_name: &str,
+    invited_by_id: &str,
+    invited_by_name: Option<&str>,
+    email: &str,
+    role: &str,
+    allow_existing_member: bool,
+) -> Result<OrgInvitationRow, AppError> {
     let valid_roles = ["ADMIN", "MEMBER"];
     if !valid_roles.contains(&role) {
         return Err(AppError::BadRequest(format!(
@@ -399,7 +451,7 @@ pub async fn create_invitation(
     .fetch_one(pool)
     .await?;
 
-    if already_active_member {
+    if already_active_member && !allow_existing_member {
         return Err(AppError::Conflict(
             "That person is already a member of this organisation".to_string(),
         ));

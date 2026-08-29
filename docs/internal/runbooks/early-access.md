@@ -37,7 +37,8 @@ duration and credit amount within the Core limits.
    that workspace, marks access active, and does not create a duplicate account or invitation.
    **Create new workspace** remains available when the operator intentionally wants a separate
    workspace under the existing account.
-4. If delivery fails, the invitation remains durable and **Resend invite** can be used. The raw
+4. If delivery fails, the invitation remains durable and **Resend invite** can be used. Active
+   records without a redeemed invitation expose **Send invite** as a recovery action. The raw
    invitation token is never shown in Admin or stored in the application record. Resending
    replaces the pending invitation with a new seven-day invitation and invalidates the previous
    pending record.
@@ -45,8 +46,9 @@ duration and credit amount within the Core limits.
    closes early-access entitlement grants, and removes only unused early-access credits.
 6. Use **Restore access** for a revoked application when access should be reopened. Core keeps the
    same workspace and history, reissues active entitlement and credit grants, and sends a fresh
-   invitation when the applicant never activated. An applicant who had already activated returns
-   to `active` without a duplicate invitation. If an older application has lost its workspace
+   invitation when the applicant has not redeemed one. Activation is determined from accepted
+   invitation/lifecycle records, not generic account membership. An applicant who had already
+   activated returns to `active` without a duplicate invitation. If an older application has lost its workspace
    link, restore relinks the applicant's existing workspace or provisions the missing workspace
    before applying the access package.
 

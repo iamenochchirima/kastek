@@ -345,6 +345,13 @@ async fn early_access_attaches_to_existing_workspace_without_duplicate_provision
     assert!(approved.invitation_id.is_none());
     assert!(approved.activated_at.is_some());
 
+    let sent = resend_invitation(&pool, &config, &application_id, "test-admin")
+        .await
+        .expect("an active application without a redeemed invitation should be sendable");
+    assert_eq!(sent.status, STATUS_ACTIVE);
+    assert!(sent.invitation_id.is_some());
+    assert!(sent.invitation_accepted_at.is_none());
+
     let user_count = sqlx::query_scalar::<_, i64>(
         r#"SELECT COUNT(*) FROM "User" WHERE lower(email) = lower($1)"#,
     )
@@ -368,7 +375,7 @@ async fn early_access_attaches_to_existing_workspace_without_duplicate_provision
     .expect("workspace invitations should be queryable");
     assert_eq!(user_count, 1);
     assert_eq!(org_count, 1);
-    assert_eq!(invitation_count, 0);
+    assert_eq!(invitation_count, 1);
 
     let retried = approve_application(
         &pool,

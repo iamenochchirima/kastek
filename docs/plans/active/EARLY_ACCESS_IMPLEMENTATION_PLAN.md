@@ -152,6 +152,7 @@ Add an admin application surface under the existing access area:
 - resend or revoke an invitation, with a fresh invitation record for every resend;
 - restore mistakenly revoked access without duplicating the workspace or account, including
   recovery of older rows with a missing workspace link;
+- expose a recovery send action when an active record has no redeemed invitation;
 - require the Core Analytics outbox migration before provisioning a missing workspace;
 - expire or revoke access and preserve the audit history.
 
@@ -233,7 +234,9 @@ endpoint, resend/restore lifecycle endpoints, and controlled migrations `2026082
 `20260827130000_add_early_access_cohort`, `20260827140000_allow_early_access_credit_source`, and
 `20260827150000_prevent_duplicate_early_access_applications`. The Core Analytics outbox required
 when restore provisions a missing workspace is included in
-`20260829180000_add_core_analytics_outbox`.
+`20260829180000_add_core_analytics_outbox`. The early-access application response now includes
+invitation redemption state so Admin can resend an unredeemed invitation even when the record is
+already active; this uses no additional migration.
 The Beta tag has no authorization or API contract. The Labs server-side waitlist and quote
 proxies use `https://api.kasitek.co.za` as the production Core default, with deployment-specific
 API-origin overrides; this follow-up adds no database migration, but changes the Admin/Core approval

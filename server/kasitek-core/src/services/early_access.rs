@@ -79,6 +79,9 @@ pub struct EarlyAccessApplication {
     #[serde(rename = "invitationId")]
     #[sqlx(rename = "invitation_id")]
     pub invitation_id: Option<String>,
+    #[serde(rename = "invitationAcceptedAt")]
+    #[sqlx(rename = "invitation_accepted_at")]
+    pub invitation_accepted_at: Option<DateTime<Utc>>,
     #[serde(rename = "activatedAt")]
     #[sqlx(rename = "activated_at")]
     pub activated_at: Option<DateTime<Utc>>,
@@ -188,6 +191,9 @@ fn application_select() -> &'static str {
                "approvedAt" AT TIME ZONE 'UTC' AS approved_at,
                "organizationId" AS organization_id,
                "invitationId" AS invitation_id,
+               (SELECT "acceptedAt" AT TIME ZONE 'UTC'
+                FROM "OrganizationInvitation"
+                WHERE id = "ProductWaitlistEntry"."invitationId") AS invitation_accepted_at,
                "activatedAt" AT TIME ZONE 'UTC' AS activated_at,
                "earlyAccessEndsAt" AT TIME ZONE 'UTC' AS early_access_ends_at,
                "entitlementGrantIds" AS entitlement_grant_ids,
@@ -580,7 +586,7 @@ async fn ensure_invitation(
             return Ok(invitation_id.to_string());
         }
     }
-    create_invitation(pool, config, application, org_id).await
+    create_invitation(pool, config, application, org_id, false).await
 }
 
 async fn create_invitation(
@@ -588,6 +594,7 @@ async fn create_invitation(
     config: &AppConfig,
     application: &EarlyAccessApplication,
     org_id: &str,
+    allow_existing_member: bool,
 ) -> Result<String, AppError> {
     let owner = sqlx::query_as::<_, (String, Option<String>)>(
         r#"SELECT id, name FROM "User" WHERE id = (SELECT "ownerId" FROM "Organization" WHERE id = $1)"#,
@@ -596,20 +603,37 @@ async fn create_invitation(
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Early-access workspace owner not found".to_string()))?;
-    let invitation = orgs::create_invitation(
-        pool,
-        config,
-        org_id,
-        &application.business_name,
-        &owner.0,
-        owner
-            .1
-            .as_deref()
-            .or(Some(application.contact_person.as_str())),
-        &application.email,
-        "ADMIN",
-    )
-    .await?;
+    let invitation = if allow_existing_member {
+        orgs::create_invitation_for_existing_member(
+            pool,
+            config,
+            org_id,
+            &application.business_name,
+            &owner.0,
+            owner
+                .1
+                .as_deref()
+                .or(Some(application.contact_person.as_str())),
+            &application.email,
+            "ADMIN",
+        )
+        .await?
+    } else {
+        orgs::create_invitation(
+            pool,
+            config,
+            org_id,
+            &application.business_name,
+            &owner.0,
+            owner
+                .1
+                .as_deref()
+                .or(Some(application.contact_person.as_str())),
+            &application.email,
+            "ADMIN",
+        )
+        .await?
+    };
     Ok(invitation.id)
 }
 
@@ -711,21 +735,24 @@ async fn restore_organization(
     Ok(org.id)
 }
 
-async fn application_has_active_membership(
+async fn application_has_activated_access(
     pool: &PgPool,
     application: &EarlyAccessApplication,
     org_id: &str,
 ) -> Result<bool, AppError> {
     Ok(sqlx::query_scalar::<_, bool>(
         r#"SELECT EXISTS(
-               SELECT 1
-               FROM "OrganizationMember" m
-               JOIN "User" u ON u.id = m."userId"
-               WHERE m."orgId" = $1
-                 AND lower(u.email) = lower($2)
-                 AND (u.password IS NOT NULL OR u."emailVerified" IS NOT NULL)
+               SELECT 1 FROM "ProductWaitlistEvent"
+               WHERE "waitlistEntryId" = $1
+                 AND action IN ('activated', 'workspace_access_granted')
+           ) OR EXISTS(
+               SELECT 1 FROM "OrganizationInvitation"
+               WHERE "orgId" = $2
+                 AND lower(email) = lower($3)
+                 AND "acceptedAt" IS NOT NULL
            )"#,
     )
+    .bind(&application.id)
     .bind(org_id)
     .bind(&application.email)
     .fetch_one(pool)
@@ -1103,17 +1130,28 @@ pub async fn resend_invitation(
     let application = get_application(pool, application_id).await?.0;
     if !matches!(
         application.status.as_str(),
-        STATUS_APPROVED | STATUS_INVITED
+        STATUS_APPROVED | STATUS_INVITED | STATUS_ACTIVE
     ) {
         return Err(AppError::Conflict(
-            "Only approved or invited applications can be resent".to_string(),
+            "Only approved, invited, or active applications without a redeemed invitation can be resent".to_string(),
+        ));
+    }
+    if application.status == STATUS_ACTIVE && application.invitation_accepted_at.is_some() {
+        return Err(AppError::Conflict(
+            "This early-access invitation has already been redeemed".to_string(),
         ));
     }
     let org_id = application.organization_id.as_deref().ok_or_else(|| {
         AppError::Conflict("This application has not finished workspace provisioning".to_string())
     })?;
-    let invitation_id = create_invitation(pool, config, &application, org_id).await?;
-    sqlx::query(r#"UPDATE "ProductWaitlistEntry" SET status = 'invited', "invitationId" = $1, "updatedAt" = NOW() WHERE id = $2"#)
+    let invitation_id = create_invitation(pool, config, &application, org_id, true).await?;
+    let target_status = if application.status == STATUS_ACTIVE {
+        STATUS_ACTIVE
+    } else {
+        STATUS_INVITED
+    };
+    sqlx::query(r#"UPDATE "ProductWaitlistEntry" SET status = $1, "invitationId" = $2, "updatedAt" = NOW() WHERE id = $3"#)
+        .bind(target_status)
         .bind(&invitation_id)
         .bind(application_id)
         .execute(pool)
@@ -1122,7 +1160,7 @@ pub async fn resend_invitation(
         pool,
         application_id,
         Some(&application.status),
-        STATUS_INVITED,
+        target_status,
         "invite_resent",
         Some(actor_id),
         None,
@@ -1176,7 +1214,7 @@ pub async fn restore_application(
         .await?
         .unwrap_or_else(|| application.updated_at.timestamp_millis().to_string());
     let credit_amount = application_credit_amount(pool, &application, &org_id).await?;
-    let active_membership = application_has_active_membership(pool, &application, &org_id).await?;
+    let activated_access = application_has_activated_access(pool, &application, &org_id).await?;
     let credit_grant_id = credits::grant_system_credits(
         pool,
         &org_id,
@@ -1197,13 +1235,13 @@ pub async fn restore_application(
     .grant_id
     .ok_or_else(|| AppError::Conflict("Restored credit grant was not created".to_string()))?;
 
-    let target_status = if application.activated_at.is_some() || active_membership {
+    let target_status = if activated_access {
         STATUS_ACTIVE
     } else {
         STATUS_INVITED
     };
     let invitation_id = if target_status == STATUS_INVITED {
-        Some(create_invitation(pool, config, &application, &org_id).await?)
+        Some(create_invitation(pool, config, &application, &org_id, true).await?)
     } else {
         application.invitation_id.clone()
     };
@@ -1217,7 +1255,7 @@ pub async fn restore_application(
            SET status = $1, "decisionReason" = $2, "invitationId" = $3,
                "earlyAccessEndsAt" = $4, "entitlementGrantIds" = $5,
                "creditGrantId" = $6,
-               "activatedAt" = CASE WHEN $1 = 'active' THEN COALESCE("activatedAt", NOW()) ELSE "activatedAt" END,
+               "activatedAt" = CASE WHEN $1 = 'active' THEN COALESCE("activatedAt", NOW()) ELSE NULL END,
                "updatedAt" = NOW()
            WHERE id = $7 AND status = 'revoked'"#,
     )
