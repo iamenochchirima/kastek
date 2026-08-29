@@ -123,20 +123,25 @@ and must never receive a Core, Tenants, or Agents database URL.
 
 ### Core
 
-Core's operational schema is owned by the client Prisma migration chain. The Rust process does not
-run these migrations automatically. Before a new Core database is used, open a temporary Railway
-SSH tunnel and run the migrations from the repository root in a second terminal:
+Core's operational schema, including the Core-owned Analytics outbox, is owned by the client Prisma
+migration chain. The Rust process does not run these migrations automatically. Before a new Core
+database is used, open a temporary Railway SSH tunnel and run the migrations from the repository
+root in a second terminal:
 
 ```text
 railway connect core-db --environment production --tunnel-only --ssh --port 15432
 railway run --project <project-id> --environment production --service core --no-local -- sh -c 'url=$(printf "%s" "$DATABASE_URL" | sed "s/@[^/]*:5432/@127.0.0.1:15432/"); DIRECT_URL="$url" pnpm --dir client/packages/database exec prisma migrate deploy'
 ```
 
-Verify `No pending migrations to apply` before deploying or restarting Core. The current
-Production Core database has all 69 checked-in Prisma migrations applied. Existing databases must
+Verify `No pending migrations to apply` before deploying or restarting Core. Existing databases must
 follow the baseline procedure in
 [Client database migration baseline](../architecture/client-database-migration-baseline.md),
 including backup and schema review before `migrate resolve`.
+
+The migration chain includes `analytics_outbox`, so a Core deployment must not be considered ready
+until the migration command reports success. Do not apply the standalone files under
+`server/kasitek-core/sql/` as a substitute for the Prisma migration history; those files remain the
+source-service SQL inventory and are useful for isolated SQL verification.
 
 ### Tenants
 

@@ -84,6 +84,9 @@ restore does not reuse a revoked credit lot.
   Confirm the resulting status, workspace link, and new grant IDs in the application details and
   lifecycle events. If restore still returns a conflict, check the Core response reason and
   confirm the applicant email matches the account that should receive access.
+- **Restore fails while creating a workspace:** if the Core error contains `failed to queue
+  organization Analytics scope`, apply the current Core Prisma migration chain and confirm that
+  `analytics_outbox` exists before retrying. Core does not run these migrations at startup.
 - **Workspace still shows access after expiry:** confirm the Core status operation has run and
   inspect the entitlement grant `endsAt`. The resolver must enforce the end date server-side; do
   not hide the feature in the client as a workaround.

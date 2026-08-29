@@ -5,7 +5,8 @@ Actix-web backend for thearchitect.fun.
 ## Setup
 
 1. Copy `.env.example` to `.env` and fill in values
-2. Start Postgres and run migrations: `cargo sqlx migrate run`
+2. Start Postgres and apply the Core schema from the repository root:
+   `pnpm --dir client/packages/database exec prisma migrate deploy`
 3. Run server: `cargo run`
 
 ## Development
