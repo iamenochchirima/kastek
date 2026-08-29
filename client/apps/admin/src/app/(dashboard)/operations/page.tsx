@@ -42,8 +42,9 @@ type RetentionPolicy = { organizationId: string; revision: number; memoryDays: n
 type LegalHold = { id: string; organizationId: string; scopeType: string; scopeId: string; status: "active" | "released"; expiresAt?: string | null; revision: number };
 type Retention = { generatedAt: string; policy?: { version: string; redaction: string; deletion: string; export: string; backupRestore: string; legalHold: string }; datasets?: Array<{ key: string; count?: number; oldestAt?: string | null; active?: number; expired?: number; deleted?: number; total?: number; immutable: boolean }>; deletionJobs?: Record<string, number>; exportRequests?: Record<string, number>; activeIncidentHolds?: number; configuredPolicies?: RetentionPolicy[]; legalHolds?: LegalHold[] };
 
-function countValue(payload: Record<string, unknown>, key: string): number {
-  const value = payload[key];
+function countValue(payload: unknown, key: string): number {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return 0;
+  const value = (payload as Record<string, unknown>)[key];
   return typeof value === "number" ? value : 0;
 }
 
