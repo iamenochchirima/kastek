@@ -4,7 +4,7 @@
 
 **Owner:** Product and Platform Engineering
 
-**Last updated:** 2026-08-27
+**Last updated:** 2026-08-29
 
 ## Objective
 
@@ -227,7 +227,9 @@ credit-source, and duplicate-submission migrations, admin application endpoints,
 early-access status endpoint, and controlled migrations `20260827120000_add_early_access_lifecycle`,
 `20260827130000_add_early_access_cohort`, `20260827140000_allow_early_access_credit_source`, and
 `20260827150000_prevent_duplicate_early_access_applications`.
-The Beta tag has no authorization or API contract.
+The Beta tag has no authorization or API contract. The Labs server-side waitlist and quote
+proxies use `https://api.kasitek.co.za` as the production Core default, with deployment-specific
+API-origin overrides; no database or Core API contract changes are required for this fix.
 
 **Feature flag or rollout method:** retain private signup; enable public application capture and
 admin approval separately; start with one manually selected cohort; disable approval/invitation
@@ -253,9 +255,10 @@ after the flow is live; update internal access-control, billing, support, config
 release documentation with the final contract.
 
 **Validation evidence:** local evidence is complete for migration, Core compilation, unit tests,
-the ignored PostgreSQL lifecycle test, and HTTP public-route smoke checks. Staging must add the
-browser journey, seeded Admin authorization, email sink, entitlement-resolution, analytics,
-rollback, and hosted release-identity checks.
+the ignored PostgreSQL lifecycle test, and HTTP public-route smoke checks. The Labs production
+proxy must be redeployed and checked with a valid and invalid application payload after this fix.
+Staging must add the browser journey, seeded Admin authorization, email sink,
+entitlement-resolution, analytics, rollback, and hosted release-identity checks.
 
 **Rollback or disable plan:** disable new applications or approval issuance, revoke only affected
 access through an audited action when necessary, preserve applications and event history, and

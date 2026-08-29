@@ -42,6 +42,14 @@ invitation, grants, and credit idempotency key rather than creating another acce
 
 ## Troubleshooting
 
+- **The public form returns 403 or 500:** the Labs `/api/waitlist` route must reach the Core API
+  origin, not the client frontend. Production defaults to `https://api.kasitek.co.za`; set
+  `NEXT_PUBLIC_KASITEK_PUBLIC_API_URL` or `RUST_API_BASE_URL` when deploying another environment.
+  A Core connectivity failure is returned to the form as HTTP 503 with a retryable message.
+- **The browser reports a `sw.js` fetch error on Labs:** Labs does not use a service worker. The
+  Labs deployment serves a one-shot cleanup worker at `/sw.js` for browsers that still have the
+  old client PWA registration; reload once after the deployment and confirm the registration is
+  removed in browser storage.
 - **Application does not appear:** check the Admin status/search filters and confirm the Core
   database migration `20260827120000_add_early_access_lifecycle`,
   `20260827130000_add_early_access_cohort`,
