@@ -147,7 +147,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                         web::get().to(early_access::approval_context),
                     )
                     .route("/{id}", web::get().to(early_access::get))
-                    .route("/{id}/review", web::post().to(early_access::review))
+                    .route("/{id}/reject", web::post().to(early_access::reject))
                     .route("/{id}/approve", web::post().to(early_access::approve))
                     .route("/{id}/resend", web::post().to(early_access::resend))
                     .route("/{id}/restore", web::post().to(early_access::restore))

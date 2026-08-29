@@ -11,7 +11,7 @@
 Implement a controlled early-access programme for KasiTek that connects public interest to
 qualified, auditable workspace access:
 
-`waitlist application → review → approval → invitation → activation → entitled workspace →
+`waitlist application → approval → invitation → activation → entitled workspace →
 feedback and conversion`
 
 Success means an approved business can move from the public early-access application form to a usable,
@@ -25,7 +25,7 @@ reversible.
 
 - Public early-access application form backed by the existing waitlist endpoint.
 - Application validation, deduplication, consent, status transitions, and audit history.
-- Authenticated admin review, qualification, approval, rejection, and invitation actions.
+- Authenticated admin approval, rejection, and invitation actions.
 - Time-bounded early-access cohort access using the existing invitation, entitlement, and credit foundations.
 - Single-use invitation activation, workspace provisioning, resend, expiry, and revocation.
 - Early-access status and entitlement visibility in the workspace.
@@ -50,7 +50,7 @@ reversible.
   `/waitlist` page currently redirects to `/pricing`.
 - Core already supports invitation-only signup, invitation activation, workspace provisioning,
   manual organisation entitlement grants, trial credits, and credit grants.
-- The current admin access page manages launch invitations but does not review waitlist entries.
+- The current admin access page manages launch invitations but does not handle waitlist applications.
 - The current database stores waitlist status as a string. New statuses must remain compatible
   with existing rows and old clients during migration.
 - The server is the authority for access. Frontend state is a presentation of server decisions.
@@ -77,8 +77,7 @@ keeps early-access policy separate from paid plan names while using the existing
 | Stage | State | Owner | Result |
 | --- | --- | --- | --- |
 | Capture | `new` | Applicant | Valid application is persisted and acknowledged. |
-| Review | `reviewing` | Admin | Applicant is assigned and qualification notes are recorded. |
-| Decision | `rejected` or approval from `reviewing` | Admin | Qualification decision and reason are auditable. |
+| Decision | `rejected` or `approved` | Admin | Decision and reason are auditable. |
 | Approval | `approved` | Admin | Cohort, duration, product access, and credit budget are fixed. |
 | Invitation | `invited` | Core | Workspace and single-use invitation are created. |
 | Activation | `active` | Applicant/Core | Invitation is redeemed and the owner can sign in. |
@@ -97,7 +96,7 @@ workflow, such as:
 
 - primary use case and expected success metric;
 - consent timestamp and contact preference;
-- review owner, review notes, and decision reason;
+- decision reason and audit actors;
 - cohort, approved start/end dates, and lifecycle timestamps;
 - linked early-access application/grant identifiers;
 - a stable idempotency key where the public form can supply one.
@@ -116,7 +115,7 @@ The existing waitlist row is the first-class record for this initial beta. It co
 - approved product/capability keys and credit budget;
 - linked entitlement and credit grant identifiers;
 - approved/activated timestamps and actor identifiers;
-- bounded review and decision notes.
+- bounded decision notes.
 
 Add an append-only transition/audit record if the existing audit tables cannot provide a complete
 history for this domain. Do not store invitation tokens, passwords, or provider secrets.
@@ -173,11 +172,11 @@ remain a simple product-status label.
 2. [x] Map the existing waitlist, invitation, billing, credit, notification, audit, and analytics
    boundaries in the checklist and runbook.
 3. [x] Add the migration and lifecycle model without breaking existing waitlist or invitation rows.
-4. [x] Implement the Core service for review, approval, provisioning, invitation, entitlement/
+4. [x] Implement the Core service for approval, provisioning, invitation, entitlement/
    credit grants, expiry, revocation, and state transitions.
 5. [x] Add the public application UI, validation, acknowledgement, retry, consent, honeypot, and
    accessible loading/error states.
-6. [x] Add the Admin application/review UI and authorized Core endpoints.
+6. [x] Add the Admin application UI and authorized Core endpoints.
 7. [x] Add authenticated early-access status and server-side time-bounded grants.
 8. [x] Add durable invitation retry behavior, safe restore-after-revoke behavior, legacy workspace
    link recovery, admin notifications, structured lifecycle logs, and idempotency.
@@ -232,15 +231,18 @@ credit-source, and duplicate-submission migrations, admin application endpoints,
 approval-context lookup and existing-workspace approval fields, authenticated early-access status
 endpoint, resend/restore lifecycle endpoints, and controlled migrations `20260827120000_add_early_access_lifecycle`,
 `20260827130000_add_early_access_cohort`, `20260827140000_allow_early_access_credit_source`, and
-`20260827150000_prevent_duplicate_early_access_applications`. The Core Analytics outbox required
+`20260827150000_prevent_duplicate_early_access_applications`, plus the migration
+`20260829200000_remove_early_access_reviewing_state`. The Core Analytics outbox required
 when restore provisions a missing workspace is included in
 `20260829180000_add_core_analytics_outbox`. The early-access application response now includes
 invitation redemption state so Admin can resend an unredeemed invitation even when the record is
-already active; this uses no additional migration.
+already active. The former review-status endpoint is replaced by a dedicated rejection endpoint;
+legacy `reviewing` rows are normalized to `new` while their historical audit fields remain intact.
 The Beta tag has no authorization or API contract. The Labs server-side waitlist and quote
 proxies use `https://api.kasitek.co.za` as the production Core default, with deployment-specific
-API-origin overrides; this follow-up adds no database migration, but changes the Admin/Core approval
-contract to support selecting an existing workspace or explicitly creating one for an existing account.
+API-origin overrides; this follow-up changes the Admin/Core approval contract to support selecting
+an existing workspace or explicitly creating one for an existing account, and removes the
+standalone review action from the early-access workflow.
 
 **Feature flag or rollout method:** retain private signup; enable public application capture and
 admin approval separately; start with one manually selected cohort; disable approval/invitation
@@ -289,7 +291,7 @@ cohort.
 | Early-access duration | 30 days by default; Admin can approve 1–365 days; no extension endpoint in this release | Product | Decided for beta |
 | Included capabilities | Analytics, Inbox, Agents, Campaigns, and Content keys by default; Admin can reduce the set | Product/Engineering | Decided for beta |
 | Qualification | Business/contact details, business type, selected products, use case, and contact consent | Product | Decided for beta |
-| Applicant email | In-page acknowledgement before review; invitation email after approval; no double opt-in in this release | Product/Legal | Decided for beta |
+| Applicant email | In-page acknowledgement before submission; invitation email after approval; no double opt-in in this release | Product/Legal | Decided for beta |
 | Data retention | How long should rejected and withdrawn applications be retained? | Product/Legal | Open |
 
 ## Notes and blockers

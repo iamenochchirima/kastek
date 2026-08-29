@@ -689,7 +689,7 @@ async fn existing_early_access_application_id(
     Ok(sqlx::query_scalar::<_, String>(
         r#"SELECT id FROM "ProductWaitlistEntry"
            WHERE lower(email) = lower($1)
-             AND status IN ('new', 'reviewing', 'approved', 'invited', 'active')
+             AND status IN ('new', 'approved', 'invited', 'active')
            ORDER BY "createdAt" DESC LIMIT 1"#,
     )
     .bind(email)

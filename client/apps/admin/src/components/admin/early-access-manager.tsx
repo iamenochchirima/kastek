@@ -116,10 +116,6 @@ export function EarlyAccessManager({ initialApplications }: { initialApplication
     }
   }
 
-  async function startReview(id: string) {
-    await post(id, "review", { status: "reviewing" });
-  }
-
   async function approve(id: string, application: EarlyAccessApplication) {
     const hasExistingAccount = approvalContext?.accountExists === true;
     const useExistingWorkspace = hasExistingAccount && workspaceAction === "existing";
@@ -152,7 +148,7 @@ export function EarlyAccessManager({ initialApplications }: { initialApplication
       setMessage("A rejection reason is required.");
       return;
     }
-    const ok = await post(id, "review", { status: "rejected", reason: rejectionReason.trim() });
+    const ok = await post(id, "reject", { reason: rejectionReason.trim() });
     if (ok) {
       setRejectingId(null);
       setRejectionReason("");
@@ -216,7 +212,7 @@ export function EarlyAccessManager({ initialApplications }: { initialApplication
           <Input value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void refresh(); }} placeholder="Search business, contact or email" aria-label="Search applications" />
           <Select value={status} onChange={(event) => { setStatus(event.target.value); void refresh(); }} aria-label="Filter by status" className="sm:max-w-48">
             <option value="">All statuses</option>
-            {["new", "reviewing", "approved", "invited", "active", "rejected", "expired", "revoked"].map((value) => <option key={value} value={value}>{value}</option>)}
+            {["new", "approved", "invited", "active", "rejected", "expired", "revoked"].map((value) => <option key={value} value={value}>{value}</option>)}
           </Select>
           <Button variant="secondary" onClick={() => void refresh()}>Refresh</Button>
         </CardContent>
@@ -228,7 +224,7 @@ export function EarlyAccessManager({ initialApplications }: { initialApplication
         <CardHeader>
           <div>
             <CardTitle>Applications</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">Review applications and grant early access.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Grant beta access.</p>
           </div>
           <span className="text-xs tabular-nums text-muted-foreground">{applications.length}</span>
         </CardHeader>
@@ -251,9 +247,8 @@ export function EarlyAccessManager({ initialApplications }: { initialApplication
                 </div>
 
                 <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
-                  {application.status === "new" ? <Button variant="secondary" size="sm" disabled={busyId === application.id} onClick={() => void startReview(application.id)}>Review</Button> : null}
-                  {["new", "reviewing"].includes(application.status) ? <Button size="sm" disabled={busyId === application.id || approvalLoading && approvalId === application.id} onClick={() => void beginApproval(application)}>Review approval</Button> : null}
-                  {application.status === "reviewing" ? <Button variant="outline" size="sm" disabled={busyId === application.id} onClick={() => setRejectingId(application.id)}>Reject</Button> : null}
+                  {application.status === "new" ? <Button size="sm" disabled={busyId === application.id || approvalLoading && approvalId === application.id} onClick={() => void beginApproval(application)}>Approve application</Button> : null}
+                  {application.status === "new" ? <Button variant="outline" size="sm" disabled={busyId === application.id} onClick={() => setRejectingId(application.id)}>Reject</Button> : null}
                   {application.status === "approved" || application.status === "invited" || (application.status === "active" && !application.invitationAcceptedAt) ? <Button variant="secondary" size="sm" disabled={busyId === application.id} onClick={() => void resend(application)}>{application.status === "invited" ? "Resend invite" : "Send invite"}</Button> : null}
                   {["approved", "invited", "active"].includes(application.status) ? <Button variant="destructive" size="sm" disabled={busyId === application.id} onClick={() => setRevokeId(application.id)}>Revoke</Button> : null}
                   {application.status === "revoked" ? <Button variant="secondary" size="sm" disabled={busyId === application.id} onClick={() => setRestoreId(application.id)}>Restore access</Button> : null}

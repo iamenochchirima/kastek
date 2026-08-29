@@ -16,9 +16,9 @@ informational and is not an authorization check.
 
 Applications use the following states:
 
-`new` → `reviewing` → `approved` → `invited` → `active`
+`new` → `approved` → `invited` → `active`
 
-An application may be rejected during review. Approved, invited, and active access can be
+An application may be rejected before approval. Approved, invited, and active access can be
 revoked. Access with an end date is marked expired by the Core status/list operations; the linked
 workspace and audit history remain intact.
 
@@ -28,15 +28,15 @@ duration and credit amount within the Core limits.
 
 ## Operator workflow
 
-1. Open **Early access** in Admin and review applications in `new` or `reviewing`.
-2. Record a rejection reason when declining an application.
-3. Select **Review approval**. Core checks whether the applicant email already belongs to an
+1. Open **Early access** in Admin and select an application in `new`.
+2. Select **Approve application**. Core checks whether the applicant email already belongs to an
    account. For a new account, approve with the workspace name, duration, credits, and
    capabilities; Core provisions the account, workspace, grants, and invitation. For an existing
    account, select the intended workspace and choose **Grant access**. This applies the grants to
    that workspace, marks access active, and does not create a duplicate account or invitation.
    **Create new workspace** remains available when the operator intentionally wants a separate
    workspace under the existing account.
+3. Record a rejection reason when declining an application.
 4. If delivery fails, the invitation remains durable and **Resend invite** can be used. Active
    records without a redeemed invitation expose **Send invite** as a recovery action. The raw
    invitation token is never shown in Admin or stored in the application record. Resending

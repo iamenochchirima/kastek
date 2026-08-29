@@ -4,9 +4,8 @@ use kasitek_core::config::AppConfig;
 use kasitek_core::db::models::ProductWaitlistCreateRequest;
 use kasitek_core::services::early_access::{
     approval_context, approve_application, get_application, list_applications, mark_activated,
-    record_submission, resend_invitation, restore_application, review_application,
-    revoke_application, status_for_org, ApplicationQuery, ApproveRequest, ReviewRequest,
-    STATUS_ACTIVE, STATUS_INVITED, STATUS_REVIEWING, STATUS_REVOKED,
+    record_submission, resend_invitation, restore_application, revoke_application, status_for_org,
+    ApplicationQuery, ApproveRequest, STATUS_ACTIVE, STATUS_INVITED, STATUS_REVOKED,
 };
 use kasitek_core::services::website;
 use sqlx::postgres::PgPoolOptions;
@@ -48,20 +47,6 @@ async fn early_access_provisions_once_and_tracks_activation_and_revocation() {
     record_submission(&pool, &application_id)
         .await
         .expect("submission event should be recorded");
-    let reviewed = review_application(
-        &pool,
-        &application_id,
-        "test-admin",
-        ReviewRequest {
-            status: STATUS_REVIEWING.to_string(),
-            notes: Some("Fits the beta cohort".to_string()),
-            reason: None,
-        },
-    )
-    .await
-    .expect("application should enter review");
-    assert_eq!(reviewed.status, STATUS_REVIEWING);
-
     let approved = approve_application(
         &pool,
         &config,
@@ -304,19 +289,6 @@ async fn early_access_attaches_to_existing_workspace_without_duplicate_provision
     record_submission(&pool, &application_id)
         .await
         .expect("submission event should be recorded");
-    review_application(
-        &pool,
-        &application_id,
-        "test-admin",
-        ReviewRequest {
-            status: STATUS_REVIEWING.to_string(),
-            notes: None,
-            reason: None,
-        },
-    )
-    .await
-    .expect("application should enter review");
-
     let context = approval_context(&pool, &application_id)
         .await
         .expect("approval context should load");

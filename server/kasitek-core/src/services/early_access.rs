@@ -15,7 +15,6 @@ use crate::error::AppError;
 use crate::services::{billing, credits, orgs, website};
 
 pub const STATUS_NEW: &str = "new";
-pub const STATUS_REVIEWING: &str = "reviewing";
 pub const STATUS_APPROVED: &str = "approved";
 pub const STATUS_INVITED: &str = "invited";
 pub const STATUS_ACTIVE: &str = "active";
@@ -149,9 +148,7 @@ pub struct EarlyAccessApprovalContext {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ReviewRequest {
-    pub status: String,
-    pub notes: Option<String>,
+pub struct RejectRequest {
     pub reason: Option<String>,
 }
 
@@ -208,7 +205,6 @@ fn valid_status(status: &str) -> bool {
     matches!(
         status,
         STATUS_NEW
-            | STATUS_REVIEWING
             | STATUS_APPROVED
             | STATUS_INVITED
             | STATUS_ACTIVE
@@ -221,13 +217,7 @@ fn valid_status(status: &str) -> bool {
 fn transition_allowed(from: &str, to: &str) -> bool {
     matches!(
         (from, to),
-        (
-            STATUS_NEW,
-            STATUS_REVIEWING | STATUS_APPROVED | STATUS_REJECTED
-        ) | (
-            STATUS_REVIEWING,
-            STATUS_REVIEWING | STATUS_APPROVED | STATUS_REJECTED
-        ) | (
+        (STATUS_NEW, STATUS_APPROVED | STATUS_REJECTED) | (
             STATUS_APPROVED,
             STATUS_INVITED | STATUS_ACTIVE | STATUS_REVOKED
         ) | (
@@ -235,7 +225,6 @@ fn transition_allowed(from: &str, to: &str) -> bool {
             STATUS_ACTIVE | STATUS_REVOKED | STATUS_EXPIRED
         ) | (STATUS_ACTIVE, STATUS_EXPIRED | STATUS_REVOKED)
             | (STATUS_REVOKED, STATUS_INVITED | STATUS_ACTIVE)
-            | (STATUS_REJECTED, STATUS_REVIEWING)
     )
 }
 
@@ -448,45 +437,31 @@ pub async fn approval_context(
     })
 }
 
-pub async fn review_application(
+pub async fn reject_application(
     pool: &PgPool,
     application_id: &str,
     actor_id: &str,
-    request: ReviewRequest,
+    request: RejectRequest,
 ) -> Result<EarlyAccessApplication, AppError> {
-    let to_status = request.status.trim().to_lowercase();
-    if !matches!(to_status.as_str(), STATUS_REVIEWING | STATUS_REJECTED) {
-        return Err(AppError::BadRequest(
-            "Review status must be reviewing or rejected".to_string(),
-        ));
-    }
-    let notes = bounded_text(request.notes.as_deref(), "Review notes", 4_000)?;
-    let reason = bounded_text(request.reason.as_deref(), "Decision reason", 2_000)?;
-    if to_status == STATUS_REJECTED && reason.is_none() {
-        return Err(AppError::BadRequest(
-            "A rejection reason is required".to_string(),
-        ));
-    }
+    let reason = required_text(request.reason.as_deref(), "Rejection reason", 2_000)?;
     let (current, _) = get_application(pool, application_id).await?;
-    if current.status == to_status {
+    if current.status == STATUS_REJECTED {
         return Ok(current);
     }
-    if !transition_allowed(&current.status, &to_status) {
+    if !transition_allowed(&current.status, STATUS_REJECTED) {
         return Err(AppError::Conflict(format!(
-            "Cannot move an early-access application from {} to {}",
-            current.status, to_status
+            "Cannot reject an early-access application from {}",
+            current.status
         )));
     }
     sqlx::query(
         r#"UPDATE "ProductWaitlistEntry"
-           SET status = $1, "reviewNotes" = COALESCE($2, "reviewNotes"),
-               "decisionReason" = $3, "reviewedById" = $4, "reviewedAt" = NOW(),
-               "updatedAt" = NOW()
-           WHERE id = $5"#,
+           SET status = $1, "decisionReason" = $2, "reviewedById" = $3,
+               "reviewedAt" = NOW(), "updatedAt" = NOW()
+           WHERE id = $4"#,
     )
-    .bind(&to_status)
-    .bind(notes.as_deref())
-    .bind(reason.as_deref())
+    .bind(STATUS_REJECTED)
+    .bind(&reason)
     .bind(actor_id)
     .bind(application_id)
     .execute(pool)
@@ -495,14 +470,10 @@ pub async fn review_application(
         pool,
         application_id,
         Some(&current.status),
-        &to_status,
-        if to_status == STATUS_REJECTED {
-            "rejected"
-        } else {
-            "review_started"
-        },
+        STATUS_REJECTED,
+        "rejected",
         Some(actor_id),
-        reason.as_deref(),
+        Some(&reason),
         json!({}),
     )
     .await?;
@@ -845,7 +816,7 @@ pub async fn approve_application(
             application.status
         )));
     }
-    if application.status == STATUS_NEW || application.status == STATUS_REVIEWING {
+    if application.status == STATUS_NEW {
         if !transition_allowed(&application.status, STATUS_APPROVED) {
             return Err(AppError::Conflict(
                 "Application cannot be approved from its current state".to_string(),
@@ -1479,17 +1450,15 @@ mod tests {
     use super::{selected_capabilities, transition_allowed};
 
     #[test]
-    fn lifecycle_transitions_allow_review_approval_activation_and_reversal() {
-        assert!(transition_allowed("new", "reviewing"));
+    fn lifecycle_transitions_allow_approval_activation_and_reversal() {
         assert!(transition_allowed("new", "approved"));
-        assert!(transition_allowed("reviewing", "rejected"));
+        assert!(transition_allowed("new", "rejected"));
         assert!(transition_allowed("approved", "invited"));
         assert!(transition_allowed("invited", "active"));
         assert!(transition_allowed("active", "expired"));
         assert!(transition_allowed("active", "revoked"));
         assert!(transition_allowed("revoked", "invited"));
         assert!(transition_allowed("revoked", "active"));
-        assert!(transition_allowed("rejected", "reviewing"));
         assert!(!transition_allowed("rejected", "approved"));
         assert!(!transition_allowed("active", "approved"));
     }
