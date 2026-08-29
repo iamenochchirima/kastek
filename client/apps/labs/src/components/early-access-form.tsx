@@ -81,7 +81,7 @@ export function EarlyAccessForm() {
     return (
       <div className="enquiry-success" role="status">
         <span aria-hidden="true">✓</span>
-        <h2>Thank you.</h2>
+        <h2>Thank you for applying.</h2>
         <p>We&apos;ve received your application and will be in touch with next steps.</p>
         <Link href="/">Return to the homepage</Link>
       </div>
