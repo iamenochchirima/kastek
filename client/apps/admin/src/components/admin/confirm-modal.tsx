@@ -9,6 +9,8 @@ export default function ConfirmModal({
   message,
   confirmLabel,
   loading,
+  confirmVariant = "destructive",
+  loadingLabel = "Deleting...",
   onConfirm,
   onCancel,
 }: {
@@ -17,6 +19,8 @@ export default function ConfirmModal({
   message: string;
   confirmLabel?: string;
   loading?: boolean;
+  confirmVariant?: "primary" | "destructive";
+  loadingLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -29,7 +33,7 @@ export default function ConfirmModal({
         </DialogHeader>
         <DialogFooter>
           <button onClick={onCancel} disabled={loading} className={buttonClassName({ variant: "ghost", size: "md" })}>Cancel</button>
-          <button onClick={onConfirm} disabled={loading} className={buttonClassName({ variant: "destructive", size: "md" })}>{loading ? "Deleting..." : confirmLabel || "Delete"}</button>
+          <button onClick={onConfirm} disabled={loading} className={buttonClassName({ variant: confirmVariant, size: "md" })}>{loading ? loadingLabel : confirmLabel || "Delete"}</button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

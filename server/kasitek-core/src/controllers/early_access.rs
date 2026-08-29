@@ -6,7 +6,10 @@ use sqlx::PgPool;
 use crate::config::AppConfig;
 use crate::error::AppError;
 use crate::middleware::{extract_admin, extract_user, require_admin_role, resolve_active_org_id};
-use crate::services::early_access::{self, ApplicationQuery, ApproveRequest, RejectRequest};
+use crate::services::early_access::{
+    self, ActivateSignupInvitationRequest, ApplicationQuery, ApproveRequest, BatchApproveRequest,
+    RejectRequest,
+};
 
 pub async fn status(pool: web::Data<PgPool>, req: HttpRequest) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
@@ -48,16 +51,6 @@ pub async fn get(
     })))
 }
 
-pub async fn approval_context(
-    pool: web::Data<PgPool>,
-    req: HttpRequest,
-    path: web::Path<String>,
-) -> Result<HttpResponse, AppError> {
-    let _admin = admin_context(&req, pool.get_ref()).await?;
-    let context = early_access::approval_context(pool.get_ref(), &path).await?;
-    Ok(HttpResponse::Ok().json(context))
-}
-
 pub async fn reject(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -79,11 +72,64 @@ pub async fn approve(
     body: web::Json<ApproveRequest>,
 ) -> Result<HttpResponse, AppError> {
     let admin = admin_context(&req, pool.get_ref()).await?;
-    let application = early_access::approve_application(
+    let application = early_access::approve_self_service_application(
         pool.get_ref(),
         config.get_ref(),
         &path,
         &admin.id,
+        body.into_inner(),
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "application": application })))
+}
+
+pub async fn batch_approve(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    body: web::Json<BatchApproveRequest>,
+) -> Result<HttpResponse, AppError> {
+    let admin = admin_context(&req, pool.get_ref()).await?;
+    let result = early_access::batch_approve_self_service(
+        pool.get_ref(),
+        config.get_ref(),
+        &admin.id,
+        body.into_inner(),
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(result))
+}
+
+pub async fn invitation_preview(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    if !config.early_access_self_service_enabled {
+        return Err(AppError::Conflict(
+            "Early-access self-service is temporarily unavailable".to_string(),
+        ));
+    }
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "invitation": early_access::signup_invitation_preview(pool.get_ref(), &path).await? })))
+}
+
+pub async fn activate_invitation(
+    config: web::Data<AppConfig>,
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<ActivateSignupInvitationRequest>,
+) -> Result<HttpResponse, AppError> {
+    if !config.early_access_self_service_enabled {
+        return Err(AppError::Conflict(
+            "Early-access self-service is temporarily unavailable".to_string(),
+        ));
+    }
+    let user = extract_user(&req, pool.get_ref()).await?;
+    let application = early_access::activate_signup_invitation(
+        pool.get_ref(),
+        &path,
+        &user.id,
         body.into_inner(),
     )
     .await?;
@@ -97,8 +143,13 @@ pub async fn resend(
     path: web::Path<String>,
 ) -> Result<HttpResponse, AppError> {
     let admin = admin_context(&req, pool.get_ref()).await?;
-    let application =
-        early_access::resend_invitation(pool.get_ref(), config.get_ref(), &path, &admin.id).await?;
+    let application = early_access::resend_self_service_invitation(
+        pool.get_ref(),
+        config.get_ref(),
+        &path,
+        &admin.id,
+    )
+    .await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "application": application })))
 }
 

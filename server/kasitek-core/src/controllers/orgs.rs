@@ -6,7 +6,6 @@ use sqlx::PgPool;
 use crate::config::AppConfig;
 use crate::error::AppError;
 use crate::middleware::extract_user;
-use crate::services::early_access;
 use crate::services::org_logos;
 use crate::services::orgs;
 
@@ -368,7 +367,6 @@ pub async fn accept_invitation(
     let token = path.into_inner();
 
     let org = orgs::accept_invitation(pool.get_ref(), &token, &user.id).await?;
-    early_access::mark_activated(pool.get_ref(), &org.id, &user.id).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({ "org": org })))
 }
 
@@ -393,7 +391,6 @@ pub async fn activate_invitation(
         .filter(|value| !value.is_empty());
     let (org, user_id) =
         orgs::activate_invitation_with_new_user(pool.get_ref(), &token, name, password).await?;
-    early_access::mark_activated(pool.get_ref(), &org.id, &user_id).await?;
     let session_token = crate::services::auth::create_session(pool.get_ref(), &user_id).await?;
 
     Ok(HttpResponse::Created()

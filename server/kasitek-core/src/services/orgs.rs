@@ -214,20 +214,22 @@ pub async fn create_org(
 
     referrals::ensure_referral_code(pool, &org_id).await?;
 
-    credits::grant_system_credits(
-        pool,
-        &org_id,
-        trial_credits,
-        "TRIAL",
-        Some(Utc::now() + Duration::days(trial_duration_days)),
-        "Initial workspace trial credits",
-        Some(&format!("trial:{org_id}")),
-        Some(&serde_json::json!({
-            "trialDurationDays": trial_duration_days,
-        })),
-        &format!("trial-grant:{org_id}"),
-    )
-    .await?;
+    if trial_credits > 0 {
+        credits::grant_system_credits(
+            pool,
+            &org_id,
+            trial_credits,
+            "TRIAL",
+            Some(Utc::now() + Duration::days(trial_duration_days)),
+            "Initial workspace trial credits",
+            Some(&format!("trial:{org_id}")),
+            Some(&serde_json::json!({
+                "trialDurationDays": trial_duration_days,
+            })),
+            &format!("trial-grant:{org_id}"),
+        )
+        .await?;
+    }
 
     Ok(org)
 }

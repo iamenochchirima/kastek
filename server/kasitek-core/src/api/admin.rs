@@ -143,8 +143,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::scope("/early-access")
                     .route("", web::get().to(early_access::list))
                     .route(
-                        "/{id}/approval-context",
-                        web::get().to(early_access::approval_context),
+                        "/batch-approve",
+                        web::post().to(early_access::batch_approve),
                     )
                     .route("/{id}", web::get().to(early_access::get))
                     .route("/{id}/reject", web::post().to(early_access::reject))

@@ -1,0 +1,201 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { apiUrl } from "@/lib/server-api";
+
+type Workspace = { id: string; name: string };
+
+type Invitation = {
+  email: string;
+  status: string;
+  expiresAt: string;
+  businessName: string;
+};
+
+type Props = {
+  token: string;
+  invitation: Invitation | null;
+  isLoggedIn: boolean;
+};
+
+export function EarlyAccessActivation({ token, invitation, isLoggedIn }: Props) {
+  const router = useRouter();
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [workspaceName, setWorkspaceName] = useState(invitation?.businessName ?? "");
+  const [workspaceId, setWorkspaceId] = useState("");
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [authenticated, setAuthenticated] = useState(isLoggedIn);
+  const [loadingWorkspaces, setLoadingWorkspaces] = useState(isLoggedIn);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!authenticated) return;
+
+    let cancelled = false;
+    void fetch(apiUrl("/api/orgs"), { credentials: "include" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: { orgs?: Workspace[] } | null) => {
+        if (!cancelled) setWorkspaces(body?.orgs ?? []);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setLoadingWorkspaces(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authenticated]);
+
+  if (!invitation || invitation.status !== "pending" || new Date(invitation.expiresAt) < new Date()) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-md items-center p-6">
+        <div>
+          <h1 className="text-xl font-semibold">Invitation unavailable</h1>
+          <p className="mt-2 text-sm text-muted-foreground">This early-access invitation is invalid or has expired.</p>
+        </div>
+      </main>
+    );
+  }
+
+  async function activate() {
+    if (!workspaceId && !workspaceName.trim()) {
+      setError("Choose a workspace or enter a workspace name.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(apiUrl(`/api/early-access/invitations/${token}/activate`), {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          organizationId: workspaceId || undefined,
+          workspaceName: workspaceId ? undefined : workspaceName.trim(),
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setError(body.error ?? "Unable to activate early access.");
+        return;
+      }
+
+      router.replace("/workspace");
+      router.refresh();
+    } catch {
+      setError("We could not reach KasiTek. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function signup(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(apiUrl("/api/auth/signup"), {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: invitation!.email,
+          name,
+          password,
+          earlyAccessToken: token,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setError(body.error ?? "Unable to create account.");
+        return;
+      }
+
+      setLoadingWorkspaces(true);
+      setAuthenticated(true);
+      await activate();
+    } catch {
+      setError("We could not reach KasiTek. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main className="mx-auto flex min-h-screen max-w-md items-center p-6">
+      <div className="w-full space-y-5 rounded-xl border border-border bg-card p-6">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wider text-primary">Early access</p>
+          <h1 className="mt-1 text-2xl font-semibold">You’re approved</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {authenticated ? "Choose a workspace to activate beta access." : "Create your account, then choose a workspace."}
+          </p>
+        </div>
+
+        <p className="text-sm text-muted-foreground">{invitation.email}</p>
+        {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+
+        {authenticated ? (
+          <div className="space-y-3">
+            {loadingWorkspaces ? <p className="text-sm text-muted-foreground">Loading workspaces…</p> : null}
+            {!loadingWorkspaces && workspaces.length ? (
+              <label className="block text-sm font-medium">
+                Workspace
+                <select
+                  className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={workspaceId || "new"}
+                  onChange={(event) => setWorkspaceId(event.target.value === "new" ? "" : event.target.value)}
+                >
+                  <option value="new">Create a new workspace</option>
+                  {workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
+                </select>
+              </label>
+            ) : null}
+            {!loadingWorkspaces && !workspaceId ? (
+              <label className="block text-sm font-medium">
+                Workspace name
+                <Input className="mt-1" value={workspaceName} onChange={(event) => setWorkspaceName(event.target.value)} />
+              </label>
+            ) : null}
+            <Button className="w-full" disabled={busy || loadingWorkspaces} onClick={() => void activate()}>
+              {busy ? "Activating…" : "Activate early access"}
+            </Button>
+          </div>
+        ) : (
+          <form className="space-y-3" onSubmit={signup}>
+            <label className="block text-sm font-medium">
+              Name
+              <Input className="mt-1" value={name} onChange={(event) => setName(event.target.value)} required />
+            </label>
+            <label className="block text-sm font-medium">
+              Password
+              <Input className="mt-1" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} />
+            </label>
+            <label className="block text-sm font-medium">
+              Workspace name
+              <Input className="mt-1" value={workspaceName} onChange={(event) => setWorkspaceName(event.target.value)} required />
+            </label>
+            <Button className="w-full" disabled={busy} type="submit">{busy ? "Creating…" : "Create account"}</Button>
+            <button className="w-full text-sm text-primary" type="button" onClick={() => router.push(`/login?callbackUrl=${encodeURIComponent(`/early-access/${token}`)}`)}>
+              Already have an account? Sign in
+            </button>
+          </form>
+        )}
+      </div>
+    </main>
+  );
+}

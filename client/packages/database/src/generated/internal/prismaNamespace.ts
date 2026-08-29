@@ -433,6 +433,7 @@ export const ModelName = {
   OnboardingConversation: 'OnboardingConversation',
   QuoteRequest: 'QuoteRequest',
   ProductWaitlistEntry: 'ProductWaitlistEntry',
+  EarlyAccessInvitation: 'EarlyAccessInvitation',
   ProductWaitlistEvent: 'ProductWaitlistEvent',
   Quotation: 'Quotation',
   Invoice: 'Invoice',
@@ -494,7 +495,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "organization" | "organizationMember" | "organizationOnboardingProfile" | "organizationInvitation" | "externalConnection" | "externalConnectionCapability" | "externalConnectionConsumer" | "product" | "productPlan" | "userProductTour" | "planEntitlement" | "organizationSubscription" | "organizationEntitlementGrant" | "usageEvent" | "referralCode" | "referralAttribution" | "creditAccount" | "creditGrant" | "creditLedgerEntry" | "creditReservation" | "creditUsageEvent" | "creditAdminOperation" | "publicApiRequest" | "developerApiKey" | "agentWebsiteDeployment" | "agentWebsiteVisitorSession" | "agentWebsiteDeliveryEvent" | "publicApiWebhookSubscription" | "publicApiWebhookDelivery" | "billingCheckout" | "billingInvoice" | "paystackWebhookEvent" | "billingReconciliationIssue" | "user" | "pushSubscription" | "account" | "session" | "verificationToken" | "adminUser" | "adminSavedReport" | "adminReportExportAuditEvent" | "adminSupportAccessGrant" | "adminSupportAccessAuditEvent" | "adminWebhookReplayCommand" | "adminWebhookReplayAuditEvent" | "businessProfile" | "onboardingConversation" | "quoteRequest" | "productWaitlistEntry" | "productWaitlistEvent" | "quotation" | "invoice" | "invoiceRun" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "customer" | "customerIdentity" | "bookingService" | "booking" | "conversation" | "communicationCall" | "communicationCallLeg" | "message" | "messageAttachment" | "messageReference" | "messageReaction" | "messageEvent" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "whatsappCallSession" | "whatsappCallEvent" | "socialChannelConnection" | "socialDataDeletionRequest" | "socialWebhookEvent" | "socialOAuthAuthorization" | "socialPost" | "socialPostVariant" | "socialPublishJob" | "socialPostInsightObservation" | "socialPostInsightSyncState" | "contentMediaAsset" | "contentMediaRendition" | "socialPostMedia" | "socialPostVariantMedia" | "whatsappContact" | "whatsappContactListMembership" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent"
+    modelProps: "organization" | "organizationMember" | "organizationOnboardingProfile" | "organizationInvitation" | "externalConnection" | "externalConnectionCapability" | "externalConnectionConsumer" | "product" | "productPlan" | "userProductTour" | "planEntitlement" | "organizationSubscription" | "organizationEntitlementGrant" | "usageEvent" | "referralCode" | "referralAttribution" | "creditAccount" | "creditGrant" | "creditLedgerEntry" | "creditReservation" | "creditUsageEvent" | "creditAdminOperation" | "publicApiRequest" | "developerApiKey" | "agentWebsiteDeployment" | "agentWebsiteVisitorSession" | "agentWebsiteDeliveryEvent" | "publicApiWebhookSubscription" | "publicApiWebhookDelivery" | "billingCheckout" | "billingInvoice" | "paystackWebhookEvent" | "billingReconciliationIssue" | "user" | "pushSubscription" | "account" | "session" | "verificationToken" | "adminUser" | "adminSavedReport" | "adminReportExportAuditEvent" | "adminSupportAccessGrant" | "adminSupportAccessAuditEvent" | "adminWebhookReplayCommand" | "adminWebhookReplayAuditEvent" | "businessProfile" | "onboardingConversation" | "quoteRequest" | "productWaitlistEntry" | "earlyAccessInvitation" | "productWaitlistEvent" | "quotation" | "invoice" | "invoiceRun" | "outreachCampaign" | "outreachLead" | "outreachEmailDeliveryLog" | "webServiceLead" | "customer" | "customerIdentity" | "bookingService" | "booking" | "conversation" | "communicationCall" | "communicationCallLeg" | "message" | "messageAttachment" | "messageReference" | "messageReaction" | "messageEvent" | "notificationEvent" | "notification" | "notificationPreference" | "notificationDeliveryLog" | "whatsappConnection" | "whatsappCallSession" | "whatsappCallEvent" | "socialChannelConnection" | "socialDataDeletionRequest" | "socialWebhookEvent" | "socialOAuthAuthorization" | "socialPost" | "socialPostVariant" | "socialPublishJob" | "socialPostInsightObservation" | "socialPostInsightSyncState" | "contentMediaAsset" | "contentMediaRendition" | "socialPostMedia" | "socialPostVariantMedia" | "whatsappContact" | "whatsappContactListMembership" | "whatsappTemplate" | "whatsappCampaign" | "whatsappCampaignRecipient" | "whatsappSendEvent"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -4121,6 +4122,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.ProductWaitlistEntryCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.ProductWaitlistEntryCountAggregateOutputType> | number
+        }
+      }
+    }
+    EarlyAccessInvitation: {
+      payload: Prisma.$EarlyAccessInvitationPayload<ExtArgs>
+      fields: Prisma.EarlyAccessInvitationFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.EarlyAccessInvitationFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EarlyAccessInvitationPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.EarlyAccessInvitationFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EarlyAccessInvitationPayload>
+        }
+        findFirst: {
+          args: Prisma.EarlyAccessInvitationFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EarlyAccessInvitationPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.EarlyAccessInvitationFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EarlyAccessInvitationPayload>
+        }
+        findMany: {
+          args: Prisma.EarlyAccessInvitationFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EarlyAccessInvitationPayload>[]
+        }
+        create: {
+          args: Prisma.EarlyAccessInvitationCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EarlyAccessInvitationPayload>
+        }
+        createMany: {
+          args: Prisma.EarlyAccessInvitationCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.EarlyAccessInvitationCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EarlyAccessInvitationPayload>[]
+        }
+        delete: {
+          args: Prisma.EarlyAccessInvitationDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EarlyAccessInvitationPayload>
+        }
+        update: {
+          args: Prisma.EarlyAccessInvitationUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EarlyAccessInvitationPayload>
+        }
+        deleteMany: {
+          args: Prisma.EarlyAccessInvitationDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.EarlyAccessInvitationUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.EarlyAccessInvitationUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EarlyAccessInvitationPayload>[]
+        }
+        upsert: {
+          args: Prisma.EarlyAccessInvitationUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EarlyAccessInvitationPayload>
+        }
+        aggregate: {
+          args: Prisma.EarlyAccessInvitationAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateEarlyAccessInvitation>
+        }
+        groupBy: {
+          args: Prisma.EarlyAccessInvitationGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.EarlyAccessInvitationGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.EarlyAccessInvitationCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.EarlyAccessInvitationCountAggregateOutputType> | number
         }
       }
     }
@@ -8413,7 +8488,9 @@ export const ProductWaitlistEntryScalarFieldEnum = {
   approvedById: 'approvedById',
   approvedAt: 'approvedAt',
   organizationId: 'organizationId',
-  invitationId: 'invitationId',
+  earlyAccessInvitationId: 'earlyAccessInvitationId',
+  packageKey: 'packageKey',
+  packageSnapshot: 'packageSnapshot',
   activatedAt: 'activatedAt',
   earlyAccessEndsAt: 'earlyAccessEndsAt',
   entitlementGrantIds: 'entitlementGrantIds',
@@ -8423,6 +8500,27 @@ export const ProductWaitlistEntryScalarFieldEnum = {
 } as const
 
 export type ProductWaitlistEntryScalarFieldEnum = (typeof ProductWaitlistEntryScalarFieldEnum)[keyof typeof ProductWaitlistEntryScalarFieldEnum]
+
+
+export const EarlyAccessInvitationScalarFieldEnum = {
+  id: 'id',
+  waitlistEntryId: 'waitlistEntryId',
+  email: 'email',
+  tokenHash: 'tokenHash',
+  status: 'status',
+  deliveryStatus: 'deliveryStatus',
+  deliveryAttempts: 'deliveryAttempts',
+  lastDeliveryAttemptAt: 'lastDeliveryAttemptAt',
+  lastDeliveryErrorCode: 'lastDeliveryErrorCode',
+  expiresAt: 'expiresAt',
+  acceptedAt: 'acceptedAt',
+  revokedAt: 'revokedAt',
+  createdById: 'createdById',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type EarlyAccessInvitationScalarFieldEnum = (typeof EarlyAccessInvitationScalarFieldEnum)[keyof typeof EarlyAccessInvitationScalarFieldEnum]
 
 
 export const ProductWaitlistEventScalarFieldEnum = {
@@ -10046,6 +10144,7 @@ export type GlobalOmitConfig = {
   onboardingConversation?: Prisma.OnboardingConversationOmit
   quoteRequest?: Prisma.QuoteRequestOmit
   productWaitlistEntry?: Prisma.ProductWaitlistEntryOmit
+  earlyAccessInvitation?: Prisma.EarlyAccessInvitationOmit
   productWaitlistEvent?: Prisma.ProductWaitlistEventOmit
   quotation?: Prisma.QuotationOmit
   invoice?: Prisma.InvoiceOmit

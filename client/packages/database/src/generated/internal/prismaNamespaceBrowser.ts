@@ -100,6 +100,7 @@ export const ModelName = {
   OnboardingConversation: 'OnboardingConversation',
   QuoteRequest: 'QuoteRequest',
   ProductWaitlistEntry: 'ProductWaitlistEntry',
+  EarlyAccessInvitation: 'EarlyAccessInvitation',
   ProductWaitlistEvent: 'ProductWaitlistEvent',
   Quotation: 'Quotation',
   Invoice: 'Invoice',
@@ -1010,7 +1011,9 @@ export const ProductWaitlistEntryScalarFieldEnum = {
   approvedById: 'approvedById',
   approvedAt: 'approvedAt',
   organizationId: 'organizationId',
-  invitationId: 'invitationId',
+  earlyAccessInvitationId: 'earlyAccessInvitationId',
+  packageKey: 'packageKey',
+  packageSnapshot: 'packageSnapshot',
   activatedAt: 'activatedAt',
   earlyAccessEndsAt: 'earlyAccessEndsAt',
   entitlementGrantIds: 'entitlementGrantIds',
@@ -1020,6 +1023,27 @@ export const ProductWaitlistEntryScalarFieldEnum = {
 } as const
 
 export type ProductWaitlistEntryScalarFieldEnum = (typeof ProductWaitlistEntryScalarFieldEnum)[keyof typeof ProductWaitlistEntryScalarFieldEnum]
+
+
+export const EarlyAccessInvitationScalarFieldEnum = {
+  id: 'id',
+  waitlistEntryId: 'waitlistEntryId',
+  email: 'email',
+  tokenHash: 'tokenHash',
+  status: 'status',
+  deliveryStatus: 'deliveryStatus',
+  deliveryAttempts: 'deliveryAttempts',
+  lastDeliveryAttemptAt: 'lastDeliveryAttemptAt',
+  lastDeliveryErrorCode: 'lastDeliveryErrorCode',
+  expiresAt: 'expiresAt',
+  acceptedAt: 'acceptedAt',
+  revokedAt: 'revokedAt',
+  createdById: 'createdById',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type EarlyAccessInvitationScalarFieldEnum = (typeof EarlyAccessInvitationScalarFieldEnum)[keyof typeof EarlyAccessInvitationScalarFieldEnum]
 
 
 export const ProductWaitlistEventScalarFieldEnum = {

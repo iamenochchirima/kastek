@@ -1,18 +1,19 @@
-//! Early-access application and provisioning lifecycle.
+//! Early-access application and activation lifecycle.
 //!
 //! The waitlist row is the applicant record. This service owns the allowed
-//! transitions and keeps the linked invitation, entitlement grants, credit
-//! grant, and transition history together so an operator can safely retry a
-//! partially completed approval.
+//! transitions and keeps the signup invitation, entitlement grants, credit
+//! grant, and transition history together so an operator can safely retry an
+//! approval.
 
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::{FromRow, PgPool, Row};
+use std::sync::OnceLock;
 
 use crate::config::AppConfig;
 use crate::error::AppError;
-use crate::services::{billing, credits, orgs, website};
+use crate::services::{auth, billing, credits, orgs, website};
 
 pub const STATUS_NEW: &str = "new";
 pub const STATUS_APPROVED: &str = "approved";
@@ -24,7 +25,9 @@ pub const STATUS_REVOKED: &str = "revoked";
 pub const COHORT_BETA: &str = "beta";
 
 const DEFAULT_DURATION_DAYS: i64 = 30;
-const DEFAULT_CREDITS: i64 = 100;
+const DEFAULT_CREDITS: i64 = 1_000;
+const BETA_PACKAGE_KEY: &str = "beta-2026-01";
+const INVITATION_DAYS: i64 = 7;
 const MAX_DURATION_DAYS: i64 = 365;
 const MAX_CREDITS: i64 = 1_000_000;
 const DEFAULT_CAPABILITIES: &[&str] = &[
@@ -34,6 +37,11 @@ const DEFAULT_CAPABILITIES: &[&str] = &[
     "feature.campaigns.manage",
     "feature.content.manage",
 ];
+
+// Activation performs several idempotent database writes and external email is not involved.
+// Serialize it within this Core process so two requests cannot redeem one invitation between
+// the pending check and the final application update.
+static ACTIVATION_GUARD: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
 
 #[derive(Debug, Clone, Serialize, FromRow)]
 pub struct EarlyAccessApplication {
@@ -75,12 +83,24 @@ pub struct EarlyAccessApplication {
     #[serde(rename = "organizationId")]
     #[sqlx(rename = "organization_id")]
     pub organization_id: Option<String>,
-    #[serde(rename = "invitationId")]
-    #[sqlx(rename = "invitation_id")]
-    pub invitation_id: Option<String>,
-    #[serde(rename = "invitationAcceptedAt")]
-    #[sqlx(rename = "invitation_accepted_at")]
-    pub invitation_accepted_at: Option<DateTime<Utc>>,
+    #[serde(rename = "earlyAccessInvitationId")]
+    #[sqlx(rename = "early_access_invitation_id")]
+    pub early_access_invitation_id: Option<String>,
+    #[serde(rename = "invitationStatus")]
+    #[sqlx(rename = "invitation_status")]
+    pub invitation_status: Option<String>,
+    #[serde(rename = "invitationDeliveryStatus")]
+    #[sqlx(rename = "invitation_delivery_status")]
+    pub invitation_delivery_status: Option<String>,
+    #[serde(rename = "invitationExpiresAt")]
+    #[sqlx(rename = "invitation_expires_at")]
+    pub invitation_expires_at: Option<DateTime<Utc>>,
+    #[serde(rename = "packageKey")]
+    #[sqlx(rename = "package_key")]
+    pub package_key: Option<String>,
+    #[serde(rename = "packageSnapshot")]
+    #[sqlx(rename = "package_snapshot")]
+    pub package_snapshot: Option<Value>,
     #[serde(rename = "activatedAt")]
     #[sqlx(rename = "activated_at")]
     pub activated_at: Option<DateTime<Utc>>,
@@ -132,21 +152,6 @@ pub struct ApplicationQuery {
     pub limit: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize, FromRow)]
-pub struct EarlyAccessWorkspaceOption {
-    pub id: String,
-    pub name: String,
-    pub slug: String,
-    pub role: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct EarlyAccessApprovalContext {
-    #[serde(rename = "accountExists")]
-    pub account_exists: bool,
-    pub workspaces: Vec<EarlyAccessWorkspaceOption>,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct RejectRequest {
     pub reason: Option<String>,
@@ -154,17 +159,56 @@ pub struct RejectRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct ApproveRequest {
-    #[serde(rename = "workspaceName")]
-    pub workspace_name: Option<String>,
-    #[serde(rename = "durationDays")]
-    pub duration_days: Option<i64>,
-    pub credits: Option<i64>,
-    #[serde(rename = "entitlementKeys")]
-    pub entitlement_keys: Option<Vec<String>>,
+    #[serde(rename = "packageKey")]
+    pub package_key: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BatchApproveRequest {
+    #[serde(rename = "applicationIds")]
+    pub application_ids: Vec<String>,
+    #[serde(rename = "packageKey")]
+    pub package_key: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BatchApproveResult {
+    pub id: String,
+    pub outcome: String,
+    pub status: String,
+    #[serde(rename = "errorCode")]
+    pub error_code: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BatchApproveResponse {
+    pub requested: usize,
+    pub approved: usize,
+    pub invited: usize,
+    #[serde(rename = "alreadyProcessed")]
+    pub already_processed: usize,
+    pub failed: usize,
+    pub results: Vec<BatchApproveResult>,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct SignupInvitationPreview {
+    pub email: String,
+    pub status: String,
+    #[serde(rename = "expiresAt")]
+    #[sqlx(rename = "expires_at")]
+    pub expires_at: DateTime<Utc>,
+    #[serde(rename = "businessName")]
+    #[sqlx(rename = "business_name")]
+    pub business_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ActivateSignupInvitationRequest {
     #[serde(rename = "organizationId")]
     pub organization_id: Option<String>,
-    #[serde(rename = "createWorkspaceForExistingAccount")]
-    pub create_workspace_for_existing_account: Option<bool>,
+    #[serde(rename = "workspaceName")]
+    pub workspace_name: Option<String>,
 }
 
 fn application_select() -> &'static str {
@@ -187,10 +231,12 @@ fn application_select() -> &'static str {
                "approvedById" AS approved_by_id,
                "approvedAt" AT TIME ZONE 'UTC' AS approved_at,
                "organizationId" AS organization_id,
-               "invitationId" AS invitation_id,
-               (SELECT "acceptedAt" AT TIME ZONE 'UTC'
-                FROM "OrganizationInvitation"
-                WHERE id = "ProductWaitlistEntry"."invitationId") AS invitation_accepted_at,
+               "earlyAccessInvitationId" AS early_access_invitation_id,
+               (SELECT status FROM "EarlyAccessInvitation" WHERE id = "ProductWaitlistEntry"."earlyAccessInvitationId") AS invitation_status,
+               (SELECT "deliveryStatus" FROM "EarlyAccessInvitation" WHERE id = "ProductWaitlistEntry"."earlyAccessInvitationId") AS invitation_delivery_status,
+               (SELECT "expiresAt" AT TIME ZONE 'UTC' FROM "EarlyAccessInvitation" WHERE id = "ProductWaitlistEntry"."earlyAccessInvitationId") AS invitation_expires_at,
+               "packageKey" AS package_key,
+               "packageSnapshot" AS package_snapshot,
                "activatedAt" AT TIME ZONE 'UTC' AS activated_at,
                "earlyAccessEndsAt" AT TIME ZONE 'UTC' AS early_access_ends_at,
                "entitlementGrantIds" AS entitlement_grant_ids,
@@ -217,14 +263,20 @@ fn valid_status(status: &str) -> bool {
 fn transition_allowed(from: &str, to: &str) -> bool {
     matches!(
         (from, to),
-        (STATUS_NEW, STATUS_APPROVED | STATUS_REJECTED) | (
-            STATUS_APPROVED,
-            STATUS_INVITED | STATUS_ACTIVE | STATUS_REVOKED
-        ) | (
-            STATUS_INVITED,
-            STATUS_ACTIVE | STATUS_REVOKED | STATUS_EXPIRED
-        ) | (STATUS_ACTIVE, STATUS_EXPIRED | STATUS_REVOKED)
-            | (STATUS_REVOKED, STATUS_INVITED | STATUS_ACTIVE)
+        (STATUS_NEW, STATUS_APPROVED | STATUS_REJECTED)
+            | (
+                STATUS_APPROVED,
+                STATUS_INVITED | STATUS_ACTIVE | STATUS_REVOKED
+            )
+            | (
+                STATUS_INVITED,
+                STATUS_ACTIVE | STATUS_REVOKED | STATUS_EXPIRED
+            )
+            | (STATUS_ACTIVE, STATUS_EXPIRED | STATUS_REVOKED)
+            | (
+                STATUS_REVOKED,
+                STATUS_APPROVED | STATUS_INVITED | STATUS_ACTIVE
+            )
     )
 }
 
@@ -288,6 +340,17 @@ pub async fn record_submission(pool: &PgPool, application_id: &str) -> Result<()
     .await
 }
 
+async fn expire_due_invitations(pool: &PgPool) -> Result<(), AppError> {
+    sqlx::query(
+        r#"UPDATE "EarlyAccessInvitation"
+           SET status = 'expired', "updatedAt" = NOW()
+           WHERE status = 'pending' AND "expiresAt" <= NOW()"#,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 pub(crate) async fn record_event(
     pool: &PgPool,
     application_id: &str,
@@ -329,6 +392,7 @@ pub async fn list_applications(
     pool: &PgPool,
     query: &ApplicationQuery,
 ) -> Result<Vec<EarlyAccessApplication>, AppError> {
+    expire_due_invitations(pool).await?;
     expire_due_access(pool).await?;
     let limit = query.limit.unwrap_or(100).clamp(1, 200);
     let status = query
@@ -404,39 +468,6 @@ pub async fn get_application(
     Ok((application, events))
 }
 
-pub async fn approval_context(
-    pool: &PgPool,
-    application_id: &str,
-) -> Result<EarlyAccessApprovalContext, AppError> {
-    let application = get_application(pool, application_id).await?.0;
-    let user_id = sqlx::query_scalar::<_, String>(
-        r#"SELECT id FROM "User" WHERE lower(email) = lower($1) LIMIT 1"#,
-    )
-    .bind(&application.email)
-    .fetch_optional(pool)
-    .await?;
-
-    let workspaces = if let Some(user_id) = user_id.as_deref() {
-        sqlx::query_as::<_, EarlyAccessWorkspaceOption>(
-            r#"SELECT o.id, o.name, o.slug, m.role::text AS role
-               FROM "Organization" o
-               JOIN "OrganizationMember" m ON m."orgId" = o.id
-               WHERE m."userId" = $1
-               ORDER BY o."createdAt" ASC, o.id ASC"#,
-        )
-        .bind(user_id)
-        .fetch_all(pool)
-        .await?
-    } else {
-        Vec::new()
-    };
-
-    Ok(EarlyAccessApprovalContext {
-        account_exists: user_id.is_some(),
-        workspaces,
-    })
-}
-
 pub async fn reject_application(
     pool: &PgPool,
     application_id: &str,
@@ -482,23 +513,6 @@ pub async fn reject_application(
         .map(|(application, _)| application)
 }
 
-async fn link_organization(
-    pool: &PgPool,
-    application_id: &str,
-    org_id: &str,
-) -> Result<(), AppError> {
-    sqlx::query(
-        r#"UPDATE "ProductWaitlistEntry"
-           SET "organizationId" = COALESCE("organizationId", $1), "updatedAt" = NOW()
-           WHERE id = $2"#,
-    )
-    .bind(org_id)
-    .bind(application_id)
-    .execute(pool)
-    .await?;
-    Ok(())
-}
-
 async fn ensure_entitlement_grant(
     pool: &PgPool,
     org_id: &str,
@@ -534,565 +548,344 @@ async fn ensure_entitlement_grant(
     .id)
 }
 
-async fn ensure_invitation(
-    pool: &PgPool,
-    config: &AppConfig,
-    application: &EarlyAccessApplication,
-    org_id: &str,
-) -> Result<String, AppError> {
-    if let Some(invitation_id) = application.invitation_id.as_deref() {
-        let exists = sqlx::query_scalar::<_, bool>(
-            r#"SELECT EXISTS(
-                   SELECT 1 FROM "OrganizationInvitation"
-                   WHERE id = $1 AND "orgId" = $2
-                     AND "acceptedAt" IS NULL AND "revokedAt" IS NULL
-                     AND "expiresAt" > NOW()
-               )"#,
-        )
-        .bind(invitation_id)
-        .bind(org_id)
-        .fetch_one(pool)
-        .await?;
-        if exists {
-            return Ok(invitation_id.to_string());
-        }
-    }
-    create_invitation(pool, config, application, org_id, false).await
+fn beta_package_snapshot() -> Value {
+    json!({
+        "key": BETA_PACKAGE_KEY,
+        "durationDays": DEFAULT_DURATION_DAYS,
+        "credits": DEFAULT_CREDITS,
+        "capabilities": DEFAULT_CAPABILITIES,
+    })
 }
 
-async fn create_invitation(
-    pool: &PgPool,
-    config: &AppConfig,
-    application: &EarlyAccessApplication,
-    org_id: &str,
-    allow_existing_member: bool,
-) -> Result<String, AppError> {
-    let owner = sqlx::query_as::<_, (String, Option<String>)>(
-        r#"SELECT id, name FROM "User" WHERE id = (SELECT "ownerId" FROM "Organization" WHERE id = $1)"#,
-    )
-    .bind(org_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Early-access workspace owner not found".to_string()))?;
-    let invitation = if allow_existing_member {
-        orgs::create_invitation_for_existing_member(
-            pool,
-            config,
-            org_id,
-            &application.business_name,
-            &owner.0,
-            owner
-                .1
-                .as_deref()
-                .or(Some(application.contact_person.as_str())),
-            &application.email,
-            "ADMIN",
-        )
-        .await?
-    } else {
-        orgs::create_invitation(
-            pool,
-            config,
-            org_id,
-            &application.business_name,
-            &owner.0,
-            owner
-                .1
-                .as_deref()
-                .or(Some(application.contact_person.as_str())),
-            &application.email,
-            "ADMIN",
-        )
-        .await?
-    };
-    Ok(invitation.id)
-}
-
-async fn application_capabilities(
-    pool: &PgPool,
-    application: &EarlyAccessApplication,
-    org_id: &str,
-) -> Result<Vec<String>, AppError> {
-    let grant_ids = application
-        .entitlement_grant_ids
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .map(ToString::to_string)
-        .collect::<Vec<_>>();
-    if grant_ids.is_empty() {
-        return selected_capabilities(None);
-    }
-
-    let keys = sqlx::query_scalar::<_, String>(
-        r#"SELECT key
-           FROM "OrganizationEntitlementGrant"
-           WHERE "orgId" = $1 AND id = ANY($2::text[])
-           ORDER BY key"#,
-    )
-    .bind(org_id)
-    .bind(&grant_ids)
-    .fetch_all(pool)
-    .await?;
-    if keys.is_empty() {
-        selected_capabilities(None)
-    } else {
-        selected_capabilities(Some(keys))
+fn valid_package_key(value: Option<&str>) -> Result<&'static str, AppError> {
+    match value.map(str::trim).filter(|value| !value.is_empty()) {
+        None | Some(BETA_PACKAGE_KEY) => Ok(BETA_PACKAGE_KEY),
+        Some(_) => Err(AppError::BadRequest(
+            "Unsupported early-access package".to_string(),
+        )),
     }
 }
 
-async fn restore_organization(
-    pool: &PgPool,
-    config: &AppConfig,
-    application: &EarlyAccessApplication,
-) -> Result<String, AppError> {
-    if let Some(org_id) = application.organization_id.as_deref() {
-        if orgs::get_org(pool, org_id).await?.is_some() {
-            return Ok(org_id.to_string());
-        }
-    }
-
-    let existing_user_id = sqlx::query_scalar::<_, String>(
-        r#"SELECT id FROM "User" WHERE lower(email) = lower($1) LIMIT 1"#,
-    )
-    .bind(&application.email)
-    .fetch_optional(pool)
-    .await?;
-    let user_id = if let Some(user_id) = existing_user_id {
-        user_id
-    } else {
-        let user_id = cuid2::create_id();
-        sqlx::query(
-            r#"INSERT INTO "User" (id, name, email, "createdAt", "updatedAt")
-               VALUES ($1, $2, $3, NOW(), NOW())"#,
-        )
-        .bind(&user_id)
-        .bind(&application.contact_person)
-        .bind(&application.email)
-        .execute(pool)
-        .await?;
-        user_id
-    };
-
-    if let Some(org) = orgs::list_orgs_for_user(pool, &user_id)
-        .await?
-        .into_iter()
-        .next()
-    {
-        link_organization(pool, &application.id, &org.id).await?;
-        return Ok(org.id);
-    }
-
-    let workspace_name = application.business_name.trim();
-    let workspace_name = if workspace_name.is_empty() {
-        "KasiTek workspace".to_string()
-    } else {
-        workspace_name.to_string()
-    };
-    let base_slug = orgs::slugify(&workspace_name);
-    let slug = orgs::unique_slug(pool, &base_slug).await?;
-    let org = orgs::create_org(
-        pool,
-        &user_id,
-        &workspace_name,
-        &slug,
-        None,
-        config.trial_credits,
-        config.trial_duration_days,
-    )
-    .await?;
-    link_organization(pool, &application.id, &org.id).await?;
-    Ok(org.id)
-}
-
-async fn application_has_activated_access(
-    pool: &PgPool,
-    application: &EarlyAccessApplication,
-    org_id: &str,
-) -> Result<bool, AppError> {
-    Ok(sqlx::query_scalar::<_, bool>(
-        r#"SELECT EXISTS(
-               SELECT 1 FROM "ProductWaitlistEvent"
-               WHERE "waitlistEntryId" = $1
-                 AND action IN ('activated', 'workspace_access_granted')
-           ) OR EXISTS(
-               SELECT 1 FROM "OrganizationInvitation"
-               WHERE "orgId" = $2
-                 AND lower(email) = lower($3)
-                 AND "acceptedAt" IS NOT NULL
-           )"#,
-    )
-    .bind(&application.id)
-    .bind(org_id)
-    .bind(&application.email)
-    .fetch_one(pool)
-    .await?)
-}
-
-async fn application_credit_amount(
-    pool: &PgPool,
-    application: &EarlyAccessApplication,
-    org_id: &str,
-) -> Result<i64, AppError> {
-    let amount = if let Some(grant_id) = application.credit_grant_id.as_deref() {
-        sqlx::query_scalar::<_, i64>(
-            r#"SELECT amount FROM "CreditGrant" WHERE id = $1 AND "orgId" = $2"#,
-        )
-        .bind(grant_id)
-        .bind(org_id)
-        .fetch_optional(pool)
-        .await?
-        .unwrap_or(DEFAULT_CREDITS)
-    } else {
-        DEFAULT_CREDITS
-    };
-    if !(1..=MAX_CREDITS).contains(&amount) {
+fn package_parameters(snapshot: Option<&Value>) -> Result<(i64, i64, Vec<String>), AppError> {
+    let snapshot = snapshot.ok_or_else(|| {
+        AppError::Conflict("The approved early-access package is missing".to_string())
+    })?;
+    let key = snapshot.get("key").and_then(Value::as_str).ok_or_else(|| {
+        AppError::Conflict("The approved early-access package is invalid".to_string())
+    })?;
+    valid_package_key(Some(key))?;
+    let duration_days = snapshot
+        .get("durationDays")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| AppError::Conflict("The early-access duration is invalid".to_string()))?;
+    if !(1..=MAX_DURATION_DAYS).contains(&duration_days) {
         return Err(AppError::Conflict(
-            "The original early-access credit allocation is outside the supported limits"
-                .to_string(),
+            "The early-access duration is invalid".to_string(),
         ));
     }
-    Ok(amount)
+    let credits = snapshot
+        .get("credits")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| {
+            AppError::Conflict("The early-access credit allocation is invalid".to_string())
+        })?;
+    if !(1..=MAX_CREDITS).contains(&credits) {
+        return Err(AppError::Conflict(
+            "The early-access credit allocation is invalid".to_string(),
+        ));
+    }
+    let capabilities = snapshot
+        .get("capabilities")
+        .and_then(Value::as_array)
+        .ok_or_else(|| AppError::Conflict("The early-access capabilities are invalid".to_string()))?
+        .iter()
+        .filter_map(Value::as_str)
+        .map(ToString::to_string)
+        .collect();
+    Ok((
+        duration_days,
+        credits,
+        selected_capabilities(Some(capabilities))?,
+    ))
 }
 
-async fn latest_revocation_event_id(
+async fn mark_invitation_delivery(
     pool: &PgPool,
-    application_id: &str,
-) -> Result<Option<String>, AppError> {
-    Ok(sqlx::query_scalar::<_, String>(
-        r#"SELECT id FROM "ProductWaitlistEvent"
-           WHERE "waitlistEntryId" = $1 AND action = 'revoked'
-           ORDER BY "createdAt" DESC, id DESC LIMIT 1"#,
+    invitation_id: &str,
+    delivered: bool,
+) -> Result<(), AppError> {
+    sqlx::query(
+        r#"UPDATE "EarlyAccessInvitation"
+           SET "deliveryStatus" = $1, "deliveryAttempts" = "deliveryAttempts" + 1,
+               "lastDeliveryAttemptAt" = NOW(), "lastDeliveryErrorCode" = $2, "updatedAt" = NOW()
+           WHERE id = $3"#,
     )
-    .bind(application_id)
-    .fetch_optional(pool)
-    .await?)
+    .bind(if delivered { "sent" } else { "failed" })
+    .bind(if delivered {
+        None
+    } else {
+        Some("EMAIL_DELIVERY_FAILED")
+    })
+    .bind(invitation_id)
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
-pub async fn approve_application(
+async fn release_activation_claim(pool: &PgPool, invitation_id: &str) {
+    let _ = sqlx::query(
+        r#"UPDATE "EarlyAccessInvitation"
+           SET status = 'pending', "acceptedAt" = NULL, "updatedAt" = NOW()
+           WHERE id = $1 AND status = 'accepted'"#,
+    )
+    .bind(invitation_id)
+    .execute(pool)
+    .await;
+}
+
+async fn cleanup_activation_workspace(pool: &PgPool, org_id: &str, application_id: &str) {
+    if let Err(error) = orgs::delete_org(pool, org_id).await {
+        observability::tracing::error!(
+            event = "operation.failed",
+            operation = "early_access.activation_workspace_cleanup",
+            application_id = %application_id,
+            organization_id = %org_id,
+            error_type = %std::any::type_name_of_val(&error),
+            "failed to clean up workspace after early-access activation failure"
+        );
+    }
+}
+
+async fn create_signup_invitation(
+    pool: &PgPool,
+    config: &AppConfig,
+    application: &EarlyAccessApplication,
+    actor_id: &str,
+) -> Result<EarlyAccessApplication, AppError> {
+    if !config.early_access_self_service_enabled {
+        return Err(AppError::Conflict(
+            "Early-access self-service is disabled".to_string(),
+        ));
+    }
+    sqlx::query(
+        r#"UPDATE "EarlyAccessInvitation" SET status = 'revoked', "revokedAt" = NOW(), "updatedAt" = NOW()
+           WHERE "waitlistEntryId" = $1 AND status = 'pending'"#,
+    )
+    .bind(&application.id)
+    .execute(pool)
+    .await?;
+    let token = crypto_utils::generate_token(48);
+    let invitation_id = cuid2::create_id();
+    let expires_at = Utc::now() + Duration::days(INVITATION_DAYS);
+    sqlx::query(
+        r#"INSERT INTO "EarlyAccessInvitation"
+           (id, "waitlistEntryId", email, "tokenHash", status, "deliveryStatus", "expiresAt", "createdById", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, 'pending', 'pending', $5, $6, NOW(), NOW())"#,
+    )
+    .bind(&invitation_id)
+    .bind(&application.id)
+    .bind(&application.email)
+    .bind(crypto_utils::sha256_hex(&token))
+    .bind(expires_at)
+    .bind(actor_id)
+    .execute(pool)
+    .await?;
+    let from_status = application.status.clone();
+    sqlx::query(
+        r#"UPDATE "ProductWaitlistEntry"
+           SET status = CASE WHEN status IN ('approved', 'invited') THEN status ELSE 'approved' END,
+               "approvedById" = $1, "approvedAt" = COALESCE("approvedAt", NOW()),
+               "reviewedById" = COALESCE("reviewedById", $1), "reviewedAt" = COALESCE("reviewedAt", NOW()),
+               "earlyAccessInvitationId" = $2, "packageKey" = $3, "packageSnapshot" = $4,
+               "updatedAt" = NOW() WHERE id = $5"#,
+    )
+    .bind(actor_id)
+    .bind(&invitation_id)
+    .bind(BETA_PACKAGE_KEY)
+    .bind(beta_package_snapshot())
+    .bind(&application.id)
+    .execute(pool)
+    .await?;
+    if !matches!(from_status.as_str(), STATUS_APPROVED | STATUS_INVITED) {
+        record_event(
+            pool,
+            &application.id,
+            Some(&from_status),
+            STATUS_APPROVED,
+            if from_status == STATUS_REVOKED {
+                "restored"
+            } else {
+                "approved"
+            },
+            Some(actor_id),
+            None,
+            json!({"packageKey": BETA_PACKAGE_KEY}),
+        )
+        .await?;
+    }
+    let invite_url = format!(
+        "{}/early-access/{}",
+        config.frontend_url.trim_end_matches('/'),
+        token
+    );
+    let delivery = auth::send_email(config, &application.email, "Your KasiTek early access is approved", &format!("Your early access is approved. Create or sign in to your account here:\n{}\n\nThis link expires in 7 days.", invite_url)).await;
+    let delivered = delivery.is_ok();
+    mark_invitation_delivery(pool, &invitation_id, delivered).await?;
+    if delivered {
+        sqlx::query(r#"UPDATE "ProductWaitlistEntry" SET status = 'invited', "updatedAt" = NOW() WHERE id = $1"#)
+            .bind(&application.id).execute(pool).await?;
+        record_event(
+            pool,
+            &application.id,
+            Some(if from_status == STATUS_INVITED {
+                STATUS_INVITED
+            } else {
+                STATUS_APPROVED
+            }),
+            STATUS_INVITED,
+            if from_status == STATUS_INVITED {
+                "invite_resent"
+            } else {
+                "invited"
+            },
+            Some(actor_id),
+            None,
+            json!({"invitationId": invitation_id}),
+        )
+        .await?;
+    }
+    get_application(pool, &application.id)
+        .await
+        .map(|(application, _)| application)
+}
+
+pub async fn approve_self_service_application(
     pool: &PgPool,
     config: &AppConfig,
     application_id: &str,
     actor_id: &str,
     request: ApproveRequest,
 ) -> Result<EarlyAccessApplication, AppError> {
-    let duration_days = request.duration_days.unwrap_or(DEFAULT_DURATION_DAYS);
-    if !(1..=MAX_DURATION_DAYS).contains(&duration_days) {
-        return Err(AppError::BadRequest(format!(
-            "Duration must be between 1 and {MAX_DURATION_DAYS} days"
-        )));
-    }
-    let credits_amount = request.credits.unwrap_or(DEFAULT_CREDITS);
-    if !(1..=MAX_CREDITS).contains(&credits_amount) {
-        return Err(AppError::BadRequest(format!(
-            "Credits must be between 1 and {MAX_CREDITS}"
-        )));
-    }
-    let capabilities = selected_capabilities(request.entitlement_keys)?;
-    let workspace_name = request
-        .workspace_name
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or("KasiTek workspace")
-        .to_string();
-    if workspace_name.len() > 160 {
-        return Err(AppError::BadRequest(
-            "Workspace name is too long".to_string(),
-        ));
-    }
-
-    let mut application = get_application(pool, application_id).await?.0;
-    if application.status == STATUS_ACTIVE {
-        return Ok(application);
-    }
-    if matches!(
-        application.status.as_str(),
-        STATUS_REJECTED | STATUS_REVOKED | STATUS_EXPIRED
-    ) {
+    valid_package_key(request.package_key.as_deref())?;
+    let application = get_application(pool, application_id).await?.0;
+    if application.status == STATUS_REJECTED
+        || application.status == STATUS_REVOKED
+        || application.status == STATUS_EXPIRED
+    {
         return Err(AppError::Conflict(format!(
             "Cannot approve an application in {} state",
             application.status
         )));
     }
-    if application.status == STATUS_NEW {
-        if !transition_allowed(&application.status, STATUS_APPROVED) {
-            return Err(AppError::Conflict(
-                "Application cannot be approved from its current state".to_string(),
-            ));
-        }
-        let from_status = application.status.clone();
-        sqlx::query(
-            r#"UPDATE "ProductWaitlistEntry"
-               SET status = 'approved', "approvedById" = $1, "approvedAt" = NOW(),
-                   "reviewedById" = COALESCE("reviewedById", $1), "reviewedAt" = COALESCE("reviewedAt", NOW()),
-                   "updatedAt" = NOW()
-               WHERE id = $2 AND status = $3"#,
-        )
-        .bind(actor_id)
-        .bind(application_id)
-        .bind(&from_status)
-        .execute(pool)
-        .await?;
-        record_event(
-            pool,
-            application_id,
-            Some(&from_status),
-            STATUS_APPROVED,
-            "approved",
-            Some(actor_id),
-            None,
-            json!({
-                "durationDays": duration_days,
-                "credits": credits_amount,
-                "capabilities": capabilities,
-            }),
-        )
-        .await?;
-        application = get_application(pool, application_id).await?.0;
+    if application.status == STATUS_ACTIVE {
+        return Ok(application);
     }
-
-    let requested_org_id = request
-        .organization_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    let create_workspace_for_existing_account = request
-        .create_workspace_for_existing_account
-        .unwrap_or(false);
-    if requested_org_id.is_some() && create_workspace_for_existing_account {
-        return Err(AppError::BadRequest(
-            "Choose an existing workspace or create a new one, not both".to_string(),
-        ));
-    }
-    if let (Some(linked_org_id), Some(requested_org_id)) =
-        (application.organization_id.as_deref(), requested_org_id)
-    {
-        if linked_org_id != requested_org_id {
-            return Err(AppError::Conflict(
-                "This application is already linked to another workspace".to_string(),
-            ));
+    if let Some(invitation_id) = application.early_access_invitation_id.as_deref() {
+        let pending = sqlx::query_scalar::<_, bool>(r#"SELECT EXISTS(SELECT 1 FROM "EarlyAccessInvitation" WHERE id = $1 AND status = 'pending' AND "expiresAt" > NOW())"#)
+            .bind(invitation_id).fetch_one(pool).await?;
+        if pending {
+            return Ok(application);
         }
     }
-
-    let existing_user_id = if application.organization_id.is_none() {
-        sqlx::query_scalar::<_, String>(
-            r#"SELECT id FROM "User" WHERE lower(email) = lower($1) LIMIT 1"#,
-        )
-        .bind(&application.email)
-        .fetch_optional(pool)
-        .await?
-    } else {
-        None
-    };
-    let mut existing_account_access = false;
-    let org_id = if let Some(org_id) = application.organization_id.clone() {
-        org_id
-    } else if let Some(requested_org_id) = requested_org_id {
-        let user_id = existing_user_id.as_deref().ok_or_else(|| {
-            AppError::Conflict(
-                "The applicant account is no longer available. Reload the workspace options and try again.".to_string(),
-            )
-        })?;
-        let belongs_to_account = sqlx::query_scalar::<_, bool>(
-            r#"SELECT EXISTS(
-                   SELECT 1 FROM "Organization" o
-                   WHERE o.id = $1
-                     AND (o."ownerId" = $2 OR EXISTS(
-                         SELECT 1 FROM "OrganizationMember" m
-                         WHERE m."orgId" = o.id AND m."userId" = $2
-                     ))
-               )"#,
-        )
-        .bind(requested_org_id)
-        .bind(user_id)
-        .fetch_one(pool)
-        .await?;
-        if !belongs_to_account {
-            return Err(AppError::Conflict(
-                "The selected workspace is not associated with the applicant account".to_string(),
-            ));
-        }
-        existing_account_access = true;
-        link_organization(pool, application_id, requested_org_id).await?;
-        requested_org_id.to_string()
-    } else if let Some(user_id) = existing_user_id.as_deref() {
-        if !create_workspace_for_existing_account {
-            return Err(AppError::Conflict(
-                "Choose an existing workspace or select Create new workspace for this account"
-                    .to_string(),
-            ));
-        }
-        existing_account_access = true;
-        let base_slug = orgs::slugify(&workspace_name);
-        let slug = orgs::unique_slug(pool, &base_slug).await?;
-        let org = orgs::create_org(
-            pool,
-            user_id,
-            &workspace_name,
-            &slug,
-            None,
-            config.trial_credits,
-            config.trial_duration_days,
-        )
-        .await?;
-        link_organization(pool, application_id, &org.id).await?;
-        org.id
-    } else {
-        if create_workspace_for_existing_account {
-            return Err(AppError::Conflict(
-                "The applicant account is no longer available. Reload the workspace options and try again.".to_string(),
-            ));
-        }
-        let user_id = cuid2::create_id();
-        sqlx::query(
-            r#"INSERT INTO "User" (id, name, email, "createdAt", "updatedAt") VALUES ($1, $2, $3, NOW(), NOW())"#,
-        )
-        .bind(&user_id)
-        .bind(&application.contact_person)
-        .bind(&application.email)
-        .execute(pool)
-        .await?;
-        let base_slug = orgs::slugify(&workspace_name);
-        let slug = orgs::unique_slug(pool, &base_slug).await?;
-        let org = orgs::create_org(
-            pool,
-            &user_id,
-            &workspace_name,
-            &slug,
-            None,
-            config.trial_credits,
-            config.trial_duration_days,
-        )
-        .await?;
-        link_organization(pool, application_id, &org.id).await?;
-        org.id
-    };
-    application = get_application(pool, application_id).await?.0;
-
-    let ends_at = application
-        .early_access_ends_at
-        .unwrap_or_else(|| Utc::now() + Duration::days(duration_days));
-    let grant_reason = format!("Early-access approval {}", application.id);
-    let mut entitlement_ids = application
-        .entitlement_grant_ids
-        .as_array()
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|value| value.as_str().map(ToString::to_string))
-        .collect::<Vec<_>>();
-    for key in &capabilities {
-        let grant_id =
-            ensure_entitlement_grant(pool, &org_id, key, ends_at, &grant_reason, actor_id).await?;
-        if !entitlement_ids.contains(&grant_id) {
-            entitlement_ids.push(grant_id);
-        }
-    }
-    let credit_result = credits::grant_system_credits(
-        pool,
-        &org_id,
-        credits_amount,
-        "EARLY_ACCESS",
-        Some(ends_at),
-        &grant_reason,
-        Some(&format!("early-access:{}", application.id)),
-        Some(&json!({ "applicationId": application.id, "capabilities": capabilities })),
-        &format!("early-access-credits:{}", application.id),
-    )
-    .await?;
-    let target_status = if existing_account_access {
-        STATUS_ACTIVE
-    } else {
-        STATUS_INVITED
-    };
-    let invitation_id = if existing_account_access {
-        None
-    } else {
-        Some(ensure_invitation(pool, config, &application, &org_id).await?)
-    };
-    sqlx::query(
-        r#"UPDATE "ProductWaitlistEntry"
-           SET status = $1, "organizationId" = $2, "invitationId" = $3,
-               "earlyAccessEndsAt" = $4, "entitlementGrantIds" = $5,
-               "creditGrantId" = COALESCE("creditGrantId", $6),
-               "activatedAt" = CASE WHEN $1 = 'active' THEN COALESCE("activatedAt", NOW()) ELSE "activatedAt" END,
-               "updatedAt" = NOW()
-           WHERE id = $7"#,
-    )
-    .bind(target_status)
-    .bind(&org_id)
-    .bind(invitation_id.as_deref())
-    .bind(ends_at)
-    .bind(json!(entitlement_ids))
-    .bind(credit_result.grant_id.as_deref())
-    .bind(application_id)
-    .execute(pool)
-    .await?;
-    if application.status != target_status {
-        record_event(
-            pool,
-            application_id,
-            Some(&application.status),
-            target_status,
-            if existing_account_access {
-                "workspace_access_granted"
-            } else {
-                "invited"
-            },
-            Some(actor_id),
-            None,
-            json!({
-                "organizationId": org_id,
-                "invitationId": invitation_id,
-                "existingAccount": existing_account_access,
-            }),
-        )
-        .await?;
-        let _ = website::publish_admin_notification(
-            pool,
-            if existing_account_access {
-                "early_access.granted"
-            } else {
-                "early_access.invited"
-            },
-            if existing_account_access {
-                "Early access granted"
-            } else {
-                "Early-access invitation sent"
-            },
-            &if existing_account_access {
-                format!(
-                    "{} was granted early access in an existing workspace.",
-                    application.business_name
-                )
-            } else {
-                format!(
-                    "{} was approved for early access.",
-                    application.business_name
-                )
-            },
-            "product_waitlist_entry",
-            application_id,
-            json!({ "organizationId": org_id, "invitationId": invitation_id }),
-            &format!(
-                "early_access.{}:{application_id}",
-                if existing_account_access {
-                    "granted"
-                } else {
-                    "invited"
-                }
-            ),
-        )
-        .await;
-    }
-    get_application(pool, application_id)
-        .await
-        .map(|(application, _)| application)
+    create_signup_invitation(pool, config, &application, actor_id).await
 }
 
-pub async fn resend_invitation(
+pub async fn batch_approve_self_service(
+    pool: &PgPool,
+    config: &AppConfig,
+    actor_id: &str,
+    request: BatchApproveRequest,
+) -> Result<BatchApproveResponse, AppError> {
+    valid_package_key(request.package_key.as_deref())?;
+    if request.application_ids.is_empty() || request.application_ids.len() > 100 {
+        return Err(AppError::BadRequest(
+            "Select between 1 and 100 applications".to_string(),
+        ));
+    }
+    let mut seen = std::collections::HashSet::new();
+    if request
+        .application_ids
+        .iter()
+        .any(|id| id.trim().is_empty() || !seen.insert(id))
+    {
+        return Err(AppError::BadRequest(
+            "Application IDs must be unique".to_string(),
+        ));
+    }
+    let requested = request.application_ids.len();
+    let mut results = Vec::with_capacity(requested);
+    let mut approved = 0;
+    let mut invited = 0;
+    let mut already_processed = 0;
+    let mut failed = 0;
+    for id in request.application_ids {
+        match approve_self_service_application(
+            pool,
+            config,
+            &id,
+            actor_id,
+            ApproveRequest {
+                package_key: Some(BETA_PACKAGE_KEY.to_string()),
+            },
+        )
+        .await
+        {
+            Ok(application) => {
+                if application.invitation_delivery_status.as_deref() == Some("failed") {
+                    failed += 1;
+                } else if application.status == STATUS_INVITED {
+                    invited += 1;
+                } else {
+                    approved += 1;
+                }
+                results.push(BatchApproveResult {
+                    id,
+                    outcome: if application.invitation_delivery_status.as_deref() == Some("failed")
+                    {
+                        "failed"
+                    } else if application.status == STATUS_INVITED {
+                        "invited"
+                    } else {
+                        "approved"
+                    }
+                    .to_string(),
+                    status: application.status,
+                    error_code: (application.invitation_delivery_status.as_deref()
+                        == Some("failed"))
+                    .then_some("EMAIL_DELIVERY_FAILED".to_string()),
+                });
+            }
+            Err(AppError::Conflict(_)) => {
+                already_processed += 1;
+                results.push(BatchApproveResult {
+                    id,
+                    outcome: "skipped".to_string(),
+                    status: "unchanged".to_string(),
+                    error_code: Some("NOT_APPROVABLE".to_string()),
+                });
+            }
+            Err(_) => {
+                failed += 1;
+                results.push(BatchApproveResult {
+                    id,
+                    outcome: "failed".to_string(),
+                    status: "unchanged".to_string(),
+                    error_code: Some("APPROVAL_FAILED".to_string()),
+                });
+            }
+        }
+    }
+    Ok(BatchApproveResponse {
+        requested,
+        approved,
+        invited,
+        already_processed,
+        failed,
+        results,
+    })
+}
+
+pub async fn resend_self_service_invitation(
     pool: &PgPool,
     config: &AppConfig,
     application_id: &str,
@@ -1101,44 +894,196 @@ pub async fn resend_invitation(
     let application = get_application(pool, application_id).await?.0;
     if !matches!(
         application.status.as_str(),
-        STATUS_APPROVED | STATUS_INVITED | STATUS_ACTIVE
+        STATUS_APPROVED | STATUS_INVITED
     ) {
         return Err(AppError::Conflict(
-            "Only approved, invited, or active applications without a redeemed invitation can be resent".to_string(),
+            "Only approved or invited applications can be resent".to_string(),
         ));
     }
-    if application.status == STATUS_ACTIVE && application.invitation_accepted_at.is_some() {
-        return Err(AppError::Conflict(
-            "This early-access invitation has already been redeemed".to_string(),
-        ));
-    }
-    let org_id = application.organization_id.as_deref().ok_or_else(|| {
-        AppError::Conflict("This application has not finished workspace provisioning".to_string())
-    })?;
-    let invitation_id = create_invitation(pool, config, &application, org_id, true).await?;
-    let target_status = if application.status == STATUS_ACTIVE {
-        STATUS_ACTIVE
-    } else {
-        STATUS_INVITED
-    };
-    sqlx::query(r#"UPDATE "ProductWaitlistEntry" SET status = $1, "invitationId" = $2, "updatedAt" = NOW() WHERE id = $3"#)
-        .bind(target_status)
-        .bind(&invitation_id)
-        .bind(application_id)
-        .execute(pool)
-        .await?;
-    record_event(
-        pool,
-        application_id,
-        Some(&application.status),
-        target_status,
-        "invite_resent",
-        Some(actor_id),
-        None,
-        json!({ "invitationId": invitation_id }),
+    create_signup_invitation(pool, config, &application, actor_id).await
+}
+
+pub async fn signup_invitation_preview(
+    pool: &PgPool,
+    token: &str,
+) -> Result<SignupInvitationPreview, AppError> {
+    expire_due_invitations(pool).await?;
+    let hash = crypto_utils::sha256_hex(token);
+    let preview = sqlx::query_as::<_, SignupInvitationPreview>(r#"SELECT i.email, i.status, i."expiresAt" AT TIME ZONE 'UTC' AS expires_at, w."businessName" AS business_name FROM "EarlyAccessInvitation" i JOIN "ProductWaitlistEntry" w ON w.id = i."waitlistEntryId" WHERE i."tokenHash" = $1"#)
+        .bind(hash).fetch_optional(pool).await?.ok_or_else(|| AppError::NotFound("Early-access invitation not found".to_string()))?;
+    Ok(preview)
+}
+
+pub async fn activate_signup_invitation(
+    pool: &PgPool,
+    token: &str,
+    user_id: &str,
+    request: ActivateSignupInvitationRequest,
+) -> Result<EarlyAccessApplication, AppError> {
+    let _activation_guard = ACTIVATION_GUARD
+        .get_or_init(|| tokio::sync::Mutex::new(()))
+        .lock()
+        .await;
+    expire_due_invitations(pool).await?;
+    let hash = crypto_utils::sha256_hex(token);
+    let row = sqlx::query_as::<_, (String, String, String, String, DateTime<Utc>)>(
+        r#"SELECT i.id, i."waitlistEntryId", i.email, i.status,
+                  i."expiresAt" AT TIME ZONE 'UTC' AS expires_at
+           FROM "EarlyAccessInvitation" i
+           WHERE i."tokenHash" = $1"#,
     )
+    .bind(hash)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| {
+        AppError::Conflict("This invitation is invalid, expired, or already used".to_string())
+    })?;
+    let user_email = sqlx::query_scalar::<_, String>(r#"SELECT email FROM "User" WHERE id = $1"#)
+        .bind(user_id)
+        .fetch_one(pool)
+        .await?;
+    if !user_email.eq_ignore_ascii_case(&row.2) {
+        return Err(AppError::Forbidden(
+            "Sign in with the approved email address".to_string(),
+        ));
+    }
+
+    let application = get_application(pool, &row.1).await?.0;
+    if row.3 == "accepted" {
+        if application.status == STATUS_ACTIVE && application.organization_id.is_some() {
+            return Ok(application);
+        }
+        return Err(AppError::Conflict(
+            "This invitation was accepted but activation did not complete".to_string(),
+        ));
+    }
+    if row.3 != "pending" || row.4 <= Utc::now() {
+        return Err(AppError::Conflict(
+            "This invitation is invalid, expired, or already used".to_string(),
+        ));
+    }
+
+    let (existing_org_id, new_workspace) = if let Some(org_id) = request
+        .organization_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        orgs::require_admin(pool, org_id, user_id).await?;
+        (Some(org_id.to_string()), None)
+    } else {
+        let name = required_text(request.workspace_name.as_deref(), "Workspace name", 80)?;
+        let slug = orgs::unique_slug(pool, &orgs::slugify(&name)).await?;
+        (None, Some((name, slug)))
+    };
+    let (duration_days, credits_amount, capabilities) =
+        package_parameters(application.package_snapshot.as_ref())?;
+
+    let claimed = sqlx::query_scalar::<_, String>(
+        r#"UPDATE "EarlyAccessInvitation"
+           SET status = 'accepted', "acceptedAt" = NOW(), "updatedAt" = NOW()
+           WHERE id = $1 AND status = 'pending' AND "expiresAt" > NOW()
+           RETURNING id"#,
+    )
+    .bind(&row.0)
+    .fetch_optional(pool)
     .await?;
-    get_application(pool, application_id)
+    if claimed.is_none() {
+        return Err(AppError::Conflict(
+            "This invitation is invalid, expired, or already used".to_string(),
+        ));
+    }
+
+    let (org_id, created_workspace) = if let Some(org_id) = existing_org_id {
+        (org_id, false)
+    } else {
+        let (name, slug) = new_workspace
+            .ok_or_else(|| AppError::Conflict("Workspace name is required".to_string()))?;
+        match orgs::create_org(pool, user_id, &name, &slug, None, 0, duration_days).await {
+            Ok(org) => (org.id, true),
+            Err(error) => {
+                release_activation_claim(pool, &row.0).await;
+                return Err(error);
+            }
+        }
+    };
+    let ends_at = Utc::now() + Duration::days(duration_days);
+    let reason = format!("Early-access package {}", BETA_PACKAGE_KEY);
+    let grants_result: Result<Vec<String>, AppError> = async {
+        let mut grants = Vec::new();
+        for key in &capabilities {
+            grants.push(
+                ensure_entitlement_grant(pool, &org_id, key, ends_at, &reason, user_id).await?,
+            );
+        }
+        Ok(grants)
+    }
+    .await;
+    let grants = match grants_result {
+        Ok(grants) => grants,
+        Err(error) => {
+            if created_workspace {
+                cleanup_activation_workspace(pool, &org_id, &application.id).await;
+            }
+            release_activation_claim(pool, &row.0).await;
+            return Err(error);
+        }
+    };
+    let credit = match credits::grant_system_credits(
+        pool,
+        &org_id,
+        credits_amount,
+        "EARLY_ACCESS",
+        Some(ends_at),
+        &reason,
+        Some(user_id),
+        Some(&json!({"applicationId": application.id, "packageKey": BETA_PACKAGE_KEY})),
+        &format!("early-access-credits:{}", application.id),
+    )
+    .await
+    {
+        Ok(credit) => credit,
+        Err(error) => {
+            if created_workspace {
+                cleanup_activation_workspace(pool, &org_id, &application.id).await;
+            }
+            release_activation_claim(pool, &row.0).await;
+            return Err(error);
+        }
+    };
+    let application_update = sqlx::query(r#"UPDATE "ProductWaitlistEntry" SET status = 'active', "organizationId" = $1, "activatedAt" = NOW(), "earlyAccessEndsAt" = $2, "entitlementGrantIds" = $3, "creditGrantId" = $4, "updatedAt" = NOW() WHERE id = $5 AND status IN ('approved', 'invited')"#)
+        .bind(&org_id).bind(ends_at).bind(json!(grants)).bind(credit.grant_id).bind(&application.id).execute(pool).await?;
+    if application_update.rows_affected() != 1 {
+        if created_workspace {
+            cleanup_activation_workspace(pool, &org_id, &application.id).await;
+        }
+        release_activation_claim(pool, &row.0).await;
+        return Err(AppError::Conflict(
+            "This application is no longer available for activation".to_string(),
+        ));
+    }
+    if let Err(error) = record_event(
+        pool,
+        &application.id,
+        Some(&application.status),
+        STATUS_ACTIVE,
+        "activated",
+        Some(user_id),
+        None,
+        json!({"organizationId": org_id, "packageKey": BETA_PACKAGE_KEY}),
+    )
+    .await
+    {
+        observability::tracing::error!(
+            event = "operation.failed",
+            operation = "early_access.activation_audit",
+            application_id = %application.id,
+            invitation_id = %row.0,
+            error_type = %std::any::type_name_of_val(&error),
+            "early-access activation succeeded but audit event recording failed"
+        );
+    }
+    get_application(pool, &application.id)
         .await
         .map(|(application, _)| application)
 }
@@ -1157,85 +1102,13 @@ pub async fn restore_application(
             "Only revoked applications can have access restored".to_string(),
         ));
     }
-    let org_id = restore_organization(pool, config, &application).await?;
-    let now = Utc::now();
-    let ends_at = application
-        .early_access_ends_at
-        .filter(|value| *value > now)
-        .unwrap_or_else(|| now + Duration::days(DEFAULT_DURATION_DAYS));
-    let capabilities = application_capabilities(pool, &application, &org_id).await?;
-    let grant_reason = format!("Early-access restoration {}", application.id);
-    let mut entitlement_ids = application
-        .entitlement_grant_ids
-        .as_array()
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|value| value.as_str().map(ToString::to_string))
-        .collect::<Vec<_>>();
-    for key in &capabilities {
-        let grant_id =
-            ensure_entitlement_grant(pool, &org_id, key, ends_at, &grant_reason, actor_id).await?;
-        if !entitlement_ids.contains(&grant_id) {
-            entitlement_ids.push(grant_id);
-        }
-    }
 
-    let revocation_event_id = latest_revocation_event_id(pool, application_id)
-        .await?
-        .unwrap_or_else(|| application.updated_at.timestamp_millis().to_string());
-    let credit_amount = application_credit_amount(pool, &application, &org_id).await?;
-    let activated_access = application_has_activated_access(pool, &application, &org_id).await?;
-    let credit_grant_id = credits::grant_system_credits(
-        pool,
-        &org_id,
-        credit_amount,
-        "EARLY_ACCESS",
-        Some(ends_at),
-        &grant_reason,
-        Some(&format!("early-access:{application_id}")),
-        Some(&json!({
-            "applicationId": application_id,
-            "capabilities": capabilities,
-            "restoredFromCreditGrantId": application.credit_grant_id.clone(),
-            "revocationEventId": revocation_event_id.clone(),
-        })),
-        &format!("early-access-restore-credits:{application_id}:{revocation_event_id}"),
-    )
-    .await?
-    .grant_id
-    .ok_or_else(|| AppError::Conflict("Restored credit grant was not created".to_string()))?;
-
-    let target_status = if activated_access {
-        STATUS_ACTIVE
-    } else {
-        STATUS_INVITED
-    };
-    let invitation_id = if target_status == STATUS_INVITED {
-        Some(create_invitation(pool, config, &application, &org_id, true).await?)
-    } else {
-        application.invitation_id.clone()
-    };
-    if !transition_allowed(&application.status, target_status) {
-        return Err(AppError::Conflict(
-            "Early-access access cannot be restored from its current state".to_string(),
-        ));
-    }
     sqlx::query(
         r#"UPDATE "ProductWaitlistEntry"
-           SET status = $1, "decisionReason" = $2, "invitationId" = $3,
-               "earlyAccessEndsAt" = $4, "entitlementGrantIds" = $5,
-               "creditGrantId" = $6,
-               "activatedAt" = CASE WHEN $1 = 'active' THEN COALESCE("activatedAt", NOW()) ELSE NULL END,
-               "updatedAt" = NOW()
-           WHERE id = $7 AND status = 'revoked'"#,
+           SET status = 'approved', "decisionReason" = $1, "updatedAt" = NOW()
+           WHERE id = $2 AND status = 'revoked'"#,
     )
-    .bind(target_status)
     .bind(&reason)
-    .bind(invitation_id.as_deref())
-    .bind(ends_at)
-    .bind(json!(entitlement_ids))
-    .bind(&credit_grant_id)
     .bind(application_id)
     .execute(pool)
     .await?;
@@ -1243,35 +1116,16 @@ pub async fn restore_application(
         pool,
         application_id,
         Some(STATUS_REVOKED),
-        target_status,
+        STATUS_APPROVED,
         "restored",
         Some(actor_id),
         Some(&reason),
-        json!({
-            "organizationId": org_id,
-            "invitationId": invitation_id.clone(),
-            "creditGrantId": credit_grant_id.clone(),
-            "restoredFromRevocationEventId": revocation_event_id.clone(),
-        }),
+        json!({}),
     )
     .await?;
-    let _ = website::publish_admin_notification(
-        pool,
-        "early_access.restored",
-        "Early access restored",
-        &format!(
-            "Early access for {} was restored.",
-            application.business_name
-        ),
-        "product_waitlist_entry",
-        application_id,
-        json!({ "organizationId": org_id, "invitationId": invitation_id }),
-        &format!("early_access.restored:{application_id}:{revocation_event_id}"),
-    )
-    .await;
-    get_application(pool, application_id)
-        .await
-        .map(|(application, _)| application)
+
+    let application = get_application(pool, application_id).await?.0;
+    create_signup_invitation(pool, config, &application, actor_id).await
 }
 
 pub async fn revoke_application(
@@ -1282,6 +1136,9 @@ pub async fn revoke_application(
 ) -> Result<EarlyAccessApplication, AppError> {
     let reason = required_text(Some(reason), "Revocation reason", 2_000)?;
     let application = get_application(pool, application_id).await?.0;
+    if application.status == STATUS_REVOKED {
+        return Ok(application);
+    }
     if !matches!(
         application.status.as_str(),
         STATUS_APPROVED | STATUS_INVITED | STATUS_ACTIVE
@@ -1290,12 +1147,14 @@ pub async fn revoke_application(
             "Only approved, invited, or active access can be revoked".to_string(),
         ));
     }
-    if let (Some(org_id), Some(invitation_id)) = (
-        application.organization_id.as_deref(),
-        application.invitation_id.as_deref(),
-    ) {
-        let _ = orgs::revoke_invitation(pool, org_id, invitation_id).await;
-    }
+    sqlx::query(
+        r#"UPDATE "EarlyAccessInvitation"
+           SET status = 'revoked', "revokedAt" = NOW(), "updatedAt" = NOW()
+           WHERE "waitlistEntryId" = $1 AND status = 'pending'"#,
+    )
+    .bind(application_id)
+    .execute(pool)
+    .await?;
     if let Some(org_id) = application.organization_id.as_deref() {
         for grant_id in application
             .entitlement_grant_ids
@@ -1350,35 +1209,6 @@ pub async fn revoke_application(
     get_application(pool, application_id)
         .await
         .map(|(application, _)| application)
-}
-
-pub async fn mark_activated(pool: &PgPool, org_id: &str, user_id: &str) -> Result<(), AppError> {
-    expire_due_access(pool).await?;
-    let applications = sqlx::query_as::<_, (String, String)>(
-        r#"SELECT id, status FROM "ProductWaitlistEntry"
-           WHERE "organizationId" = $1 AND status = 'invited'"#,
-    )
-    .bind(org_id)
-    .fetch_all(pool)
-    .await?;
-    for (application_id, status) in applications {
-        sqlx::query(r#"UPDATE "ProductWaitlistEntry" SET status = 'active', "activatedAt" = COALESCE("activatedAt", NOW()), "updatedAt" = NOW() WHERE id = $1 AND status = 'invited'"#)
-            .bind(&application_id)
-            .execute(pool)
-            .await?;
-        record_event(
-            pool,
-            &application_id,
-            Some(&status),
-            STATUS_ACTIVE,
-            "activated",
-            Some(user_id),
-            None,
-            json!({ "organizationId": org_id }),
-        )
-        .await?;
-    }
-    Ok(())
 }
 
 pub async fn status_for_org(pool: &PgPool, org_id: &str) -> Result<Option<Value>, AppError> {
@@ -1447,7 +1277,9 @@ pub async fn expire_due_access(pool: &PgPool) -> Result<(), AppError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{selected_capabilities, transition_allowed};
+    use super::{
+        beta_package_snapshot, package_parameters, selected_capabilities, transition_allowed,
+    };
 
     #[test]
     fn lifecycle_transitions_allow_approval_activation_and_reversal() {
@@ -1469,5 +1301,27 @@ mod tests {
         assert_eq!(defaults.len(), 5);
         assert!(selected_capabilities(Some(vec!["feature.inbox.access".to_string()])).is_ok());
         assert!(selected_capabilities(Some(vec!["feature.admin.root".to_string()])).is_err());
+    }
+
+    #[test]
+    fn beta_package_snapshot_is_the_activation_source() {
+        let snapshot = beta_package_snapshot();
+        let (duration_days, credits, capabilities) =
+            package_parameters(Some(&snapshot)).expect("beta package should be valid");
+        assert_eq!(duration_days, 30);
+        assert_eq!(credits, 1_000);
+        assert_eq!(capabilities.len(), 5);
+    }
+
+    #[test]
+    fn invalid_package_snapshots_are_rejected() {
+        let invalid = serde_json::json!({
+            "key": "beta-unknown",
+            "durationDays": 30,
+            "credits": 1_000,
+            "capabilities": ["feature.analytics.view"]
+        });
+        assert!(package_parameters(Some(&invalid)).is_err());
+        assert!(package_parameters(None).is_err());
     }
 }

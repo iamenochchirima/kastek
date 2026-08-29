@@ -21,6 +21,8 @@ pub struct AppConfig {
     pub public_api_rate_limit_per_minute: u32,
     pub auth_url: String,
     pub private_release_mode: bool,
+    /// Kill switch for issuing and redeeming early-access signup invitations.
+    pub early_access_self_service_enabled: bool,
     #[allow(dead_code)]
     pub session_secret: String,
     pub resend_api_key: Option<String>,
@@ -106,6 +108,12 @@ impl AppConfig {
         };
         let private_release_mode =
             !env_string_or("KASITEK_ACCESS_MODE", "private").eq_ignore_ascii_case("public");
+        let early_access_self_service_enabled = !matches!(
+            env_optional("EARLY_ACCESS_SELF_SERVICE_ENABLED")
+                .map(|value| value.to_ascii_lowercase())
+                .as_deref(),
+            Some("0" | "false" | "no" | "off")
+        );
 
         let agents_api_url = env_optional("AGENTS_API_URL").map(|value| {
             normalize_http_origin(&value)
@@ -137,6 +145,7 @@ impl AppConfig {
             .clamp(1, 10_000),
             auth_url: frontend_url,
             private_release_mode,
+            early_access_self_service_enabled,
             session_secret: env_optional("SESSION_SECRET")
                 .or_else(|| env_optional("AUTH_SECRET"))
                 .unwrap_or_else(|| "kasitek-dev-session-secret".to_string()),

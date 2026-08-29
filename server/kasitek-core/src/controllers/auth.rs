@@ -14,6 +14,7 @@ use crate::middleware::extract_user_allow_unverified;
 use crate::services::auth::{
     create_session, delete_session, issue_verification_token, send_email, send_sms_message,
 };
+use crate::services::early_access;
 use crate::services::orgs;
 use crate::services::referrals;
 
@@ -82,14 +83,38 @@ pub async fn signup(
     config: web::Data<AppConfig>,
     body: web::Json<SignupRequest>,
 ) -> Result<HttpResponse, AppError> {
-    if config.private_release_mode {
+    let email = body.email.trim().to_lowercase();
+    let early_access_token = body
+        .early_access_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if early_access_token.is_some() && !config.early_access_self_service_enabled {
+        return Err(AppError::Conflict(
+            "Early-access self-service is temporarily unavailable".to_string(),
+        ));
+    }
+    let early_access_invitation = if let Some(token) = early_access_token {
+        let invitation = early_access::signup_invitation_preview(pool.get_ref(), token).await?;
+        if invitation.status != "pending"
+            || invitation.expires_at <= chrono::Utc::now()
+            || !invitation.email.eq_ignore_ascii_case(&email)
+        {
+            return Err(AppError::Forbidden(
+                "This early-access invitation is not valid for this email".to_string(),
+            ));
+        }
+        Some(token)
+    } else {
+        None
+    };
+    if config.private_release_mode && early_access_invitation.is_none() {
         return Ok(HttpResponse::Forbidden().json(serde_json::json!({
             "error": "KasiTek is currently available by invitation only.",
             "code": "SIGNUP_INVITE_ONLY"
         })));
     }
 
-    let email = body.email.trim().to_lowercase();
     let password = body.password.trim();
 
     if email.is_empty() || password.is_empty() {
@@ -213,7 +238,20 @@ pub async fn signup(
     .execute(pool.get_ref())
     .await?;
 
-    // Auto-create personal organisation for new user
+    if let Some(_token) = early_access_invitation {
+        sqlx::query(r#"UPDATE "User" SET "emailVerified" = NOW() WHERE id = $1"#)
+            .bind(&user_id)
+            .execute(pool.get_ref())
+            .await?;
+        let session_token = create_session(pool.get_ref(), &user_id).await?;
+        return Ok(HttpResponse::Ok()
+            .cookie(config.build_user_session_cookie(&session_token))
+            .json(serde_json::json!({
+                "message": "Account created.", "userId": user_id
+            })));
+    }
+
+    // Auto-create personal organisation for ordinary public signup.
     let org_name = body
         .name
         .as_ref()

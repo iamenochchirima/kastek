@@ -1107,13 +1107,17 @@ model ProductWaitlistEntry {
   approvedById         String?
   approvedAt           DateTime?
   organizationId       String?
-  invitationId         String?
+  earlyAccessInvitationId String? @unique
+  packageKey           String?
+  packageSnapshot      Json?
   activatedAt          DateTime?
   earlyAccessEndsAt    DateTime?
   entitlementGrantIds  Json                  @default("[]")
   creditGrantId        String?
 
   events ProductWaitlistEvent[]
+  earlyAccessInvitation EarlyAccessInvitation? @relation("CurrentEarlyAccessInvitation", fields: [earlyAccessInvitationId], references: [id], onDelete: SetNull)
+  earlyAccessInvitations EarlyAccessInvitation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1124,6 +1128,29 @@ model ProductWaitlistEntry {
   @@index([organizationId])
   @@index([earlyAccessEndsAt])
   @@index([source])
+}
+
+model EarlyAccessInvitation {
+  id                    String   @id @default(cuid())
+  waitlistEntryId       String
+  waitlistEntry         ProductWaitlistEntry @relation(fields: [waitlistEntryId], references: [id], onDelete: Cascade)
+  currentFor            ProductWaitlistEntry? @relation("CurrentEarlyAccessInvitation")
+  email                 String
+  tokenHash             String   @unique
+  status                String   @default("pending")
+  deliveryStatus        String   @default("pending")
+  deliveryAttempts      Int      @default(0)
+  lastDeliveryAttemptAt DateTime?
+  lastDeliveryErrorCode String?
+  expiresAt             DateTime
+  acceptedAt            DateTime?
+  revokedAt             DateTime?
+  createdById           String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([waitlistEntryId, status])
+  @@index([status, expiresAt])
 }
 
 model ProductWaitlistEvent {

@@ -19,6 +19,8 @@ cargo run
 
 KasiTek starts in invitation-only mode. Set `KASITEK_ACCESS_MODE=private` (or leave it unset) while access is controlled: public signup is blocked, but activated users continue to sign in normally and invitation links can create their accounts.
 
+Early-access self-service invitations are enabled by default. Set `EARLY_ACCESS_SELF_SERVICE_ENABLED=false` to stop new early-access approval, signup, and activation while preserving existing records.
+
 When the release is ready for public registration, set `KASITEK_ACCESS_MODE=public` on the core backend and `NEXT_PUBLIC_KASITEK_ACCESS_MODE=public` on the client app, then redeploy both services. Existing invitations and normal login continue to work in either mode.
 
 During the controlled Agent Platform testing phase, commercial feature and usage-limit enforcement

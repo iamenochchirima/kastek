@@ -179,6 +179,7 @@ mod tests {
             public_api_rate_limit_per_minute: 120,
             auth_url: "http://localhost:3000".to_string(),
             private_release_mode: true,
+            early_access_self_service_enabled: true,
             session_secret: "test".to_string(),
             resend_api_key: None,
             resend_from_email: "test@example.com".to_string(),

@@ -20,6 +20,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         web::get().to(early_access::status),
     );
     cfg.service(
+        web::scope("/api/early-access/invitations")
+            .route("/{token}", web::get().to(early_access::invitation_preview))
+            .route(
+                "/{token}/activate",
+                web::post().to(early_access::activate_invitation),
+            ),
+    );
+    cfg.service(
         web::scope("/api/analytics")
             .route("/catalog", web::get().to(analytics::catalog))
             .route("/query", web::post().to(analytics::query)),
