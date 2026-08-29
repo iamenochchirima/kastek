@@ -38,12 +38,12 @@ export function LabsHeader({ home = false, tone = "dark" }: LabsHeaderProps) {
         <a href={`${sectionPrefix}#approach`}>Services</a>
         <a href={`${sectionPrefix}#partners`}>Partnership</a>
         <Link href="/pricing">Pricing</Link>
-        <Link href="/early-access">Early access</Link>
+        <Link href="/get-quote">Get a quote</Link>
       </nav>
 
       <div className="header-actions">
-        <Link className="header-cta header-cta-quote" href="/get-quote">
-          Get a quote
+        <Link className="header-cta header-cta-secondary" href="/early-access">
+          Early access
         </Link>
         <a className="header-cta" href={appUrl} target="_blank" rel="noreferrer">
           Get started

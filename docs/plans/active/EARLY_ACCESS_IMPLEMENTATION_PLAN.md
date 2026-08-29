@@ -178,8 +178,8 @@ remain a simple product-status label.
 8. [x] Add durable invitation retry behavior, admin notifications, structured lifecycle logs, and
    idempotency.
 9. [x] Add unit, database integration, and HTTP smoke tests for the implemented paths.
-10. [x] Align the private-mode app gateway and authentication screens with invitation-only access,
-    including a visible request-early-access path.
+10. [x] Align the private-mode app gateway, authentication screens, and Labs primary CTA with
+    invitation-only access, including a visible request-early-access path.
 11. [x] Add invitation link/token redemption and a branded invitation-required OAuth error path.
 12. [x] Reject uninvited Google accounts before user creation and allow recovery of orphaned OAuth
     rows through invitation activation.
