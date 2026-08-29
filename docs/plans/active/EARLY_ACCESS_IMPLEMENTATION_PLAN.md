@@ -150,7 +150,8 @@ Add an admin application surface under the existing access area:
 - approve with a cohort, expiry, entitlements, and credit budget;
 - provision and send an invitation idempotently;
 - resend or revoke an invitation, with a fresh invitation record for every resend;
-- restore mistakenly revoked access without duplicating the workspace or account;
+- restore mistakenly revoked access without duplicating the workspace or account, including
+  recovery of older rows with a missing workspace link;
 - expire or revoke access and preserve the audit history.
 
 Approval and revocation must require the existing admin authorization policy. Destructive actions
@@ -176,8 +177,8 @@ remain a simple product-status label.
    accessible loading/error states.
 6. [x] Add the Admin application/review UI and authorized Core endpoints.
 7. [x] Add authenticated early-access status and server-side time-bounded grants.
-8. [x] Add durable invitation retry behavior, safe restore-after-revoke behavior, admin
-   notifications, structured lifecycle logs, and idempotency.
+8. [x] Add durable invitation retry behavior, safe restore-after-revoke behavior, legacy workspace
+   link recovery, admin notifications, structured lifecycle logs, and idempotency.
 9. [x] Add unit and database integration coverage for approval, resend, restoration, and repeated
    revoke/restore cycles, plus HTTP smoke tests for the public paths.
 10. [x] Align the private-mode app gateway, authentication screens, and Labs primary CTA with

@@ -46,7 +46,9 @@ duration and credit amount within the Core limits.
 6. Use **Restore access** for a revoked application when access should be reopened. Core keeps the
    same workspace and history, reissues active entitlement and credit grants, and sends a fresh
    invitation when the applicant never activated. An applicant who had already activated returns
-   to `active` without a duplicate invitation.
+   to `active` without a duplicate invitation. If an older application has lost its workspace
+   link, restore relinks the applicant's existing workspace or provisions the missing workspace
+   before applying the access package.
 
 Approval is idempotent by application ID. Retrying an approval reuses the linked organisation,
 pending invitation, active grants, and credit idempotency key rather than creating another access
@@ -79,7 +81,9 @@ restore does not reuse a revoked credit lot.
   error, then resend from Admin. A successful workspace provisioning does not roll back because a
   provider rejected the email; the resend action creates a fresh pending invitation.
 - **Access was revoked by mistake:** open the revoked application and choose **Restore access**.
-  Confirm the resulting status and new grant IDs in the application details and lifecycle events.
+  Confirm the resulting status, workspace link, and new grant IDs in the application details and
+  lifecycle events. If restore still returns a conflict, check the Core response reason and
+  confirm the applicant email matches the account that should receive access.
 - **Workspace still shows access after expiry:** confirm the Core status operation has run and
   inspect the entitlement grant `endsAt`. The resolver must enforce the end date server-side; do
   not hide the feature in the client as a workaround.

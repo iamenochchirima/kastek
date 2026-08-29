@@ -647,6 +647,91 @@ async fn application_capabilities(
     }
 }
 
+async fn restore_organization(
+    pool: &PgPool,
+    config: &AppConfig,
+    application: &EarlyAccessApplication,
+) -> Result<String, AppError> {
+    if let Some(org_id) = application.organization_id.as_deref() {
+        if orgs::get_org(pool, org_id).await?.is_some() {
+            return Ok(org_id.to_string());
+        }
+    }
+
+    let existing_user_id = sqlx::query_scalar::<_, String>(
+        r#"SELECT id FROM "User" WHERE lower(email) = lower($1) LIMIT 1"#,
+    )
+    .bind(&application.email)
+    .fetch_optional(pool)
+    .await?;
+    let user_id = if let Some(user_id) = existing_user_id {
+        user_id
+    } else {
+        let user_id = cuid2::create_id();
+        sqlx::query(
+            r#"INSERT INTO "User" (id, name, email, "createdAt", "updatedAt")
+               VALUES ($1, $2, $3, NOW(), NOW())"#,
+        )
+        .bind(&user_id)
+        .bind(&application.contact_person)
+        .bind(&application.email)
+        .execute(pool)
+        .await?;
+        user_id
+    };
+
+    if let Some(org) = orgs::list_orgs_for_user(pool, &user_id)
+        .await?
+        .into_iter()
+        .next()
+    {
+        link_organization(pool, &application.id, &org.id).await?;
+        return Ok(org.id);
+    }
+
+    let workspace_name = application.business_name.trim();
+    let workspace_name = if workspace_name.is_empty() {
+        "KasiTek workspace".to_string()
+    } else {
+        workspace_name.to_string()
+    };
+    let base_slug = orgs::slugify(&workspace_name);
+    let slug = orgs::unique_slug(pool, &base_slug).await?;
+    let org = orgs::create_org(
+        pool,
+        &user_id,
+        &workspace_name,
+        &slug,
+        None,
+        config.trial_credits,
+        config.trial_duration_days,
+    )
+    .await?;
+    link_organization(pool, &application.id, &org.id).await?;
+    Ok(org.id)
+}
+
+async fn application_has_active_membership(
+    pool: &PgPool,
+    application: &EarlyAccessApplication,
+    org_id: &str,
+) -> Result<bool, AppError> {
+    Ok(sqlx::query_scalar::<_, bool>(
+        r#"SELECT EXISTS(
+               SELECT 1
+               FROM "OrganizationMember" m
+               JOIN "User" u ON u.id = m."userId"
+               WHERE m."orgId" = $1
+                 AND lower(u.email) = lower($2)
+                 AND (u.password IS NOT NULL OR u."emailVerified" IS NOT NULL)
+           )"#,
+    )
+    .bind(org_id)
+    .bind(&application.email)
+    .fetch_one(pool)
+    .await?)
+}
+
 async fn application_credit_amount(
     pool: &PgPool,
     application: &EarlyAccessApplication,
@@ -1063,15 +1148,13 @@ pub async fn restore_application(
             "Only revoked applications can have access restored".to_string(),
         ));
     }
-    let org_id = application.organization_id.as_deref().ok_or_else(|| {
-        AppError::Conflict("This application has no workspace to restore".to_string())
-    })?;
+    let org_id = restore_organization(pool, config, &application).await?;
     let now = Utc::now();
     let ends_at = application
         .early_access_ends_at
         .filter(|value| *value > now)
         .unwrap_or_else(|| now + Duration::days(DEFAULT_DURATION_DAYS));
-    let capabilities = application_capabilities(pool, &application, org_id).await?;
+    let capabilities = application_capabilities(pool, &application, &org_id).await?;
     let grant_reason = format!("Early-access restoration {}", application.id);
     let mut entitlement_ids = application
         .entitlement_grant_ids
@@ -1083,7 +1166,7 @@ pub async fn restore_application(
         .collect::<Vec<_>>();
     for key in &capabilities {
         let grant_id =
-            ensure_entitlement_grant(pool, org_id, key, ends_at, &grant_reason, actor_id).await?;
+            ensure_entitlement_grant(pool, &org_id, key, ends_at, &grant_reason, actor_id).await?;
         if !entitlement_ids.contains(&grant_id) {
             entitlement_ids.push(grant_id);
         }
@@ -1092,10 +1175,11 @@ pub async fn restore_application(
     let revocation_event_id = latest_revocation_event_id(pool, application_id)
         .await?
         .unwrap_or_else(|| application.updated_at.timestamp_millis().to_string());
-    let credit_amount = application_credit_amount(pool, &application, org_id).await?;
+    let credit_amount = application_credit_amount(pool, &application, &org_id).await?;
+    let active_membership = application_has_active_membership(pool, &application, &org_id).await?;
     let credit_grant_id = credits::grant_system_credits(
         pool,
-        org_id,
+        &org_id,
         credit_amount,
         "EARLY_ACCESS",
         Some(ends_at),
@@ -1113,13 +1197,13 @@ pub async fn restore_application(
     .grant_id
     .ok_or_else(|| AppError::Conflict("Restored credit grant was not created".to_string()))?;
 
-    let target_status = if application.activated_at.is_some() {
+    let target_status = if application.activated_at.is_some() || active_membership {
         STATUS_ACTIVE
     } else {
         STATUS_INVITED
     };
     let invitation_id = if target_status == STATUS_INVITED {
-        Some(create_invitation(pool, config, &application, org_id).await?)
+        Some(create_invitation(pool, config, &application, &org_id).await?)
     } else {
         application.invitation_id.clone()
     };
@@ -1132,7 +1216,9 @@ pub async fn restore_application(
         r#"UPDATE "ProductWaitlistEntry"
            SET status = $1, "decisionReason" = $2, "invitationId" = $3,
                "earlyAccessEndsAt" = $4, "entitlementGrantIds" = $5,
-               "creditGrantId" = $6, "updatedAt" = NOW()
+               "creditGrantId" = $6,
+               "activatedAt" = CASE WHEN $1 = 'active' THEN COALESCE("activatedAt", NOW()) ELSE "activatedAt" END,
+               "updatedAt" = NOW()
            WHERE id = $7 AND status = 'revoked'"#,
     )
     .bind(target_status)

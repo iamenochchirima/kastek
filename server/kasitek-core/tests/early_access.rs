@@ -139,6 +139,16 @@ async fn early_access_provisions_once_and_tracks_activation_and_revocation() {
     mark_activated(&pool, &org_id, &owner_id)
         .await
         .expect("invitation activation should be recorded");
+    sqlx::query(r#"UPDATE "User" SET "emailVerified" = NOW() WHERE id = $1"#)
+        .bind(&owner_id)
+        .execute(&pool)
+        .await
+        .expect("test owner should be marked as an active account");
+    sqlx::query(r#"UPDATE "ProductWaitlistEntry" SET "activatedAt" = NULL WHERE id = $1"#)
+        .bind(&application_id)
+        .execute(&pool)
+        .await
+        .expect("test activation marker should be adjustable");
     assert_eq!(
         get_application(&pool, &application_id)
             .await
@@ -161,6 +171,11 @@ async fn early_access_provisions_once_and_tracks_activation_and_revocation() {
     .await
     .expect("active early access should be revocable");
     assert_eq!(revoked.status, STATUS_REVOKED);
+    sqlx::query(r#"UPDATE "ProductWaitlistEntry" SET "organizationId" = NULL WHERE id = $1"#)
+        .bind(&application_id)
+        .execute(&pool)
+        .await
+        .expect("test workspace link should be adjustable");
 
     let restored = restore_application(
         &pool,
@@ -172,6 +187,8 @@ async fn early_access_provisions_once_and_tracks_activation_and_revocation() {
     .await
     .expect("revoked early access should be restorable");
     assert_eq!(restored.status, STATUS_ACTIVE);
+    assert_eq!(restored.organization_id.as_deref(), Some(org_id.as_str()));
+    assert!(restored.activated_at.is_some());
     assert_ne!(restored.credit_grant_id, revoked.credit_grant_id);
     assert!(
         restored.entitlement_grant_ids.as_array().unwrap().len()
