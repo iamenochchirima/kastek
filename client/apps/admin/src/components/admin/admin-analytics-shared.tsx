@@ -154,19 +154,42 @@ export function formatPercent(value: number) {
 }
 
 export function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("en-ZA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }).format(new Date(value));
+  const date = parseAnalyticsDate(value);
+  if (!date) return displayDateFallback(value);
+  return new Intl.DateTimeFormat("en-ZA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }).format(date);
 }
 
 export function formatPeriod(value: string) {
-  if (!value) return "";
-  const date = new Date(`${value.length === 7 ? `${value}-01` : value}T00:00:00Z`);
-  return new Intl.DateTimeFormat("en-ZA", { day: value.length === 7 ? undefined : "numeric", month: "short", timeZone: "UTC" }).format(date);
+  const normalized = normalizedDateInput(value);
+  if (!normalized) return displayDateFallback(value);
+  const date = parseAnalyticsDate(normalized);
+  if (!date) return normalized;
+  const isMonth = /^\d{4}-\d{2}$/.test(normalized);
+  return new Intl.DateTimeFormat("en-ZA", { day: isMonth ? undefined : "numeric", month: "short", timeZone: "UTC" }).format(date);
 }
 
 export function formatPeriodLong(value: string) {
-  if (!value) return "";
-  const date = new Date(`${value.length === 7 ? `${value}-01` : value}T00:00:00Z`);
+  const date = parseAnalyticsDate(value);
+  if (!date) return displayDateFallback(value);
   return new Intl.DateTimeFormat("en-ZA", { dateStyle: "medium", timeZone: "UTC" }).format(date);
+}
+
+function normalizedDateInput(value: unknown) {
+  if (typeof value !== "string") return "";
+  const normalized = value.trim();
+  if (!normalized) return "";
+  return normalized.replace(" ", "T");
+}
+
+function parseAnalyticsDate(value: unknown) {
+  const normalized = normalizedDateInput(value);
+  if (!normalized) return null;
+  const date = new Date(`${normalized.length === 7 ? `${normalized}-01` : normalized}${normalized.length <= 10 ? "T00:00:00Z" : ""}`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function displayDateFallback(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : "—";
 }
 
 function numberValue(value: unknown) {
