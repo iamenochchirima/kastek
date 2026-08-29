@@ -3,7 +3,7 @@ id: early-access
 title: Early Access Operations
 sidebar_position: 7
 owner: platform-ops
-last_reviewed: 2026-08-27
+last_reviewed: 2026-08-29
 ---
 
 # Early Access Operations
@@ -38,13 +38,21 @@ duration and credit amount within the Core limits.
    **Create new workspace** remains available when the operator intentionally wants a separate
    workspace under the existing account.
 4. If delivery fails, the invitation remains durable and **Resend invite** can be used. The raw
-   invitation token is never shown in Admin or stored in the application record.
+   invitation token is never shown in Admin or stored in the application record. Resending
+   replaces the pending invitation with a new seven-day invitation and invalidates the previous
+   pending record.
 5. Use **Revoke** for approved, invited, or active access. It revokes a pending invitation,
    closes early-access entitlement grants, and removes only unused early-access credits.
+6. Use **Restore access** for a revoked application when access should be reopened. Core keeps the
+   same workspace and history, reissues active entitlement and credit grants, and sends a fresh
+   invitation when the applicant never activated. An applicant who had already activated returns
+   to `active` without a duplicate invitation.
 
 Approval is idempotent by application ID. Retrying an approval reuses the linked organisation,
-invitation, grants, and credit idempotency key rather than creating another access package. An
-approval attached to an existing account returns the already-active application on retry.
+pending invitation, active grants, and credit idempotency key rather than creating another access
+package. An approval attached to an existing account returns the already-active application on
+retry. Restore and revoke cycles use separate event-scoped credit idempotency keys, so a second
+restore does not reuse a revoked credit lot.
 
 ## Troubleshooting
 
@@ -69,7 +77,9 @@ approval attached to an existing account returns the already-active application 
   workspaces.
 - **Invitation email is missing:** inspect Core logs for the invitation ID and email delivery
   error, then resend from Admin. A successful workspace provisioning does not roll back because a
-  provider rejected the email.
+  provider rejected the email; the resend action creates a fresh pending invitation.
+- **Access was revoked by mistake:** open the revoked application and choose **Restore access**.
+  Confirm the resulting status and new grant IDs in the application details and lifecycle events.
 - **Workspace still shows access after expiry:** confirm the Core status operation has run and
   inspect the entitlement grant `endsAt`. The resolver must enforce the end date server-side; do
   not hide the feature in the client as a workaround.

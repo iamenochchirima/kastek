@@ -73,6 +73,7 @@ export function EarlyAccessManager({ initialApplications }: { initialApplication
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [revokeId, setRevokeId] = useState<string | null>(null);
+  const [restoreId, setRestoreId] = useState<string | null>(null);
 
   async function refresh() {
     const params = new URLSearchParams();
@@ -163,6 +164,20 @@ export function EarlyAccessManager({ initialApplications }: { initialApplication
     if (ok) setRevokeId(null);
   }
 
+  async function resend(application: EarlyAccessApplication) {
+    const ok = await post(application.id, "resend");
+    if (ok) setMessage(application.status === "approved" ? "Invitation sent." : "Invitation sent again.");
+  }
+
+  async function restore() {
+    if (!restoreId) return;
+    const ok = await post(restoreId, "restore", { reason: "Early access restored by an administrator" });
+    if (ok) {
+      setRestoreId(null);
+      setMessage("Early access restored.");
+    }
+  }
+
   async function beginApproval(application: EarlyAccessApplication) {
     setApprovalId(application.id);
     setApprovalContext(null);
@@ -238,8 +253,9 @@ export function EarlyAccessManager({ initialApplications }: { initialApplication
                   {application.status === "new" ? <Button variant="secondary" size="sm" disabled={busyId === application.id} onClick={() => void startReview(application.id)}>Review</Button> : null}
                   {["new", "reviewing"].includes(application.status) ? <Button size="sm" disabled={busyId === application.id || approvalLoading && approvalId === application.id} onClick={() => void beginApproval(application)}>Review approval</Button> : null}
                   {application.status === "reviewing" ? <Button variant="outline" size="sm" disabled={busyId === application.id} onClick={() => setRejectingId(application.id)}>Reject</Button> : null}
-                  {application.status === "invited" ? <Button variant="secondary" size="sm" disabled={busyId === application.id} onClick={() => void post(application.id, "resend")}>Resend invite</Button> : null}
+                  {application.status === "approved" || application.status === "invited" ? <Button variant="secondary" size="sm" disabled={busyId === application.id} onClick={() => void resend(application)}>{application.status === "approved" ? "Send invite" : "Resend invite"}</Button> : null}
                   {["approved", "invited", "active"].includes(application.status) ? <Button variant="destructive" size="sm" disabled={busyId === application.id} onClick={() => setRevokeId(application.id)}>Revoke</Button> : null}
+                  {application.status === "revoked" ? <Button variant="secondary" size="sm" disabled={busyId === application.id} onClick={() => setRestoreId(application.id)}>Restore access</Button> : null}
                 </div>
               </div>
 
@@ -307,6 +323,7 @@ export function EarlyAccessManager({ initialApplications }: { initialApplication
       </Card>
 
       <ConfirmModal open={Boolean(revokeId)} title="Revoke early access?" message="The invitation and unused early-access grants will be closed. Workspace data remains intact." confirmLabel="Revoke access" loading={Boolean(busyId)} onConfirm={() => void revoke()} onCancel={() => setRevokeId(null)} />
+      <ConfirmModal open={Boolean(restoreId)} title="Restore early access?" message="The access package will be reissued. A fresh invitation will be sent when the account has not activated yet." confirmLabel="Restore access" loading={Boolean(busyId)} onConfirm={() => void restore()} onCancel={() => setRestoreId(null)} />
     </div>
   );
 }

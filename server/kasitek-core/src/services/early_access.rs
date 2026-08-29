@@ -228,6 +228,7 @@ fn transition_allowed(from: &str, to: &str) -> bool {
             STATUS_INVITED,
             STATUS_ACTIVE | STATUS_REVOKED | STATUS_EXPIRED
         ) | (STATUS_ACTIVE, STATUS_EXPIRED | STATUS_REVOKED)
+            | (STATUS_REVOKED, STATUS_INVITED | STATUS_ACTIVE)
             | (STATUS_REJECTED, STATUS_REVIEWING)
     )
 }
@@ -532,6 +533,7 @@ async fn ensure_entitlement_grant(
     if let Some(id) = sqlx::query_scalar::<_, String>(
         r#"SELECT id FROM "OrganizationEntitlementGrant"
            WHERE "orgId" = $1 AND key = $2 AND source = 'MANUAL'::"EntitlementSource" AND reason = $3
+             AND ("endsAt" IS NULL OR "endsAt" > NOW())
            ORDER BY "createdAt" DESC LIMIT 1"#,
     )
     .bind(org_id)
@@ -563,7 +565,12 @@ async fn ensure_invitation(
 ) -> Result<String, AppError> {
     if let Some(invitation_id) = application.invitation_id.as_deref() {
         let exists = sqlx::query_scalar::<_, bool>(
-            r#"SELECT EXISTS(SELECT 1 FROM "OrganizationInvitation" WHERE id = $1 AND "orgId" = $2)"#,
+            r#"SELECT EXISTS(
+                   SELECT 1 FROM "OrganizationInvitation"
+                   WHERE id = $1 AND "orgId" = $2
+                     AND "acceptedAt" IS NULL AND "revokedAt" IS NULL
+                     AND "expiresAt" > NOW()
+               )"#,
         )
         .bind(invitation_id)
         .bind(org_id)
@@ -573,6 +580,15 @@ async fn ensure_invitation(
             return Ok(invitation_id.to_string());
         }
     }
+    create_invitation(pool, config, application, org_id).await
+}
+
+async fn create_invitation(
+    pool: &PgPool,
+    config: &AppConfig,
+    application: &EarlyAccessApplication,
+    org_id: &str,
+) -> Result<String, AppError> {
     let owner = sqlx::query_as::<_, (String, Option<String>)>(
         r#"SELECT id, name FROM "User" WHERE id = (SELECT "ownerId" FROM "Organization" WHERE id = $1)"#,
     )
@@ -595,6 +611,80 @@ async fn ensure_invitation(
     )
     .await?;
     Ok(invitation.id)
+}
+
+async fn application_capabilities(
+    pool: &PgPool,
+    application: &EarlyAccessApplication,
+    org_id: &str,
+) -> Result<Vec<String>, AppError> {
+    let grant_ids = application
+        .entitlement_grant_ids
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+    if grant_ids.is_empty() {
+        return selected_capabilities(None);
+    }
+
+    let keys = sqlx::query_scalar::<_, String>(
+        r#"SELECT key
+           FROM "OrganizationEntitlementGrant"
+           WHERE "orgId" = $1 AND id = ANY($2::text[])
+           ORDER BY key"#,
+    )
+    .bind(org_id)
+    .bind(&grant_ids)
+    .fetch_all(pool)
+    .await?;
+    if keys.is_empty() {
+        selected_capabilities(None)
+    } else {
+        selected_capabilities(Some(keys))
+    }
+}
+
+async fn application_credit_amount(
+    pool: &PgPool,
+    application: &EarlyAccessApplication,
+    org_id: &str,
+) -> Result<i64, AppError> {
+    let amount = if let Some(grant_id) = application.credit_grant_id.as_deref() {
+        sqlx::query_scalar::<_, i64>(
+            r#"SELECT amount FROM "CreditGrant" WHERE id = $1 AND "orgId" = $2"#,
+        )
+        .bind(grant_id)
+        .bind(org_id)
+        .fetch_optional(pool)
+        .await?
+        .unwrap_or(DEFAULT_CREDITS)
+    } else {
+        DEFAULT_CREDITS
+    };
+    if !(1..=MAX_CREDITS).contains(&amount) {
+        return Err(AppError::Conflict(
+            "The original early-access credit allocation is outside the supported limits"
+                .to_string(),
+        ));
+    }
+    Ok(amount)
+}
+
+async fn latest_revocation_event_id(
+    pool: &PgPool,
+    application_id: &str,
+) -> Result<Option<String>, AppError> {
+    Ok(sqlx::query_scalar::<_, String>(
+        r#"SELECT id FROM "ProductWaitlistEvent"
+           WHERE "waitlistEntryId" = $1 AND action = 'revoked'
+           ORDER BY "createdAt" DESC, id DESC LIMIT 1"#,
+    )
+    .bind(application_id)
+    .fetch_optional(pool)
+    .await?)
 }
 
 pub async fn approve_application(
@@ -937,7 +1027,7 @@ pub async fn resend_invitation(
     let org_id = application.organization_id.as_deref().ok_or_else(|| {
         AppError::Conflict("This application has not finished workspace provisioning".to_string())
     })?;
-    let invitation_id = ensure_invitation(pool, config, &application, org_id).await?;
+    let invitation_id = create_invitation(pool, config, &application, org_id).await?;
     sqlx::query(r#"UPDATE "ProductWaitlistEntry" SET status = 'invited', "invitationId" = $1, "updatedAt" = NOW() WHERE id = $2"#)
         .bind(&invitation_id)
         .bind(application_id)
@@ -954,6 +1044,136 @@ pub async fn resend_invitation(
         json!({ "invitationId": invitation_id }),
     )
     .await?;
+    get_application(pool, application_id)
+        .await
+        .map(|(application, _)| application)
+}
+
+pub async fn restore_application(
+    pool: &PgPool,
+    config: &AppConfig,
+    application_id: &str,
+    actor_id: &str,
+    reason: &str,
+) -> Result<EarlyAccessApplication, AppError> {
+    let reason = required_text(Some(reason), "Restoration reason", 2_000)?;
+    let application = get_application(pool, application_id).await?.0;
+    if application.status != STATUS_REVOKED {
+        return Err(AppError::Conflict(
+            "Only revoked applications can have access restored".to_string(),
+        ));
+    }
+    let org_id = application.organization_id.as_deref().ok_or_else(|| {
+        AppError::Conflict("This application has no workspace to restore".to_string())
+    })?;
+    let now = Utc::now();
+    let ends_at = application
+        .early_access_ends_at
+        .filter(|value| *value > now)
+        .unwrap_or_else(|| now + Duration::days(DEFAULT_DURATION_DAYS));
+    let capabilities = application_capabilities(pool, &application, org_id).await?;
+    let grant_reason = format!("Early-access restoration {}", application.id);
+    let mut entitlement_ids = application
+        .entitlement_grant_ids
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|value| value.as_str().map(ToString::to_string))
+        .collect::<Vec<_>>();
+    for key in &capabilities {
+        let grant_id =
+            ensure_entitlement_grant(pool, org_id, key, ends_at, &grant_reason, actor_id).await?;
+        if !entitlement_ids.contains(&grant_id) {
+            entitlement_ids.push(grant_id);
+        }
+    }
+
+    let revocation_event_id = latest_revocation_event_id(pool, application_id)
+        .await?
+        .unwrap_or_else(|| application.updated_at.timestamp_millis().to_string());
+    let credit_amount = application_credit_amount(pool, &application, org_id).await?;
+    let credit_grant_id = credits::grant_system_credits(
+        pool,
+        org_id,
+        credit_amount,
+        "EARLY_ACCESS",
+        Some(ends_at),
+        &grant_reason,
+        Some(&format!("early-access:{application_id}")),
+        Some(&json!({
+            "applicationId": application_id,
+            "capabilities": capabilities,
+            "restoredFromCreditGrantId": application.credit_grant_id.clone(),
+            "revocationEventId": revocation_event_id.clone(),
+        })),
+        &format!("early-access-restore-credits:{application_id}:{revocation_event_id}"),
+    )
+    .await?
+    .grant_id
+    .ok_or_else(|| AppError::Conflict("Restored credit grant was not created".to_string()))?;
+
+    let target_status = if application.activated_at.is_some() {
+        STATUS_ACTIVE
+    } else {
+        STATUS_INVITED
+    };
+    let invitation_id = if target_status == STATUS_INVITED {
+        Some(create_invitation(pool, config, &application, org_id).await?)
+    } else {
+        application.invitation_id.clone()
+    };
+    if !transition_allowed(&application.status, target_status) {
+        return Err(AppError::Conflict(
+            "Early-access access cannot be restored from its current state".to_string(),
+        ));
+    }
+    sqlx::query(
+        r#"UPDATE "ProductWaitlistEntry"
+           SET status = $1, "decisionReason" = $2, "invitationId" = $3,
+               "earlyAccessEndsAt" = $4, "entitlementGrantIds" = $5,
+               "creditGrantId" = $6, "updatedAt" = NOW()
+           WHERE id = $7 AND status = 'revoked'"#,
+    )
+    .bind(target_status)
+    .bind(&reason)
+    .bind(invitation_id.as_deref())
+    .bind(ends_at)
+    .bind(json!(entitlement_ids))
+    .bind(&credit_grant_id)
+    .bind(application_id)
+    .execute(pool)
+    .await?;
+    record_event(
+        pool,
+        application_id,
+        Some(STATUS_REVOKED),
+        target_status,
+        "restored",
+        Some(actor_id),
+        Some(&reason),
+        json!({
+            "organizationId": org_id,
+            "invitationId": invitation_id.clone(),
+            "creditGrantId": credit_grant_id.clone(),
+            "restoredFromRevocationEventId": revocation_event_id.clone(),
+        }),
+    )
+    .await?;
+    let _ = website::publish_admin_notification(
+        pool,
+        "early_access.restored",
+        "Early access restored",
+        &format!(
+            "Early access for {} was restored.",
+            application.business_name
+        ),
+        "product_waitlist_entry",
+        application_id,
+        json!({ "organizationId": org_id, "invitationId": invitation_id }),
+        &format!("early_access.restored:{application_id}:{revocation_event_id}"),
+    )
+    .await;
     get_application(pool, application_id)
         .await
         .map(|(application, _)| application)
@@ -997,7 +1217,7 @@ pub async fn revoke_application(
                 org_id,
                 credit_grant_id,
                 &reason,
-                &format!("early-access-revoke:{application_id}"),
+                &format!("early-access-revoke:{application_id}:{credit_grant_id}"),
             )
             .await;
         }
@@ -1143,6 +1363,8 @@ mod tests {
         assert!(transition_allowed("invited", "active"));
         assert!(transition_allowed("active", "expired"));
         assert!(transition_allowed("active", "revoked"));
+        assert!(transition_allowed("revoked", "invited"));
+        assert!(transition_allowed("revoked", "active"));
         assert!(transition_allowed("rejected", "reviewing"));
         assert!(!transition_allowed("rejected", "approved"));
         assert!(!transition_allowed("active", "approved"));

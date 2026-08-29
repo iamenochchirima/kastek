@@ -149,7 +149,8 @@ Add an admin application surface under the existing access area:
 - move an application through permitted states;
 - approve with a cohort, expiry, entitlements, and credit budget;
 - provision and send an invitation idempotently;
-- resend or revoke an invitation;
+- resend or revoke an invitation, with a fresh invitation record for every resend;
+- restore mistakenly revoked access without duplicating the workspace or account;
 - expire or revoke access and preserve the audit history.
 
 Approval and revocation must require the existing admin authorization policy. Destructive actions
@@ -175,9 +176,10 @@ remain a simple product-status label.
    accessible loading/error states.
 6. [x] Add the Admin application/review UI and authorized Core endpoints.
 7. [x] Add authenticated early-access status and server-side time-bounded grants.
-8. [x] Add durable invitation retry behavior, admin notifications, structured lifecycle logs, and
-   idempotency.
-9. [x] Add unit, database integration, and HTTP smoke tests for the implemented paths.
+8. [x] Add durable invitation retry behavior, safe restore-after-revoke behavior, admin
+   notifications, structured lifecycle logs, and idempotency.
+9. [x] Add unit and database integration coverage for approval, resend, restoration, and repeated
+   revoke/restore cycles, plus HTTP smoke tests for the public paths.
 10. [x] Align the private-mode app gateway, authentication screens, and Labs primary CTA with
     invitation-only access, including a visible request-early-access path.
 11. [x] Add invitation link/token redemption and a branded invitation-required OAuth error path.
@@ -225,9 +227,10 @@ gate; the implementation was verified from the current working tree.
 **API/schema/migration changes:** waitlist lifecycle fields, append-only event history, cohort,
 credit-source, and duplicate-submission migrations, admin application endpoints, the admin-only
 approval-context lookup and existing-workspace approval fields, authenticated early-access status
-endpoint, and controlled migrations `20260827120000_add_early_access_lifecycle`,
+endpoint, resend/restore lifecycle endpoints, and controlled migrations `20260827120000_add_early_access_lifecycle`,
 `20260827130000_add_early_access_cohort`, `20260827140000_allow_early_access_credit_source`, and
-`20260827150000_prevent_duplicate_early_access_applications`.
+`20260827150000_prevent_duplicate_early_access_applications`. Restore uses the existing nullable
+waitlist lifecycle fields and requires no additional migration.
 The Beta tag has no authorization or API contract. The Labs server-side waitlist and quote
 proxies use `https://api.kasitek.co.za` as the production Core default, with deployment-specific
 API-origin overrides; this follow-up adds no database migration, but changes the Admin/Core approval

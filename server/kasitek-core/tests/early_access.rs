@@ -4,8 +4,9 @@ use kasitek_core::config::AppConfig;
 use kasitek_core::db::models::ProductWaitlistCreateRequest;
 use kasitek_core::services::early_access::{
     approval_context, approve_application, get_application, list_applications, mark_activated,
-    record_submission, review_application, revoke_application, status_for_org, ApplicationQuery,
-    ApproveRequest, ReviewRequest, STATUS_ACTIVE, STATUS_INVITED, STATUS_REVIEWING, STATUS_REVOKED,
+    record_submission, resend_invitation, restore_application, review_application,
+    revoke_application, status_for_org, ApplicationQuery, ApproveRequest, ReviewRequest,
+    STATUS_ACTIVE, STATUS_INVITED, STATUS_REVIEWING, STATUS_REVOKED,
 };
 use kasitek_core::services::website;
 use sqlx::postgres::PgPoolOptions;
@@ -84,6 +85,13 @@ async fn early_access_provisions_once_and_tracks_activation_and_revocation() {
         .expect("approval should link an organisation");
     assert!(approved.invitation_id.is_some());
     assert_eq!(approved.cohort, "beta");
+    let first_invitation_id = approved.invitation_id.clone();
+
+    let resent = resend_invitation(&pool, &config, &application_id, "test-admin")
+        .await
+        .expect("invitation should be replaceable and resent");
+    assert_eq!(resent.status, STATUS_INVITED);
+    assert_ne!(resent.invitation_id, first_invitation_id);
 
     let grants_before_retry = sqlx::query_scalar::<_, i64>(
         r#"SELECT COUNT(*) FROM "OrganizationEntitlementGrant" WHERE "orgId" = $1 AND reason = $2"#,
@@ -153,6 +161,32 @@ async fn early_access_provisions_once_and_tracks_activation_and_revocation() {
     .await
     .expect("active early access should be revocable");
     assert_eq!(revoked.status, STATUS_REVOKED);
+
+    let restored = restore_application(
+        &pool,
+        &config,
+        &application_id,
+        "test-admin",
+        "Restore integration-test access",
+    )
+    .await
+    .expect("revoked early access should be restorable");
+    assert_eq!(restored.status, STATUS_ACTIVE);
+    assert_ne!(restored.credit_grant_id, revoked.credit_grant_id);
+    assert!(
+        restored.entitlement_grant_ids.as_array().unwrap().len()
+            > revoked.entitlement_grant_ids.as_array().unwrap().len()
+    );
+
+    let revoked_again = revoke_application(
+        &pool,
+        &application_id,
+        "test-admin",
+        "End integration-test access again",
+    )
+    .await
+    .expect("restored early access should be revocable again");
+    assert_eq!(revoked_again.status, STATUS_REVOKED);
 
     let listed = list_applications(
         &pool,

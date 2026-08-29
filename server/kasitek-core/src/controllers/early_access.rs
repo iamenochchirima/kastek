@@ -102,6 +102,29 @@ pub async fn resend(
     Ok(HttpResponse::Ok().json(serde_json::json!({ "application": application })))
 }
 
+pub async fn restore(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<serde_json::Value>,
+) -> Result<HttpResponse, AppError> {
+    let admin = admin_context(&req, pool.get_ref()).await?;
+    let reason = body
+        .get("reason")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("");
+    let application = early_access::restore_application(
+        pool.get_ref(),
+        config.get_ref(),
+        &path,
+        &admin.id,
+        reason,
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "application": application })))
+}
+
 pub async fn revoke(
     pool: web::Data<PgPool>,
     req: HttpRequest,
