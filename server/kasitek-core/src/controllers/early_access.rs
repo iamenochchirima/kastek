@@ -48,6 +48,16 @@ pub async fn get(
     })))
 }
 
+pub async fn approval_context(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let _admin = admin_context(&req, pool.get_ref()).await?;
+    let context = early_access::approval_context(pool.get_ref(), &path).await?;
+    Ok(HttpResponse::Ok().json(context))
+}
+
 pub async fn review(
     pool: web::Data<PgPool>,
     req: HttpRequest,

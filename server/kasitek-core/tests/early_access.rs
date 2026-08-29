@@ -3,9 +3,9 @@ use std::env;
 use kasitek_core::config::AppConfig;
 use kasitek_core::db::models::ProductWaitlistCreateRequest;
 use kasitek_core::services::early_access::{
-    approve_application, get_application, list_applications, mark_activated, record_submission,
-    review_application, revoke_application, status_for_org, ApplicationQuery, ApproveRequest,
-    ReviewRequest, STATUS_ACTIVE, STATUS_INVITED, STATUS_REVIEWING, STATUS_REVOKED,
+    approval_context, approve_application, get_application, list_applications, mark_activated,
+    record_submission, review_application, revoke_application, status_for_org, ApplicationQuery,
+    ApproveRequest, ReviewRequest, STATUS_ACTIVE, STATUS_INVITED, STATUS_REVIEWING, STATUS_REVOKED,
 };
 use kasitek_core::services::website;
 use sqlx::postgres::PgPoolOptions;
@@ -71,6 +71,8 @@ async fn early_access_provisions_once_and_tracks_activation_and_revocation() {
             duration_days: Some(30),
             credits: Some(100),
             entitlement_keys: None,
+            organization_id: None,
+            create_workspace_for_existing_account: None,
         },
     )
     .await
@@ -102,6 +104,8 @@ async fn early_access_provisions_once_and_tracks_activation_and_revocation() {
             duration_days: None,
             credits: None,
             entitlement_keys: None,
+            organization_id: None,
+            create_workspace_for_existing_account: None,
         },
     )
     .await
@@ -179,6 +183,176 @@ async fn early_access_provisions_once_and_tracks_activation_and_revocation() {
         .execute(&pool)
         .await
         .expect("test application should be removed");
+}
+
+#[tokio::test]
+#[ignore = "requires a migrated Core PostgreSQL database"]
+async fn early_access_attaches_to_existing_workspace_without_duplicate_provisioning() {
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL is required");
+    let pool = PgPoolOptions::new()
+        .max_connections(8)
+        .connect(&database_url)
+        .await
+        .expect("Core database should be reachable");
+    let mut config = AppConfig::from_env().expect("Core configuration should be available");
+    config.resend_api_key = None;
+
+    let suffix = cuid2::create_id();
+    let application_id = format!("early-access-existing-application-{suffix}");
+    let user_id = format!("early-access-existing-user-{suffix}");
+    let org_id = format!("early-access-existing-org-{suffix}");
+    let email = format!("early-access-existing-{suffix}@example.test");
+
+    sqlx::query(
+        r#"INSERT INTO "User" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, NOW(), NOW(), NOW())"#,
+    )
+    .bind(&user_id)
+    .bind("Existing Workspace Owner")
+    .bind(&email)
+    .execute(&pool)
+    .await
+    .expect("existing user should be inserted");
+    sqlx::query(
+        r#"INSERT INTO "Organization" (id, name, slug, "ownerId", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, NOW(), NOW())"#,
+    )
+    .bind(&org_id)
+    .bind("Existing KasiTek Workspace")
+    .bind(format!("existing-kasitek-workspace-{suffix}"))
+    .bind(&user_id)
+    .execute(&pool)
+    .await
+    .expect("existing organisation should be inserted");
+    sqlx::query(
+        r#"INSERT INTO "OrganizationMember" (id, "orgId", "userId", role, "joinedAt", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, 'OWNER'::"OrgRole", NOW(), NOW(), NOW())"#,
+    )
+    .bind(format!("early-access-existing-member-{suffix}"))
+    .bind(&org_id)
+    .bind(&user_id)
+    .execute(&pool)
+    .await
+    .expect("existing organisation member should be inserted");
+    sqlx::query(
+        r#"INSERT INTO "ProductWaitlistEntry" (
+            id, "businessName", "contactPerson", email, "businessType", products,
+            notes, source, status, "contactConsentAt", "createdAt", "updatedAt"
+        ) VALUES ($1, $2, $3, $4, 'professional_services', $5, $6, 'website', 'new', NOW(), NOW(), NOW())"#,
+    )
+    .bind(&application_id)
+    .bind("Existing Account Applicant")
+    .bind("Existing Workspace Owner")
+    .bind(&email)
+    .bind(vec!["kasitek_product_basic".to_string()])
+    .bind("Grant access to the existing workspace.")
+    .execute(&pool)
+    .await
+    .expect("test application should be inserted");
+
+    record_submission(&pool, &application_id)
+        .await
+        .expect("submission event should be recorded");
+    review_application(
+        &pool,
+        &application_id,
+        "test-admin",
+        ReviewRequest {
+            status: STATUS_REVIEWING.to_string(),
+            notes: None,
+            reason: None,
+        },
+    )
+    .await
+    .expect("application should enter review");
+
+    let context = approval_context(&pool, &application_id)
+        .await
+        .expect("approval context should load");
+    assert!(context.account_exists);
+    assert_eq!(context.workspaces.len(), 1);
+    assert_eq!(context.workspaces[0].id, org_id);
+
+    let approved = approve_application(
+        &pool,
+        &config,
+        &application_id,
+        "test-admin",
+        ApproveRequest {
+            workspace_name: Some("Ignored for existing workspace".to_string()),
+            duration_days: Some(30),
+            credits: Some(100),
+            entitlement_keys: None,
+            organization_id: Some(org_id.clone()),
+            create_workspace_for_existing_account: None,
+        },
+    )
+    .await
+    .expect("application should attach to the existing workspace");
+    assert_eq!(approved.status, STATUS_ACTIVE);
+    assert_eq!(approved.organization_id.as_deref(), Some(org_id.as_str()));
+    assert!(approved.invitation_id.is_none());
+    assert!(approved.activated_at.is_some());
+
+    let user_count = sqlx::query_scalar::<_, i64>(
+        r#"SELECT COUNT(*) FROM "User" WHERE lower(email) = lower($1)"#,
+    )
+    .bind(&email)
+    .fetch_one(&pool)
+    .await
+    .expect("existing account should remain queryable");
+    let org_count =
+        sqlx::query_scalar::<_, i64>(r#"SELECT COUNT(*) FROM "Organization" WHERE "ownerId" = $1"#)
+            .bind(&user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("existing workspace should remain queryable");
+    let invitation_count = sqlx::query_scalar::<_, i64>(
+        r#"SELECT COUNT(*) FROM "OrganizationInvitation" WHERE "orgId" = $1 AND lower(email) = lower($2)"#,
+    )
+    .bind(&org_id)
+    .bind(&email)
+    .fetch_one(&pool)
+    .await
+    .expect("workspace invitations should be queryable");
+    assert_eq!(user_count, 1);
+    assert_eq!(org_count, 1);
+    assert_eq!(invitation_count, 0);
+
+    let retried = approve_application(
+        &pool,
+        &config,
+        &application_id,
+        "test-admin",
+        ApproveRequest {
+            workspace_name: None,
+            duration_days: None,
+            credits: None,
+            entitlement_keys: None,
+            organization_id: None,
+            create_workspace_for_existing_account: None,
+        },
+    )
+    .await
+    .expect("retrying an active approval should be idempotent");
+    assert_eq!(retried.status, STATUS_ACTIVE);
+    assert_eq!(retried.organization_id.as_deref(), Some(org_id.as_str()));
+
+    sqlx::query(r#"DELETE FROM "ProductWaitlistEntry" WHERE id = $1"#)
+        .bind(&application_id)
+        .execute(&pool)
+        .await
+        .expect("test application should be removed");
+    sqlx::query(r#"DELETE FROM "Organization" WHERE id = $1"#)
+        .bind(&org_id)
+        .execute(&pool)
+        .await
+        .expect("test organisation should be removed");
+    sqlx::query(r#"DELETE FROM "User" WHERE id = $1"#)
+        .bind(&user_id)
+        .execute(&pool)
+        .await
+        .expect("test user should be removed");
 }
 
 #[tokio::test]

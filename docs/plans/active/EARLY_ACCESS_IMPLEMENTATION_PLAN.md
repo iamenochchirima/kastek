@@ -223,13 +223,15 @@ analytics, and operational runbooks.
 gate; the implementation was verified from the current working tree.
 
 **API/schema/migration changes:** waitlist lifecycle fields, append-only event history, cohort,
-credit-source, and duplicate-submission migrations, admin application endpoints, authenticated
-early-access status endpoint, and controlled migrations `20260827120000_add_early_access_lifecycle`,
+credit-source, and duplicate-submission migrations, admin application endpoints, the admin-only
+approval-context lookup and existing-workspace approval fields, authenticated early-access status
+endpoint, and controlled migrations `20260827120000_add_early_access_lifecycle`,
 `20260827130000_add_early_access_cohort`, `20260827140000_allow_early_access_credit_source`, and
 `20260827150000_prevent_duplicate_early_access_applications`.
 The Beta tag has no authorization or API contract. The Labs server-side waitlist and quote
 proxies use `https://api.kasitek.co.za` as the production Core default, with deployment-specific
-API-origin overrides; no database or Core API contract changes are required for this fix.
+API-origin overrides; this follow-up adds no database migration, but changes the Admin/Core approval
+contract to support selecting an existing workspace or explicitly creating one for an existing account.
 
 **Feature flag or rollout method:** retain private signup; enable public application capture and
 admin approval separately; start with one manually selected cohort; disable approval/invitation

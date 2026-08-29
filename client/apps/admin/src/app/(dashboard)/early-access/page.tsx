@@ -7,7 +7,7 @@ export default async function EarlyAccessPage() {
   const payload = response.ok ? await response.json() : { applications: [] };
   return (
     <div className="admin-page">
-      <AdminPageHeader title="Early access" description="Review applications and provision beta workspaces." />
+      <AdminPageHeader title="Early access" description="Review applications and grant beta access." />
       <EarlyAccessManager initialApplications={(payload.applications ?? []) as EarlyAccessApplication[]} />
     </div>
   );

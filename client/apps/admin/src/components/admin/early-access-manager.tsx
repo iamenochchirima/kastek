@@ -29,6 +29,20 @@ export type EarlyAccessApplication = {
   createdAt: string;
 };
 
+type ApprovalWorkspace = {
+  id: string;
+  name: string;
+  slug: string;
+  role: string;
+};
+
+type ApprovalContext = {
+  accountExists: boolean;
+  workspaces: ApprovalWorkspace[];
+};
+
+type WorkspaceAction = "existing" | "new";
+
 const capabilities = [
   ["feature.analytics.view", "Analytics"],
   ["feature.inbox.access", "Inbox"],
@@ -48,7 +62,11 @@ export function EarlyAccessManager({ initialApplications }: { initialApplication
   const [message, setMessage] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [approvalId, setApprovalId] = useState<string | null>(null);
+  const [approvalContext, setApprovalContext] = useState<ApprovalContext | null>(null);
+  const [approvalLoading, setApprovalLoading] = useState(false);
   const [workspaceName, setWorkspaceName] = useState("");
+  const [workspaceAction, setWorkspaceAction] = useState<WorkspaceAction>("new");
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
   const [durationDays, setDurationDays] = useState("30");
   const [credits, setCredits] = useState("100");
   const [selectedCapabilities, setSelectedCapabilities] = useState<string[]>(capabilities.map(([key]) => key));
@@ -101,15 +119,29 @@ export function EarlyAccessManager({ initialApplications }: { initialApplication
   }
 
   async function approve(id: string, application: EarlyAccessApplication) {
+    const hasExistingAccount = approvalContext?.accountExists === true;
+    const useExistingWorkspace = hasExistingAccount && workspaceAction === "existing";
+    if (useExistingWorkspace && !selectedWorkspaceId) {
+      setMessage("Select a workspace before granting access.");
+      return;
+    }
+    const selectedWorkspace = approvalContext?.workspaces.find((workspace) => workspace.id === selectedWorkspaceId);
     const ok = await post(id, "approve", {
       workspaceName: workspaceName.trim() || application.businessName,
       durationDays: Number(durationDays),
       credits: Number(credits),
       entitlementKeys: selectedCapabilities,
+      ...(useExistingWorkspace ? { organizationId: selectedWorkspaceId } : {}),
+      ...(hasExistingAccount && workspaceAction === "new" ? { createWorkspaceForExistingAccount: true } : {}),
     });
     if (ok) {
       setApprovalId(null);
-      setMessage("Workspace created and invitation sent.");
+      setApprovalContext(null);
+      setMessage(useExistingWorkspace
+        ? `Early access granted to ${selectedWorkspace?.name ?? "the selected workspace"}.`
+        : hasExistingAccount
+          ? "Workspace created for the existing account."
+          : "Workspace created and invitation sent.");
     }
   }
 
@@ -131,12 +163,34 @@ export function EarlyAccessManager({ initialApplications }: { initialApplication
     if (ok) setRevokeId(null);
   }
 
-  function beginApproval(application: EarlyAccessApplication) {
+  async function beginApproval(application: EarlyAccessApplication) {
     setApprovalId(application.id);
+    setApprovalContext(null);
+    setApprovalLoading(true);
+    setMessage(null);
     setWorkspaceName(application.businessName);
+    setWorkspaceAction("new");
+    setSelectedWorkspaceId("");
     setDurationDays("30");
     setCredits("100");
     setSelectedCapabilities(capabilities.map(([key]) => key));
+    try {
+      const response = await fetch(`/api/core/admin/early-access/${application.id}/approval-context`, { cache: "no-store" });
+      const result = (await response.json().catch(() => ({}))) as ApprovalContext & { error?: string };
+      if (!response.ok) {
+        setMessage(result.error ?? "Unable to load workspace options.");
+        return;
+      }
+      setApprovalContext(result);
+      if (result.workspaces.length) {
+        setWorkspaceAction("existing");
+        if (result.workspaces.length === 1) setSelectedWorkspaceId(result.workspaces[0].id);
+      }
+    } catch {
+      setMessage("Unable to load workspace options.");
+    } finally {
+      setApprovalLoading(false);
+    }
   }
 
   return (
@@ -158,7 +212,7 @@ export function EarlyAccessManager({ initialApplications }: { initialApplication
         <CardHeader>
           <div>
             <CardTitle>Applications</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">Review interest before creating access.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Review applications and grant early access.</p>
           </div>
           <span className="text-xs tabular-nums text-muted-foreground">{applications.length}</span>
         </CardHeader>
@@ -182,7 +236,7 @@ export function EarlyAccessManager({ initialApplications }: { initialApplication
 
                 <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
                   {application.status === "new" ? <Button variant="secondary" size="sm" disabled={busyId === application.id} onClick={() => void startReview(application.id)}>Review</Button> : null}
-                  {["new", "reviewing"].includes(application.status) ? <Button size="sm" disabled={busyId === application.id} onClick={() => beginApproval(application)}>Approve & invite</Button> : null}
+                  {["new", "reviewing"].includes(application.status) ? <Button size="sm" disabled={busyId === application.id || approvalLoading && approvalId === application.id} onClick={() => void beginApproval(application)}>Review approval</Button> : null}
                   {application.status === "reviewing" ? <Button variant="outline" size="sm" disabled={busyId === application.id} onClick={() => setRejectingId(application.id)}>Reject</Button> : null}
                   {application.status === "invited" ? <Button variant="secondary" size="sm" disabled={busyId === application.id} onClick={() => void post(application.id, "resend")}>Resend invite</Button> : null}
                   {["approved", "invited", "active"].includes(application.status) ? <Button variant="destructive" size="sm" disabled={busyId === application.id} onClick={() => setRevokeId(application.id)}>Revoke</Button> : null}
@@ -190,12 +244,59 @@ export function EarlyAccessManager({ initialApplications }: { initialApplication
               </div>
 
               {approvalId === application.id ? (
-                <div className="mt-4 grid gap-4 border-t border-line pt-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <label className="space-y-1.5 text-xs font-medium text-foreground sm:col-span-2"><span>Workspace name</span><Input value={workspaceName} onChange={(event) => setWorkspaceName(event.target.value)} /></label>
-                  <label className="space-y-1.5 text-xs font-medium text-foreground"><span>Days</span><Input type="number" min={1} max={365} value={durationDays} onChange={(event) => setDurationDays(event.target.value)} /></label>
-                  <label className="space-y-1.5 text-xs font-medium text-foreground"><span>Credits</span><Input type="number" min={1} value={credits} onChange={(event) => setCredits(event.target.value)} /></label>
-                  <fieldset className="sm:col-span-2 lg:col-span-4"><legend className="mb-2 text-xs font-medium text-foreground">Capabilities</legend><div className="flex flex-wrap gap-2">{capabilities.map(([key, label]) => <label key={key} className="flex items-center gap-2 rounded-md border border-line px-3 py-2 text-xs text-foreground"><input type="checkbox" checked={selectedCapabilities.includes(key)} onChange={() => setSelectedCapabilities((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key])} />{label}</label>)}</div></fieldset>
-                  <div className="flex gap-2 sm:col-span-2 lg:col-span-4"><Button size="sm" disabled={busyId === application.id} onClick={() => void approve(application.id, application)}>{busyId === application.id ? "Creating…" : "Confirm approval"}</Button><Button variant="ghost" size="sm" onClick={() => setApprovalId(null)}>Cancel</Button></div>
+                <div className="mt-4 space-y-4 border-t border-line pt-4">
+                  {approvalLoading ? <p role="status" className="text-sm text-muted-foreground">Checking account and workspace options…</p> : null}
+                  {approvalContext ? (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      {approvalContext.accountExists ? (
+                        <div className="space-y-3 rounded-md border border-brand/30 bg-brand/5 p-3 text-sm text-foreground sm:col-span-2 lg:col-span-4">
+                          <div>
+                            <p className="font-medium">Existing account found</p>
+                            <p className="mt-1 text-xs text-muted-foreground">Choose where to grant access. No duplicate account will be created.</p>
+                          </div>
+                          {approvalContext.workspaces.length ? (
+                            <fieldset className="space-y-2">
+                              <legend className="text-xs font-medium text-foreground">Workspace action</legend>
+                              <div className="flex flex-wrap gap-2">
+                                <label className="flex items-center gap-2 rounded-md border border-line bg-background px-3 py-2 text-xs">
+                                  <input type="radio" name={`workspace-action-${application.id}`} checked={workspaceAction === "existing"} onChange={() => setWorkspaceAction("existing")} />
+                                  Use existing workspace
+                                </label>
+                                <label className="flex items-center gap-2 rounded-md border border-line bg-background px-3 py-2 text-xs">
+                                  <input type="radio" name={`workspace-action-${application.id}`} checked={workspaceAction === "new"} onChange={() => setWorkspaceAction("new")} />
+                                  Create new workspace
+                                </label>
+                              </div>
+                            </fieldset>
+                          ) : <p className="text-xs text-muted-foreground">No workspace is linked to this account. Create one below.</p>}
+                        </div>
+                      ) : null}
+                      {approvalContext.accountExists && workspaceAction === "existing" ? (
+                        <label className="space-y-1.5 text-xs font-medium text-foreground sm:col-span-2 lg:col-span-4">
+                          <span>Existing workspace</span>
+                          <Select value={selectedWorkspaceId} onChange={(event) => setSelectedWorkspaceId(event.target.value)}>
+                            <option value="">Select a workspace</option>
+                            {approvalContext.workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name} · {workspace.role.toLowerCase()}</option>)}
+                          </Select>
+                        </label>
+                      ) : null}
+                      {(!approvalContext.accountExists || workspaceAction === "new") ? (
+                        <label className="space-y-1.5 text-xs font-medium text-foreground sm:col-span-2 lg:col-span-4">
+                          <span>{approvalContext.accountExists ? "New workspace name" : "Workspace name"}</span>
+                          <Input value={workspaceName} onChange={(event) => setWorkspaceName(event.target.value)} />
+                        </label>
+                      ) : null}
+                      <label className="space-y-1.5 text-xs font-medium text-foreground"><span>Days</span><Input type="number" min={1} max={365} value={durationDays} onChange={(event) => setDurationDays(event.target.value)} /></label>
+                      <label className="space-y-1.5 text-xs font-medium text-foreground"><span>Credits</span><Input type="number" min={1} value={credits} onChange={(event) => setCredits(event.target.value)} /></label>
+                      <fieldset className="sm:col-span-2 lg:col-span-4"><legend className="mb-2 text-xs font-medium text-foreground">Capabilities</legend><div className="flex flex-wrap gap-2">{capabilities.map(([key, label]) => <label key={key} className="flex items-center gap-2 rounded-md border border-line px-3 py-2 text-xs text-foreground"><input type="checkbox" checked={selectedCapabilities.includes(key)} onChange={() => setSelectedCapabilities((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key])} />{label}</label>)}</div></fieldset>
+                      <div className="flex gap-2 sm:col-span-2 lg:col-span-4">
+                        <Button size="sm" disabled={busyId === application.id || approvalLoading} onClick={() => void approve(application.id, application)}>
+                          {busyId === application.id ? "Saving…" : approvalContext.accountExists ? workspaceAction === "existing" ? "Grant access" : "Create workspace" : "Create & invite"}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => { setApprovalId(null); setApprovalContext(null); }}>Cancel</Button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 

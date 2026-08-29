@@ -30,15 +30,21 @@ duration and credit amount within the Core limits.
 
 1. Open **Early access** in Admin and review applications in `new` or `reviewing`.
 2. Record a rejection reason when declining an application.
-3. Approve with the workspace name, duration, credits, and capabilities. Core provisions the
-   workspace, time-bounded entitlement grants, credit grant, and invitation.
+3. Select **Review approval**. Core checks whether the applicant email already belongs to an
+   account. For a new account, approve with the workspace name, duration, credits, and
+   capabilities; Core provisions the account, workspace, grants, and invitation. For an existing
+   account, select the intended workspace and choose **Grant access**. This applies the grants to
+   that workspace, marks access active, and does not create a duplicate account or invitation.
+   **Create new workspace** remains available when the operator intentionally wants a separate
+   workspace under the existing account.
 4. If delivery fails, the invitation remains durable and **Resend invite** can be used. The raw
    invitation token is never shown in Admin or stored in the application record.
 5. Use **Revoke** for approved, invited, or active access. It revokes a pending invitation,
    closes early-access entitlement grants, and removes only unused early-access credits.
 
 Approval is idempotent by application ID. Retrying an approval reuses the linked organisation,
-invitation, grants, and credit idempotency key rather than creating another access package.
+invitation, grants, and credit idempotency key rather than creating another access package. An
+approval attached to an existing account returns the already-active application on retry.
 
 ## Troubleshooting
 
@@ -55,9 +61,12 @@ invitation, grants, and credit idempotency key rather than creating another acce
   `20260827130000_add_early_access_cohort`,
   `20260827140000_allow_early_access_credit_source`, and
   `20260827150000_prevent_duplicate_early_access_applications` are applied.
-- **Approval fails for an existing email:** the initial provisioning path does not guess which
-  existing organisation should receive access. Resolve the applicant’s intended organisation
-  with the operator before provisioning.
+- **Existing account has no workspace options:** confirm the account email matches exactly and
+  use the new-workspace option if a separate workspace is intended. Core creates the workspace
+  for the existing account without creating another user.
+- **The selected workspace is rejected:** the workspace must belong to the applicant account. Use
+  **Refresh** to reload the application and workspace options, then select one of the listed
+  workspaces.
 - **Invitation email is missing:** inspect Core logs for the invitation ID and email delivery
   error, then resend from Admin. A successful workspace provisioning does not roll back because a
   provider rejected the email.

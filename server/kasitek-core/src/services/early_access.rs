@@ -130,6 +130,21 @@ pub struct ApplicationQuery {
     pub limit: Option<i64>,
 }
 
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct EarlyAccessWorkspaceOption {
+    pub id: String,
+    pub name: String,
+    pub slug: String,
+    pub role: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct EarlyAccessApprovalContext {
+    #[serde(rename = "accountExists")]
+    pub account_exists: bool,
+    pub workspaces: Vec<EarlyAccessWorkspaceOption>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ReviewRequest {
     pub status: String,
@@ -146,6 +161,10 @@ pub struct ApproveRequest {
     pub credits: Option<i64>,
     #[serde(rename = "entitlementKeys")]
     pub entitlement_keys: Option<Vec<String>>,
+    #[serde(rename = "organizationId")]
+    pub organization_id: Option<String>,
+    #[serde(rename = "createWorkspaceForExistingAccount")]
+    pub create_workspace_for_existing_account: Option<bool>,
 }
 
 fn application_select() -> &'static str {
@@ -202,12 +221,13 @@ fn transition_allowed(from: &str, to: &str) -> bool {
         ) | (
             STATUS_REVIEWING,
             STATUS_REVIEWING | STATUS_APPROVED | STATUS_REJECTED
-        ) | (STATUS_APPROVED, STATUS_INVITED | STATUS_REVOKED)
-            | (
-                STATUS_INVITED,
-                STATUS_ACTIVE | STATUS_REVOKED | STATUS_EXPIRED
-            )
-            | (STATUS_ACTIVE, STATUS_EXPIRED | STATUS_REVOKED)
+        ) | (
+            STATUS_APPROVED,
+            STATUS_INVITED | STATUS_ACTIVE | STATUS_REVOKED
+        ) | (
+            STATUS_INVITED,
+            STATUS_ACTIVE | STATUS_REVOKED | STATUS_EXPIRED
+        ) | (STATUS_ACTIVE, STATUS_EXPIRED | STATUS_REVOKED)
             | (STATUS_REJECTED, STATUS_REVIEWING)
     )
 }
@@ -386,6 +406,39 @@ pub async fn get_application(
     .fetch_all(pool)
     .await?;
     Ok((application, events))
+}
+
+pub async fn approval_context(
+    pool: &PgPool,
+    application_id: &str,
+) -> Result<EarlyAccessApprovalContext, AppError> {
+    let application = get_application(pool, application_id).await?.0;
+    let user_id = sqlx::query_scalar::<_, String>(
+        r#"SELECT id FROM "User" WHERE lower(email) = lower($1) LIMIT 1"#,
+    )
+    .bind(&application.email)
+    .fetch_optional(pool)
+    .await?;
+
+    let workspaces = if let Some(user_id) = user_id.as_deref() {
+        sqlx::query_as::<_, EarlyAccessWorkspaceOption>(
+            r#"SELECT o.id, o.name, o.slug, m.role::text AS role
+               FROM "Organization" o
+               JOIN "OrganizationMember" m ON m."orgId" = o.id
+               WHERE m."userId" = $1
+               ORDER BY o."createdAt" ASC, o.id ASC"#,
+        )
+        .bind(user_id)
+        .fetch_all(pool)
+        .await?
+    } else {
+        Vec::new()
+    };
+
+    Ok(EarlyAccessApprovalContext {
+        account_exists: user_id.is_some(),
+        workspaces,
+    })
 }
 
 pub async fn review_application(
@@ -578,9 +631,12 @@ pub async fn approve_application(
     }
 
     let mut application = get_application(pool, application_id).await?.0;
+    if application.status == STATUS_ACTIVE {
+        return Ok(application);
+    }
     if matches!(
         application.status.as_str(),
-        STATUS_REJECTED | STATUS_REVOKED | STATUS_EXPIRED | STATUS_ACTIVE
+        STATUS_REJECTED | STATUS_REVOKED | STATUS_EXPIRED
     ) {
         return Err(AppError::Conflict(format!(
             "Cannot approve an application in {} state",
@@ -624,18 +680,96 @@ pub async fn approve_application(
         application = get_application(pool, application_id).await?.0;
     }
 
-    let org_id = if let Some(org_id) = application.organization_id.clone() {
-        org_id
-    } else {
-        let existing_user = sqlx::query_scalar::<_, String>(
+    let requested_org_id = request
+        .organization_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let create_workspace_for_existing_account = request
+        .create_workspace_for_existing_account
+        .unwrap_or(false);
+    if requested_org_id.is_some() && create_workspace_for_existing_account {
+        return Err(AppError::BadRequest(
+            "Choose an existing workspace or create a new one, not both".to_string(),
+        ));
+    }
+    if let (Some(linked_org_id), Some(requested_org_id)) =
+        (application.organization_id.as_deref(), requested_org_id)
+    {
+        if linked_org_id != requested_org_id {
+            return Err(AppError::Conflict(
+                "This application is already linked to another workspace".to_string(),
+            ));
+        }
+    }
+
+    let existing_user_id = if application.organization_id.is_none() {
+        sqlx::query_scalar::<_, String>(
             r#"SELECT id FROM "User" WHERE lower(email) = lower($1) LIMIT 1"#,
         )
         .bind(&application.email)
         .fetch_optional(pool)
+        .await?
+    } else {
+        None
+    };
+    let mut existing_account_access = false;
+    let org_id = if let Some(org_id) = application.organization_id.clone() {
+        org_id
+    } else if let Some(requested_org_id) = requested_org_id {
+        let user_id = existing_user_id.as_deref().ok_or_else(|| {
+            AppError::Conflict(
+                "The applicant account is no longer available. Reload the workspace options and try again.".to_string(),
+            )
+        })?;
+        let belongs_to_account = sqlx::query_scalar::<_, bool>(
+            r#"SELECT EXISTS(
+                   SELECT 1 FROM "Organization" o
+                   WHERE o.id = $1
+                     AND (o."ownerId" = $2 OR EXISTS(
+                         SELECT 1 FROM "OrganizationMember" m
+                         WHERE m."orgId" = o.id AND m."userId" = $2
+                     ))
+               )"#,
+        )
+        .bind(requested_org_id)
+        .bind(user_id)
+        .fetch_one(pool)
         .await?;
-        if existing_user.is_some() {
+        if !belongs_to_account {
             return Err(AppError::Conflict(
-                "This email already has an account. Approve it from that workspace instead of provisioning a new one.".to_string(),
+                "The selected workspace is not associated with the applicant account".to_string(),
+            ));
+        }
+        existing_account_access = true;
+        link_organization(pool, application_id, requested_org_id).await?;
+        requested_org_id.to_string()
+    } else if let Some(user_id) = existing_user_id.as_deref() {
+        if !create_workspace_for_existing_account {
+            return Err(AppError::Conflict(
+                "Choose an existing workspace or select Create new workspace for this account"
+                    .to_string(),
+            ));
+        }
+        existing_account_access = true;
+        let base_slug = orgs::slugify(&workspace_name);
+        let slug = orgs::unique_slug(pool, &base_slug).await?;
+        let org = orgs::create_org(
+            pool,
+            user_id,
+            &workspace_name,
+            &slug,
+            None,
+            config.trial_credits,
+            config.trial_duration_days,
+        )
+        .await?;
+        link_organization(pool, application_id, &org.id).await?;
+        org.id
+    } else {
+        if create_workspace_for_existing_account {
+            return Err(AppError::Conflict(
+                "The applicant account is no longer available. Reload the workspace options and try again.".to_string(),
             ));
         }
         let user_id = cuid2::create_id();
@@ -695,46 +829,88 @@ pub async fn approve_application(
         &format!("early-access-credits:{}", application.id),
     )
     .await?;
-    let invitation_id = ensure_invitation(pool, config, &application, &org_id).await?;
+    let target_status = if existing_account_access {
+        STATUS_ACTIVE
+    } else {
+        STATUS_INVITED
+    };
+    let invitation_id = if existing_account_access {
+        None
+    } else {
+        Some(ensure_invitation(pool, config, &application, &org_id).await?)
+    };
     sqlx::query(
         r#"UPDATE "ProductWaitlistEntry"
-           SET status = 'invited', "organizationId" = $1, "invitationId" = $2,
-               "earlyAccessEndsAt" = $3, "entitlementGrantIds" = $4,
-               "creditGrantId" = COALESCE("creditGrantId", $5), "updatedAt" = NOW()
-           WHERE id = $6"#,
+           SET status = $1, "organizationId" = $2, "invitationId" = $3,
+               "earlyAccessEndsAt" = $4, "entitlementGrantIds" = $5,
+               "creditGrantId" = COALESCE("creditGrantId", $6),
+               "activatedAt" = CASE WHEN $1 = 'active' THEN COALESCE("activatedAt", NOW()) ELSE "activatedAt" END,
+               "updatedAt" = NOW()
+           WHERE id = $7"#,
     )
+    .bind(target_status)
     .bind(&org_id)
-    .bind(&invitation_id)
+    .bind(invitation_id.as_deref())
     .bind(ends_at)
     .bind(json!(entitlement_ids))
     .bind(credit_result.grant_id.as_deref())
     .bind(application_id)
     .execute(pool)
     .await?;
-    if application.status != STATUS_INVITED {
+    if application.status != target_status {
         record_event(
             pool,
             application_id,
             Some(&application.status),
-            STATUS_INVITED,
-            "invited",
+            target_status,
+            if existing_account_access {
+                "workspace_access_granted"
+            } else {
+                "invited"
+            },
             Some(actor_id),
             None,
-            json!({ "organizationId": org_id, "invitationId": invitation_id }),
+            json!({
+                "organizationId": org_id,
+                "invitationId": invitation_id,
+                "existingAccount": existing_account_access,
+            }),
         )
         .await?;
         let _ = website::publish_admin_notification(
             pool,
-            "early_access.invited",
-            "Early-access invitation sent",
-            &format!(
-                "{} was approved for early access.",
-                application.business_name
-            ),
+            if existing_account_access {
+                "early_access.granted"
+            } else {
+                "early_access.invited"
+            },
+            if existing_account_access {
+                "Early access granted"
+            } else {
+                "Early-access invitation sent"
+            },
+            &if existing_account_access {
+                format!(
+                    "{} was granted early access in an existing workspace.",
+                    application.business_name
+                )
+            } else {
+                format!(
+                    "{} was approved for early access.",
+                    application.business_name
+                )
+            },
             "product_waitlist_entry",
             application_id,
             json!({ "organizationId": org_id, "invitationId": invitation_id }),
-            &format!("early_access.invited:{application_id}"),
+            &format!(
+                "early_access.{}:{application_id}",
+                if existing_account_access {
+                    "granted"
+                } else {
+                    "invited"
+                }
+            ),
         )
         .await;
     }
