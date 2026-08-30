@@ -25,6 +25,31 @@ fn normalize_platform(value: &str) -> String {
     value.trim().to_ascii_uppercase()
 }
 
+fn prepare_agent_channels(request: &SocialPostUpsertRequest) -> Option<Vec<String>> {
+    let requested = request
+        .channels
+        .as_ref()?
+        .iter()
+        .map(|channel| normalize_platform(channel))
+        .collect::<Vec<_>>();
+    if requested
+        .iter()
+        .any(|channel| SUPPORTED_PLATFORMS.contains(&channel.as_str()))
+    {
+        return Some(requested);
+    }
+
+    let selected_platforms = request
+        .channel_selections
+        .as_ref()
+        .into_iter()
+        .flat_map(|selections| selections.keys())
+        .map(|platform| normalize_platform(platform))
+        .filter(|platform| SUPPORTED_PLATFORMS.contains(&platform.as_str()))
+        .collect::<Vec<_>>();
+    Some(selected_platforms)
+}
+
 async fn newest_connected_channel(
     pool: &PgPool,
     organization_id: &str,
@@ -110,12 +135,7 @@ async fn prepare_agent_content_request(
     request: &SocialPostUpsertRequest,
 ) -> Result<SocialPostUpsertRequest, AppError> {
     let mut prepared = request.clone();
-    prepared.channels = request.channels.as_ref().map(|channels| {
-        channels
-            .iter()
-            .map(|platform| normalize_platform(platform))
-            .collect()
-    });
+    prepared.channels = prepare_agent_channels(request);
     prepared.variants = request.variants.as_ref().map(|variants| {
         variants
             .iter()
@@ -622,7 +642,9 @@ mod tests {
         request_context::RequestContext,
     };
 
-    use super::{delete_post, normalize_platform, publish, schedule, unschedule};
+    use super::{
+        delete_post, normalize_platform, prepare_agent_channels, publish, schedule, unschedule,
+    };
 
     fn context(idempotency_key: Option<&str>) -> RequestContext {
         RequestContext {
@@ -648,6 +670,31 @@ mod tests {
     fn normalizes_platform_names_from_agent_requests() {
         assert_eq!(normalize_platform(" bluesky "), "BLUESKY");
         assert_eq!(normalize_platform("Bluesky"), "BLUESKY");
+    }
+
+    #[test]
+    fn derives_provider_platforms_from_account_selectors_when_model_echoes_account_name() {
+        let request = crate::db::models::SocialPostUpsertRequest {
+            title: None,
+            prompt: None,
+            content: Some("Post".to_string()),
+            channels: Some(vec!["KasiTek".to_string()]),
+            status: None,
+            scheduled_for: None,
+            primary_channel_id: Some("KasiTek".to_string()),
+            channel_selections: Some(std::collections::HashMap::from([(
+                "INSTAGRAM".to_string(),
+                "@kasiteklabs".to_string(),
+            )])),
+            variants: None,
+            media: None,
+            metadata: None,
+        };
+
+        assert_eq!(
+            prepare_agent_channels(&request),
+            Some(vec!["INSTAGRAM".to_string()])
+        );
     }
 
     #[tokio::test]
