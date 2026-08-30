@@ -63,13 +63,13 @@ Change: Consolidate LinkedIn member and Company Page connections into one OAuth 
 Owner: Engineering
 Risk: standard
 Affected services and user surfaces: kasitek-core social OAuth/publishing; client Connections and Content surfaces.
-Platform release version or release ID: to be recorded at release.
+Platform release version or release ID: Core Railway deployment 6d5760e1-272c-4463-b04e-ee6a493262cf; deployed commit 713e352d677a4b06075c1761d9af1bd2828b76cb.
 API/schema/migration changes: Combined LinkedIn member/organization OAuth scopes and REST organization/posts calls; no database migration.
 Feature flag or rollout method: provider permission-gated; no feature flag required for initial rollout.
 Analytics events and success metrics: not applicable; existing connection and publish outcomes remain the metrics surface.
 Logs, metrics, dashboards, and alerts: structured provider OAuth/discovery failures; existing connection/publish observability; no new dashboard.
 User, API, internal, and operational documentation: update LinkedIn connection runbook and implemented-features documentation.
-Validation evidence: backend check/tests, client lint, webpack production build, and public docs build passed on 2026-08-30. Live Page OAuth remains pending LinkedIn app permission approval.
+Validation evidence: backend check/tests, client lint, webpack production build, and public docs build passed on 2026-08-30. Core `/health` returned HTTP 200 after deployment; Vercel reported the connected frontend deployments completed. Live Page OAuth remains pending LinkedIn app permission approval.
 Rollback or disable plan: stop exposing the combined LinkedIn action or remove the organization scopes from AUTH_LINKEDIN_SCOPES; existing saved connections remain usable.
 Post-release review date: to be scheduled after the first live Page connection.
 ```
