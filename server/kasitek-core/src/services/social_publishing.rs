@@ -7,9 +7,9 @@ use crate::error::AppError;
 
 use super::social::{
     decrypt_social_secret, encrypt_social_secret, fetch_json, required_env, ThreadsTokenResponse,
-    TikTokTokenResponse, INSTAGRAM_GRAPH_BASE, LINKEDIN_UGC_POSTS_URL, META_GRAPH_BASE,
-    THREADS_GRAPH_BASE, TIKTOK_CREATOR_INFO_URL, TIKTOK_PUBLISH_URL, TIKTOK_TOKEN_URL,
-    X_POST_TWEET_URL,
+    TikTokTokenResponse, INSTAGRAM_GRAPH_BASE, LINKEDIN_API_VERSION, LINKEDIN_POSTS_URL,
+    META_GRAPH_BASE, THREADS_GRAPH_BASE, TIKTOK_CREATOR_INFO_URL, TIKTOK_PUBLISH_URL,
+    TIKTOK_TOKEN_URL, X_POST_TWEET_URL,
 };
 
 async fn send_provider_delete(
@@ -115,10 +115,11 @@ pub(crate) async fn delete_post_from_provider(
             send_provider_delete(
                 client
                     .delete(format!(
-                        "{LINKEDIN_UGC_POSTS_URL}/{}",
+                        "{LINKEDIN_POSTS_URL}/{}",
                         urlencoding::encode(external_post_id)
                     ))
                     .bearer_auth(access_token)
+                    .header("Linkedin-Version", LINKEDIN_API_VERSION)
                     .header("X-Restli-Protocol-Version", "2.0.0"),
                 "Failed to delete the LinkedIn post",
             )
@@ -218,7 +219,7 @@ pub(crate) async fn publish_post_to_linkedin(
                 .map(|value| format!("urn:li:person:{value}"))
         })
         .ok_or_else(|| {
-            AppError::BadRequest("LinkedIn connection is missing a member identifier".to_string())
+            AppError::BadRequest("LinkedIn connection is missing an actor identifier".to_string())
         })?;
 
     if let Some(image) = image {
@@ -228,7 +229,7 @@ pub(crate) async fn publish_post_to_linkedin(
                 .post("https://api.linkedin.com/rest/images?action=initializeUpload")
                 .bearer_auth(&access_token)
                 .header("Content-Type", "application/json")
-                .header("Linkedin-Version", "202606")
+                .header("Linkedin-Version", LINKEDIN_API_VERSION)
                 .header("X-Restli-Protocol-Version", "2.0.0")
                 .json(&json!({ "initializeUploadRequest": { "owner": &actor_urn } })),
             "Failed to initialize LinkedIn image upload",
@@ -270,10 +271,10 @@ pub(crate) async fn publish_post_to_linkedin(
             ));
         }
         let response = client
-            .post("https://api.linkedin.com/rest/posts")
+            .post(LINKEDIN_POSTS_URL)
             .bearer_auth(&access_token)
             .header("Content-Type", "application/json")
-            .header("Linkedin-Version", "202606")
+            .header("Linkedin-Version", LINKEDIN_API_VERSION)
             .header("X-Restli-Protocol-Version", "2.0.0")
             .json(&json!({
                 "author": &actor_urn,
@@ -304,22 +305,22 @@ pub(crate) async fn publish_post_to_linkedin(
     }
 
     let response = reqwest::Client::new()
-        .post(LINKEDIN_UGC_POSTS_URL)
+        .post(LINKEDIN_POSTS_URL)
         .bearer_auth(access_token)
         .header("Content-Type", "application/json")
+        .header("Linkedin-Version", LINKEDIN_API_VERSION)
         .header("X-Restli-Protocol-Version", "2.0.0")
         .json(&json!({
             "author": actor_urn,
-            "lifecycleState": "PUBLISHED",
-            "specificContent": {
-                "com.linkedin.ugc.ShareContent": {
-                    "shareCommentary": { "text": text },
-                    "shareMediaCategory": "NONE"
-                }
+            "commentary": text,
+            "visibility": "PUBLIC",
+            "distribution": {
+                "feedDistribution": "MAIN_FEED",
+                "targetEntities": [],
+                "thirdPartyDistributionChannels": []
             },
-            "visibility": {
-                "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
-            }
+            "lifecycleState": "PUBLISHED",
+            "isReshareDisabledByAuthor": false
         }))
         .send()
         .await?;

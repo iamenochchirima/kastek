@@ -12,6 +12,27 @@ const LINKEDIN_AUTHORIZE_URL: &str = "https://www.linkedin.com/oauth/v2/authoriz
 const THREADS_AUTHORIZE_URL: &str = "https://www.threads.com/oauth/authorize";
 const TIKTOK_AUTHORIZE_URL: &str = "https://www.tiktok.com/v2/auth/authorize/";
 
+fn linkedin_scopes(configured_scopes: &str) -> String {
+    let mut scopes = configured_scopes
+        .split_whitespace()
+        .filter(|scope| !scope.is_empty())
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    for required_scope in [
+        "openid",
+        "profile",
+        "email",
+        "w_member_social",
+        "r_organization_admin",
+        "w_organization_social",
+    ] {
+        if !scopes.iter().any(|scope| scope == required_scope) {
+            scopes.push(required_scope.to_string());
+        }
+    }
+    scopes.join(" ")
+}
+
 #[derive(Clone)]
 pub struct XOAuthState {
     pub state: String,
@@ -109,8 +130,8 @@ pub fn build_linkedin_authorize_url(config: &AppConfig, state: &str) -> Result<S
         "{}/api/social/oauth/linkedin/callback",
         social_app_url(config)
     );
-    let scope = std::env::var("AUTH_LINKEDIN_SCOPES")
-        .unwrap_or_else(|_| "openid profile email w_member_social".to_string());
+    let configured_scopes = std::env::var("AUTH_LINKEDIN_SCOPES").unwrap_or_default();
+    let scope = linkedin_scopes(&configured_scopes);
     Ok(format!(
         "{LINKEDIN_AUTHORIZE_URL}?response_type=code&client_id={}&redirect_uri={}&state={}&scope={}",
         urlencoding::encode(&client_id),
@@ -190,7 +211,7 @@ pub fn build_instagram_authorize_url(config: &AppConfig, state: &str) -> Result<
 
 #[cfg(test)]
 mod tests {
-    use super::create_x_oauth_state;
+    use super::{create_x_oauth_state, linkedin_scopes};
 
     #[test]
     fn x_oauth_state_contains_distinct_pkce_material() {
@@ -201,5 +222,14 @@ mod tests {
         assert!(!state.challenge.is_empty());
         assert_ne!(state.state, state.verifier);
         assert_ne!(state.verifier, state.challenge);
+    }
+
+    #[test]
+    fn linkedin_oauth_always_requests_member_and_organization_scopes() {
+        let scopes = linkedin_scopes("openid profile email w_member_social");
+
+        assert!(scopes.contains("r_organization_admin"));
+        assert!(scopes.contains("w_organization_social"));
+        assert_eq!(scopes.matches("openid").count(), 1);
     }
 }

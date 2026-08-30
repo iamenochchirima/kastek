@@ -7,7 +7,7 @@ use crate::error::AppError;
 
 use super::social::{
     encrypt_social_secret, fetch_page_instagram_account, merge_channel_metadata_with_capabilities,
-    value_as_identifier, InstagramProfile, InstagramTokenResponse, LinkedInProfile,
+    value_as_identifier, InstagramProfile, InstagramTokenResponse, LinkedInPage, LinkedInProfile,
     LinkedInTokenResponse, MetaPageAccount, MetaTokenResponse, ThreadsProfile,
     ThreadsTokenResponse, TikTokProfile, TikTokTokenResponse, XMeData, XTokenResponse,
 };
@@ -551,7 +551,9 @@ pub async fn upsert_linkedin_connection_for_org(
         "LINKEDIN",
         Some(json!({
             "provider": "linkedin",
-            "scope": tokens.scope.clone().unwrap_or_else(|| "openid profile email w_member_social".to_string()),
+            "accountType": "member",
+            "actorType": "person",
+            "scope": tokens.scope.clone().unwrap_or_else(|| "openid profile email w_member_social r_organization_admin w_organization_social".to_string()),
             "expiresAt": expires_at,
             "picture": profile.picture,
             "email": profile.email,
@@ -564,6 +566,54 @@ pub async fn upsert_linkedin_connection_for_org(
     get_social_channel_by_external_account(pool, org_id, "LINKEDIN", profile_sub)
         .await?
         .ok_or_else(|| AppError::Internal("Failed to load saved LinkedIn connection".to_string()))
+}
+
+pub async fn upsert_linkedin_page_connections_for_org(
+    pool: &PgPool,
+    user_id: &str,
+    org_id: &str,
+    tokens: &LinkedInTokenResponse,
+    pages: &[LinkedInPage],
+) -> Result<Vec<SocialChannel>, AppError> {
+    let access_token = tokens
+        .access_token
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Missing LinkedIn access token".to_string()))?;
+    let expires_at = tokens
+        .expires_in
+        .map(|seconds| (Utc::now() + Duration::seconds(seconds)).to_rfc3339());
+    let mut saved = Vec::with_capacity(pages.len());
+
+    for page in pages {
+        let channel = upsert_provider_connection(
+            pool,
+            user_id,
+            org_id,
+            "LINKEDIN",
+            &page.name,
+            page.vanity_name
+                .as_ref()
+                .map(|vanity| format!("linkedin.com/company/{vanity}")),
+            &page.id,
+            access_token,
+            tokens.refresh_token.as_deref(),
+            json!({
+                "provider": "linkedin",
+                "accountType": "organization",
+                "actorType": "organization",
+                "organizationId": page.id,
+                "actorUrn": page.urn,
+                "role": page.role,
+                "vanityName": page.vanity_name,
+                "scope": tokens.scope.clone().unwrap_or_else(|| "openid profile email w_member_social r_organization_admin w_organization_social".to_string()),
+                "expiresAt": expires_at.clone(),
+            }),
+        )
+        .await?;
+        saved.push(channel);
+    }
+
+    Ok(saved)
 }
 
 pub async fn upsert_tiktok_connection_for_org(

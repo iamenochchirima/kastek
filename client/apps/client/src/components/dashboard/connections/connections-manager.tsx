@@ -78,7 +78,7 @@ const providerDetails = {
   },
   LINKEDIN: {
     label: "LinkedIn",
-    availableLabel: "Available to connect",
+    availableLabel: "Profiles and Pages",
     icon: getPlatformBrandIcon("LINKEDIN") ?? MessageCircle,
     iconClass: getPlatformBrandColor("LINKEDIN"),
     connectPath: "/api/social/oauth/linkedin/start",
@@ -259,6 +259,8 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
             const actionLabel = connected > 0
               ? provider === "FACEBOOK"
                 ? "Add Pages"
+                : provider === "LINKEDIN"
+                  ? "Sync Pages"
                 : "Add another"
               : detail.connectLabel ?? "Connect";
 
@@ -350,6 +352,8 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                       const detail = group.detail;
                       const Icon = detail?.icon ?? Radio;
                       const status = statusPresentation(connection.status);
+                      const isLinkedInPage = connection.provider === "LINKEDIN"
+                        && connection.metadata?.accountType === "organization";
 
                       return (
                         <MotionReveal key={connection.id} delay={0.08 + index * 0.05} hoverLift className="h-full">
@@ -362,7 +366,9 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                               <div className="rounded-md border bg-secondary p-1.5"><Icon className={`h-4 w-4 ${detail?.iconClass ?? "text-muted-foreground"}`} /></div>
                               <div className="min-w-0">
                                 <p className="truncate text-sm font-medium">{connection.displayName}</p>
-                                {connection.handle ? (
+                                {isLinkedInPage ? (
+                                  <p className="truncate text-xs text-muted-foreground">Company Page</p>
+                                ) : connection.handle ? (
                                   <p className="truncate text-xs text-muted-foreground">{connection.handle}</p>
                                 ) : null}
                               </div>
@@ -443,7 +449,9 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Connect an account</p>
                   <h2 className="mt-1 text-xl font-semibold">
-                    {connectionPicker === "FACEBOOK" ? "Choose Facebook Pages" : "Choose an Instagram connection"}
+                    {connectionPicker === "FACEBOOK"
+                      ? "Choose Facebook Pages"
+                      : "Choose an Instagram connection"}
                   </h2>
                 </div>
                 <Button variant="ghost" size="icon-sm" onClick={() => setConnectionPicker(null)} aria-label="Close account picker">
@@ -507,7 +515,6 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                       </div>
                     </div>
                   </button>
-
                 </div>
               )}
             </div>
@@ -532,6 +539,8 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
             const providerDetail = providerDetails[selectedConnection.provider as keyof typeof providerDetails];
             const Icon = providerDetail?.icon ?? Radio;
             const status = statusPresentation(selectedConnection.status);
+            const isLinkedInPage = selectedConnection.provider === "LINKEDIN"
+              && selectedConnection.metadata?.accountType === "organization";
             const reconnectPath = providerDetail?.connectPath;
             const metadataDetails = safeProviderDetails(selectedConnection.metadata);
             const rows = [
@@ -549,9 +558,9 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
             return (
               <div className="space-y-6">
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3">
                     <div className="rounded-md border bg-secondary p-2"><Icon className={`h-5 w-5 ${providerDetail?.iconClass ?? "text-muted-foreground"}`} /></div>
-                    <div><p className="font-semibold">{selectedConnection.displayName}</p><p className="text-sm text-muted-foreground">Connection details</p></div>
+                    <div><p className="font-semibold">{selectedConnection.displayName}</p><p className="text-sm text-muted-foreground">{isLinkedInPage ? "LinkedIn Company Page" : "Connection details"}</p></div>
                   </div>
                   <Button variant="ghost" size="icon-sm" onClick={() => setSelectedConnection(null)} aria-label="Close details"><CloseIcon /></Button>
                 </div>

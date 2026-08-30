@@ -6,6 +6,7 @@ use hmac::{Hmac, Mac};
 use serde_json::{json, Value};
 use sha2::Sha256;
 use sqlx::PgPool;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
@@ -32,7 +33,10 @@ const INSTAGRAM_LONG_LIVED_TOKEN_URL: &str = "https://graph.instagram.com/access
 pub(crate) const INSTAGRAM_GRAPH_BASE: &str = "https://graph.instagram.com/v23.0";
 const LINKEDIN_TOKEN_URL: &str = "https://www.linkedin.com/oauth/v2/accessToken";
 const LINKEDIN_USERINFO_URL: &str = "https://api.linkedin.com/v2/userinfo";
-pub(crate) const LINKEDIN_UGC_POSTS_URL: &str = "https://api.linkedin.com/v2/ugcPosts";
+const LINKEDIN_ORGANIZATION_ACLS_URL: &str = "https://api.linkedin.com/rest/organizationAcls";
+const LINKEDIN_ORGANIZATIONS_LOOKUP_URL: &str = "https://api.linkedin.com/rest/organizationsLookup";
+pub(crate) const LINKEDIN_POSTS_URL: &str = "https://api.linkedin.com/rest/posts";
+pub(crate) const LINKEDIN_API_VERSION: &str = "202606";
 const THREADS_TOKEN_URL: &str = "https://graph.threads.com/oauth/access_token";
 pub(crate) const THREADS_GRAPH_BASE: &str = "https://graph.threads.com/v1.0";
 pub(crate) const TIKTOK_TOKEN_URL: &str = "https://open.tiktokapis.com/v2/oauth/token/";
@@ -90,9 +94,9 @@ pub use super::social_insights::{
 };
 pub use super::social_provider_connections::{
     upsert_bluesky_oauth_connection_for_org, upsert_instagram_connection_for_org,
-    upsert_linkedin_connection_for_org, upsert_meta_connections_for_org,
-    upsert_threads_connection_for_org, upsert_tiktok_connection_for_org,
-    upsert_x_connection_for_org,
+    upsert_linkedin_connection_for_org, upsert_linkedin_page_connections_for_org,
+    upsert_meta_connections_for_org, upsert_threads_connection_for_org,
+    upsert_tiktok_connection_for_org, upsert_x_connection_for_org,
 };
 
 pub(crate) fn merge_channel_metadata_with_capabilities(
@@ -542,6 +546,45 @@ pub struct LinkedInProfile {
     pub email: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct LinkedInPage {
+    pub id: String,
+    pub urn: String,
+    pub name: String,
+    pub vanity_name: Option<String>,
+    pub role: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct LinkedInOrganizationAclResponse {
+    #[serde(default)]
+    elements: Vec<LinkedInOrganizationAcl>,
+    paging: Option<LinkedInPaging>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct LinkedInOrganizationAcl {
+    organization: Option<String>,
+    #[serde(rename = "organizationTarget")]
+    organization_target: Option<String>,
+    role: Option<String>,
+    state: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct LinkedInPaging {
+    total: Option<usize>,
+}
+
+fn linkedin_role_rank(role: &str) -> u8 {
+    match role {
+        "ADMINISTRATOR" => 4,
+        "CONTENT_ADMIN" | "CONTENT_ADMINISTRATOR" => 3,
+        "DIRECT_SPONSORED_CONTENT_POSTER" => 2,
+        _ => 0,
+    }
+}
+
 pub async fn exchange_linkedin_code_for_tokens(
     config: &AppConfig,
     code: &str,
@@ -592,6 +635,115 @@ pub async fn fetch_linkedin_profile(access_token: &str) -> Result<LinkedInProfil
     }
 
     Ok(profile)
+}
+
+pub async fn fetch_linkedin_pages(access_token: &str) -> Result<Vec<LinkedInPage>, AppError> {
+    const PAGE_SIZE: usize = 100;
+    let client = reqwest::Client::new();
+    let mut start = 0usize;
+    let mut page_roles = HashMap::<String, String>::new();
+
+    loop {
+        let params = [
+            ("q", "roleAssignee".to_string()),
+            ("state", "APPROVED".to_string()),
+            ("count", PAGE_SIZE.to_string()),
+            ("start", start.to_string()),
+        ];
+        let response: LinkedInOrganizationAclResponse = fetch_json(
+            client
+                .get(LINKEDIN_ORGANIZATION_ACLS_URL)
+                .bearer_auth(access_token)
+                .header("Linkedin-Version", LINKEDIN_API_VERSION)
+                .header("X-Restli-Protocol-Version", "2.0.0")
+                .header("Content-Type", "application/json")
+                .query(&params),
+            "Failed to load LinkedIn Pages",
+        )
+        .await?;
+        let LinkedInOrganizationAclResponse { elements, paging } = response;
+        let received = elements.len();
+
+        for access in elements {
+            let role = access.role.unwrap_or_default();
+            if access.state.as_deref() != Some("APPROVED") || linkedin_role_rank(&role) == 0 {
+                continue;
+            }
+            let Some(organization) = access
+                .organization
+                .or(access.organization_target)
+                .filter(|value| value.starts_with("urn:li:organization:"))
+            else {
+                continue;
+            };
+
+            let should_replace = page_roles
+                .get(&organization)
+                .map(|current| linkedin_role_rank(&role) > linkedin_role_rank(current))
+                .unwrap_or(true);
+            if should_replace {
+                page_roles.insert(organization, role);
+            }
+        }
+
+        if received < PAGE_SIZE
+            || paging
+                .and_then(|paging| paging.total)
+                .is_some_and(|total| start + received >= total)
+        {
+            break;
+        }
+        start += received;
+    }
+
+    let mut pages = Vec::with_capacity(page_roles.len());
+    for (urn, role) in page_roles {
+        let Some(id) = urn.strip_prefix("urn:li:organization:") else {
+            continue;
+        };
+        let details_response: Value = fetch_json(
+            client
+                .get(LINKEDIN_ORGANIZATIONS_LOOKUP_URL)
+                .bearer_auth(access_token)
+                .header("Linkedin-Version", LINKEDIN_API_VERSION)
+                .header("X-Restli-Protocol-Version", "2.0.0")
+                .header("Content-Type", "application/json")
+                .query(&[("ids", format!("List({id})"))]),
+            "Failed to load LinkedIn Page details",
+        )
+        .await?;
+        let details = details_response
+            .get("results")
+            .and_then(Value::as_object)
+            .and_then(|results| results.get(id))
+            .ok_or_else(|| {
+                AppError::BadRequest(format!("LinkedIn did not return details for Page {id}"))
+            })?;
+        let name = details
+            .get("localizedName")
+            .and_then(Value::as_str)
+            .or_else(|| {
+                details
+                    .pointer("/name/localized/en_US")
+                    .and_then(Value::as_str)
+            })
+            .unwrap_or("LinkedIn Page")
+            .to_string();
+        let vanity_name = details
+            .get("vanityName")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        pages.push(LinkedInPage {
+            id: id.to_string(),
+            urn,
+            name,
+            vanity_name,
+            role,
+        });
+    }
+
+    pages.sort_by(|left, right| left.name.to_lowercase().cmp(&right.name.to_lowercase()));
+    Ok(pages)
 }
 
 #[derive(Clone, serde::Deserialize)]
@@ -2794,7 +2946,7 @@ pub async fn execute_social_publish_job(
             )
             .await?;
             let access = channel.access_token.as_deref().ok_or_else(|| {
-                AppError::BadRequest("Connect a linkedin account before publishing".to_string())
+                AppError::BadRequest("Connect a LinkedIn account before publishing".to_string())
             })?;
             let image = attached_publish_images(pool, &config, org_id, &job.media)
                 .await?
@@ -3067,7 +3219,9 @@ async fn reconcile_tiktok_publish_jobs(pool: &PgPool, limit: i64) -> Result<i64,
 
 #[cfg(test)]
 mod tests {
-    use super::{decode_threads_signed_request, HmacSha256, InstagramProfile, Value};
+    use super::{
+        decode_threads_signed_request, linkedin_role_rank, HmacSha256, InstagramProfile, Value,
+    };
     use base64::engine::general_purpose::URL_SAFE_NO_PAD;
     use base64::Engine as _;
     use hmac::Mac;
@@ -3112,6 +3266,16 @@ mod tests {
         let profile = profile(Some("app-scoped-id"), None);
 
         assert_eq!(profile.account_id().as_deref(), Some("app-scoped-id"));
+    }
+
+    #[test]
+    fn linkedin_page_roles_are_ranked_by_publishing_access() {
+        assert!(linkedin_role_rank("ADMINISTRATOR") > linkedin_role_rank("CONTENT_ADMIN"));
+        assert!(
+            linkedin_role_rank("CONTENT_ADMINISTRATOR")
+                > linkedin_role_rank("DIRECT_SPONSORED_CONTENT_POSTER")
+        );
+        assert_eq!(linkedin_role_rank("ANALYST"), 0);
     }
 
     fn threads_signed_request(payload: Value, secret: &str) -> String {

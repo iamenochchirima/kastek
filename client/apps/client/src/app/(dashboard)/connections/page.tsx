@@ -24,6 +24,7 @@ export default async function ConnectionsPage({
     connected?: string;
     facebook_count?: string;
     instagram_count?: string;
+    pages_count?: string;
     error?: string;
   }>;
 }) {
@@ -74,17 +75,25 @@ export default async function ConnectionsPage({
         params.connected === "linkedin" ||
         params.connected === "x" ? (
           <div className="rounded-xl border border-status-success/30 bg-status-success-soft px-4 py-3 text-sm text-status-success">
-            Your{" "}
-            {params.connected === "instagram"
+            {params.connected === "linkedin" && params.pages_count ? (
+              params.pages_count === "0" ? (
+                <>LinkedIn profile connected. No Company Pages were found for this account.</>
+              ) : (
+                <>LinkedIn connected successfully: profile and {params.pages_count} Company Page{params.pages_count === "1" ? "" : "s"} ready to use in this workspace.</>
+              )
+            ) : (
+              <>Your{" "}
+              {params.connected === "instagram"
               ? "Instagram"
               : params.connected === "threads"
                 ? "Threads"
                 : params.connected === "tiktok"
                   ? "TikTok"
-              : params.connected === "linkedin"
-                ? "LinkedIn"
-                : "X"}{" "}
-            account was connected and is ready to use in this workspace.
+                  : params.connected === "linkedin"
+                    ? "LinkedIn profile"
+                    : "X"}{" "}
+              {params.connected === "linkedin" ? " was connected" : " account was connected"} and is ready to use in this workspace.</>
+            )}
           </div>
         ) : null}
 

@@ -29,6 +29,7 @@ const sidebars = {
         "operations/leads",
         "operations/conversations",
         "operations/audio-input",
+        "operations/social-connections",
       ],
     },
     {

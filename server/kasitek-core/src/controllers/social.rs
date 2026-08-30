@@ -1106,6 +1106,7 @@ pub async fn linkedin_oauth_callback(
         );
         return Ok(HttpResponse::Found()
             .append_header(("Location", redirect))
+            .cookie(clear_oauth_cookie(social::LINKEDIN_STATE_COOKIE))
             .finish());
     }
 
@@ -1124,7 +1125,6 @@ pub async fn linkedin_oauth_callback(
     if stored_state != returned_state {
         return Err(AppError::BadRequest("Invalid OAuth state".to_string()));
     }
-
     let tokens = social::exchange_linkedin_code_for_tokens(config.get_ref(), code)
         .await
         .map_err(|error| {
@@ -1142,28 +1142,57 @@ pub async fn linkedin_oauth_callback(
                 other => other,
             }
         })?;
-    let profile = social::fetch_linkedin_profile(
-        tokens
-            .access_token
-            .as_deref()
-            .ok_or_else(|| AppError::BadRequest("Missing LinkedIn access token".to_string()))?,
-    )
-    .await
-    .map_err(|error| {
-        observability::tracing::warn!(
-            event = "provider.call.failed",
-            provider = "linkedin",
-            operation = "oauth.profile_lookup",
-            error_type = %std::any::type_name_of_val(&error),
-            "LinkedIn OAuth profile lookup failed"
-        );
-        match error {
-            AppError::BadRequest(message) => {
-                AppError::BadRequest(format!("LinkedIn profile lookup failed: {message}"))
+    let access_token = tokens
+        .access_token
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Missing LinkedIn access token".to_string()))?;
+
+    let profile = social::fetch_linkedin_profile(access_token)
+        .await
+        .map_err(|error| {
+            observability::tracing::warn!(
+                event = "provider.call.failed",
+                provider = "linkedin",
+                operation = "oauth.profile_lookup",
+                error_type = %std::any::type_name_of_val(&error),
+                "LinkedIn OAuth profile lookup failed"
+            );
+            match error {
+                AppError::BadRequest(message) => {
+                    AppError::BadRequest(format!("LinkedIn profile lookup failed: {message}"))
+                }
+                other => other,
             }
-            other => other,
+        })?;
+    let pages = match social::fetch_linkedin_pages(access_token).await {
+        Ok(pages) => pages,
+        Err(error) => {
+            observability::tracing::warn!(
+                event = "provider.call.failed",
+                provider = "linkedin",
+                operation = "oauth.page_discovery",
+                error_type = %std::any::type_name_of_val(&error),
+                "LinkedIn Page discovery failed"
+            );
+            let message = match error {
+                AppError::BadRequest(message) => {
+                    format!("LinkedIn Page discovery failed: {message}")
+                }
+                other => other.to_string(),
+            };
+            return Ok(HttpResponse::Found()
+                .append_header((
+                    "Location",
+                    format!(
+                        "{}/connections?error={}",
+                        config.auth_url,
+                        urlencoding::encode(&message)
+                    ),
+                ))
+                .cookie(clear_oauth_cookie(social::LINKEDIN_STATE_COOKIE))
+                .finish());
         }
-    })?;
+    };
     let _channel = social::upsert_linkedin_connection_for_org(
         pool.get_ref(),
         &user.id,
@@ -1172,16 +1201,24 @@ pub async fn linkedin_oauth_callback(
         &profile,
     )
     .await?;
+    let page_channels = social::upsert_linkedin_page_connections_for_org(
+        pool.get_ref(),
+        &user.id,
+        &org_id,
+        &tokens,
+        &pages,
+    )
+    .await?;
+    connections::sync_org_connections(pool.get_ref(), &org_id).await?;
 
-    let redirect = format!("{}/connections?connected=linkedin", config.auth_url);
+    let redirect = format!(
+        "{}/connections?connected=linkedin&pages_count={}",
+        config.auth_url,
+        page_channels.len()
+    );
     Ok(HttpResponse::Found()
         .append_header(("Location", redirect))
-        .cookie(
-            actix_web::cookie::Cookie::build(social::LINKEDIN_STATE_COOKIE, "")
-                .path("/")
-                .max_age(actix_web::cookie::time::Duration::seconds(0))
-                .finish(),
-        )
+        .cookie(clear_oauth_cookie(social::LINKEDIN_STATE_COOKIE))
         .finish())
 }
 

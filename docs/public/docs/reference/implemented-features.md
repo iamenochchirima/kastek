@@ -1,7 +1,7 @@
 ---
 title: Implemented Features
 owner: engineering
-last_reviewed: 2026-08-25
+last_reviewed: 2026-08-30
 ---
 
 # Implemented Features
@@ -36,3 +36,5 @@ The following are backed by live tenant backend routes and database access:
 - workspace email sending configuration
 - Resend-backed custom sender domains
 - test email sending
+- social content channels, including LinkedIn personal profiles and Company Pages
+- LinkedIn text and single-image publishing for the selected connected channel

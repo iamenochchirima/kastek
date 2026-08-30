@@ -61,13 +61,13 @@ pub fn platform_capabilities(platform: &str) -> Value {
         "LINKEDIN" => json!({
             "canPublish": true,
             "supportsManualPublish": true,
-            "supportsMediaUpload": false,
+            "supportsMediaUpload": true,
             "supportsComments": false,
             "supportsDMs": false,
             "supportsAnalytics": true,
             "supportsInbox": false,
             "supportsVariants": true,
-            "media": { "images": { "supported": false, "maxCount": 0 }, "videos": { "supported": false, "maxCount": 0 } },
+            "media": { "images": { "supported": true, "maxCount": 1 }, "videos": { "supported": false, "maxCount": 0 } },
         }),
         "X" => json!({
             "canPublish": true,
