@@ -3594,7 +3594,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       credentialSecret: z.string().trim().min(1).max(512).optional(),
       metadata: z.record(z.string(), z.unknown()).default({}),
     }).parse(request.body);
-    if (!['telegram', 'discord', 'whatsapp', 'facebook', 'instagram'].includes(input.channelType)) {
+    if (!['telegram', 'discord', 'whatsapp', 'facebook', 'instagram', 'website'].includes(input.channelType)) {
       throw Object.assign(new Error(`Unsupported agent channel: ${input.channelType}`), { statusCode: 400, code: "unsupported_channel" });
     }
     if (input.channelType !== "telegram" && input.channelType !== "discord" && !input.channelKey) {

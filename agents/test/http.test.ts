@@ -1286,6 +1286,51 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("accepts Core-owned Website Chat routes for customer-service agents", async () => {
+    const createConnection = vi.fn(async (input: { channelType: string; channelKey: string; metadata: Record<string, unknown> }) => ({
+      id: "channel-website-1",
+      organization_id: "org-1",
+      installation_id: "install-1",
+      channel_type: input.channelType,
+      channel_key: input.channelKey,
+      metadata: input.metadata,
+      status: "active",
+    }));
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      agents: {
+        getInstallation: async (_organizationId: string, installationId: string) => ({
+          id: installationId,
+          organization_id: "org-1",
+          status: "active",
+          ...hostedInstallationIdentity,
+          agent_audience: "customer_service" as const,
+        }),
+      } as never,
+      channels: { createConnection } as never,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/installations/install-1/channels",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: {
+        channelType: "website",
+        channelKey: "wdg_public-1",
+        metadata: { surface: "website-chat", publicDeploymentId: "wdg_public-1" },
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(createConnection).toHaveBeenCalledWith(expect.objectContaining({
+      channelType: "website",
+      channelKey: "wdg_public-1",
+      metadata: { surface: "website-chat", publicDeploymentId: "wdg_public-1" },
+    }));
+    await app.close();
+  });
+
   it("blocks customer conversation reads for personal hosted agents", async () => {
     const listInstallationConversationProjections = vi.fn(async () => []);
     const app = buildApp({

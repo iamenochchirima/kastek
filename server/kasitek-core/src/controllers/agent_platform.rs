@@ -1502,10 +1502,7 @@ pub async fn create_channel_connection(
         .map(str::trim)
         .unwrap_or_default()
         .to_ascii_lowercase();
-    if !matches!(
-        channel_type.as_str(),
-        "whatsapp" | "facebook" | "instagram" | "telegram" | "discord"
-    ) {
+    if !is_supported_agent_channel(&channel_type) {
         return Err(AppError::BadRequest(format!(
             "Unsupported agent channel: {channel_type}"
         )));
@@ -1635,6 +1632,13 @@ pub async fn create_channel_connection(
         )
         .await?;
     Ok(HttpResponse::Created().json(response))
+}
+
+fn is_supported_agent_channel(channel_type: &str) -> bool {
+    matches!(
+        channel_type,
+        "whatsapp" | "facebook" | "instagram" | "telegram" | "discord" | "website"
+    )
 }
 
 pub async fn update_channel_connection(
@@ -2937,5 +2941,11 @@ mod tests {
             "createNew": true
         }))
         .is_err());
+    }
+
+    #[test]
+    fn website_is_a_supported_agent_channel() {
+        assert!(is_supported_agent_channel("website"));
+        assert!(!is_supported_agent_channel("unknown"));
     }
 }
