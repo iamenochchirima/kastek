@@ -3,6 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useConfirmationDialog } from "@/components/ui/confirmation-provider";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -15,11 +16,13 @@ import {
   MessageCircle,
   Radio,
   RefreshCw,
+  Trash2,
   Unplug,
   X as CloseIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 const WHATSAPP_SIGNUP_STATUS_EVENT = "kasitek:whatsapp-embedded-signup-status";
 
@@ -139,6 +142,7 @@ function normalizeBlueskyHandle(value: string) {
 
 export function ConnectionsManager({ connections }: { connections: WorkspaceConnection[] }) {
   const router = useRouter();
+  const { confirm } = useConfirmationDialog();
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [selectedConnection, setSelectedConnection] = useState<WorkspaceConnection | null>(null);
@@ -186,12 +190,27 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Connection update failed");
       setSelectedConnection(null);
+      toast.success(status === "DISCONNECTED" ? "Account removed" : "Connection marked revoked");
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Connection update failed");
     } finally {
       setPending(null);
     }
+  }
+
+  async function confirmStatusUpdate(connection: WorkspaceConnection, status: "DISCONNECTED" | "REVOKED") {
+    const removing = status === "DISCONNECTED";
+    const confirmed = await confirm({
+      title: `${removing ? "Remove" : "Mark revoked"} ${connection.displayName}?`,
+      description: removing
+        ? "This disconnects the account from this workspace."
+        : "This marks the connection as revoked and stops it from being used.",
+      confirmLabel: removing ? "Remove" : "Mark revoked",
+      variant: "destructive",
+    });
+
+    if (confirmed) await setStatus(connection, status);
   }
 
   function beginWhatsappEmbeddedSignup() {
@@ -358,22 +377,43 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                       return (
                         <MotionReveal key={connection.id} delay={0.08 + index * 0.05} hoverLift className="h-full">
                         <Card
-                          className="cursor-pointer gap-0 py-0 transition-colors hover:border-primary/50 hover:bg-secondary/20"
+                          className="group h-full cursor-pointer gap-0 overflow-hidden border-primary/20 bg-secondary/10 shadow-none transition-colors hover:border-primary/50 hover:bg-secondary/20"
                           onClick={() => setSelectedConnection(connection)}
                         >
-                          <CardContent className="flex min-h-16 items-center justify-between gap-3 p-3">
-                            <div className="flex min-w-0 items-center gap-3">
-                              <div className="rounded-md border bg-secondary p-1.5"><Icon className={`h-4 w-4 ${detail?.iconClass ?? "text-muted-foreground"}`} /></div>
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-medium">{connection.displayName}</p>
-                                {isLinkedInPage ? (
-                                  <p className="truncate text-xs text-muted-foreground">Company Page</p>
-                                ) : connection.handle ? (
-                                  <p className="truncate text-xs text-muted-foreground">{connection.handle}</p>
-                                ) : null}
+                          <div className="h-1 bg-primary/60" aria-hidden="true" />
+                          <CardContent className="flex min-h-32 flex-col justify-between gap-4 p-4">
+                            <div className="flex min-w-0 items-start justify-between gap-3">
+                              <div className="flex min-w-0 items-center gap-3">
+                                <div className="rounded-md border bg-background p-2"><Icon className={`h-4 w-4 ${detail?.iconClass ?? "text-muted-foreground"}`} /></div>
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-medium">{connection.displayName}</p>
+                                  {isLinkedInPage ? (
+                                    <p className="truncate text-xs text-muted-foreground">Company Page</p>
+                                  ) : connection.handle ? (
+                                    <p className="truncate text-xs text-muted-foreground">{connection.handle}</p>
+                                  ) : null}
+                                </div>
                               </div>
+                              <Badge variant="outline" className={status.className}>{status.label}</Badge>
                             </div>
-                            <Badge variant="outline" className={status.className}>{status.label}</Badge>
+
+                            <div className="flex items-center justify-between gap-3 border-t border-border/70 pt-3">
+                              <span className="text-xs text-muted-foreground">Workspace account</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                disabled={pending !== null}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void confirmStatusUpdate(connection, "DISCONNECTED");
+                                }}
+                              >
+                                <Trash2 />
+                                {pending === `${connection.id}:DISCONNECTED` ? "Removing…" : "Remove"}
+                              </Button>
+                            </div>
                           </CardContent>
                         </Card>
                         </MotionReveal>
@@ -601,9 +641,9 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                       variant="outline"
                       size="sm"
                       disabled={pending !== null}
-                      onClick={() => void setStatus(selectedConnection, "DISCONNECTED")}
+                      onClick={() => void confirmStatusUpdate(selectedConnection, "DISCONNECTED")}
                     >
-                      <Unplug />Disconnect
+                      <Unplug />Remove
                     </Button>
                   ) : null}
                   {selectedConnection.status !== "REVOKED" ? (
@@ -611,7 +651,7 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                       variant="ghost"
                       size="sm"
                       disabled={pending !== null}
-                      onClick={() => void setStatus(selectedConnection, "REVOKED")}
+                      onClick={() => void confirmStatusUpdate(selectedConnection, "REVOKED")}
                     >
                       <Bot />Mark revoked
                     </Button>
