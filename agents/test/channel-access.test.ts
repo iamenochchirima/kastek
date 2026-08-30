@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeTelegramAllowedUsers,
+  normalizeWhatsappPhone,
   normalizeWhatsappAllowedPhones,
   telegramAllowedUsers,
   telegramUserAllowed,
@@ -24,6 +25,11 @@ describe("Telegram personal-agent access", () => {
 });
 
 describe("WhatsApp personal-agent access", () => {
+  it("normalizes the inbound identity to the same digits-only format as Meta/Waku", () => {
+    expect(normalizeWhatsappPhone("+263 774 266 830")).toBe("263774266830");
+    expect(normalizeWhatsappPhone("00263774266830")).toBe("263774266830");
+  });
+
   it("normalizes international phone values and removes duplicates", () => {
     expect(normalizeWhatsappAllowedPhones(["+27 82 123-4567", "0027821234567", "27821234567", "bad"])).toEqual(["27821234567"]);
   });

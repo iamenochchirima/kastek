@@ -85,6 +85,21 @@ fn external_connection_routing_key(
     external_connection_id.unwrap_or_else(|| format!("ext_{whatsapp_connection_id}"))
 }
 
+fn agent_external_identity(normalized_phone: &str) -> &str {
+    normalized_phone
+        .strip_prefix('+')
+        .unwrap_or(normalized_phone)
+}
+
+fn add_optional_display_name(payload: &mut Value, profile_name: Option<&str>) {
+    if let Some(display_name) = profile_name
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        payload["displayName"] = json!(display_name);
+    }
+}
+
 struct IncomingWhatsappMedia {
     kind: String,
     media_id: String,
@@ -750,6 +765,7 @@ async fn handle_incoming_messages(
         if normalized_phone.is_empty() {
             continue;
         }
+        let agent_identity = agent_external_identity(&normalized_phone);
         let text = get_inbound_text(&message);
         let media = get_incoming_media(&message);
 
@@ -762,7 +778,7 @@ async fn handle_incoming_messages(
                         json!({
                             "token": approval_token,
                             "channelType": "whatsapp",
-                            "externalIdentity": normalized_phone,
+                            "externalIdentity": agent_identity,
                         }),
                     )
                     .await
@@ -826,7 +842,7 @@ async fn handle_incoming_messages(
                         org_id,
                         &connection.user_id,
                         pairing_token,
-                        &normalized_phone,
+                        agent_identity,
                     )
                     .await
                     .is_ok()
@@ -1110,18 +1126,18 @@ async fn handle_incoming_messages(
                     None if media.is_none() => ("text", json!({ "text": content })),
                     None => continue,
                 };
-                let payload = json!({
+                let mut payload = json!({
                     "channelType": "whatsapp",
                     "channelKey": channel_key.clone(),
                     "provider": "meta-whatsapp",
                     "providerEventId": provider_message_id,
                     "providerMessageId": provider_message_id,
-                    "externalIdentity": normalized_phone,
+                    "externalIdentity": agent_identity,
                     "externalConversationId": conversation_id,
                     "messageType": message_type,
                     "content": message_content,
-                    "displayName": profile_name,
                 });
+                add_optional_display_name(&mut payload, profile_name);
                 observability::tracing::info!(
                     event = "provider.call.completed",
                     provider = "kasitek-agents",
@@ -1258,9 +1274,26 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        approval_acknowledgement, external_connection_routing_key, get_inbound_approval_token,
-        is_blocked_failure, is_opt_out_message, parse_status_pricing_details,
+        add_optional_display_name, agent_external_identity, approval_acknowledgement,
+        external_connection_routing_key, get_inbound_approval_token, is_blocked_failure,
+        is_opt_out_message, parse_status_pricing_details,
     };
+
+    #[test]
+    fn uses_digits_only_identity_for_agent_channel_routing() {
+        assert_eq!(agent_external_identity("+263774266830"), "263774266830");
+        assert_eq!(agent_external_identity("263774266830"), "263774266830");
+    }
+
+    #[test]
+    fn omits_missing_or_blank_display_names_from_agent_payloads() {
+        let mut payload = json!({ "content": { "text": "hello" } });
+        add_optional_display_name(&mut payload, None);
+        assert!(payload.get("displayName").is_none());
+
+        add_optional_display_name(&mut payload, Some("  Enock Chirima  "));
+        assert_eq!(payload["displayName"], "Enock Chirima");
+    }
 
     #[test]
     fn uses_workspace_external_connection_id_for_agent_routing() {

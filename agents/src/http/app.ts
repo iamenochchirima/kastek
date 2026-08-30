@@ -67,6 +67,7 @@ import { TelegramBotClient } from "../channels/telegram-client";
 import { TelegramChannelAdapter } from "../channels/telegram";
 import {
   normalizeTelegramAllowedUsers,
+  normalizeWhatsappPhone,
   normalizeWhatsappAllowedPhones,
   telegramAllowedUsers,
   telegramUserAllowed,
@@ -2949,6 +2950,17 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           channelKey: input.channelKey,
         })
         : null;
+      if (input.channelType === "whatsapp") {
+        const normalizedExternalIdentity = normalizeWhatsappPhone(input.externalIdentity);
+        if (!normalizedExternalIdentity) {
+          return reply.code(400).send({ error: "whatsapp_external_identity_invalid" });
+        }
+        // Core uses E.164 for provider-facing WhatsApp operations while the
+        // agent channel binding format is the same digits-only value used by
+        // Meta and the original Waku gateway. Normalize before both binding
+        // and route lookup so allowlists and existing pairings agree.
+        input.externalIdentity = normalizedExternalIdentity;
+      }
       if (input.channelType === "whatsapp" && inboundConnection?.execution_mode === "system_hosted") {
         const allowedPhones = whatsappAllowedPhones(inboundConnection.metadata);
         if (allowedPhones.length > 0 && !whatsappPhoneAllowed(inboundConnection.metadata, input.externalIdentity)) {
