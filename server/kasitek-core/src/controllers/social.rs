@@ -1164,34 +1164,28 @@ pub async fn linkedin_oauth_callback(
                 other => other,
             }
         })?;
-    let pages = match social::fetch_linkedin_pages(access_token).await {
-        Ok(pages) => pages,
-        Err(error) => {
-            observability::tracing::warn!(
-                event = "provider.call.failed",
-                provider = "linkedin",
-                operation = "oauth.page_discovery",
-                error_type = %std::any::type_name_of_val(&error),
-                "LinkedIn Page discovery failed"
-            );
-            let message = match error {
-                AppError::BadRequest(message) => {
-                    format!("LinkedIn Page discovery failed: {message}")
-                }
-                other => other.to_string(),
-            };
-            return Ok(HttpResponse::Found()
-                .append_header((
-                    "Location",
-                    format!(
-                        "{}/connections?error={}",
-                        config.auth_url,
-                        urlencoding::encode(&message)
-                    ),
-                ))
-                .cookie(clear_oauth_cookie(social::LINKEDIN_STATE_COOKIE))
-                .finish());
+    let organization_access_requested = social::linkedin_organization_scopes_configured()
+        || tokens.scope.as_deref().is_some_and(|scope| {
+            scope
+                .split_whitespace()
+                .any(|value| matches!(value, "r_organization_admin" | "w_organization_social"))
+        });
+    let (pages, page_discovery_unavailable) = if organization_access_requested {
+        match social::fetch_linkedin_pages(access_token).await {
+            Ok(pages) => (pages, false),
+            Err(error) => {
+                observability::tracing::warn!(
+                    event = "provider.call.failed",
+                    provider = "linkedin",
+                    operation = "oauth.page_discovery",
+                    error_type = %std::any::type_name_of_val(&error),
+                    "LinkedIn Page discovery failed; keeping the member connection"
+                );
+                (Vec::new(), true)
+            }
         }
+    } else {
+        (Vec::new(), false)
     };
     let _channel = social::upsert_linkedin_connection_for_org(
         pool.get_ref(),
@@ -1212,9 +1206,14 @@ pub async fn linkedin_oauth_callback(
     connections::sync_org_connections(pool.get_ref(), &org_id).await?;
 
     let redirect = format!(
-        "{}/connections?connected=linkedin&pages_count={}",
+        "{}/connections?connected=linkedin&pages_count={}&pages_status={}",
         config.auth_url,
-        page_channels.len()
+        page_channels.len(),
+        if page_discovery_unavailable {
+            "unavailable"
+        } else {
+            "ready"
+        }
     );
     Ok(HttpResponse::Found()
         .append_header(("Location", redirect))

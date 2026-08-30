@@ -32,9 +32,10 @@ Use this when a provider account shows `NEEDS_ATTENTION`, messages stop arriving
 
 1. Reconnect through the provider OAuth action on `/connections`.
 2. Confirm the provider returned the publishing scopes used by the connection.
-3. For LinkedIn Company Pages, use the single **Connect** or **Sync Pages** action. The signed-in LinkedIn member must have an approved `ADMINISTRATOR`, `CONTENT_ADMIN`, or `CONTENT_ADMINISTRATOR` role on the Page.
-4. Confirm the LinkedIn app has access to the Community Management API and the organization scopes `r_organization_admin` and `w_organization_social` are granted. Without them, Page discovery will fail even when personal LinkedIn login works.
-5. Treat repeated authorization or publishing failures as provider configuration issues until the account and app permissions are confirmed.
+3. For LinkedIn profiles, use the single **Connect** action. The member scopes are requested by default.
+4. For LinkedIn Company Pages, use **Sync Pages** after the app has Community Management access and `AUTH_LINKEDIN_SCOPES` includes `r_organization_admin` and `w_organization_social`. The signed-in member must have an approved Page publishing role.
+5. If those organization permissions are unavailable, the profile connection should still complete and the UI will report that Page discovery is unavailable.
+6. Treat repeated authorization or publishing failures as provider configuration issues until the account and app permissions are confirmed.
 
 LinkedIn Page connections are stored as separate content channels with an organization actor URN.
 The Content composer can select one connected Page for a LinkedIn destination and publish text or one

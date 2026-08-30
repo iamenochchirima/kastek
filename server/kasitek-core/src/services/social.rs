@@ -118,7 +118,7 @@ pub(crate) fn merge_channel_metadata_with_capabilities(
     Some(Value::Object(object))
 }
 
-pub use super::social_oauth::XOAuthState;
+pub use super::social_oauth::{linkedin_organization_scopes_configured, XOAuthState};
 
 #[derive(Debug, serde::Deserialize)]
 pub struct OAuthCallbackQuery {

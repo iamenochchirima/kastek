@@ -25,6 +25,7 @@ export default async function ConnectionsPage({
     facebook_count?: string;
     instagram_count?: string;
     pages_count?: string;
+    pages_status?: string;
     error?: string;
   }>;
 }) {
@@ -76,7 +77,9 @@ export default async function ConnectionsPage({
         params.connected === "x" ? (
           <div className="rounded-xl border border-status-success/30 bg-status-success-soft px-4 py-3 text-sm text-status-success">
             {params.connected === "linkedin" && params.pages_count ? (
-              params.pages_count === "0" ? (
+              params.pages_status === "unavailable" ? (
+                <>LinkedIn profile connected. Company Pages are unavailable until organization access is enabled.</>
+              ) : params.pages_count === "0" ? (
                 <>LinkedIn profile connected. No Company Pages were found for this account.</>
               ) : (
                 <>LinkedIn connected successfully: profile and {params.pages_count} Company Page{params.pages_count === "1" ? "" : "s"} ready to use in this workspace.</>

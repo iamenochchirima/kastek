@@ -18,19 +18,19 @@ fn linkedin_scopes(configured_scopes: &str) -> String {
         .filter(|scope| !scope.is_empty())
         .map(str::to_string)
         .collect::<Vec<_>>();
-    for required_scope in [
-        "openid",
-        "profile",
-        "email",
-        "w_member_social",
-        "r_organization_admin",
-        "w_organization_social",
-    ] {
+    for required_scope in ["openid", "profile", "email", "w_member_social"] {
         if !scopes.iter().any(|scope| scope == required_scope) {
             scopes.push(required_scope.to_string());
         }
     }
     scopes.join(" ")
+}
+
+pub fn linkedin_organization_scopes_configured() -> bool {
+    let configured_scopes = std::env::var("AUTH_LINKEDIN_SCOPES").unwrap_or_default();
+    configured_scopes
+        .split_whitespace()
+        .any(|scope| matches!(scope, "r_organization_admin" | "w_organization_social"))
 }
 
 #[derive(Clone)]
@@ -225,11 +225,21 @@ mod tests {
     }
 
     #[test]
-    fn linkedin_oauth_always_requests_member_and_organization_scopes() {
+    fn linkedin_oauth_defaults_to_member_scopes() {
         let scopes = linkedin_scopes("openid profile email w_member_social");
+
+        assert!(!scopes.contains("r_organization_admin"));
+        assert!(!scopes.contains("w_organization_social"));
+        assert_eq!(scopes.matches("openid").count(), 1);
+    }
+
+    #[test]
+    fn linkedin_oauth_preserves_explicit_organization_scopes() {
+        let scopes = linkedin_scopes(
+            "openid profile email w_member_social r_organization_admin w_organization_social",
+        );
 
         assert!(scopes.contains("r_organization_admin"));
         assert!(scopes.contains("w_organization_social"));
-        assert_eq!(scopes.matches("openid").count(), 1);
     }
 }

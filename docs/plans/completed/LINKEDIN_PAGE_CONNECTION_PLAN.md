@@ -16,7 +16,7 @@ workspace channels, and publish text and image posts with the selected LinkedIn 
 
 ### Included
 
-- One LinkedIn OAuth authorization for member and organization access.
+- One LinkedIn OAuth authorization for member access, with optional organization access.
 - Discovery of approved organization roles and public Page details.
 - Discovery of the authenticated LinkedIn member profile in the same callback.
 - Persistence of Page channels without a database schema change.
@@ -34,7 +34,7 @@ workspace channels, and publish text and image posts with the selected LinkedIn 
 
 - Existing personal LinkedIn connections must continue to publish as `urn:li:person:*`.
 - Page connections use `urn:li:organization:*` and share the OAuth token authorized by the member.
-- LinkedIn may require Community Management API access before organization scopes are granted.
+- LinkedIn may require Community Management API access before organization scopes are granted; member login must not depend on those optional scopes.
 - No schema migration is required; `SocialChannelConnection.metadata` already stores the actor URN
   and provider-specific identity data.
 
@@ -84,6 +84,7 @@ Post-release review date: to be scheduled after the first live Page connection.
 
 ## Notes and blockers
 
-LinkedIn developer-app approval for organization permissions is an external release dependency. The
-code is implemented and verified locally, but live Page discovery cannot succeed until LinkedIn grants
-the requested access to the app and the member has an approved Page role.
+LinkedIn developer-app approval for organization permissions is an external Page-connection dependency.
+Member profile login works with the default member scopes. Page discovery becomes available after
+the app is granted organization access, `AUTH_LINKEDIN_SCOPES` is configured with the organization
+scopes, and the member has an approved Page role.
