@@ -909,6 +909,12 @@ export function KasiAiChat({
         };
     if (optimistic) setMessages((items) => [...items, optimistic]);
     let acceptedRunId: string | null = null;
+    const recordDisplayedRunStatus = (runId: string, status: string) => {
+      recordRunStatus(runId, status);
+      if (retryRunId && retryRunId !== runId) {
+        recordRunStatus(retryRunId, status);
+      }
+    };
     const controller = new AbortController();
     streamAbort.current = controller;
     try {
@@ -992,7 +998,7 @@ export function KasiAiChat({
       window.localStorage.setItem(LAST_CHAT_KEY, accepted.conversation.id);
       setConversationUrl(accepted.conversation.id);
       acceptedRunId = accepted.runId;
-      recordRunStatus(accepted.runId, accepted.status || "received");
+      recordDisplayedRunStatus(accepted.runId, accepted.status || "received");
       activeRunIdRef.current = accepted.runId;
       setActiveRunId(accepted.runId);
       setLastRunId(accepted.runId);
@@ -1054,7 +1060,7 @@ export function KasiAiChat({
                 void getAgentRun(accepted.runId)
                   .then((result) => {
                     if (selection !== conversationSelection.current) return;
-                    recordRunStatus(accepted.runId, result.run.status);
+                    recordDisplayedRunStatus(accepted.runId, result.run.status);
                     if (
                       result.run.status === "awaiting_approval" &&
                       result.approval?.status === "pending"
@@ -1096,7 +1102,7 @@ export function KasiAiChat({
       if (terminalRun && terminalRun.status !== "completed") {
         activeRunIdRef.current = null;
         setPendingApproval(null);
-        recordRunStatus(accepted.runId, terminalRun.status);
+        recordDisplayedRunStatus(accepted.runId, terminalRun.status);
         setRunProgress(`Run ${terminalRun.status.replaceAll("_", " ")}`);
         throw new Error(
           terminalRun.error?.message ||
@@ -1106,7 +1112,7 @@ export function KasiAiChat({
       if (terminalRun?.status === "completed") {
         activeRunIdRef.current = null;
         setPendingApproval(null);
-        recordRunStatus(accepted.runId, terminalRun.status);
+        recordDisplayedRunStatus(accepted.runId, terminalRun.status);
         setRunProgress("Run completed");
         setGroundingSummary(
           groundingSummaryFromRun(terminalRun.output?.provenance),
@@ -1134,7 +1140,7 @@ export function KasiAiChat({
         );
         if (!(cause instanceof DOMException && cause.name === "AbortError")) {
           if (acceptedRunId) {
-            recordRunStatus(acceptedRunId, "failed");
+            recordDisplayedRunStatus(acceptedRunId, "failed");
             setPendingApproval(null);
           }
           if (!retryRunId) setDraft(text);

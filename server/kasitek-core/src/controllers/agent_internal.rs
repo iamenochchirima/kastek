@@ -448,6 +448,12 @@ impl AgentConnectionListQuery {
     }
 }
 
+fn normalize_agent_connection_filter(value: Option<&str>) -> Option<&str> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty() && !value.eq_ignore_ascii_case("all"))
+}
+
 /// List the organisation's connected provider accounts. The service layer
 /// refreshes the connection projection before returning it, so this includes
 /// account-level health and webhook state rather than only aggregate counts.
@@ -459,16 +465,8 @@ pub async fn list_workspace_connections(
 ) -> Result<HttpResponse, AppError> {
     let (organization_id, actor_id) =
         require_internal_agent(config.get_ref(), &req, "kasitek.core.connections_list").await?;
-    let provider = query
-        .provider
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    let status = query
-        .status
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
+    let provider = normalize_agent_connection_filter(query.provider.as_deref());
+    let status = normalize_agent_connection_filter(query.status.as_deref());
     let limit = query.bounded_limit()?;
     let connections = connections::list_connections(pool.get_ref(), &organization_id)
         .await?
@@ -1423,7 +1421,7 @@ mod tests {
 
     use super::{
         agent_connection_summary, bounded_agent_contact_limit, bounded_agent_template_limit,
-        resolve_credit_idempotency_key, AgentCollectionQuery,
+        normalize_agent_connection_filter, resolve_credit_idempotency_key, AgentCollectionQuery,
     };
     use crate::db::models::ExternalConnection;
     use crate::identity::principal::{Principal, PrincipalKind};
@@ -1497,6 +1495,19 @@ mod tests {
         assert!(summary.get("id").is_none());
         assert!(summary.get("externalAccountId").is_none());
         assert!(summary.get("metadata").is_none());
+    }
+
+    #[test]
+    fn agent_connection_filters_treat_empty_and_all_as_unfiltered() {
+        assert_eq!(normalize_agent_connection_filter(None), None);
+        assert_eq!(normalize_agent_connection_filter(Some("")), None);
+        assert_eq!(normalize_agent_connection_filter(Some("  ")), None);
+        assert_eq!(normalize_agent_connection_filter(Some("all")), None);
+        assert_eq!(normalize_agent_connection_filter(Some(" ALL ")), None);
+        assert_eq!(
+            normalize_agent_connection_filter(Some("FACEBOOK")),
+            Some("FACEBOOK")
+        );
     }
 
     fn credit_context(idempotency_key: Option<&str>) -> RequestContext {

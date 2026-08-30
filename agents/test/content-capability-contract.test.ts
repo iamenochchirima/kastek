@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { createDefaultTools } from "../src/temporal/activities";
+import { describe, expect, it, vi } from "vitest";
+import { createDefaultTools, normalizeConnectionFilter } from "../src/temporal/activities";
 import { KASIAI_ALLOWED_TOOLS } from "../src/system/kasiai";
 
 const context = {
@@ -103,6 +103,7 @@ describe("content capability contract", () => {
       approval: "none",
     });
     expect(registry.validateArguments("kasitek.core.connections_list", { provider: "FACEBOOK", limit: 200 })).toBe(true);
+    expect(registry.validateArguments("kasitek.core.connections_list", { provider: "", status: "" })).toBe(true);
     expect(registry.validateArguments("kasitek.core.connections_list", { limit: 201 })).toBe(false);
 
     const connectionStatus = registry.get("kasitek.core.connection_status_update");
@@ -117,6 +118,28 @@ describe("content capability contract", () => {
     expect(connectionStatus?.requiresApproval).toBe(true);
     expect(registry.validateArguments("kasitek.core.connection_status_update", { provider: "FACEBOOK", displayName: "KasiTek", status: "DISCONNECTED" })).toBe(true);
     expect(registry.validateArguments("kasitek.core.connection_status_update", { provider: "FACEBOOK", displayName: "KasiTek", status: "CONNECTED" })).toBe(false);
+  });
+
+  it("normalizes model sentinel filters before the Core request", async () => {
+    const listWorkspaceConnections = vi.fn(async () => ({ organizationId: "org-test", connections: [] }));
+    const tools = createDefaultTools({ listWorkspaceConnections } as never);
+    const toolName = "kasitek.core.connections_list";
+
+    await tools.invoke({
+      name: toolName,
+      arguments: { provider: " all ", status: "", limit: 200 },
+      context,
+      grantedTools: new Set([toolName]),
+    });
+
+    expect(listWorkspaceConnections).toHaveBeenCalledWith(context, {
+      provider: undefined,
+      status: undefined,
+      limit: 200,
+    });
+    expect(normalizeConnectionFilter(" FACEBOOK ")).toBe("FACEBOOK");
+    expect(normalizeConnectionFilter("all")).toBeUndefined();
+    expect(normalizeConnectionFilter("")).toBeUndefined();
   });
 
   it("keeps every content capability owned, scoped, redacted, and classified", () => {

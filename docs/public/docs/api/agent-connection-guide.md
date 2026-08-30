@@ -68,3 +68,7 @@ discovery use the same projection. Discovery reports stable reason codes such as
 `not_granted`, `credential_denied`, `provider_not_configured`, `provider_unhealthy`, and
 `approval_required`. External health reports KasiTek-side installation and credential readiness; it
 does not pretend to prove that the customer’s remote runtime is reachable.
+
+The `kasitek.core.connections_list` capability is organization-scoped. Omit `provider` and `status`
+to list every workspace connection; provide the actual provider or status only when filtering is
+needed. Empty or `all` filter values are treated as omitted for compatibility.

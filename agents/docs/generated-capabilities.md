@@ -144,13 +144,13 @@ List connected workspace accounts with provider names, account labels, health, w
   "properties": {
     "provider": {
       "type": "string",
-      "minLength": 1,
-      "maxLength": 80
+      "maxLength": 80,
+      "description": "Optional provider filter. Omit this field to include every provider."
     },
     "status": {
       "type": "string",
-      "minLength": 1,
-      "maxLength": 40
+      "maxLength": 40,
+      "description": "Optional status filter. Omit this field to include every status."
     },
     "limit": {
       "type": "integer",

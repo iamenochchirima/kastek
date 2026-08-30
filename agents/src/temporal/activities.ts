@@ -64,6 +64,12 @@ export interface ActivityOptions {
   integrationTools?: IntegrationToolService;
 }
 
+export function normalizeConnectionFilter(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized && normalized.toLowerCase() !== "all" ? normalized : undefined;
+}
+
 function pricingFromConfig(config?: AppConfig): Record<string, ModelPricing> {
   if (!config?.MODEL_PRICING_JSON) return {};
   try {
@@ -195,8 +201,16 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     inputSchema: {
       type: "object",
       properties: {
-        provider: { type: "string", minLength: 1, maxLength: 80 },
-        status: { type: "string", minLength: 1, maxLength: 40 },
+        provider: {
+          type: "string",
+          maxLength: 80,
+          description: "Optional provider filter. Omit this field to include every provider.",
+        },
+        status: {
+          type: "string",
+          maxLength: 40,
+          description: "Optional status filter. Omit this field to include every status.",
+        },
         limit: { type: "integer", minimum: 1, maximum: 200 },
       },
       additionalProperties: false,
@@ -219,8 +233,8 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
       return coreClient.listWorkspaceConnections(context, {
-        provider: typeof args.provider === "string" ? args.provider : undefined,
-        status: typeof args.status === "string" ? args.status : undefined,
+        provider: normalizeConnectionFilter(args.provider),
+        status: normalizeConnectionFilter(args.status),
         limit: typeof args.limit === "number" ? args.limit : undefined,
       });
     },
