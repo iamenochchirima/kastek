@@ -333,6 +333,9 @@ export function EarlyAccessManager({
                       {item.products.join(" · ")}
                     </p>
                   ) : null}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Applied {new Date(item.createdAt).toLocaleDateString("en-ZA")}
+                  </p>
                   {item.invitationDeliveryStatus === "failed" ? (
                     <p className="mt-2 text-xs text-destructive">Invitation email failed.</p>
                   ) : null}
