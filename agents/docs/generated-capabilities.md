@@ -967,6 +967,8 @@ Send an approved reply to an organization-scoped external channel conversation.
       "type": "string",
       "enum": [
         "whatsapp",
+        "facebook",
+        "instagram",
         "website"
       ]
     },

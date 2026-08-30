@@ -13,7 +13,7 @@ export interface IntegrationCatalogEntry {
   description: string;
   category: IntegrationCategory;
   auth: "internal" | ConnectorAuthScheme | "local_connector" | "observability";
-  channelType?: "whatsapp" | "telegram" | "discord";
+  channelType?: "whatsapp" | "facebook" | "instagram" | "telegram" | "discord";
   logo: string;
   capabilityNames: string[];
   requiredScopes: string[];

@@ -11,7 +11,9 @@ use crate::config::AppConfig;
 use crate::db::models::{ConversationRow, WhatsappSendMessageRequest};
 use crate::error::AppError;
 use crate::services::push::{send_push_notification_to_user, PushNotificationPayload};
-use crate::services::{customers, message_domain, realtime, social, whatsapp};
+use crate::services::{
+    agent_platform, customers, message_domain, realtime, social, whatsapp, whatsapp_inbox,
+};
 
 const META_GRAPH_BASE: &str = "https://graph.facebook.com/v23.0";
 const INSTAGRAM_GRAPH_BASE: &str = "https://graph.instagram.com/v23.0";
@@ -1039,62 +1041,7 @@ async fn try_deliver_meta_text_message(
     text: &str,
     reply_to_provider_message_id: Option<&str>,
 ) -> Result<Value, AppError> {
-    let (_, customer_id) = parse_meta_conversation_identifier(&meta_scope.customer_identifier)
-        .ok_or_else(|| AppError::BadRequest("Invalid Meta conversation".to_string()))?;
-    let encrypted_access_token = meta_scope.access_token.as_deref().ok_or_else(|| {
-        AppError::BadRequest("Connected channel is missing an access token".to_string())
-    })?;
-    let access_token = social::decrypt_social_secret(encrypted_access_token)?;
-    let uses_instagram_login = meta_scope
-        .metadata
-        .as_ref()
-        .and_then(|value| value.get("authMethod"))
-        .and_then(Value::as_str)
-        == Some("instagram_login");
-    let asset_id = meta_message_sender_asset_id(
-        &meta_scope.channel,
-        uses_instagram_login,
-        meta_scope.external_account_id.as_deref(),
-        meta_scope.metadata.as_ref(),
-    )
-    .ok_or_else(|| {
-        let message = if meta_scope.channel == "instagram" && !uses_instagram_login {
-            "Connected Instagram channel is missing its linked Facebook Page ID. Reconnect it through Meta."
-        } else {
-            "Connected Meta channel is missing a target asset"
-        };
-        AppError::BadRequest(message.to_string())
-    })?;
-    let graph_base = if uses_instagram_login {
-        INSTAGRAM_GRAPH_BASE
-    } else {
-        META_GRAPH_BASE
-    };
-    let mut message_payload = json!({ "text": text });
-    if let Some(reply_to_provider_message_id) = reply_to_provider_message_id {
-        message_payload["reply_to"] = json!({ "mid": reply_to_provider_message_id });
-    }
-    let request_body = if uses_instagram_login {
-        json!({
-            "recipient": { "id": customer_id },
-            "message": message_payload,
-        })
-    } else {
-        json!({
-            "recipient": { "id": customer_id },
-            "messaging_type": "RESPONSE",
-            "message": message_payload,
-        })
-    };
-
-    let response: MetaSendMessageResponse = fetch_meta_json(
-        reqwest::Client::new()
-            .post(format!("{graph_base}/{asset_id}/messages"))
-            .bearer_auth(access_token)
-            .json(&request_body),
-        "Failed to send Meta message",
-    )
-    .await?;
+    let response = send_meta_text_message(meta_scope, text, reply_to_provider_message_id).await?;
 
     let occurred_at = Utc::now();
     let mut transaction = pool.begin().await?;
@@ -1181,6 +1128,260 @@ async fn try_deliver_meta_text_message(
         "providerMessageId": response.message_id,
         "status": "SENT",
     }))
+}
+
+async fn send_meta_text_message(
+    meta_scope: &MetaConversationScopeRow,
+    text: &str,
+    reply_to_provider_message_id: Option<&str>,
+) -> Result<MetaSendMessageResponse, AppError> {
+    let (_, customer_id) = parse_meta_conversation_identifier(&meta_scope.customer_identifier)
+        .ok_or_else(|| AppError::BadRequest("Invalid Meta conversation".to_string()))?;
+    let encrypted_access_token = meta_scope.access_token.as_deref().ok_or_else(|| {
+        AppError::BadRequest("Connected channel is missing an access token".to_string())
+    })?;
+    let access_token = social::decrypt_social_secret(encrypted_access_token)?;
+    let uses_instagram_login = meta_scope
+        .metadata
+        .as_ref()
+        .and_then(|value| value.get("authMethod"))
+        .and_then(Value::as_str)
+        == Some("instagram_login");
+    let asset_id = meta_message_sender_asset_id(
+        &meta_scope.channel,
+        uses_instagram_login,
+        meta_scope.external_account_id.as_deref(),
+        meta_scope.metadata.as_ref(),
+    )
+    .ok_or_else(|| {
+        let message = if meta_scope.channel == "instagram" && !uses_instagram_login {
+            "Connected Instagram channel is missing its linked Facebook Page ID. Reconnect it through Meta."
+        } else {
+            "Connected Meta channel is missing a target asset"
+        };
+        AppError::BadRequest(message.to_string())
+    })?;
+    let graph_base = if uses_instagram_login {
+        INSTAGRAM_GRAPH_BASE
+    } else {
+        META_GRAPH_BASE
+    };
+    let mut message_payload = json!({ "text": text });
+    if let Some(reply_to_provider_message_id) = reply_to_provider_message_id {
+        message_payload["reply_to"] = json!({ "mid": reply_to_provider_message_id });
+    }
+    let request_body = if uses_instagram_login {
+        json!({
+            "recipient": { "id": customer_id },
+            "message": message_payload,
+        })
+    } else {
+        json!({
+            "recipient": { "id": customer_id },
+            "messaging_type": "RESPONSE",
+            "message": message_payload,
+        })
+    };
+
+    fetch_meta_json(
+        reqwest::Client::new()
+            .post(format!("{graph_base}/{asset_id}/messages"))
+            .bearer_auth(access_token)
+            .json(&request_body),
+        "Failed to send Meta message",
+    )
+    .await
+}
+
+/// Delivers an Agent Platform reply through the Core-owned Facebook or
+/// Instagram connection. Provider credentials never leave Core.
+pub async fn deliver_agent_meta_message(
+    pool: &PgPool,
+    org_id: &str,
+    conversation_id: &str,
+    text: &str,
+    idempotency_key: &str,
+) -> Result<Value, AppError> {
+    let idempotency_key = whatsapp_inbox::validate_agent_delivery_idempotency_key(idempotency_key)?;
+    let meta_scope = scoped_meta_conversation(pool, org_id, conversation_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Meta conversation not found".to_string()))?;
+    if !matches!(meta_scope.channel.as_str(), "facebook" | "instagram") {
+        return Err(AppError::BadRequest(
+            "Agent delivery is not supported for this Meta conversation".to_string(),
+        ));
+    }
+
+    if let Some((provider_message_id, provider_status)) =
+        sqlx::query_as::<_, (Option<String>, Option<String>)>(
+            r#"
+        SELECT "providerMessageId", "providerStatus"
+        FROM "Message"
+        WHERE "conversationId" = $1
+          AND "providerMetadata"->>'_kasitek_agent_idempotency_key' = $2
+        ORDER BY timestamp DESC
+        LIMIT 1
+        "#,
+        )
+        .bind(&meta_scope.id)
+        .bind(idempotency_key)
+        .fetch_optional(pool)
+        .await?
+    {
+        if provider_message_id.is_some() {
+            return Ok(json!({
+                "providerMessageId": provider_message_id,
+                "status": "sent",
+                "idempotentReplay": true,
+            }));
+        }
+        return Ok(json!({
+            "status": "unknown",
+            "idempotentReplay": true,
+            "providerStatus": provider_status,
+        }));
+    }
+
+    let message_id = cuid2::create_id();
+    let occurred_at = Utc::now();
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        r#"
+        INSERT INTO "Message" (id, "conversationId", sender, content, "contentType", "providerStatus", "providerMetadata", timestamp)
+        VALUES ($1, $2, 'bot', $3, 'TEXT', 'SENDING', $4::jsonb, $5)
+        "#,
+    )
+    .bind(&message_id)
+    .bind(&meta_scope.id)
+    .bind(text)
+    .bind(json!({
+        "_kasitek_agent_idempotency_key": idempotency_key,
+        "_kasitek_responder_type": "agent",
+    }))
+    .bind(occurred_at)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        r#"UPDATE "Conversation" SET "lastMessageAt" = NOW(), status = 'active', "updatedAt" = NOW() WHERE id = $1 AND "orgId" = $2"#,
+    )
+    .bind(&meta_scope.id)
+    .bind(org_id)
+    .execute(&mut *tx)
+    .await?;
+    let response_time_ms =
+        analytics::inbox::preceding_customer_response_time_ms(&mut tx, &meta_scope.id, occurred_at)
+            .await?;
+    analytics::inbox::enqueue_message_lifecycle(
+        &mut tx,
+        org_id,
+        &message_id,
+        &meta_scope.id,
+        &meta_scope.channel,
+        "created",
+        "outbound",
+        "agent",
+        "text",
+        Some("sending"),
+        response_time_ms,
+        occurred_at,
+    )
+    .await
+    .map_err(|error| {
+        AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+    })?;
+    enqueue_meta_source_manifest(&mut tx, org_id, occurred_at).await?;
+    tx.commit().await?;
+
+    match send_meta_text_message(&meta_scope, text, None).await {
+        Ok(response) => {
+            let mut tx = pool.begin().await?;
+            sqlx::query(
+                r#"UPDATE "Message" SET "providerMessageId" = $1, "providerStatus" = 'SENT', "errorCode" = NULL, "errorMessage" = NULL WHERE id = $2 AND "conversationId" = $3"#,
+            )
+            .bind(response.message_id.as_deref())
+            .bind(&message_id)
+            .bind(&meta_scope.id)
+            .execute(&mut *tx)
+            .await?;
+            analytics::inbox::enqueue_message_lifecycle(
+                &mut tx,
+                org_id,
+                &message_id,
+                &meta_scope.id,
+                &meta_scope.channel,
+                "delivery_updated",
+                "outbound",
+                "agent",
+                "text",
+                Some("sent"),
+                None,
+                Utc::now(),
+            )
+            .await
+            .map_err(|error| {
+                AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
+            })?;
+            enqueue_meta_source_manifest(&mut tx, org_id, Utc::now()).await?;
+            tx.commit().await?;
+            publish_message_updated(pool, &message_id).await?;
+            publish_conversation_updated(pool, "agent-platform", &meta_scope.id).await?;
+            Ok(json!({
+                "providerMessageId": response.message_id,
+                "status": "sent",
+            }))
+        }
+        Err(error) => {
+            let error_message = error.to_string();
+            let error_code = if is_meta_authentication_failure(&error_message) {
+                "AGENT_DELIVERY_AUTH_FAILED"
+            } else {
+                "AGENT_DELIVERY_FAILED"
+            };
+            let mut tx = pool.begin().await?;
+            sqlx::query(
+                r#"UPDATE "Message" SET "providerStatus" = 'FAILED', "errorCode" = $1, "errorMessage" = $2 WHERE id = $3 AND "conversationId" = $4"#,
+            )
+            .bind(error_code)
+            .bind(&error_message)
+            .bind(&message_id)
+            .bind(&meta_scope.id)
+            .execute(&mut *tx)
+            .await?;
+            analytics::inbox::enqueue_message_lifecycle(
+                &mut tx,
+                org_id,
+                &message_id,
+                &meta_scope.id,
+                &meta_scope.channel,
+                "delivery_updated",
+                "outbound",
+                "agent",
+                "text",
+                Some("failed"),
+                None,
+                Utc::now(),
+            )
+            .await
+            .map_err(|analytics_error| {
+                AppError::Internal(format!(
+                    "Failed to queue Inbox analytics fact: {analytics_error}"
+                ))
+            })?;
+            enqueue_meta_source_manifest(&mut tx, org_id, Utc::now()).await?;
+            tx.commit().await?;
+            publish_message_updated(pool, &message_id).await?;
+            publish_conversation_updated(pool, "agent-platform", &meta_scope.id).await?;
+            Err(error)
+        }
+    }
+}
+
+fn is_meta_authentication_failure(error: &str) -> bool {
+    let normalized = error.to_ascii_lowercase();
+    normalized.contains("401 unauthorized")
+        || normalized.contains("403 forbidden")
+        || normalized.contains("invalid oauth access token")
+        || normalized.contains("authentication")
 }
 
 async fn try_send_meta_mark_seen(meta_scope: &MetaConversationScopeRow) -> Result<(), AppError> {
@@ -1579,6 +1780,35 @@ pub async fn process_meta_webhook_payload(
                 continue;
             }
 
+            if !content.is_empty() {
+                if let Err(error) = forward_meta_message_to_agent(
+                    config,
+                    &channel,
+                    &conversation_id,
+                    &sender_id,
+                    customer_name.as_deref(),
+                    &object,
+                    message_mid.as_deref(),
+                    event.get("timestamp").and_then(Value::as_i64),
+                    &content,
+                )
+                .await
+                {
+                    // Inbox persistence is authoritative for provider webhooks. An
+                    // unavailable Agent Platform must not make Meta retry an event
+                    // that Core has already stored.
+                    observability::tracing::warn!(
+                        event = "operation.failed",
+                        operation = "agent_platform.meta_ingest",
+                        provider = "meta",
+                        channel = %channel.platform,
+                        conversation_id = %conversation_id,
+                        error_type = %std::any::type_name_of_val(&error),
+                        "Meta message was stored but could not be forwarded to Agent Platform"
+                    );
+                }
+            }
+
             let title = if channel.platform == "INSTAGRAM" {
                 "New Instagram message"
             } else {
@@ -1612,6 +1842,61 @@ pub async fn process_meta_webhook_payload(
         }
     }
 
+    Ok(())
+}
+
+async fn forward_meta_message_to_agent(
+    config: &AppConfig,
+    channel: &MetaChannelRow,
+    conversation_id: &str,
+    sender_id: &str,
+    display_name: Option<&str>,
+    object: &str,
+    provider_message_id: Option<&str>,
+    timestamp: Option<i64>,
+    text: &str,
+) -> Result<(), AppError> {
+    let client = agent_platform::AgentPlatformClient::from_config(config)?;
+    let channel_type = if channel.platform == "INSTAGRAM" {
+        "instagram"
+    } else {
+        "facebook"
+    };
+    let message_id = provider_message_id
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| {
+            format!(
+                "meta:{object}:{}:{sender_id}:{}",
+                channel.id,
+                timestamp.unwrap_or_default()
+            )
+        });
+    let mut payload = json!({
+        "channelType": channel_type,
+        "channelKey": channel.external_connection_id.clone(),
+        "provider": "meta",
+        "providerEventId": message_id.clone(),
+        "providerMessageId": message_id,
+        "externalIdentity": sender_id,
+        "externalConversationId": conversation_id,
+        "messageType": "text",
+        "content": { "text": text },
+        "occurredAt": Utc::now().to_rfc3339(),
+    });
+    if let Some(display_name) = display_name
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        payload["displayName"] = json!(display_name);
+    }
+    client
+        .ingest_channel_message(
+            channel.org_id.as_deref().unwrap_or_default(),
+            &channel.user_id,
+            payload,
+        )
+        .await?;
     Ok(())
 }
 

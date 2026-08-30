@@ -469,7 +469,7 @@ export class ChannelRepository {
          LIMIT 1
        ) inbound ON true
        WHERE ar.id = $1
-         AND ar.reply_channel_type IN ('telegram', 'whatsapp', 'discord')
+         AND ar.reply_channel_type IN ('telegram', 'whatsapp', 'facebook', 'instagram', 'discord')
          AND cb.status = 'active' AND cc.status = 'active'
          AND cb.owner_actor_id IS NOT NULL
        LIMIT 1`,

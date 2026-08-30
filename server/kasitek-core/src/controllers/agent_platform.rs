@@ -2,7 +2,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use bytes::BytesMut;
 use futures_util::StreamExt;
 use serde::Deserialize;
-use serde_json::{Map, Value};
+use serde_json::{json, Map, Value};
 use sqlx::PgPool;
 
 use crate::config::AppConfig;
@@ -42,6 +42,13 @@ pub struct LiveConversationQuery {
 
 fn client(config: &AppConfig) -> Result<AgentPlatformClient, AppError> {
     AgentPlatformClient::from_config(config)
+}
+
+fn expected_provider_for_channel(channel_type: &str) -> &'static str {
+    match channel_type {
+        "instagram" => "INSTAGRAM",
+        _ => "FACEBOOK",
+    }
 }
 
 async fn scope(
@@ -1493,7 +1500,16 @@ pub async fn create_channel_connection(
         .get("channelType")
         .and_then(Value::as_str)
         .map(str::trim)
-        .unwrap_or_default();
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if !matches!(
+        channel_type.as_str(),
+        "whatsapp" | "facebook" | "instagram" | "telegram" | "discord"
+    ) {
+        return Err(AppError::BadRequest(format!(
+            "Unsupported agent channel: {channel_type}"
+        )));
+    }
     if channel_type != "telegram"
         && channel_type != "discord"
         && body
@@ -1506,6 +1522,51 @@ pub async fn create_channel_connection(
         return Err(AppError::BadRequest(
             "channelKey is required for this channel".to_string(),
         ));
+    }
+    if matches!(channel_type.as_str(), "facebook" | "instagram") {
+        let channel_key = body
+            .get("channelKey")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .unwrap_or_default();
+        let expected_provider = if channel_type == "facebook" {
+            "FACEBOOK"
+        } else {
+            "INSTAGRAM"
+        };
+        let connected = sqlx::query_scalar::<_, bool>(
+            r#"
+            SELECT EXISTS (
+                SELECT 1
+                FROM "ExternalConnection"
+                WHERE id = $1
+                  AND "orgId" = $2
+                  AND provider::text = $3
+                  AND status = 'CONNECTED'::"ExternalConnectionStatus"
+            )
+            "#,
+        )
+        .bind(channel_key)
+        .bind(&organization_id)
+        .bind(expected_provider)
+        .fetch_one(pool.get_ref())
+        .await?;
+        if !connected {
+            return Err(AppError::Conflict(
+                "This Meta account is no longer connected. Reconnect it before assigning it to an agent.".to_string(),
+            ));
+        }
+        if body
+            .get("metadata")
+            .and_then(Value::as_object)
+            .and_then(|metadata| metadata.get("coreConnectionId"))
+            .and_then(Value::as_str)
+            .is_some_and(|metadata_id| metadata_id.trim() != channel_key)
+        {
+            return Err(AppError::BadRequest(
+                "coreConnectionId must match channelKey".to_string(),
+            ));
+        }
     }
     if channel_type == "telegram"
         && body
@@ -1543,12 +1604,34 @@ pub async fn create_channel_connection(
             "A Discord bot token is required".to_string(),
         ));
     }
+    let mut request_body = body.into_inner();
+    if let Some(object) = request_body.as_object_mut() {
+        object.insert("channelType".to_string(), json!(channel_type));
+        if matches!(channel_type.as_str(), "facebook" | "instagram") {
+            let channel_key = object
+                .get("channelKey")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            let metadata = object
+                .entry("metadata".to_string())
+                .or_insert_with(|| json!({}));
+            if let Some(metadata) = metadata.as_object_mut() {
+                metadata.insert("coreConnectionId".to_string(), json!(channel_key));
+                metadata.insert(
+                    "provider".to_string(),
+                    json!(expected_provider_for_channel(&channel_type)),
+                );
+                metadata.insert("routing".to_string(), json!("public"));
+            }
+        }
+    }
     let response = client(config.get_ref())?
         .ensure_channel_connection(
             &organization_id,
             &user.id,
             installation_id.trim(),
-            body.into_inner(),
+            request_body,
         )
         .await?;
     Ok(HttpResponse::Created().json(response))

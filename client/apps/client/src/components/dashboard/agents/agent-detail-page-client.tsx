@@ -1857,7 +1857,7 @@ function integrationProviderLabel(provider: string) {
     case "WHATSAPP":
       return "WhatsApp";
     case "FACEBOOK":
-      return "Messenger";
+      return "Facebook Page";
     case "INSTAGRAM":
       return "Instagram";
     default:
@@ -1888,6 +1888,19 @@ function integrationIconColor(provider: string) {
       return "text-[#E4405F]";
     default:
       return "text-primary";
+  }
+}
+
+function IntegrationIcon({ provider, className }: { provider: string; className?: string }) {
+  switch (provider.toUpperCase()) {
+    case "WHATSAPP":
+      return <SiWhatsapp className={className} />;
+    case "FACEBOOK":
+      return <SiMessenger className={className} />;
+    case "INSTAGRAM":
+      return <SiInstagram className={className} />;
+    default:
+      return <SiModelcontextprotocol className={className} />;
   }
 }
 
@@ -1944,9 +1957,20 @@ function InstallationIntegrations({ agentId, installationId, personal, agentName
   const [discordSetupOpen, setDiscordSetupOpen] = useState(false);
   const [whatsappSetupOpen, setWhatsappSetupOpen] = useState(false);
   const [whatsappSetupConnection, setWhatsappSetupConnection] = useState<WorkspaceConnection | null>(null);
+  const [socialSetupOpen, setSocialSetupOpen] = useState(false);
+  const [socialSetupConnection, setSocialSetupConnection] = useState<WorkspaceConnection | null>(null);
+  const [socialSetupError, setSocialSetupError] = useState<string | null>(null);
+
+  const agentChannelTypeFor = (connection: WorkspaceConnection) => {
+    switch (connection.provider.toUpperCase()) {
+      case "FACEBOOK": return "facebook";
+      case "INSTAGRAM": return "instagram";
+      default: return "whatsapp";
+    }
+  };
 
   const agentChannelFor = (connection: WorkspaceConnection) => agentConnections.find((entry) => (
-    entry.channel_type === "whatsapp" && entry.status === "active"
+    entry.channel_type === agentChannelTypeFor(connection) && entry.status === "active"
     && (entry.channel_key === connection.id || entry.metadata?.coreConnectionId === connection.id)
   ));
 
@@ -1965,9 +1989,16 @@ function InstallationIntegrations({ agentId, installationId, personal, agentName
     setWhatsappSetupOpen(true);
   };
 
+  const openSocialSetup = (workspaceConnection: WorkspaceConnection) => {
+    setSocialSetupConnection(workspaceConnection);
+    setSocialSetupError(null);
+    setSocialSetupOpen(true);
+  };
+
   const assignWhatsApp = async (connection: WorkspaceConnection) => {
     if (personal || busy || connection.status !== "CONNECTED") return;
     setBusy(connection.id);
+    setSocialSetupError(null);
     setError(null);
     try {
       const channel = await createAgentChannelConnection(installationId, {
@@ -2003,6 +2034,51 @@ function InstallationIntegrations({ agentId, installationId, personal, agentName
     }
   };
 
+  const assignSocial = async (connection: WorkspaceConnection) => {
+    if (personal || busy || connection.status !== "CONNECTED") return;
+    setBusy(connection.id);
+    setError(null);
+    try {
+      const channel = await createAgentChannelConnection(installationId, {
+        channelType: agentChannelTypeFor(connection),
+        channelKey: connection.id,
+        metadata: {
+          configuredFrom: "agent-integrations",
+          coreConnectionId: connection.id,
+          provider: connection.provider.toUpperCase(),
+          routing: "public",
+        },
+      });
+      setAgentConnections((current) => [channel, ...current.filter((entry) => entry.id !== channel.id)]);
+      setSocialSetupOpen(false);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : `Unable to assign ${integrationProviderLabel(connection.provider)} to this agent`;
+      setSocialSetupError(message);
+      setError(message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const removeSocial = async (connection: WorkspaceConnection, channel: AgentChannelConnection | undefined) => {
+    if (!channel || busy || !await confirm({ title: `Stop routing ${connection.displayName}?`, description: "This stops routing new messages to this agent.", confirmLabel: "Remove", variant: "destructive" })) return;
+    setBusy(connection.id);
+    setSocialSetupError(null);
+    setError(null);
+    try {
+      await revokeAgentChannelConnection(installationId, channel.id);
+      setAgentConnections((current) => current.filter((entry) => entry.id !== channel.id));
+      setBindings((current) => current.filter((binding) => binding.channel_connection_id !== channel.id));
+      setSocialSetupOpen(false);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : `Unable to remove ${integrationProviderLabel(connection.provider)} from this agent`;
+      setSocialSetupError(message);
+      setError(message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const linkedConnections = workspaceConnections.filter((connection) => ["WHATSAPP", "FACEBOOK", "INSTAGRAM"].includes(connection.provider.toUpperCase()));
   const linkedGroups = ["WHATSAPP", "FACEBOOK", "INSTAGRAM"].map((provider) => ({
     provider,
@@ -2032,12 +2108,14 @@ function InstallationIntegrations({ agentId, installationId, personal, agentName
         {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : linkedGroups.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{linkedGroups.map((group) => {
           const Icon = integrationIcon(group.provider);
           const connectedCount = group.connections.filter((connection) => connection.status === "CONNECTED").length;
-          return <div key={group.provider} className="rounded-xl border border-border p-4"><div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3"><div className="rounded-lg border border-border bg-secondary p-2"><Icon className={`h-5 w-5 ${integrationIconColor(group.provider)}`} /></div><div><p className="font-medium text-foreground">{integrationProviderLabel(group.provider)}</p><p className="mt-0.5 text-xs text-muted-foreground">{connectedCount} connected {connectedCount === 1 ? "account" : "accounts"}</p></div></div><span className="flex items-center gap-1.5 text-xs text-status-success"><span className="h-1.5 w-1.5 rounded-full bg-status-success" />Active</span></div><div className="mt-4 divide-y divide-border rounded-lg border border-border/70">{group.connections.map((connection) => {
-            const channel = group.provider === "WHATSAPP" ? agentChannelFor(connection) : undefined;
-            const paired = personal && (activeBindingFor(channel) || allowedWhatsappPhonesFor(channel).length > 0);
+          return <div key={group.provider} className="rounded-xl border border-border p-4"><div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3"><div className="rounded-lg border border-border bg-secondary p-2"><Icon className={`h-5 w-5 ${integrationIconColor(group.provider)}`} /></div><div><p className="font-medium text-foreground">{integrationProviderLabel(group.provider)}</p><p className="mt-0.5 text-xs text-muted-foreground">{connectedCount} connected {connectedCount === 1 ? "account" : "accounts"}</p></div></div><span className={`flex items-center gap-1.5 text-xs ${connectedCount ? "text-status-success" : "text-muted-foreground"}`}><span className={`h-1.5 w-1.5 rounded-full ${connectedCount ? "bg-status-success" : "bg-muted-foreground"}`} />{connectedCount ? "Active" : "Not connected"}</span></div><div className="mt-4 divide-y divide-border rounded-lg border border-border/70">{group.connections.map((connection) => {
+            const channel = agentChannelFor(connection);
+            const isWhatsApp = group.provider === "WHATSAPP";
+            const isSocial = group.provider === "FACEBOOK" || group.provider === "INSTAGRAM";
+            const paired = isWhatsApp && personal && (activeBindingFor(channel) || allowedWhatsappPhonesFor(channel).length > 0);
             const assigned = !personal && channel?.status === "active";
             const available = connection.status === "CONNECTED";
-            return <div key={connection.id} className="flex items-center justify-between gap-3 px-3 py-2.5"><div className="min-w-0"><p className="truncate text-sm text-foreground">{connection.displayName}</p>{connection.handle ? <p className="truncate text-xs text-muted-foreground">{connection.handle}</p> : null}</div>{group.provider === "WHATSAPP" && available ? personal ? paired ? <div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => openWhatsAppSetup(connection)}>Manage</Button><Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => void removeWhatsApp(connection, channel)}>{busy === connection.id ? "…" : "Release"}</Button></div> : <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => openWhatsAppSetup(connection)}>{channel ? "Configure" : "Use"}</Button> : assigned ? <div className="flex items-center gap-2"><span className="shrink-0 text-xs font-medium text-status-success">Assigned</span><Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => void removeWhatsApp(connection, channel)}>{busy === connection.id ? "…" : "Remove"}</Button></div> : <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => void assignWhatsApp(connection)}>{busy === connection.id ? "…" : "Use for agent"}</Button> : <Link href="/connections" className="shrink-0 text-xs font-medium text-foreground underline-offset-4 hover:underline">Manage</Link>}</div>;
+            return <div key={connection.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5"><div className="min-w-0"><p className="truncate text-sm text-foreground">{connection.displayName}</p>{connection.handle ? <p className="truncate text-xs text-muted-foreground">{connection.handle}</p> : null}<p className={`mt-0.5 text-[11px] ${available ? "text-status-success" : "text-status-warning"}`}>{available ? "Connected" : connection.status.replaceAll("_", " ").toLowerCase()}</p></div>{isWhatsApp && available ? personal ? paired ? <div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => openWhatsAppSetup(connection)}>Manage</Button><Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => void removeWhatsApp(connection, channel)}>{busy === connection.id ? "…" : "Release"}</Button></div> : <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => openWhatsAppSetup(connection)}>{channel ? "Configure" : "Use"}</Button> : assigned ? <div className="flex items-center gap-2"><span className="shrink-0 text-xs font-medium text-status-success">Assigned</span><Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => void removeWhatsApp(connection, channel)}>{busy === connection.id ? "…" : "Remove"}</Button></div> : <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => void assignWhatsApp(connection)}>{busy === connection.id ? "…" : "Use for agent"}</Button> : isSocial ? personal ? <span className="shrink-0 text-xs text-muted-foreground">Customer agent only</span> : assigned ? <div className="flex items-center gap-2"><span className="shrink-0 text-xs font-medium text-status-success">Assigned</span><Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => openSocialSetup(connection)}>Manage</Button><Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => void removeSocial(connection, channel)}>{busy === connection.id ? "…" : "Remove"}</Button></div> : <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 px-2.5 text-xs" disabled={busy !== null} onClick={() => openSocialSetup(connection)}>{available ? "Use" : "Check setup"}</Button> : <Link href="/connections" className="shrink-0 text-xs font-medium text-foreground underline-offset-4 hover:underline">Manage</Link>}</div>;
           })}</div></div>;
         })}</div> : <div className="rounded-lg border border-dashed border-border p-4"><p className="text-sm text-muted-foreground">No connected accounts yet.</p><Link href="/connections" className="mt-2 inline-flex text-sm font-medium text-foreground underline-offset-4 hover:underline">Open connections</Link></div>}
       </CardContent>
@@ -2048,8 +2126,49 @@ function InstallationIntegrations({ agentId, installationId, personal, agentName
     <TelegramSetupDialog open={telegramSetupOpen} onOpenChange={setTelegramSetupOpen} installationId={installationId} personal={personal} existingConnection={telegramConnection} onConnected={() => void refresh()} onDisconnected={() => void refresh()} />
     <DiscordSetupDialog open={discordSetupOpen} onOpenChange={setDiscordSetupOpen} installationId={installationId} personal={personal} existingConnection={discordConnection} onConnected={() => void refresh()} onDisconnected={() => void refresh()} />
     {whatsappSetupConnection ? <WhatsAppAccessDialog open={whatsappSetupOpen} onOpenChange={setWhatsappSetupOpen} installationId={installationId} workspaceConnection={whatsappSetupConnection} existingConnection={agentChannelFor(whatsappSetupConnection)} onSaved={() => void refresh()} onDisconnected={() => void refresh()} /> : null}
+    {socialSetupConnection ? <SocialAgentAccessDialog open={socialSetupOpen} onOpenChange={setSocialSetupOpen} personal={personal} workspaceConnection={socialSetupConnection} existingConnection={agentChannelFor(socialSetupConnection)} onAssign={() => void assignSocial(socialSetupConnection)} onRemove={() => void removeSocial(socialSetupConnection, agentChannelFor(socialSetupConnection))} busy={busy === socialSetupConnection.id} error={socialSetupError} /> : null}
     {!personal && websiteChatOpen ? <WebsiteChatDeployments agentId={agentId} installationId={installationId} agentName={agentName} onClose={() => { setWebsiteChatOpen(false); void refreshWebsiteDeployments(); }} /> : null}
   </div>;
+}
+
+function SocialAgentAccessDialog({ open, onOpenChange, personal, workspaceConnection, existingConnection, onAssign, onRemove, busy, error }: { open: boolean; onOpenChange: (open: boolean) => void; personal: boolean; workspaceConnection: WorkspaceConnection; existingConnection?: AgentChannelConnection; onAssign: () => void; onRemove: () => void; busy: boolean; error?: string | null }) {
+  const provider = workspaceConnection.provider.toUpperCase();
+  const providerLabel = integrationProviderLabel(provider);
+  const connected = workspaceConnection.status === "CONNECTED";
+  const credentialReady = ["ACTIVE", "CONNECTED", "VALID", "HEALTHY"].includes(workspaceConnection.credentialStatus.toUpperCase());
+  const webhookReady = ["ACTIVE", "CONNECTED", "READY", "SUBSCRIBED"].includes(workspaceConnection.webhookStatus.toUpperCase());
+  const assigned = existingConnection?.status === "active";
+
+  return <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="sm:max-w-lg">
+      <DialogHeader>
+        <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-secondary"><IntegrationIcon provider={provider} className={`h-5 w-5 ${integrationIconColor(provider)}`} /></div>
+        <DialogTitle>{providerLabel} access</DialogTitle>
+        <DialogDescription>{workspaceConnection.displayName}{workspaceConnection.handle ? ` · ${workspaceConnection.handle}` : ""}</DialogDescription>
+      </DialogHeader>
+      <div className="mt-5 space-y-3">
+        <div className="flex flex-wrap items-center gap-2"><Badge className={connected ? "border-status-success/30 bg-status-success/10 text-status-success" : "border-status-warning/30 bg-status-warning/10 text-status-warning"}>{connected ? "Workspace connected" : "Connection needs attention"}</Badge><Badge className={assigned ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-secondary text-muted-foreground"}>{assigned ? "Assigned to this agent" : "Not assigned"}</Badge></div>
+        <div className="divide-y divide-border rounded-xl border border-border">
+          <SocialAccessCheck label="Workspace connection" value={connected ? "Connected" : workspaceConnection.status.replaceAll("_", " ").toLowerCase()} tone={connected ? "success" : "warning"} />
+          <SocialAccessCheck label="Credentials" value={credentialReady ? "Ready" : workspaceConnection.credentialStatus.replaceAll("_", " ").toLowerCase()} tone={credentialReady ? "success" : "warning"} />
+          <SocialAccessCheck label="Message webhook" value={webhookReady ? "Ready" : workspaceConnection.webhookStatus.replaceAll("_", " ").toLowerCase() || "Pending"} tone={webhookReady ? "success" : "neutral"} />
+        </div>
+        {!connected ? <p className="rounded-lg bg-status-warning/10 px-3 py-2 text-sm text-status-warning">Reconnect this account in Connections before assigning it.</p> : null}
+        {connected && !assigned ? <p className="text-sm text-muted-foreground">Text messages received by this {provider === "FACEBOOK" ? "Page" : "account"} will be routed to this agent.</p> : null}
+        {assigned ? <p className="text-sm text-muted-foreground">This agent currently receives new text messages from this {provider === "FACEBOOK" ? "Page" : "account"}.</p> : null}
+        {error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">{error}</p> : null}
+      </div>
+      <DialogFooter className="mt-6">
+        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+        {!connected ? <Button type="button" onClick={() => window.location.assign("/connections")}>Open connections</Button> : assigned ? <Button type="button" variant="destructive" disabled={busy} onClick={onRemove}>{busy ? "Removing…" : "Remove"}</Button> : personal ? <Button type="button" disabled>Customer agent only</Button> : <Button type="button" disabled={busy} onClick={onAssign}>{busy ? "Assigning…" : "Use for agent"}</Button>}
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>;
+}
+
+function SocialAccessCheck({ label, value, tone }: { label: string; value: string; tone: "success" | "warning" | "neutral" }) {
+  const toneClass = tone === "success" ? "text-status-success" : tone === "warning" ? "text-status-warning" : "text-muted-foreground";
+  return <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm"><span className="text-muted-foreground">{label}</span><span className={`capitalize ${toneClass}`}>{value}</span></div>;
 }
 
 const DEFAULT_WEBSITE_APPEARANCE: AgentWebsiteDeployment["appearance"] = {

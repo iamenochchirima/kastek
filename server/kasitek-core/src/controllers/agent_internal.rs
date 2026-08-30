@@ -23,7 +23,7 @@ use crate::error::AppError;
 use crate::identity::internal_delegation;
 use crate::identity::request_context::RequestContext;
 use crate::services::whatsapp::WhatsappReplyButton;
-use crate::services::{connections, content_media, credits, customers, website, whatsapp};
+use crate::services::{connections, content_media, credits, customers, inbox, website, whatsapp};
 
 #[derive(Debug, Default, Deserialize)]
 pub struct AgentContentInsightsQuery {
@@ -1396,6 +1396,21 @@ pub async fn deliver_channel_message(
             .await?
             .ok_or_else(|| AppError::NotFound("Website Chat session not found".to_string()))?;
             serde_json::json!({ "providerMessageId": event.id, "status": "sent" })
+        }
+        "facebook" | "instagram" => {
+            if !body.buttons.is_empty() {
+                return Err(AppError::BadRequest(
+                    "Facebook and Instagram agent replies support text only".to_string(),
+                ));
+            }
+            inbox::deliver_agent_meta_message(
+                pool.get_ref(),
+                &organization_id,
+                body.external_conversation_id.trim(),
+                text,
+                idempotency_key,
+            )
+            .await?
         }
         _ => {
             return Err(AppError::BadRequest(format!(

@@ -704,7 +704,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     inputSchema: {
       type: "object",
       properties: {
-        channelType: { type: "string", enum: ["whatsapp", "website"] },
+        channelType: { type: "string", enum: ["whatsapp", "facebook", "instagram", "website"] },
         externalConversationId: { type: "string", minLength: 1, maxLength: 240 },
         text: { type: "string", minLength: 1, maxLength: 20_000 },
       },

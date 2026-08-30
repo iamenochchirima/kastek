@@ -275,7 +275,7 @@ fn is_provider_authentication_failure(error: &str) -> bool {
         || normalized.contains("invalid oauth access token")
 }
 
-fn validate_agent_delivery_idempotency_key(value: &str) -> Result<&str, AppError> {
+pub(crate) fn validate_agent_delivery_idempotency_key(value: &str) -> Result<&str, AppError> {
     let value = value.trim();
     if value.is_empty() || value.len() > 240 {
         return Err(AppError::BadRequest(

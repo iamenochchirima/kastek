@@ -25,9 +25,25 @@ KasiAi or hosted user-agent installation.
 
 ## Configure KasiAi channels
 
-Open the protected KasiAi details page and configure the workspace’s optional Telegram, Discord, or
-WhatsApp connection there. Channel provider credentials remain in the connection vault. KasiAi does
-not receive MCP/REST installation credentials and does not appear in the external-agent wizard.
+Open the agent details page and configure the workspace’s optional Telegram, Discord, WhatsApp,
+Facebook, or Instagram connection there. Channel provider credentials remain in the connection
+vault. Hosted customer-service agents receive explicitly assigned workspace channels; personal
+agents cannot receive customer channels.
+
+### Facebook and Instagram messaging
+
+Connect the Page or Instagram Professional account from **Connections** first. On a hosted
+customer-service agent, open **Integrations**, select **Use** beside the connected account, review
+the connection and webhook status, then select **Use for agent**. The assignment uses the internal
+workspace connection and does not copy a Meta access token into Agent Platform.
+
+Inbound text messages are persisted in Inbox and routed to the assigned agent. Agent text replies
+are delivered by Core using the existing Meta connection. The first release supports text replies;
+media, reactions, and approval buttons remain on their provider-specific Inbox paths.
+
+If the account is not connected or needs attention, use **Open connections** in the access dialog,
+restore the Meta connection, and return to the agent details page. Only one active customer-service
+agent may own a Page or Instagram account route at a time.
 
 ### Telegram setup
 
