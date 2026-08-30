@@ -179,7 +179,7 @@ responsive visualizations.
   metric values.
 - [x] Confirm public documentation change is not applicable because no public API or documented
   workflow contract changes.
-- [ ] Record the implementation commit SHA and validation output before closing the plan.
+- [x] Record the implementation commit SHA and validation output before closing the plan.
 - [ ] Move this file to `docs/plans/completed/` only after implementation and required verification
   are complete.
 
@@ -224,13 +224,13 @@ responsive visualizations.
 | Owner | Client frontend. |
 | Risk | Standard: shared analytics components affect several customer surfaces. |
 | Affected services and user surfaces | Client application; Connections, Campaigns, Inbox, Agent analytics, workspace overview, and analytics playground. Analytics API is read-only and unchanged. |
-| Platform release version or release ID | Patch release; exact version/release ID and commit SHA to be recorded at release. |
+| Platform release version or release ID | Patch release; implementation commit `8aa93ce7` is the current checkpoint. Final platform release ID is to be recorded at release. |
 | API/schema/migration changes | Not applicable. |
 | Feature flag or rollout method | Normal client deployment after build and authenticated fixture verification; no feature flag planned. |
 | Analytics events and success metrics | No event-contract change. Success is zero empty-report regressions and correct rendering of empty, zero, partial, and populated fixtures. |
 | Logs, metrics, dashboards, and alerts | Not applicable; this introduces no new server operation or failure mode. Existing client request errors remain visible through the error state. |
 | User, API, internal, and operational documentation | Add the internal display-semantics decision. Public/API/runbook changes are not applicable. |
-| Validation evidence | ESLint, authenticated analytics Playwright coverage, client production build, and responsive visual checks. |
+| Validation evidence | ESLint and TypeScript pass; Webpack production build passes; anonymous analytics E2E passes; authenticated analytics E2E and visual checks remain blocked by the expired local workspace session. |
 | Rollback or disable plan | Revert the client implementation commit and redeploy the previous client artifact. No data rollback is required. |
 | Post-release review date | First business day after production deployment; record the actual date at release. |
 
