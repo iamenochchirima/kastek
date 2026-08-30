@@ -1,4 +1,4 @@
 [mcp_servers.kasitek_local]
-url = "http://127.0.0.1:4200/mcp"
-bearer_token_env_var = "KASITEK_LOCAL_MCP_TOKEN"
+url = "https://agents.kasitek.co.za/mcp"
+bearer_token_env_var = "KASITEK_API_KEY"
 default_tools_approval_mode = "writes"
