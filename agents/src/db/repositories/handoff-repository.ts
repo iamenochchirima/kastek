@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import { query, withTransaction } from "../pool";
-import type { ConversationRecord, MessageRecord } from "./conversation-repository";
+import type { ConversationProjection, ConversationRecord, MessageRecord } from "./conversation-repository";
 import { createAgentEvent } from "../../events/envelope";
 import { buildEvent, enqueueOutbox } from "../../analytics/producer";
 import { enqueueAgentConversationMessage, loadAgentConversationAnalyticsContext } from "../../analytics";
@@ -69,6 +69,14 @@ export interface HandoffQueueFilters {
   limit?: number;
   cursor?: string;
   before?: string;
+}
+
+export interface CustomerConversationFilters {
+  installationId?: string;
+  agentId?: string;
+  channelType?: string;
+  search?: string;
+  limit?: number;
 }
 
 export interface HandoffQueueItem {
@@ -161,7 +169,11 @@ export class HandoffRepository {
     };
     if (filters.installationId) add("h.installation_id = $VALUE", filters.installationId);
     if (filters.agentId) add("h.agent_definition_id = $VALUE", filters.agentId);
-    if (filters.channelType) add("h.channel_type = $VALUE", filters.channelType);
+    if (filters.channelType) {
+      const channelTypes = filters.channelType === "messenger" ? ["facebook", "messenger"] : [filters.channelType];
+      values.push(channelTypes);
+      where.push(`h.channel_type = ANY($${values.length}::text[])`);
+    }
     if (filters.reason) add("h.reason = $VALUE", filters.reason);
     if (filters.priority) add("h.priority = $VALUE", filters.priority);
     if (filters.status) {
@@ -242,7 +254,7 @@ export class HandoffRepository {
     return result.rows;
   }
 
-  public async listLive(organizationId: string, filters: { installationId?: string; agentId?: string; search?: string; limit?: number } = {}): Promise<{ items: LiveConversationItem[] }> {
+  public async listLive(organizationId: string, filters: CustomerConversationFilters = {}): Promise<{ items: LiveConversationItem[] }> {
     const values: unknown[] = [organizationId];
     const where = [
       "c.organization_id = $1",
@@ -256,6 +268,11 @@ export class HandoffRepository {
     };
     if (filters.installationId) add("c.installation_id = $VALUE", filters.installationId);
     if (filters.agentId) add("r.agent_definition_id = $VALUE", filters.agentId);
+    if (filters.channelType) {
+      const channelTypes = filters.channelType === "messenger" ? ["facebook", "messenger"] : [filters.channelType];
+      values.push(channelTypes);
+      where.push(`c.channel_type = ANY($${values.length}::text[])`);
+    }
     if (filters.search?.trim()) {
       values.push(`%${filters.search.trim().replace(/[%_]/g, "\\$&")}%`);
       where.push("(c.title ILIKE $VALUE ESCAPE '\\' OR c.last_message_preview ILIKE $VALUE ESCAPE '\\' OR participant.display_name ILIKE $VALUE ESCAPE '\\')".replace(/\$VALUE/g, `$${values.length}`));
@@ -313,6 +330,70 @@ export class HandoffRepository {
         },
       })),
     };
+  }
+
+  public async listCustomer(organizationId: string, filters: CustomerConversationFilters = {}): Promise<{ items: ConversationProjection[] }> {
+    const values: unknown[] = [organizationId];
+    const where = [
+      "c.organization_id = $1",
+      "c.conversation_kind = 'customer'",
+      "c.status = 'active'",
+      "ai.status = 'active'",
+      "ad.agent_audience = 'customer_service'",
+    ];
+    const add = (sql: string, value: unknown): void => {
+      values.push(value);
+      where.push(sql.replace("$VALUE", `$${values.length}`));
+    };
+    if (filters.installationId) add("c.installation_id = $VALUE", filters.installationId);
+    if (filters.agentId) add("ai.agent_definition_id = $VALUE", filters.agentId);
+    if (filters.channelType) {
+      const channelTypes = filters.channelType === "messenger" ? ["facebook", "messenger"] : [filters.channelType];
+      values.push(channelTypes);
+      where.push(`c.channel_type = ANY($${values.length}::text[])`);
+    }
+    if (filters.search?.trim()) {
+      values.push(`%${filters.search.trim().replace(/[%_]/g, "\\$&")}%`);
+      where.push(`(c.title ILIKE $${values.length} ESCAPE '\\' OR c.last_message_preview ILIKE $${values.length} ESCAPE '\\' OR participant.display_name ILIKE $${values.length} ESCAPE '\\' OR participant.external_id ILIKE $${values.length} ESCAPE '\\')`);
+    }
+    const limit = Math.max(1, Math.min(filters.limit ?? 100, 200));
+    values.push(limit);
+    const result = await query<ConversationProjection>(
+      this.pool,
+      `SELECT c.*,
+              participant.participant_type,
+              participant.external_id AS participant_external_id,
+              participant.display_name AS participant_display_name,
+              COALESCE(unread.unread_count, 0)::integer AS unread_count
+       FROM conversations c
+       JOIN agent_installations ai
+         ON ai.id = c.installation_id
+        AND ai.organization_id = c.organization_id
+       JOIN agent_definitions ad
+         ON ad.id = ai.agent_definition_id
+       LEFT JOIN LATERAL (
+         SELECT p.participant_type, p.external_id, p.display_name
+         FROM participants p
+         WHERE p.conversation_id = c.id
+           AND p.organization_id = c.organization_id
+           AND p.participant_type IN ('customer', 'user')
+         ORDER BY CASE WHEN p.participant_type = 'customer' THEN 0 ELSE 1 END, p.created_at
+         LIMIT 1
+       ) participant ON true
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::integer AS unread_count
+         FROM messages m
+         WHERE m.conversation_id = c.id
+           AND m.organization_id = c.organization_id
+           AND m.direction = 'inbound'
+           AND m.occurred_at > COALESCE(c.last_read_at, 'epoch'::timestamptz)
+       ) unread ON true
+       WHERE ${where.join(" AND ")}
+       ORDER BY COALESCE(c.last_message_at, c.updated_at) DESC, c.id DESC
+       LIMIT $${values.length}`,
+      values,
+    );
+    return { items: result.rows };
   }
 
   public async conversationExists(organizationId: string, conversationId: string): Promise<boolean> {

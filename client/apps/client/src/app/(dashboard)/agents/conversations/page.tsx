@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getRustSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
-import type { AgentHandoffPriority, AgentHandoffQueue, AgentHandoffReason } from "@/lib/agent-platform";
+import type { AgentConversation, AgentHandoffPriority, AgentHandoffQueue, AgentHandoffReason } from "@/lib/agent-platform";
 import { AgentConversationsPageClient } from "@/components/dashboard/agents/agent-conversations-page-client";
 
 export const metadata = { title: "Live Chat | KasiTek" };
@@ -32,7 +32,7 @@ export default async function AgentConversationsPage({
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
   const query = await searchParams;
-  const view = query.view === "human" || query.view === "live" || query.view === "all" ? query.view : "handoff";
+  const view = query.view === "handoff" || query.view === "human" || query.view === "live" ? query.view : "all";
   const reason = handoffReasons.includes(query.reason as AgentHandoffReason) ? query.reason as AgentHandoffReason : undefined;
   const priority = handoffPriorities.includes(query.priority as AgentHandoffPriority) ? query.priority as AgentHandoffPriority : undefined;
   const params = new URLSearchParams({ status: viewStatuses[view] ?? "pending", limit: "100" });
@@ -42,9 +42,21 @@ export default async function AgentConversationsPage({
   if (query.channelType) params.set("channelType", query.channelType);
   if (reason) params.set("reason", reason);
   if (priority) params.set("priority", priority);
-  const initialQueue = await fetchRustJson<AgentHandoffQueue>(
-    `/api/agents/conversations/handoffs?${params.toString()}`,
-  ).catch((): AgentHandoffQueue => ({ items: [], nextBefore: null }));
+  const customerParams = new URLSearchParams({ limit: "100" });
+  if (query.agentId) customerParams.set("agentId", query.agentId);
+  if (query.installationId) customerParams.set("installationId", query.installationId);
+  if (query.search) customerParams.set("search", query.search);
+  if (query.channelType) customerParams.set("channelType", query.channelType === "messenger" ? "facebook" : query.channelType);
+  const initialCustomerConversations = view === "all"
+    ? await fetchRustJson<{ items: AgentConversation[] }>(
+      `/api/agents/conversations/customer?${customerParams.toString()}`,
+    ).catch((): { items: AgentConversation[] } => ({ items: [] }))
+    : { items: [] };
+  const initialQueue = view === "all"
+    ? { items: [], nextBefore: null } as AgentHandoffQueue
+    : await fetchRustJson<AgentHandoffQueue>(
+      `/api/agents/conversations/handoffs?${params.toString()}`,
+    ).catch((): AgentHandoffQueue => ({ items: [], nextBefore: null }));
 
-  return <AgentConversationsPageClient initialQueue={initialQueue} initialFilters={{ view, agentId: query.agentId, installationId: query.installationId, search: query.search, channelType: query.channelType, reason, priority }} />;
+  return <AgentConversationsPageClient initialQueue={initialQueue} initialCustomerConversations={initialCustomerConversations.items} initialFilters={{ view, agentId: query.agentId, installationId: query.installationId, search: query.search, channelType: query.channelType, reason, priority }} />;
 }

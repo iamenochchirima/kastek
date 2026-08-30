@@ -64,7 +64,8 @@ This plan covers the split between personal and customer-service agents, custome
 - [x] Pause the model loop with an `awaiting_human` control after a successful handoff request.
 - [x] Define queue pagination/filter inputs and keep operator mutations on the same repository boundary.
 - [x] Expose an organization-scoped handoff queue/detail API with claim, continue-with-agent, and resolve transitions.
-- [x] List live conversations with organization-scoped installation, agent, search, bounded-limit filters, and cursor pagination.
+- [x] List live conversations with organization-scoped installation, agent, channel, search, bounded-limit filters, and cursor pagination.
+- [x] Expose an organization-scoped active customer conversation projection across connected customer channels; keep the live-run projection limited to conversations with active runs.
 - [x] Get transcript, participants, active runs, ownership, and handoff history.
 - [x] Add atomic claim, pause/stop, resume, human-message, and resolve operations.
 - [x] Add release and expiry operations with organization-scoped operator APIs.
@@ -78,6 +79,8 @@ This plan covers the split between personal and customer-service agents, custome
 
 - [x] Add `/agents/conversations`.
 - [x] Add Handoff requests, Human owned, and All views; Agent live remains tied to active-run data.
+- [x] Make All load active customer conversations across website chat, Messenger, Instagram, WhatsApp, Telegram, and Discord instead of only handoff records.
+- [x] Normalize the stored `facebook` channel type to the Messenger label and filter in the operator surface.
 - [x] Add channel, status, reason, priority, search, and cursor filters to the handoff queue API.
 - [x] Build responsive list/detail navigation for desktop, tablet, and mobile.
 - [x] Show customer, agent, human, and system attribution.
@@ -126,6 +129,34 @@ This plan covers the split between personal and customer-service agents, custome
 - [x] Manual takeover, Stop response, Continue with agent, and Resolve work correctly.
 - [x] KasiAi remains unchanged.
 - [x] Organization isolation, permissions, idempotency, audit, and responsive UI regression coverage passes; responsive behavior is verified at the surface level by the client build/manual smoke checklist.
+
+## Release record: unified customer Live Chat feed
+
+Change: Make the client Live Chat All view show active customer conversations from every supported Agent Platform channel, with channel filtering and conversation detail; retain handoff, human-owned, and active-agent views as focused projections.
+
+Owner: Platform
+
+Risk: standard
+
+Affected services and user surfaces: Agent API conversation queue, Core Agent Platform proxy, client `/agents/conversations` Live Chat.
+
+Platform release version or release ID: record the commit SHA and production deployment IDs at release.
+
+API/schema/migration changes: Added `GET /v1/conversations/customer` and the organization-scoped Core proxy route. Extended the live conversation query with `channelType`. No database migration.
+
+Feature flag or rollout method: not applicable; the existing customer-service agent audience and installation status gates remain in force.
+
+Analytics events and success metrics: not applicable; this is a read-only conversation projection. Existing conversation and handoff lifecycle analytics remain unchanged. Success is that active customer conversations are visible under All and correctly filtered by channel.
+
+Logs, metrics, dashboards, and alerts: not applicable; the existing authenticated HTTP, agent, and Core request logs cover the new read path. No new background processing or failure mode was introduced.
+
+User, API, internal, and operational documentation: Updated [`0009-channel-identity-pairing.md`](../../../agents/docs/adr/0009-channel-identity-pairing.md) with the operator customer queue contract.
+
+Validation evidence: Agent build and targeted HTTP/repository tests; client lint, TypeScript check, and webpack production build; Core format and compile checks. Production smoke verification is recorded after deployment.
+
+Rollback or disable plan: revert the client, Core, and Agent API changes together. The existing handoff and active-agent endpoints remain independently available.
+
+Post-release review date: 2026-09-06
 
 ## Approved defaults
 

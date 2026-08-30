@@ -20,6 +20,24 @@ describe("handoff repository lifecycle", () => {
     expect(query.mock.calls[1]?.[1]).toEqual(["org-1", "conversation:conversation-1", 4, "conversation-1"]);
   });
 
+  it("lists active customer conversations across the supported channel types", async () => {
+    const query = vi.fn(async () => ({ rows: [{ id: "conversation-1", channel_type: "facebook" }] }));
+    const repository = new HandoffRepository({ query } as never);
+
+    const result = await repository.listCustomer("org-1", {
+      channelType: "messenger",
+      search: "Jane",
+      limit: 25,
+    });
+
+    expect(result.items).toEqual([{ id: "conversation-1", channel_type: "facebook" }]);
+    const sql = String(query.mock.calls[0]?.[0]);
+    expect(sql).toContain("c.conversation_kind = 'customer'");
+    expect(sql).toContain("ad.agent_audience = 'customer_service'");
+    expect(sql).toContain("c.channel_type = ANY($2::text[])");
+    expect(query.mock.calls[0]?.[1]).toEqual(["org-1", ["facebook", "messenger"], "%Jane%", 25]);
+  });
+
   it("emits first-human-response before the per-message event", async () => {
     const eventTypes: string[] = [];
     const auditRecords: Array<{ action: string; metadata: Record<string, unknown> }> = [];

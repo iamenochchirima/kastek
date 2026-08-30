@@ -188,10 +188,22 @@ export function listAgentHandoffs(filters: {
   return request<AgentHandoffQueue>(`/api/agents/conversations/handoffs${suffix}`);
 }
 
-export function listAgentLiveConversations(filters: { installationId?: string; agentId?: string; search?: string; limit?: number } = {}): Promise<{ items: AgentLiveConversation[] }> {
+export function listAgentCustomerConversations(filters: { installationId?: string; agentId?: string; channelType?: string; search?: string; limit?: number } = {}): Promise<{ items: AgentConversation[] }> {
   const query = new URLSearchParams();
   if (filters.installationId) query.set("installationId", filters.installationId);
   if (filters.agentId) query.set("agentId", filters.agentId);
+  if (filters.channelType) query.set("channelType", filters.channelType);
+  if (filters.search) query.set("search", filters.search);
+  if (filters.limit) query.set("limit", String(filters.limit));
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return request(`/api/agents/conversations/customer${suffix}`);
+}
+
+export function listAgentLiveConversations(filters: { installationId?: string; agentId?: string; channelType?: string; search?: string; limit?: number } = {}): Promise<{ items: AgentLiveConversation[] }> {
+  const query = new URLSearchParams();
+  if (filters.installationId) query.set("installationId", filters.installationId);
+  if (filters.agentId) query.set("agentId", filters.agentId);
+  if (filters.channelType) query.set("channelType", filters.channelType);
   if (filters.search) query.set("search", filters.search);
   if (filters.limit) query.set("limit", String(filters.limit));
   const suffix = query.toString() ? `?${query.toString()}` : "";

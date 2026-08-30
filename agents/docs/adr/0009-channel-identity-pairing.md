@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-08-11
-- Updated: 2026-08-12
+- Updated: 2026-08-30
 
 ## Decision
 
@@ -48,3 +48,12 @@ Every adapter must:
 WhatsApp implements this contract now. Telegram and Discord must satisfy the same contract before
 their adapters are enabled; canonical Agent Platform support for a channel name alone does not make
 that provider connected.
+
+## Operator customer queue
+
+Customer-service installations share one operator conversation surface regardless of provider. The
+Agent Platform `GET /v1/conversations/customer` projection returns active customer conversations
+from every connected channel, including website chat, Facebook Messenger, Instagram, WhatsApp,
+Telegram, and Discord when those adapters have produced a conversation. The live-run projection is
+reserved for runs that are still active; it is not the complete customer history. Channel filters
+use the stored channel type (`facebook` for Messenger).

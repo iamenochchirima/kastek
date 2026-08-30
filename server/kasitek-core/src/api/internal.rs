@@ -540,6 +540,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::post().to(agent_platform::retry_audio_transcription),
             )
             .route(
+                "/conversations/customer",
+                web::get().to(agent_platform::list_customer_conversations),
+            )
+            .route(
                 "/conversations/{conversationId}",
                 web::get().to(agent_platform::get_conversation),
             )
