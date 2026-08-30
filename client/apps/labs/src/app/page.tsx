@@ -56,7 +56,7 @@ export default function LabsLandingPage() {
       <Script
         async
         src={widgetLoaderUrl}
-        data-kasitek-deployment="wdg_iruyvssvwje6hd4na7bjfj09"
+        data-kasitek-deployment="wdg_lr8zeyraon00iopnp4sozil8"
       />
 
       <section className="hero" id="top">
