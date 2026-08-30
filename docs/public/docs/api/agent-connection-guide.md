@@ -50,8 +50,8 @@ agent may own a Page or Instagram account route at a time.
 Telegram uses two intentional modes:
 
 - Personal (`system_hosted`): the workspace user enters a BotFather bot token, requests a pairing
-  code, and sends `/start <code>` to the bot. Only that Telegram identity is bound to the personal
-  agent.
+  code, and sends `/start <code>` to the bot, or configures one or more numeric Telegram user IDs
+  as the allowlist. Only those Telegram identities are bound to the personal agent.
 - Business (`kasitek_hosted`): the workspace user enters a BotFather bot token. Customers can
   message the bot without pairing; each Telegram identity and chat becomes its own customer
   conversation.
@@ -64,10 +64,12 @@ AGENTS_CREDENTIAL_ENCRYPTION_KEY=<32-byte key, base64 or 64-character hex>
 TELEGRAM_WEBHOOK_BASE_URL=https://<public-core-origin>
 ```
 
-`TELEGRAM_WEBHOOK_BASE_URL` must be reachable by Telegram and must route to `kasitek-core`. The
-Agent Platform and core still share their existing `INTERNAL_AUTH_SECRET` /
-`AGENTS_INTERNAL_AUTH_SECRET` bridge secret. Users should never be asked for a Telegram webhook
-secret, Telegram API URL, or Telegram user ID.
+`TELEGRAM_WEBHOOK_BASE_URL` must be reachable by Telegram and must route to `kasitek-core`; in
+production this is the public Core origin, not the client application origin. For personal
+WhatsApp connections, allowed phone values use international digits without `+`; if no allowlist
+is configured, the one-time pairing flow remains available. The Agent Platform and Core still
+share their existing `INTERNAL_AUTH_SECRET` / `AGENTS_INTERNAL_AUTH_SECRET` bridge secret. Users
+should never be asked for a Telegram webhook secret or Telegram API URL.
 
 ## Create a hosted user agent
 
