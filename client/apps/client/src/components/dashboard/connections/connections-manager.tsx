@@ -198,16 +198,7 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
   }
 
   function startOAuthConnection(path: string) {
-    const publicAppUrl = process.env.NEXT_PUBLIC_APP_URL;
-    if (publicAppUrl) {
-      const publicOrigin = new URL(publicAppUrl).origin;
-      if (window.location.origin !== publicOrigin) {
-        window.location.assign(`${publicOrigin}/connections`);
-        return;
-      }
-    }
-
-    window.location.assign(path);
+    window.location.assign(apiUrl(path));
   }
 
   async function connectBluesky() {
