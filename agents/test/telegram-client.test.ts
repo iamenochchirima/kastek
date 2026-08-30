@@ -12,10 +12,29 @@ describe("Telegram bot client", () => {
 
     await expect(client.getMe("token")).resolves.toMatchObject({ id: 123, username: "kasi_bot" });
     await expect(client.setWebhook("token", "https://core.test/api/webhooks/telegram/connection", "secret")).resolves.toBeUndefined();
-    await expect(client.sendMessage("token", "42", "hello")).resolves.toEqual({ providerMessageId: "456", status: "sent" });
+    await expect(client.sendMessage("token", "42", "**hello**")).resolves.toEqual({ providerMessageId: "456", status: "sent" });
 
     expect(fetchImpl).toHaveBeenNthCalledWith(2, "https://telegram.test/bottoken/setWebhook", expect.objectContaining({ method: "POST" }));
     expect(JSON.parse(String(fetchImpl.mock.calls[1]?.[1]?.body))).toMatchObject({ secret_token: "secret", allowed_updates: ["message", "callback_query"] });
+    expect(fetchImpl).toHaveBeenNthCalledWith(3, "https://telegram.test/bottoken/sendRichMessage", expect.objectContaining({ method: "POST" }));
+    expect(JSON.parse(String(fetchImpl.mock.calls[2]?.[1]?.body))).toMatchObject({
+      chat_id: "42",
+      rich_message: { markdown: "**hello**" },
+    });
+  });
+
+  it("falls back to Telegram HTML when rich messages are unavailable", async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: false, description: "Method not found" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { message_id: 457 } }), { status: 200 }));
+    const client = new TelegramBotClient({ apiBaseUrl: "https://telegram.test", fetchImpl });
+
+    await expect(client.sendMessage("token", "42", "**hello**")).resolves.toEqual({ providerMessageId: "457", status: "sent" });
+    expect(fetchImpl).toHaveBeenNthCalledWith(2, "https://telegram.test/bottoken/sendMessage", expect.objectContaining({ method: "POST" }));
+    expect(JSON.parse(String(fetchImpl.mock.calls[1]?.[1]?.body))).toMatchObject({
+      text: "<b>hello</b>",
+      parse_mode: "HTML",
+    });
   });
 
   it("sends approval buttons and acknowledges callback clicks", async () => {
@@ -28,6 +47,7 @@ describe("Telegram bot client", () => {
     await client.answerCallbackQuery("token", "callback-1", "Approval recorded");
 
     expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toMatchObject({
+      rich_message: { markdown: "Approve this action?" },
       reply_markup: { inline_keyboard: [[{ text: "Approve", callback_data: "approve-token" }, { text: "Deny", callback_data: "reject-token" }]] },
     });
     expect(JSON.parse(String(fetchImpl.mock.calls[1]?.[1]?.body))).toMatchObject({ callback_query_id: "callback-1", text: "Approval recorded" });

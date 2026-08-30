@@ -71,6 +71,15 @@ is configured, the one-time pairing flow remains available. The Agent Platform a
 share their existing `INTERNAL_AUTH_SECRET` / `AGENTS_INTERNAL_AUTH_SECRET` bridge secret. Users
 should never be asked for a Telegram webhook secret or Telegram API URL.
 
+### Agent reply formatting
+
+Agent replies are rendered for each channel at delivery time. Telegram uses its native rich-message
+format when available, including headings, lists, links, blockquotes, code, tables, and supported
+rich media references, with an HTML fallback for older or incompatible API responses. WhatsApp
+renders the formatting supported by text messages, including bold, italic, strikethrough, code,
+lists, links, and readable table rows. Image references remain links in a text reply; sending an
+actual image requires a media delivery path.
+
 ## Create a hosted user agent
 
 Use **Agents → Create hosted agent** when KasiTek should run the agent. Define its instructions,

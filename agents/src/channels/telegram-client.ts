@@ -1,3 +1,5 @@
+import { formatTelegramText } from "./formatting";
+
 export interface TelegramBotProfile {
   id: number;
   isBot: boolean;
@@ -26,6 +28,14 @@ type TelegramApiResponse<T> = {
   result?: T;
   description?: string;
 };
+
+function isRichMessageFallbackError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const statusCode = (error as { statusCode?: unknown }).statusCode;
+  if (statusCode !== 400) return false;
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  return /rich|method|parse|markdown|unsupported|entity/.test(message);
+}
 
 export interface TelegramBotClientOptions {
   apiBaseUrl?: string;
@@ -74,15 +84,27 @@ export class TelegramBotClient {
   }
 
   public async sendMessage(token: string, chatId: string, text: string, options: { inlineButtons?: TelegramInlineButton[][] } = {}): Promise<TelegramSendResult> {
-    const result = await this.call<{ message_id: number }>(token, "sendMessage", {
-      chat_id: chatId,
-      text,
-      ...(options.inlineButtons?.length ? {
-        reply_markup: {
-          inline_keyboard: options.inlineButtons.map((row) => row.map((button) => ({ text: button.text, callback_data: button.callbackData }))),
-        },
-      } : {}),
-    });
+    const replyMarkup = options.inlineButtons?.length ? {
+      reply_markup: {
+        inline_keyboard: options.inlineButtons.map((row) => row.map((button) => ({ text: button.text, callback_data: button.callbackData }))),
+      },
+    } : {};
+    let result: { message_id: number };
+    try {
+      result = await this.call<{ message_id: number }>(token, "sendRichMessage", {
+        chat_id: chatId,
+        rich_message: { markdown: text },
+        ...replyMarkup,
+      });
+    } catch (error) {
+      if (!isRichMessageFallbackError(error)) throw error;
+      result = await this.call<{ message_id: number }>(token, "sendMessage", {
+        chat_id: chatId,
+        text: formatTelegramText(text),
+        parse_mode: "HTML",
+        ...replyMarkup,
+      });
+    }
     return { providerMessageId: String(result.message_id), status: "sent" };
   }
 
@@ -146,7 +168,9 @@ export class TelegramBotClient {
       if (!response.ok || !payload.ok || payload.result === undefined) {
         throw Object.assign(new Error(payload.description || `Telegram ${method} request failed`), {
           code: "telegram_api_error",
-          statusCode: response.status >= 400 && response.status < 500 ? 400 : 502,
+          statusCode: !response.ok
+            ? (response.status >= 400 && response.status < 500 ? 400 : 502)
+            : (!payload.ok ? 400 : 502),
         });
       }
       return payload.result;

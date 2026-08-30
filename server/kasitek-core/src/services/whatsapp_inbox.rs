@@ -29,6 +29,325 @@ use super::whatsapp::{
     send_marketing_template, send_reply_button_message, send_text_message, whatsapp_http_client,
     PendingInboxMessageRow, WhatsappReplyButton, GRAPH_BASE,
 };
+
+pub(crate) fn format_whatsapp_text(input: &str) -> String {
+    let normalized = input.replace("\r\n", "\n").replace('\r', "\n");
+    let lines: Vec<&str> = normalized.split('\n').collect();
+    let mut output = Vec::new();
+    let mut fenced_code: Option<Vec<&str>> = None;
+    let mut index = 0;
+
+    while index < lines.len() {
+        let line = lines[index];
+        let trimmed = line.trim();
+        if trimmed.starts_with("```") {
+            if let Some(code) = fenced_code.take() {
+                output.push(format!("```\n{}\n```", code.join("\n")));
+            } else {
+                fenced_code = Some(Vec::new());
+            }
+            index += 1;
+            continue;
+        }
+        if let Some(code) = fenced_code.as_mut() {
+            code.push(line);
+            index += 1;
+            continue;
+        }
+
+        if index + 1 < lines.len()
+            && line.contains('|')
+            && is_whatsapp_table_separator(lines[index + 1])
+        {
+            let headers = split_whatsapp_table_row(line);
+            let mut rows = Vec::new();
+            index += 2;
+            while index < lines.len() && lines[index].contains('|') {
+                rows.push(split_whatsapp_table_row(lines[index]));
+                index += 1;
+            }
+            output.extend(render_whatsapp_table(&headers, &rows));
+            continue;
+        }
+
+        let indent_len = line.len() - line.trim_start().len();
+        let indent = &line[..indent_len];
+        let content = &line[indent_len..];
+        if let Some(heading) = parse_whatsapp_heading(content) {
+            output.push(format!("{}*{}*", indent, format_whatsapp_inline(heading)));
+        } else if let Some(task) = parse_whatsapp_task(content) {
+            let marker = if task.0 { '☑' } else { '☐' };
+            output.push(format!(
+                "{}{} {}",
+                indent,
+                marker,
+                format_whatsapp_inline(task.1)
+            ));
+        } else if let Some(item) = content
+            .strip_prefix("- ")
+            .or_else(|| content.strip_prefix("+ "))
+            .or_else(|| content.strip_prefix("* "))
+        {
+            output.push(format!("{}• {}", indent, format_whatsapp_inline(item)));
+        } else if let Some(quote) = content.strip_prefix('>').map(|value| value.trim_start()) {
+            output.push(format!("{}│ {}", indent, format_whatsapp_inline(quote)));
+        } else if let Some((number, item)) = parse_whatsapp_ordered_item(content) {
+            output.push(format!(
+                "{}{}. {}",
+                indent,
+                number,
+                format_whatsapp_inline(item)
+            ));
+        } else if is_whatsapp_horizontal_rule(line) {
+            output.push("────────".to_string());
+        } else {
+            output.push(format_whatsapp_inline(line));
+        }
+        index += 1;
+    }
+
+    if let Some(code) = fenced_code {
+        output.push(format!("```\n{}\n```", code.join("\n")));
+    }
+    output.join("\n")
+}
+
+fn format_whatsapp_inline(input: &str) -> String {
+    let mut output = String::new();
+    let mut index = 0;
+    while index < input.len() {
+        let remaining = &input[index..];
+        if let Some((consumed, label, url)) = parse_whatsapp_link(remaining, true) {
+            output.push_str("🖼️ ");
+            output.push_str(&format_whatsapp_inline(if label.is_empty() {
+                "Image"
+            } else {
+                &label
+            }));
+            output.push_str(": ");
+            output.push_str(&url);
+            index += consumed;
+            continue;
+        }
+        if let Some((consumed, label, url)) = parse_whatsapp_link(remaining, false) {
+            output.push_str(&format_whatsapp_inline(&label));
+            output.push_str(": ");
+            output.push_str(&url);
+            index += consumed;
+            continue;
+        }
+        if let Some((consumed, content)) = parse_whatsapp_wrapped(remaining, "`") {
+            output.push_str("```");
+            output.push_str(&content);
+            output.push_str("```");
+            index += consumed;
+            continue;
+        }
+        if let Some((consumed, content)) = parse_whatsapp_wrapped(remaining, "**")
+            .or_else(|| parse_whatsapp_wrapped(remaining, "__"))
+        {
+            output.push('*');
+            output.push_str(&format_whatsapp_inline(&content));
+            output.push('*');
+            index += consumed;
+            continue;
+        }
+        if let Some((consumed, content)) = parse_whatsapp_wrapped(remaining, "~~") {
+            output.push('~');
+            output.push_str(&format_whatsapp_inline(&content));
+            output.push('~');
+            index += consumed;
+            continue;
+        }
+        if let Some((consumed, content)) = parse_whatsapp_wrapped(remaining, "==")
+            .or_else(|| parse_whatsapp_wrapped(remaining, "||"))
+        {
+            output.push_str(&format_whatsapp_inline(&content));
+            index += consumed;
+            continue;
+        }
+        if let Some((consumed, content)) = parse_whatsapp_wrapped(remaining, "*") {
+            output.push('_');
+            output.push_str(&format_whatsapp_inline(&content));
+            output.push('_');
+            index += consumed;
+            continue;
+        }
+        if remaining.starts_with('_')
+            && !remaining.starts_with("__")
+            && input[..index]
+                .chars()
+                .last()
+                .map_or(true, |character| !character.is_alphanumeric())
+        {
+            if let Some((consumed, content)) = parse_whatsapp_wrapped(remaining, "_") {
+                if remaining[consumed..]
+                    .chars()
+                    .next()
+                    .map_or(true, |character| !character.is_alphanumeric())
+                {
+                    output.push('_');
+                    output.push_str(&format_whatsapp_inline(&content));
+                    output.push('_');
+                    index += consumed;
+                    continue;
+                }
+            }
+        }
+        let character = remaining.chars().next().expect("remaining is non-empty");
+        output.push(character);
+        index += character.len_utf8();
+    }
+    output
+}
+
+fn parse_whatsapp_link(input: &str, image: bool) -> Option<(usize, String, String)> {
+    let prefix = if image { "![" } else { "[" };
+    if !input.starts_with(prefix) {
+        return None;
+    }
+    let label_end = input[prefix.len()..].find("](")? + prefix.len();
+    let label = input[prefix.len()..label_end].to_string();
+    let target_start = label_end + 2;
+    let target_end = input[target_start..].find(')')? + target_start;
+    let target = input[target_start..target_end].trim();
+    let url = target
+        .split_whitespace()
+        .next()?
+        .trim_matches(|character| character == '<' || character == '>');
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return None;
+    }
+    Some((target_end + 1, label, url.to_string()))
+}
+
+fn parse_whatsapp_wrapped(input: &str, delimiter: &str) -> Option<(usize, String)> {
+    if !input.starts_with(delimiter) {
+        return None;
+    }
+    let start = delimiter.len();
+    let end = input[start..].find(delimiter)? + start;
+    let content = &input[start..end];
+    if content.is_empty()
+        || content.chars().next().is_some_and(char::is_whitespace)
+        || content.chars().next_back().is_some_and(char::is_whitespace)
+    {
+        return None;
+    }
+    Some((end + delimiter.len(), content.to_string()))
+}
+
+fn split_whatsapp_table_row(line: &str) -> Vec<String> {
+    let trimmed = line.trim().trim_start_matches('|').trim_end_matches('|');
+    let mut cells = Vec::new();
+    let mut current = String::new();
+    let mut escaped = false;
+    for character in trimmed.chars() {
+        if character == '|' && !escaped {
+            cells.push(current.trim().replace("\\|", "|").to_string());
+            current.clear();
+        } else {
+            escaped = character == '\\' && !escaped;
+            current.push(character);
+            if character != '\\' {
+                escaped = false;
+            }
+        }
+    }
+    cells.push(current.trim().replace("\\|", "|").to_string());
+    cells
+}
+
+fn is_whatsapp_table_separator(line: &str) -> bool {
+    let cells = split_whatsapp_table_row(line);
+    !cells.is_empty()
+        && cells.iter().all(|cell| {
+            let trimmed = cell.trim_matches(':');
+            trimmed.len() >= 3 && trimmed.chars().all(|character| character == '-')
+        })
+}
+
+fn render_whatsapp_table(headers: &[String], rows: &[Vec<String>]) -> Vec<String> {
+    let width = headers
+        .len()
+        .max(rows.iter().map(Vec::len).max().unwrap_or_default());
+    let mut output = Vec::new();
+    for (row_index, row) in rows.iter().enumerate() {
+        let mut rendered_row = Vec::new();
+        for column in 0..width {
+            let header = headers.get(column).map(String::as_str).unwrap_or("");
+            let value = row.get(column).map(String::as_str).unwrap_or("");
+            rendered_row.push(format!(
+                "*{}:* {}",
+                format_whatsapp_inline(header),
+                format_whatsapp_inline(value)
+            ));
+        }
+        output.push(rendered_row.join("\n"));
+        if row_index + 1 < rows.len() {
+            output.push(String::new());
+        }
+    }
+    output
+}
+
+fn parse_whatsapp_heading(line: &str) -> Option<&str> {
+    let trimmed = line.trim_start();
+    let marker_len = trimmed
+        .chars()
+        .take_while(|character| *character == '#')
+        .count();
+    if (1..=6).contains(&marker_len) && trimmed[marker_len..].starts_with(' ') {
+        Some(trimmed[marker_len..].trim().trim_end_matches('#').trim())
+    } else {
+        None
+    }
+}
+
+fn parse_whatsapp_task(line: &str) -> Option<(bool, &str)> {
+    let trimmed = line.trim_start();
+    let marker = trimmed.strip_prefix("- [")?.chars().next()?;
+    let rest = trimmed
+        .strip_prefix("- [")?
+        .strip_prefix(marker)?
+        .strip_prefix("] ")?;
+    match marker {
+        ' ' | 'x' | 'X' => Some((marker != ' ', rest)),
+        _ => None,
+    }
+}
+
+fn parse_whatsapp_ordered_item(line: &str) -> Option<(&str, &str)> {
+    let digit_count = line
+        .chars()
+        .take_while(|character| character.is_ascii_digit())
+        .count();
+    if digit_count == 0 {
+        return None;
+    }
+    let number = &line[..digit_count];
+    let rest = line[digit_count..]
+        .strip_prefix('.')
+        .or_else(|| line[digit_count..].strip_prefix(')'))?
+        .strip_prefix(' ')?;
+    Some((number, rest))
+}
+
+fn is_whatsapp_horizontal_rule(line: &str) -> bool {
+    let trimmed = line.trim();
+    let mut characters = trimmed.chars();
+    let Some(first) = characters.next() else {
+        return false;
+    };
+    matches!(first, '-' | '_' | '*')
+        && characters.all(|character| character == first || character.is_whitespace())
+        && trimmed
+            .chars()
+            .filter(|character| *character == first)
+            .count()
+            >= 3
+}
+
 pub async fn deliver_agent_message(
     pool: &PgPool,
     org_id: &str,
@@ -128,12 +447,13 @@ pub async fn deliver_agent_message(
         AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
     })?;
     tx.commit().await?;
+    let rendered_text = format_whatsapp_text(text);
     let send_result = if buttons.is_empty() {
         send_text_message(
             &connection.phone_number_id,
             &access_token,
             &phone,
-            text,
+            &rendered_text,
             None,
         )
         .await
@@ -142,7 +462,7 @@ pub async fn deliver_agent_message(
             &connection.phone_number_id,
             &access_token,
             &phone,
-            text,
+            &rendered_text,
             buttons,
             None,
         )
@@ -311,8 +631,8 @@ fn whatsapp_deleted_message_responder_type(
 #[cfg(test)]
 mod tests {
     use super::{
-        is_provider_authentication_failure, validate_agent_delivery_idempotency_key,
-        whatsapp_deleted_message_responder_type,
+        format_whatsapp_text, is_provider_authentication_failure,
+        validate_agent_delivery_idempotency_key, whatsapp_deleted_message_responder_type,
     };
     use serde_json::json;
 
@@ -362,6 +682,34 @@ mod tests {
         assert_eq!(
             whatsapp_deleted_message_responder_type("bot", None),
             "human"
+        );
+    }
+
+    #[test]
+    fn agent_messages_render_markdown_for_whatsapp() {
+        let input = "# Status\n\n- **Connections:** Ready\n- [ ] Review [the dashboard](https://example.com)\n\n> Check this\n\n| Account | State |\n| --- | --- |\n| KasiAI | Ready |";
+        let rendered = format_whatsapp_text(input);
+        assert!(rendered.contains("*Status*"));
+        assert!(rendered.contains("• *Connections:* Ready"));
+        assert!(rendered.contains("☐ Review the dashboard: https://example.com"));
+        assert!(rendered.contains("│ Check this"));
+        assert!(rendered.contains("*Account:* KasiAI\n*State:* Ready"));
+    }
+
+    #[test]
+    fn agent_messages_preserve_code_and_image_references() {
+        let input = "Use `npm test`\n\n![Preview](https://example.com/image.png)\n\n```\nhello <world>\n```";
+        let rendered = format_whatsapp_text(input);
+        assert!(rendered.contains("Use ```npm test```"));
+        assert!(rendered.contains("🖼️ Preview: https://example.com/image.png"));
+        assert!(rendered.contains("```\nhello <world>\n```"));
+    }
+
+    #[test]
+    fn unsupported_rich_markdown_markers_degrade_to_plain_text() {
+        assert_eq!(
+            format_whatsapp_text("Marked ==text== and ||spoiler||."),
+            "Marked text and spoiler."
         );
     }
 }
