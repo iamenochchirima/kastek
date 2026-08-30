@@ -146,6 +146,7 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
   const [blueskyOpen, setBlueskyOpen] = useState(false);
   const [blueskyHandle, setBlueskyHandle] = useState("");
   const [threadsConnectPath, setThreadsConnectPath] = useState<string | null>(null);
+  const [instagramConnectPath, setInstagramConnectPath] = useState<string | null>(null);
 
   useEffect(() => {
     function handleWhatsappSignupStatus(event: Event) {
@@ -404,6 +405,31 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
           </DialogContent>
       </Dialog>
 
+      <Dialog open={Boolean(instagramConnectPath)} onOpenChange={(open) => !open && setInstagramConnectPath(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Before connecting Instagram</DialogTitle>
+            <DialogDescription>
+              Make sure you are already signed in to the Instagram account you want to connect in this browser.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setInstagramConnectPath(null)}>Cancel</Button>
+            <Button variant="outline" asChild>
+              <a href="https://www.instagram.com/" target="_blank" rel="noreferrer">Open Instagram</a>
+            </Button>
+            <Button onClick={() => {
+              const path = instagramConnectPath;
+              setInstagramConnectPath(null);
+              setConnectionPicker(null);
+              if (path) startOAuthConnection(path);
+            }}>
+              I&apos;m signed in — Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Sheet
         open={connectionPicker !== null}
         onOpenChange={(open: boolean) => {
@@ -452,7 +478,7 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                 <div className="space-y-3">
                   <button
                     type="button"
-                    onClick={() => startOAuthConnection("/api/social/oauth/instagram/start")}
+                    onClick={() => setInstagramConnectPath("/api/social/oauth/instagram/start")}
                     className="block w-full rounded-lg border p-4 text-left transition-colors hover:border-primary/60 hover:bg-secondary/40"
                   >
                     <div className="flex items-start gap-3">
