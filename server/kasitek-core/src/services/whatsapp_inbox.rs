@@ -1156,7 +1156,7 @@ async fn send_reaction_message(
             "emoji": emoji,
         }
     });
-    let response = reqwest::Client::new()
+    let response = whatsapp_http_client()?
         .post(&url)
         .bearer_auth(access_token)
         .json(&payload)
@@ -1183,7 +1183,7 @@ async fn mark_message_read_api(
     message_id: &str,
 ) -> Result<(), AppError> {
     let url = format!("{GRAPH_BASE}/{phone_number_id}/messages");
-    let response = reqwest::Client::new()
+    let response = whatsapp_http_client()?
         .post(&url)
         .bearer_auth(access_token)
         .json(&json!({
@@ -1213,7 +1213,7 @@ async fn get_media_metadata(
     media_id: &str,
 ) -> Result<(String, Option<String>), AppError> {
     let url = format!("{GRAPH_BASE}/{media_id}");
-    let response = reqwest::Client::new()
+    let response = whatsapp_http_client()?
         .get(&url)
         .bearer_auth(access_token)
         .send()
@@ -1243,9 +1243,10 @@ async fn get_media_metadata(
 pub(crate) async fn download_media_bytes(
     access_token: &str,
     media_id: &str,
+    max_bytes: Option<usize>,
 ) -> Result<(Vec<u8>, String), AppError> {
     let (download_url, mime_type) = get_media_metadata(access_token, media_id).await?;
-    let response = reqwest::Client::new()
+    let response = whatsapp_http_client()?
         .get(download_url)
         .bearer_auth(access_token)
         .send()
@@ -1263,6 +1264,13 @@ pub(crate) async fn download_media_bytes(
             }
         )));
     }
+    if let (Some(max_bytes), Some(content_length)) = (max_bytes, response.content_length()) {
+        if content_length > max_bytes as u64 {
+            return Err(AppError::BadRequest(
+                "WhatsApp media exceeds the allowed size".to_string(),
+            ));
+        }
+    }
     let content_type = response
         .headers()
         .get("content-type")
@@ -1270,7 +1278,20 @@ pub(crate) async fn download_media_bytes(
         .map(|v| v.to_string())
         .or(mime_type)
         .unwrap_or_else(|| "application/octet-stream".to_string());
-    let bytes = response.bytes().await?.to_vec();
+    let mut bytes = Vec::new();
+    if let Some(content_length) = response.content_length() {
+        bytes.reserve(content_length.min(max_bytes.unwrap_or(usize::MAX) as u64) as usize);
+    }
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        if max_bytes.is_some_and(|limit| bytes.len().saturating_add(chunk.len()) > limit) {
+            return Err(AppError::BadRequest(
+                "WhatsApp media exceeds the allowed size".to_string(),
+            ));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
     Ok((bytes, content_type))
 }
 
@@ -2233,7 +2254,7 @@ pub async fn download_message_attachment(
         .await?
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
     let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
-    let (bytes, content_type) = download_media_bytes(&access_token, &media_id).await?;
+    let (bytes, content_type) = download_media_bytes(&access_token, &media_id, None).await?;
     let extension = mime_type
         .as_deref()
         .and_then(|v| v.split('/').nth(1))

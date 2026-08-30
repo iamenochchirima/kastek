@@ -1,5 +1,49 @@
 import type { ChannelAdapter, ChannelDeliveryRequest, ChannelDeliveryResult, CanonicalChannelEvent } from "./types";
 
+export type TelegramMediaKind = "image" | "video" | "audio";
+
+const telegramMimeTypesByExtension: Record<string, string> = {
+  aac: "audio/aac",
+  flac: "audio/flac",
+  gif: "image/gif",
+  jpeg: "image/jpeg",
+  jpg: "image/jpeg",
+  m4a: "audio/m4a",
+  mp3: "audio/mpeg",
+  mp4: "video/mp4",
+  ogg: "audio/ogg",
+  opus: "audio/opus",
+  png: "image/png",
+  webm: "video/webm",
+  wav: "audio/wav",
+  webp: "image/webp",
+};
+
+export function inferTelegramMimeType(fileName?: string): string | undefined {
+  const extension = fileName?.split(".").at(-1)?.trim().toLowerCase();
+  return extension ? telegramMimeTypesByExtension[extension] : undefined;
+}
+
+export function normalizeTelegramMimeType(input: { mimeType?: unknown; fileName?: unknown; fallback?: string }): string {
+  const mimeType = typeof input.mimeType === "string"
+    ? input.mimeType.split(";", 1)[0]?.trim().toLowerCase()
+    : undefined;
+  const fileName = typeof input.fileName === "string" ? input.fileName : undefined;
+  const inferred = inferTelegramMimeType(fileName);
+  if (!mimeType || mimeType === "application/octet-stream" || mimeType === "binary/octet-stream") {
+    return inferred ?? input.fallback ?? "application/octet-stream";
+  }
+  return mimeType;
+}
+
+export function telegramMediaKind(mimeType: string): TelegramMediaKind | undefined {
+  const normalized = mimeType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+  if (normalized.startsWith("image/")) return "image";
+  if (normalized.startsWith("video/")) return "video";
+  if (normalized.startsWith("audio/") || normalized === "application/ogg") return "audio";
+  return undefined;
+}
+
 export interface TelegramAdapterOptions {
   deliverMessage?: (request: ChannelDeliveryRequest) => Promise<ChannelDeliveryResult>;
 }
@@ -63,13 +107,19 @@ export class TelegramChannelAdapter implements ChannelAdapter {
     const attachmentId = attachment && typeof attachment.file_id === "string" ? attachment.file_id : undefined;
     const caption = typeof message.caption === "string" ? message.caption : undefined;
     const text = typeof message.text === "string" ? message.text : "";
+    const fileName = typeof attachment?.file_name === "string" ? attachment.file_name : undefined;
+    const mimeType = normalizeTelegramMimeType({
+      mimeType: attachment?.mime_type,
+      fileName,
+      fallback: voice ? "audio/ogg" : photo ? "image/jpeg" : undefined,
+    });
     const content = attachmentId
       ? {
           attachmentId,
-          mimeType: typeof attachment?.mime_type === "string" ? attachment.mime_type : (voice ? "audio/ogg" : photo ? "image/jpeg" : "application/octet-stream"),
-          ...(typeof attachment?.file_name === "string" ? { fileName: attachment.file_name } : {}),
+          mimeType,
+          ...(fileName ? { fileName } : {}),
           ...(typeof attachment?.duration === "number" ? { durationMs: Math.round(attachment.duration * 1000) } : {}),
-          ...(audio || voice ? { mediaKind: "audio" } : {}),
+          ...(telegramMediaKind(mimeType) ? { mediaKind: telegramMediaKind(mimeType) } : {}),
           ...(caption ? { text: caption } : {}),
         }
       : { text };

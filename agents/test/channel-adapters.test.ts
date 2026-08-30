@@ -11,7 +11,10 @@ describe("thin external channel adapters", () => {
     const document = new TelegramChannelAdapter().normalizeInbound({ update_id: 9, message: { message_id: 10, from: { id: 11 }, chat: { id: 12 }, caption: "invoice", document: { file_id: "file-1", file_name: "invoice.pdf", mime_type: "application/pdf" } } });
     expect(document.message).toMatchObject({ messageType: "attachment", content: { attachmentId: "file-1", mimeType: "application/pdf", fileName: "invoice.pdf", text: "invoice" } });
 
-    const photo = new TelegramChannelAdapter().normalizeInbound({ update_id: 10, message: { message_id: 11, from: { id: 11 }, chat: { id: 12 }, photo: [{ file_id: "small" }, { file_id: "large", width: 1200, height: 900 }] } });
+    const imageDocument = new TelegramChannelAdapter().normalizeInbound({ update_id: 10, message: { message_id: 11, from: { id: 11 }, chat: { id: 12 }, document: { file_id: "file-image", file_name: "announcement.JPG", mime_type: "application/octet-stream" } } });
+    expect(imageDocument.message).toMatchObject({ messageType: "attachment", content: { attachmentId: "file-image", mimeType: "image/jpeg", mediaKind: "image", fileName: "announcement.JPG" } });
+
+    const photo = new TelegramChannelAdapter().normalizeInbound({ update_id: 11, message: { message_id: 12, from: { id: 11 }, chat: { id: 12 }, photo: [{ file_id: "small" }, { file_id: "large", width: 1200, height: 900 }] } });
     expect(photo.message).toMatchObject({ messageType: "attachment", content: { attachmentId: "large", mimeType: "image/jpeg" } });
     expect(photo.message.content).not.toHaveProperty("url");
   });

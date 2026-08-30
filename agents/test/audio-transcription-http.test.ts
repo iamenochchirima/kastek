@@ -418,6 +418,76 @@ describe("audio transcription HTTP contracts", () => {
     }
   });
 
+  it("stores Telegram images sent as files and starts the agent with the asset", async () => {
+    const imageBytes = Buffer.from([0xff, 0xd8, 0xff, 0x00]);
+    const telegramDownload = vi.fn().mockResolvedValue({ bytes: imageBytes, filePath: "documents/announcement.jpg" });
+    const coreFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      asset: {
+        id: "asset-telegram-image-1",
+        kind: "IMAGE",
+        mimeType: "image/jpeg",
+        fileName: "announcement.JPG",
+        byteSize: imageBytes.length,
+        processingStatus: "READY",
+        scanStatus: "CLEAN",
+      },
+    }), { status: 201, headers: { "content-type": "application/json" } }));
+    const acceptExternalMessage = vi.fn().mockResolvedValue({
+      created: true,
+      run: { id: "run-telegram-image-1", status: "received" },
+    });
+    const startWorkflow = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("fetch", coreFetch);
+    const app = buildApp({
+      config: { ...config, TEMPORAL_ENABLED: true },
+      pool: fakePool,
+      channels: { getConnectionForWebhook: vi.fn().mockResolvedValue(channelConnection("telegram")) } as never,
+      channelCredentials: { resolve: vi.fn().mockResolvedValue("telegram-token") } as never,
+      telegramClient: { downloadFile: telegramDownload, sendMessage: vi.fn() } as never,
+      platformChat: { acceptExternalMessage } as never,
+      startWorkflow,
+    });
+
+    try {
+      const response = await app.inject({
+        method: "POST",
+        url: "/v1/webhooks/telegram/telegram-connection-1",
+        headers: {
+          ...authHeaders(),
+          "x-kasitek-core-forward-secret": "forward-secret",
+          "x-telegram-bot-api-secret-token": "webhook-secret",
+        },
+        payload: {
+          update_id: 16,
+          message: {
+            message_id: 17,
+            date: 1_700_000_000,
+            from: { id: 11 },
+            chat: { id: 12 },
+            caption: "Use this artwork",
+            document: { file_id: "file-image", file_name: "announcement.JPG", mime_type: "application/octet-stream" },
+          },
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ ok: true });
+      expect(telegramDownload).toHaveBeenCalledWith("telegram-token", "file-image", undefined);
+      expect(coreFetch).toHaveBeenCalledWith("https://core.example.test/api/internal/agents/v1/content/media", expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "content-type": "image/jpeg" }),
+        body: imageBytes,
+      }));
+      expect(acceptExternalMessage).toHaveBeenCalledWith(expect.objectContaining({
+        messageType: "attachment",
+        content: expect.objectContaining({ assetId: "asset-telegram-image-1", mimeType: "image/jpeg", mediaKind: "IMAGE", text: "Use this artwork" }),
+      }));
+      expect(startWorkflow).toHaveBeenCalledWith("run-telegram-image-1");
+    } finally {
+      await app.close();
+    }
+  });
+
   it("downloads Discord audio attachments, removes the source URL, and queues transcription", async () => {
     const enqueue = vi.fn().mockResolvedValue({ job: { id: "job-discord-1", status: "queued" }, created: true });
     const discordDownload = vi.fn().mockResolvedValue({ bytes: Buffer.from("OggS\u0000discord") });

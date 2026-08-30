@@ -64,7 +64,7 @@ import { redactSensitiveValue } from "../tools/redaction";
 import { randomUUID } from "node:crypto";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { TelegramBotClient } from "../channels/telegram-client";
-import { TelegramChannelAdapter } from "../channels/telegram";
+import { TelegramChannelAdapter, normalizeTelegramMimeType, telegramMediaKind } from "../channels/telegram";
 import {
   normalizeTelegramAllowedUsers,
   normalizeWhatsappPhone,
@@ -998,15 +998,31 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       let queuedAudio = false;
       const attachmentId = typeof messageContent.attachmentId === "string" ? messageContent.attachmentId : undefined;
       const mimeType = typeof messageContent.mimeType === "string" ? messageContent.mimeType : undefined;
-      const isAudio = messageContent.mediaKind === "audio"
-        || mimeType?.split(";", 1)[0]?.trim().toLowerCase().startsWith("audio/") === true
-        || mimeType?.split(";", 1)[0]?.trim().toLowerCase() === "application/ogg";
-      const resolvedMimeType = mimeType ?? (isAudio ? "audio/ogg" : "image/jpeg");
-      if (event.message.messageType === "attachment" && attachmentId && (resolvedMimeType.startsWith("image/") || isAudio)) {
+      const fileName = typeof messageContent.fileName === "string" ? messageContent.fileName : undefined;
+      const resolvedMimeType = normalizeTelegramMimeType({
+        mimeType,
+        fileName,
+        fallback: messageContent.mediaKind === "audio" ? "audio/ogg" : undefined,
+      });
+      const mediaKind = telegramMediaKind(resolvedMimeType);
+      if (event.message.messageType === "attachment" && attachmentId) {
         if (!connection.credential_reference) throw new Error("Telegram channel media is not configured");
         const token = await channelCredentials.resolve(connection.organization_id, connection.credential_reference, "telegram");
+        if (!mediaKind) {
+          request.log.info({ mimeType: resolvedMimeType }, "Telegram attachment type is not supported");
+          await telegramClient.sendMessage(token, event.externalConversationId, "I can process image, video, and audio attachments. Please send the file in one of those formats.").catch(() => undefined);
+          return reply.code(200).send({ ok: true, media: "unsupported" });
+        }
+        const isAudio = mediaKind === "audio";
         try {
           const downloaded = await telegramClient.downloadFile(token, attachmentId, isAudio ? MAX_AUDIO_FILE_BYTES : undefined);
+          const downloadedMimeType = normalizeTelegramMimeType({
+            mimeType: resolvedMimeType,
+            fileName: fileName ?? downloaded.filePath,
+            fallback: isAudio ? "audio/ogg" : undefined,
+          });
+          const downloadedMediaKind = telegramMediaKind(downloadedMimeType);
+          if (!downloadedMediaKind) throw new Error("Telegram attachment type is not supported");
           const uploaded = await coreClient.uploadContentMedia(
             {
               organizationId: connection.organization_id,
@@ -1017,13 +1033,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
             },
             {
               bytes: downloaded.bytes,
-              mimeType: resolvedMimeType,
-              fileName: typeof messageContent.fileName === "string" ? messageContent.fileName : downloaded.filePath.split("/").at(-1),
+              mimeType: downloadedMimeType,
+              fileName: fileName ?? downloaded.filePath.split("/").at(-1),
               source: "telegram",
               sourceKey: `telegram:${connection.id}:${event.message.providerMessageId}:${attachmentId}`,
             },
           );
-          messageContent = { ...messageContent, assetId: uploaded.asset.id, mediaKind: isAudio ? "audio" : uploaded.asset.kind };
+          request.log.info({ mediaKind: uploaded.asset.kind, byteSize: downloaded.bytes.byteLength }, "Telegram attachment stored");
+          messageContent = { ...messageContent, assetId: uploaded.asset.id, mimeType: downloadedMimeType, mediaKind: isAudio ? "audio" : uploaded.asset.kind };
           if (isAudio) {
             const caption = typeof messageContent.text === "string" ? messageContent.text.trim() : "";
             messageContent = {
@@ -1034,8 +1051,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
             queuedAudio = true;
           }
         } catch (error) {
-          request.log.warn({ code: error instanceof AudioTranscriptionError ? error.code : undefined, error: error instanceof Error ? error.message : "media ingestion failed" }, isAudio ? "Telegram audio ingestion failed" : "Telegram image ingestion failed");
-          await telegramClient.sendMessage(token, event.externalConversationId, isAudio ? "I couldn't transcribe that audio. Please try sending it again." : "I couldn't process that image. Please try sending it again.").catch(() => undefined);
+          request.log.warn({ code: error instanceof AudioTranscriptionError ? error.code : undefined, error: error instanceof Error ? error.message : "media ingestion failed", mediaKind }, isAudio ? "Telegram audio ingestion failed" : `Telegram ${mediaKind} ingestion failed`);
+          await telegramClient.sendMessage(token, event.externalConversationId, isAudio ? "I couldn't transcribe that audio. Please try sending it again." : `I couldn't process that ${mediaKind}. Please try sending it again.`).catch(() => undefined);
           return reply.code(200).send({ ok: true, media: "failed" });
         }
       }

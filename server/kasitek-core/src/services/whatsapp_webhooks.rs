@@ -109,6 +109,108 @@ struct IncomingWhatsappMedia {
     sha256: Option<String>,
 }
 
+fn normalized_media_mime(value: Option<&str>) -> Option<String> {
+    value
+        .map(|value| {
+            value
+                .split(';')
+                .next()
+                .unwrap_or(value)
+                .trim()
+                .to_ascii_lowercase()
+        })
+        .filter(|value| !value.is_empty())
+}
+
+fn media_kind_from_mime(value: &str) -> Option<&'static str> {
+    if value.starts_with("image/") {
+        Some("image")
+    } else if value.starts_with("video/") {
+        Some("video")
+    } else if value.starts_with("audio/") || value == "application/ogg" {
+        Some("audio")
+    } else {
+        None
+    }
+}
+
+fn media_mime_from_filename(value: Option<&str>) -> Option<&'static str> {
+    let extension = value?.rsplit('.').next()?.trim().to_ascii_lowercase();
+    match extension.as_str() {
+        "gif" => Some("image/gif"),
+        "jpeg" | "jpg" => Some("image/jpeg"),
+        "png" => Some("image/png"),
+        "webp" => Some("image/webp"),
+        "mp4" => Some("video/mp4"),
+        "mov" => Some("video/quicktime"),
+        "webm" => Some("video/webm"),
+        "aac" => Some("audio/aac"),
+        "flac" => Some("audio/flac"),
+        "m4a" => Some("audio/m4a"),
+        "mp3" => Some("audio/mpeg"),
+        "ogg" => Some("audio/ogg"),
+        "opus" => Some("audio/opus"),
+        "wav" => Some("audio/wav"),
+        _ => None,
+    }
+}
+
+fn agent_media_kind(media: &IncomingWhatsappMedia) -> Option<&'static str> {
+    let declared_mime = normalized_media_mime(media.mime_type.as_deref());
+    if let Some(mime) = declared_mime.as_deref() {
+        if mime != "application/octet-stream" && mime != "binary/octet-stream" {
+            return media_kind_from_mime(mime);
+        }
+    }
+    media_mime_from_filename(media.filename.as_deref())
+        .and_then(media_kind_from_mime)
+        .or(match media.kind.as_str() {
+            "image" | "sticker" => Some("image"),
+            "video" => Some("video"),
+            "audio" => Some("audio"),
+            _ => None,
+        })
+}
+
+fn agent_media_default_mime(kind: &str) -> &'static str {
+    match kind {
+        "video" => "video/mp4",
+        "audio" => "audio/ogg",
+        _ => "image/jpeg",
+    }
+}
+
+fn agent_media_limit(kind: &str) -> usize {
+    match kind {
+        "video" => 512 * 1024 * 1024,
+        "audio" => 25 * 1024 * 1024,
+        _ => 20 * 1024 * 1024,
+    }
+}
+
+fn agent_media_mime(media: &IncomingWhatsappMedia, downloaded_mime: &str, kind: &str) -> String {
+    normalized_media_mime(Some(downloaded_mime))
+        .filter(|value| media_kind_from_mime(value) == Some(kind))
+        .or_else(|| {
+            normalized_media_mime(media.mime_type.as_deref())
+                .filter(|value| media_kind_from_mime(value) == Some(kind))
+        })
+        .or_else(|| {
+            media_mime_from_filename(media.filename.as_deref())
+                .filter(|value| media_kind_from_mime(value) == Some(kind))
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| agent_media_default_mime(kind).to_string())
+}
+
+fn agent_media_failure_message(kind: &str) -> &'static str {
+    match kind {
+        "audio" => "I couldn't access that audio. Please try sending it again.",
+        "video" => "I couldn't process that video. Please try sending it again.",
+        _ => "I couldn't process that image. Please try sending it again.",
+    }
+}
+
 fn get_incoming_media(message: &Value) -> Option<IncomingWhatsappMedia> {
     for kind in ["image", "video", "audio", "document", "sticker"] {
         if let Some(media) = message.get(kind) {
@@ -1010,98 +1112,99 @@ async fn handle_incoming_messages(
         publish_conversation_updated(pool, &connection.user_id, &conversation_id).await?;
         let mut agent_media = None;
         if let (Some(media), Some(provider_message_id)) = (media.as_ref(), wa_message_id) {
-            if media.kind == "image" || media.kind == "audio" {
-                let media_is_audio = media.kind == "audio";
+            let Some(media_kind) = agent_media_kind(media) else {
+                observability::tracing::warn!(
+                    event = "operation.rejected",
+                    provider = "whatsapp",
+                    operation = "media.unsupported",
+                    media_kind = %media.kind,
+                    "WhatsApp inbound attachment type is not supported by the agent"
+                );
                 let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
-                match whatsapp_inbox::download_media_bytes(&access_token, &media.media_id).await {
-                    Ok((bytes, downloaded_mime_type)) => {
-                        let mime_type = downloaded_mime_type
-                            .split(';')
-                            .next()
-                            .map(str::trim)
-                            .filter(|value| {
-                                if media_is_audio {
-                                    value.starts_with("audio/")
-                                } else {
-                                    value.starts_with("image/")
-                                }
-                            })
-                            .or(media.mime_type.as_deref())
-                            .unwrap_or(if media_is_audio {
-                                "audio/ogg"
-                            } else {
-                                "image/jpeg"
-                            })
-                            .to_string();
-                        match content_media::upload_content_media_bytes(
-                            pool,
-                            config,
-                            &connection.user_id,
-                            org_id,
-                            content_media::ContentMediaBytesUpload {
-                                file_name: media.filename.clone(),
-                                mime_type: mime_type.clone(),
-                                bytes,
-                                source: "whatsapp".to_string(),
-                                source_key: Some(format!(
-                                    "whatsapp:{}:{}:{}",
-                                    connection.id, provider_message_id, media.media_id
-                                )),
-                            },
-                        )
-                        .await
-                        {
-                            Ok(asset) => {
-                                agent_media = Some((asset, mime_type.clone()));
-                            }
-                            Err(error) => {
-                                observability::tracing::warn!(
-                                    event = "operation.failed",
-                                    operation = if media_is_audio {
-                                        "whatsapp.audio.store"
-                                    } else {
-                                        "whatsapp.image.store"
-                                    },
-                                    error_type = %std::any::type_name_of_val(&error),
-                                    "WhatsApp inbound media storage failed"
-                                );
-                            }
-                        }
-                    }
-                    Err(error) => observability::tracing::warn!(
-                        event = "provider.call.failed",
-                        provider = "whatsapp",
-                        operation = if media_is_audio {
-                            "audio.download"
-                        } else {
-                            "image.download"
+                let _ = send_text_message(
+                    &connection.phone_number_id,
+                    &access_token,
+                    &normalized_phone,
+                    "I can process image, video, and audio attachments. Please send the file in one of those formats.",
+                    Some(provider_message_id),
+                )
+                .await;
+                continue;
+            };
+            let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
+            match whatsapp_inbox::download_media_bytes(
+                &access_token,
+                &media.media_id,
+                Some(agent_media_limit(media_kind)),
+            )
+            .await
+            {
+                Ok((bytes, downloaded_mime_type)) => {
+                    let mime_type = agent_media_mime(media, &downloaded_mime_type, media_kind);
+                    match content_media::upload_content_media_bytes(
+                        pool,
+                        config,
+                        &connection.user_id,
+                        org_id,
+                        content_media::ContentMediaBytesUpload {
+                            file_name: media.filename.clone(),
+                            mime_type: mime_type.clone(),
+                            bytes,
+                            source: "whatsapp".to_string(),
+                            source_key: Some(format!(
+                                "whatsapp:{}:{}:{}",
+                                connection.id, provider_message_id, media.media_id
+                            )),
                         },
-                        error_type = %std::any::type_name_of_val(&error),
-                        "WhatsApp inbound media download failed"
-                    ),
-                }
-                if agent_media.is_none() {
-                    if let Err(error) = send_text_message(
-                        &connection.phone_number_id,
-                        &access_token,
-                        &normalized_phone,
-                        if media_is_audio {
-                            "I couldn't access that audio. Please try sending it again."
-                        } else {
-                            "I couldn't process that image. Please try sending it again."
-                        },
-                        Some(provider_message_id),
                     )
                     .await
                     {
-                        observability::tracing::warn!(
-                            event = "provider.call.failed",
-                            provider = "whatsapp",
-                            operation = "media.failure_acknowledge",
+                        Ok(asset) => {
+                            observability::tracing::info!(
+                                event = "operation.completed",
+                                provider = "whatsapp",
+                                operation = "media.store",
+                                media_kind,
+                                byte_size = asset.byte_size,
+                                "WhatsApp inbound attachment stored"
+                            );
+                            agent_media = Some((asset, mime_type));
+                        }
+                        Err(error) => observability::tracing::warn!(
+                            event = "operation.failed",
+                            operation = "whatsapp.media.store",
+                            media_kind,
                             error_type = %std::any::type_name_of_val(&error),
-                            "WhatsApp media failure acknowledgement failed"
-                        );
+                            "WhatsApp inbound media storage failed"
+                        ),
                     }
+                }
+                Err(error) => observability::tracing::warn!(
+                    event = "provider.call.failed",
+                    provider = "whatsapp",
+                    operation = "media.download",
+                    media_kind,
+                    error_type = %std::any::type_name_of_val(&error),
+                    "WhatsApp inbound media download failed"
+                ),
+            }
+            if agent_media.is_none() {
+                if let Err(error) = send_text_message(
+                    &connection.phone_number_id,
+                    &access_token,
+                    &normalized_phone,
+                    agent_media_failure_message(media_kind),
+                    Some(provider_message_id),
+                )
+                .await
+                {
+                    observability::tracing::warn!(
+                        event = "provider.call.failed",
+                        provider = "whatsapp",
+                        operation = "media.failure_acknowledge",
+                        error_type = %std::any::type_name_of_val(&error),
+                        "WhatsApp media failure acknowledgement failed"
+                    );
                 }
             }
         }
@@ -1117,7 +1220,7 @@ async fn handle_incoming_messages(
                             "mediaKind": asset.kind,
                             "text": content.clone(),
                         });
-                        if media.as_ref().is_some_and(|value| value.kind == "audio") {
+                        if media.as_ref().and_then(agent_media_kind) == Some("audio") {
                             attachment["transcription"] =
                                 json!({ "status": "queued", "provider": "elevenlabs" });
                         }
@@ -1139,7 +1242,7 @@ async fn handle_incoming_messages(
                 });
                 add_optional_display_name(&mut payload, profile_name);
                 observability::tracing::info!(
-                    event = "provider.call.completed",
+                    event = "provider.call.started",
                     provider = "kasitek-agents",
                     operation = "channel.ingest",
                     conversation_id = %conversation_id,
@@ -1147,11 +1250,20 @@ async fn handle_incoming_messages(
                     provider_message_id = %provider_message_id,
                     "WhatsApp inbound message forwarding started"
                 );
-                if let Err(error) = agent_client
+                match agent_client
                     .ingest_channel_message(org_id, &connection.user_id, payload)
                     .await
                 {
-                    observability::tracing::warn!(
+                    Ok(_) => observability::tracing::info!(
+                        event = "provider.call.completed",
+                        provider = "kasitek-agents",
+                        operation = "channel.ingest",
+                        conversation_id = %conversation_id,
+                        channel_key = %channel_key,
+                        provider_message_id = %provider_message_id,
+                        "WhatsApp inbound message accepted by agent"
+                    ),
+                    Err(error) => observability::tracing::warn!(
                         event = "provider.call.failed",
                         provider = "kasitek-agents",
                         operation = "channel.ingest",
@@ -1159,7 +1271,7 @@ async fn handle_incoming_messages(
                         channel_key = %channel_key,
                         error_type = %std::any::type_name_of_val(&error),
                         "WhatsApp inbound message was not accepted"
-                    );
+                    ),
                 }
             } else {
                 observability::tracing::warn!(
@@ -1274,9 +1386,9 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        add_optional_display_name, agent_external_identity, approval_acknowledgement,
-        external_connection_routing_key, get_inbound_approval_token, is_blocked_failure,
-        is_opt_out_message, parse_status_pricing_details,
+        add_optional_display_name, agent_external_identity, agent_media_kind, agent_media_mime,
+        approval_acknowledgement, external_connection_routing_key, get_inbound_approval_token,
+        get_incoming_media, is_blocked_failure, is_opt_out_message, parse_status_pricing_details,
     };
 
     #[test]
@@ -1309,6 +1421,39 @@ mod tests {
             external_connection_routing_key(None, "whatsapp-1"),
             "ext_whatsapp-1"
         );
+    }
+
+    #[test]
+    fn accepts_image_documents_when_meta_omits_a_specific_mime_type() {
+        let media = get_incoming_media(&json!({
+            "document": {
+                "id": "media-1",
+                "filename": "announcement.JPG",
+                "mime_type": "application/octet-stream"
+            }
+        }))
+        .expect("incoming media");
+
+        assert_eq!(agent_media_kind(&media), Some("image"));
+        assert_eq!(
+            agent_media_mime(&media, "application/octet-stream", "image"),
+            "image/jpeg"
+        );
+    }
+
+    #[test]
+    fn supports_whatsapp_video_media_and_rejects_unreadable_documents() {
+        let video = get_incoming_media(&json!({
+            "video": { "id": "media-video", "mime_type": "video/mp4" }
+        }))
+        .expect("incoming video");
+        assert_eq!(agent_media_kind(&video), Some("video"));
+
+        let document = get_incoming_media(&json!({
+            "document": { "id": "media-pdf", "mime_type": "application/pdf", "filename": "brief.pdf" }
+        }))
+        .expect("incoming document");
+        assert_eq!(agent_media_kind(&document), None);
     }
 
     #[test]

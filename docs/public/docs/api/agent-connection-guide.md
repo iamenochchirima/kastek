@@ -71,6 +71,13 @@ is configured, the one-time pairing flow remains available. The Agent Platform a
 share their existing `INTERNAL_AUTH_SECRET` / `AGENTS_INTERNAL_AUTH_SECRET` bridge secret. Users
 should never be asked for a Telegram webhook secret or Telegram API URL.
 
+### Inbound attachments
+
+Telegram and WhatsApp agent channels accept image, video, and audio attachments. Telegram files
+sent with a generic MIME type are identified from their filename when possible. Unsupported
+document types receive an explicit response instead of being passed to the agent as an incomplete
+attachment. Media downloads are time-limited and size-bounded.
+
 ### Agent reply formatting
 
 Agent replies are rendered for each channel at delivery time. Telegram uses its native rich-message
