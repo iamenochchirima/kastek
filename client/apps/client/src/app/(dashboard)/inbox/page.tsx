@@ -1,7 +1,6 @@
 import InboxPageClient from "@/components/dashboard/inbox-page";
 import type { WorkspaceConnection } from "@/lib/connections";
 import { fetchRustJson } from "@/lib/rust-server-api";
-import { FeatureAnalyticsPanel, INBOX_ANALYTICS_METRICS } from "@/components/analytics/feature-analytics-panel";
 
 type RustInboxConversation = {
   id: string;
@@ -77,12 +76,6 @@ export default async function InboxPage() {
   };
 
   return (
-    <>
-      <div className="px-4 pt-4 sm:px-6">
-        <div className="mx-auto max-w-[1440px]">
-          <FeatureAnalyticsPanel title="Inbox" description="Conversation and response reporting." metricKeys={INBOX_ANALYTICS_METRICS} />
-        </div>
-      </div>
       <InboxPageClient
         whatsappConnections={connections}
         conversations={conversations.map((conversation) => ({
@@ -133,6 +126,5 @@ export default async function InboxPage() {
             })),
         }}
       />
-    </>
   );
 }

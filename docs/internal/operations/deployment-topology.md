@@ -109,6 +109,16 @@ After the command exits successfully, restore `node dist/http/server.js`. Do not
 `pnpm run migrate` in the production image: that script references the source tree and the
 development `tsx` dependency, which are not included in the runtime image.
 
+When a release changes the protected KasiAi definition or when a new environment has no published
+KasiAi version, run the compiled release command from the migrated Agents API image:
+
+```text
+node dist/system/release-kasiai.js
+```
+
+Record the released agent version and release-gate result. This is an explicit release step in
+Production; the API intentionally does not synchronize or publish KasiAi during startup.
+
 ### Analytics
 
 The Analytics image contains the migration binary. For a one-shot deployment, temporarily use:
@@ -223,6 +233,8 @@ The following are dependencies, tools, or deployment steps rather than applicati
 1. Confirm Production shared variables, service-scoped variables, secrets, databases, and domains
    are correct.
 2. Apply Agents and Analytics migrations as one-shot deployments; confirm each exits successfully.
+   If the release changes KasiAi or the environment has no published version, run the explicit
+   Agents KasiAi release command after the Agents migration.
 3. Apply the Core Prisma migration chain through the temporary database tunnel; confirm no pending
    migrations remain.
 4. Deploy `agents-api`; confirm `/health/ready` is healthy.

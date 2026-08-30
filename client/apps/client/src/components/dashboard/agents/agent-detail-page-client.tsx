@@ -942,9 +942,9 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
         {activeSection === "knowledge" && hostedAgent && agent.installation_id ? <InstallationKnowledge agentId={agent.id} installationId={agent.installation_id} /> : null}
 
         {activeSection === "tools" && hostedAgent && agent.installation_id ? <section className="space-y-3" aria-labelledby="agent-tools-title">
-          <div><h2 id="agent-tools-title" className="text-lg font-semibold text-foreground">Tools</h2><p className="text-sm text-muted-foreground">Capabilities, resource grants, and connectors.</p></div>
+          <div><h2 id="agent-tools-title" className="text-lg font-semibold text-foreground">Tools</h2><p className="text-sm text-muted-foreground">{protectedAgent ? "Platform-approved capabilities." : "Capabilities, resource grants, and connectors."}</p></div>
           <InstallationCapabilities installationId={agent.installation_id} protectedAgent={protectedAgent} />
-          <InstallationAccessScope installationId={agent.installation_id} />
+          {!protectedAgent ? <InstallationAccessScope installationId={agent.installation_id} /> : null}
         </section> : null}
 
         {activeSection === "settings" && agent.installation_id ? <section className="space-y-3" aria-labelledby="additional-settings-title">
