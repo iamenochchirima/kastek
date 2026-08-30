@@ -8,10 +8,11 @@ const metricKeys = [
   ["agent.runs.failed@1", "Failed agent runs", "count"],
 ] as const;
 
-const timestamps = [
-  ["2026-08-23T00:00:00.000Z", "2026-08-24T00:00:00.000Z"],
-  ["2026-08-24T00:00:00.000Z", "2026-08-25T00:00:00.000Z"],
-] as const;
+const timestamps = Array.from({ length: 30 }, (_, index) => {
+  const bucketStart = new Date(Date.UTC(2026, 6, 27 + index));
+  const bucketEnd = new Date(Date.UTC(2026, 6, 28 + index));
+  return [bucketStart.toISOString(), bucketEnd.toISOString()] as const;
+});
 
 export function analyticsCatalogFixture() {
   return {
@@ -71,7 +72,9 @@ export function analyticsCatalogFixture() {
   };
 }
 
-export function analyticsReportFixture() {
+export type AnalyticsReportFixtureVariant = "populated" | "empty" | "zero" | "partial" | "sparse";
+
+export function analyticsReportFixture(variant: AnalyticsReportFixtureVariant = "populated") {
   return {
     scope: { kind: "organization", externalId: "e2e-organization" },
     scope_kind: "organization",
@@ -93,12 +96,12 @@ export function analyticsReportFixture() {
       availability: { state: "available", reason: null },
       coverage: {
         state: "complete",
-        included_points: 2,
-        expected_points: 2,
+        included_points: timestamps.length,
+        expected_points: timestamps.length,
         evidence_layer: "e2e",
         window_start: timestamps[0][0],
-        window_end: timestamps[1][1],
-        complete_through: timestamps[1][1],
+        window_end: timestamps[timestamps.length - 1][1],
+        complete_through: timestamps[timestamps.length - 1][1],
         projection_state: "current",
         projection_source_state: "current",
         required_sources: ["e2e.source"],
@@ -115,11 +118,27 @@ export function analyticsReportFixture() {
         bucket_start,
         bucket_end,
         dimensions: {},
-        value: unit === "percent" ? 94.5 + pointIndex : unit === "milliseconds" ? 820 + pointIndex * 40 : 42 + index + pointIndex,
+        value: fixtureValue({ variant, unit, index, pointIndex }),
         numerator: unit === "percent" ? 189 + pointIndex : null,
         denominator: unit === "percent" ? 200 : null,
       })),
     })),
     comparison: null,
   };
+}
+
+function fixtureValue({
+  variant,
+  unit,
+  index,
+  pointIndex,
+}: {
+  variant: AnalyticsReportFixtureVariant;
+  unit: string;
+  index: number;
+  pointIndex: number;
+}) {
+  if (variant === "empty" || (variant === "partial" && index > 0) || (variant === "sparse" && pointIndex === 1)) return null;
+  if (variant === "zero") return 0;
+  return unit === "percent" ? 94.5 + pointIndex : unit === "milliseconds" ? 820 + pointIndex * 40 : 42 + index + pointIndex;
 }

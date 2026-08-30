@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { analyticsCatalogFixture, analyticsReportFixture } from "./analytics-fixtures";
+import { analyticsCatalogFixture, analyticsReportFixture, type AnalyticsReportFixtureVariant } from "./analytics-fixtures";
 
 const storageStatePath = resolve(
   process.cwd(),
@@ -12,10 +12,10 @@ const canRun = Boolean(
     existsSync(storageStatePath),
 );
 
-async function installReportingFixtures(page: Page) {
+async function installReportingFixtures(page: Page, variant: AnalyticsReportFixtureVariant = "populated") {
   const queryBodies: Array<Record<string, unknown>> = [];
   const catalog = analyticsCatalogFixture();
-  const report = analyticsReportFixture();
+  const report = analyticsReportFixture(variant);
 
   await page.route("**/api/analytics/catalog", (route) => route.fulfill({
     status: 200,
@@ -49,7 +49,7 @@ test.describe("authenticated customer analytics", () => {
     await expect(page.getByText("Reporting data", { exact: true })).toBeVisible();
     const messagesCard = page.getByRole("link", { name: /Messages received/ });
     await expect(messagesCard).toBeVisible();
-    await expect(messagesCard).toContainText("43");
+    await expect(messagesCard).toContainText("71");
 
     expect(queryBodies.length).toBeGreaterThan(0);
     expect(queryBodies.every((body) => body.include_descendants === false)).toBe(true);
@@ -67,6 +67,68 @@ test.describe("authenticated customer analytics", () => {
       scrollWidth: document.documentElement.scrollWidth,
     }));
     expect(dimensions.scrollWidth, "analytics should not overflow horizontally on mobile").toBeLessThanOrEqual(dimensions.clientWidth + 1);
+  });
+
+  test("renders one empty state when the report has no observed values", async ({ page }) => {
+    await installReportingFixtures(page, "empty");
+    await page.goto("/analytics", { waitUntil: "networkidle" });
+
+    const overview = page.locator('section[aria-labelledby="workspace-analytics-title"]');
+    await expect(overview.getByText("No activity yet", { exact: true })).toBeVisible();
+    await expect(overview.getByText("Messages received", { exact: true })).toHaveCount(0);
+    await expect(overview.getByText("Not Instrumented", { exact: true })).toHaveCount(0);
+    await expect(overview.getByText(/0\/\d+ points/)).toHaveCount(0);
+    await expect(overview.locator('[role="img"]')).toHaveCount(0);
+  });
+
+  test("keeps observed zero values visible", async ({ page }) => {
+    await installReportingFixtures(page, "zero");
+    await page.goto("/analytics", { waitUntil: "networkidle" });
+
+    const messagesCard = page.getByRole("link", { name: /Messages received/ });
+    await expect(messagesCard).toBeVisible();
+    await expect(messagesCard).toContainText("0");
+    await expect(page.getByText("No activity yet", { exact: true })).toHaveCount(0);
+  });
+
+  test("renders only populated metrics when a report is partial", async ({ page }) => {
+    await installReportingFixtures(page, "partial");
+    await page.goto("/analytics", { waitUntil: "networkidle" });
+
+    const overview = page.locator('section[aria-labelledby="workspace-analytics-title"]');
+    await expect(overview.getByRole("link", { name: /Messages received/ })).toBeVisible();
+    await expect(overview.getByRole("link", { name: /Campaign deliveries/ })).toHaveCount(0);
+    await expect(overview.getByText("No activity yet", { exact: true })).toHaveCount(0);
+  });
+
+  test("keeps report failures distinct from empty reports", async ({ page }) => {
+    const catalog = analyticsCatalogFixture();
+    await page.route("**/api/analytics/catalog", (route) => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(catalog),
+    }));
+    await page.route("**/api/analytics/query", (route) => route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Reporting service unavailable" }),
+    }));
+    await page.goto("/analytics", { waitUntil: "networkidle" });
+
+    const overview = page.locator('section[aria-labelledby="workspace-analytics-title"]');
+    await expect(overview.getByText("Analytics unavailable", { exact: true })).toBeVisible();
+    await expect(overview.getByText("No activity yet", { exact: true })).toHaveCount(0);
+  });
+
+  test("keeps feature analytics empty states free of instrumentation noise", async ({ page }) => {
+    await installReportingFixtures(page, "empty");
+    await page.goto("/connections", { waitUntil: "networkidle" });
+
+    const panel = page.locator('[data-slot="card"]').filter({ has: page.getByText("Connection analytics", { exact: true }) }).first();
+    await expect(panel.getByText("No activity yet", { exact: true })).toBeVisible();
+    await expect(panel.getByText("Not Instrumented", { exact: true })).toHaveCount(0);
+    await expect(panel.getByText(/0\/\d+ points/)).toHaveCount(0);
+    await expect(panel.locator('[role="img"]')).toHaveCount(0);
   });
 
   test("renders the protected local playground with empty source data", async ({ page }) => {

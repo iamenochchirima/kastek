@@ -14,6 +14,7 @@ This is the canonical home for private Kasitek documentation.
 - [Architecture](./architecture/kasitek-technical-blueprint.md)
 - [Audio Input and Transcription](./architecture/audio-transcription.md)
 - [Admin Analytics and Reporting](./architecture/admin-analytics.md)
+- [Customer Analytics Display Semantics](./architecture/customer-analytics.md)
 - [Access Control](./access-control.md)
 - [Local Development](./development/local-development.md)
 - [Release Process](./operations/release-process.md)

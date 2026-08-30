@@ -13,6 +13,8 @@ import {
   type AnalyticsMetricDefinition,
   type AnalyticsMetricResult,
   type AnalyticsReport,
+  hasObservedAnalyticsData,
+  latestObservedAnalyticsValue,
 } from "@/lib/analytics";
 
 export const AGENT_ANALYTICS_METRICS = [
@@ -86,8 +88,9 @@ export function AgentAnalyticsPanel({ agentName, installationId, handoffEnabled 
     [catalog],
   );
   const results = report?.metrics ?? [];
-  const summaryMetrics = results.slice(0, 4);
-  const unavailableCount = results.filter((metric) => metric.availability.state !== "available").length;
+  const populatedMetrics = results.filter(hasObservedAnalyticsData);
+  const summaryMetrics = populatedMetrics.slice(0, 4);
+  const unavailableCount = populatedMetrics.filter((metric) => metric.availability.state !== "available").length;
 
   return (
     <Card>
@@ -100,14 +103,14 @@ export function AgentAnalyticsPanel({ agentName, installationId, handoffEnabled 
       <CardContent>
         {loading ? <AnalyticsLoadingState /> : error ? <AnalyticsErrorState description={error.message} onRetry={() => void load()} /> : report ? (
           <div className="space-y-5">
-            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-secondary/20 px-4 py-3 text-xs text-muted-foreground">
+            {populatedMetrics.length ? <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-secondary/20 px-4 py-3 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1.5"><BarChart3 className="h-3.5 w-3.5" aria-hidden="true" />Scope: {formatScope(report.scope_kind)}</span>
               <span>Filtered to this installation</span>
               <span>{report.data_as_of ? `Data as of ${formatDate(report.data_as_of, report.timezone)}` : "Data as of unavailable"}</span>
               {unavailableCount ? <AnalyticsStatusBadge state="unavailable" label={`${unavailableCount} source${unavailableCount === 1 ? "" : "s"} unavailable`} /> : <AnalyticsStatusBadge state="available" label="Sources available" />}
-            </div>
+            </div> : null}
             {summaryMetrics.length ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{summaryMetrics.map((metric) => <AgentMetricCard key={`${metric.key}-${metric.version}`} metric={metric} definition={definitions.get(`${metric.key}@${metric.version}`)} />)}</div> : null}
-            {results.length ? <div className="space-y-3">{results.map((metric) => <AgentMetricDetail key={`${metric.key}-${metric.version}`} metric={metric} definition={definitions.get(`${metric.key}@${metric.version}`)} timezone={report.timezone} />)}</div> : <AnalyticsEmptyState title="No agent metrics" />}
+            {populatedMetrics.length ? <div className="space-y-3">{populatedMetrics.map((metric) => <AgentMetricDetail key={`${metric.key}-${metric.version}`} metric={metric} definition={definitions.get(`${metric.key}@${metric.version}`)} timezone={report.timezone} />)}</div> : <AnalyticsEmptyState title="No activity yet" />}
           </div>
         ) : null}
       </CardContent>
@@ -116,7 +119,7 @@ export function AgentAnalyticsPanel({ agentName, installationId, handoffEnabled 
 }
 
 function AgentMetricCard({ metric, definition }: { metric: AnalyticsMetricResult; definition?: AnalyticsMetricDefinition }) {
-  const value = [...metric.series].reverse().find((point) => point.value !== null)?.value ?? null;
+  const value = latestObservedAnalyticsValue(metric);
   return (
     <div className="rounded-lg border border-border p-4">
       <div className="flex items-start justify-between gap-3">

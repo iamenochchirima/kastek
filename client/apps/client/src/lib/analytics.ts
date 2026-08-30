@@ -158,6 +158,22 @@ export type AnalyticsMetricResult = {
   series: AnalyticsReportPoint[];
 };
 
+export function isObservedAnalyticsValue(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+export function observedAnalyticsPoints(metric: Pick<AnalyticsMetricResult, "series">) {
+  return metric.series.filter((point) => isObservedAnalyticsValue(point.value));
+}
+
+export function hasObservedAnalyticsData(metric: Pick<AnalyticsMetricResult, "series">) {
+  return metric.series.some((point) => isObservedAnalyticsValue(point.value));
+}
+
+export function latestObservedAnalyticsValue(metric: Pick<AnalyticsMetricResult, "series">) {
+  return [...metric.series].reverse().find((point) => isObservedAnalyticsValue(point.value))?.value ?? null;
+}
+
 export type AnalyticsComparisonMetric = {
   key: string;
   version: number;

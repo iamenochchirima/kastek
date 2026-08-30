@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AnalyticsCoverageBadge, AnalyticsErrorState, AnalyticsFreshnessBadge, AnalyticsLoadingState } from "@/components/analytics/analytics-feedback";
+import { AnalyticsCoverageBadge, AnalyticsEmptyState, AnalyticsErrorState, AnalyticsFreshnessBadge, AnalyticsLoadingState } from "@/components/analytics/analytics-feedback";
 import { AnalyticsMetricSeriesTable, AnalyticsTrendChart } from "@/components/analytics/analytics-visualizations";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -14,6 +14,8 @@ import {
   type AnalyticsMetricResult,
   type AnalyticsReport,
   type AnalyticsSurface,
+  hasObservedAnalyticsData,
+  latestObservedAnalyticsValue,
 } from "@/lib/analytics";
 
 export const CAMPAIGN_ANALYTICS_METRICS = [
@@ -90,7 +92,8 @@ export function FeatureAnalyticsPanel({ title, description, metricKeys, surface 
 
   const definitions = useMemo(() => new Map((catalog?.metrics ?? []).map((metric) => [`${metric.key}@${metric.version}`, metric])), [catalog]);
   const results = report?.metrics ?? [];
-  const summaryMetrics = results.slice(0, 4);
+  const populatedMetrics = results.filter(hasObservedAnalyticsData);
+  const summaryMetrics = populatedMetrics.slice(0, 4);
 
   return (
     <Card>
@@ -99,17 +102,17 @@ export function FeatureAnalyticsPanel({ title, description, metricKeys, surface 
         <CardDescription>{description} · {report ? `${report.timezone} · last 30 days` : ""}</CardDescription>
       </CardHeader>
       <CardContent>
-        {loading ? <AnalyticsLoadingState /> : error ? <AnalyticsErrorState description={error.message} onRetry={() => void load()} /> : report ? <div className="space-y-5">
+        {loading ? <AnalyticsLoadingState /> : error ? <AnalyticsErrorState description={error.message} onRetry={() => void load()} /> : report ? populatedMetrics.length ? <div className="space-y-5">
           {summaryMetrics.length ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{summaryMetrics.map((metric) => <FeatureMetricCard key={`${metric.key}-${metric.version}`} metric={metric} definition={definitions.get(`${metric.key}@${metric.version}`)} />)}</div> : null}
-          {results.length ? <div className="space-y-3">{results.map((metric) => <FeatureMetricDetail key={`${metric.key}-${metric.version}`} metric={metric} definition={definitions.get(`${metric.key}@${metric.version}`)} timezone={report.timezone} />)}</div> : <p className="text-sm text-muted-foreground">No reporting metrics are available for this feature.</p>}
-        </div> : null}
+          <div className="space-y-3">{populatedMetrics.map((metric) => <FeatureMetricDetail key={`${metric.key}-${metric.version}`} metric={metric} definition={definitions.get(`${metric.key}@${metric.version}`)} timezone={report.timezone} />)}</div>
+        </div> : <AnalyticsEmptyState title="No activity yet" /> : null}
       </CardContent>
     </Card>
   );
 }
 
 function FeatureMetricCard({ metric, definition }: { metric: AnalyticsMetricResult; definition?: AnalyticsMetricDefinition }) {
-  const value = [...metric.series].reverse().find((point) => point.value !== null)?.value ?? null;
+  const value = latestObservedAnalyticsValue(metric);
   return <div className="rounded-lg border border-border p-4"><div className="text-xs text-muted-foreground">{definition?.description || metric.key}</div><div className="mt-2 text-2xl font-semibold">{formatMetricValue(value, metric.unit)}</div><div className="mt-3 flex flex-wrap gap-3"><AnalyticsFreshnessBadge freshness={metric.freshness} /><AnalyticsCoverageBadge coverage={metric.coverage} /></div></div>;
 }
 
