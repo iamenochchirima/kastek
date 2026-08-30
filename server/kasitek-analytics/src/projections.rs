@@ -52,12 +52,123 @@ pub async fn enqueue_fact(
     transaction: &mut Transaction<'_, Postgres>,
     fact: FactWindow,
 ) -> Result<(), sqlx::Error> {
+    let max_source_storage_id = fact.source_storage_id;
+    enqueue_projection_work(transaction, fact, max_source_storage_id, 100, None).await
+}
+
+async fn enqueue_projection_work(
+    transaction: &mut Transaction<'_, Postgres>,
+    fact: FactWindow,
+    max_source_storage_id: i64,
+    priority: i16,
+    repair_reason: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    // Keep live work attached to the checkpoint's active generation. Creating a new unassigned
+    // row after a window has already been projected would later collide when the worker attaches
+    // that row to the active generation.
+    sqlx::query(
+        r#"INSERT INTO analytics.analytics_projection_checkpoint (
+             projection_name, projection_version, reporting_scope_id, root_scope_id,
+             shard_key, processing_status
+           ) VALUES ($1,$2,$3,$4,$5,'idle')
+           ON CONFLICT (projection_name, projection_version, reporting_scope_id, shard_key)
+           DO UPDATE SET root_scope_id = EXCLUDED.root_scope_id"#,
+    )
+    .bind(PROJECTION_NAME)
+    .bind(PROJECTION_VERSION)
+    .bind(fact.reporting_scope_id)
+    .bind(fact.root_scope_id)
+    .bind(DEFAULT_SHARD_KEY)
+    .execute(&mut **transaction)
+    .await?;
+
+    let updated = sqlx::query(
+        r#"UPDATE analytics.analytics_projection_work AS work
+           SET min_source_storage_id = LEAST(work.min_source_storage_id, $7),
+               max_source_storage_id = GREATEST(work.max_source_storage_id, $8),
+               priority = LEAST(work.priority, $9),
+               repair_reason = COALESCE($10, work.repair_reason),
+               work_status = CASE
+                 WHEN work.work_status IN ('completed', 'failed', 'cancelled')
+                      OR work.attempt_count >= 10
+                   THEN 'pending'
+                 ELSE work.work_status
+               END,
+               available_at = CASE
+                 WHEN work.work_status IN ('completed', 'failed', 'cancelled')
+                      OR work.attempt_count >= 10
+                   THEN NOW()
+                 ELSE LEAST(work.available_at, NOW())
+               END,
+               attempt_count = CASE
+                 WHEN work.work_status IN ('completed', 'failed', 'cancelled')
+                      OR work.attempt_count >= 10
+                   THEN 0
+                 ELSE work.attempt_count
+               END,
+               lease_owner = CASE
+                 WHEN work.work_status IN ('completed', 'failed', 'cancelled')
+                      OR work.attempt_count >= 10
+                   THEN NULL
+                 ELSE work.lease_owner
+               END,
+               lease_expires_at = CASE
+                 WHEN work.work_status IN ('completed', 'failed', 'cancelled')
+                      OR work.attempt_count >= 10
+                   THEN NULL
+                 ELSE work.lease_expires_at
+               END,
+               completed_at = CASE
+                 WHEN work.work_status IN ('completed', 'failed', 'cancelled')
+                      OR work.attempt_count >= 10
+                   THEN NULL
+                 ELSE work.completed_at
+               END,
+               last_error_code = NULL,
+               last_error_message = NULL
+           WHERE work.work_id = (
+             SELECT candidate.work_id
+             FROM analytics.analytics_projection_work AS candidate
+             JOIN analytics.analytics_projection_checkpoint AS checkpoint
+               ON checkpoint.generation_id = candidate.generation_id
+             WHERE candidate.projection_name = $1
+               AND candidate.projection_version = $2
+               AND candidate.fact_kind = $3
+               AND candidate.reporting_scope_id = $4
+               AND candidate.source_window_start = $5
+               AND candidate.source_window_end = $6
+               AND checkpoint.projection_name = $1
+               AND checkpoint.projection_version = $2
+               AND checkpoint.reporting_scope_id = $4
+               AND checkpoint.shard_key = $11
+             ORDER BY candidate.work_id DESC
+             LIMIT 1
+           )"#,
+    )
+    .bind(PROJECTION_NAME)
+    .bind(PROJECTION_VERSION)
+    .bind(fact.fact_kind.as_str())
+    .bind(fact.reporting_scope_id)
+    .bind(fact.source_window_start)
+    .bind(fact.source_window_end)
+    .bind(fact.source_storage_id)
+    .bind(max_source_storage_id)
+    .bind(priority)
+    .bind(repair_reason)
+    .bind(DEFAULT_SHARD_KEY)
+    .execute(&mut **transaction)
+    .await?;
+
+    if updated.rows_affected() > 0 {
+        return Ok(());
+    }
+
     sqlx::query(
         r#"INSERT INTO analytics.analytics_projection_work (
              projection_name, projection_version, fact_kind, reporting_scope_id, root_scope_id,
              source_window_start, source_window_end, min_source_storage_id, max_source_storage_id,
-             priority
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,100)
+             priority, repair_reason
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
            ON CONFLICT (
              projection_name, projection_version, fact_kind, reporting_scope_id,
              source_window_start, source_window_end
@@ -65,14 +176,41 @@ pub async fn enqueue_fact(
            DO UPDATE SET
              min_source_storage_id = LEAST(analytics.analytics_projection_work.min_source_storage_id, EXCLUDED.min_source_storage_id),
              max_source_storage_id = GREATEST(analytics.analytics_projection_work.max_source_storage_id, EXCLUDED.max_source_storage_id),
+             priority = LEAST(analytics.analytics_projection_work.priority, EXCLUDED.priority),
+             repair_reason = COALESCE(EXCLUDED.repair_reason, analytics.analytics_projection_work.repair_reason),
              work_status = CASE
                WHEN analytics.analytics_projection_work.work_status IN ('completed', 'failed', 'cancelled')
+                    OR analytics.analytics_projection_work.attempt_count >= 10
                  THEN 'pending'
                ELSE analytics.analytics_projection_work.work_status
              END,
-             available_at = LEAST(analytics.analytics_projection_work.available_at, EXCLUDED.available_at),
+             available_at = CASE
+               WHEN analytics.analytics_projection_work.work_status IN ('completed', 'failed', 'cancelled')
+                    OR analytics.analytics_projection_work.attempt_count >= 10
+                 THEN NOW()
+               ELSE LEAST(analytics.analytics_projection_work.available_at, EXCLUDED.available_at)
+             END,
+             attempt_count = CASE
+               WHEN analytics.analytics_projection_work.work_status IN ('completed', 'failed', 'cancelled')
+                    OR analytics.analytics_projection_work.attempt_count >= 10
+                 THEN 0
+               ELSE analytics.analytics_projection_work.attempt_count
+             END,
+             lease_owner = CASE
+               WHEN analytics.analytics_projection_work.work_status IN ('completed', 'failed', 'cancelled')
+                    OR analytics.analytics_projection_work.attempt_count >= 10
+                 THEN NULL
+               ELSE analytics.analytics_projection_work.lease_owner
+             END,
+             lease_expires_at = CASE
+               WHEN analytics.analytics_projection_work.work_status IN ('completed', 'failed', 'cancelled')
+                    OR analytics.analytics_projection_work.attempt_count >= 10
+                 THEN NULL
+               ELSE analytics.analytics_projection_work.lease_expires_at
+             END,
              completed_at = CASE
                WHEN analytics.analytics_projection_work.work_status IN ('completed', 'failed', 'cancelled')
+                    OR analytics.analytics_projection_work.attempt_count >= 10
                  THEN NULL
                ELSE analytics.analytics_projection_work.completed_at
              END,
@@ -87,22 +225,8 @@ pub async fn enqueue_fact(
     .bind(fact.source_window_start)
     .bind(fact.source_window_end)
     .bind(fact.source_storage_id)
-    .execute(&mut **transaction)
-    .await?;
-
-    sqlx::query(
-        r#"INSERT INTO analytics.analytics_projection_checkpoint (
-             projection_name, projection_version, reporting_scope_id, root_scope_id,
-             shard_key, processing_status
-           ) VALUES ($1,$2,$3,$4,$5,'idle')
-           ON CONFLICT (projection_name, projection_version, reporting_scope_id, shard_key)
-           DO UPDATE SET root_scope_id = EXCLUDED.root_scope_id"#,
-    )
-    .bind(PROJECTION_NAME)
-    .bind(PROJECTION_VERSION)
-    .bind(fact.reporting_scope_id)
-    .bind(fact.root_scope_id)
-    .bind(DEFAULT_SHARD_KEY)
+    .bind(priority)
+    .bind(repair_reason)
     .execute(&mut **transaction)
     .await?;
 
@@ -143,62 +267,29 @@ pub async fn enqueue_reconciliation_repair(
 
     let mut enqueued = 0;
     for window in windows {
-        let result = sqlx::query(
-            r#"INSERT INTO analytics.analytics_projection_work (
-                 projection_name, projection_version, fact_kind, reporting_scope_id, root_scope_id,
-                 source_window_start, source_window_end, min_source_storage_id, max_source_storage_id,
-                 priority, repair_reason, work_status
-               ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,25,'reconciliation_mismatch','pending')
-               ON CONFLICT (
-                 projection_name, projection_version, fact_kind, reporting_scope_id,
-                 source_window_start, source_window_end
-               ) WHERE generation_id IS NULL
-               DO UPDATE SET
-                 min_source_storage_id = LEAST(analytics.analytics_projection_work.min_source_storage_id, EXCLUDED.min_source_storage_id),
-                 max_source_storage_id = GREATEST(analytics.analytics_projection_work.max_source_storage_id, EXCLUDED.max_source_storage_id),
-                 priority = LEAST(analytics.analytics_projection_work.priority, EXCLUDED.priority),
-                 repair_reason = 'reconciliation_mismatch',
-                 work_status = CASE
-                   WHEN analytics.analytics_projection_work.work_status IN ('completed', 'failed', 'cancelled')
-                     THEN 'pending'
-                   ELSE analytics.analytics_projection_work.work_status
-                 END,
-                 available_at = LEAST(analytics.analytics_projection_work.available_at, EXCLUDED.available_at),
-                 completed_at = CASE
-                   WHEN analytics.analytics_projection_work.work_status IN ('completed', 'failed', 'cancelled')
-                     THEN NULL
-                   ELSE analytics.analytics_projection_work.completed_at
-                 END"#,
+        let fact_kind = match window.try_get::<String, _>("fact_kind")?.as_str() {
+            "event" => FactKind::Event,
+            "observation" => FactKind::Observation,
+            _ => return Err(sqlx::Error::Protocol("invalid projection fact kind".into())),
+        };
+        enqueue_projection_work(
+            &mut transaction,
+            FactWindow {
+                fact_kind,
+                reporting_scope_id,
+                root_scope_id,
+                source_storage_id: window.try_get("min_storage_id")?,
+                source_window_start: window.try_get("window_start")?,
+                source_window_end: window.try_get("window_end")?,
+            },
+            window.try_get("max_storage_id")?,
+            25,
+            Some("reconciliation_mismatch"),
         )
-        .bind(PROJECTION_NAME)
-        .bind(PROJECTION_VERSION)
-        .bind(window.try_get::<String, _>("fact_kind")?)
-        .bind(reporting_scope_id)
-        .bind(root_scope_id)
-        .bind(window.try_get::<DateTime<Utc>, _>("window_start")?)
-        .bind(window.try_get::<DateTime<Utc>, _>("window_end")?)
-        .bind(window.try_get::<i64, _>("min_storage_id")?)
-        .bind(window.try_get::<i64, _>("max_storage_id")?)
-        .execute(&mut *transaction)
         .await?;
-        enqueued += result.rows_affected();
+        enqueued += 1;
     }
 
-    sqlx::query(
-        r#"INSERT INTO analytics.analytics_projection_checkpoint (
-             projection_name, projection_version, reporting_scope_id, root_scope_id,
-             shard_key, processing_status
-           ) VALUES ($1,$2,$3,$4,$5,'idle')
-           ON CONFLICT (projection_name, projection_version, reporting_scope_id, shard_key)
-           DO UPDATE SET root_scope_id = EXCLUDED.root_scope_id"#,
-    )
-    .bind(PROJECTION_NAME)
-    .bind(PROJECTION_VERSION)
-    .bind(reporting_scope_id)
-    .bind(root_scope_id)
-    .bind(DEFAULT_SHARD_KEY)
-    .execute(&mut *transaction)
-    .await?;
     transaction.commit().await?;
     Ok(enqueued)
 }
@@ -549,7 +640,7 @@ struct ProjectionFact {
     bucket_start: DateTime<Utc>,
     bucket_end: DateTime<Utc>,
     timezone_name: String,
-    timezone_revision: i32,
+    timezone_revision: i64,
     dimensions: Value,
     value: f64,
     numerator: Option<f64>,
@@ -1148,9 +1239,7 @@ async fn rebuild_window(
                 bucket_start,
                 bucket_end,
                 timezone_name: timezone_name.clone(),
-                timezone_revision: i32::try_from(timezone_revision).map_err(|_| {
-                    sqlx::Error::Protocol("reporting timezone revision is out of range".into())
-                })?,
+                timezone_revision,
                 dimensions,
                 value,
                 numerator,
@@ -1216,9 +1305,7 @@ async fn rebuild_window(
             bucket_start: row.try_get("bucket_start")?,
             bucket_end: row.try_get("bucket_end")?,
             timezone_name: row.try_get("timezone_name")?,
-            timezone_revision: i32::try_from(row.try_get::<i64, _>("timezone_revision")?).map_err(
-                |_| sqlx::Error::Protocol("reporting timezone revision is out of range".into()),
-            )?,
+            timezone_revision: row.try_get("timezone_revision")?,
             dimensions: observation_dimensions(metric, &dimensions),
             value,
             numerator: None,

@@ -14,3 +14,6 @@ Source services remain authoritative for users, roles, assignments, and outbox d
 these tables are the Analytics-side fact and control read model. Domain projections and reporting
 APIs belong to later migrations. The release job takes a stable PostgreSQL advisory lock and
 records checksums in SQLx's dedicated migration history.
+
+The projection timezone revision columns use `BIGINT` because they mirror the reporting-scope
+source version, which may be a millisecond timestamp rather than a 32-bit integer.

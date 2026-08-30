@@ -134,11 +134,13 @@ async fn worker_claims_dirty_window_and_promotes_a_complete_generation() {
     let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default();
     let workspace_scope_id: i64 = sqlx::query_scalar(
         r#"INSERT INTO analytics.reporting_scope (
-             scope_kind, owning_source_service, external_source_id, status, reporting_timezone
-           ) VALUES ('tenant_workspace','tenant-platform',$1,'active','Africa/Johannesburg')
+             scope_kind, owning_source_service, external_source_id, status, reporting_timezone,
+             source_version
+           ) VALUES ('tenant_workspace','tenant-platform',$1,'active','Africa/Johannesburg',$2)
            RETURNING scope_id"#,
     )
     .bind(format!("a10-workspace-{suffix}"))
+    .bind(1_788_020_091_680_i64)
     .fetch_one(&pool)
     .await
     .expect("workspace scope");
@@ -237,7 +239,7 @@ async fn worker_claims_dirty_window_and_promotes_a_complete_generation() {
     let contribution = sqlx::query(
         r#"SELECT COUNT(*) AS count, MIN(bucket_start) AS bucket_start,
                   COUNT(DISTINCT timezone_name) AS timezone_count,
-                  MIN(timezone_name) AS timezone_name, MIN(timezone_revision) AS timezone_revision,
+                  MIN(timezone_name) AS timezone_name, MAX(timezone_revision) AS timezone_revision,
                   COUNT(DISTINCT builder_name) AS builder_count
            FROM analytics.analytics_projection_contribution
            WHERE generation_id = $1 AND source_storage_id = $2
@@ -260,8 +262,89 @@ async fn worker_claims_dirty_window_and_promotes_a_complete_generation() {
         contribution.get::<String, _>("timezone_name"),
         "Africa/Johannesburg"
     );
-    assert_eq!(contribution.get::<i32, _>("timezone_revision"), 1);
+    assert_eq!(
+        contribution.get::<i64, _>("timezone_revision"),
+        1_788_020_091_680_i64
+    );
     assert_eq!(contribution.get::<i64, _>("builder_count"), 1);
+
+    let mut transaction = pool.begin().await.expect("projection transaction");
+    projections::enqueue_fact(
+        &mut transaction,
+        projections::FactWindow {
+            fact_kind: projections::FactKind::Event,
+            reporting_scope_id: client_scope_id,
+            root_scope_id: workspace_scope_id,
+            source_storage_id: storage_id,
+            source_window_start: window_start,
+            source_window_end: window_end,
+        },
+    )
+    .await
+    .expect("existing projection work should be coalesced");
+    transaction
+        .commit()
+        .await
+        .expect("projection transaction should commit");
+    let work_shape = sqlx::query(
+        r#"SELECT COUNT(*) AS total,
+                  COUNT(*) FILTER (WHERE generation_id IS NULL) AS unassigned
+           FROM analytics.analytics_projection_work
+           WHERE projection_name = $1 AND projection_version = $2
+             AND fact_kind = 'event' AND reporting_scope_id = $3
+             AND source_window_start = $4 AND source_window_end = $5"#,
+    )
+    .bind(projections::PROJECTION_NAME)
+    .bind(projections::PROJECTION_VERSION)
+    .bind(client_scope_id)
+    .bind(window_start)
+    .bind(window_end)
+    .fetch_one(&pool)
+    .await
+    .expect("coalesced projection work");
+    assert_eq!(work_shape.get::<i64, _>("total"), 1);
+    assert_eq!(work_shape.get::<i64, _>("unassigned"), 0);
+    for _ in 0..5 {
+        let _ = projections::process_once(&pool, &registry, "a10-coalesce-test", 60)
+            .await
+            .expect("coalesced projection pass");
+        let status: String = sqlx::query_scalar(
+            r#"SELECT work_status FROM analytics.analytics_projection_work
+               WHERE projection_name = $1 AND projection_version = $2
+                 AND fact_kind = 'event' AND reporting_scope_id = $3
+                 AND source_window_start = $4 AND source_window_end = $5
+                 AND generation_id IS NOT NULL
+               ORDER BY work_id DESC LIMIT 1"#,
+        )
+        .bind(projections::PROJECTION_NAME)
+        .bind(projections::PROJECTION_VERSION)
+        .bind(client_scope_id)
+        .bind(window_start)
+        .bind(window_end)
+        .fetch_one(&pool)
+        .await
+        .expect("coalesced projection status");
+        if status == "completed" {
+            break;
+        }
+    }
+    let coalesced_status: String = sqlx::query_scalar(
+        r#"SELECT work_status FROM analytics.analytics_projection_work
+           WHERE projection_name = $1 AND projection_version = $2
+             AND fact_kind = 'event' AND reporting_scope_id = $3
+             AND source_window_start = $4 AND source_window_end = $5
+             AND generation_id IS NOT NULL
+           ORDER BY work_id DESC LIMIT 1"#,
+    )
+    .bind(projections::PROJECTION_NAME)
+    .bind(projections::PROJECTION_VERSION)
+    .bind(client_scope_id)
+    .bind(window_start)
+    .bind(window_end)
+    .fetch_one(&pool)
+    .await
+    .expect("final coalesced projection status");
+    assert_eq!(coalesced_status, "completed");
     let day_value: f64 = sqlx::query_scalar(
         r#"SELECT value_count::DOUBLE PRECISION
            FROM analytics.analytics_projection_rollup
