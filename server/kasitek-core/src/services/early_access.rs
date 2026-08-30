@@ -909,7 +909,7 @@ pub async fn signup_invitation_preview(
 ) -> Result<SignupInvitationPreview, AppError> {
     expire_due_invitations(pool).await?;
     let hash = crypto_utils::sha256_hex(token);
-    let preview = sqlx::query_as::<_, SignupInvitationPreview>(r#"SELECT i.email, i.status, i."expiresAt" AT TIME ZONE 'UTC' AS expires_at, w."businessName" AS business_name FROM "EarlyAccessInvitation" i JOIN "ProductWaitlistEntry" w ON w.id = i."waitlistEntryId" WHERE i."tokenHash" = $1"#)
+    let preview = sqlx::query_as::<_, SignupInvitationPreview>(r#"SELECT i.email, i.status, i."expiresAt" AS expires_at, w."businessName" AS business_name FROM "EarlyAccessInvitation" i JOIN "ProductWaitlistEntry" w ON w.id = i."waitlistEntryId" WHERE i."tokenHash" = $1"#)
         .bind(hash).fetch_optional(pool).await?.ok_or_else(|| AppError::NotFound("Early-access invitation not found".to_string()))?;
     Ok(preview)
 }
@@ -928,7 +928,7 @@ pub async fn activate_signup_invitation(
     let hash = crypto_utils::sha256_hex(token);
     let row = sqlx::query_as::<_, (String, String, String, String, DateTime<Utc>)>(
         r#"SELECT i.id, i."waitlistEntryId", i.email, i.status,
-                  i."expiresAt" AT TIME ZONE 'UTC' AS expires_at
+                  i."expiresAt" AS expires_at
            FROM "EarlyAccessInvitation" i
            WHERE i."tokenHash" = $1"#,
     )
