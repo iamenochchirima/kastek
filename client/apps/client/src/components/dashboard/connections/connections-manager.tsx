@@ -19,7 +19,9 @@ import {
   X as CloseIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+const WHATSAPP_SIGNUP_STATUS_EVENT = "kasitek:whatsapp-embedded-signup-status";
 
 const WhatsAppBrandIcon = getPlatformBrandIcon("WHATSAPP") ?? MessageCircle;
 const FacebookBrandIcon = getPlatformBrandIcon("FACEBOOK") ?? MessageCircle;
@@ -144,6 +146,23 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
   const [blueskyOpen, setBlueskyOpen] = useState(false);
   const [blueskyHandle, setBlueskyHandle] = useState("");
   const [threadsConnectPath, setThreadsConnectPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    function handleWhatsappSignupStatus(event: Event) {
+      const detail = (event as CustomEvent<{ kind?: string; message?: string }>).detail;
+      if (!detail) return;
+
+      if (detail.kind === "error") {
+        setError(detail.message || "WhatsApp connection could not be started.");
+      } else if (detail.kind === "clear") {
+        setError("");
+      }
+    }
+
+    window.addEventListener(WHATSAPP_SIGNUP_STATUS_EVENT, handleWhatsappSignupStatus);
+    return () => window.removeEventListener(WHATSAPP_SIGNUP_STATUS_EVENT, handleWhatsappSignupStatus);
+  }, []);
+
   const groupedConnections = Object.entries(providerDetails)
     .map(([provider, detail]) => ({
       provider,

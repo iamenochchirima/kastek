@@ -37,6 +37,11 @@ type FbLoginResponse = {
   status?: string;
 };
 
+type EmbeddedSignupStatus = {
+  kind: "clear" | "error" | "notice";
+  message?: string;
+};
+
 type FbSdk = {
   init: (config: Record<string, unknown>) => void;
   login: (
@@ -53,6 +58,7 @@ declare global {
 }
 
 const SDK_SRC = "https://connect.facebook.net/en_US/sdk.js";
+const STATUS_EVENT = "kasitek:whatsapp-embedded-signup-status";
 
 function parseEmbeddedSignupMessage(rawData: unknown):
   | { type: "FINISH"; data: EmbeddedSignupFinishData }
@@ -131,6 +137,10 @@ export default function WhatsappEmbeddedSignupCard({
   const appId = process.env.NEXT_PUBLIC_META_APP_ID || "";
   const configId = process.env.NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID || "";
 
+  function notifyStatus(status: EmbeddedSignupStatus) {
+    window.dispatchEvent(new CustomEvent<EmbeddedSignupStatus>(STATUS_EVENT, { detail: status }));
+  }
+
   const envMissing = useMemo(() => {
     const missing: string[] = [];
     if (!appId) missing.push("NEXT_PUBLIC_META_APP_ID");
@@ -152,7 +162,7 @@ export default function WhatsappEmbeddedSignupCard({
       document.body.appendChild(script);
     }
 
-    window.fbAsyncInit = () => {
+    const initializeSdk = () => {
       if (!window.FB || cancelled) return;
 
       window.FB.init({
@@ -164,6 +174,8 @@ export default function WhatsappEmbeddedSignupCard({
 
       setSdkReady(true);
     };
+    window.fbAsyncInit = initializeSdk;
+    if (window.FB) initializeSdk();
 
     const onMessage = (event: MessageEvent) => {
       if (!event.origin.includes("facebook.com")) return;
@@ -173,14 +185,17 @@ export default function WhatsappEmbeddedSignupCard({
       if (parsed.type === "FINISH") {
         finishDataRef.current = parsed.data;
         setNotice("WhatsApp account selected. Finalizing connection...");
+        notifyStatus({ kind: "notice", message: "WhatsApp account selected. Finalizing connection..." });
       }
 
       if (parsed.type === "CANCEL") {
         setNotice("Embedded signup canceled.");
+        notifyStatus({ kind: "notice", message: "Embedded signup canceled." });
       }
 
       if (parsed.type === "ERROR") {
         setError("Embedded signup reported an error. Please try again.");
+        notifyStatus({ kind: "error", message: "Embedded signup reported an error. Please try again." });
       }
     };
 
@@ -301,32 +316,42 @@ export default function WhatsappEmbeddedSignupCard({
     setError("");
     setNotice("");
     finishDataRef.current = null;
+    notifyStatus({ kind: "clear" });
 
     if (envMissing.length > 0) {
-      setError(`Missing env vars: ${envMissing.join(", ")}`);
+      const message = `WhatsApp connection is not configured. Missing: ${envMissing.join(", ")}`;
+      setError(message);
+      notifyStatus({ kind: "error", message });
       return;
     }
 
     if (!window.FB) {
-      setError("Meta SDK is not ready. Refresh and try again.");
+      const message = "Meta SDK is not ready. Refresh and try again.";
+      setError(message);
+      notifyStatus({ kind: "error", message });
       return;
     }
 
     setLoading(true);
 
-    window.FB.login(
+    try {
+      window.FB.login(
       (response) => {
         const code = response.authResponse?.code;
 
         if (!code) {
           setLoading(false);
-          setError("Meta did not return an authorization code.");
+          const message = "Meta did not return an authorization code.";
+          setError(message);
+          notifyStatus({ kind: "error", message });
           return;
         }
 
         void finalizeSignup(code)
           .catch((err) => {
             const message = err instanceof Error ? err.message : "Failed to connect WhatsApp";
+            setError(message);
+            notifyStatus({ kind: "error", message });
             const params = new URLSearchParams({
               status: "error",
               message,
@@ -352,7 +377,13 @@ export default function WhatsappEmbeddedSignupCard({
           setup: {},
         },
       }
-    );
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not open WhatsApp signup.";
+      setLoading(false);
+      setError(message);
+      notifyStatus({ kind: "error", message });
+    }
   }
 
   startSignupRef.current = startEmbeddedSignup;
