@@ -234,7 +234,7 @@ fn application_select() -> &'static str {
                "earlyAccessInvitationId" AS early_access_invitation_id,
                (SELECT status FROM "EarlyAccessInvitation" WHERE id = "ProductWaitlistEntry"."earlyAccessInvitationId") AS invitation_status,
                (SELECT "deliveryStatus" FROM "EarlyAccessInvitation" WHERE id = "ProductWaitlistEntry"."earlyAccessInvitationId") AS invitation_delivery_status,
-               (SELECT "expiresAt" AT TIME ZONE 'UTC' FROM "EarlyAccessInvitation" WHERE id = "ProductWaitlistEntry"."earlyAccessInvitationId") AS invitation_expires_at,
+               (SELECT "expiresAt" FROM "EarlyAccessInvitation" WHERE id = "ProductWaitlistEntry"."earlyAccessInvitationId") AS invitation_expires_at,
                "packageKey" AS package_key,
                "packageSnapshot" AS package_snapshot,
                "activatedAt" AT TIME ZONE 'UTC' AS activated_at,
@@ -1278,8 +1278,18 @@ pub async fn expire_due_access(pool: &PgPool) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        beta_package_snapshot, package_parameters, selected_capabilities, transition_allowed,
+        application_select, beta_package_snapshot, package_parameters, selected_capabilities,
+        transition_allowed,
     };
+
+    #[test]
+    fn invitation_expiry_projection_preserves_postgres_timestamp_type() {
+        let select = application_select();
+        assert!(select.contains(
+            "(SELECT \"expiresAt\" FROM \"EarlyAccessInvitation\" WHERE id = \"ProductWaitlistEntry\".\"earlyAccessInvitationId\") AS invitation_expires_at"
+        ));
+        assert!(!select.contains("\"expiresAt\" AT TIME ZONE 'UTC'"));
+    }
 
     #[test]
     fn lifecycle_transitions_allow_approval_activation_and_reversal() {
