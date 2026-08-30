@@ -525,7 +525,7 @@ export function AgentDetailPageClient({ agent, initialVersions }: { agent: Agent
   const initialCredentialReference = String(baseConfiguration.credentialReference ?? basePolicy.credentialReference ?? "");
   const [instructions, setInstructions] = useState(baseVersion?.instructions ?? "");
   const [modelProvider, setModelProvider] = useState<AgentModelProvider>(String(basePrimary.provider ?? baseConfiguration.provider ?? "openrouter") as AgentModelProvider);
-  const [model, setModel] = useState(String(basePrimary.model ?? baseConfiguration.model ?? "openai/gpt-oss-20b:free"));
+  const [model, setModel] = useState(String(basePrimary.model ?? baseConfiguration.model ?? "openai/gpt-oss-20b"));
   const [credentialMode, setCredentialMode] = useState<"platform" | "user">(initialCredentialReference ? "user" : "platform");
   const [credentialProvider, setCredentialProvider] = useState<AgentModelProvider | null>(null);
   const [credentialReference, setCredentialReference] = useState(initialCredentialReference);

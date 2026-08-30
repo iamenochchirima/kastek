@@ -245,9 +245,27 @@ async fn main() -> std::io::Result<()> {
         let mut cors = Cors::default()
             .allowed_origin(&frontend_origin)
             .allowed_methods(vec!["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"])
-            .allowed_headers(vec!["Content-Type", "Authorization"])
+            .allowed_headers(vec![
+                "Content-Type",
+                "Authorization",
+                "X-Audio-Idempotency-Key",
+                "X-Audio-File-Name",
+                "X-Audio-Caption",
+                "X-Audio-Display-Name",
+            ])
             .supports_credentials()
             .max_age(3600);
+
+        // Website Chat is embedded on customer-controlled origins. The
+        // widget handlers still validate each origin against the deployment's
+        // allowed-origin list; this only lets their CORS preflight reach the
+        // route instead of being rejected by the dashboard CORS policy first.
+        cors = cors.allowed_origin_fn(|origin, req_head| {
+            req_head.uri.path().starts_with("/api/widget/v1/")
+                && origin.to_str().is_ok_and(|value| {
+                    value.starts_with("https://") || value.starts_with("http://")
+                })
+        });
 
         if allow_loopback_origins {
             cors = cors.allowed_origin_fn(|origin, _req_head| {

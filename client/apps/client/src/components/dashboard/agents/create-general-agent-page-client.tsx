@@ -32,7 +32,7 @@ type GeneralAgentBrowserDraft = {
   crawlAgent?: { id: string; name: string };
 };
 
-const model = { provider: "openrouter", name: "openai/gpt-oss-20b:free" };
+const model = { provider: "openrouter", name: "openai/gpt-oss-20b" };
 
 export function CreateGeneralAgentPageClient({ audience = "personal", userId, onBackToStart }: { audience?: AgentAudience; userId?: string; onBackToStart?: () => void }) {
   const router = useRouter();

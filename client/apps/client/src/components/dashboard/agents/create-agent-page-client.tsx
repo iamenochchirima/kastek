@@ -250,7 +250,7 @@ export function CreateAgentPageClient({ audience = "personal", userId, initialTe
   const websitePreviewRef = useRef<string | undefined>(undefined);
   const [crawlingWebsite, setCrawlingWebsite] = useState(false);
   const [provider, setProvider] = useState(() => typeof initialDraftConfiguration.provider === "string" ? initialDraftConfiguration.provider : templateConfigurationString(initialTemplate, "provider", "openrouter"));
-  const [model, setModel] = useState(() => { const primary = initialDraftPrimary && typeof initialDraftPrimary === "object" ? initialDraftPrimary as Record<string, unknown> : undefined; return typeof primary?.model === "string" ? primary.model : typeof initialDraftConfiguration.model === "string" ? initialDraftConfiguration.model : templateConfigurationString(initialTemplate, "model", "openai/gpt-oss-20b:free"); });
+  const [model, setModel] = useState(() => { const primary = initialDraftPrimary && typeof initialDraftPrimary === "object" ? initialDraftPrimary as Record<string, unknown> : undefined; return typeof primary?.model === "string" ? primary.model : typeof initialDraftConfiguration.model === "string" ? initialDraftConfiguration.model : templateConfigurationString(initialTemplate, "model", "openai/gpt-oss-20b"); });
   const [runtimeLimits, setRuntimeLimits] = useState<AgentRuntimeLimitsValue>(() => initialDraft ? {
     maxIterations: String(initialDraftConfiguration.maxIterations ?? defaultAgentRuntimeLimits.maxIterations),
     maxToolCalls: String(initialDraftConfiguration.maxToolCalls ?? defaultAgentRuntimeLimits.maxToolCalls),
