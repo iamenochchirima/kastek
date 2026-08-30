@@ -140,7 +140,7 @@ Risk: standard
 
 Affected services and user surfaces: Agent API conversation queue, Core Agent Platform proxy, client `/agents/conversations` Live Chat.
 
-Platform release version or release ID: record the commit SHA and production deployment IDs at release.
+Platform release version or release ID: source commit `cf5ce305`; Agents API deployment `f61d5e89-e3bd-41b9-b21f-643d234e285a`; Core deployment `ae3d574a-1718-4f3f-abc2-c4038471c6dc`; client Vercel deployment pending authentication/project linkage.
 
 API/schema/migration changes: Added `GET /v1/conversations/customer` and the organization-scoped Core proxy route. Extended the live conversation query with `channelType`. No database migration.
 
@@ -152,11 +152,13 @@ Logs, metrics, dashboards, and alerts: not applicable; the existing authenticate
 
 User, API, internal, and operational documentation: Updated [`0009-channel-identity-pairing.md`](../../../agents/docs/adr/0009-channel-identity-pairing.md) with the operator customer queue contract.
 
-Validation evidence: Agent build and targeted HTTP/repository tests; client lint, TypeScript check, and webpack production build; Core format and compile checks. Production smoke verification is recorded after deployment.
+Validation evidence: Agent TypeScript build and targeted HTTP/repository tests passed (95 tests); client targeted ESLint, TypeScript, and webpack production build passed; Core format and compile checks passed. Production Core `/health` returned 200 and Agent Gateway `/health/ready` returned 200 on 2026-08-30. The authenticated customer queue route is deployed with the backend pair but requires the client publication for end-to-end UI smoke verification.
 
 Rollback or disable plan: revert the client, Core, and Agent API changes together. The existing handoff and active-agent endpoints remain independently available.
 
 Post-release review date: 2026-09-06
+
+Release blocker: The client build is ready but has not been published to Vercel because the available environment is logged out and contains no linked Vercel project. Publish the client from the connected Vercel project (or provide Vercel authentication) before treating the Live Chat UI change as fully released.
 
 ## Approved defaults
 
