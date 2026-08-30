@@ -309,7 +309,7 @@ describe("cross-entrypoint approval and effect matrix", () => {
         method: "POST",
         url: `/v1/installations/${hostedInstallationId}/channels/inbound`,
         headers: authHeaders,
-        payload: { channelType: "telegram", provider: "telegram", providerEventId: "matrix-channel-approved", providerMessageId: "matrix-channel-approved", externalIdentity: "customer-approved", externalConversationId: "thread-approved", content: { text: "channel-approved" } },
+        payload: { channelType: "telegram", provider: "telegram", providerEventId: "matrix-channel-approved", providerMessageId: "matrix-channel-approved", externalIdentity: "customer-approved", externalConversationId: "thread-approved", occurredAt: "2026-08-30T20:24:01.327+00:00", content: { text: "channel-approved" } },
       });
       const channelRejected = await app.inject({
         method: "POST",

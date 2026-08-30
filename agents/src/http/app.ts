@@ -2957,7 +2957,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         externalConversationId: z.string().trim().min(1).max(240),
         messageType: z.string().trim().min(1).max(80).default("text"),
         content: z.record(z.string(), z.unknown()),
-        occurredAt: z.string().datetime().optional(),
+        occurredAt: z.string().datetime({ offset: true }).optional(),
         displayName: z.string().trim().max(240).optional(),
       }).parse(request.body);
       const inboundConnection = input.channelKey
@@ -3515,7 +3515,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         externalConversationId: z.string().trim().min(1).max(240),
         messageType: z.string().trim().min(1).max(80).default("text"),
         content: z.record(z.string(), z.unknown()),
-        occurredAt: z.string().datetime().optional(),
+        occurredAt: z.string().datetime({ offset: true }).optional(),
         displayName: z.string().trim().max(240).optional(),
       }).parse(request.body);
       input.content = parseCanonicalMessageContent(input.messageType, input.content);

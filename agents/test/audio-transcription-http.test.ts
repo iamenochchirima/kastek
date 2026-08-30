@@ -324,6 +324,7 @@ describe("audio transcription HTTP contracts", () => {
           externalIdentity: "+27123456789",
           externalConversationId: "+27123456789",
           messageType: "attachment",
+          occurredAt: "2026-08-30T20:24:01.327+00:00",
           content: {
             attachmentId: "provider-media-1",
             assetId: "asset-whatsapp-1",

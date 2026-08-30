@@ -40,7 +40,8 @@ Every adapter must:
 4. consume `kasiai_pair_...` codes through `/v1/channel-pairing/consume` using a service identity
    with `channels:ingest`;
 5. submit normal messages through `/v1/channels/inbound`, where active connection and binding state
-   are checked and provider IDs are deduplicated;
+   are checked and provider IDs are deduplicated. When present, `occurredAt` is an RFC3339
+   timestamp and may use either `Z` or an explicit UTC offset;
 6. deliver replies through the authenticated core delivery boundary and submit provider receipts
    to `/v1/channels/delivery-status`.
 
