@@ -17,6 +17,45 @@ Success means Admin does not create customer accounts or workspaces, approved ap
 complete signup without hitting the private-release block or organisation-dependent 403 responses,
 and batch approval produces an auditable result for every selected application.
 
+## Release record: invitation-bound Google authentication
+
+Change: Add Google account creation/sign-in to the early-access invitation flow.
+
+Owner: Platform engineering
+
+Risk: standard
+
+Affected services and user surfaces: Core authentication OAuth endpoints and the Client early-access
+activation page.
+
+Platform release version or release ID: pending release deployment.
+
+API/schema/migration changes: Extend the existing Google OAuth state payload; no database migration.
+
+Feature flag or rollout method: Existing `EARLY_ACCESS_SELF_SERVICE_ENABLED` flag; Google is available
+only from a valid early-access invitation.
+
+Analytics events and success metrics: Reuse the existing authentication and early-access lifecycle
+events; success is a matching Google identity reaching workspace activation without an invitation-
+email mismatch or private-release rejection.
+
+Logs, metrics, dashboards, and alerts: Add bounded structured success/mismatch events without logging
+the invitation token, Google access token, or email address; no new dashboard is required for this
+initial cohort.
+
+User, API, internal, and operational documentation: Updated this plan, the early-access runbook,
+release notes, and public getting-started copy.
+
+Validation evidence: Core OAuth-state unit tests, Rust formatting/tests, Client lint/build, and manual
+OAuth smoke testing with matching and mismatching Google accounts before release.
+
+Rollback or disable plan: Set `EARLY_ACCESS_SELF_SERVICE_ENABLED=false` to stop new early-access
+activation; revert the application artifact if the OAuth change must be removed. No migration rollback
+is required.
+
+Post-release review date: Review after the first 20 activated applicants or 30 days, whichever comes
+later.
+
 This plan supersedes the operator-provisioning portions of the completed
 `docs/plans/completed/EARLY_ACCESS_IMPLEMENTATION_PLAN.md`.
 
@@ -91,7 +130,8 @@ failures do not erase the approval decision.
 4. The applicant receives an **Early access approved** email containing a seven-day link.
 5. The link opens an invitation-aware authentication route:
    - a new user creates an account with the invited email fixed;
-   - an existing user signs in, and the authenticated email must match the invitation.
+   - an existing user signs in, and the authenticated email must match the invitation;
+   - a user can continue with Google, and the Google email must match the invitation.
 6. The applicant creates a workspace or selects a workspace they own or administer.
 7. Core atomically consumes the token, links the application to the workspace, grants the
    `beta-2026-01` package once, and marks the application active.
@@ -222,6 +262,7 @@ revoke is idempotent. Never store or log the raw token after the email payload i
 - [x] Permit private-release signup only with a valid unexpired early-access token.
 - [x] Lock new-account signup to the invited email and verify token ownership server-side.
 - [x] Route existing accounts through sign-in and require an email match.
+- [x] Support invitation-bound Google account creation/sign-in and preserve the token through OAuth.
 - [x] Support an authenticated user with no organisation without loading organisation-dependent
       product APIs.
 - [x] Add an organisation-less onboarding route for workspace creation or selection.
@@ -244,6 +285,7 @@ revoke is idempotent. Never store or log the raw token after the email payload i
 - [ ] Add resend guidance without exposing whether an arbitrary email is approved.
 - [x] Add workspace create/select UI before entering the organisation-scoped application shell.
 - [x] Preserve form input across validation failures and disable duplicate submissions.
+- [x] Return Google cancellation, invitation expiry, and Google-email mismatch to the invitation page.
 
 ### 6. Credits, plans, and conversion
 
@@ -292,6 +334,7 @@ Add versioned Analytics contracts, using the existing registry and outbox, for t
 - invitation created, delivery succeeded, delivery failed, resent, expired, or revoked;
 - invitation opened and redeemed;
 - account created or existing account authenticated from an invitation;
+- Google account created or existing Google account authenticated from an invitation;
 - workspace created or selected;
 - beta package activated;
 - onboarding completed;

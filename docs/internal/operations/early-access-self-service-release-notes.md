@@ -12,6 +12,8 @@ Status: unreleased
 ## Applicant
 
 - New applicants create their own account and workspace from the invitation link.
+- New applicants can create or authenticate their account with Google; the Google email must match
+  the approved invitation email.
 - Existing applicants sign in with the approved email, then select an owned/administered workspace
   or create a new one.
 - A successful activation applies the fixed `beta-2026-01` package: 30 days, 1,000 credits, and
@@ -24,3 +26,4 @@ Status: unreleased
   approval and redemption without removing records.
 - Record the final platform release ID, commit SHA, artifact versions, and migration result before
   production deployment.
+- No migration is required for the invitation-bound Google OAuth state change.

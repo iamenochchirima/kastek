@@ -34,8 +34,9 @@ workspace and does not stack with the ordinary workspace trial grant.
 1. Open **Early access** in Admin and select one or more applications in `new`.
 2. Select **Approve** or **Approve selected**. Core stores each approval and sends an invitation
    link. Admin never creates the applicant account or workspace.
-3. The applicant uses the email link to create an account or sign in, then creates a workspace or
-   selects a workspace where they are an owner or admin.
+3. The applicant uses the email link to create an account, continue with Google, or sign in, then
+   creates a workspace or selects a workspace where they are an owner or admin. Google sign-in is
+   accepted only when the Google email matches the approved invitation email.
 4. Core consumes the invitation, applies the beta package, and marks the application active.
 5. Use **Resend invite** after a delivery failure or expiry. Resending revokes the previous
    pending token and creates a fresh seven-day token.
@@ -60,6 +61,10 @@ The raw token is never shown in Admin, stored in the application record, or writ
   signup accepts only a valid early-access token.
 - **The applicant already has an account:** choose **Already have an account? Sign in** on the
   invitation page. After sign-in, the account email must match the invitation.
+- **Google sign-in returns an email mismatch:** sign out of Google or choose the Google account that
+  matches the approved invitation email. The invitation remains unused.
+- **Google sign-in was cancelled:** reopen the invitation link and choose Google again or use the
+  password form.
 - **No workspace is listed:** the applicant can choose **Create a new workspace**. Existing
   workspaces are listed only when the signed-in account owns or administers them.
 - **The selected workspace is rejected:** the workspace must belong to the signed-in applicant

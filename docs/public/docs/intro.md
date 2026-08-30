@@ -47,7 +47,7 @@ surfaces that are not yet backed by a supported implementation.
 
 KasiTek is currently in beta. Businesses can [apply for early access](https://kasitek.co.za/early-access).
 Applications are reviewed before a seven-day, single-use invitation is issued. The applicant
-creates an account, then creates or selects a workspace. Redeeming the invitation activates the
+creates an account with a password or Google, then creates or selects a workspace. Redeeming the invitation activates the
 30-day `beta-2026-01` package with 1,000 credits and the approved beta capabilities. The beta label
 does not grant access by itself.
 

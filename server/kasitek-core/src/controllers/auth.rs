@@ -1,6 +1,10 @@
-use actix_web::{web, HttpRequest, HttpResponse};
+use actix_web::{
+    cookie::{Cookie, SameSite},
+    web, HttpRequest, HttpResponse,
+};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::collections::HashMap;
 
@@ -17,6 +21,8 @@ use crate::services::auth::{
 use crate::services::early_access;
 use crate::services::orgs;
 use crate::services::referrals;
+
+const EARLY_ACCESS_OAUTH_TOKEN_COOKIE: &str = "kasitek_early_access_oauth_token";
 
 fn auth_server_base_url(config: &AppConfig) -> String {
     std::env::var("API_BASE_URL").unwrap_or_else(|_| config.public_api_url.clone())
@@ -36,6 +42,103 @@ fn invitation_required_redirect(config: &AppConfig) -> HttpResponse {
 
 fn google_redirect_uri(config: &AppConfig) -> String {
     format!("{}/api/auth/google/callback", auth_server_base_url(config))
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct GoogleOAuthState {
+    callback_path: String,
+    #[serde(default)]
+    early_access_token_hash: Option<String>,
+}
+
+fn parse_google_oauth_state(payload: &str) -> GoogleOAuthState {
+    serde_json::from_str(payload).unwrap_or_else(|_| GoogleOAuthState {
+        // Keep accepting states created before the state payload included a
+        // flow type. They expire quickly and are only used for the ordinary
+        // login/signup redirect.
+        callback_path: payload.to_string(),
+        early_access_token_hash: None,
+    })
+}
+
+fn early_access_callback_path(token: &str) -> String {
+    format!("/early-access/{}", urlencoding::encode(token))
+}
+
+fn early_access_oauth_redirect(config: &AppConfig, token: &str, error_code: &str) -> HttpResponse {
+    let target = format!(
+        "{}/early-access/{}?error={}",
+        config.frontend_url.trim_end_matches('/'),
+        urlencoding::encode(token),
+        urlencoding::encode(error_code),
+    );
+    HttpResponse::Found()
+        .append_header(("Location", target))
+        .cookie(clear_early_access_oauth_cookie(config))
+        .finish()
+}
+
+fn clear_early_access_oauth_cookie(config: &AppConfig) -> Cookie<'static> {
+    let mut cookie = Cookie::build(EARLY_ACCESS_OAUTH_TOKEN_COOKIE, "")
+        .path("/")
+        .http_only(true)
+        .same_site(if config.is_production() {
+            SameSite::None
+        } else {
+            SameSite::Lax
+        })
+        .secure(config.is_production())
+        .max_age(actix_web::cookie::time::Duration::seconds(0))
+        .finish();
+    if let Ok(domain) = std::env::var("COOKIE_DOMAIN") {
+        cookie.set_domain(domain);
+    }
+    cookie
+}
+
+fn build_early_access_oauth_cookie(config: &AppConfig, token: &str) -> Cookie<'static> {
+    let mut cookie = Cookie::build(EARLY_ACCESS_OAUTH_TOKEN_COOKIE, token.to_string())
+        .path("/")
+        .http_only(true)
+        .same_site(if config.is_production() {
+            SameSite::None
+        } else {
+            SameSite::Lax
+        })
+        .secure(config.is_production())
+        .max_age(actix_web::cookie::time::Duration::minutes(10))
+        .finish();
+    if let Ok(domain) = std::env::var("COOKIE_DOMAIN") {
+        cookie.set_domain(domain);
+    }
+    cookie
+}
+
+fn google_oauth_error_redirect(
+    config: &AppConfig,
+    state: &GoogleOAuthState,
+    token: Option<&str>,
+    error_code: &str,
+) -> HttpResponse {
+    if let Some(token) = token {
+        return early_access_oauth_redirect(config, token, error_code);
+    }
+
+    let mut response = HttpResponse::Found();
+    response.append_header((
+        "Location",
+        format!(
+            "{}/auth-error?code={}",
+            config.frontend_url.trim_end_matches('/'),
+            urlencoding::encode(error_code)
+        ),
+    ));
+    if state.early_access_token_hash.is_some() {
+        return response
+            .cookie(clear_early_access_oauth_cookie(config))
+            .finish();
+    }
+    response.finish()
 }
 
 fn referral_code_from_callback(callback_path: &str) -> Option<String> {
@@ -373,11 +476,46 @@ pub async fn start_google_oauth(
     let client_id = std::env::var("GOOGLE_CLIENT_ID")
         .or_else(|_| std::env::var("AUTH_GOOGLE_ID"))
         .map_err(|_| AppError::Internal("Missing Google OAuth client id".to_string()))?;
-    let callback_url = query
-        .get("callbackUrl")
+    let early_access_token = query
+        .get("earlyAccessToken")
         .map(|value| value.trim())
         .filter(|value| !value.is_empty())
-        .unwrap_or("/dashboard");
+        .map(str::to_string);
+    if early_access_token.is_some() && !config.early_access_self_service_enabled {
+        return Err(AppError::Conflict(
+            "Early-access self-service is temporarily unavailable".to_string(),
+        ));
+    }
+
+    if let Some(token) = early_access_token.as_deref() {
+        let invitation = early_access::signup_invitation_preview(pool.get_ref(), token).await?;
+        if invitation.status != "pending" {
+            return Err(AppError::Forbidden(
+                "This early-access invitation is not available".to_string(),
+            ));
+        }
+        if invitation.expires_at <= chrono::Utc::now() {
+            return Err(AppError::Forbidden(
+                "This early-access invitation has expired".to_string(),
+            ));
+        }
+    }
+
+    let callback_path = if early_access_token.is_some() {
+        "/early-access".to_string()
+    } else {
+        query
+            .get("callbackUrl")
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| "/dashboard".to_string())
+    };
+    let state_payload = serde_json::to_string(&GoogleOAuthState {
+        callback_path,
+        early_access_token_hash: early_access_token.as_deref().map(crypto_utils::sha256_hex),
+    })
+    .map_err(|_| AppError::Internal("Could not create OAuth state".to_string()))?;
     let state = cuid2::create_id();
     let identifier = format!("google-oauth-state:{state}");
     sqlx::query(r#"DELETE FROM "VerificationToken" WHERE identifier = $1"#)
@@ -391,7 +529,7 @@ pub async fn start_google_oauth(
         "#,
     )
     .bind(&identifier)
-    .bind(callback_url)
+    .bind(state_payload)
     .execute(pool.get_ref())
     .await?;
 
@@ -402,14 +540,18 @@ pub async fn start_google_oauth(
         urlencoding::encode("openid email profile"),
         urlencoding::encode(&state)
     );
-    Ok(HttpResponse::Found()
-        .append_header(("Location", authorize_url))
-        .finish())
+    let mut response = HttpResponse::Found();
+    response.append_header(("Location", authorize_url));
+    if let Some(token) = early_access_token.as_deref() {
+        response.cookie(build_early_access_oauth_cookie(config.get_ref(), token));
+    }
+    Ok(response.finish())
 }
 
 pub async fn google_oauth_callback(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
+    req: HttpRequest,
     query: web::Query<HashMap<String, String>>,
 ) -> Result<HttpResponse, AppError> {
     let state = query
@@ -417,13 +559,8 @@ pub async fn google_oauth_callback(
         .map(|value| value.trim())
         .filter(|value| !value.is_empty())
         .ok_or_else(|| AppError::BadRequest("Missing OAuth state".to_string()))?;
-    let code = query
-        .get("code")
-        .map(|value| value.trim())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::BadRequest("Missing Google OAuth code".to_string()))?;
     let state_identifier = format!("google-oauth-state:{state}");
-    let callback_path = sqlx::query_scalar::<_, String>(
+    let state_payload = sqlx::query_scalar::<_, String>(
         r#"
         DELETE FROM "VerificationToken"
         WHERE identifier = $1 AND expires > NOW()
@@ -434,6 +571,46 @@ pub async fn google_oauth_callback(
     .fetch_optional(pool.get_ref())
     .await?
     .ok_or_else(|| AppError::BadRequest("Invalid or expired OAuth state".to_string()))?;
+    let oauth_state = parse_google_oauth_state(&state_payload);
+    let callback_path = oauth_state.callback_path.clone();
+    let early_access_token =
+        if let Some(expected_hash) = oauth_state.early_access_token_hash.as_deref() {
+            let token = req
+                .cookie(EARLY_ACCESS_OAUTH_TOKEN_COOKIE)
+                .map(|cookie| cookie.value().to_string());
+            match token {
+                Some(token) if crypto_utils::sha256_hex(&token) == expected_hash => Some(token),
+                _ => {
+                    return Ok(google_oauth_error_redirect(
+                        config.get_ref(),
+                        &oauth_state,
+                        None,
+                        "invitation_unavailable",
+                    ));
+                }
+            }
+        } else {
+            None
+        };
+
+    if query.get("error").is_some() {
+        return Ok(google_oauth_error_redirect(
+            config.get_ref(),
+            &oauth_state,
+            early_access_token.as_deref(),
+            if early_access_token.is_some() {
+                "google_cancelled"
+            } else {
+                "GOOGLE_SIGN_IN_CANCELLED"
+            },
+        ));
+    }
+
+    let code = query
+        .get("code")
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadRequest("Missing Google OAuth code".to_string()))?;
 
     let client_id = std::env::var("GOOGLE_CLIENT_ID")
         .or_else(|_| std::env::var("AUTH_GOOGLE_ID"))
@@ -489,6 +666,50 @@ pub async fn google_oauth_callback(
         .map(str::trim)
         .filter(|value| !value.is_empty());
 
+    let early_access_flow = if let Some(token) = early_access_token.as_deref() {
+        let invitation = match early_access::signup_invitation_preview(pool.get_ref(), token).await
+        {
+            Ok(invitation) => invitation,
+            Err(AppError::NotFound(_)) => {
+                return Ok(early_access_oauth_redirect(
+                    config.get_ref(),
+                    token,
+                    "invitation_unavailable",
+                ));
+            }
+            Err(error) => return Err(error),
+        };
+        if invitation.status != "pending" || invitation.expires_at <= chrono::Utc::now() {
+            return Ok(early_access_oauth_redirect(
+                config.get_ref(),
+                token,
+                "invitation_unavailable",
+            ));
+        }
+        if !invitation.email.eq_ignore_ascii_case(&email) {
+            observability::tracing::warn!(
+                event = "auth.google.denied",
+                provider = "google",
+                reason = "early_access_email_mismatch",
+                "Google account did not match the early-access invitation"
+            );
+            return Ok(early_access_oauth_redirect(
+                config.get_ref(),
+                token,
+                "google_email_mismatch",
+            ));
+        }
+        observability::tracing::info!(
+            event = "auth.google.early_access",
+            provider = "google",
+            outcome = "email_match",
+            "Google account matched an early-access invitation"
+        );
+        true
+    } else {
+        false
+    };
+
     let existing_linked_user = sqlx::query_scalar::<_, String>(
         r#"SELECT "userId" FROM "Account" WHERE provider = 'google' AND "providerAccountId" = $1 LIMIT 1"#,
     )
@@ -525,7 +746,7 @@ pub async fn google_oauth_callback(
         .fetch_optional(pool.get_ref())
         .await?;
         let user_id = if let Some((existing_user_id, has_password)) = existing_user {
-            if config.private_release_mode && !has_password {
+            if config.private_release_mode && !has_password && !early_access_flow {
                 let has_membership = sqlx::query_scalar::<_, bool>(
                     r#"SELECT EXISTS(
                          SELECT 1 FROM "OrganizationMember" WHERE "userId" = $1
@@ -575,7 +796,7 @@ pub async fn google_oauth_callback(
             .await?;
             existing_user_id
         } else {
-            if config.private_release_mode {
+            if config.private_release_mode && !early_access_flow {
                 observability::tracing::warn!(
                     event = "auth.google.denied",
                     provider = "google",
@@ -599,24 +820,28 @@ pub async fn google_oauth_callback(
             .execute(pool.get_ref())
             .await?;
 
-            // Public signup mode creates a personal organisation for new Google users.
-            let org_name = name
-                .filter(|n| !n.is_empty())
-                .map(|n| format!("{}'s Workspace", n))
-                .unwrap_or_else(|| "My Workspace".to_string());
-            let base_slug = orgs::slugify(&new_user_id);
-            if let Ok(org) = orgs::create_org(
-                pool.get_ref(),
-                &new_user_id,
-                &org_name,
-                &base_slug,
-                None,
-                config.trial_credits,
-                config.trial_duration_days,
-            )
-            .await
-            {
-                created_org_id = Some(org.id);
+            // Ordinary public signup creates a personal organisation. Early
+            // access deliberately waits for the invitation page so the user
+            // can choose or create the workspace there.
+            if !early_access_flow {
+                let org_name = name
+                    .filter(|n| !n.is_empty())
+                    .map(|n| format!("{}'s Workspace", n))
+                    .unwrap_or_else(|| "My Workspace".to_string());
+                let base_slug = orgs::slugify(&new_user_id);
+                if let Ok(org) = orgs::create_org(
+                    pool.get_ref(),
+                    &new_user_id,
+                    &org_name,
+                    &base_slug,
+                    None,
+                    config.trial_credits,
+                    config.trial_duration_days,
+                )
+                .await
+                {
+                    created_org_id = Some(org.id);
+                }
             }
 
             new_user_id
@@ -658,7 +883,13 @@ pub async fn google_oauth_callback(
     }
 
     let session_token = create_session(pool.get_ref(), &user_id).await?;
-    let target = if callback_path.starts_with("http://") || callback_path.starts_with("https://") {
+    let target = if let Some(token) = early_access_token.as_deref() {
+        format!(
+            "{}{}",
+            config.frontend_url.trim_end_matches('/'),
+            early_access_callback_path(token)
+        )
+    } else if callback_path.starts_with("http://") || callback_path.starts_with("https://") {
         callback_path
     } else {
         format!(
@@ -669,8 +900,39 @@ pub async fn google_oauth_callback(
     };
     Ok(HttpResponse::Found()
         .cookie(config.build_user_session_cookie(&session_token))
+        .cookie(clear_early_access_oauth_cookie(config.get_ref()))
         .append_header(("Location", target))
         .finish())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_google_oauth_state, GoogleOAuthState};
+
+    #[test]
+    fn google_oauth_state_preserves_early_access_context() {
+        let state = GoogleOAuthState {
+            callback_path: "/early-access".to_string(),
+            early_access_token_hash: Some(crypto_utils::sha256_hex("invitation-token")),
+        };
+        let payload = serde_json::to_string(&state).expect("state should serialize");
+        let parsed = parse_google_oauth_state(&payload);
+
+        assert!(!payload.contains("invitation-token"));
+        assert_eq!(parsed.callback_path, state.callback_path);
+        assert_eq!(
+            parsed.early_access_token_hash,
+            state.early_access_token_hash
+        );
+    }
+
+    #[test]
+    fn google_oauth_state_accepts_previous_callback_only_payloads() {
+        let parsed = parse_google_oauth_state("/workspace");
+
+        assert_eq!(parsed.callback_path, "/workspace");
+        assert!(parsed.early_access_token_hash.is_none());
+    }
 }
 
 pub async fn account_check(
