@@ -18,7 +18,6 @@ import {
   Unplug,
   X as CloseIcon,
 } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -429,8 +428,11 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                       </div>
                     </div>
                   </div>
-                  <Button asChild className="w-full">
-                    <Link href="/api/social/oauth/meta/start?target=facebook">Continue to Meta</Link>
+                  <Button
+                    className="w-full"
+                    onClick={() => startOAuthConnection("/api/social/oauth/meta/start?target=facebook")}
+                  >
+                    Continue to Meta
                   </Button>
                   <p className="text-xs text-muted-foreground">
                     Only Facebook Pages returned by this connection flow will be added to the Facebook section.
@@ -438,9 +440,10 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <Link
-                    href="/api/social/oauth/instagram/start"
-                    className="block rounded-lg border p-4 transition-colors hover:border-primary/60 hover:bg-secondary/40"
+                  <button
+                    type="button"
+                    onClick={() => startOAuthConnection("/api/social/oauth/instagram/start")}
+                    className="block w-full rounded-lg border p-4 text-left transition-colors hover:border-primary/60 hover:bg-secondary/40"
                   >
                     <div className="flex items-start gap-3">
                       <div className="rounded-md border bg-secondary p-2"><InstagramBrandIcon className={`h-5 w-5 ${getPlatformBrandColor("INSTAGRAM")}`} /></div>
@@ -451,11 +454,12 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                         </p>
                       </div>
                     </div>
-                  </Link>
+                  </button>
 
-                  <Link
-                    href="/api/social/oauth/meta/start?target=instagram"
-                    className="block rounded-lg border p-4 transition-colors hover:border-primary/60 hover:bg-secondary/40"
+                  <button
+                    type="button"
+                    onClick={() => startOAuthConnection("/api/social/oauth/meta/start?target=instagram")}
+                    className="block w-full rounded-lg border p-4 text-left transition-colors hover:border-primary/60 hover:bg-secondary/40"
                   >
                     <div className="flex items-start gap-3">
                       <div className="rounded-md border bg-secondary p-2"><FacebookBrandIcon className={`h-5 w-5 ${getPlatformBrandColor("FACEBOOK")}`} /></div>
@@ -466,7 +470,7 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                         </p>
                       </div>
                     </div>
-                  </Link>
+                  </button>
 
                 </div>
               )}
@@ -543,8 +547,8 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                       <RefreshCw />Reconnect with Meta
                     </Button>
                   ) : selectedConnection.status !== "CONNECTED" && reconnectPath ? (
-                    <Button asChild size="sm">
-                      <Link href={reconnectPath}><RefreshCw />Reconnect</Link>
+                    <Button size="sm" onClick={() => startOAuthConnection(reconnectPath)}>
+                      <RefreshCw />Reconnect
                     </Button>
                   ) : null}
                   {selectedConnection.status === "CONNECTED" ? (
