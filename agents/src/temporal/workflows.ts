@@ -189,9 +189,18 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         continue;
       }
       if (result.status === "failed") {
-        await activities.failRun({ runId: input.runId, error: result.error ?? { code: "AGENT_LOOP_FAILED", message: "Agent loop failed" } });
+        const error = result.error ?? { code: "AGENT_LOOP_FAILED", message: "Agent loop failed" };
+        await activities.failRun({
+          runId: input.runId,
+          error: error.userMessage
+            ? error
+            : {
+              ...error,
+              userMessage: "I couldn't complete that request. Please try again.",
+            },
+        });
         status = "failed";
-        if (result.error?.userMessage) await activities.deliverRunReply({ runId: input.runId });
+        await activities.deliverRunReply({ runId: input.runId });
         return;
       }
       if (result.status === "limited") {

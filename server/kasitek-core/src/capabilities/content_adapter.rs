@@ -66,9 +66,44 @@ async fn connected_channel_by_id(
     .map_err(AppError::from)
 }
 
+async fn connected_channel_by_selector(
+    pool: &PgPool,
+    organization_id: &str,
+    platform: &str,
+    selector: &str,
+) -> Result<Option<String>, AppError> {
+    sqlx::query_scalar::<_, String>(
+        r#"SELECT id
+           FROM "SocialChannelConnection"
+           WHERE "orgId" = $1
+             AND platform = CAST($2 AS "SocialPlatform")
+             AND status = 'CONNECTED'::"SocialChannelStatus"
+             AND (
+                 id = $3
+                 OR lower(trim(coalesce(handle, ''))) = lower(trim($3))
+                 OR lower(trim("displayName")) = lower(trim($3))
+             )
+           ORDER BY
+             CASE
+                 WHEN id = $3 THEN 0
+                 WHEN lower(trim(coalesce(handle, ''))) = lower(trim($3)) THEN 1
+                 ELSE 2
+             END,
+             "updatedAt" DESC,
+             "createdAt" DESC
+           LIMIT 1"#,
+    )
+    .bind(organization_id)
+    .bind(platform)
+    .bind(selector)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::from)
+}
+
 /// Agent requests use platform names from natural language (for example,
-/// `bluesky`). Core persists the canonical enum spelling and can choose the
-/// newest connected account when an agent did not provide an account id.
+/// `bluesky`). Account selectors may be connection ids, handles, or display
+/// names; Core resolves them to the internal channel id before persistence.
 async fn prepare_agent_content_request(
     pool: &PgPool,
     organization_id: &str,
@@ -111,26 +146,16 @@ async fn prepare_agent_content_request(
             }
 
             let selected = selections.get(platform).cloned();
-            let selected_is_valid = match selected.as_deref() {
-                Some(channel_id) => sqlx::query_scalar::<_, String>(
-                    r#"SELECT id
-                       FROM "SocialChannelConnection"
-                       WHERE id = $1
-                         AND "orgId" = $2
-                         AND platform = CAST($3 AS "SocialPlatform")
-                         AND status = 'CONNECTED'::"SocialChannelStatus"
-                       LIMIT 1"#,
-                )
-                .bind(channel_id)
-                .bind(organization_id)
-                .bind(platform)
-                .fetch_optional(pool)
-                .await?
-                .is_some(),
-                None => false,
+            let resolved = match selected.as_deref() {
+                Some(selector) => {
+                    connected_channel_by_selector(pool, organization_id, platform, selector).await?
+                }
+                None => None,
             };
 
-            if !selected_is_valid {
+            if let Some(channel_id) = resolved {
+                selections.insert(platform.clone(), channel_id);
+            } else {
                 selections.remove(platform);
                 if let Some(channel_id) =
                     newest_connected_channel(pool, organization_id, platform).await?

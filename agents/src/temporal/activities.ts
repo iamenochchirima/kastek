@@ -70,6 +70,38 @@ export function normalizeConnectionFilter(value: unknown): string | undefined {
   return normalized && normalized.toLowerCase() !== "all" ? normalized : undefined;
 }
 
+type ChannelSelectionObject = {
+  id?: unknown;
+  channelId?: unknown;
+  handle?: unknown;
+  displayName?: unknown;
+};
+
+function normalizeChannelSelection(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    return normalized || undefined;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const selection = value as ChannelSelectionObject;
+  for (const key of ["channelId", "id", "handle", "displayName"] as const) {
+    if (typeof selection[key] !== "string") continue;
+    const normalized = selection[key].trim();
+    if (normalized) return normalized;
+  }
+  return undefined;
+}
+
+function normalizeChannelSelections(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const normalized = Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .map(([platform, selection]) => [platform, normalizeChannelSelection(selection)] as const)
+      .filter((entry): entry is readonly [string, string] => Boolean(entry[1])),
+  );
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
 function pricingFromConfig(config?: AppConfig): Record<string, ModelPricing> {
   if (!config?.MODEL_PRICING_JSON) return {};
   try {
@@ -844,7 +876,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
   tools.register({
     name: "kasitek.core.content_post_update",
     version: "1.0.0",
-    description: "Update a workspace content draft without publishing it. Use media assetId values from attached workspace media to keep user-provided images on the draft.",
+    description: "Update a workspace content draft without publishing it. Use media assetId values from attached workspace media to keep user-provided images on the draft. Select accounts with a connection id, handle, display name, or account object.",
     riskClass: "draft",
     requiresApproval: false,
     timeoutMs: 15_000,
@@ -857,7 +889,25 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
         content: { type: "string", minLength: 1, maxLength: 100_000 },
         channels: { type: "array", items: { type: "string", minLength: 1, maxLength: 80 }, minItems: 1, maxItems: 20 },
         primaryChannelId: { type: "string", minLength: 1, maxLength: 160 },
-        channelSelections: { type: "object", additionalProperties: { type: "string", minLength: 1, maxLength: 160 } },
+        channelSelections: {
+          type: "object",
+          additionalProperties: {
+            oneOf: [
+              { type: "string", minLength: 1, maxLength: 160 },
+              {
+                type: "object",
+                properties: {
+                  id: { type: "string", minLength: 1, maxLength: 160 },
+                  channelId: { type: "string", minLength: 1, maxLength: 160 },
+                  handle: { type: "string", minLength: 1, maxLength: 160 },
+                  displayName: { type: "string", minLength: 1, maxLength: 160 },
+                },
+                minProperties: 1,
+                additionalProperties: false,
+              },
+            ],
+          },
+        },
         variants: { type: "array", items: { type: "object" }, maxItems: 20 },
         media: {
           type: "array",
@@ -888,7 +938,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
         content: typeof args.content === "string" ? args.content : undefined,
         channels: Array.isArray(args.channels) ? args.channels.map(String) : undefined,
         primaryChannelId: typeof args.primaryChannelId === "string" ? args.primaryChannelId : undefined,
-        channelSelections: args.channelSelections && typeof args.channelSelections === "object" ? args.channelSelections as Record<string, string> : undefined,
+        channelSelections: normalizeChannelSelections(args.channelSelections),
         variants: Array.isArray(args.variants) ? args.variants as Array<{ platform: string; content: string; status?: string; aiGenerated?: boolean; metadata?: Record<string, unknown> }> : undefined,
         media: Array.isArray(args.media) ? args.media as Array<{ assetId: string; sortOrder?: number; altText?: string }> : undefined,
         metadata: args.metadata && typeof args.metadata === "object" ? args.metadata as Record<string, unknown> : undefined,
@@ -898,7 +948,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
   tools.register({
     name: "kasitek.core.content_post_draft",
     version: "1.0.0",
-    description: "Create a workspace content draft without publishing it to any provider. When the user supplied attached workspace media, include its assetId in media.",
+    description: "Create a workspace content draft without publishing it to any provider. When the user supplied attached workspace media, include its assetId in media. Select accounts with a connection id, handle, display name, or account object.",
     riskClass: "draft",
     requiresApproval: false,
     timeoutMs: 15_000,
@@ -910,7 +960,25 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
         content: { type: "string", minLength: 1, maxLength: 100_000 },
         channels: { type: "array", items: { type: "string", minLength: 1, maxLength: 80 }, minItems: 1, maxItems: 20 },
         primaryChannelId: { type: "string", minLength: 1, maxLength: 160 },
-        channelSelections: { type: "object", additionalProperties: { type: "string", minLength: 1, maxLength: 160 } },
+        channelSelections: {
+          type: "object",
+          additionalProperties: {
+            oneOf: [
+              { type: "string", minLength: 1, maxLength: 160 },
+              {
+                type: "object",
+                properties: {
+                  id: { type: "string", minLength: 1, maxLength: 160 },
+                  channelId: { type: "string", minLength: 1, maxLength: 160 },
+                  handle: { type: "string", minLength: 1, maxLength: 160 },
+                  displayName: { type: "string", minLength: 1, maxLength: 160 },
+                },
+                minProperties: 1,
+                additionalProperties: false,
+              },
+            ],
+          },
+        },
         variants: { type: "array", items: { type: "object" }, maxItems: 20 },
         media: {
           type: "array",
@@ -941,7 +1009,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
         content: String(args.content),
         channels: Array.isArray(args.channels) ? args.channels.map(String) : [],
         primaryChannelId: typeof args.primaryChannelId === "string" ? args.primaryChannelId : undefined,
-        channelSelections: args.channelSelections && typeof args.channelSelections === "object" ? args.channelSelections as Record<string, string> : undefined,
+        channelSelections: normalizeChannelSelections(args.channelSelections),
         variants: Array.isArray(args.variants) ? args.variants as Array<{ platform: string; content: string; status?: string; aiGenerated?: boolean; metadata?: Record<string, unknown> }> : undefined,
         media: Array.isArray(args.media) ? args.media as Array<{ assetId: string; sortOrder?: number; altText?: string }> : undefined,
         metadata: args.metadata && typeof args.metadata === "object" ? args.metadata as Record<string, unknown> : undefined,

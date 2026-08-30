@@ -1238,7 +1238,7 @@ Read provider-reported performance and growth for one published workspace post.
 ```
 ## kasitek.core.content_post_update (1.0.0)
 
-Update a workspace content draft without publishing it. Use media assetId values from attached workspace media to keep user-provided images on the draft.
+Update a workspace content draft without publishing it. Use media assetId values from attached workspace media to keep user-provided images on the draft. Select accounts with a connection id, handle, display name, or account object.
 
 - Owner: `kasitek-core`
 - Permission: `content.write` (Content Write permission)
@@ -1289,9 +1289,40 @@ Update a workspace content draft without publishing it. Use media assetId values
     "channelSelections": {
       "type": "object",
       "additionalProperties": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 160
+        "oneOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "channelId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "handle": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "displayName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            },
+            "minProperties": 1,
+            "additionalProperties": false
+          }
+        ]
       }
     },
     "variants": {
@@ -1352,7 +1383,7 @@ Update a workspace content draft without publishing it. Use media assetId values
 ```
 ## kasitek.core.content_post_draft (1.0.0)
 
-Create a workspace content draft without publishing it to any provider. When the user supplied attached workspace media, include its assetId in media.
+Create a workspace content draft without publishing it to any provider. When the user supplied attached workspace media, include its assetId in media. Select accounts with a connection id, handle, display name, or account object.
 
 - Owner: `kasitek-core`
 - Permission: `content.write` (Content Write permission)
@@ -1397,9 +1428,40 @@ Create a workspace content draft without publishing it to any provider. When the
     "channelSelections": {
       "type": "object",
       "additionalProperties": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 160
+        "oneOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "channelId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "handle": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "displayName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            },
+            "minProperties": 1,
+            "additionalProperties": false
+          }
+        ]
       }
     },
     "variants": {

@@ -199,6 +199,15 @@ describe("content capability contract", () => {
     expect(registry.validateArguments("kasitek.core.content_posts_list", { unexpected: true })).toBe(false);
     expect(registry.validateArguments("kasitek.core.content_post_get", { postId: "post-1" })).toBe(true);
     expect(registry.validateArguments("kasitek.core.content_post_get", {})).toBe(false);
+    expect(registry.validateArguments("kasitek.core.content_post_update", {
+      postId: "post-1",
+      channels: ["INSTAGRAM"],
+      channelSelections: { INSTAGRAM: { handle: "@kasiteklabs", displayName: "KasiTek" } },
+    })).toBe(true);
+    expect(registry.validateArguments("kasitek.core.content_post_update", {
+      postId: "post-1",
+      channelSelections: { INSTAGRAM: { accountName: "KasiTek" } },
+    })).toBe(false);
     expect(registry.validateArguments("kasitek.core.content_post_draft", { content: "Draft", channels: ["threads"] })).toBe(true);
     expect(registry.validateArguments("kasitek.core.content_post_draft", { content: "Draft", channels: ["threads"], media: [{ assetId: "asset-1", altText: "Launch artwork" }] })).toBe(true);
     expect(registry.validateArguments("kasitek.core.content_post_draft", { content: "Draft", channels: ["threads"], media: [{ altText: "Missing asset" }] })).toBe(false);
@@ -207,6 +216,28 @@ describe("content capability contract", () => {
     expect(registry.validateArguments("kasitek.core.content_post_publish", { postId: "post-1" })).toBe(false);
     expect(registry.validateArguments("kasitek.core.content_post_schedule", { postId: "post-1", scheduledFor: "2026-08-15T12:00:00.000Z" })).toBe(true);
     expect(registry.validateArguments("kasitek.core.content_post_schedule", { postId: "post-1", scheduledFor: "tomorrow" })).toBe(false);
+  });
+
+  it("normalizes account identity objects before sending content writes to Core", async () => {
+    const updateContentDraft = vi.fn(async () => ({ post: { id: "post-1", content: "Updated" } }));
+    const tools = createDefaultTools({ updateContentDraft } as never);
+    const toolName = "kasitek.core.content_post_update";
+
+    await tools.invoke({
+      name: toolName,
+      arguments: {
+        postId: "post-1",
+        channels: ["INSTAGRAM"],
+        channelSelections: { INSTAGRAM: { handle: "@kasiteklabs", displayName: "KasiTek" } },
+      },
+      context,
+      grantedTools: new Set([toolName]),
+    });
+
+    expect(updateContentDraft).toHaveBeenCalledWith(context, "post-1", expect.objectContaining({
+      channels: ["INSTAGRAM"],
+      channelSelections: { INSTAGRAM: "@kasiteklabs" },
+    }));
   });
 
   it("enforces grants and approval before any content handler is invoked", async () => {
