@@ -12,7 +12,11 @@ import { apiUrl } from "@/lib/server-api";
 import { MotionReveal } from "@/components/ui/motion-reveal";
 import { getPlatformBrandColor, getPlatformBrandIcon } from "@/lib/platform-icons";
 import {
+  Ban,
   Bot,
+  CircleAlert,
+  CircleCheck,
+  LoaderCircle,
   MessageCircle,
   Radio,
   RefreshCw,
@@ -119,20 +123,23 @@ function statusPresentation(status: WorkspaceConnection["status"]) {
   }
 }
 
+function statusIcon(status: WorkspaceConnection["status"]) {
+  switch (status) {
+    case "CONNECTED":
+      return CircleCheck;
+    case "NEEDS_ATTENTION":
+      return CircleAlert;
+    case "CONNECTING":
+      return LoaderCircle;
+    case "REVOKED":
+      return Ban;
+    default:
+      return Unplug;
+  }
+}
+
 function readableStatus(value: string) {
   return value.toLowerCase().replaceAll("_", " ");
-}
-
-function safeProviderDetails(metadata: Record<string, unknown> | null) {
-  if (!metadata) return [];
-
-  return Object.entries(metadata).filter(([key]) => !/(token|secret|password|credential)/i.test(key));
-}
-
-function formatDetail(value: unknown) {
-  if (value === null || value === undefined) return "—";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
 }
 
 function normalizeBlueskyHandle(value: string) {
@@ -352,12 +359,12 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
         {connections.length === 0 ? (
           <Card><CardContent className="py-6 text-sm text-muted-foreground">No accounts connected yet.</CardContent></Card>
         ) : (
-          <div className="space-y-7">
+          <div className="divide-y divide-border/70">
             {groupedConnections.map((group) => {
               const GroupIcon = group.detail.icon;
 
               return (
-                <section key={group.provider} className="space-y-3">
+                <section key={group.provider} className="space-y-3 py-6 first:pt-0 last:pb-0">
                   <div className="flex items-center gap-2">
                     <div className="rounded-md border bg-secondary p-1.5"><GroupIcon className={`h-4 w-4 ${group.detail.iconClass}`} /></div>
                     <h3 className="font-medium">{group.detail.label}</h3>
@@ -371,47 +378,50 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                       const detail = group.detail;
                       const Icon = detail?.icon ?? Radio;
                       const status = statusPresentation(connection.status);
+                      const StatusIcon = statusIcon(connection.status);
                       const isLinkedInPage = connection.provider === "LINKEDIN"
                         && connection.metadata?.accountType === "organization";
 
                       return (
-                        <MotionReveal key={connection.id} delay={0.08 + index * 0.05} hoverLift className="h-full">
+                        <MotionReveal key={connection.id} delay={0.08 + index * 0.05} hoverLift>
                         <Card
-                          className="group h-full cursor-pointer gap-0 overflow-hidden border-primary/20 bg-secondary/10 shadow-none transition-colors hover:border-primary/50 hover:bg-secondary/20"
+                          className="group cursor-pointer gap-0 rounded-lg border-primary/20 bg-secondary/10 !py-0 shadow-none transition-colors hover:border-primary/50 hover:bg-secondary/20"
                           onClick={() => setSelectedConnection(connection)}
                         >
-                          <div className="h-1 bg-primary/60" aria-hidden="true" />
-                          <CardContent className="flex min-h-32 flex-col justify-between gap-4 p-4">
-                            <div className="flex min-w-0 items-start justify-between gap-3">
-                              <div className="flex min-w-0 items-center gap-3">
-                                <div className="rounded-md border bg-background p-2"><Icon className={`h-4 w-4 ${detail?.iconClass ?? "text-muted-foreground"}`} /></div>
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-medium">{connection.displayName}</p>
-                                  {isLinkedInPage ? (
-                                    <p className="truncate text-xs text-muted-foreground">Company Page</p>
-                                  ) : connection.handle ? (
-                                    <p className="truncate text-xs text-muted-foreground">{connection.handle}</p>
-                                  ) : null}
-                                </div>
-                              </div>
-                              <Badge variant="outline" className={status.className}>{status.label}</Badge>
+                          <CardContent className="flex min-h-10 items-center gap-2 !p-1.5">
+                            <div className="rounded-md border bg-background p-1"><Icon className={`size-3.5 ${detail?.iconClass ?? "text-muted-foreground"}`} /></div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-xs">
+                                <span className="font-medium">{connection.displayName}</span>
+                                {isLinkedInPage ? (
+                                  <span className="text-muted-foreground"> · Company Page</span>
+                                ) : connection.handle ? (
+                                  <span className="text-muted-foreground"> · {connection.handle}</span>
+                                ) : null}
+                              </p>
                             </div>
-
-                            <div className="flex items-center justify-between gap-3 border-t border-border/70 pt-3">
-                              <span className="text-xs text-muted-foreground">Workspace account</span>
+                            <div className="flex shrink-0 items-center gap-1">
+                              <span
+                                className={`inline-flex size-6 items-center justify-center rounded-full border ${status.className}`}
+                                aria-label={status.label}
+                                title={status.label}
+                              >
+                                <StatusIcon className={`size-3 ${connection.status === "CONNECTING" ? "animate-spin" : ""}`} />
+                              </span>
                               <Button
                                 type="button"
                                 variant="ghost"
-                                size="sm"
-                                className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                size="icon-sm"
+                                className="size-6 text-destructive hover:bg-destructive/10 hover:text-destructive [&_svg]:size-3.5"
                                 disabled={pending !== null}
+                                aria-label={`Remove ${connection.displayName}`}
+                                title={`Remove ${connection.displayName}`}
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   void confirmStatusUpdate(connection, "DISCONNECTED");
                                 }}
                               >
-                                <Trash2 />
-                                {pending === `${connection.id}:DISCONNECTED` ? "Removing…" : "Remove"}
+                                <Trash2 className={pending === `${connection.id}:DISCONNECTED` ? "animate-pulse" : ""} />
                               </Button>
                             </div>
                           </CardContent>
@@ -582,7 +592,6 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
             const isLinkedInPage = selectedConnection.provider === "LINKEDIN"
               && selectedConnection.metadata?.accountType === "organization";
             const reconnectPath = providerDetail?.connectPath;
-            const metadataDetails = safeProviderDetails(selectedConnection.metadata);
             const rows = [
               ["Provider", providerDetail?.label ?? selectedConnection.provider],
               ["Account ID", selectedConnection.externalAccountId ?? "—"],
@@ -597,12 +606,9 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
 
             return (
               <div className="space-y-6">
-                <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 pr-8">
                     <div className="rounded-md border bg-secondary p-2"><Icon className={`h-5 w-5 ${providerDetail?.iconClass ?? "text-muted-foreground"}`} /></div>
                     <div><p className="font-semibold">{selectedConnection.displayName}</p><p className="text-sm text-muted-foreground">{isLinkedInPage ? "LinkedIn Company Page" : "Connection details"}</p></div>
-                  </div>
-                  <Button variant="ghost" size="icon-sm" onClick={() => setSelectedConnection(null)} aria-label="Close details"><CloseIcon /></Button>
                 </div>
 
                 <Badge variant="outline" className={status.className}>{status.label}</Badge>
@@ -614,8 +620,6 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                 <div><h3 className="mb-2 text-sm font-semibold">Workspace use</h3><div className="flex flex-wrap gap-1.5">{selectedConnection.consumers.length ? selectedConnection.consumers.map((item) => <Badge key={item} variant="secondary">{productLabels[item] ?? item}</Badge>) : <span className="text-sm text-muted-foreground">Not assigned to a workspace feature yet.</span>}</div></div>
 
                 <div><h3 className="mb-2 text-sm font-semibold">Capabilities</h3><div className="flex flex-wrap gap-1.5">{selectedConnection.capabilities.length ? selectedConnection.capabilities.map((capability) => <Badge key={capability.key} variant="outline" className={!capability.enabled ? "opacity-50" : ""}>{capability.key.toLowerCase().replaceAll("_", " ")}{capability.entitlementKey ? ` · ${capability.entitlementKey}` : ""}</Badge>) : <span className="text-sm text-muted-foreground">No capabilities reported.</span>}</div></div>
-
-                <div><h3 className="mb-2 text-sm font-semibold">Provider data</h3>{metadataDetails.length ? <div className="space-y-1 rounded-lg border p-3">{metadataDetails.map(([key, value]) => <div key={key} className="grid grid-cols-[8rem_1fr] gap-3 py-2 text-sm"><span className="break-all text-muted-foreground">{key}</span><span className="break-all font-medium">{formatDetail(value)}</span></div>)}</div> : <p className="text-sm text-muted-foreground">No additional provider data is stored.</p>}</div>
 
                 {selectedConnection.lastError ? <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{selectedConnection.lastError}</div> : null}
 
