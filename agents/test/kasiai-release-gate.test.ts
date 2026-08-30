@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { AppConfig } from "../src/config";
+import { kasiaiInitialVersion } from "../src/system/kasiai";
 import { evaluateKasiAiRelease } from "../src/system/kasiai-release-gate";
 
 const safeVersion = {
@@ -8,6 +10,16 @@ const safeVersion = {
 };
 
 describe("KasiAi release gate", () => {
+  it("keeps enough bounded model budget for multi-step channel requests", () => {
+    const version = kasiaiInitialVersion({
+      KASIAI_MODEL_PROVIDER: "openrouter",
+      KASIAI_MODEL: "openai/gpt-5.6-luna",
+    } as AppConfig);
+
+    expect(version.configuration.maxTotalTokens).toBe(32_000);
+    expect(version.policy.modelPolicy.maxTokensPerRun).toBe(32_000);
+  });
+
   it("accepts bounded read and approval-gated content capabilities", () => {
     expect(evaluateKasiAiRelease({
       ...safeVersion,

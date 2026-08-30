@@ -195,17 +195,20 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         return;
       }
       if (result.status === "limited") {
+        const error = {
+          code: "AGENT_LOOP_LIMITED",
+          message: "The agent reached an execution limit before producing a final response",
+          userMessage: "I couldn't finish that request within the current execution limit. Please try again.",
+          iterations: result.iterations,
+          toolCalls: result.toolCalls,
+          usage: result.usage,
+        };
         await activities.failRun({
           runId: input.runId,
-          error: {
-            code: "AGENT_LOOP_LIMITED",
-            message: "The agent reached an execution limit before producing a final response",
-            iterations: result.iterations,
-            toolCalls: result.toolCalls,
-            usage: result.usage,
-          },
+          error,
         });
         status = "failed";
+        await activities.deliverRunReply({ runId: input.runId });
         return;
       }
       const responseMessage = sanitizeAssistantResponse(result.completionMessage ?? result.response?.message.content ?? "");
