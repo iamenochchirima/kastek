@@ -27,6 +27,7 @@ const META_PAGE_WEBHOOK_SUBSCRIPTION_VERSION: i32 = 2;
 const META_INSTAGRAM_WEBHOOK_FIELDS: &str =
     "messages,messaging_postbacks,messaging_seen,message_reactions";
 const META_INSTAGRAM_ACCOUNT_WEBHOOK_SUBSCRIPTION_VERSION: i32 = 1;
+static META_PAGE_APP_WEBHOOK_CONFIGURED: AtomicBool = AtomicBool::new(false);
 static META_INSTAGRAM_APP_WEBHOOK_CONFIGURED: AtomicBool = AtomicBool::new(false);
 const INSTAGRAM_TOKEN_URL: &str = "https://api.instagram.com/oauth/access_token";
 const INSTAGRAM_LONG_LIVED_TOKEN_URL: &str = "https://graph.instagram.com/access_token";
@@ -311,6 +312,10 @@ fn token_expires_within(metadata: &Option<Value>, duration: Duration) -> bool {
 
 pub(crate) fn social_app_url(config: &AppConfig) -> String {
     config.public_api_url.trim_end_matches('/').to_string()
+}
+
+fn meta_webhook_callback_url(public_api_url: &str) -> String {
+    format!("{}/api/webhooks/meta", public_api_url.trim_end_matches('/'))
 }
 
 pub(crate) fn required_env(name: &str) -> Result<String, AppError> {
@@ -1255,6 +1260,38 @@ pub async fn subscribe_meta_page_webhooks(
     Ok(())
 }
 
+pub async fn subscribe_meta_page_app_webhooks(config: &AppConfig) -> Result<(), AppError> {
+    let app_id = required_env("AUTH_META_APP_ID")?;
+    let app_secret = required_env("AUTH_META_APP_SECRET")?;
+    let verify_token = std::env::var("META_WEBHOOK_VERIFY_TOKEN")
+        .or_else(|_| std::env::var("AUTH_META_WEBHOOK_VERIFY_TOKEN"))
+        .map_err(|_| {
+            AppError::Internal(
+                "META_WEBHOOK_VERIFY_TOKEN or AUTH_META_WEBHOOK_VERIFY_TOKEN is required"
+                    .to_string(),
+            )
+        })?;
+    let callback_url = meta_webhook_callback_url(&social_app_url(config));
+    let app_access_token = format!("{app_id}|{app_secret}");
+
+    let _: Value = fetch_json(
+        reqwest::Client::new()
+            .post(format!("{META_GRAPH_BASE}/{app_id}/subscriptions"))
+            .form(&[
+                ("object", "page"),
+                ("callback_url", callback_url.as_str()),
+                ("verify_token", verify_token.as_str()),
+                ("fields", META_PAGE_WEBHOOK_FIELDS),
+                ("include_values", "true"),
+                ("access_token", app_access_token.as_str()),
+            ]),
+        "Failed to configure Page messaging webhooks for the Meta app",
+    )
+    .await?;
+    META_PAGE_APP_WEBHOOK_CONFIGURED.store(true, Ordering::Release);
+    Ok(())
+}
+
 pub async fn subscribe_meta_instagram_app_webhooks(config: &AppConfig) -> Result<(), AppError> {
     let app_id = required_env("AUTH_META_APP_ID")?;
     let app_secret = required_env("AUTH_META_APP_SECRET")?;
@@ -1266,7 +1303,7 @@ pub async fn subscribe_meta_instagram_app_webhooks(config: &AppConfig) -> Result
                     .to_string(),
             )
         })?;
-    let callback_url = format!("{}/api/webhooks/meta", social_app_url(config));
+    let callback_url = meta_webhook_callback_url(&social_app_url(config));
     let app_access_token = format!("{app_id}|{app_secret}");
 
     let _: Value = fetch_json(
@@ -1285,6 +1322,39 @@ pub async fn subscribe_meta_instagram_app_webhooks(config: &AppConfig) -> Result
     .await?;
     META_INSTAGRAM_APP_WEBHOOK_CONFIGURED.store(true, Ordering::Release);
     Ok(())
+}
+
+pub async fn ensure_meta_page_app_webhooks(
+    pool: &PgPool,
+    org_id: &str,
+    config: &AppConfig,
+) -> Result<bool, AppError> {
+    if META_PAGE_APP_WEBHOOK_CONFIGURED.load(Ordering::Acquire) {
+        return Ok(false);
+    }
+
+    let has_connected_page = sqlx::query_scalar::<_, bool>(
+        r#"
+        SELECT EXISTS (
+            SELECT 1
+            FROM "SocialChannelConnection"
+            WHERE "orgId" = $1
+              AND platform = 'FACEBOOK'::"SocialPlatform"
+              AND status = 'CONNECTED'::"SocialChannelStatus"
+              AND metadata->>'provider' = 'meta'
+        )
+        "#,
+    )
+    .bind(org_id)
+    .fetch_one(pool)
+    .await?;
+
+    if !has_connected_page {
+        return Ok(false);
+    }
+
+    subscribe_meta_page_app_webhooks(config).await?;
+    Ok(true)
 }
 
 pub async fn ensure_meta_instagram_app_webhooks(
@@ -3220,7 +3290,8 @@ async fn reconcile_tiktok_publish_jobs(pool: &PgPool, limit: i64) -> Result<i64,
 #[cfg(test)]
 mod tests {
     use super::{
-        decode_threads_signed_request, linkedin_role_rank, HmacSha256, InstagramProfile, Value,
+        decode_threads_signed_request, linkedin_role_rank, meta_webhook_callback_url, HmacSha256,
+        InstagramProfile, Value,
     };
     use base64::engine::general_purpose::URL_SAFE_NO_PAD;
     use base64::Engine as _;
@@ -3276,6 +3347,14 @@ mod tests {
                 > linkedin_role_rank("DIRECT_SPONSORED_CONTENT_POSTER")
         );
         assert_eq!(linkedin_role_rank("ANALYST"), 0);
+    }
+
+    #[test]
+    fn meta_webhook_callback_uses_the_public_api_origin() {
+        assert_eq!(
+            meta_webhook_callback_url("https://api.kasitek.co.za/"),
+            "https://api.kasitek.co.za/api/webhooks/meta"
+        );
     }
 
     fn threads_signed_request(payload: Value, secret: &str) -> String {

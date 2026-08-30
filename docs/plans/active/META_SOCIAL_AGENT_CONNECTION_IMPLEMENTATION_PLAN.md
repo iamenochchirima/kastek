@@ -445,8 +445,10 @@ registry as part of the implementation.
 
 ### Phase 6 — webhook subscriptions and recovery
 
-- [ ] Make Page webhook subscription idempotent and record the subscription revision/state per
-      Page connection.
+- [x] Make Page webhook subscription idempotent and record the subscription revision/state per
+      Page connection. The app-level `page` subscription and each connected Page now converge on
+      the production Core callback; this prevents a stale local/ngrok callback from silently
+      dropping Messenger events.
 - [ ] Make Instagram webhook subscription idempotent for each supported authentication path.
 - [x] Add a targeted `Repair connection`/`Reconnect Meta` path from the modal.
 - [ ] Show last successful inbound event, last successful outbound send, last webhook check, and

@@ -27,9 +27,11 @@ Use this when a provider account shows `NEEDS_ATTENTION`, messages stop arriving
 2. Confirm the expected Page and Instagram professional account were returned by Meta.
 3. Confirm required Page, messaging, publishing, and Instagram permissions are approved for the app and granted by the customer.
 4. Confirm `META_WEBHOOK_VERIFY_TOKEN` or `AUTH_META_WEBHOOK_VERIFY_TOKEN` matches the Meta webhook subscription.
-5. If Inbox receives the message but the agent does not respond, open the agent's **Integrations** tab and confirm the account is **Assigned**. The route key is the workspace `ExternalConnection` owned by Core; reconnecting the account creates a new route key that must be assigned again.
-6. Check Core logs for `agent_platform.meta_ingest` and Agent Platform logs for `channel.ingest`. A route conflict means another active customer-service agent owns the same Page or Instagram account; remove that route before assigning it elsewhere.
-7. If agent replies fail, inspect the Core `channel.delivery` event and Meta response. Core must remain the only service holding the Meta access token.
+5. Confirm the Meta app's `page` subscription callback is the production Core URL: `https://api.kasitek.co.za/api/webhooks/meta`. A stale local or ngrok callback means Page messages will never reach Core even when each Page is marked connected.
+6. Confirm each Page is subscribed to the app's messaging fields. Loading the workspace social-channel list re-applies the app-level Page callback and refreshes connected Page subscriptions.
+7. If Inbox receives the message but the agent does not respond, open the agent's **Integrations** tab and confirm the account is **Assigned**. The route key is the workspace `ExternalConnection` owned by Core; reconnecting the account creates a new route key that must be assigned again.
+8. Check Core logs for `provider.webhook.received`/`webhook.receive`, `agent_platform.meta_ingest` and Agent Platform logs for `channel.ingest`. A route conflict means another active customer-service agent owns the same Page or Instagram account; remove that route before assigning it elsewhere.
+9. If agent replies fail, inspect the Core `channel.delivery` event and Meta response. Core must remain the only service holding the Meta access token.
 
 ## LinkedIn and X
 
