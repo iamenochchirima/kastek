@@ -59,17 +59,17 @@ workspace channels, and publish text and image posts with the selected LinkedIn 
 ## Release record
 
 ```text
-Change: Consolidate LinkedIn member and Company Page connections into one OAuth flow.
+Change: Consolidate LinkedIn member and Company Page connections into one OAuth flow and keep optional Page scopes from blocking member login.
 Owner: Engineering
 Risk: standard
 Affected services and user surfaces: kasitek-core social OAuth/publishing; client Connections and Content surfaces.
-Platform release version or release ID: Core Railway deployment 6d5760e1-272c-4463-b04e-ee6a493262cf; deployed commit 713e352d677a4b06075c1761d9af1bd2828b76cb.
+Platform release version or release ID: Core Railway deployment c530a56d-d1e0-4f89-99d1-1368b98d343c; deployed commit fa706487e4e0c44d305b32588e060c6c2d5979e2.
 API/schema/migration changes: Combined LinkedIn member/organization OAuth scopes and REST organization/posts calls; no database migration.
 Feature flag or rollout method: provider permission-gated; no feature flag required for initial rollout.
 Analytics events and success metrics: not applicable; existing connection and publish outcomes remain the metrics surface.
 Logs, metrics, dashboards, and alerts: structured provider OAuth/discovery failures; existing connection/publish observability; no new dashboard.
 User, API, internal, and operational documentation: update LinkedIn connection runbook and implemented-features documentation.
-Validation evidence: backend check/tests, client lint, webpack production build, and public docs build passed on 2026-08-30. Core `/health` returned HTTP 200 after deployment; Vercel reported the connected frontend deployments completed. Live Page OAuth remains pending LinkedIn app permission approval.
+Validation evidence: backend check/tests, client lint, webpack production build, and public docs build passed on 2026-08-30; the corrected backend suite passed 202 tests with 3 ignored. Core `/health` returned HTTP 200 after deployment; Vercel reported the connected frontend deployments completed. Live Page OAuth remains pending LinkedIn app permission approval.
 Rollback or disable plan: stop exposing the combined LinkedIn action or remove the organization scopes from AUTH_LINKEDIN_SCOPES; existing saved connections remain usable.
 Post-release review date: to be scheduled after the first live Page connection.
 ```
