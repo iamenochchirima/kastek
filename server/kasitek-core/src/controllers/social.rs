@@ -10,9 +10,7 @@ use crate::db::models::{
 };
 use crate::error::AppError;
 use crate::middleware::{extract_user, resolve_active_org_id};
-use crate::services::{
-    bluesky_oauth, connection_permissions, connections, orgs, social, social_posts,
-};
+use crate::services::{bluesky_oauth, connections, orgs, social, social_posts};
 
 #[derive(Debug, Deserialize)]
 pub struct PublicMediaQuery {
@@ -465,7 +463,6 @@ pub async fn delete_post(
                 "error": "The post was not removed from KasiTek because one or more platform deletions failed.",
                 "localDeleted": result.local_deleted,
                 "providerResults": result.provider_results,
-                "authorizationRequired": result.authorization_required,
             })));
         }
         return Ok(HttpResponse::Ok().json(result));
@@ -673,24 +670,6 @@ pub async fn x_oauth_callback(
     let user = extract_user(&req, pool.get_ref()).await?;
     let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     if let Some(error) = query.error.as_ref() {
-        if let Some(state) = query.state.as_deref() {
-            if let Some(attempt) = connection_permissions::find_authorization_attempt(
-                pool.get_ref(),
-                &org_id,
-                &user.id,
-                state,
-            )
-            .await?
-            {
-                connection_permissions::finish_authorization_attempt(
-                    pool.get_ref(),
-                    &attempt.id,
-                    "DECLINED",
-                    Some("provider_denied"),
-                )
-                .await?;
-            }
-        }
         let message = query
             .error_description
             .clone()
@@ -794,37 +773,8 @@ pub async fn start_meta_oauth(
             ))
         }
     };
-    let requested_capabilities =
-        connection_permissions::normalize_requested_capabilities(query.capabilities.as_deref());
-    let state = if let Some(connection_id) = query.connection_id.as_deref() {
-        let (provider, _existing_auth_mode) = connection_permissions::get_connection_for_request(
-            pool.get_ref(),
-            &_org_id,
-            connection_id,
-            target,
-        )
-        .await?;
-        connection_permissions::create_authorization_attempt(
-            pool.get_ref(),
-            &_org_id,
-            &user.id,
-            connection_id,
-            &provider,
-            "meta_login",
-            target,
-            &requested_capabilities,
-        )
-        .await?
-        .state
-    } else {
-        social::create_meta_oauth_state()
-    };
-    let authorize_url = social::build_meta_authorize_url_for_request(
-        config.get_ref(),
-        &state,
-        target,
-        &requested_capabilities,
-    )?;
+    let state = social::create_meta_oauth_state();
+    let authorize_url = social::build_meta_authorize_url(config.get_ref(), &state)?;
     Ok(HttpResponse::Found()
         .append_header(("Location", authorize_url))
         .cookie(
@@ -850,45 +800,11 @@ pub async fn start_instagram_oauth(
     config: web::Data<AppConfig>,
     pool: web::Data<PgPool>,
     req: HttpRequest,
-    query: web::Query<social::MetaOAuthStartQuery>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
-    let requested_capabilities =
-        connection_permissions::normalize_requested_capabilities(query.capabilities.as_deref());
-    let state = if let Some(connection_id) = query.connection_id.as_deref() {
-        let (provider, auth_mode) = connection_permissions::get_connection_for_request(
-            pool.get_ref(),
-            &org_id,
-            connection_id,
-            "instagram",
-        )
-        .await?;
-        if provider != "INSTAGRAM" || auth_mode != "instagram_login" {
-            return Err(AppError::BadRequest(
-                "This connection must be authorized through Meta Login".to_string(),
-            ));
-        }
-        connection_permissions::create_authorization_attempt(
-            pool.get_ref(),
-            &org_id,
-            &user.id,
-            connection_id,
-            &provider,
-            &auth_mode,
-            "instagram",
-            &requested_capabilities,
-        )
-        .await?
-        .state
-    } else {
-        social::create_instagram_oauth_state()
-    };
-    let authorize_url = social::build_instagram_authorize_url_for_request(
-        config.get_ref(),
-        &state,
-        &requested_capabilities,
-    )?;
+    let _org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
+    let state = social::create_instagram_oauth_state();
+    let authorize_url = social::build_instagram_authorize_url(config.get_ref(), &state)?;
     Ok(HttpResponse::Found()
         .append_header(("Location", authorize_url))
         .cookie(
@@ -911,24 +827,6 @@ pub async fn meta_oauth_callback(
     let user = extract_user(&req, pool.get_ref()).await?;
     let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     if let Some(error) = query.error.as_ref() {
-        if let Some(state) = query.state.as_deref() {
-            if let Some(attempt) = connection_permissions::find_authorization_attempt(
-                pool.get_ref(),
-                &org_id,
-                &user.id,
-                state,
-            )
-            .await?
-            {
-                connection_permissions::finish_authorization_attempt(
-                    pool.get_ref(),
-                    &attempt.id,
-                    "DECLINED",
-                    Some("provider_denied"),
-                )
-                .await?;
-            }
-        }
         let message = query
             .error_description
             .clone()
@@ -958,20 +856,9 @@ pub async fn meta_oauth_callback(
     if stored_state != returned_state {
         return Err(AppError::BadRequest("Invalid OAuth state".to_string()));
     }
-    let attempt = connection_permissions::find_authorization_attempt(
-        pool.get_ref(),
-        &org_id,
-        &user.id,
-        returned_state,
-    )
-    .await?;
-    let target = attempt
-        .as_ref()
-        .map(|item| item.target.clone())
-        .or_else(|| {
-            req.cookie(social::META_TARGET_COOKIE)
-                .map(|cookie| cookie.value().to_string())
-        })
+    let target = req
+        .cookie(social::META_TARGET_COOKIE)
+        .map(|cookie| cookie.value().to_string())
         .unwrap_or_else(|| "facebook".to_string());
     let (include_facebook_pages, include_instagram_accounts) = match target.as_str() {
         "facebook" => (true, false),
@@ -992,31 +879,19 @@ pub async fn meta_oauth_callback(
     )
     .await
     .unwrap_or(short_lived_tokens);
-    let access_token = tokens
-        .access_token
-        .as_deref()
-        .ok_or_else(|| AppError::BadRequest("Missing Meta access token".to_string()))?;
-    let granted_permissions = match social::fetch_meta_permissions(access_token).await {
-        Ok(permissions) => Some(permissions),
-        Err(error) => {
-            observability::tracing::warn!(
-                event = "provider.call.failed",
-                provider = "meta",
-                operation = "oauth.permissions.inspect",
-                error_type = %std::any::type_name_of_val(&error),
-                "Meta permission inspection failed; access will be shown as unknown"
-            );
-            None
-        }
-    };
-    let pages = social::fetch_meta_pages(access_token).await?;
+    let pages = social::fetch_meta_pages(
+        tokens
+            .access_token
+            .as_deref()
+            .ok_or_else(|| AppError::BadRequest("Missing Meta access token".to_string()))?,
+    )
+    .await?;
     let connected = social::upsert_meta_connections_for_org(
         pool.get_ref(),
         &user.id,
         &org_id,
         &tokens,
         &pages,
-        granted_permissions.as_deref(),
         include_facebook_pages,
         include_instagram_accounts,
     )
@@ -1122,25 +997,9 @@ pub async fn meta_oauth_callback(
     }
 
     let redirect = format!(
-        "{}/connections?connected=meta&facebook_count={}&instagram_count={}&access={}",
-        config.auth_url,
-        facebook_count,
-        instagram_count,
-        if attempt.is_some() {
-            "granted"
-        } else {
-            "connected"
-        }
+        "{}/connections?connected=meta&facebook_count={}&instagram_count={}",
+        config.auth_url, facebook_count, instagram_count
     );
-    if let Some(attempt) = attempt.as_ref() {
-        connection_permissions::finish_authorization_attempt(
-            pool.get_ref(),
-            &attempt.id,
-            "COMPLETED",
-            None,
-        )
-        .await?;
-    }
     Ok(HttpResponse::Found()
         .append_header(("Location", redirect))
         .cookie(
@@ -1167,24 +1026,6 @@ pub async fn instagram_oauth_callback(
     let user = extract_user(&req, pool.get_ref()).await?;
     let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     if let Some(error) = query.error.as_ref() {
-        if let Some(state) = query.state.as_deref() {
-            if let Some(attempt) = connection_permissions::find_authorization_attempt(
-                pool.get_ref(),
-                &org_id,
-                &user.id,
-                state,
-            )
-            .await?
-            {
-                connection_permissions::finish_authorization_attempt(
-                    pool.get_ref(),
-                    &attempt.id,
-                    "DECLINED",
-                    Some("provider_denied"),
-                )
-                .await?;
-            }
-        }
         let message = query
             .error_description
             .clone()
@@ -1216,13 +1057,6 @@ pub async fn instagram_oauth_callback(
             "Invalid Instagram OAuth state".to_string(),
         ));
     }
-    let attempt = connection_permissions::find_authorization_attempt(
-        pool.get_ref(),
-        &org_id,
-        &user.id,
-        returned_state,
-    )
-    .await?;
 
     let short_lived = social::exchange_instagram_code_for_token(config.get_ref(), code).await?;
     let short_lived_access_token = short_lived
@@ -1276,24 +1110,7 @@ pub async fn instagram_oauth_callback(
         );
     }
 
-    let redirect = format!(
-        "{}/connections?connected=instagram&access={}",
-        config.auth_url,
-        if attempt.is_some() {
-            "granted"
-        } else {
-            "connected"
-        }
-    );
-    if let Some(attempt) = attempt.as_ref() {
-        connection_permissions::finish_authorization_attempt(
-            pool.get_ref(),
-            &attempt.id,
-            "COMPLETED",
-            None,
-        )
-        .await?;
-    }
+    let redirect = format!("{}/connections?connected=instagram", config.auth_url);
     Ok(HttpResponse::Found()
         .append_header(("Location", redirect))
         .cookie(

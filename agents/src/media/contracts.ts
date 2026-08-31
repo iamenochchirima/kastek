@@ -3,43 +3,6 @@ import { z } from "zod";
 /** The final-response control is built into every hosted run. */
 export const AGENT_MEDIA_HARNESS_TOOLS = ["kasitek.agent.respond"] as const;
 
-/**
- * Safe, provider-neutral remediation data. Provider scope names and credentials never cross
- * this contract. The same value can be rendered by the web, WhatsApp, Telegram, or another
- * gateway adapter.
- */
-export const authorizationRequirementSchema = z.object({
-  code: z.string().trim().min(1).max(80),
-  provider: z.string().trim().min(1).max(80),
-  connectionId: z.string().trim().min(1).max(160).optional(),
-  requiredCapabilities: z.array(z.string().trim().min(1).max(80)).min(1).max(10),
-  requestable: z.boolean(),
-  authMode: z.string().trim().min(1).max(80).nullable().optional(),
-  reasonCode: z.string().trim().min(1).max(120),
-  remediation: z.string().trim().min(1).max(80),
-}).strict();
-export type AgentAuthorizationRequirement = z.infer<typeof authorizationRequirementSchema>;
-
-/**
- * Find a normalized authorization requirement in a trusted tool result without allowing
- * provider-specific result shapes to leak into gateway code.
- */
-export function findAuthorizationRequirement(value: unknown): AgentAuthorizationRequirement | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const record = value as Record<string, unknown>;
-  for (const candidate of [record.authorizationRequired, record.authorization]) {
-    const parsed = authorizationRequirementSchema.safeParse(candidate);
-    if (parsed.success) return parsed.data;
-  }
-  if (Array.isArray(record.providerResults)) {
-    for (const providerResult of record.providerResults) {
-      const nested = findAuthorizationRequirement(providerResult);
-      if (nested) return nested;
-    }
-  }
-  return undefined;
-}
-
 /** Stable, workspace-owned media identity. Never persist provider URLs or bytes here. */
 export const agentMediaReferenceSchema = z.object({
   assetId: z.string().trim().min(1).max(160),
@@ -57,7 +20,6 @@ export const agentResponseSchema = z.object({
   version: z.literal("1").default("1"),
   text: z.string().trim().max(50_000).default(""),
   media: z.array(agentMediaReferenceSchema).max(10).default([]),
-  authorizationRequired: authorizationRequirementSchema.optional(),
 }).strict().superRefine((value, context) => {
   if (!value.text && !value.media.length) context.addIssue({ code: "custom", message: "A response requires text or media" });
   const seen = new Set<string>();

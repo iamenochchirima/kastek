@@ -42,7 +42,6 @@ const PUBLIC_PAYLOAD_FIELDS = new Set([
   "totalTokens", "status", "handoffId", "conversationId", "installationId", "agentDefinitionId",
   "agentVersionId", "runId", "channelType", "priority", "actorType", "conversationState",
   "messageId", "deliveryStatus", "resolution", "resolutionCode",
-  "authorizationRequired",
 ]);
 
 export function formatSseComment(value: string): string {

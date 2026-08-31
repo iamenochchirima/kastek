@@ -1,217 +1,146 @@
 # Agent Media Harness Plan
 
-**Status:** Active
-
+**Status:** Active until the staged release and compatibility review are complete
 **Owner:** Agent Platform
-
 **Last updated:** 2026-08-31
 
 ## Objective
 
 Make media discovery, preview, and delivery a built-in Agent Platform capability. Every hosted
-agent should be able to reference workspace-owned media without agent-specific prompt changes, and
-every channel gateway should render the same canonical response according to its provider limits.
-External agents should discover the same media contracts through the generated MCP and REST
-surfaces.
+agent can reference workspace-owned media, and every supported gateway renders the same response
+contract according to its provider limits. Durable records contain stable asset references rather
+than expiring provider URLs.
 
-Success means an agent can retrieve a content object, select one of its assets, and return it in a
-later reply through the web client, Telegram, WhatsApp, or Discord. Durable records contain stable
-asset references rather than expiring provider URLs. Unsupported media has an explicit fallback and
-does not silently disappear or fail the whole reply.
+## Scope and ownership
 
-## Scope
+- Core owns media bytes, workspace authorization, processing and scan state, storage, and provider
+  credentials for Core-owned channels.
+- Agent Platform owns reasoning, capability discovery, durable run output, response validation, and
+  delivery orchestration.
+- Gateway adapters own only provider-specific rendering and fallback behavior.
+- Included gateways: platform web, website widget, Telegram, WhatsApp, Discord, Facebook, and
+  Instagram. Media generation and new providers are out of scope.
 
-### Included
+## Contract
 
-- A versioned, channel-independent media descriptor and assistant response envelope.
-- Workspace-scoped media metadata/read capabilities generated through the shared registry.
-- A harness-owned final-response capability for text plus media references.
-- Automatic availability of harness response capabilities for all hosted agent installations.
-- Gateway capability profiles and renderers for platform web, Telegram, WhatsApp, and Discord.
-- Delivery-time resolution of stable asset IDs to bounded, short-lived URLs or bytes.
-- Persistence, retries, approvals, logging, analytics decisions, tests, and compatibility fallbacks.
+`AgentMediaReference@1` contains `assetId`, `kind`, optional `mimeType`, `fileName`, `altText`,
+`caption`, and `disposition`. `AgentResponse@1` contains `version`, `text`, and `media[]`.
+Neither contract contains URLs, storage keys, credentials, or bytes.
 
-### Excluded
+The harness-owned `kasitek.agent.respond` capability validates the response and Core asset
+ownership, kind, readiness, and scan status before completing the run. The read capabilities
+`kasitek.core.content_media_get` and `kasitek.core.content_media_preview` expose safe metadata and,
+only when required, a short-lived preview URL.
 
-- Media generation or editing.
-- Provider-specific post publishing, which remains in the content capabilities.
-- Public anonymous asset URLs or storage credentials in model context.
-- A redesign of the web conversation UI beyond consuming the canonical attachment projection.
-- Adding channel providers that do not currently exist in the Agent Platform.
+## Gateway decisions
 
-## Context and constraints
+| Gateway | Native media | Fallback |
+| --- | --- | --- |
+| Platform web | Authenticated image/video/audio/file rendering | none |
+| Website widget | Session-authorized image/video/audio/file rendering | none |
+| Telegram | Native photo/video/audio/document methods | text/link |
+| WhatsApp | Core byte read, upload, and Cloud API media methods | authorized link text |
+| Discord | Image embeds | authorized links |
+| Facebook / Instagram | text only | explicit text notice |
 
-- Core owns media bytes, workspace authorization, scan/processing status, and asset lifecycle.
-- Agent Platform owns reasoning, capability discovery, durable run output, and channel delivery.
-- Gateways must remain thin and provider-specific; they must not infer business resources.
-- Current replies are persisted as `{ text }`, and Telegram/WhatsApp infer images from Markdown.
-  That behavior remains temporarily as a compatibility adapter, not the canonical contract.
-- Signed URLs are transport material. They must be resolved at read or delivery time and must not be
-  persisted in messages, run output, memory, summaries, or long-lived tool results.
-- An agent may only attach assets returned by an authorized capability or explicitly resolved by a
-  workspace-scoped media capability.
+Delivery resolves transport URLs or bytes at the last responsible moment. Retries reuse stable
+asset IDs and mint fresh transport resources. Markdown image extraction remains a compatibility
+adapter for older text-only runs; new hosted runs use the typed response capability.
 
-## Architecture decisions
+## Checklist
 
-### Canonical media descriptor
-
-The shared contract is `AgentMediaReference@1`:
-
-```text
-assetId       stable Core asset identity
-kind          image | video | audio | document | file
-mimeType      bounded media type when known
-fileName      safe display name when known
-altText       accessibility/fallback text when supplied
-caption       optional channel caption selected by the agent
-disposition   inline | attachment
-```
-
-URLs and bytes are deliberately absent from the durable descriptor. Core resolves an authorized
-asset into a delivery resource only when the gateway needs it.
-
-### Canonical response envelope
-
-`AgentResponse@1` contains `text` and `media[]`. It is stored in the existing JSONB message content
-column, so the first release needs no database migration. Run output and conversation messages use
-the same envelope.
-
-### Agent-facing capabilities
-
-- `kasitek.core.content_media_get` returns safe asset metadata and a short-lived preview only for
-  the current invocation. It is read-only and workspace scoped.
-- `kasitek.agent.respond` is harness owned. The model uses it to finish a response with text and
-  stable media references. The harness validates that every asset is authorized and deliverable,
-  then completes the loop with a typed response envelope.
-- Domain tools return `AgentMediaReference@1` wherever they expose media. They do not invent a
-  separate media shape.
-
-The response capability is injected by execution mode, not copied into individual agent prompts or
-versions. MCP and REST expose media read/metadata contracts to external agents; the harness response
-capability is only meaningful to hosted runs.
-
-### Gateway negotiation and delivery
-
-Each adapter publishes a `ChannelMediaProfile`: supported kinds, maximum item and byte counts,
-caption limits, album support, and fallback behavior. Delivery receives `AgentResponse@1`, resolves
-assets at the last responsible moment, and returns per-part receipts.
-
-- Platform web stores and returns typed media; the client requests previews through an authenticated
-  media endpoint.
-- Telegram maps image/video/audio/document to native Bot API methods and uses text links only when
-  the provider rejects an otherwise valid attachment.
-- WhatsApp maps the same kinds to Core-owned Cloud API delivery and keeps provider credentials in
-  Core.
-- Discord maps supported kinds to native attachments/embeds and falls back to an authorized link.
-
-Markdown image extraction remains accepted for old agent versions during a compatibility period.
-New runs should not depend on it.
-
-### Security and lifecycle
-
-- Core rechecks organization ownership, processing state, scan state, and asset existence for every
-  resolve/download request.
-- The model sees bounded metadata and, only when needed for visual reasoning, a short-lived preview.
-- Delivery logs include asset count, kind, byte size, channel, outcome, and bounded error code; they
-  never include signed URLs, bytes, captions, or message bodies.
-- Delivery retries reuse the stable envelope and mint fresh transport URLs.
-- Removing an asset makes later delivery fail with `MEDIA_NOT_AVAILABLE`; it never reuses unrelated
-  bytes or a stale URL.
-
-## Implementation plan
-
-1. [x] Add shared media/response contracts, schemas, validation, and compatibility parsing.
-2. [x] Add Core media metadata projection with workspace authorization. Delivery-time byte/URL resolution remains in the gateway slice.
-3. [x] Add the harness final-response capability and typed loop/workflow completion.
-4. [x] Persist typed responses. Authenticated web preview rendering remains in the web gateway slice.
-5. [x] Add gateway profiles and native renderers for Telegram, WhatsApp, Discord, and platform web.
-6. [x] Normalize inbound attachments to the same stable media descriptor. Telegram, WhatsApp, and
-   Discord supported inbound media now pass through Core-owned storage before agent execution;
-   legacy provider fields remain only for controlled ingestion/transcription compatibility.
-7. [x] Add contract, authorization, retry, fallback, gateway, and platform integration tests for
-   the implemented paths. Controlled production E2E smoke remains a release gate.
-8. [ ] Remove prompt-only media instructions after compatibility telemetry shows no legacy use.
-
-## Compatibility and rollout
-
-1. Add contracts and readers while continuing to accept `{ text }` messages.
-2. Enable typed response composition for internal test agents, then all hosted agents.
-3. Enable native media delivery per gateway behind a gateway-level configuration switch.
-4. Verify web, Telegram, WhatsApp, and Discord independently before enabling the next gateway.
-5. Retain Markdown extraction for one compatibility window, then remove it in a separate release.
+- [x] Add versioned shared media and response schemas with legacy parsing.
+- [x] Add Core workspace-scoped metadata, preview, and byte-read boundaries.
+- [x] Add the harness final-response capability and typed loop/workflow completion.
+- [x] Persist typed responses in run output and conversation messages without provider URLs.
+- [x] Add gateway profiles and native/fallback delivery for supported channels.
+- [x] Normalize inbound attachments to stable `media[]` references while retaining legacy fields.
+- [x] Render typed media in platform chat and website widget; add Telegram/Discord/WhatsApp tests.
+- [x] Reject missing backing media objects before a typed agent response can complete, and keep the
+  media capability output schema aligned with the Core asset contract.
+- [x] Update internal architecture, REST/MCP documentation, and generated capability docs.
+- [ ] Run staged production smoke tests and complete the compatibility-window review.
 
 ## Verification
 
-- [x] Type check and build Agent Platform and Core.
-- [x] Contract tests for `AgentMediaReference@1`, `AgentResponse@1`, MCP, REST, and Core projection.
-- [x] Runtime tests for final-response control, unauthorized assets, stale URLs, retries, and limits.
-- [x] Gateway tests for image, document, unsupported kind, provider failure, and text-only fallback.
-- [x] Integration tests proving the same response envelope reaches platform web, Telegram,
-      WhatsApp, and Discord.
-- [ ] Production smoke test with a non-sensitive workspace asset on each configured gateway.
+- Agent tests: `pnpm exec vitest run test/media-contracts.test.ts test/runtime.test.ts test/core-client.test.ts test/telegram-client.test.ts test/discord-client.test.ts`
+- Agent build: `pnpm run build`
+- Core: `cargo fmt --all -- --check && cargo check -p kasitek-core`
+- Database: apply `20260831120000_add_agent_website_delivery_content` before enabling website typed
+  deliveries.
+- Staging smoke: one non-sensitive image, one video/audio or document where supported, and one
+  text-only response on each configured gateway. Verify retries, provider failure, authorization,
+  expired URL renewal, and UI previews.
 
 ## Release record
 
-Change: Shared media viewing, preview, and delivery in the Agent Platform harness.
+Change: shared media viewing, preview, and delivery in the Agent Platform harness.
+Risk: high; affects agents API/worker, Core, database, MCP/REST discovery, web chat, website
+widget, and provider gateways.
+API/schema/migration: additive `AgentResponse@1`, two Core internal read routes, typed channel
+delivery input, and one additive website delivery JSONB column.
+Rollout: apply the additive migration, deploy the exact tested artifacts, then enable gateway media
+delivery in stages. Keep text and Markdown compatibility available during the review window.
+Analytics/logging: reuse message lifecycle contracts; include bounded media count/kinds and outcome
+in delivery events/logs. Never log URLs, bytes, credentials, captions, or message bodies.
+Documentation: internal harness architecture plus public Agent REST and MCP media contract docs are
+updated in this change.
+Analytics success signal: `agent.reply.delivered` with a bounded media count/kind dimension; failure
+signal: `agent.reply.delivery_failed` and provider authentication/delivery error rates. No new
+analytics event name is introduced.
+Logs, metrics, dashboards, and alerts: existing message lifecycle and provider delivery telemetry
+is extended with media count/kinds and bounded outcome fields; no new dashboard or alert is added in
+this implementation, so hosted rollout must verify the existing delivery views and alert thresholds.
 
-Owner: Agent Platform.
+Platform release version or release ID: no SemVer platform tag exists in this repository yet; the
+production Railway deployment IDs are recorded below. The API contract version (`AgentResponse@1`)
+and migration version remain separate.
+Implementation commit: `c24dfdff59a8bfd9f4ac6009be539eb78d6a1a4c` (integrated with the current `main`
+live-chat base and pushed to `main`).
+Follow-up incident-fix commit: `1a23d3a4c1effd55e5f28570dd15e10e9e2c4099`.
+Validation: local and production evidence is recorded below. Provider-specific smoke and
+compatibility-window evidence remain open before closing this plan.
+Rollback: disable native media per gateway and continue text delivery; roll back artifacts only
+after confirming the additive column and stable references remain readable.
+Post-release review: pending deployment; schedule one business day after each gateway enablement
+and after the compatibility window.
 
-Risk: High. This changes run completion and all channel delivery paths.
+Local validation evidence (2026-08-31):
 
-Affected services and user surfaces: agents-api, agents-worker, MCP Gateway, kasitek-core, web agent
-chat, Telegram, WhatsApp, Discord, MCP, and Agent REST.
+- `agents`: 60 targeted Vitest tests passed and `pnpm run build` passed.
+- Follow-up regression coverage: the full Agents suite passes with 80 files passed, 18 skipped, 471
+  tests passed, and 45 skipped. The Agents build passes.
+- `client`: `pnpm --filter client lint` passed with two pre-existing/non-blocking warnings and
+  `pnpm --filter client build` passed.
+- `server`: `cargo fmt --all -- --check`, `cargo check -p kasitek-core`, and `cargo test -p
+  kasitek-core` passed (214 passed, 3 database-dependent tests skipped).
+- `database`: Prisma generation and schema validation passed. Migration
+  `20260831120000_add_agent_website_delivery_content` was applied successfully to the production
+  Core database through the documented Railway SSH tunnel on 2026-08-31.
+- Follow-up production Railway deployments from the incident-fix commit: Core
+  `27d7da03-20e9-4c96-b2fc-5a1f2b303a9f`, Agents API
+  `6606be97-1e85-48e1-b329-8cf106c73c59`, and Agents worker
+  `06bf1109-9c69-4646-adf1-b95052047d1c`; all report `SUCCESS` and use commit
+  `1a23d3a4c1effd55e5f28570dd15e10e9e2c4099`.
+- Production health smoke: `https://api.kasitek.co.za/health` and
+  `https://agents.kasitek.co.za/health/ready` returned HTTP 200; Core reported `status: ok`, the
+  gateway reported `status: ready`, and the Agents worker logged `state: RUNNING` for
+  `kasitek-agents-production`. No error-level logs were returned for the four services during the
+  post-deploy sweep.
+- The pushed `main` commit triggered the connected Vercel frontend automation; both
+  `https://kasitek.co.za` and `https://app.kasitek.co.za` returned HTTP 200. Vercel CLI deployment
+  inspection was unavailable because this environment is not authenticated to Vercel.
+- Follow-up production smoke: Core health and Agents readiness returned HTTP 200. The previously
+  failing signed media URL returned HTTP 200 and 81,554 bytes after the volume repair and Core
+  deployment. No new media-related error logs were returned during the post-deploy sweep.
+- Provider-specific media send/retry smoke and fallback-rate evidence: pending a safe, non-customer
+  test message on each configured gateway; do not close the compatibility window until that smoke
+  is recorded.
 
-Platform release version or release ID: Assign when the first deployable slice is complete.
-
-API/schema/migration changes: Compatible JSON response-envelope and capability additions. No
-database migration is required for the first slice because message and run content are JSONB.
-
-Feature flag or rollout method: Gateway-level media delivery switches and staged hosted-agent
-enablement. No all-at-once production rollout.
-
-Analytics events and success metrics: Reuse `agent.conversation.message@1` for message outcomes;
-add bounded media count/kind fields in a versioned contract revision if the registry permits it.
-Success is a native-media delivery rate above 99% excluding unsupported/removed assets, with no
-increase in text delivery failures.
-
-Logs, metrics, dashboards, and alerts: Structured resolve and delivery lifecycle logs; media resolve
-failure count, gateway media delivery failure count, fallback count, and latency. Dashboard/alert
-work is required before broad production rollout. Collector configuration change: not applicable
-for the contract slice; existing OTLP endpoint and release identity apply.
-
-User, API, internal, and operational documentation: This plan, current internal Agent Platform
-architecture, MCP/REST media capability docs, and gateway runbook must be updated with each slice.
-
-Validation evidence: 2026-08-31 implementation slice: focused Agent Platform contract, runtime,
-workflow, SSE, channel adapter, gateway, and HTTP attachment tests passed (82 tests in the final
-focused run); `pnpm run build` in `agents`, client type check, targeted client lint, client
-`next build --webpack`, Prisma validation, `cargo fmt --all -- --check`, `cargo check -p kasitek-core`,
-and the Core permission tests passed. A browser session was unavailable for visual verification.
-Record deployment IDs, provider smoke results, and the remaining gateway telemetry evidence before
-moving this document to `docs/plans/completed/`.
-
-Rollback or disable plan: Disable media delivery per gateway, continue text delivery, and roll back
-agents/core artifacts. Stored stable asset references remain backward compatible. Do not delete
-media metadata during rollback.
-
-Post-release review date: One business day after each gateway production enablement and again after
-the compatibility window.
-
-## Decisions and open questions
-
-| Topic | Decision or question | Owner | Status |
-| --- | --- | --- | --- |
-| Durable identity | Persist Core asset IDs, never signed URLs | Agent Platform + Core | Decided |
-| Final response | Use a typed harness response capability | Agent Platform | Decided |
-| Gateway support | Capability profile plus explicit fallback | Integrations | Decided |
-| Web previews | Use authenticated read-time resolution | Core + Client | Decided |
-| Multiple media | Define per-part receipts before enabling albums | Agent Platform | In progress |
-| Visual model input | Define when previews may be sent to multimodal models | AI Platform | Open |
-| Public API | Decide whether external REST callers receive URLs or a download endpoint | API | Open |
-
-## Notes and blockers
-
-- The current branch has unrelated work. Implementation must use an isolated worktree and avoid
-  modifying or staging those files.
-- Broad rollout is blocked until per-gateway failure metrics exist. Contract and adapter work can
-  proceed independently.
+Latest incident evidence (2026-08-31): an older Instagram response referenced an asset whose Core
+metadata row remained present after its local media object was lost. The public preview request
+returned HTTP 404, which left the gateway with a valid-looking attachment that could not render.
+The production Core volume was restored byte-for-byte from a checksum-matching copy. The preview
+boundary now checks the scoped storage key and requires a non-empty regular file before minting a
+preview URL, so future missing objects fail during the agent run instead of after delivery starts.
+No database migration is required for this fix.

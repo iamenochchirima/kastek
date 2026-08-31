@@ -21,32 +21,6 @@ describe("workflow graph validation", () => {
     expect(result.trace.map((entry) => entry.nodeId)).toEqual(["set", "route", "tool", "done"]);
   });
 
-  it("preserves authorization remediation returned by a workflow tool", async () => {
-    const graph = {
-      version: 1 as const,
-      entryNodeId: "tool",
-      nodes: [{ id: "tool", type: "tool" as const, config: { toolName: "connections" }, writes: [] }],
-      edges: [],
-      stateSchema: {},
-    };
-    const result = await executeWorkflowGraph(graph, {}, {
-      tool: async () => ({
-        authorizationRequired: {
-          code: "AUTHORIZATION_REQUIRED",
-          provider: "instagram",
-          requiredCapabilities: ["SOCIAL_POST_DELETE"],
-          requestable: true,
-          reasonCode: "MISSING_CONTENT_MANAGEMENT_ACCESS",
-          remediation: "connections_access",
-        },
-      }),
-    });
-    expect(result).toMatchObject({
-      status: "completed",
-      authorizationRequired: { provider: "instagram", remediation: "connections_access" },
-    });
-  });
-
   it("pauses at approval and wait nodes without losing state", async () => {
     const graph = { version: 1 as const, entryNodeId: "approval", nodes: [{ id: "approval", type: "approval" as const }, { id: "wait", type: "wait" as const }], edges: [{ from: "approval", to: "wait" }], stateSchema: {} };
     const result = await executeWorkflowGraph(graph, { value: 1 });

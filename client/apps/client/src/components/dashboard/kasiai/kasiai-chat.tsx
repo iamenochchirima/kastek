@@ -78,7 +78,6 @@ import {
 } from "@/lib/agent-platform";
 import { AgentApprovalPreview } from "@/components/dashboard/agents/agent-approval-preview";
 import { AgentMessageMedia, agentMessageHasMedia } from "@/components/dashboard/agents/agent-message-media";
-import { AgentAuthorizationAction } from "@/components/dashboard/agents/agent-authorization-action";
 import { AudioMessageControl } from "@/components/dashboard/kasiai/audio-message-control";
 import { cn } from "@/lib/utils";
 
@@ -1693,7 +1692,6 @@ export function KasiAiChat({
                                   ) : (
                                     messageRenderText(message)
                                   )}
-                                  <AgentAuthorizationAction message={message} />
                                 </div>
                                 {source === "platform" &&
                                 message.direction === "inbound" &&

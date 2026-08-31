@@ -1,5 +1,3 @@
-import { useState } from "react";
-import Image from "next/image";
 import type { AgentMessage } from "@/lib/agent-platform";
 import { apiUrl } from "@/lib/server-api";
 
@@ -44,31 +42,19 @@ export function AgentMessageMedia({ message }: { message: AgentMessage }) {
   return (
     <div className="mb-2 space-y-2">
       {items.map((item) => {
-        return <AgentMediaItemView key={item.assetId} item={item} />;
+        const src = apiUrl(`/api/social/media/${encodeURIComponent(item.assetId)}`);
+        const label = item.altText || item.fileName || "Attachment";
+        if (item.kind === "image") {
+          return <figure key={item.assetId}><img src={src} alt={label} loading="lazy" className="max-h-80 w-full rounded-lg border border-border/60 object-contain" />{item.caption ? <figcaption className="mt-1 text-xs text-muted-foreground">{item.caption}</figcaption> : null}</figure>;
+        }
+        if (item.kind === "video") {
+          return <figure key={item.assetId}><video controls preload="metadata" src={src} className="max-h-80 w-full rounded-lg border border-border/60 object-contain" />{item.caption ? <figcaption className="mt-1 text-xs text-muted-foreground">{item.caption}</figcaption> : null}</figure>;
+        }
+        if (item.kind === "audio") {
+          return <figure key={item.assetId}><audio controls preload="metadata" src={src} className="w-full" />{item.caption ? <figcaption className="mt-1 text-xs text-muted-foreground">{item.caption}</figcaption> : null}</figure>;
+        }
+        return <a key={item.assetId} href={src} target="_blank" rel="noopener noreferrer" className="block truncate rounded-md border border-border/60 px-3 py-2 text-sm text-primary underline-offset-4 hover:underline">{label}</a>;
       })}
     </div>
   );
-}
-
-function AgentMediaItemView({ item }: { item: AgentMediaItem }) {
-  const [unavailable, setUnavailable] = useState(false);
-  const src = apiUrl(`/api/social/media/${encodeURIComponent(item.assetId)}`);
-  const label = item.altText || item.fileName || "Attachment";
-  const fallback = (
-    <a href={src} target="_blank" rel="noopener noreferrer" className="block truncate rounded-md border border-border/60 px-3 py-2 text-sm text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-      Open {label}
-    </a>
-  );
-
-  if (unavailable) return fallback;
-  if (item.kind === "image") {
-    return <figure><Image src={src} alt={label} width={640} height={480} unoptimized loading="lazy" onError={() => setUnavailable(true)} className="max-h-80 w-full rounded-lg border border-border/60 object-contain" />{item.caption ? <figcaption className="mt-1 text-xs text-muted-foreground">{item.caption}</figcaption> : null}</figure>;
-  }
-  if (item.kind === "video") {
-    return <figure><video controls preload="metadata" src={src} onError={() => setUnavailable(true)} className="max-h-80 w-full rounded-lg border border-border/60 object-contain" />{item.caption ? <figcaption className="mt-1 text-xs text-muted-foreground">{item.caption}</figcaption> : null}</figure>;
-  }
-  if (item.kind === "audio") {
-    return <figure><audio controls preload="metadata" src={src} onError={() => setUnavailable(true)} className="w-full" />{item.caption ? <figcaption className="mt-1 text-xs text-muted-foreground">{item.caption}</figcaption> : null}</figure>;
-  }
-  return fallback;
 }

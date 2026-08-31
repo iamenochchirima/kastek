@@ -427,7 +427,6 @@ fn agent_connection_summary(
         "webhookStatus": connection.webhook_status,
         "lastCheckedAt": connection.last_checked_at,
         "capabilities": connection.capabilities,
-        "permissions": connection.permissions,
         "consumers": connection.consumers,
     })
 }
@@ -1592,7 +1591,6 @@ mod tests {
             last_error: None,
             metadata: Some(json!({ "secret": "never expose" })),
             capabilities: json!([]),
-            permissions: json!([]),
             consumers: json!([]),
             created_at: now,
             updated_at: now,

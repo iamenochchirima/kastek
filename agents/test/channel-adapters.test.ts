@@ -112,7 +112,7 @@ describe("thin external channel adapters", () => {
 
   it("normalizes the first Discord attachment as a bounded canonical envelope", () => {
     const event = new DiscordChannelAdapter().normalizeInbound({ id: "msg-2", channel_id: "channel-1", content: "see this", author: { id: "user-1" }, attachments: [{ id: "attachment-1", filename: "photo.png", content_type: "image/png", url: "https://cdn.discord.test/temporary" }] });
-    expect(event.message).toMatchObject({ messageType: "attachment", content: { attachmentId: "attachment-1", fileName: "photo.png", mimeType: "image/png", mediaKind: "image", text: "see this" } });
+    expect(event.message).toMatchObject({ messageType: "attachment", content: { attachmentId: "attachment-1", fileName: "photo.png", mimeType: "image/png", text: "see this" } });
     expect(event.message.content).toHaveProperty("url", "https://cdn.discord.test/temporary");
   });
 

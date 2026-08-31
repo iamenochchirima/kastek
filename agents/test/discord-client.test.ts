@@ -40,18 +40,4 @@ describe("Discord bot client", () => {
     expect(body).toMatchObject({ content: "See these files\n\n[brief.pdf](https://core.test/doc)" });
     expect(body.embeds).toEqual([{ image: { url: "https://core.test/image" }, title: "image.png" }]);
   });
-
-  it("falls back to a text link when Discord rejects an image embed", async () => {
-    const fetchImpl = vi.fn<typeof fetch>()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ message: "Invalid Form Body" }), { status: 400 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "message-3" }), { status: 200 }));
-    const client = new DiscordBotClient({ apiBaseUrl: "https://discord.test/api/v10", fetchImpl });
-
-    await expect(client.sendMediaResponse("secret", "channel-1", "The post is ready.", [
-      { assetId: "image-1", kind: "image", previewUrl: "https://core.test/image", fileName: "image.png" },
-    ])).resolves.toEqual({ providerMessageId: "message-3", status: "sent" });
-    expect(JSON.parse(String(fetchImpl.mock.calls[1]?.[1]?.body))).toMatchObject({
-      content: "The post is ready.\n\n[image.png](https://core.test/image)",
-    });
-  });
 });

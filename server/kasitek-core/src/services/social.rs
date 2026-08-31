@@ -13,9 +13,7 @@ use std::time::Instant;
 use crate::config::AppConfig;
 use crate::db::models::SocialChannel;
 use crate::error::AppError;
-use crate::services::{
-    billing, bluesky_oauth, connection_permissions, connections, content_media, social_posts,
-};
+use crate::services::{billing, bluesky_oauth, connections, content_media, social_posts};
 
 const X_TOKEN_URL: &str = "https://api.x.com/2/oauth2/token";
 const X_ME_URL: &str =
@@ -121,10 +119,7 @@ pub(crate) fn merge_channel_metadata_with_capabilities(
     Some(Value::Object(object))
 }
 
-pub use super::social_oauth::{
-    build_instagram_authorize_url_for_request, build_meta_authorize_url_for_request,
-    linkedin_organization_scopes_configured, XOAuthState,
-};
+pub use super::social_oauth::{linkedin_organization_scopes_configured, XOAuthState};
 
 #[derive(Debug, serde::Deserialize)]
 pub struct OAuthCallbackQuery {
@@ -143,9 +138,6 @@ pub struct BlueskyOAuthStartQuery {
 #[derive(Debug, serde::Deserialize)]
 pub struct MetaOAuthStartQuery {
     pub target: Option<String>,
-    #[serde(rename = "connectionId")]
-    pub connection_id: Option<String>,
-    pub capabilities: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -167,8 +159,6 @@ pub struct SocialPostProviderDeletionResult {
     pub external_post_id: Option<String>,
     pub status: String,
     pub message: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub authorization: Option<crate::services::connection_permissions::AuthorizationRequirement>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -178,10 +168,6 @@ pub struct SocialPostDeletionResult {
     pub local_deleted: bool,
     #[serde(rename = "providerResults")]
     pub provider_results: Vec<SocialPostProviderDeletionResult>,
-    #[serde(rename = "authorizationRequired")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub authorization_required:
-        Option<crate::services::connection_permissions::AuthorizationRequirement>,
 }
 
 #[allow(dead_code)]
@@ -906,17 +892,6 @@ pub struct MetaTokenResponse {
     pub expires_in: Option<i64>,
 }
 
-#[derive(Debug, serde::Deserialize)]
-struct MetaPermissionEntry {
-    permission: Option<String>,
-    status: Option<String>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct MetaPermissionsResponse {
-    data: Option<Vec<MetaPermissionEntry>>,
-}
-
 #[derive(Clone, serde::Deserialize)]
 pub struct InstagramTokenResponse {
     pub access_token: Option<String>,
@@ -1039,24 +1014,6 @@ pub async fn exchange_meta_for_long_lived_token(
     }
 
     Ok(tokens)
-}
-
-pub async fn fetch_meta_permissions(access_token: &str) -> Result<Vec<String>, AppError> {
-    let response: MetaPermissionsResponse = fetch_json(
-        reqwest::Client::new()
-            .get(format!("{META_GRAPH_BASE}/me/permissions"))
-            .bearer_auth(access_token),
-        "Failed to inspect Meta permissions",
-    )
-    .await?;
-
-    Ok(response
-        .data
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|entry| entry.status.as_deref() == Some("granted"))
-        .filter_map(|entry| entry.permission)
-        .collect())
 }
 
 pub async fn exchange_instagram_code_for_token(
@@ -2396,7 +2353,6 @@ async fn delete_social_post_from_platforms_internal(
             external_post_id: external_post_id.clone(),
             status: "FAILED".to_string(),
             message: None,
-            authorization: None,
         };
 
         let Some(external_post_id) = external_post_id else {
@@ -2446,26 +2402,6 @@ async fn delete_social_post_from_platforms_internal(
             }
             Err(error) => {
                 result.message = Some(error.to_string());
-                if connection_permissions::is_authorization_error(&error) {
-                    let metadata = resolve_channel_for_post_deletion(
-                        pool,
-                        org_id,
-                        &job.platform,
-                        channel_connection_id,
-                    )
-                    .await
-                    .ok()
-                    .and_then(|channel| channel.metadata);
-                    result.authorization = connection_permissions::authorization_requirement(
-                        &job.platform,
-                        metadata.as_ref(),
-                        connection_permissions::SOCIAL_POST_DELETE,
-                    )
-                    .map(|mut requirement| {
-                        requirement.connection_id = Some(channel_connection_id.to_string());
-                        requirement
-                    });
-                }
             }
         }
         provider_results.push(result);
@@ -2475,14 +2411,10 @@ async fn delete_social_post_from_platforms_internal(
         .iter()
         .all(|result| result.status == "DELETED");
     if !all_provider_deletes_succeeded {
-        let authorization_required = provider_results
-            .iter()
-            .find_map(|result| result.authorization.clone());
         return Ok(SocialPostDeletionResult {
             success: false,
             local_deleted: false,
             provider_results,
-            authorization_required,
         });
     }
 
@@ -2513,7 +2445,6 @@ async fn delete_social_post_from_platforms_internal(
                 success: true,
                 local_deleted: false,
                 provider_results,
-                authorization_required: None,
             });
         }
     }
@@ -2526,7 +2457,6 @@ async fn delete_social_post_from_platforms_internal(
         success: true,
         local_deleted: true,
         provider_results,
-        authorization_required: None,
     })
 }
 pub async fn get_tiktok_creator_info(

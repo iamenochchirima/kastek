@@ -1,41 +1,5 @@
 import type { ChannelAdapter, ChannelDeliveryRequest, ChannelDeliveryResult, CanonicalChannelEvent } from "./types";
 
-export type DiscordMediaKind = "image" | "video" | "audio";
-
-const discordMimeByExtension: Record<string, string> = {
-  gif: "image/gif",
-  jpeg: "image/jpeg",
-  jpg: "image/jpeg",
-  png: "image/png",
-  webp: "image/webp",
-  mov: "video/quicktime",
-  mp4: "video/mp4",
-  webm: "video/webm",
-  aac: "audio/aac",
-  flac: "audio/flac",
-  m4a: "audio/m4a",
-  mp3: "audio/mpeg",
-  ogg: "audio/ogg",
-  opus: "audio/opus",
-  wav: "audio/wav",
-};
-
-export function normalizeDiscordMimeType(input: { mimeType?: unknown; fileName?: unknown }): string {
-  const mimeType = typeof input.mimeType === "string" ? input.mimeType.split(";", 1)[0]?.trim().toLowerCase() ?? "" : "";
-  if (mimeType && mimeType !== "application/octet-stream" && mimeType !== "binary/octet-stream") return mimeType;
-  const fileName = typeof input.fileName === "string" ? input.fileName : "";
-  const extension = fileName.split(".").at(-1)?.trim().toLowerCase() ?? "";
-  return discordMimeByExtension[extension] ?? mimeType;
-}
-
-export function discordMediaKind(mimeType: string): DiscordMediaKind | undefined {
-  const normalized = mimeType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
-  if (normalized.startsWith("image/")) return "image";
-  if (normalized.startsWith("video/")) return "video";
-  if (normalized.startsWith("audio/") || normalized === "application/ogg") return "audio";
-  return undefined;
-}
-
 export interface DiscordAdapterOptions {
   deliverMessage?: (request: ChannelDeliveryRequest) => Promise<ChannelDeliveryResult>;
 }
@@ -97,16 +61,14 @@ export class DiscordChannelAdapter implements ChannelAdapter {
       ? value.attachments.find((candidate): candidate is Record<string, unknown> => Boolean(candidate && typeof candidate === "object"))
       : undefined;
     const attachmentId = attachment && typeof attachment.id === "string" ? attachment.id : undefined;
-    const attachmentMimeType = normalizeDiscordMimeType({ mimeType: attachment?.content_type, fileName: attachment?.filename });
-    const attachmentMediaKind = discordMediaKind(attachmentMimeType);
     const content = attachmentId
       ? {
           attachmentId,
-          mimeType: attachmentMimeType || "application/octet-stream",
+          mimeType: typeof attachment?.content_type === "string" ? attachment.content_type : "application/octet-stream",
           ...(typeof attachment?.filename === "string" ? { fileName: attachment.filename } : {}),
           ...(typeof attachment?.url === "string" ? { url: attachment.url } : {}),
           ...(typeof attachment?.duration_secs === "number" ? { durationMs: Math.round(attachment.duration_secs * 1000) } : {}),
-          ...(attachmentMediaKind ? { mediaKind: attachmentMediaKind } : {}),
+          ...(typeof attachment?.content_type === "string" && attachment.content_type.startsWith("audio/") ? { mediaKind: "audio" } : {}),
           ...(typeof value.content === "string" && value.content ? { text: value.content } : {}),
         }
       : { text: typeof value.content === "string" ? value.content : "" };

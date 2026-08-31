@@ -27,10 +27,6 @@ export default async function ConnectionsPage({
     pages_count?: string;
     pages_status?: string;
     error?: string;
-    access?: string;
-    provider?: string;
-    connectionId?: string;
-    capabilities?: string;
   }>;
 }) {
   const session = await getRustSession();
@@ -111,27 +107,11 @@ export default async function ConnectionsPage({
           </div>
         ) : null}
 
-        {params.access === "granted" ? (
-          <div className="rounded-xl border border-status-success/30 bg-status-success-soft px-4 py-3 text-sm text-status-success">
-            Connection access updated.
-          </div>
-        ) : null}
-
         <FeatureAnalyticsPanel title="Connection" description="Lifecycle and health reporting." metricKeys={CONNECTION_ANALYTICS_METRICS} />
 
         <WhatsappEmbeddedSignupCard connections={whatsappResponse.connections} hidden />
 
-        <ConnectionsManager
-          connections={sharedResponse.connections}
-          initialAccessRequest={params.connectionId ? {
-            connectionId: params.connectionId,
-            capabilities: params.capabilities?.split(",").map((value) => value.trim().toUpperCase()).filter(Boolean),
-            provider: params.provider,
-          } : params.provider ? {
-            capabilities: params.capabilities?.split(",").map((value) => value.trim().toUpperCase()).filter(Boolean),
-            provider: params.provider,
-          } : undefined}
-        />
+        <ConnectionsManager connections={sharedResponse.connections} />
 
         <section id="whatsapp-setup" className="scroll-mt-6 space-y-3">
           <details className="rounded-xl border border-border bg-card">

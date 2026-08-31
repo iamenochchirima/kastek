@@ -7,8 +7,6 @@ use crate::analytics;
 use crate::db::models::ExternalConnection;
 use crate::error::AppError;
 
-use super::connection_permissions;
-
 const MUTABLE_STATUSES: &[&str] = &["CONNECTED", "DISCONNECTED", "REVOKED"];
 
 #[derive(Clone, Debug, Eq, PartialEq, sqlx::FromRow)]
@@ -424,7 +422,6 @@ async fn sync_capabilities(
                 ('SOCIAL_ANALYTICS', 'feature.analytics.view', ARRAY['FACEBOOK', 'INSTAGRAM', 'THREADS', 'TIKTOK', 'BLUESKY', 'LINKEDIN', 'X']),
                 ('COMMENTS_MANAGE', 'feature.content.manage', ARRAY['FACEBOOK', 'INSTAGRAM', 'X']),
                 ('MEDIA_PUBLISH', 'feature.content.publish', ARRAY['FACEBOOK', 'INSTAGRAM', 'TIKTOK', 'LINKEDIN', 'X']),
-                ('SOCIAL_POST_DELETE', 'feature.content.manage', ARRAY['FACEBOOK', 'INSTAGRAM', 'THREADS', 'LINKEDIN', 'X']),
                 ('CALLS_INBOUND', NULL::text, ARRAY['TWILIO']),
                 ('CALLS_OUTBOUND', NULL::text, ARRAY['TWILIO']),
                 ('CALLS_BROWSER', NULL::text, ARRAY['TWILIO'])
@@ -481,8 +478,7 @@ pub async fn list_connections(
     org_id: &str,
 ) -> Result<Vec<ExternalConnection>, AppError> {
     sync_org_connections(pool, org_id).await?;
-    connection_permissions::sync_permission_inventory(pool, org_id).await?;
-    let mut connections = sqlx::query_as::<_, ExternalConnection>(
+    sqlx::query_as::<_, ExternalConnection>(
         r#"
         SELECT connection.id, connection.provider,
                connection."externalAccountId" AS external_account_id,
@@ -503,19 +499,6 @@ pub async fn list_connections(
                    WHERE capability."connectionId" = connection.id
                ), '[]'::jsonb) AS capabilities,
                COALESCE((
-                   SELECT jsonb_agg(jsonb_build_object(
-                       'key', permission.key,
-                       'state', permission.state,
-                       'requestable', permission.requestable,
-                       'reasonCode', permission."reasonCode",
-                       'authMode', permission."authMode",
-                       'verificationSource', permission."verificationSource",
-                       'observedAt', permission."observedAt" AT TIME ZONE 'UTC'
-                   ) ORDER BY permission.key)
-                   FROM "ExternalConnectionPermission" permission
-                   WHERE permission."connectionId" = connection.id
-               ), '[]'::jsonb) AS permissions,
-               COALESCE((
                    SELECT jsonb_agg(consumer."productKey" ORDER BY consumer."productKey")
                    FROM "ExternalConnectionConsumer" consumer
                    WHERE consumer."connectionId" = connection.id
@@ -532,21 +515,7 @@ pub async fn list_connections(
     .bind(org_id)
     .fetch_all(pool)
     .await
-    .map_err(AppError::from)?;
-
-    for connection in &mut connections {
-        connection.permissions = serde_json::to_value(
-            connection_permissions::permission_snapshots(
-                &connection.provider,
-                connection.metadata.as_ref(),
-            )
-            .into_iter()
-            .map(|snapshot| snapshot.definition)
-            .collect::<Vec<_>>(),
-        )
-        .unwrap_or_else(|_| serde_json::json!([]));
-    }
-    Ok(connections)
+    .map_err(AppError::from)
 }
 
 pub async fn update_status(

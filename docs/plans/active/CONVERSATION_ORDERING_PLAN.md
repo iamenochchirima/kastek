@@ -49,7 +49,7 @@ winner; the application keeps the existing `conversation_busy` backpressure resp
 Affected services and user surfaces: agents-api, agents-worker, Agents PostgreSQL, platform chat,
 channel ingestion, handoff continuation, retry endpoints, and operator recovery views.
 
-Platform release version or release ID: `c2b126d8` (agents-api, agents-worker, and MCP-Gateway).
+Platform release version or release ID: pending commit and deployment verification.
 
 API/schema/migration changes: additive migration 088 adds a partial unique index on active
 conversation-bound runs. Existing API response contracts remain unchanged.
@@ -67,14 +67,8 @@ an open follow-up.
 User, API, internal, and operational documentation: update the agent platform audit, conversation
 ordering architecture note, and Temporal recovery runbook.
 
-Validation evidence: agents full non-DB suite `85 passed, 18 skipped`, `531 passed, 52 skipped`;
-agents typecheck and build passed; migration tests passed (`23/23`); local migration 088 applied;
-platform-chat integration passed (`11/11`) including concurrent admission and channel redelivery;
-production migration 088 applied through the agents-db tunnel and recorded in `schema_migrations`.
-Deployments `ff03df19-2e8a-4923-9a4b-f46b673c799d` (agents-worker),
-`00dcdcc4-faa6-424a-ad1d-e0bd70be89e8` (agents-api), and
-`e5052169-3b8b-4abf-ae5e-b35119f6639a` (MCP-Gateway) succeeded. Agents-api live/readiness and
-MCP-Gateway health/readiness smoke checks returned 200.
+Validation evidence: pending migration, full suite, production migration, and deployment smoke
+verification.
 
 Rollback or disable plan: deploy the previous application artifact while retaining migration 088;
 the index is additive and prevents unsafe duplicate admissions. Removing it requires a reviewed

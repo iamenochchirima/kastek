@@ -24,18 +24,6 @@ export interface CoreWorkspaceStatus {
   connections: Array<{ provider: string; status: string; count: number }>;
 }
 
-export interface CoreConnectionPermission {
-  key: string;
-  group: string;
-  label: string;
-  description: string;
-  state: "GRANTED" | "NOT_GRANTED" | "REQUESTABLE" | "UNSUPPORTED" | "UNKNOWN" | "REQUIRES_PROVIDER_APPROVAL" | string;
-  requestable: boolean;
-  reasonCode?: string | null;
-  authMode?: string | null;
-  verificationSource?: string | null;
-}
-
 export interface CoreWorkspaceConnection {
   provider: string;
   displayName: string;
@@ -46,7 +34,6 @@ export interface CoreWorkspaceConnection {
   webhookStatus: string;
   lastCheckedAt?: string | null;
   capabilities?: unknown;
-  permissions?: CoreConnectionPermission[];
   consumers?: unknown;
 }
 
@@ -235,27 +222,7 @@ export interface CorePublishedPostDeletionResult {
     externalPostId?: string | null;
     status: string;
     message?: string | null;
-    authorization?: {
-      code: string;
-      provider: string;
-      connectionId?: string;
-      requiredCapabilities: string[];
-      requestable: boolean;
-      authMode?: string | null;
-      reasonCode: string;
-      remediation: "connections_access" | string;
-    } | null;
   }>;
-  authorizationRequired?: {
-    code: string;
-    provider: string;
-    connectionId?: string;
-    requiredCapabilities: string[];
-    requestable: boolean;
-    authMode?: string | null;
-    reasonCode: string;
-    remediation: "connections_access" | string;
-  } | null;
 }
 
 export interface CoreContentMediaAsset {

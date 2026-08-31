@@ -15,9 +15,7 @@ provider-specific rendering.
 
 `AgentMediaReference@1` contains a stable Core `assetId`, `kind`, optional `mimeType`, `fileName`,
 `altText`, `caption`, and `disposition`. It never contains provider URLs, storage keys, or bytes.
-`AgentResponse@1` contains `version`, `text`, `media[]`, and optional trusted authorization
-remediation metadata. The authorization metadata contains only normalized capability keys and a
-Connections deep-link intent; it never contains provider scopes or credentials.
+`AgentResponse@1` contains `version`, `text`, and `media[]`.
 
 The envelope is stored in run output and conversation message JSONB. Older `{ text }` records remain
 valid through the compatibility parser. Inbound channel attachments are normalized to the same
@@ -78,23 +76,18 @@ processing state, scanning state, installation grants, and provider connection s
 - Website delivery stores typed content and hydrates previews only after validating the active
   visitor session and deployment organization.
 - Delivery retries reuse stable asset IDs and mint fresh transport resources.
-- If a preview cannot be resolved or a provider rejects a native remote media reference, delivery
-  records a bounded media-resolution event and preserves the text reply with a link or unavailable
-  attachment notice where the channel supports it.
 - Idempotency remains at the delivery-attempt boundary. A provider failure is recorded with a
-  bounded error; a text fallback is used only when the adapter can send it as a separate bounded
-  transport attempt.
+  bounded error and does not silently turn into a successful text-only response.
 - Delivery lifecycle events include channel, media count, media kinds, and outcome; they exclude
   URLs, bytes, credentials, captions, and message bodies.
 
 ## Operational checklist
 
 Before broad rollout, verify the agents worker, agents API, Core, database migration, website
-widget, and each configured provider with one non-sensitive image and one text-only reply. Telegram,
-WhatsApp, and Discord inbound supported media are stored as Core-owned assets before the agent run;
-unsupported or failed downloads receive an explicit channel response. Monitor media resolve failures,
-native delivery failures, fallback count, delivery latency, and provider authentication failures.
-Disable native media per gateway and continue text delivery if a provider regression appears.
+widget, and each configured provider with one non-sensitive image and one text-only reply. Monitor
+media resolve failures, native delivery failures, fallback count, delivery latency, and provider
+authentication failures. Disable native media per gateway and continue text delivery if a provider
+regression appears.
 
 The compatibility Markdown adapter remains for older agent versions. New agent runs should use
 `kasitek.agent.respond`; remove the adapter only after its usage and fallback metrics remain zero for

@@ -55,10 +55,9 @@ import { IntegrationRepository } from "../integrations/repository";
 import { IntegrationToolService } from "../integrations/service";
 import { registerIntegrationTools } from "../integrations/tools";
 import { recordBudgetExhaustion, recordRetrievalResult, recordTemporalActivityAttempt, withSpan } from "../telemetry/spans";
-import { AGENT_MEDIA_HARNESS_TOOLS, agentResponseSchema, agentResponseToolInputSchema, findAuthorizationRequirement, parseAgentResponse } from "../media/contracts";
-import { buildChannelMediaText, type ResolvedAgentMedia } from "../media/delivery";
+import { AGENT_MEDIA_HARNESS_TOOLS, agentResponseSchema, agentResponseToolInputSchema, parseAgentResponse } from "../media/contracts";
+import { materializeResponseLinks, type ResolvedAgentMedia } from "../media/delivery";
 import { channelMediaProfile } from "../media/profiles";
-import { authorizationRemediationText } from "../channels/authorization";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -1334,7 +1333,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
   tools.register({
     name: "kasitek.core.content_post_delete_published",
     version: "1.0.0",
-    description: "Delete a published post from one connected social platform after user approval. If authorizationRequired is returned, explain the missing access, use its remediation intent to direct the user to Connections access, and do not ask them to disconnect by default.",
+    description: "Delete a published post from one connected social platform after user approval.",
     riskClass: "external-effect",
     requiresApproval: true,
     timeoutMs: 60_000,
@@ -1353,7 +1352,6 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
         success: { type: "boolean" },
         localDeleted: { type: "boolean" },
         providerResults: { type: "array" },
-        authorizationRequired: { type: ["object", "null"] },
       },
       required: ["success", "localDeleted", "providerResults"],
       additionalProperties: false,
@@ -2066,40 +2064,28 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       const nativeMedia = response.media.filter((item) => mediaProfile.nativeKinds.has(item.kind));
       const fallbackMedia = response.media.filter((item) => !mediaProfile.nativeKinds.has(item.kind));
       const resolvedMedia: ResolvedAgentMedia[] = [];
-      let mediaResolutionFailures = 0;
       if (response.media.length && coreClient && (linkChannel || fallbackMedia.length)) {
         for (const item of (linkChannel ? response.media : fallbackMedia)) {
-          try {
-            const preview = await coreClient.getContentMediaPreview({
-              organizationId: pending.organization_id,
-              installationId: pending.installation_id,
-              actorId: pending.actor_id,
-              runId: pending.run_id,
-              correlationId: pending.correlation_id,
-            }, item.assetId);
-            resolvedMedia.push({ assetId: item.assetId, kind: item.kind, fileName: preview.asset.fileName, previewUrl: preview.previewUrl });
-          } catch {
-            mediaResolutionFailures += 1;
-          }
+          const preview = await coreClient.getContentMediaPreview({
+            organizationId: pending.organization_id,
+            installationId: pending.installation_id,
+            actorId: pending.actor_id,
+            runId: pending.run_id,
+            correlationId: pending.correlation_id,
+          }, item.assetId);
+          resolvedMedia.push({ assetId: item.assetId, kind: item.kind, fileName: preview.asset.fileName, previewUrl: preview.previewUrl });
         }
       }
-      if (mediaResolutionFailures > 0) {
-        await runs.appendEvent({
-          organizationId: pending.organization_id,
-          runId: pending.run_id,
-          installationId: pending.installation_id,
-          eventType: "agent.reply.media_resolution_failed",
-          payload: { channelType, mediaResolutionFailures },
-        });
-      }
-      const deliveryMedia = resolvedMedia.filter((item) => mediaProfile.nativeKinds.has(item.kind));
-      const resolutionCandidates = (linkChannel ? response.media : fallbackMedia).map((item) => item.assetId);
-      const text = buildChannelMediaText(response, mediaProfile, resolvedMedia, resolutionCandidates).trim()
+      const fallbackText = fallbackMedia.length && mediaProfile.fallback === "link"
+        ? materializeResponseLinks({ ...response, text: "", media: fallbackMedia }, resolvedMedia).trim()
+        : fallbackMedia.length ? "Attachment unavailable on this channel." : "";
+      const text = (coreMediaChannel
+        ? [response.text.trim(), fallbackText].filter(Boolean).join("\n\n")
+        : mediaProfile.fallback === "text"
+          ? [response.text.trim(), fallbackText].filter(Boolean).join("\n\n")
+          : materializeResponseLinks(response, resolvedMedia)).trim()
         || (!coreMediaChannel && response.media.length ? "Attachment" : "");
       if (!text && !response.media.length) throw new Error("External channel reply has no text or media content");
-      const externalText = response.authorizationRequired
-        ? authorizationRemediationText(text, response.authorizationRequired, options.config?.KASITEK_APP_URL)
-        : text;
       const deliveryStep = await runSteps.startStep({
         runId: pending.run_id,
         organizationId: pending.organization_id,
@@ -2114,13 +2100,13 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           ? await (async () => {
             if (!channelCredentials || !telegramClient || !pending.credential_reference) throw new Error("Telegram channel delivery is not configured");
             const token = await channelCredentials.resolve(pending.organization_id, pending.credential_reference, "telegram");
-            return telegramClient.sendMediaResponse(token, pending.external_conversation_id, externalText, deliveryMedia);
+            return telegramClient.sendMediaResponse(token, pending.external_conversation_id, response.text, resolvedMedia);
           })()
           : channelType === "discord"
           ? await (async () => {
             if (!channelCredentials || !discordClient || !pending.credential_reference) throw new Error("Discord channel delivery is not configured");
             const token = await channelCredentials.resolve(pending.organization_id, pending.credential_reference, "discord");
-            return discordClient.sendMediaResponse(token, pending.external_conversation_id, externalText, deliveryMedia);
+            return discordClient.sendMediaResponse(token, pending.external_conversation_id, response.text, resolvedMedia);
           })()
           : await (async () => {
             if (!coreClient) throw new Error("kasitek-core channel delivery boundary is not configured");
@@ -2132,7 +2118,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
               correlationId: pending.correlation_id,
               channelType,
               externalConversationId: pending.external_conversation_id,
-              text: externalText,
+              text,
               ...(coreMediaChannel && nativeMedia.length ? { media: nativeMedia } : {}),
             });
           })();
@@ -2148,7 +2134,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           runId: pending.run_id,
           installationId: pending.installation_id,
           eventType: "agent.reply.delivered",
-          payload: { channelType, status: result.status, mediaCount: response.media.length, resolvedMediaCount: resolvedMedia.length, mediaResolutionFailures, mediaKinds: [...new Set(response.media.map((item) => item.kind))], ...(response.authorizationRequired ? { authorizationRequired: response.authorizationRequired } : {}) },
+          payload: { channelType, status: result.status, mediaCount: response.media.length, mediaKinds: [...new Set(response.media.map((item) => item.kind))] },
         });
       } catch (error) {
         if (claimed) {
@@ -2164,7 +2150,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           runId: pending.run_id,
           installationId: pending.installation_id,
           eventType: "agent.reply.delivery_failed",
-          payload: { channelType, mediaCount: response.media.length, resolvedMediaCount: resolvedMedia.length, mediaResolutionFailures, mediaKinds: [...new Set(response.media.map((item) => item.kind))], ...(response.authorizationRequired ? { authorizationRequired: response.authorizationRequired } : {}), message: error instanceof Error ? error.message : "Channel delivery failed" },
+          payload: { channelType, mediaCount: response.media.length, mediaKinds: [...new Set(response.media.map((item) => item.kind))], message: error instanceof Error ? error.message : "Channel delivery failed" },
         });
       }
     },
@@ -3091,11 +3077,7 @@ async function executeConfiguredWorkflow(input: {
       usage: workflowUsage(latestCheckpoint.usage),
       latencyMs: 0,
     };
-    const checkpointAuthorization = findAuthorizationRequirement(checkpointOutput) ?? findAuthorizationRequirement(latestCheckpoint.state);
-    const completionResponse = checkpointAuthorization
-      ? { version: "1" as const, text: output, media: [], authorizationRequired: checkpointAuthorization }
-      : undefined;
-    return { status: "completed", messages: [response.message], response, ...(completionResponse ? { completionResponse } : {}), usage: response.usage, iterations: latestCheckpoint.trace.length, toolCalls: latestCheckpoint.usage.toolCalls, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools: [], retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
+    return { status: "completed", messages: [response.message], response, usage: response.usage, iterations: latestCheckpoint.trace.length, toolCalls: latestCheckpoint.usage.toolCalls, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools: [], retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
   }
   const persistedState = persisted?.state;
   const workflowStateValue = latestCheckpoint?.state
@@ -3107,7 +3089,6 @@ async function executeConfiguredWorkflow(input: {
   const executionGraph = pausedNodeId && graph.nodes.some((node) => node.id === pausedNodeId) ? { ...graph, entryNodeId: pausedNodeId } : graph;
   const toolSequence = { value: 0 };
   const usedTools = new Set<string>();
-  let authorizationRequired: ReturnType<typeof findAuthorizationRequirement>;
   let lastModelResponse: ModelResponse | undefined;
 
   const executeTool = async (request: { name: string; arguments: Record<string, unknown>; nodeId: string; approved?: unknown }): Promise<unknown> => {
@@ -3208,10 +3189,8 @@ async function executeConfiguredWorkflow(input: {
           });
         } : undefined,
       }));
-      const toolAuthorization = findAuthorizationRequirement(result.output);
       const safeOutput = redactSensitiveValue(result.output);
       const durableOutput = redactToolOutput(result.output, manifest.manifest?.redaction ?? []);
-      if (toolAuthorization) authorizationRequired = toolAuthorization;
       await input.toolInvocations.recordCompleted({ runId: input.run.id, providerToolCallId, output: durableOutput, latencyMs: result.latencyMs, effectId: result.effectId });
       await input.runSteps.finishStep({ stepId: step.id, status: "completed", output: { latencyMs: result.latencyMs } });
       activityHeartbeat({ phase: "workflow.tool.completed", nodeId: request.nodeId, tool: request.name });
@@ -3407,15 +3386,7 @@ async function executeConfiguredWorkflow(input: {
   const output = workflowResponse?.text
     || (typeof result.state.output === "string" ? result.state.output : typeof result.state.answer === "string" ? result.state.answer : lastModelResponse?.message.content ?? "Workflow completed");
   const response = lastModelResponse ?? { provider: input.modelProvider, model: input.model, message: { role: "assistant" as const, content: output }, toolCalls: [], finishReason: "workflow", usage: emptyWorkflowUsage(), latencyMs: 0 };
-  const workflowAuthorization = authorizationRequired ?? result.authorizationRequired ?? findAuthorizationRequirement(workflowResponse) ?? findAuthorizationRequirement(result.state);
-  const completionResponse = workflowResponse
-    ? workflowAuthorization && !workflowResponse.authorizationRequired
-      ? { ...workflowResponse, authorizationRequired: workflowAuthorization }
-      : workflowResponse
-    : workflowAuthorization
-      ? { version: "1" as const, text: output, media: [], authorizationRequired: workflowAuthorization }
-      : undefined;
-  return { status: "completed", messages: [response.message], response, ...(completionResponse ? { completionResponse } : {}), usage: workflowUsage(result.usage), iterations: result.trace.length, toolCalls: result.usage.toolCalls, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
+  return { status: "completed", messages: [response.message], response, ...(workflowResponse ? { completionResponse: workflowResponse } : {}), usage: workflowUsage(result.usage), iterations: result.trace.length, toolCalls: result.usage.toolCalls, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
 }
 
 function workflowUsage(usage: GraphExecutionUsage): { inputTokens: number; outputTokens: number; totalTokens: number; estimatedCostUsd: number } {

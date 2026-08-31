@@ -1,5 +1,3 @@
-import { materializeResolvedMediaLinks, type ResolvedAgentMedia } from "../media/delivery";
-
 export interface DiscordBotProfile {
   id: string;
   username: string;
@@ -24,11 +22,6 @@ export interface DiscordComponentButton {
 interface DiscordApiError {
   message?: string;
   code?: string | number;
-}
-
-function isNativeMediaFallbackError(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-  return (error as { statusCode?: unknown }).statusCode === 400;
 }
 
 export interface DiscordBotClientOptions {
@@ -96,18 +89,11 @@ export class DiscordBotClient {
     const components = options.buttons?.length
       ? [{ type: 1, components: options.buttons.slice(0, 5).map((button) => ({ type: 2, style: button.style === "danger" ? 4 : 3, label: button.label.slice(0, 80), custom_id: button.customId })) }]
       : undefined;
-    try {
-      const result = await this.call<{ id?: unknown }>(token, `/channels/${encodeURIComponent(channelId)}/messages`, {
-        method: "POST",
-        body: JSON.stringify({ content: content || undefined, ...(imageEmbeds.length ? { embeds: imageEmbeds.slice(0, 10) } : {}), ...(components ? { components } : {}) }),
-      });
-      return { providerMessageId: typeof result.id === "string" ? result.id : undefined, status: "sent" };
-    } catch (error) {
-      if (!isNativeMediaFallbackError(error)) throw error;
-      // Preserve the response when Discord rejects a remote embed URL. The
-      // text message is the same bounded link fallback used for unsupported media.
-      return this.sendMessage(token, channelId, materializeResolvedMediaLinks(text, media), options);
-    }
+    const result = await this.call<{ id?: unknown }>(token, `/channels/${encodeURIComponent(channelId)}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ content: content || undefined, ...(imageEmbeds.length ? { embeds: imageEmbeds.slice(0, 10) } : {}), ...(components ? { components } : {}) }),
+    });
+    return { providerMessageId: typeof result.id === "string" ? result.id : undefined, status: "sent" };
   }
 
   public async downloadAttachment(token: string, url: string, maxBytes = 25 * 1024 * 1024): Promise<DiscordDownloadedAttachment> {
@@ -205,3 +191,4 @@ export class DiscordBotClient {
     });
   }
 }
+import type { ResolvedAgentMedia } from "../media/delivery";

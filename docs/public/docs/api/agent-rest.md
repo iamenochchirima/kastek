@@ -73,9 +73,8 @@ Platform and each channel gateway resolve the asset at delivery time.
 }
 ```
 
-The durable contract contains no provider URL or file bytes. Unsupported or temporarily unavailable
-provider media is delivered through the gateway's documented text/link fallback when possible; the
-text reply is preserved if an attachment cannot be resolved.
+The durable contract contains no provider URL or file bytes. Unsupported provider media is
+delivered through the gateway's documented text/link fallback.
 
 ## Invoke a tool
 
@@ -142,18 +141,14 @@ Content-Type: application/json
 {
   "agentId": "agent-uuid",
   "installationId": "installation-uuid",
-  "decision": "approve",
-  "supersedesMemoryId": "previous-memory-uuid"
+  "decision": "approve"
 }
 ```
 
 `decision` is `approve` or `reject`. Candidates are not returned by runtime retrieval while they
 are `review_pending` or `quarantined`. Approval changes the status to `active`; rejection changes
 it to `rejected`. Scope fields are required to prevent reviewing a record belonging to another
-agent or installation. When the candidate provenance contains a contradiction, approval also
-requires `supersedesMemoryId` for the active conflicting fact. This explicit action marks the old
-record `superseded` and preserves the lineage; it does not delete the old record. Review actions
-are audited.
+agent or installation. Review actions are audited.
 
 MCP clients use the equivalent `/mcp` JSON-RPC methods. Both transports intentionally converge on the
 same `agent_runs`, approval, tool invocation, receipt, and event records.

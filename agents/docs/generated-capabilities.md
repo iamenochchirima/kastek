@@ -1946,7 +1946,7 @@ Delete an unpublished content draft or schedule.
 ```
 ## kasitek.core.content_post_delete_published (1.0.0)
 
-Delete a published post from one connected social platform after user approval. If authorizationRequired is returned, explain the missing access, use its remediation intent to direct the user to Connections access, and do not ask them to disconnect by default.
+Delete a published post from one connected social platform after user approval.
 
 - Owner: `kasitek-core`
 - Permission: `content.publish` (Content Publish permission)
@@ -1994,12 +1994,6 @@ Delete a published post from one connected social platform after user approval. 
     },
     "providerResults": {
       "type": "array"
-    },
-    "authorizationRequired": {
-      "type": [
-        "object",
-        "null"
-      ]
     }
   },
   "required": [

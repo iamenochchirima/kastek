@@ -6,19 +6,6 @@ export type ConnectionCapability = {
   entitlementKey: string | null;
 };
 
-export type ConnectionPermission = {
-  key: string;
-  group: string;
-  label: string;
-  description: string;
-  state: "GRANTED" | "NOT_GRANTED" | "REQUESTABLE" | "UNSUPPORTED" | "UNKNOWN" | "REQUIRES_PROVIDER_APPROVAL" | string;
-  requestable: boolean;
-  reasonCode: string | null;
-  authMode: string | null;
-  verificationSource: string | null;
-  observedAt?: string | null;
-};
-
 export type WorkspaceConnection = {
   id: string;
   provider: string;
@@ -33,7 +20,6 @@ export type WorkspaceConnection = {
   lastError: string | null;
   metadata: Record<string, unknown> | null;
   capabilities: ConnectionCapability[];
-  permissions: ConnectionPermission[];
   consumers: string[];
   createdAt: string;
   updatedAt: string;
