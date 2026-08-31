@@ -58,7 +58,7 @@ import { recordBudgetExhaustion, recordRetrievalResult, recordTemporalActivityAt
 import { AGENT_MEDIA_HARNESS_TOOLS, agentResponseSchema, agentResponseToolInputSchema, parseAgentResponse } from "../media/contracts";
 import { materializeResponseLinks, type ResolvedAgentMedia } from "../media/delivery";
 import { channelMediaProfile } from "../media/profiles";
-import { runWithDatabaseContext } from "../db/context";
+import { runWithDatabaseContext, type DatabaseContext } from "../db/context";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -2161,7 +2161,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   };
   return Object.fromEntries(Object.entries(activities).map(([name, handler]) => [
     name,
-    (input: unknown) => {
+    async (input: unknown) => {
       let attempt = 1;
       try {
         attempt = activityInfo().attempt;
@@ -2172,8 +2172,19 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       const scope = input && typeof input === "object" ? input as { organizationId?: unknown; actorId?: unknown } : {};
       const organizationId = typeof scope.organizationId === "string" && scope.organizationId.trim() ? scope.organizationId : undefined;
       const actorId = typeof scope.actorId === "string" && scope.actorId.trim() ? scope.actorId : undefined;
+      let databaseContext: DatabaseContext | undefined = organizationId || actorId ? { organizationId, actorId } : undefined;
+      const runId = input && typeof input === "object" && typeof (input as { runId?: unknown }).runId === "string"
+        ? (input as { runId: string }).runId
+        : undefined;
+      if (!databaseContext && runId) {
+        const run = await runWithDatabaseContext(
+          { organizationId: "platform", actorId: "system:temporal-scope-recovery", operator: true },
+          () => runs.getRunById(runId),
+        );
+        if (run) databaseContext = { organizationId: run.organization_id, actorId: run.created_by };
+      }
       return runWithDatabaseContext(
-        organizationId || actorId ? { organizationId, actorId } : undefined,
+        databaseContext,
         () => withSpan(`temporal.activity.${name}`, { "temporal.activity.name": name, "temporal.activity.attempt": attempt }, () => handler(input as never)),
       );
     },

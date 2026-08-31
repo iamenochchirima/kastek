@@ -11,9 +11,13 @@ async function main(): Promise<void> {
   const config = loadConfig();
   // Migrations run as a one-shot administrative process. Keep the runtime
   // connection restricted and require an explicit migration URL for DDL.
+  const migrationDatabaseUrl = process.env.AGENTS_MIGRATION_DATABASE_URL?.trim();
+  if (config.NODE_ENV === "production" && !migrationDatabaseUrl) {
+    throw new Error("AGENTS_MIGRATION_DATABASE_URL is required in production");
+  }
   const pool = createPool({
     ...config,
-    AGENTS_DATABASE_URL: process.env.AGENTS_MIGRATION_DATABASE_URL?.trim() || config.AGENTS_DATABASE_URL,
+    AGENTS_DATABASE_URL: migrationDatabaseUrl || config.AGENTS_DATABASE_URL,
   });
   const migrationsDirectory = join(dirname(__filename), "../../migrations");
   const client = await pool.connect();

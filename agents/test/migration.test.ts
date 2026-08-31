@@ -10,6 +10,12 @@ describe("foundation migration", () => {
     expect(versions).toEqual([...versions].sort());
   });
 
+  it("requires an explicit DDL connection for production migrations", async () => {
+    const source = await readFile(new URL("../src/db/migrate.ts", import.meta.url), "utf8");
+    expect(source).toContain("AGENTS_MIGRATION_DATABASE_URL");
+    expect(source).toContain("is required in production");
+  });
+
   it("adds a durable offer layer without widening ownership", async () => {
     const sql = await readFile(new URL("../migrations/077_consent_gated_handoff.sql", import.meta.url), "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_handoff_offers");
