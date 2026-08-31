@@ -126,7 +126,9 @@ describe("agent gateway", () => {
       const client = httpRequest({ host: "127.0.0.1", port: address.port, path: "/mcp", method: "POST", headers: { "content-type": "application/json", "content-length": Buffer.byteLength('{"jsonrpc":"2.0","id":7,"method":"initialize"}') } });
       client.once("error", () => resolve());
       client.end('{"jsonrpc":"2.0","id":7,"method":"initialize"}');
-      setTimeout(() => { client.destroy(); resolve(); }, 30);
+      void vi.waitFor(() => expect(fetchMock).toHaveBeenCalled(), { timeout: 1_000 })
+        .then(() => client.destroy(), () => client.destroy())
+        .finally(resolve);
     });
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(aborted).toBe(true);

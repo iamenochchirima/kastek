@@ -817,6 +817,7 @@ export class KasitekCoreReadClient {
       sourceId?: string;
       pricingVersion?: string;
       expiresAt?: string;
+      idempotencyKey?: string;
     },
   ): Promise<CoreCreditReservationResult> {
     return this.requestJson<CoreCreditReservationResult>(
@@ -824,6 +825,7 @@ export class KasitekCoreReadClient {
       "/api/internal/agents/v1/credits/reservations",
       "Credit reservation",
       { method: "POST", body: JSON.stringify(input) },
+      input.idempotencyKey,
     );
   }
 
@@ -871,6 +873,7 @@ export class KasitekCoreReadClient {
     path: string,
     label: string,
     init: RequestInit,
+    explicitIdempotencyKey?: string,
   ): Promise<T> {
     const baseUrl = this.config.KASITEK_CORE_URL?.replace(/\/$/, "");
     const staticToken = this.config.KASITEK_CORE_INTERNAL_TOKEN?.trim();
@@ -878,15 +881,16 @@ export class KasitekCoreReadClient {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.config.KASITEK_CORE_TIMEOUT_MS);
     try {
+      const idempotencyKey = explicitIdempotencyKey ?? this.idempotencyKeyFor(path, init.method, context, init.body);
       const response = await fetch(`${baseUrl}${path}`, {
         ...init,
         headers: {
-          authorization: `Bearer ${this.token(context, this.capabilityFor(path, init.method), "1.0.0", init.body)}`,
+          authorization: `Bearer ${this.token(context, this.capabilityFor(path, init.method), "1.0.0", init.body, idempotencyKey)}`,
           "x-organization-id": context.organizationId,
           "x-actor-id": context.actorId ?? "kasitek-agent-platform",
           "x-agent-run-id": context.runId,
           "x-correlation-id": context.correlationId,
-          ...(this.idempotencyKeyFor(path, init.method, context, init.body) ? { "idempotency-key": this.idempotencyKeyFor(path, init.method, context, init.body)! } : {}),
+          ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
           accept: "application/json",
           ...(init.body && !new Headers(init.headers).has("content-type") ? { "content-type": "application/json" } : {}),
           ...(init.headers ?? {}),
@@ -965,7 +969,7 @@ export class KasitekCoreReadClient {
     return `${context.runId}:${capability}:${createHash("sha256").update(bodyText).digest("hex")}`;
   }
 
-  private token(context: CoreRequestContext, capability: string, version: string, body?: BodyInit | null): string {
+  private token(context: CoreRequestContext, capability: string, version: string, body?: BodyInit | null, explicitIdempotencyKey?: string): string {
     if (this.config.KASITEK_CORE_DELEGATION_PRIVATE_KEY) {
       const bodyText = typeof body === "string" ? body : "";
       const argumentsHash = bodyText
@@ -985,7 +989,7 @@ export class KasitekCoreReadClient {
         invocationId: `${context.runId}:${capability}`,
         correlationId: context.correlationId,
         audience: this.config.KASITEK_CORE_DELEGATION_AUDIENCE,
-        idempotencyKey: capability === "kasitek.core.channel_deliver" || capability === "kasitek.core.credits_reserve" || capability === "kasitek.core.credits_settle" || capability === "kasitek.core.content_post_draft" || capability === "kasitek.core.content_post_publish" || capability === "kasitek.core.content_post_delete_published" || capability === "kasitek.core.content_post_schedule" || capability === "kasitek.core.content_post_unschedule" || capability === "kasitek.core.content_post_delete" || capability === "kasitek.core.content_media_delete" || capability === "kasitek.core.connection_status_update" ? `${context.runId}:${capability}:${argumentsHash ?? "empty"}` : undefined,
+        idempotencyKey: explicitIdempotencyKey ?? (capability === "kasitek.core.channel_deliver" || capability === "kasitek.core.credits_reserve" || capability === "kasitek.core.credits_settle" || capability === "kasitek.core.content_post_draft" || capability === "kasitek.core.content_post_publish" || capability === "kasitek.core.content_post_delete_published" || capability === "kasitek.core.content_post_schedule" || capability === "kasitek.core.content_post_unschedule" || capability === "kasitek.core.content_post_delete" || capability === "kasitek.core.content_media_delete" || capability === "kasitek.core.connection_status_update" ? `${context.runId}:${capability}:${argumentsHash ?? "empty"}` : undefined),
         argumentsHash,
       });
     }

@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import { query, withTransaction } from "../db/pool";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
+import { RunBudgetRepository } from "../db/repositories/run-budget-repository";
 import { KillSwitchRepository } from "../db/repositories/kill-switch-repository";
 import { RunRepository } from "../db/repositories/run-repository";
 import { AgentRepository } from "../db/repositories/agent-repository";
@@ -16,7 +17,7 @@ import { AudioTranscriptionJobRepository } from "../db/repositories/audio-transc
 import { KasitekCoreReadClient } from "../core/client";
 
 export const operatorCommandInputSchema = z.object({
-  commandType: z.enum(["cancel_run", "retry_run", "retry_audio_transcription", "delete_audio_transcription", "replay_delivery", "delete_memory", "assign_run", "reconcile_effect", "request_export", "set_feature_flag", "clear_feature_flag", "create_hold", "release_hold", "set_retention_policy", "apply_retention_policy", "create_legal_hold", "release_legal_hold", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
+  commandType: z.enum(["cancel_run", "retry_run", "retry_audio_transcription", "delete_audio_transcription", "replay_delivery", "delete_memory", "assign_run", "reconcile_effect", "reconcile_budget", "request_export", "set_feature_flag", "clear_feature_flag", "create_hold", "release_hold", "set_retention_policy", "apply_retention_policy", "create_legal_hold", "release_legal_hold", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
   targetId: z.string().trim().min(1).max(240),
   payload: z.record(z.string(), z.unknown()).default({}),
 }).strict();
@@ -51,6 +52,7 @@ export interface OperatorCommandDependencies {
   schedules?: ScheduleRepository;
   channels?: ChannelRepository;
   memory?: MemoryRepository;
+  runBudgets?: RunBudgetRepository;
   controls?: OperatorControlRepository;
   retention?: RetentionRepository;
   audioTranscriptionJobs?: AudioTranscriptionJobRepository;
@@ -82,6 +84,7 @@ export function publicOperatorCommand(command: OperatorCommandRecord): Record<st
       deliveryAttemptId: command.result.deliveryAttemptId,
       originalDeliveryAttemptId: command.result.originalDeliveryAttemptId,
       memoryId: command.result.memoryId,
+      reservationId: command.result.reservationId,
       assignmentId: command.result.assignmentId,
       assigneeId: command.result.assigneeId,
       exportRequestId: command.result.exportRequestId,
@@ -268,6 +271,45 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
     });
     await auditCommand(dependencies.pool, { organizationId: effect.organization_id, actorId, action: "operator_command.effect_reconciled", commandId: command.id, metadata: { effectId: command.target_id, outcome } });
     return { status: outcome, effectId: command.target_id };
+  }
+
+  if (command.command_type === "reconcile_budget") {
+    if (!dependencies.runBudgets) throw Object.assign(new Error("Run-budget controls are unavailable"), { statusCode: 503 });
+    const reservation = (await query<{ organization_id: string; run_id: string; status: string }>(
+      dependencies.pool,
+      "SELECT organization_id, run_id, status FROM run_budget_reservations WHERE id = $1",
+      [command.target_id],
+    )).rows[0];
+    if (!reservation) throw Object.assign(new Error("Model budget reservation not found"), { statusCode: 404 });
+    assertExpectedResource(command, "expectedOrganizationId", reservation.organization_id, "Budget reservation organization");
+    assertExpectedResource(command, "expectedRunId", reservation.run_id, "Budget reservation run");
+    assertExpectedStatus(command, reservation.status);
+    const outcome = command.payload.outcome;
+    if (outcome !== "captured" && outcome !== "released") throw Object.assign(new Error("Budget reconciliation outcome must be captured or released"), { statusCode: 400 });
+    const usageValue = command.payload.usage;
+    const usage = outcome === "captured"
+      ? z.object({
+        inputTokens: z.number().int().min(0).max(10_000_000),
+        outputTokens: z.number().int().min(0).max(10_000_000),
+        totalTokens: z.number().int().min(0).max(20_000_000),
+        estimatedCostUsd: z.number().finite().min(0).max(1_000_000).optional(),
+      }).strict().parse(usageValue)
+      : undefined;
+    await dependencies.runBudgets.reconcileUnknownReservation({
+      organizationId: reservation.organization_id,
+      reservationId: command.target_id,
+      outcome,
+      usage,
+      reason: typeof command.payload.reason === "string" ? command.payload.reason.trim().slice(0, 2_000) : undefined,
+    });
+    await auditCommand(dependencies.pool, {
+      organizationId: reservation.organization_id,
+      actorId,
+      action: "operator_command.budget_reconciled",
+      commandId: command.id,
+      metadata: { reservationId: command.target_id, outcome },
+    });
+    return { status: outcome, reservationId: command.target_id };
   }
 
   if (command.command_type === "retry_run") {

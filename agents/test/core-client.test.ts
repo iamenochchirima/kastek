@@ -173,6 +173,24 @@ describe("kasitek-core read boundary", () => {
     }
   });
 
+  it("preserves an explicit credit idempotency key across retries", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      orgId: "org-1",
+      reservation: { id: "reservation-1", status: "RESERVED" },
+      balance: 100,
+      reservedBalance: 40,
+      availableBalance: 60,
+      amount: 40,
+      idempotent: false,
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+    await new KasitekCoreReadClient(config).reserveCredits(context, { actionKey: "ai.model_call", estimatedCredits: 40, expiresAt: "2099-01-01T00:00:00.000Z", idempotencyKey: "run-1:credits:model:1:0" });
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.headers).toMatchObject({ "idempotency-key": "run-1:credits:model:1:0" });
+    expect(JSON.parse(String(init.body)).idempotencyKey).toBe("run-1:credits:model:1:0");
+  });
+
   it("reads campaign inventory and a scoped campaign summary", async () => {
     const fetchMock = vi.fn().mockImplementation((input: string) => new Response(
       JSON.stringify(input.includes("/campaigns/") ? { campaign: { id: "campaign-1", status: "COMPLETED" } } : { campaigns: [{ id: "campaign-1" }] }),

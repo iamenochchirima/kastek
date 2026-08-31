@@ -38,11 +38,30 @@ export interface AgentLoopInput {
   signal?: AbortSignal;
   limits?: Partial<AgentLoopLimits>;
   onEvent?: (event: AgentLoopEvent) => Promise<void> | void;
-  onModelResponse?: (response: ModelResponse, attempt?: { model: AgentLoopInput["model"]; credentials: ModelCredentials }) => Promise<void> | void;
-  onModelError?: (error: { code: string; message: string }, attempt?: { model: AgentLoopInput["model"]; credentials: ModelCredentials }) => Promise<void> | void;
+  /** Claims the operation before a provider call and prevents unsafe replay after worker loss. */
+  prepareModelCall?: (input: {
+    operationKey: string;
+    model: AgentLoopInput["model"];
+    credentials: ModelCredentials;
+  }) => Promise<{ status: "new" | "completed" | "unknown"; response?: ModelResponse }>;
+  /** Persists a provider response before budget settlement and later loop bookkeeping. */
+  persistModelResponse?: (input: {
+    operationKey: string;
+    response: ModelResponse;
+    attempt: { model: AgentLoopInput["model"]; credentials: ModelCredentials };
+  }) => Promise<void> | void;
+  onModelResponse?: (response: ModelResponse, attempt?: { model: AgentLoopInput["model"]; credentials: ModelCredentials }, operationKey?: string) => Promise<void> | void;
+  persistModelError?: (input: {
+    operationKey: string;
+    model: AgentLoopInput["model"];
+    credentials: ModelCredentials;
+    error: { code: string; message: string };
+  }) => Promise<void> | void;
+  onModelError?: (error: { code: string; message: string }, attempt?: { model: AgentLoopInput["model"]; credentials: ModelCredentials }, operationKey?: string) => Promise<void> | void;
   reserveModelCall?: (input: {
     request: ModelRequest;
     credentials: ModelCredentials;
+    operationKey?: string;
   }) => Promise<ModelCreditReservation | undefined>;
   reserveRunBudget?: (input: {
     request: ModelRequest;
@@ -95,6 +114,7 @@ export interface AgentLoopInput {
 export interface ModelCreditReservation {
   capture(response: ModelResponse): Promise<void>;
   release(reason: string): Promise<void>;
+  markUnknown?(reason: string): Promise<void>;
 }
 
 export interface AgentLoopResult {
@@ -129,6 +149,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
   const usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
   let toolCalls = 0;
   let lastModelAttempt: { model: AgentLoopInput["model"]; credentials: ModelCredentials } = { model: input.model, credentials: input.credentials };
+  let lastModelOperationKey: string | undefined;
   const startedAt = Date.now();
   await emit(input, { type: "loop.started", iteration: 0, payload: {} });
 
@@ -213,12 +234,15 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       ];
       let response: ModelResponse | undefined;
       let lastError: unknown;
-      for (const attempt of attempts) {
+      for (const [attemptIndex, attempt] of attempts.entries()) {
         lastModelAttempt = attempt;
         let creditReservation: ModelCreditReservation | undefined;
         let runBudgetReservation: ModelCreditReservation | undefined;
+        let operationKey: string | undefined;
         try {
           await input.beforeModelCall?.();
+          operationKey = `model:${iteration}:${attemptIndex}`;
+          lastModelOperationKey = operationKey;
           const request: ModelRequest = {
             ...attempt.model,
             messages,
@@ -226,11 +250,42 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             tools: input.tools.list(input.grantedTools),
             maxTokens: attempt.model.maxTokens === undefined ? remainingTokens : Math.min(attempt.model.maxTokens, remainingTokens),
           };
-          runBudgetReservation = await input.reserveRunBudget?.({ request, reservationKey: `model:${iteration}:${attempts.indexOf(attempt)}` });
-          creditReservation = await input.reserveModelCall?.({ request, credentials: attempt.credentials });
-          response = await input.gateway.complete(request, attempt.credentials);
+          const prepared = await input.prepareModelCall?.({ operationKey, model: attempt.model, credentials: attempt.credentials });
+          try {
+            runBudgetReservation = await input.reserveRunBudget?.({ request, reservationKey: operationKey });
+          } catch (error) {
+            // The provider response may already be durable while the worker
+            // was lost after run-budget settlement. Replay the remaining
+            // settlement path instead of failing the run or calling the
+            // provider again.
+            if (!(prepared?.status === "completed" && error instanceof Error && error.message === "MODEL_CALL_ALREADY_SETTLED")) throw error;
+          }
+          if (prepared?.status === "unknown") {
+            await runBudgetReservation?.markUnknown?.("The worker lost the model operation before its provider outcome was recorded");
+            runBudgetReservation = undefined;
+            throw new Error("MODEL_CALL_OUTCOME_UNKNOWN");
+          }
+          if (prepared?.status === "completed") {
+            response = prepared.response;
+            if (!response) throw new Error("MODEL_CALL_RESPONSE_MISSING");
+            // Core credit reservations use the same stable operation key, so
+            // replay the same settlement path when the worker died between
+            // response persistence and credit capture.
+            creditReservation = await input.reserveModelCall?.({ request, credentials: attempt.credentials, operationKey });
+          } else {
+            creditReservation = await input.reserveModelCall?.({ request, credentials: attempt.credentials, operationKey });
+            response = await input.gateway.complete(request, attempt.credentials);
+            await input.persistModelResponse?.({ operationKey, response, attempt });
+          }
           if (runBudgetReservation) {
-            await runBudgetReservation.capture(response);
+            try {
+              await runBudgetReservation.capture(response);
+            } catch (error) {
+              // The response is already durable. A retry may arrive after the
+              // budget settlement, in which case it must replay without a
+              // second capture.
+              if (!(prepared?.status === "completed" && error instanceof Error && error.message === "MODEL_CALL_ALREADY_SETTLED")) throw error;
+            }
             runBudgetReservation = undefined;
           }
           if (creditReservation) {
@@ -246,13 +301,17 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             await creditReservation.release(error instanceof Error ? error.message : "model provider failure").catch(() => undefined);
           }
           lastError = error;
+          if (error instanceof ModelProviderError) {
+            const normalized = { code: error.code, message: error.message };
+            if (operationKey) await input.persistModelError?.({ operationKey, model: attempt.model, credentials: attempt.credentials, error: normalized });
+          }
           // A fallback is only for provider failures. Budget, policy, and
           // cancellation errors must stop the run immediately.
           if (!(error instanceof ModelProviderError)) throw error;
         }
       }
       if (!response) throw lastError ?? new Error("Model gateway returned no response");
-      await input.onModelResponse?.(response, lastModelAttempt);
+      await input.onModelResponse?.(response, lastModelAttempt, lastModelOperationKey);
       messages.push(response.message);
       usage.inputTokens += response.usage.inputTokens;
       usage.outputTokens += response.usage.outputTokens;
@@ -382,7 +441,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       const normalized = error instanceof ModelProviderError || error instanceof ToolPolicyError
         ? { code: error.code, message: error.message, failureClass: classifyFailureCode(error.code) }
         : { code: "AGENT_LOOP_FAILED", message: error instanceof Error ? error.message : "Unknown agent loop failure", failureClass: "terminal" as const };
-      if (error instanceof ModelProviderError) await input.onModelError?.(normalized, lastModelAttempt);
+      if (error instanceof ModelProviderError) await input.onModelError?.(normalized, lastModelAttempt, lastModelOperationKey);
       await emit(input, { type: "loop.failed", iteration, payload: normalized });
       return { status: "failed", messages, usage, iterations: iteration, toolCalls, error: normalized };
     }

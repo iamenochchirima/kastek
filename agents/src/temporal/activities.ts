@@ -40,8 +40,8 @@ import { executeWorkflowGraph, type GraphExecutionLimits, type GraphExecutionUsa
 import { WorkflowStateRepository } from "../db/repositories/workflow-state-repository";
 import { WorkflowCheckpointRepository } from "../db/repositories/workflow-checkpoint-repository";
 import { redactSensitiveValue, redactToolOutput } from "../tools/redaction";
-import type { ModelCredentials, ModelRequest, ModelResponse } from "../model/types";
-import { cancellationSignal, heartbeat } from "@temporalio/activity";
+import { ModelProviderError, type ModelCredentials, type ModelRequest, type ModelResponse } from "../model/types";
+import { activityInfo, cancellationSignal, heartbeat } from "@temporalio/activity";
 import { buildGroundingProvenance } from "../runtime/provenance";
 import type { ToolInvocationContext } from "../tools/types";
 import type { CoreContentPost, CoreContentPosts, CoreWorkspaceConnections } from "../core/client";
@@ -54,7 +54,7 @@ import { buildChannelApprovalPrompt } from "../approval/channel-prompt";
 import { IntegrationRepository } from "../integrations/repository";
 import { IntegrationToolService } from "../integrations/service";
 import { registerIntegrationTools } from "../integrations/tools";
-import { withSpan } from "../telemetry/spans";
+import { recordBudgetExhaustion, recordTemporalActivityAttempt, withSpan } from "../telemetry/spans";
 import { AGENT_MEDIA_HARNESS_TOOLS, agentResponseSchema, agentResponseToolInputSchema, parseAgentResponse } from "../media/contracts";
 import { materializeResponseLinks, type ResolvedAgentMedia } from "../media/delivery";
 import { channelMediaProfile } from "../media/profiles";
@@ -154,6 +154,7 @@ export async function reserveModelCredits(input: {
   coreClient?: KasitekCoreReadClient;
   context: ToolInvocationContext;
   runId: string;
+  operationKey?: string;
   request: ModelRequest;
   credentials: ModelCredentials;
 }): Promise<ModelCreditReservation | undefined> {
@@ -168,6 +169,7 @@ export async function reserveModelCredits(input: {
     sourceId: input.runId,
     pricingVersion: input.creditPricing.version,
     expiresAt: new Date(Date.now() + 5 * 60 * 1_000).toISOString(),
+    ...(input.operationKey ? { idempotencyKey: `${input.runId}:credits:${input.operationKey}` } : {}),
   });
   return {
     capture: async (response: ModelResponse) => {
@@ -197,17 +199,33 @@ async function reserveRunModelBudget(input: {
 }): Promise<ModelCreditReservation> {
   const estimatedInputTokens = estimatePromptTokens(input.request);
   const estimatedOutputTokens = Math.max(1, input.request.maxTokens ?? 4_096);
-  const reservation = await input.repository.reserveModelCall({
-    organizationId: input.organizationId,
-    runId: input.runId,
-    reservationKey: input.reservationKey,
-    estimatedTokens: estimatedInputTokens + estimatedOutputTokens,
-    estimatedCostUsd: input.gateway.estimateCost(input.request.provider, input.request.model, estimatedInputTokens, estimatedOutputTokens),
-  });
+  let reservation;
+  try {
+    reservation = await input.repository.reserveModelCall({
+      organizationId: input.organizationId,
+      runId: input.runId,
+      reservationKey: input.reservationKey,
+      estimatedTokens: estimatedInputTokens + estimatedOutputTokens,
+      estimatedCostUsd: input.gateway.estimateCost(input.request.provider, input.request.model, estimatedInputTokens, estimatedOutputTokens),
+    });
+  } catch (error) {
+    if (error instanceof Error && /BUDGET_EXCEEDED$/.test(error.message)) recordBudgetExhaustion(error.message);
+    throw error;
+  }
   return {
     capture: async (response) => reservation.capture(response.usage),
     release: async (reason) => reservation.release(reason),
+    markUnknown: async (reason) => reservation.markUnknown(reason),
   };
+}
+
+async function consumeRunToolBudget(repository: RunBudgetRepository, input: { organizationId: string; runId: string }): Promise<void> {
+  try {
+    await repository.consumeToolCall(input);
+  } catch (error) {
+    if (error instanceof Error && error.message === "TOOL_CALL_BUDGET_EXCEEDED") recordBudgetExhaustion(error.message);
+    throw error;
+  }
 }
 
 export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversationActions?: ConversationActionService, integrationTools?: IntegrationToolService, memoryRepository?: MemoryRepository): ToolRegistry {
@@ -2138,7 +2156,16 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   };
   return Object.fromEntries(Object.entries(activities).map(([name, handler]) => [
     name,
-    (input: unknown) => withSpan(`temporal.activity.${name}`, { "temporal.activity.name": name }, () => handler(input as never)),
+    (input: unknown) => {
+      let attempt = 1;
+      try {
+        attempt = activityInfo().attempt;
+      } catch {
+        // Direct activity tests do not have a Temporal context.
+      }
+      recordTemporalActivityAttempt(name, attempt);
+      return withSpan(`temporal.activity.${name}`, { "temporal.activity.name": name, "temporal.activity.attempt": attempt }, () => handler(input as never));
+    },
   ])) as unknown as AgentRunActivities;
 }
 
@@ -2306,7 +2333,7 @@ async function executeMcpToolRun(
         permittedEffectKey: `${run.id}:${invocation.id}`,
       });
     }
-    await runBudgets.consumeToolCall({ organizationId: run.organization_id, runId: run.id });
+    await consumeRunToolBudget(runBudgets, { organizationId: run.organization_id, runId: run.id });
     const result = await tools.invoke({
       name: invocation.name,
       arguments: invocation.arguments,
@@ -2719,8 +2746,38 @@ async function executeLoopForRun(
       maxWallTimeMs: typeof configuration.maxWallTimeMs === "number" ? configuration.maxWallTimeMs : undefined,
     },
     reserveRunBudget: async ({ request, reservationKey }) => reserveRunModelBudget({ repository: runBudgets, organizationId: run.organization_id, runId: run.id, reservationKey, gateway, request }),
-    consumeRunToolCall: () => runBudgets.consumeToolCall({ organizationId: run.organization_id, runId: run.id }),
-    reserveModelCall: async ({ request, credentials: attemptCredentials }) => {
+    consumeRunToolCall: () => consumeRunToolBudget(runBudgets, { organizationId: run.organization_id, runId: run.id }),
+    prepareModelCall: async ({ operationKey, model: attemptModel, credentials: attemptCredentials }) => modelCalls.prepare({
+      organizationId: run.organization_id,
+      runId: run.id,
+      operationKey,
+      provider: attemptModel.provider,
+      model: attemptModel.model,
+      fundingSource: attemptCredentials.fundingSource,
+      credentialReference: attemptCredentials.credentialReference,
+    }),
+    persistModelResponse: async ({ operationKey, response, attempt }) => modelCalls.recordCompleted({
+      organizationId: run.organization_id,
+      runId: run.id,
+      operationKey,
+      provider: response.provider,
+      model: response.model,
+      fundingSource: attempt.credentials.fundingSource,
+      credentialReference: attempt.credentials.credentialReference,
+      response,
+      correlationId: run.correlation_id,
+    }),
+    persistModelError: async ({ operationKey, model: attemptModel, credentials: attemptCredentials, error }) => modelCalls.recordFailed({
+      organizationId: run.organization_id,
+      runId: run.id,
+      operationKey,
+      provider: attemptModel.provider,
+      model: attemptModel.model,
+      fundingSource: attemptCredentials.fundingSource,
+      error,
+      correlationId: run.correlation_id,
+    }),
+    reserveModelCall: async ({ request, credentials: attemptCredentials, operationKey }) => {
       return reserveModelCredits({
         billingMode: creditBillingMode,
         gateway,
@@ -2729,6 +2786,7 @@ async function executeLoopForRun(
         coreClient,
         context: modelToolContext,
         runId: run.id,
+        operationKey,
         request,
         credentials: attemptCredentials,
       });
@@ -2893,11 +2951,12 @@ async function executeLoopForRun(
       const stepId = toolSteps.get(failure.toolCallId);
       if (stepId) await runSteps.finishStep({ stepId, status: "failed", error: failure.error });
     },
-    onModelResponse: async (response, attempt) => {
+    onModelResponse: async (response, attempt, operationKey) => {
       const attemptCredentials = attempt?.credentials ?? modelCredentials;
       await modelCalls.recordCompleted({
         organizationId: run.organization_id,
         runId: run.id,
+        operationKey,
         provider: response.provider,
         model: response.model,
         fundingSource: attemptCredentials.fundingSource,
@@ -2908,12 +2967,13 @@ async function executeLoopForRun(
       const step = await runSteps.startStep({ runId: run.id, organizationId: run.organization_id, stepType: "model", input: { provider: response.provider, model: response.model } });
       await runSteps.finishStep({ stepId: step.id, status: "completed", output: { totalTokens: response.usage.totalTokens, finishReason: response.finishReason, latencyMs: response.latencyMs } });
     },
-    onModelError: async (error, attempt) => {
+    onModelError: async (error, attempt, operationKey) => {
       const attemptModel = attempt?.model ?? { provider, model };
       const attemptCredentials = attempt?.credentials ?? modelCredentials;
       await modelCalls.recordFailed({
         organizationId: run.organization_id,
         runId: run.id,
+        operationKey,
         provider: attemptModel.provider,
         model: attemptModel.model,
         fundingSource: attemptCredentials.fundingSource,
@@ -3070,7 +3130,7 @@ async function executeConfiguredWorkflow(input: {
           permittedEffectKey: `${input.run.id}:${providerToolCallId}`,
         });
       }
-      await input.runBudget.consumeToolCall({ organizationId: input.run.organization_id, runId: input.run.id });
+      await consumeRunToolBudget(input.runBudget, { organizationId: input.run.organization_id, runId: input.run.id });
       const result = await withActivityHeartbeat({ phase: "workflow.tool.running", nodeId: request.nodeId, tool: request.name }, () => input.tools.invoke({
         name: request.name,
         arguments: request.arguments,
@@ -3136,30 +3196,81 @@ async function executeConfiguredWorkflow(input: {
         signal: currentActivitySignal(),
       };
       activityHeartbeat({ phase: "workflow.model.started", nodeId });
-      const runBudgetReservation = await reserveRunModelBudget({ repository: input.runBudget, organizationId: input.run.organization_id, runId: input.run.id, reservationKey: `workflow:model:${nodeId}`, gateway: input.gateway, request });
-      const creditReservation = await reserveModelCredits({
-        billingMode: input.creditBillingMode,
-        gateway: input.gateway,
-        modelPricing: input.modelPricing,
-        creditPricing: input.creditPricing,
-        coreClient: input.coreClient,
-        context: input.modelToolContext,
+      const operationKey = `workflow:model:${nodeId}`;
+      const prepared = await input.modelCalls.prepare({
+        organizationId: input.run.organization_id,
         runId: input.run.id,
-        request,
-        credentials: input.modelCredentials,
+        operationKey,
+        provider: input.modelProvider,
+        model: input.model,
+        fundingSource: input.modelCredentials.fundingSource,
+        credentialReference: input.modelCredentials.credentialReference,
       });
+      let runBudgetReservation: ModelCreditReservation | undefined;
+      let creditReservation: ModelCreditReservation | undefined;
       let response: ModelResponse;
+      let providerResponsePersisted = false;
       try {
-        response = await withActivityHeartbeat({ phase: "workflow.model.running", nodeId }, () => input.gateway.complete(request, input.modelCredentials));
-        await runBudgetReservation.capture(response);
+        try {
+          runBudgetReservation = await reserveRunModelBudget({ repository: input.runBudget, organizationId: input.run.organization_id, runId: input.run.id, reservationKey: operationKey, gateway: input.gateway, request });
+        } catch (error) {
+          if (!(prepared.status === "completed" && error instanceof Error && error.message === "MODEL_CALL_ALREADY_SETTLED")) throw error;
+        }
+        if (prepared.status === "unknown") {
+          await runBudgetReservation?.markUnknown?.("The worker lost the workflow model operation before its provider outcome was recorded");
+          runBudgetReservation = undefined;
+          throw new Error("MODEL_CALL_OUTCOME_UNKNOWN");
+        }
+        if (prepared.status === "completed") {
+          response = prepared.response;
+        } else {
+          creditReservation = await reserveModelCredits({
+            billingMode: input.creditBillingMode,
+            gateway: input.gateway,
+            modelPricing: input.modelPricing,
+            creditPricing: input.creditPricing,
+            coreClient: input.coreClient,
+            context: input.modelToolContext,
+            runId: input.run.id,
+            operationKey,
+            request,
+            credentials: input.modelCredentials,
+          });
+          response = await withActivityHeartbeat({ phase: "workflow.model.running", nodeId }, () => input.gateway.complete(request, input.modelCredentials));
+          await input.modelCalls.recordCompleted({ organizationId: input.run.organization_id, runId: input.run.id, operationKey, provider: response.provider, model: response.model, fundingSource: input.modelCredentials.fundingSource, credentialReference: input.modelCredentials.credentialReference, response, correlationId: input.run.correlation_id });
+          providerResponsePersisted = true;
+        }
+        if (prepared.status === "completed") {
+          creditReservation = await reserveModelCredits({
+            billingMode: input.creditBillingMode,
+            gateway: input.gateway,
+            modelPricing: input.modelPricing,
+            creditPricing: input.creditPricing,
+            coreClient: input.coreClient,
+            context: input.modelToolContext,
+            runId: input.run.id,
+            operationKey,
+            request,
+            credentials: input.modelCredentials,
+          });
+        }
+        if (runBudgetReservation) {
+          try {
+            await runBudgetReservation.capture(response);
+          } catch (error) {
+            if (!(prepared.status === "completed" && error instanceof Error && error.message === "MODEL_CALL_ALREADY_SETTLED")) throw error;
+          }
+        }
         await creditReservation?.capture(response);
       } catch (error) {
-        await runBudgetReservation.release(error instanceof Error ? error.message : "workflow model failure").catch(() => undefined);
+        if (!providerResponsePersisted && prepared.status === "new" && error instanceof ModelProviderError) {
+          await input.modelCalls.recordFailed({ organizationId: input.run.organization_id, runId: input.run.id, operationKey, provider: input.modelProvider, model: input.model, fundingSource: input.modelCredentials.fundingSource, error: { code: error.code, message: error.message }, correlationId: input.run.correlation_id }).catch(() => undefined);
+        }
+        await runBudgetReservation?.release(error instanceof Error ? error.message : "workflow model failure").catch(() => undefined);
         if (creditReservation) await creditReservation.release(error instanceof Error ? error.message : "workflow model failure").catch(() => undefined);
         throw error;
       }
       lastModelResponse = response;
-      await input.modelCalls.recordCompleted({ organizationId: input.run.organization_id, runId: input.run.id, provider: response.provider, model: response.model, fundingSource: input.modelCredentials.fundingSource, credentialReference: input.modelCredentials.credentialReference, response, correlationId: input.run.correlation_id });
       const step = await input.runSteps.startStep({ runId: input.run.id, organizationId: input.run.organization_id, stepType: "model", input: { provider: response.provider, model: response.model, nodeId } });
       await input.runSteps.finishStep({ stepId: step.id, status: "completed", output: { totalTokens: response.usage.totalTokens, latencyMs: response.latencyMs } });
       activityHeartbeat({ phase: "workflow.model.completed", nodeId });

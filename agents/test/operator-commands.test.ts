@@ -16,6 +16,7 @@ describe("operator command contract", () => {
     expect(requiredApprovals("delete_memory")).toBe(2);
     expect(requiredApprovals("assign_run")).toBe(2);
     expect(requiredApprovals("reconcile_effect")).toBe(2);
+    expect(requiredApprovals("reconcile_budget")).toBe(2);
     expect(requiredApprovals("request_export")).toBe(2);
     expect(requiredApprovals("set_feature_flag")).toBe(2);
     expect(requiredApprovals("clear_feature_flag")).toBe(2);
@@ -43,6 +44,7 @@ describe("operator command contract", () => {
       "delete_memory",
       "assign_run",
       "reconcile_effect",
+      "reconcile_budget",
       "request_export",
       "set_feature_flag",
       "clear_feature_flag",

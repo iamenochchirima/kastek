@@ -340,9 +340,11 @@ Add contract tests for:
 
 #### Implementation checklist
 
-- [ ] Add failing regression tests for every reproduced graph bug before changing the executor.
-- [x] Add publication-time containment that rejects unsupported fan-out, fan-in, cycle, and
-      `agent_loop` configurations ([graph.ts](agents/src/workflows/graph.ts)).
+- [x] Add regression tests for the reproduced graph bugs and their repaired contracts
+      ([workflow-graph.test.ts](agents/test/workflow-graph.test.ts)).
+- [x] Add publication-time containment that rejects unsupported fan-out forms, cycles, and
+      `agent_loop` configurations, while requiring a valid fan-out/fan-in contract
+      ([graph.ts](agents/src/workflows/graph.ts)).
 - [x] Define the graph module interface, durable state format, error model, and compatibility rules
       ([executor.ts](agents/src/workflows/executor.ts), migration 080).
 - [x] Compile `stateSchema` once and validate initial, intermediate, resumed, and final state
@@ -414,13 +416,17 @@ hold product evidence and idempotency records, not act as a replacement workflow
 
 #### Implementation checklist
 
-- [ ] Inventory every Temporal activity, its enclosed remote calls, retry policy, and maximum
-      duration.
+- [x] Inventory every Temporal activity, its enclosed remote calls, retry policy, and maximum
+      duration ([agent-temporal-recovery.md](docs/internal/runbooks/agent-temporal-recovery.md));
+      `executeLoop` remains the large decomposition boundary.
 - [ ] Define retry-safe activity interfaces for context, model calls, tool calls, checkpoints, and
       completion.
 - [ ] Move loop and graph coordination into Temporal workflow code without placing non-deterministic
       work there.
-- [ ] Give each model and tool operation a stable idempotency key and durable outcome state.
+- [x] Give each model and tool operation a stable idempotency key and durable outcome state
+      ([model-call-repository.ts](agents/src/db/repositories/model-call-repository.ts),
+      [tool-invocation-repository.ts](agents/src/db/repositories/tool-invocation-repository.ts));
+      provider-side reconciliation is still required for unknown outcomes.
 - [x] Align activity, provider, tool, heartbeat, schedule-to-close, and workflow timeouts
       ([workflows.ts](agents/src/temporal/workflows.ts), [activities.ts](agents/src/temporal/activities.ts)).
 - [x] Propagate cancellation to provider and tool adapters that support it
@@ -428,8 +434,10 @@ hold product evidence and idempotency records, not act as a replacement workflow
 - [x] Record `unknown_outcome` and schedule reconciliation when cancellation cannot prove the
       remote outcome.
 - [ ] Add worker-kill tests around every model, tool, approval, effect, and completion checkpoint.
-- [ ] Add retry, timeout, cancellation, and reconciliation metrics with bounded structured logs.
-- [ ] Update the Temporal operations runbook and release the new orchestration path behind a flag.
+- [x] Add retry, timeout, cancellation, and reconciliation metrics with bounded structured logs
+      ([spans.ts](agents/src/telemetry/spans.ts), [worker.ts](agents/src/temporal/worker.ts)).
+- [x] Update the Temporal operations runbook ([agent-temporal-recovery.md](docs/internal/runbooks/agent-temporal-recovery.md)).
+- [ ] Release the decomposed orchestration path behind a controlled flag.
 
 ### P0.4 Apply graph budgets and usage accounting
 
@@ -463,8 +471,9 @@ Completion criteria:
       ([model-call-repository.ts](agents/src/db/repositories/model-call-repository.ts), [activities.ts](agents/src/temporal/activities.ts)).
 - [x] Add over-budget and reconciliation tests ([run.integration.test.ts](agents/test/run.integration.test.ts));
       parallel reservation, worker-retry, and provider-side reconciliation tests remain open.
-- [ ] Add budget exhaustion metrics, customer-safe errors, operator diagnostics, and a reconciliation
-      runbook.
+- [x] Add budget exhaustion metrics, customer-safe errors, operator diagnostics, and a reconciliation
+      runbook ([spans.ts](agents/src/telemetry/spans.ts), [app.ts](agents/src/http/app.ts),
+      [agent-temporal-recovery.md](docs/internal/runbooks/agent-temporal-recovery.md)).
 - [ ] Compare billed, reserved, captured, and provider-reported usage during staged rollout.
 
 ## Priority 1: memory, isolation, and reliable agent behavior
@@ -674,7 +683,8 @@ process-local lock.
 
 #### Implementation checklist
 
-- [ ] Record one-active-run-per-conversation as the default ordering invariant.
+- [x] Record one-active-run-per-conversation as the default ordering invariant
+      ([MEMORY_LIFECYCLE_PLAN.md](docs/plans/active/MEMORY_LIFECYCLE_PLAN.md)).
 - [ ] Define queued, interrupted, superseded, cancelled, and completed message behavior.
 - [ ] Choose the durable ownership mechanism and document its lease or workflow identity rules.
 - [x] Implement atomic admission so two API replicas cannot start competing runs

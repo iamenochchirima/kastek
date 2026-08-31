@@ -460,6 +460,26 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
     await expect(runBudgets.consumeToolCall({ organizationId, runId })).rejects.toThrow("TOOL_CALL_BUDGET_EXCEEDED");
   });
 
+  it("claims model operations before provider work and replays completed outcomes", async () => {
+    const operationKey = `model:durable:${randomUUID()}`;
+    const modelResponse = {
+      provider: "openai" as const,
+      model: "gpt-test",
+      message: { role: "assistant" as const, content: "durable response" },
+      toolCalls: [],
+      finishReason: "stop",
+      usage: { inputTokens: 3, outputTokens: 5, totalTokens: 8, estimatedCostUsd: 0.0025 },
+      latencyMs: 120,
+    };
+    await expect(modelCalls.prepare({ organizationId, runId, operationKey, provider: "openai", model: "gpt-test", fundingSource: "kasitek" })).resolves.toEqual({ status: "new" });
+    await modelCalls.recordCompleted({ organizationId, runId, operationKey, provider: "openai", model: "gpt-test", fundingSource: "kasitek", response: modelResponse });
+    await expect(modelCalls.prepare({ organizationId, runId, operationKey, provider: "openai", model: "gpt-test", fundingSource: "kasitek" })).resolves.toEqual({ status: "completed", response: modelResponse });
+
+    const abandonedKey = `model:abandoned:${randomUUID()}`;
+    await expect(modelCalls.prepare({ organizationId, runId, operationKey: abandonedKey, provider: "openai", model: "gpt-test", fundingSource: "kasitek" })).resolves.toEqual({ status: "new" });
+    await expect(modelCalls.prepare({ organizationId, runId, operationKey: abandonedKey, provider: "openai", model: "gpt-test", fundingSource: "kasitek" })).resolves.toEqual({ status: "unknown" });
+  });
+
   it("marks abandoned model reservations unknown and resolves provider outcomes explicitly", async () => {
     const reservation = await runBudgets.reserveModelCall({ organizationId, runId, reservationKey: "budget:model:unknown", estimatedTokens: 20, estimatedCostUsd: 0.1 });
     const [unknown] = await runBudgets.markStaleReservationsUnknown({ organizationId, runId, olderThanMs: 1, reason: "test timeout" });

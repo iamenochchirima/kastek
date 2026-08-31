@@ -54,6 +54,10 @@ export class ReadinessRepository {
       await client.query(
         `INSERT INTO agent_readiness_evaluation_state (installation_id, organization_id)
          SELECT id, organization_id FROM agent_installations
+         -- Keep the parent row stable through the insert. Without this lock a
+         -- concurrent installation deletion can pass the SELECT and then
+         -- violate the state table's foreign key before the statement commits.
+         FOR KEY SHARE
          ON CONFLICT (installation_id) DO NOTHING`,
       );
       const result = await client.query<ReadinessEvaluationCandidate>(

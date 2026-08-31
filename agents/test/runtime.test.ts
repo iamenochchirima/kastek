@@ -55,6 +55,96 @@ describe("Tool Gateway and bounded runtime", () => {
     });
     expect(result).toMatchObject({ status: "completed", completionMessage: "Here it is", completionResponse: { version: "1", media: [{ assetId: "asset-1", kind: "image" }] } });
   });
+
+  it("replays a durable model response without calling the provider twice", async () => {
+    const registry = new ToolRegistry();
+    let providerCalls = 0;
+    let stored: ModelResponse | undefined;
+    const adapter: ModelAdapter = {
+      provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+      complete: async () => {
+        providerCalls += 1;
+        return response([], "durable reply");
+      },
+    };
+    const run = () => runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "hello" }],
+      credentials,
+      gateway: new ModelGateway([adapter]),
+      tools: registry,
+      grantedTools: new Set(),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      prepareModelCall: async () => stored ? { status: "completed", response: stored } : { status: "new" },
+      persistModelResponse: async ({ response: modelResponse }) => { stored = modelResponse; },
+    });
+
+    await expect(run()).resolves.toMatchObject({ status: "completed", response: { message: { content: "durable reply" } } });
+    await expect(run()).resolves.toMatchObject({ status: "completed", response: { message: { content: "durable reply" } } });
+    expect(providerCalls).toBe(1);
+  });
+
+  it("replays after run-budget settlement without treating the settled reservation as a failure", async () => {
+    const registry = new ToolRegistry();
+    let providerCalls = 0;
+    let stored: ModelResponse | undefined;
+    let budgetCaptured = false;
+    const adapter: ModelAdapter = {
+      provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+      complete: async () => {
+        providerCalls += 1;
+        return response([], "settled reply");
+      },
+    };
+    const run = () => runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "hello" }],
+      credentials,
+      gateway: new ModelGateway([adapter]),
+      tools: registry,
+      grantedTools: new Set(),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      prepareModelCall: async () => stored ? { status: "completed", response: stored } : { status: "new" },
+      persistModelResponse: async ({ response: modelResponse }) => { stored = modelResponse; },
+      reserveRunBudget: async () => {
+        if (budgetCaptured) throw new Error("MODEL_CALL_ALREADY_SETTLED");
+        return {
+          capture: async () => { budgetCaptured = true; },
+          release: async () => undefined,
+        };
+      },
+    });
+
+    await expect(run()).resolves.toMatchObject({ status: "completed", response: { message: { content: "settled reply" } } });
+    await expect(run()).resolves.toMatchObject({ status: "completed", response: { message: { content: "settled reply" } } });
+    expect(providerCalls).toBe(1);
+  });
+
+  it("marks a model operation unknown instead of replaying an unproven provider call", async () => {
+    const registry = new ToolRegistry();
+    let markedUnknown = 0;
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "hello" }],
+      credentials,
+      gateway: new ModelGateway([]),
+      tools: registry,
+      grantedTools: new Set(),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      prepareModelCall: async () => ({ status: "unknown" }),
+      reserveRunBudget: async () => ({
+        capture: async () => undefined,
+        release: async () => undefined,
+        markUnknown: async () => { markedUnknown += 1; },
+      }),
+    });
+
+    expect(result).toMatchObject({ status: "failed", error: { code: "AGENT_LOOP_FAILED", message: "MODEL_CALL_OUTCOME_UNKNOWN" } });
+    expect(markedUnknown).toBe(1);
+  });
+
   it("redacts secret-like tool fields recursively before model-visible output", () => {
     expect(redactSensitiveValue({ profile: { name: "Ada" }, apiKey: "secret", nested: [{ token: "value" }] })).toEqual({ profile: { name: "Ada" }, apiKey: "[REDACTED]", nested: [{ token: "[REDACTED]" }] });
   });

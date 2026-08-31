@@ -7,6 +7,7 @@ import { createPool } from "../db/pool";
 import { createActivities } from "./activities";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
 import { RunRepository } from "../db/repositories/run-repository";
+import { RunBudgetRepository } from "../db/repositories/run-budget-repository";
 import { ApprovalRepository } from "../db/repositories/approval-repository";
 import { operationalLogger } from "../telemetry/logger";
 import { temporalActivityInterceptors, temporalClientInterceptor } from "../telemetry/temporal";
@@ -16,6 +17,7 @@ import { ChannelCredentialRepository } from "../db/repositories/channel-credenti
 import { ChannelRepository } from "../db/repositories/channel-repository";
 import { TelegramBotClient } from "../channels/telegram-client";
 import { DiscordBotClient } from "../channels/discord-client";
+import { recordBudgetReconciliationRequired } from "../telemetry/spans";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -25,6 +27,7 @@ async function main(): Promise<void> {
   const pool = createPool(config);
   const effectReceipts = new EffectReceiptRepository(pool);
   const runs = new RunRepository(pool);
+  const runBudgets = new RunBudgetRepository(pool);
   const approvals = new ApprovalRepository(pool);
   const connection = await NativeConnection.connect({
     address: config.TEMPORAL_ADDRESS,
@@ -49,6 +52,23 @@ async function main(): Promise<void> {
         eventType: "effect.reconciliation_required",
         payload: { effectId: effect.id, reason: "execution_lease_expired" },
       })));
+      const staleModelReservations = await runBudgets.markStaleReservationsUnknown({
+        olderThanMs: config.RUN_BUDGET_RECONCILIATION_AGE_MS,
+        limit: config.RUN_BUDGET_RECONCILIATION_LIMIT,
+        reason: "Model operation lease expired before its provider outcome was recorded",
+      });
+      await Promise.all(staleModelReservations.map((reservation) => runs.appendEvent({
+        organizationId: reservation.organizationId,
+        runId: reservation.runId,
+        installationId: reservation.installationId,
+        eventType: "agent.model.reconciliation_required",
+        payload: {
+          reservationId: reservation.id,
+          reservationKey: reservation.reservationKey,
+          reason: "model_operation_lease_expired",
+        },
+      })));
+      recordBudgetReconciliationRequired(staleModelReservations.length);
       const expired = await approvals.expirePending();
       await Promise.all(expired.map(async (approval) => {
         await runs.appendEvent({
@@ -69,6 +89,7 @@ async function main(): Promise<void> {
         }
       }));
       if (stale.length) operationalLogger.warn({ event: "effect.reconciliation.required", count: stale.length }, "Provider outcomes require reconciliation");
+      if (staleModelReservations.length) operationalLogger.warn({ event: "model.reconciliation.required", count: staleModelReservations.length }, "Model outcomes require reconciliation");
       if (expired.length) operationalLogger.warn({ event: "approval.expired", count: expired.length }, "Approvals expired");
     } catch (error) {
       operationalLogger.error({ err: error, event: "agent.recovery.sweep.failed" }, "Agent recovery sweep failed");

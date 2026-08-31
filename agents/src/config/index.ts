@@ -78,6 +78,8 @@ const envSchema = z.object({
   APPROVAL_DECISION_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).max(3_600_000).default(60_000),
   APPROVAL_DECISION_RATE_LIMIT_MAX_KEYS: z.coerce.number().int().min(1).max(100_000).default(10_000),
   EFFECT_RECONCILIATION_INTERVAL_MS: z.coerce.number().int().min(10_000).max(3_600_000).default(60_000),
+  RUN_BUDGET_RECONCILIATION_AGE_MS: z.coerce.number().int().min(60_000).max(86_400_000).default(300_000),
+  RUN_BUDGET_RECONCILIATION_LIMIT: z.coerce.number().int().min(1).max(500).default(100),
   AGENT_READINESS_EVALUATION_INTERVAL_MS: z.coerce.number().int().min(30_000).max(86_400_000).default(300_000),
   AGENT_READINESS_EVALUATION_BATCH_SIZE: z.coerce.number().int().min(1).max(1_000).default(50),
   AGENT_READINESS_EVALUATION_LEASE_MS: z.coerce.number().int().min(30_000).max(3_600_000).default(900_000),

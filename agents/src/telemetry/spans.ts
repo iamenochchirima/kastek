@@ -33,6 +33,15 @@ const queueAge = meter.createHistogram("kasitek.queue.age", {
   description: "Age of work when it is claimed from a queue in seconds",
   unit: "s",
 });
+const budgetExhaustionCounter = meter.createCounter("kasitek.run_budget.exhaustion.count", {
+  description: "Run model or tool budget checks that rejected additional work",
+});
+const budgetReconciliationCounter = meter.createCounter("kasitek.run_budget.reconciliation_required.count", {
+  description: "Run-budget reservations moved to explicit provider-outcome reconciliation",
+});
+const temporalActivityAttemptCounter = meter.createCounter("kasitek.temporal.activity.attempt.count", {
+  description: "Temporal activity attempts, including retries",
+});
 
 export function boundedAttribute(value: unknown, maxLength = 128): string {
   return String(value ?? "unknown").slice(0, maxLength);
@@ -94,4 +103,21 @@ export function recordRetry(operation: string, count = 1): void {
 export function recordQueueAge(queue: string, ageSeconds: number): void {
   if (!Number.isFinite(ageSeconds) || ageSeconds < 0) return;
   queueAge.record(ageSeconds, { "queue.name": boundedAttribute(queue) });
+}
+
+export function recordBudgetExhaustion(code: string): void {
+  budgetExhaustionCounter.add(1, { code: boundedAttribute(code) });
+}
+
+export function recordBudgetReconciliationRequired(count: number): void {
+  if (!Number.isSafeInteger(count) || count <= 0) return;
+  budgetReconciliationCounter.add(count);
+}
+
+export function recordTemporalActivityAttempt(activity: string, attempt: number): void {
+  if (!Number.isSafeInteger(attempt) || attempt < 1) return;
+  temporalActivityAttemptCounter.add(1, {
+    activity: boundedAttribute(activity),
+    attempt: String(attempt),
+  });
 }

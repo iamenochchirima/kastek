@@ -11,6 +11,7 @@ export interface RunBudgetLimits {
 export interface ModelBudgetReservation {
   capture: (usage: { inputTokens: number; outputTokens: number; totalTokens: number; estimatedCostUsd?: number }) => Promise<void>;
   release: (reason: string) => Promise<void>;
+  markUnknown: (reason: string) => Promise<void>;
 }
 
 export interface UnknownModelBudgetReservation {
@@ -20,6 +21,24 @@ export interface UnknownModelBudgetReservation {
   reservationKey: string;
   estimatedTokens: number;
   estimatedCostUsd: number;
+  installationId: string;
+}
+
+export interface RunBudgetReconciliationRecord {
+  id: string;
+  organizationId: string;
+  installationId: string;
+  runId: string;
+  runStatus: string;
+  reservationKey: string;
+  status: "unknown";
+  estimatedTokens: number;
+  estimatedCostUsd: number;
+  actualTotalTokens: number | null;
+  actualCostUsd: number | null;
+  reconciliationReason: string | null;
+  createdAt: string;
+  settledAt: string | null;
 }
 
 function positiveInteger(value: unknown): number | undefined {
@@ -124,6 +143,7 @@ export class RunBudgetRepository {
     return {
       capture: async (usage) => this.captureModelCall({ ...input, usage }),
       release: async (reason) => this.releaseModelCall({ ...input, reason }),
+      markUnknown: async (reason) => this.markModelCallUnknown({ ...input, reason }),
     };
   }
 
@@ -182,6 +202,37 @@ export class RunBudgetRepository {
     });
   }
 
+  /** Mark a model reservation unknown when the provider outcome cannot be proven. */
+  private async markModelCallUnknown(input: { organizationId: string; runId: string; reservationKey: string; reason: string }): Promise<void> {
+    await withTransaction(this.pool, async (client) => {
+      const reservation = await client.query<{ id: string; status: string; estimated_tokens: string; estimated_cost_usd: string }>(
+        `SELECT id, status, estimated_tokens, estimated_cost_usd
+         FROM run_budget_reservations
+         WHERE run_id = $1 AND organization_id = $2 AND reservation_key = $3
+         FOR UPDATE`,
+        [input.runId, input.organizationId, input.reservationKey],
+      );
+      const current = reservation.rows[0];
+      if (!current || current.status !== "reserved") return;
+      await client.query(
+        `UPDATE run_budget_reservations
+         SET status = 'unknown', reconciliation_required = true,
+             reconciliation_reason = $2, settled_at = now()
+         WHERE id = $1 AND status = 'reserved'`,
+        [current.id, input.reason.slice(0, 2_000)],
+      );
+      await client.query(
+        `UPDATE run_budgets
+         SET reserved_model_calls = GREATEST(0, reserved_model_calls - 1),
+             reserved_tokens = GREATEST(0, reserved_tokens - $2),
+             reserved_cost_usd = GREATEST(0, reserved_cost_usd - $3),
+             updated_at = now()
+         WHERE run_id = $1 AND organization_id = $4`,
+        [input.runId, current.estimated_tokens, current.estimated_cost_usd, input.organizationId],
+      );
+    });
+  }
+
   /**
    * Move reservations left behind by a timed-out or terminated worker into an
    * explicit unknown state. This releases only the estimate held by the
@@ -205,13 +256,17 @@ export class RunBudgetRepository {
         reservation_key: string;
         estimated_tokens: string;
         estimated_cost_usd: string;
+        installation_id: string;
       }>(
-        `SELECT id, run_id, organization_id, reservation_key, estimated_tokens, estimated_cost_usd
-         FROM run_budget_reservations
-         WHERE status = 'reserved' AND created_at <= $1
-           AND ($3::text IS NULL OR organization_id = $3)
-           AND ($4::uuid IS NULL OR run_id = $4::uuid)
-         ORDER BY created_at ASC
+        `SELECT reservation.id, reservation.run_id, reservation.organization_id,
+                reservation.reservation_key, reservation.estimated_tokens,
+                reservation.estimated_cost_usd, run.installation_id
+         FROM run_budget_reservations reservation
+         JOIN agent_runs run ON run.id = reservation.run_id
+         WHERE reservation.status = 'reserved' AND reservation.created_at <= $1
+           AND ($3::text IS NULL OR reservation.organization_id = $3)
+           AND ($4::uuid IS NULL OR reservation.run_id = $4::uuid)
+         ORDER BY reservation.created_at ASC
          FOR UPDATE SKIP LOCKED
          LIMIT $2`,
         [cutoff, limit, input.organizationId ?? null, input.runId ?? null],
@@ -241,6 +296,7 @@ export class RunBudgetRepository {
           reservationKey: reservation.reservation_key,
           estimatedTokens: Number(reservation.estimated_tokens),
           estimatedCostUsd: Number(reservation.estimated_cost_usd),
+          installationId: reservation.installation_id,
         });
       }
       return unknown;
@@ -315,6 +371,102 @@ export class RunBudgetRepository {
   public async consumeToolCall(input: { organizationId: string; runId: string }): Promise<void> {
     const result = await query<{ max_tool_calls: number | null; captured_tool_calls: number }>(this.pool, "UPDATE run_budgets SET captured_tool_calls = captured_tool_calls + 1, updated_at = now() WHERE run_id = $1 AND organization_id = $2 AND (max_tool_calls IS NULL OR captured_tool_calls < max_tool_calls) RETURNING max_tool_calls, captured_tool_calls", [input.runId, input.organizationId]);
     if (!result.rows[0]) throw new Error("TOOL_CALL_BUDGET_EXCEEDED");
+  }
+
+  public async pendingReconciliation(organizationId: string | undefined, limit = 100): Promise<RunBudgetReconciliationRecord[]> {
+    const boundedLimit = Number.isSafeInteger(limit) ? Math.min(Math.max(limit, 1), 500) : 100;
+    const result = await query<{
+      id: string;
+      organization_id: string;
+      installation_id: string;
+      run_id: string;
+      run_status: string;
+      reservation_key: string;
+      estimated_tokens: string;
+      estimated_cost_usd: string;
+      actual_total_tokens: number | null;
+      actual_cost_usd: string | null;
+      reconciliation_reason: string | null;
+      created_at: string;
+      settled_at: string | null;
+    }>(
+      this.pool,
+      `SELECT reservation.id, reservation.organization_id, run.installation_id,
+              reservation.run_id, run.status AS run_status, reservation.reservation_key,
+              reservation.estimated_tokens, reservation.estimated_cost_usd,
+              reservation.actual_total_tokens, reservation.actual_cost_usd,
+              reservation.reconciliation_reason, reservation.created_at,
+              reservation.settled_at
+       FROM run_budget_reservations reservation
+       JOIN agent_runs run ON run.id = reservation.run_id
+       WHERE reservation.reconciliation_required = TRUE
+         AND ($1::text IS NULL OR reservation.organization_id = $1)
+       ORDER BY reservation.created_at ASC
+       LIMIT $2`,
+      [organizationId ?? null, boundedLimit],
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      organizationId: row.organization_id,
+      installationId: row.installation_id,
+      runId: row.run_id,
+      runStatus: row.run_status,
+      reservationKey: row.reservation_key,
+      status: "unknown",
+      estimatedTokens: Number(row.estimated_tokens),
+      estimatedCostUsd: Number(row.estimated_cost_usd),
+      actualTotalTokens: row.actual_total_tokens,
+      actualCostUsd: row.actual_cost_usd === null ? null : Number(row.actual_cost_usd),
+      reconciliationReason: row.reconciliation_reason,
+      createdAt: row.created_at,
+      settledAt: row.settled_at,
+    }));
+  }
+
+  public async summary(organizationId: string): Promise<{
+    reservations: number;
+    reserved: number;
+    captured: number;
+    released: number;
+    unknown: number;
+    reconciliationRequired: number;
+    capturedTokens: number;
+    capturedCostUsd: number;
+  }> {
+    const result = await query<{
+      reservations: string;
+      reserved: string;
+      captured: string;
+      released: string;
+      unknown: string;
+      reconciliation_required: string;
+      captured_tokens: string;
+      captured_cost_usd: string;
+    }>(
+      this.pool,
+      `SELECT COUNT(*)::text AS reservations,
+              COUNT(*) FILTER (WHERE reservation.status = 'reserved')::text AS reserved,
+              COUNT(*) FILTER (WHERE reservation.status = 'captured')::text AS captured,
+              COUNT(*) FILTER (WHERE reservation.status = 'released')::text AS released,
+              COUNT(*) FILTER (WHERE reservation.status = 'unknown')::text AS unknown,
+              COUNT(*) FILTER (WHERE reservation.reconciliation_required)::text AS reconciliation_required,
+              COALESCE(SUM(reservation.actual_total_tokens) FILTER (WHERE reservation.status = 'captured'), 0)::text AS captured_tokens,
+              COALESCE(SUM(reservation.actual_cost_usd) FILTER (WHERE reservation.status = 'captured'), 0)::text AS captured_cost_usd
+       FROM run_budget_reservations reservation
+       WHERE reservation.organization_id = $1`,
+      [organizationId],
+    );
+    const row = result.rows[0]!;
+    return {
+      reservations: Number(row.reservations),
+      reserved: Number(row.reserved),
+      captured: Number(row.captured),
+      released: Number(row.released),
+      unknown: Number(row.unknown),
+      reconciliationRequired: Number(row.reconciliation_required),
+      capturedTokens: Number(row.captured_tokens),
+      capturedCostUsd: Number(row.captured_cost_usd),
+    };
   }
 
   public static limitsFrom(values: Record<string, unknown>): RunBudgetLimits {

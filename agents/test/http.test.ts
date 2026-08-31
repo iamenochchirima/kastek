@@ -2112,6 +2112,7 @@ describe("Agent Platform HTTP foundation", () => {
       runs: { operationalSummary: async () => ({}) } as never,
       modelCalls: { usageSummary: async () => ({}) } as never,
       toolInvocations: { outcomeSummary: async () => ({}) } as never,
+      runBudgets: { summary: async () => ({}), pendingReconciliation: async () => [] } as never,
     });
     const headers = { "x-organization-id": "org-1", "x-actor-id": "user-1" };
     const list = await app.inject({ method: "GET", url: "/v1/operations/effects/reconciliation", headers });
@@ -2159,10 +2160,11 @@ describe("Agent Platform HTTP foundation", () => {
       runs: { operationalSummary: async () => ({ runsByStatus: [{ status: "completed", count: 2 }], oldestQueuedAt: null }) } as never,
       modelCalls: { usageSummary: async () => ({ inputTokens: 10, outputTokens: 5, totalTokens: 15, estimatedCostUsd: 0.01, failedCalls: 0 }) } as never,
       toolInvocations: { outcomeSummary: async () => [{ status: "completed", count: 1 }] } as never,
+      runBudgets: { summary: async () => ({ reservations: 1, reserved: 0, captured: 1, released: 0, unknown: 0, reconciliationRequired: 0, capturedTokens: 15, capturedCostUsd: 0.01 }) } as never,
     });
     const response = await app.inject({ method: "GET", url: "/v1/operations/summary", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ organizationId: "org-1", runs: { runsByStatus: [{ status: "completed", count: 2 }] }, models: { totalTokens: 15 }, tools: [{ status: "completed", count: 1 }] });
+    expect(response.json()).toMatchObject({ organizationId: "org-1", runs: { runsByStatus: [{ status: "completed", count: 2 }] }, models: { totalTokens: 15 }, tools: [{ status: "completed", count: 1 }], budget: { capturedTokens: 15 } });
     await app.close();
   });
 

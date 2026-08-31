@@ -48,6 +48,13 @@ describe("foundation migration", () => {
     expect(sql).toContain("run_budget_reconciliation_idx");
   });
 
+  it("stores durable model operation outcomes for retry-safe replay", async () => {
+    const sql = await readFile(new URL("../migrations/084_durable_model_call_outcomes.sql", import.meta.url), "utf8");
+    expect(sql).toContain("operation_key");
+    expect(sql).toContain("response JSONB");
+    expect(sql).toContain("model_calls_operation_key_uidx");
+  });
+
   it("contains the durable scope and run tables", async () => {
     const sql = await readFile(new URL("../migrations/001_agent_platform_foundation.sql", import.meta.url), "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_definitions");

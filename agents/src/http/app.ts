@@ -18,6 +18,7 @@ import { requireExternalConnected, requireHostedInstallation, requireKasiAiInsta
 import { dependencyProjection, UnknownCapabilityAccessSource, type CapabilityAccessSource } from "../domain/capability-access";
 import { AgentRepository } from "../db/repositories/agent-repository";
 import { RunRepository } from "../db/repositories/run-repository";
+import { RunBudgetRepository } from "../db/repositories/run-budget-repository";
 import { ConversationRepository } from "../db/repositories/conversation-repository";
 import { RunStepRepository } from "../db/repositories/run-step-repository";
 import { ToolInvocationRepository } from "../db/repositories/tool-invocation-repository";
@@ -132,6 +133,7 @@ export interface AppDependencies {
   toolInvocations?: ToolInvocationRepository;
   toolGrants?: ToolGrantRepository;
   modelCalls?: ModelCallRepository;
+  runBudgets?: RunBudgetRepository;
   channels?: ChannelRepository;
   channelCredentials?: ChannelCredentialRepository;
   telegramClient?: TelegramBotClient;
@@ -456,6 +458,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const toolInvocations = dependencies.toolInvocations ?? new ToolInvocationRepository(dependencies.pool);
   const toolGrants = dependencies.toolGrants ?? new ToolGrantRepository(dependencies.pool);
   const modelCalls = dependencies.modelCalls ?? new ModelCallRepository(dependencies.pool);
+  const runBudgets = dependencies.runBudgets ?? new RunBudgetRepository(dependencies.pool);
   const channels = dependencies.channels ?? new ChannelRepository(dependencies.pool);
   const channelCredentials = dependencies.channelCredentials ?? new ChannelCredentialRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
   const telegramClient = dependencies.telegramClient ?? new TelegramBotClient({ apiBaseUrl: dependencies.config.TELEGRAM_API_BASE_URL, timeoutMs: dependencies.config.TELEGRAM_API_TIMEOUT_MS });
@@ -1485,6 +1488,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return { effects: result.rows };
   });
 
+  app.get<{ Querystring: { limit?: string } }>("/v1/operator/budgets/reconciliation", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid operator budget reconciliation limit");
+    return { reservations: await runBudgets.pendingReconciliation(undefined, limit) };
+  });
+
   app.get<{ Querystring: { action?: string; resourceType?: string; limit?: string } }>("/v1/operator/audit", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireOperatorScope(auth, dependencies.config, "operator:read");
@@ -1600,7 +1611,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       actorId: auth.actorId,
       idempotencyKey: headerValue(request, "idempotency-key"),
       command,
-      dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, controls, retention, audioTranscriptionJobs, coreClient, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation },
+      dependencies: { pool: dependencies.pool, runs, effectReceipts, runBudgets, killSwitches, controls, retention, audioTranscriptionJobs, coreClient, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation },
     });
     return reply.code(result.replayed ? 200 : result.command.status === "awaiting_approval" ? 202 : 201).send(result.command);
   });
@@ -1614,7 +1625,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.post<{ Params: { commandId: string } }>("/v1/operator/commands/:commandId/approve", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireOperatorScope(auth, dependencies.config, "operator:write");
-    return approveOperatorCommand({ actorId: auth.actorId, commandId: request.params.commandId, dependencies: { pool: dependencies.pool, runs, effectReceipts, killSwitches, controls, retention, audioTranscriptionJobs, coreClient, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation } });
+    return approveOperatorCommand({ actorId: auth.actorId, commandId: request.params.commandId, dependencies: { pool: dependencies.pool, runs, effectReceipts, runBudgets, killSwitches, controls, retention, audioTranscriptionJobs, coreClient, agents, installationCredentials, schedules, channels, memory, startWorkflow: dependencies.startWorkflow, signalCancellation: dependencies.signalCancellation } });
   });
 
   app.get<{ Params: { projectionKey: string } }>("/v1/operator/projections/:projectionKey", async (request) => {
@@ -4108,11 +4119,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.get("/v1/operations/summary", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
-    const [runsSummary, modelSummary, toolSummary, pendingReconciliation] = await Promise.all([
+    const [runsSummary, modelSummary, toolSummary, pendingReconciliation, budgetSummary] = await Promise.all([
       runs.operationalSummary(auth.organizationId),
       modelCalls.usageSummary(auth.organizationId),
       toolInvocations.outcomeSummary(auth.organizationId),
       effectReceipts.countPendingReconciliation(auth.organizationId),
+      runBudgets.summary(auth.organizationId),
     ]);
     return {
       organizationId: auth.organizationId,
@@ -4121,6 +4133,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       models: modelSummary,
       tools: toolSummary,
       effects: { pendingReconciliation },
+      budget: budgetSummary,
     };
   });
 
@@ -4138,6 +4151,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid reconciliation limit");
     return { effects: await effectReceipts.pendingReconciliation(auth.organizationId, limit) };
+  });
+
+  app.get<{ Querystring: { limit?: string } }>("/v1/operations/budgets/reconciliation", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid budget reconciliation limit");
+    return { reservations: await runBudgets.pendingReconciliation(auth.organizationId, limit) };
   });
 
   app.post<{ Params: { effectId: string } }>("/v1/operations/effects/:effectId/reconcile", async (request, reply) => {
