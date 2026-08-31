@@ -3,14 +3,17 @@ import type { Pool, PoolClient } from "pg";
 import type {
   AgentAudience,
   AgentExecutionMode,
+  AgentReleaseMode,
   CreateAgentInput,
   CreateExternalAgentInput,
   CreateInstallationInput,
+  DeployInstallationInput,
   CreateVersionInput,
   HostedAgentCreationProfile,
   UpdateAgentInput,
 } from "../../domain/types";
 import { query, withTransaction } from "../pool";
+import { assertAgentReleaseMode, defaultAgentReleaseMode } from "../../domain/release-mode";
 import { validateVersionWorkflow } from "../../workflows/graph";
 import { normalizeModelPolicy } from "../../model/policy";
 import { getAgentTemplate, templateVersionInput } from "../../system/templates";
@@ -42,7 +45,10 @@ export interface AgentRecord {
   execution_mode?: AgentExecutionMode | null;
   installation_status?: string | null;
   installation_settings?: Record<string, unknown> | null;
+  installation_version_id?: string | null;
+  published_version_id?: string | null;
   version_number?: number | null;
+  published_version_number?: number | null;
 }
 
 export interface AgentVersionRecord {
@@ -72,6 +78,7 @@ export interface InstallationRecord {
   created_by: string;
   created_at: string;
   updated_at: string;
+  release_mode: AgentReleaseMode;
 }
 
 export interface InstallationIdentity {
@@ -621,8 +628,8 @@ export class AgentRepository {
       }
       const installationResult = await client.query<InstallationRecord & { created_now: boolean }>(
         `INSERT INTO agent_installations
-          (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, settings, created_by)
-         VALUES ($1, $2, $3, 'organization', $3, 'kasitek_hosted', $4::jsonb, $5)
+          (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, release_mode, settings, created_by)
+         VALUES ($1, $2, $3, 'organization', $3, 'kasitek_hosted', 'follow_published', $4::jsonb, $5)
          ON CONFLICT (organization_id, agent_definition_id, scope_type, scope_id)
          DO UPDATE SET updated_at = agent_installations.updated_at
          RETURNING *, (xmax = 0) AS created_now`,
@@ -919,8 +926,11 @@ export class AgentRepository {
     const result = await query<AgentRecord>(
       this.pool,
       `SELECT ad.*, ai.id AS installation_id, ai.execution_mode, ai.status AS installation_status,
-              ai.settings AS installation_settings,
-              av.version_number
+              ai.settings AS installation_settings, ai.release_mode,
+              ai.agent_version_id AS installation_version_id,
+              av.version_number,
+              published_av.id AS published_version_id,
+              published_av.version_number AS published_version_number
        FROM agent_definitions ad
        LEFT JOIN LATERAL (
          SELECT ai.* FROM agent_installations ai
@@ -928,6 +938,8 @@ export class AgentRepository {
          ORDER BY ai.updated_at DESC LIMIT 1
        ) ai ON TRUE
        LEFT JOIN agent_versions av ON av.id = ai.agent_version_id
+       LEFT JOIN agent_versions published_av
+         ON published_av.agent_definition_id = ad.id AND published_av.status = 'published'
        WHERE (
          ad.organization_id = $1 OR (
            ad.owner_type = 'system' AND ad.protected = TRUE AND EXISTS (
@@ -984,7 +996,11 @@ export class AgentRepository {
     const result = await query<AgentRecord>(
       this.pool,
       `SELECT ad.*, ai.id AS installation_id, ai.execution_mode, ai.status AS installation_status,
-              ai.settings AS installation_settings, av.version_number
+              ai.settings AS installation_settings, ai.release_mode,
+              ai.agent_version_id AS installation_version_id,
+              av.version_number,
+              published_av.id AS published_version_id,
+              published_av.version_number AS published_version_number
        FROM agent_definitions ad
        JOIN LATERAL (
          SELECT ai.* FROM agent_installations ai
@@ -994,6 +1010,8 @@ export class AgentRepository {
          ORDER BY ai.updated_at DESC LIMIT 1
        ) ai ON TRUE
        JOIN agent_versions av ON av.id = ai.agent_version_id
+       LEFT JOIN agent_versions published_av
+         ON published_av.agent_definition_id = ad.id AND published_av.status = 'published'
        WHERE ad.organization_id = $1 AND ad.owner_type = 'organization' AND ad.protected = FALSE
          AND ai.settings ->> 'developerApiKeyId' IS NULL
        ORDER BY ai.updated_at DESC, ad.created_at DESC`,
@@ -1165,6 +1183,13 @@ export class AgentRepository {
         await this.enqueueVersionLifecycle(client, organizationId, version, "retired", "human", lifecycleAt);
       }
       await this.enqueueVersionLifecycle(client, organizationId, published.rows[0], "published", "human", lifecycleAt);
+      await this.deployFollowPublishedInstallations(client, {
+        organizationId,
+        agentId,
+        versionId,
+        actorId,
+        trigger: "version_published",
+      });
       await client.query(
         `INSERT INTO audit_records
           (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
@@ -1212,6 +1237,13 @@ export class AgentRepository {
       }
       if (published.rows[0]) {
         await this.enqueueVersionLifecycle(client, organizationId, published.rows[0], "rolled_back", "human", lifecycleAt);
+        await this.deployFollowPublishedInstallations(client, {
+          organizationId,
+          agentId,
+          versionId,
+          actorId,
+          trigger: "version_rolled_back",
+        });
       }
       await client.query(
         `INSERT INTO audit_records
@@ -1221,6 +1253,56 @@ export class AgentRepository {
       );
       return published.rows[0]!;
     });
+  }
+
+  private async deployFollowPublishedInstallations(
+    client: PoolClient,
+    input: {
+      organizationId: string;
+      agentId: string;
+      versionId: string;
+      actorId: string;
+      trigger: "version_published" | "version_rolled_back";
+    },
+  ): Promise<number> {
+    const installations = await client.query<InstallationRecord>(
+      `SELECT * FROM agent_installations
+       WHERE organization_id = $1
+         AND agent_definition_id = $2
+         AND release_mode = 'follow_published'
+         AND status <> 'disabled'
+         AND agent_version_id <> $3
+       FOR UPDATE`,
+      [input.organizationId, input.agentId, input.versionId],
+    );
+    for (const installation of installations.rows) {
+      const updated = await client.query<InstallationRecord>(
+        `UPDATE agent_installations
+         SET agent_version_id = $2, updated_at = now()
+         WHERE id = $1 AND organization_id = $3
+         RETURNING *`,
+        [installation.id, input.versionId, input.organizationId],
+      );
+      if (!updated.rows[0]) throw new Error("Agent installation deployment failed");
+      await client.query(
+        `INSERT INTO audit_records
+          (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'human', $2, 'agent_installation.version_deployed', 'agent_installation', $3, $4::jsonb)`,
+        [
+          input.organizationId,
+          input.actorId,
+          installation.id,
+          JSON.stringify({
+            agentId: input.agentId,
+            previousVersionId: installation.agent_version_id,
+            versionId: input.versionId,
+            releaseMode: installation.release_mode,
+            trigger: input.trigger,
+          }),
+        ],
+      );
+    }
+    return installations.rowCount ?? 0;
   }
 
   public async retireVersion(
@@ -1478,7 +1560,9 @@ export class AgentRepository {
       if (!version.rows[0]) throw new Error("Published agent version not found");
       const target = version.rows[0]!;
       const executionMode = input.executionMode ?? "kasitek_hosted";
+      const releaseMode = input.releaseMode ?? defaultAgentReleaseMode(executionMode);
       if (executionMode === "external_connected") throw new Error("Use the external-agent creation flow for external installations");
+      assertAgentReleaseMode(executionMode, releaseMode);
       if (executionMode === "system_hosted" && !(target.owner_type === "system" && target.protected)) {
         throw new Error("Only protected system definitions may use system_hosted mode");
       }
@@ -1490,8 +1574,8 @@ export class AgentRepository {
       }
       const created = await client.query<InstallationRecord>(
       `INSERT INTO agent_installations
-          (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, settings, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
+          (agent_definition_id, agent_version_id, organization_id, scope_type, scope_id, execution_mode, release_mode, settings, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
          RETURNING *`,
         [
           target.agent_definition_id,
@@ -1500,6 +1584,7 @@ export class AgentRepository {
           input.scopeType,
           input.scopeId ?? organizationId,
           executionMode,
+          releaseMode,
           JSON.stringify(input.settings),
           actorId,
         ],
@@ -1514,7 +1599,74 @@ export class AgentRepository {
         `INSERT INTO audit_records
           (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
          VALUES ($1, 'human', $2, 'agent_installation.created', 'agent_installation', $3, $4::jsonb)`,
-        [organizationId, actorId, installation.id, JSON.stringify({ versionId: input.agentVersionId, executionMode: installation.execution_mode })],
+        [organizationId, actorId, installation.id, JSON.stringify({ versionId: input.agentVersionId, executionMode: installation.execution_mode, releaseMode: installation.release_mode })],
+      );
+      return installation;
+    });
+  }
+
+  public async deployInstallation(
+    organizationId: string,
+    actorId: string,
+    installationId: string,
+    input: DeployInstallationInput,
+  ): Promise<InstallationRecord> {
+    return withTransaction(this.pool, async (client) => {
+      const currentResult = await client.query<InstallationRecord>(
+        `SELECT ai.*
+         FROM agent_installations ai
+         JOIN agent_definitions ad ON ad.id = ai.agent_definition_id
+         WHERE ai.id = $1 AND ai.organization_id = $2
+         FOR UPDATE`,
+        [installationId, organizationId],
+      );
+      const current = currentResult.rows[0];
+      if (!current) throw Object.assign(new Error("Installation not found"), { statusCode: 404, code: "INSTALLATION_NOT_FOUND" });
+      if (current.status === "disabled") {
+        throw Object.assign(new Error("Disabled installations cannot be deployed"), { statusCode: 409, code: "INSTALLATION_DISABLED" });
+      }
+      if (input.expectedVersionId && current.agent_version_id !== input.expectedVersionId) {
+        throw Object.assign(new Error("Installation version changed before deployment"), { statusCode: 409, code: "INSTALLATION_VERSION_CONFLICT" });
+      }
+      if (current.execution_mode !== "kasitek_hosted") {
+        throw Object.assign(new Error("Only hosted organization installations can be deployed here"), { statusCode: 403, code: "INSTALLATION_DEPLOYMENT_NOT_ALLOWED" });
+      }
+      const targetResult = await client.query<AgentVersionRecord>(
+        `SELECT av.*
+         FROM agent_versions av
+         JOIN agent_definitions ad ON ad.id = av.agent_definition_id
+         WHERE av.id = $1 AND av.agent_definition_id = $2
+           AND ad.organization_id = $3 AND ad.owner_type = 'organization' AND ad.protected = FALSE
+           AND av.status = 'published'
+         FOR SHARE OF av`,
+        [input.versionId, current.agent_definition_id, organizationId],
+      );
+      if (!targetResult.rows[0]) {
+        throw Object.assign(new Error("Published agent version not found"), { statusCode: 404, code: "AGENT_VERSION_NOT_FOUND" });
+      }
+      if (current.agent_version_id === input.versionId) return current;
+      const updated = await client.query<InstallationRecord>(
+        `UPDATE agent_installations
+         SET agent_version_id = $2, updated_at = now()
+         WHERE id = $1 AND organization_id = $3 AND agent_version_id = $4
+         RETURNING *`,
+        [installationId, input.versionId, organizationId, current.agent_version_id],
+      );
+      const installation = updated.rows[0];
+      if (!installation) {
+        throw Object.assign(new Error("Installation version changed before deployment"), { statusCode: 409, code: "INSTALLATION_VERSION_CONFLICT" });
+      }
+      await client.query(
+        `INSERT INTO audit_records
+          (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'human', $2, 'agent_installation.version_deployed', 'agent_installation', $3, $4::jsonb)`,
+        [organizationId, actorId, installation.id, JSON.stringify({
+          agentId: current.agent_definition_id,
+          previousVersionId: current.agent_version_id,
+          versionId: input.versionId,
+          releaseMode: current.release_mode,
+          trigger: "manual",
+        })],
       );
       return installation;
     });

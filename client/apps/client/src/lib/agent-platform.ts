@@ -4,6 +4,7 @@ export type AgentInstallation = {
   id: string;
   status: "active" | "paused" | "disabled";
   execution_mode?: "system_hosted" | "kasitek_hosted" | "external_connected";
+  release_mode?: "pinned" | "follow_published" | "staged";
   agent_audience?: "personal" | "customer_service" | null;
   agent_name?: string;
   agent_slug?: string;
@@ -501,11 +502,15 @@ export type AgentDefinition = {
   protected: boolean;
   owner_type: string;
   execution_mode?: "system_hosted" | "kasitek_hosted" | "external_connected" | null;
+  release_mode?: "pinned" | "follow_published" | "staged" | null;
   created_at: string;
   installation_id?: string | null;
   installation_status?: string | null;
   installation_settings?: Record<string, unknown> | null;
+  installation_version_id?: string | null;
+  published_version_id?: string | null;
   version_number?: number | null;
+  published_version_number?: number | null;
 };
 
 export type AgentAudience = "personal" | "customer_service";
@@ -678,8 +683,12 @@ export function createAgentVersion(agentId: string, input: { instructions: strin
   return request(`/api/agents/${encodeURIComponent(agentId)}/versions`, { method: "POST", body: JSON.stringify({ configuration: {}, policy: {}, ...input }) });
 }
 
-export function createAgentInstallation(agentVersionId: string, settings: Record<string, unknown> = {}): Promise<AgentInstallation> {
-  return request("/api/agents/installations", { method: "POST", body: JSON.stringify({ agentVersionId, scopeType: "organization", settings }) });
+export function createAgentInstallation(agentVersionId: string, settings: Record<string, unknown> = {}, releaseMode?: "pinned" | "follow_published"): Promise<AgentInstallation> {
+  return request("/api/agents/installations", { method: "POST", body: JSON.stringify({ agentVersionId, scopeType: "organization", settings, ...(releaseMode ? { releaseMode } : {}) }) });
+}
+
+export function deployAgentInstallation(installationId: string, versionId: string, expectedVersionId?: string): Promise<AgentInstallation> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/deploy`, { method: "POST", body: JSON.stringify({ versionId, ...(expectedVersionId ? { expectedVersionId } : {}) }) });
 }
 
 export type AgentTemplate = {

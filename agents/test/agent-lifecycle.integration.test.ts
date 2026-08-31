@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AgentRepository } from "../src/db/repositories/agent-repository";
+import { RunRepository } from "../src/db/repositories/run-repository";
 import { ToolGrantRepository } from "../src/db/repositories/tool-grant-repository";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
@@ -10,6 +11,7 @@ const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRAT
 describe.skipIf(!runIntegration)("agent lifecycle controls (integration)", () => {
   const pool = new Pool({ connectionString: databaseUrl });
   const agents = new AgentRepository(pool);
+  const runs = new RunRepository(pool);
   const grants = new ToolGrantRepository(pool);
   const organizationId = `lifecycle-test-${randomUUID()}`;
   const systemOrganizationId = `system-test-${randomUUID()}`;
@@ -22,13 +24,57 @@ describe.skipIf(!runIntegration)("agent lifecycle controls (integration)", () =>
     const versionOne = await agents.createVersion(organizationId, "test-user", agentId, { instructions: "one", configuration: {}, policy: { allowedTools: ["platform.current_time"] } });
     await agents.publishVersion(organizationId, "test-user", agentId, versionOne.id);
     expect((await grants.effectiveTools(organizationId, versionOne.id, randomUUID())).has("platform.current_time")).toBe(true);
+    const followPublishedInstallation = await agents.createInstallation(organizationId, "test-user", {
+      agentVersionId: versionOne.id,
+      scopeType: "organization",
+      scopeId: organizationId,
+      releaseMode: "follow_published",
+      settings: {},
+    });
+    const pinnedInstallation = await agents.createInstallation(organizationId, "test-user", {
+      agentVersionId: versionOne.id,
+      scopeType: "user",
+      scopeId: "pinned-user",
+      releaseMode: "pinned",
+      settings: {},
+    });
+    expect(followPublishedInstallation.release_mode).toBe("follow_published");
+    expect(pinnedInstallation.release_mode).toBe("pinned");
+    const runBeforeDeployment = await runs.createRun(organizationId, "test-user", {
+      installationId: followPublishedInstallation.id,
+      idempotencyKey: `before-deployment-${randomUUID()}`,
+      input: { source: "before-deployment" },
+      triggerType: "manual",
+    });
+    expect(runBeforeDeployment.agent_version_id).toBe(versionOne.id);
     const extraGrant = await grants.grantVersionTool({ organizationId, agentId, versionId: versionOne.id, toolName: "kasitek.core.customer_get", actorId: "test-user" });
     expect((await grants.listForVersion(organizationId, versionOne.id)).map((grant) => grant.tool_name)).toContain("kasitek.core.customer_get");
     await grants.revoke({ organizationId, grantId: extraGrant.id, actorId: "test-user" });
     const versionTwo = await agents.createVersion(organizationId, "test-user", agentId, { instructions: "two", configuration: {}, policy: {} });
     await agents.publishVersion(organizationId, "test-user", agentId, versionTwo.id);
+    expect((await agents.getInstallation(organizationId, followPublishedInstallation.id))?.agent_version_id).toBe(versionTwo.id);
+    expect((await agents.getInstallation(organizationId, pinnedInstallation.id))?.agent_version_id).toBe(versionOne.id);
+    const runAfterDeployment = await runs.createRun(organizationId, "test-user", {
+      installationId: followPublishedInstallation.id,
+      idempotencyKey: `after-deployment-${randomUUID()}`,
+      input: { source: "after-deployment" },
+      triggerType: "manual",
+    });
+    expect(runAfterDeployment.agent_version_id).toBe(versionTwo.id);
+    expect((await agents.deployInstallation(organizationId, "test-user", pinnedInstallation.id, {
+      versionId: versionTwo.id,
+      expectedVersionId: versionOne.id,
+    })).agent_version_id).toBe(versionTwo.id);
+    await expect(agents.deployInstallation(organizationId, "test-user", pinnedInstallation.id, {
+      versionId: versionOne.id,
+      expectedVersionId: versionOne.id,
+    })).rejects.toThrow("version changed");
     const rolledBack = await agents.rollbackVersion(organizationId, "test-user", agentId, versionOne.id);
     expect(rolledBack.id).toBe(versionOne.id);
+    expect((await agents.getInstallation(organizationId, followPublishedInstallation.id))?.agent_version_id).toBe(versionOne.id);
+    expect((await agents.getInstallation(organizationId, pinnedInstallation.id))?.agent_version_id).toBe(versionTwo.id);
+    expect((await runs.getRunById(runBeforeDeployment.id))?.agent_version_id).toBe(versionOne.id);
+    expect((await runs.getRunById(runAfterDeployment.id))?.agent_version_id).toBe(versionTwo.id);
     expect((await agents.listVersions(organizationId, agentId)).find((version) => version.id === versionTwo.id)?.status).toBe("retired");
     await agents.retireVersion(organizationId, "test-user", agentId, versionOne.id);
     expect((await agents.getVersion(organizationId, versionOne.id))?.status).toBe("retired");
@@ -83,6 +129,10 @@ describe.skipIf(!runIntegration)("agent lifecycle controls (integration)", () =>
 
   afterAll(async () => {
     if (agentId) {
+      await pool.query("DELETE FROM run_workflow_state WHERE organization_id = $1", [organizationId]);
+      await pool.query("DELETE FROM run_attempts WHERE organization_id = $1", [organizationId]);
+      await pool.query("DELETE FROM agent_events WHERE organization_id = $1", [organizationId]);
+      await pool.query("DELETE FROM agent_runs WHERE organization_id = $1", [organizationId]);
       await pool.query("DELETE FROM agent_principals WHERE organization_id = $1", [organizationId]);
       await pool.query("DELETE FROM agent_tool_grants WHERE organization_id = $1", [organizationId]);
       await pool.query("DELETE FROM agent_installations WHERE organization_id = $1", [organizationId]);

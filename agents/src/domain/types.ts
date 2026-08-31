@@ -9,6 +9,9 @@ export type VersionStatus = z.infer<typeof versionStatusSchema>;
 export const installationStatusSchema = z.enum(["active", "paused", "disabled"]);
 export type InstallationStatus = z.infer<typeof installationStatusSchema>;
 
+export const agentReleaseModeSchema = z.enum(["pinned", "follow_published", "staged"]);
+export type AgentReleaseMode = z.infer<typeof agentReleaseModeSchema>;
+
 export const agentExecutionModeSchema = z.enum(["system_hosted", "kasitek_hosted", "external_connected"]);
 export type AgentExecutionMode = z.infer<typeof agentExecutionModeSchema>;
 
@@ -103,8 +106,15 @@ export const createInstallationInputSchema = z.object({
   scopeId: z.string().min(1).max(160).optional(),
   settings: z.record(z.string(), z.unknown()).default({}),
   executionMode: agentExecutionModeSchema.optional(),
+  releaseMode: agentReleaseModeSchema.optional(),
 });
 export type CreateInstallationInput = z.infer<typeof createInstallationInputSchema>;
+
+export const deployInstallationInputSchema = z.object({
+  versionId: z.string().uuid(),
+  expectedVersionId: z.string().uuid().optional(),
+});
+export type DeployInstallationInput = z.infer<typeof deployInstallationInputSchema>;
 
 const externalScopeSchema = z.object({
   resourceType: z.string().trim().min(1).max(120),

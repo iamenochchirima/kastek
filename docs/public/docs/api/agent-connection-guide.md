@@ -94,6 +94,15 @@ model, runtime limits, workflows, capabilities, knowledge, schedules, and suppor
 the hosted-agent details page. Hosted installations do not receive MCP/REST machine credentials;
 external runtimes use the separate external-agent flow above.
 
+Hosted user installations follow the published version by default. Publishing and deployment are
+separate states: a pinned installation stays on its selected version until an explicit deployment,
+while a follow-published installation moves when a new version is published or rolled back. Runs
+already admitted keep the version they started with.
+
+Management clients can deploy a hosted installation explicitly with `POST
+/v1/installations/{installationId}/deploy` and `{ "versionId": "...", "expectedVersionId": "..." }`.
+The expected version is optional, but prevents overwriting a concurrent deployment when supplied.
+
 ## Access and health
 
 Installation mode, grants, transport scopes, resource/connector constraints, provider readiness, and

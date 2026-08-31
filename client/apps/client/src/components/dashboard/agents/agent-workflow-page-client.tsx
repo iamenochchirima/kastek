@@ -78,7 +78,7 @@ export function AgentWorkflowPageClient({ agent, initialVersions }: { agent: Age
       const published = await publishAgentVersion(agent.id, version.id);
       setPublishedVersion(published);
       setDraftVersion(null);
-      setNotice(`${versionLabel(published)} is now live.`);
+      setNotice(`${versionLabel(published)} published.`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to publish the workflow.");
     } finally {
@@ -100,7 +100,7 @@ export function AgentWorkflowPageClient({ agent, initialVersions }: { agent: Age
     <div className="mx-auto max-w-[1240px]">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <Link href={`/agents/${encodeURIComponent(agent.id)}`} className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"><ArrowLeft className="h-4 w-4" />Back to agent</Link>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground"><span className="rounded-full border border-border bg-secondary px-2.5 py-1">Live {versionLabel(publishedVersion)}</span>{draftVersion ? <span className="rounded-full border border-status-attention/30 bg-status-attention-soft px-2.5 py-1 text-status-attention">Draft {versionLabel(draftVersion)}</span> : null}</div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground"><span className="rounded-full border border-border bg-secondary px-2.5 py-1">Published {versionLabel(publishedVersion)}</span>{agent.installation_version_id ? <span className="rounded-full border border-status-success/30 bg-status-success-soft px-2.5 py-1 text-status-success">Deployed {agent.installation_version_id === agent.published_version_id ? versionLabel(publishedVersion) : `v${agent.version_number ?? "?"}`}</span> : null}{draftVersion ? <span className="rounded-full border border-status-attention/30 bg-status-attention-soft px-2.5 py-1 text-status-attention">Draft {versionLabel(draftVersion)}</span> : null}</div>
       </div>
       <Card className="mt-5 border-border/80 shadow-sm"><CardContent className="space-y-4 p-5 sm:p-7">
         <PageHeader><PageHeaderContent><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Workflow editor</p><PageHeaderTitle>{agent.name}</PageHeaderTitle><PageHeaderDescription>Configure steps, then save and publish a version.</PageHeaderDescription></PageHeaderContent><PageHeaderActions><Button type="button" variant="outline" disabled={busy !== null || !workflowReady || !workflowValid || !workflow} onClick={() => void saveDraft()}>{busy === "save" ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Saving…</> : "Save draft"}</Button><Button type="button" disabled={busy !== null || !workflowReady || !workflowValid || !workflow} onClick={() => void publish()}>{busy === "publish" ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Publishing…</> : "Publish"}</Button></PageHeaderActions></PageHeader>

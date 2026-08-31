@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { assertRunTransition, createAgentInputSchema } from "../src/domain/types";
+import { assertRunTransition, createAgentInputSchema, createInstallationInputSchema } from "../src/domain/types";
+import { assertAgentReleaseMode, defaultAgentReleaseMode } from "../src/domain/release-mode";
 
 describe("agent run state machine", () => {
   it("allows the durable lifecycle transitions", () => {
@@ -33,5 +34,29 @@ describe("agent audience contract", () => {
 
   it("rejects unknown audiences", () => {
     expect(() => createAgentInputSchema.parse({ name: "Invalid", agentAudience: "internal" })).toThrow();
+  });
+});
+
+describe("agent release mode contract", () => {
+  it("defaults hosted installations to following the published version", () => {
+    expect(defaultAgentReleaseMode("kasitek_hosted")).toBe("follow_published");
+    expect(defaultAgentReleaseMode("system_hosted")).toBe("pinned");
+    expect(defaultAgentReleaseMode("external_connected")).toBe("pinned");
+  });
+
+  it("accepts an explicit pinned installation", () => {
+    const input = createInstallationInputSchema.parse({
+      agentVersionId: "00000000-0000-1000-8000-000000000001",
+      scopeType: "organization",
+      releaseMode: "pinned",
+    });
+    expect(input.releaseMode).toBe("pinned");
+    expect(() => assertAgentReleaseMode("kasitek_hosted", "pinned")).not.toThrow();
+  });
+
+  it("does not silently enable staged rollout or follow-published for protected modes", () => {
+    expect(() => assertAgentReleaseMode("kasitek_hosted", "staged")).toThrow(/not available yet/);
+    expect(() => assertAgentReleaseMode("system_hosted", "follow_published")).toThrow(/Only hosted/);
+    expect(() => assertAgentReleaseMode("external_connected", "follow_published")).toThrow(/Only hosted/);
   });
 });
