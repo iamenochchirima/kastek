@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-08-11
-- Updated: 2026-08-30
+- Updated: 2026-08-31
 
 ## Decision
 
@@ -54,6 +54,15 @@ that provider connected.
 Customer-service installations share one operator conversation surface regardless of provider. The
 Agent Platform `GET /v1/conversations/customer` projection returns active customer conversations
 from every connected channel, including website chat, Facebook Messenger, Instagram, WhatsApp,
-Telegram, and Discord when those adapters have produced a conversation. The live-run projection is
-reserved for runs that are still active; it is not the complete customer history. Channel filters
+Telegram, and Discord when those adapters have produced a conversation. `GET /v1/conversations/live`
+returns the subset that is still customer-facing and active: the conversation is active, its
+handoff state is `agent_active`, and its latest message is no more than 30 minutes old. The
+projection deliberately does not require an active `agent_runs` row, because a completed workflow
+run does not mean that the customer conversation is no longer live. Pending handoffs, assigned
+human conversations, and resolved/expired/cancelled conversations are excluded. Channel filters
 use the stored channel type (`facebook` for Messenger).
+
+Website delivery polling refreshes the Core-side visitor session `lastSeenAt`, which is the
+browser-presence signal for website chat. The Agent API and Core currently use separate databases,
+so the shared Live queue uses message activity as its cross-channel source of truth until that
+presence signal is explicitly propagated to Agent Platform.

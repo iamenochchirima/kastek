@@ -38,6 +38,36 @@ describe("handoff repository lifecycle", () => {
     expect(query.mock.calls[0]?.[1]).toEqual(["org-1", ["facebook", "messenger"], "%Jane%", 25]);
   });
 
+  it("defines Live from recent conversation activity and ownership, not active runs", async () => {
+    const query = vi.fn(async () => ({ rows: [{ id: "conversation-1", channel_type: "instagram" }] }));
+    const repository = new HandoffRepository({ query } as never);
+
+    const result = await repository.listLive("org-1", { limit: 10 });
+
+    expect(result.items).toEqual([{ conversation: { id: "conversation-1", channel_type: "instagram" } }]);
+    const sql = String(query.mock.calls[0]?.[0]);
+    expect(sql).toContain("c.handoff_state = 'agent_active'");
+    expect(sql).toContain("c.last_message_at >= NOW() - INTERVAL '30 minutes'");
+    expect(sql).not.toContain("JOIN agent_runs");
+    expect(query.mock.calls[0]?.[1]).toEqual(["org-1", 10]);
+  });
+
+  it("returns queue counts from the same customer-service conversation scope", async () => {
+    const query = vi.fn(async () => ({ rows: [{ all: 4, live: 2, handoff: 1, assigned: 1 }] }));
+    const repository = new HandoffRepository({ query } as never);
+
+    await expect(repository.getSummary("org-1", { channelType: "messenger", search: "Jane" })).resolves.toEqual({
+      all: 4,
+      live: 2,
+      handoff: 1,
+      assigned: 1,
+    });
+    const sql = String(query.mock.calls[0]?.[0]);
+    expect(sql).toContain("COUNT(*) FILTER");
+    expect(sql).toContain("c.handoff_state = 'agent_active'");
+    expect(query.mock.calls[0]?.[1]).toEqual(["org-1", ["facebook", "messenger"], "%Jane%"]);
+  });
+
   it("emits first-human-response before the per-message event", async () => {
     const eventTypes: string[] = [];
     const auditRecords: Array<{ action: string; metadata: Record<string, unknown> }> = [];

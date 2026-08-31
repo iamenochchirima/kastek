@@ -2317,8 +2317,9 @@ describe("Agent Platform HTTP foundation", () => {
         nextBefore: null,
         filters,
       })),
-      listLive: vi.fn(async () => ({ items: [{ conversation: { id: "22222222-2222-4222-8222-222222222222" }, run: { id: "44444444-4444-4444-8444-444444444444", status: "running" } }] })),
+      listLive: vi.fn(async () => ({ items: [{ conversation: { id: "22222222-2222-4222-8222-222222222222" } }] })),
       listCustomer: vi.fn(async () => ({ items: [{ id: "22222222-2222-4222-8222-222222222222", channel_type: "facebook" }] })),
+      getSummary: vi.fn(async () => ({ all: 7, live: 1, handoff: 2, assigned: 1 })),
       getHandoff: vi.fn(async () => ({
         handoff: { id: "11111111-1111-4111-8111-111111111111" },
         conversation: { id: "22222222-2222-4222-8222-222222222222" },
@@ -2343,6 +2344,7 @@ describe("Agent Platform HTTP foundation", () => {
     const queue = await app.inject({ method: "GET", url: "/v1/conversations/handoffs?status=pending,claimed&channelType=whatsapp&reason=customer_requested&priority=urgent&cursor=next-page&limit=10", headers });
     const live = await app.inject({ method: "GET", url: "/v1/conversations/live?search=acme&channelType=facebook&limit=10", headers });
     const customer = await app.inject({ method: "GET", url: "/v1/conversations/customer?search=acme&channelType=facebook&limit=10", headers });
+    const summary = await app.inject({ method: "GET", url: "/v1/conversations/summary?search=acme&channelType=facebook", headers });
     const detail = await app.inject({ method: "GET", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111", headers });
     const claimed = await app.inject({ method: "POST", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/claim", headers });
     const released = await app.inject({ method: "POST", url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/release", headers, payload: { reason: "coverage change" } });
@@ -2353,7 +2355,9 @@ describe("Agent Platform HTTP foundation", () => {
     expect(queue.statusCode).toBe(200);
     expect(live.statusCode).toBe(200);
     expect(customer.statusCode).toBe(200);
-    expect(live.json()).toMatchObject({ items: [{ run: { status: "running" } }] });
+    expect(live.json()).toMatchObject({ items: [{ conversation: { id: "22222222-2222-4222-8222-222222222222" } }] });
+    expect(summary.statusCode).toBe(200);
+    expect(summary.json()).toEqual({ all: 7, live: 1, handoff: 2, assigned: 1 });
     expect(queue.json()).toMatchObject({ items: [{ handoff: { status: "pending" } }], nextBefore: null });
     expect(detail.statusCode).toBe(200);
     expect(detail.json()).toMatchObject({ history: [{ event_type: "conversation.handoff.requested", actor_type: "agent" }] });
@@ -2371,6 +2375,7 @@ describe("Agent Platform HTTP foundation", () => {
     expect(controls.listHandoffs).toHaveBeenCalledWith("org-1", expect.objectContaining({ status: ["pending", "claimed"], channelType: "whatsapp", reason: "customer_requested", priority: "urgent", cursor: "next-page", limit: 10 }));
     expect(controls.listLive).toHaveBeenCalledWith("org-1", { search: "acme", channelType: "facebook", limit: 10 });
     expect(controls.listCustomer).toHaveBeenCalledWith("org-1", { search: "acme", channelType: "facebook", limit: 10 });
+    expect(controls.getSummary).toHaveBeenCalledWith("org-1", { search: "acme", channelType: "facebook" });
     expect(controls.claim).toHaveBeenCalledWith({ organizationId: "org-1", handoffId: "11111111-1111-4111-8111-111111111111", actorId: "user-1" });
     expect(controls.sendHumanMessage).toHaveBeenCalledWith({ organizationId: "org-1", handoffId: "11111111-1111-4111-8111-111111111111", actorId: "user-1", text: "I can help.", idempotencyKey: "human-message-1" });
     await app.close();

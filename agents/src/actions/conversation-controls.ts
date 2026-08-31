@@ -7,6 +7,7 @@ import type {
   HumanMessageResult,
   LiveConversationItem,
   CustomerConversationFilters,
+  ConversationSummary,
 } from "../db/repositories/handoff-repository";
 import type { ConversationProjection } from "../db/repositories/conversation-repository";
 
@@ -28,6 +29,10 @@ export class ConversationControlService {
 
   public listCustomer(organizationId: string, filters?: CustomerConversationFilters): Promise<{ items: ConversationProjection[] }> {
     return this.handoffs.listCustomer(organizationId, filters);
+  }
+
+  public getSummary(organizationId: string, filters?: Omit<CustomerConversationFilters, "limit">): Promise<ConversationSummary> {
+    return this.handoffs.getSummary(organizationId, filters);
   }
 
   public claim(input: { organizationId: string; handoffId: string; actorId: string }): Promise<HandoffMutationResult> {

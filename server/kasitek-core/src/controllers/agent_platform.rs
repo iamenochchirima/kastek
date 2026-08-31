@@ -1052,6 +1052,27 @@ pub async fn list_customer_conversations(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn get_conversation_summary(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<LiveConversationQuery>,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let query = query.into_inner();
+    let response = client(config.get_ref())?
+        .get_conversation_summary(
+            &organization_id,
+            &user.id,
+            query.installation_id.as_deref(),
+            query.agent_id.as_deref(),
+            query.channel_type.as_deref(),
+            query.search.as_deref(),
+        )
+        .await?;
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub async fn stream_conversation(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,

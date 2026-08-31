@@ -544,6 +544,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_platform::list_customer_conversations),
             )
             .route(
+                "/conversations/summary",
+                web::get().to(agent_platform::get_conversation_summary),
+            )
+            .route(
                 "/conversations/{conversationId}",
                 web::get().to(agent_platform::get_conversation),
             )

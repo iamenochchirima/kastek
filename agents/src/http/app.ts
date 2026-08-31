@@ -3210,6 +3210,21 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   );
 
   app.get<{ Querystring: { installationId?: string; agentId?: string; channelType?: string; search?: string; limit?: string } }>(
+    "/v1/conversations/summary",
+    async (request) => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "agents:read");
+      const queryInput = z.object({
+        installationId: z.string().uuid().optional(),
+        agentId: z.string().uuid().optional(),
+        channelType: z.string().trim().min(1).max(80).optional(),
+        search: z.string().trim().max(240).optional(),
+      }).parse(request.query);
+      return conversationControls.getSummary(auth.organizationId, queryInput);
+    },
+  );
+
+  app.get<{ Querystring: { installationId?: string; agentId?: string; channelType?: string; search?: string; limit?: string } }>(
     "/v1/conversations/customer",
     async (request) => {
       const auth = requireAuth(request, dependencies.config);

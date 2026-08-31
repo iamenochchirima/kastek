@@ -79,6 +79,13 @@ export interface CustomerConversationFilters {
   limit?: number;
 }
 
+export interface ConversationSummary {
+  all: number;
+  live: number;
+  handoff: number;
+  assigned: number;
+}
+
 export interface HandoffQueueItem {
   handoff: HandoffRequestRecord;
   conversation: ConversationRecord;
@@ -102,19 +109,7 @@ export interface HandoffQueuePage {
 }
 
 export interface LiveConversationItem {
-  conversation: ConversationRecord & {
-    participant_display_name?: string | null;
-    participant_external_id?: string | null;
-  };
-  run: {
-    id: string;
-    status: string;
-    installation_id: string;
-    agent_definition_id: string;
-    created_at: string;
-    updated_at: string;
-    trigger_type: string;
-  };
+  conversation: ConversationProjection;
 }
 
 export interface HandoffMutationResult {
@@ -255,84 +250,15 @@ export class HandoffRepository {
   }
 
   public async listLive(organizationId: string, filters: CustomerConversationFilters = {}): Promise<{ items: LiveConversationItem[] }> {
-    const values: unknown[] = [organizationId];
-    const where = [
-      "c.organization_id = $1",
-      "c.conversation_kind = 'customer'",
-      "c.status = 'active'",
-      "r.status = ANY(ARRAY['received', 'queued', 'running', 'awaiting_approval', 'awaiting_external_event']::text[])",
-    ];
-    const add = (sql: string, value: unknown): void => {
-      values.push(value);
-      where.push(sql.replace("$VALUE", `$${values.length}`));
-    };
-    if (filters.installationId) add("c.installation_id = $VALUE", filters.installationId);
-    if (filters.agentId) add("r.agent_definition_id = $VALUE", filters.agentId);
-    if (filters.channelType) {
-      const channelTypes = filters.channelType === "messenger" ? ["facebook", "messenger"] : [filters.channelType];
-      values.push(channelTypes);
-      where.push(`c.channel_type = ANY($${values.length}::text[])`);
-    }
-    if (filters.search?.trim()) {
-      values.push(`%${filters.search.trim().replace(/[%_]/g, "\\$&")}%`);
-      where.push("(c.title ILIKE $VALUE ESCAPE '\\' OR c.last_message_preview ILIKE $VALUE ESCAPE '\\' OR participant.display_name ILIKE $VALUE ESCAPE '\\')".replace(/\$VALUE/g, `$${values.length}`));
-    }
-    const limit = Math.max(1, Math.min(filters.limit ?? 100, 200));
-    values.push(limit);
-    const result = await query<ConversationRecord & {
-      run_id: string;
-      run_status: string;
-      run_installation_id: string;
-      run_agent_definition_id: string;
-      run_created_at: string;
-      run_updated_at: string;
-      run_trigger_type: string;
-      participant_display_name: string | null;
-      participant_external_id: string | null;
-    }>(
-      this.pool,
-      `SELECT c.*, r.id AS run_id, r.status AS run_status,
-              r.installation_id AS run_installation_id, r.agent_definition_id AS run_agent_definition_id,
-              r.created_at AS run_created_at, r.updated_at AS run_updated_at, r.trigger_type AS run_trigger_type,
-              participant.display_name AS participant_display_name,
-              participant.external_id AS participant_external_id
-       FROM conversations c
-       JOIN agent_runs r ON r.conversation_id = c.id AND r.organization_id = c.organization_id
-       JOIN agent_definitions ad ON ad.id = r.agent_definition_id AND ad.agent_audience = 'customer_service'
-       LEFT JOIN LATERAL (
-         SELECT p.display_name, p.external_id
-         FROM participants p
-         WHERE p.conversation_id = c.id AND p.organization_id = c.organization_id
-           AND p.participant_type = 'customer'
-         ORDER BY p.created_at
-         LIMIT 1
-       ) participant ON true
-       WHERE ${where.join(" AND ")}
-       ORDER BY r.updated_at DESC, r.id DESC
-       LIMIT $${values.length}`,
-      values,
-    );
-    return {
-      items: result.rows.map((row) => ({
-        conversation: {
-          ...row,
-          participant_display_name: row.participant_display_name,
-          participant_external_id: row.participant_external_id,
-        },
-        run: {
-          id: row.run_id,
-          status: row.run_status,
-          installation_id: row.run_installation_id,
-          agent_definition_id: row.run_agent_definition_id,
-          created_at: row.run_created_at,
-          updated_at: row.run_updated_at,
-          trigger_type: row.run_trigger_type,
-        },
-      })),
-    };
+    const items = await this.listCustomerProjection(organizationId, filters, true);
+    return { items: items.map((conversation) => ({ conversation })) };
   }
 
   public async listCustomer(organizationId: string, filters: CustomerConversationFilters = {}): Promise<{ items: ConversationProjection[] }> {
+    return { items: await this.listCustomerProjection(organizationId, filters) };
+  }
+
+  public async getSummary(organizationId: string, filters: Omit<CustomerConversationFilters, "limit"> = {}): Promise<ConversationSummary> {
     const values: unknown[] = [organizationId];
     const where = [
       "c.organization_id = $1",
@@ -341,6 +267,72 @@ export class HandoffRepository {
       "ai.status = 'active'",
       "ad.agent_audience = 'customer_service'",
     ];
+    const add = (sql: string, value: unknown): void => {
+      values.push(value);
+      where.push(sql.replace("$VALUE", `$${values.length}`));
+    };
+    if (filters.installationId) add("c.installation_id = $VALUE", filters.installationId);
+    if (filters.agentId) add("ai.agent_definition_id = $VALUE", filters.agentId);
+    if (filters.channelType) {
+      const channelTypes = filters.channelType === "messenger" ? ["facebook", "messenger"] : [filters.channelType];
+      values.push(channelTypes);
+      where.push(`c.channel_type = ANY($${values.length}::text[])`);
+    }
+    if (filters.search?.trim()) {
+      values.push(`%${filters.search.trim().replace(/[%_]/g, "\\$&")}%`);
+      where.push(`(c.title ILIKE $${values.length} ESCAPE '\\' OR c.last_message_preview ILIKE $${values.length} ESCAPE '\\' OR participant.display_name ILIKE $${values.length} ESCAPE '\\' OR participant.external_id ILIKE $${values.length} ESCAPE '\\')`);
+    }
+    const result = await query<ConversationSummary>(
+      this.pool,
+      `SELECT COUNT(*)::integer AS "all",
+              COUNT(*) FILTER (
+                WHERE c.handoff_state = 'agent_active'
+                  AND c.last_message_at IS NOT NULL
+                  AND c.last_message_at >= NOW() - INTERVAL '30 minutes'
+              )::integer AS live,
+              COUNT(*) FILTER (WHERE c.handoff_state = 'handoff_requested')::integer AS handoff,
+              COUNT(*) FILTER (WHERE c.handoff_state = 'human_owned')::integer AS assigned
+       FROM conversations c
+       JOIN agent_installations ai
+         ON ai.id = c.installation_id
+        AND ai.organization_id = c.organization_id
+       JOIN agent_definitions ad
+         ON ad.id = ai.agent_definition_id
+       LEFT JOIN LATERAL (
+         SELECT p.display_name, p.external_id
+         FROM participants p
+         WHERE p.conversation_id = c.id
+           AND p.organization_id = c.organization_id
+           AND p.participant_type IN ('customer', 'user')
+         ORDER BY CASE WHEN p.participant_type = 'customer' THEN 0 ELSE 1 END, p.created_at
+         LIMIT 1
+       ) participant ON true
+       WHERE ${where.join(" AND ")}`,
+      values,
+    );
+    return result.rows[0] ?? { all: 0, live: 0, handoff: 0, assigned: 0 };
+  }
+
+  private async listCustomerProjection(
+    organizationId: string,
+    filters: CustomerConversationFilters = {},
+    liveOnly = false,
+  ): Promise<ConversationProjection[]> {
+    const values: unknown[] = [organizationId];
+    const where = [
+      "c.organization_id = $1",
+      "c.conversation_kind = 'customer'",
+      "c.status = 'active'",
+      "ai.status = 'active'",
+      "ad.agent_audience = 'customer_service'",
+    ];
+    if (liveOnly) {
+      where.push(
+        "c.handoff_state = 'agent_active'",
+        "c.last_message_at IS NOT NULL",
+        "c.last_message_at >= NOW() - INTERVAL '30 minutes'",
+      );
+    }
     const add = (sql: string, value: unknown): void => {
       values.push(value);
       where.push(sql.replace("$VALUE", `$${values.length}`));
@@ -393,7 +385,7 @@ export class HandoffRepository {
        LIMIT $${values.length}`,
       values,
     );
-    return { items: result.rows };
+    return result.rows;
   }
 
   public async conversationExists(organizationId: string, conversationId: string): Promise<boolean> {

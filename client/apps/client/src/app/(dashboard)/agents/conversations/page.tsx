@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getRustSession } from "@/lib/rust-auth";
 import { fetchRustJson } from "@/lib/rust-server-api";
-import type { AgentConversation, AgentHandoffPriority, AgentHandoffQueue, AgentHandoffReason } from "@/lib/agent-platform";
+import type { AgentConversation, AgentConversationSummary, AgentHandoffPriority, AgentHandoffQueue, AgentHandoffReason } from "@/lib/agent-platform";
 import { AgentConversationsPageClient } from "@/components/dashboard/agents/agent-conversations-page-client";
 
 export const metadata = { title: "Live Chat | KasiTek" };
@@ -47,6 +47,11 @@ export default async function AgentConversationsPage({
   if (query.installationId) customerParams.set("installationId", query.installationId);
   if (query.search) customerParams.set("search", query.search);
   if (query.channelType) customerParams.set("channelType", query.channelType === "messenger" ? "facebook" : query.channelType);
+  const summaryParams = new URLSearchParams();
+  if (query.agentId) summaryParams.set("agentId", query.agentId);
+  if (query.installationId) summaryParams.set("installationId", query.installationId);
+  if (query.search) summaryParams.set("search", query.search);
+  if (query.channelType) summaryParams.set("channelType", query.channelType === "messenger" ? "facebook" : query.channelType);
   const initialCustomerConversations = view === "all"
     ? await fetchRustJson<{ items: AgentConversation[] }>(
       `/api/agents/conversations/customer?${customerParams.toString()}`,
@@ -57,6 +62,9 @@ export default async function AgentConversationsPage({
     : await fetchRustJson<AgentHandoffQueue>(
       `/api/agents/conversations/handoffs?${params.toString()}`,
     ).catch((): AgentHandoffQueue => ({ items: [], nextBefore: null }));
+  const initialSummary = await fetchRustJson<AgentConversationSummary>(
+    `/api/agents/conversations/summary${summaryParams.toString() ? `?${summaryParams.toString()}` : ""}`,
+  ).catch((): AgentConversationSummary => ({ all: 0, live: 0, handoff: 0, assigned: 0 }));
 
-  return <AgentConversationsPageClient initialQueue={initialQueue} initialCustomerConversations={initialCustomerConversations.items} initialFilters={{ view, agentId: query.agentId, installationId: query.installationId, search: query.search, channelType: query.channelType, reason, priority }} />;
+  return <AgentConversationsPageClient initialQueue={initialQueue} initialCustomerConversations={initialCustomerConversations.items} initialSummary={initialSummary} initialFilters={{ view, agentId: query.agentId, installationId: query.installationId, search: query.search, channelType: query.channelType, reason, priority }} />;
 }

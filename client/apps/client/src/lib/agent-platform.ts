@@ -158,7 +158,13 @@ export type AgentHumanMessageResult = AgentHandoffQueueItem & {
 
 export type AgentLiveConversation = {
   conversation: AgentConversation;
-  run: { id: string; status: string; installation_id: string; agent_definition_id: string; created_at: string; updated_at: string; trigger_type: string };
+};
+
+export type AgentConversationSummary = {
+  all: number;
+  live: number;
+  handoff: number;
+  assigned: number;
 };
 
 export function listAgentHandoffs(filters: {
@@ -208,6 +214,16 @@ export function listAgentLiveConversations(filters: { installationId?: string; a
   if (filters.limit) query.set("limit", String(filters.limit));
   const suffix = query.toString() ? `?${query.toString()}` : "";
   return request(`/api/agents/conversations/live${suffix}`);
+}
+
+export function getAgentConversationSummary(filters: { installationId?: string; agentId?: string; channelType?: string; search?: string } = {}): Promise<AgentConversationSummary> {
+  const query = new URLSearchParams();
+  if (filters.installationId) query.set("installationId", filters.installationId);
+  if (filters.agentId) query.set("agentId", filters.agentId);
+  if (filters.channelType) query.set("channelType", filters.channelType);
+  if (filters.search) query.set("search", filters.search);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return request(`/api/agents/conversations/summary${suffix}`);
 }
 
 export function getAgentHandoff(handoffId: string): Promise<AgentHandoffQueueItem> {

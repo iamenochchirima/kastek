@@ -4,6 +4,8 @@ Status: approved for implementation
 
 This plan covers the split between personal and customer-service agents, customer conversation ownership, human handoff, and the live Agent Conversations surface. Analytics reporting remains in `ANALYTICS_PLAN.md` and `ANALYTICS_EXECUTION_PLAN.md`; this plan emits the lifecycle data those documents require.
 
+The Live view is a customer-conversation view. It is not an agent-runtime execution monitor.
+
 ## Product boundary
 
 - KasiAi remains a protected, system-hosted personal agent.
@@ -65,7 +67,9 @@ This plan covers the split between personal and customer-service agents, custome
 - [x] Define queue pagination/filter inputs and keep operator mutations on the same repository boundary.
 - [x] Expose an organization-scoped handoff queue/detail API with claim, continue-with-agent, and resolve transitions.
 - [x] List live conversations with organization-scoped installation, agent, channel, search, bounded-limit filters, and cursor pagination.
-- [x] Expose an organization-scoped active customer conversation projection across connected customer channels; keep the live-run projection limited to conversations with active runs.
+- [x] Expose an organization-scoped active customer conversation projection across connected customer channels.
+- [x] Define and expose a conversation-level Live projection based on recent message activity and customer-facing ownership state; keep runtime execution status as transcript detail only.
+- [x] Add organization-scoped queue summary counts for All, Live, Handoff requests, and Assigned so tab badges remain truthful independent of the selected view.
 - [x] Get transcript, participants, active runs, ownership, and handoff history.
 - [x] Add atomic claim, pause/stop, resume, human-message, and resolve operations.
 - [x] Add release and expiry operations with organization-scoped operator APIs.
@@ -78,7 +82,10 @@ This plan covers the split between personal and customer-service agents, custome
 ## 7. Agent Conversations live interface
 
 - [x] Add `/agents/conversations`.
-- [x] Add Handoff requests, Human owned, and All views; Agent live remains tied to active-run data.
+- [x] Add All, Live, Handoff requests, and Assigned views.
+- [x] Make Live include customer conversations with recent inbound or outbound activity while `handoff_state = agent_active`; exclude pending handoff, assigned, resolved, expired, and cancelled conversations.
+- [x] Document the existing website delivery polling session refresh as the Core-side website presence signal; the Agent API Live projection is message-activity based because the services use separate databases.
+- [x] Add number badges for All, Live, Handoff requests, and Assigned, refreshed independently from the selected tab.
 - [x] Make All load active customer conversations across website chat, Messenger, Instagram, WhatsApp, Telegram, and Discord instead of only handoff records.
 - [x] Normalize the stored `facebook` channel type to the Messenger label and filter in the operator surface.
 - [x] Add channel, status, reason, priority, search, and cursor filters to the handoff queue API.
@@ -159,6 +166,34 @@ Rollback or disable plan: revert the client, Core, and Agent API changes togethe
 Post-release review date: 2026-09-06
 
 Release blocker: The client build is ready but has not been published to Vercel because the available environment is logged out and contains no linked Vercel project. Publish the client from the connected Vercel project (or provide Vercel authentication) before treating the Live Chat UI change as fully released.
+
+## Release record: conversation-level Live activity and queue counts
+
+Change: Define Live as a customer conversation with recent message activity and agent ownership, remove the dependency on active agent-run status, and add independent queue counts for the Live Chat tabs.
+
+Owner: Platform
+
+Risk: standard
+
+Affected services and user surfaces: Agents API conversation repository and route, Core Agent Platform proxy, client `/agents/conversations` Live Chat tabs and detail view.
+
+Platform release version or release ID: pending implementation commit and service deployment IDs.
+
+API/schema/migration changes: Add the organization-scoped conversation summary read route. Change the existing live conversation projection to return conversation activity data rather than requiring an active `agent_runs` row. No database migration.
+
+Feature flag or rollout method: not applicable; existing customer-service installation and conversation ownership gates remain in force.
+
+Analytics events and success metrics: not applicable; this is a read-only projection and count correction. Success is that a recent customer conversation appears in Live without an active runtime row, and tab counts match the corresponding filtered lists.
+
+Logs, metrics, dashboards, and alerts: not applicable; existing authenticated HTTP and database query logs cover the read paths. No new background processing is introduced.
+
+User, API, internal, and operational documentation: Update the channel identity ADR and this plan with the Live definition and website heartbeat boundary.
+
+Validation evidence: pending implementation and targeted Agent API, Core, and client verification.
+
+Rollback or disable plan: revert the Agents API, Core proxy, and client changes together; the existing handoff and customer conversation routes remain independently available.
+
+Post-release review date: 2026-09-07
 
 ## Approved defaults
 

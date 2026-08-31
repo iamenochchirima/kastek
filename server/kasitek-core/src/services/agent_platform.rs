@@ -1867,6 +1867,42 @@ impl AgentPlatformClient {
         .await
     }
 
+    pub async fn get_conversation_summary(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+        installation_id: Option<&str>,
+        agent_id: Option<&str>,
+        channel_type: Option<&str>,
+        search: Option<&str>,
+    ) -> Result<Value, AppError> {
+        let mut query = Vec::new();
+        for (key, value) in [
+            ("installationId", installation_id),
+            ("agentId", agent_id),
+            ("channelType", channel_type),
+            ("search", search),
+        ] {
+            if let Some(value) = value.filter(|value| !value.trim().is_empty()) {
+                query.push(format!("{key}={}", urlencoding::encode(value)));
+            }
+        }
+        let path = if query.is_empty() {
+            "/v1/conversations/summary".to_string()
+        } else {
+            format!("/v1/conversations/summary?{}", query.join("&"))
+        };
+        self.request_json(
+            Method::GET,
+            &path,
+            organization_id,
+            actor_id,
+            &["agents:read"],
+            None,
+        )
+        .await
+    }
+
     pub async fn stream_conversation_events(
         &self,
         organization_id: &str,
