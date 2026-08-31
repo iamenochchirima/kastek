@@ -932,9 +932,7 @@ export class HandoffRepository {
          resolved_model_provider, resolved_model)
        VALUES ($1, $2, $3, $4, $5, 'message', 'received', $6::jsonb,
                gen_random_uuid(), $7, $8, $9, $10, $11, $12)
-       ON CONFLICT (organization_id, idempotency_key)
-       WHERE idempotency_key IS NOT NULL
-       DO NOTHING
+       ON CONFLICT DO NOTHING
        RETURNING id, correlation_id`,
       [
         input.handoff.organization_id,

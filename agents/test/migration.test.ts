@@ -76,6 +76,14 @@ describe("foundation migration", () => {
     expect(sql).toContain("Memory supersession target is outside the memory scope");
   });
 
+  it("enforces one active conversation run at the database boundary", async () => {
+    const sql = await readFile(new URL("../migrations/088_conversation_run_admission_guard.sql", import.meta.url), "utf8");
+    expect(sql).toContain("Cannot enforce one active run per conversation");
+    expect(sql).toContain("agent_runs_one_active_conversation_uidx");
+    expect(sql).toContain("CREATE UNIQUE INDEX");
+    expect(sql).toContain("status IN ('received', 'queued', 'running'");
+  });
+
   it("contains the durable scope and run tables", async () => {
     const sql = await readFile(new URL("../migrations/001_agent_platform_foundation.sql", import.meta.url), "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_definitions");

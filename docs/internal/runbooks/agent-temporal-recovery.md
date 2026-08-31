@@ -104,6 +104,19 @@ usage; never infer it from the local estimate.
 6. Confirm that captured usage, durable `model_calls`, run budget totals, provider billing, and
    customer-visible output agree.
 
+## Conversation admission and redelivery
+
+Only one active run may exist for a conversation. API admission locks the conversation row and
+`agent_runs_one_active_conversation_uidx` is the final database guard. A `409 conversation_busy`
+response is intentional backpressure: do not create a second run manually. For channel ingress,
+retry the same provider event/message identity after the active run reaches a terminal state. The
+provider identity makes a redelivery idempotent; a transaction that was rejected for backpressure
+does not leave a partial message behind.
+
+If the same platform idempotency key is retried, return the original message and run. If the
+original run is terminal and the user wants another attempt, use the retry endpoint so the new run
+keeps `causation_id` history without duplicating the inbound transcript.
+
 ## Signals and rollback
 
 Watch these metrics and structured events:
@@ -114,7 +127,12 @@ Watch these metrics and structured events:
 - `kasitek.run_budget.reconciliation_required.count`;
 - `agent.model.reconciliation_required`;
 - `agent.reply.delivery_failed` and effect reconciliation events.
+- conversation admission outcomes, `conversation_busy` backpressure, and channel redelivery.
 
 Migration 084 is additive. If the application release must be rolled back, deploy the previous
 application artifact while retaining the migration and unresolved rows. Do not drop `operation_key`
 or `response`; doing so would remove the evidence needed to prevent unsafe provider replay.
+
+Migration 088 is additive. Do not remove its unique index during routine rollback. If migration
+preflight finds duplicate active runs, stop the rollout and resolve the competing runs with the
+operator recovery procedure before retrying the migration.

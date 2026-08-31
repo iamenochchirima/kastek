@@ -186,6 +186,116 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     await runs.completeRun(second.run.id, { message: "Second reply" });
   });
 
+  it("serializes simultaneous messages for one conversation and preserves the accepted transcript", async () => {
+    const first = await platformChat.acceptMessage({
+      organizationId,
+      installationId,
+      actorId: "ordering-owner",
+      idempotencyKey: "ordering-seed-message",
+      message: "Seed message",
+      createNew: true,
+    });
+    await runs.transitionRun(first.run.id, "received", "queued");
+    await runs.transitionRun(first.run.id, "queued", "running");
+    await runs.completeRun(first.run.id, { message: "Seed reply" });
+
+    const attempts = await Promise.allSettled([
+      platformChat.acceptMessage({
+        organizationId,
+        installationId,
+        actorId: "ordering-owner",
+        idempotencyKey: "ordering-message-a",
+        message: "Message A",
+        conversationId: first.conversation.id,
+      }),
+      platformChat.acceptMessage({
+        organizationId,
+        installationId,
+        actorId: "ordering-owner",
+        idempotencyKey: "ordering-message-b",
+        message: "Message B",
+        conversationId: first.conversation.id,
+      }),
+    ]);
+    const accepted = attempts.filter((attempt): attempt is PromiseFulfilledResult<Awaited<ReturnType<typeof platformChat.acceptMessage>>> => attempt.status === "fulfilled");
+    const rejected = attempts.filter((attempt): attempt is PromiseRejectedResult => attempt.status === "rejected");
+    expect(accepted).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]?.reason).toMatchObject({ statusCode: 409, code: "conversation_busy" });
+
+    const messages = await conversations.listMessages(organizationId, first.conversation.id);
+    expect(messages.map((message) => message.content.text)).toEqual(["Seed message", "Seed reply", accepted[0]!.value.message.content.text]);
+    await runs.transitionRun(accepted[0]!.value.run.id, "received", "queued");
+    await runs.transitionRun(accepted[0]!.value.run.id, "queued", "running");
+    await runs.completeRun(accepted[0]!.value.run.id, { message: "Ordered reply" });
+  });
+
+  it("rolls back a busy channel delivery so provider redelivery preserves order", async () => {
+    const connection = await channels.createConnection({
+      organizationId,
+      installationId,
+      channelType: "whatsapp",
+      channelKey: "ordering-channel",
+      actorId: "test-user",
+    });
+    await channels.bind({
+      organizationId,
+      installationId,
+      connectionId: connection.id,
+      externalIdentity: "+27820000009",
+      ownerActorId: "test-user",
+    });
+
+    const first = await platformChat.acceptExternalMessage({
+      organizationId,
+      installationId,
+      channelType: "whatsapp",
+      provider: "meta-whatsapp",
+      providerEventId: "ordering-event-1",
+      providerMessageId: "ordering-provider-message-1",
+      externalIdentity: "+27820000009",
+      externalConversationId: "ordering-thread",
+      messageType: "text",
+      content: { text: "First channel message" },
+    });
+    await expect(platformChat.acceptExternalMessage({
+      organizationId,
+      installationId,
+      channelType: "whatsapp",
+      provider: "meta-whatsapp",
+      providerEventId: "ordering-event-2",
+      providerMessageId: "ordering-provider-message-2",
+      externalIdentity: "+27820000009",
+      externalConversationId: "ordering-thread",
+      messageType: "text",
+      content: { text: "Second channel message" },
+    })).rejects.toMatchObject({ statusCode: 409, code: "conversation_busy" });
+
+    expect((await conversations.listMessages(organizationId, first.conversation.id))
+      .some((message) => message.provider_message_id === "ordering-provider-message-2")).toBe(false);
+    await runs.transitionRun(first.run.id, "received", "queued");
+    await runs.transitionRun(first.run.id, "queued", "running");
+    await runs.completeRun(first.run.id, { message: "First channel reply" });
+
+    const redelivery = await platformChat.acceptExternalMessage({
+      organizationId,
+      installationId,
+      channelType: "whatsapp",
+      provider: "meta-whatsapp",
+      providerEventId: "ordering-event-2",
+      providerMessageId: "ordering-provider-message-2",
+      externalIdentity: "+27820000009",
+      externalConversationId: "ordering-thread",
+      messageType: "text",
+      content: { text: "Second channel message" },
+    });
+    expect(redelivery.created).toBe(true);
+    const ordered = (await conversations.listMessages(organizationId, first.conversation.id))
+      .filter((message) => message.direction === "inbound");
+    expect(ordered.map((message) => message.content.text)).toEqual(["First channel message", "Second channel message"]);
+    expect(ordered[1]!.sequence_number).toBe(String(Number(ordered[0]!.sequence_number) + 2));
+  });
+
   it("keeps greeting-only chat titles neutral until a meaningful title exists", async () => {
     const accepted = await platformChat.acceptMessage({
       organizationId,

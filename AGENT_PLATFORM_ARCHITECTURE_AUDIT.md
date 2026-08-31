@@ -666,7 +666,8 @@ Add:
 
 #### Implementation checklist
 
-- [x] Define source trust, sensitivity, review, and quarantine states ([poisoning.ts](agents/src/memory/poisoning.ts), migration 085); contradiction and supersession states remain open.
+- [x] Define source trust, sensitivity, review, quarantine, contradiction, and supersession states
+      ([poisoning.ts](agents/src/memory/poisoning.ts), [memory-repository.ts](agents/src/db/repositories/memory-repository.ts), migrations 085 and 087).
 - [x] Prevent untrusted content from creating procedural memory or changing agent policy ([memory-repository.ts](agents/src/db/repositories/memory-repository.ts), [agent-memory-lifecycle.md](docs/internal/architecture/agent-memory-lifecycle.md)).
 - [x] Add secret and personal-data classification before memory persistence ([poisoning.ts](agents/src/memory/poisoning.ts), [memory-repository.ts](agents/src/db/repositories/memory-repository.ts)).
 - [x] Implement contradiction checks and explicit supersession links between facts
@@ -687,22 +688,34 @@ documented execution policy. Choose and enforce one of these rules:
 - explicit interruption and supersession;
 - concurrent runs with deterministic merge rules.
 
-The default should be one active run per conversation. Different conversations may run in
-parallel. Add a database-backed lease or Temporal workflow ownership rule rather than a
-process-local lock.
+The current default is one active run per conversation with explicit admission backpressure.
+Different conversations may run in parallel. Platform requests and channel deliveries that arrive
+while a run is active receive `conversation_busy`; channel providers must redeliver the same event
+after the run reaches a terminal state. This keeps the current API contract honest while avoiding
+silent transcript loss. A durable queued-message table remains a separate decision because it needs
+an acknowledgement, promotion, cancellation, and ordering contract.
+
+Admission is protected by a conversation-row transaction lock, the database-backed
+`agent_runs_one_active_conversation_uidx` guard, and one Temporal workflow identity per run.
 
 #### Implementation checklist
 
-- [x] Record one-active-run-per-conversation as the default ordering invariant
-      ([MEMORY_LIFECYCLE_PLAN.md](docs/plans/active/MEMORY_LIFECYCLE_PLAN.md)).
-- [ ] Define queued, interrupted, superseded, cancelled, and completed message behavior.
-- [ ] Choose the durable ownership mechanism and document its lease or workflow identity rules.
+- [x] Record one-active-run-per-conversation as the default ordering invariant and document explicit
+      backpressure/redelivery behavior ([agent-conversation-ordering.md](docs/internal/architecture/agent-conversation-ordering.md)).
+- [x] Define received, queued, interrupted/cancelled, superseded, and completed message behavior;
+      conversation supersession is not used, while memory supersession remains lineage-based.
+- [x] Choose and document the durable ownership mechanism: conversation row lock, unique active-run
+      index, and stable Temporal workflow identity ([agent-conversation-ordering.md](docs/internal/architecture/agent-conversation-ordering.md), migration 088).
 - [x] Implement atomic admission so two API replicas cannot start competing runs
-      ([run-repository.ts](agents/src/db/repositories/run-repository.ts), migration 081).
-- [ ] Preserve sequence order when retries, channel redelivery, or delayed media completion occurs.
-- [ ] Add tests for simultaneous messages, interruption, cancellation, worker death, and redelivery.
-- [ ] Add queue depth, wait time, stale ownership, interruption, and duplicate-admission metrics.
-- [ ] Update channel behavior and conversation recovery runbooks.
+      ([run-repository.ts](agents/src/db/repositories/run-repository.ts), [platform-chat-repository.ts](agents/src/db/repositories/platform-chat-repository.ts), migration 088).
+- [x] Preserve sequence order when retries, channel redelivery, or delayed media completion occurs;
+      sequence allocation remains under the conversation row lock.
+- [x] Add tests for simultaneous messages and channel redelivery; worker-death and cancellation
+      recovery coverage remains open ([platform-chat.integration.test.ts](agents/test/platform-chat.integration.test.ts)).
+- [x] Add bounded admission, busy, retry, and redelivery metrics; durable queue depth, wait-time,
+      and stale-ownership metrics remain open until a queued-message mechanism exists.
+- [x] Update channel behavior and conversation recovery runbooks
+      ([agent-temporal-recovery.md](docs/internal/runbooks/agent-temporal-recovery.md)).
 
 ## Priority 2: customization and agent composition
 

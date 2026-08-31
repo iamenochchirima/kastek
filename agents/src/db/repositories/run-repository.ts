@@ -12,6 +12,7 @@ import {
 } from "../../analytics";
 import { parseAgentResponse } from "../../media/contracts";
 import type { ConversationRecord } from "./conversation-repository";
+import { recordConversationAdmission } from "../../telemetry/spans";
 
 export interface RunRecord {
   id: string;
@@ -80,7 +81,10 @@ export class RunRepository {
           `SELECT * FROM agent_runs WHERE organization_id = $1 AND idempotency_key = $2 LIMIT 1`,
           [organizationId, input.idempotencyKey],
         );
-        if (existing.rows[0]) return { ...existing.rows[0], created: false };
+        if (existing.rows[0]) {
+          recordConversationAdmission({ outcome: "idempotent", channel: "run" });
+          return { ...existing.rows[0], created: false };
+        }
       }
       const installation = await client.query<{
         agent_definition_id: string;
@@ -207,8 +211,28 @@ export class RunRepository {
           [organizationId, input.idempotencyKey],
         )).rows[0]
         : undefined);
-      if (!run) throw new Error("Run could not be created");
+      if (!run) {
+        if (input.conversationId) {
+          const active = await client.query<{ id: string }>(
+            `SELECT id FROM agent_runs
+             WHERE organization_id = $1 AND conversation_id = $2
+               AND status IN ('received', 'queued', 'running', 'awaiting_approval', 'awaiting_human', 'awaiting_external_event')
+             ORDER BY created_at ASC LIMIT 1`,
+            [organizationId, input.conversationId],
+          );
+          if (active.rows[0]) {
+            recordConversationAdmission({ outcome: "busy", channel: "run" });
+            throw Object.assign(new Error("This conversation already has an active agent run; retry after it reaches a terminal state"), {
+              statusCode: 409,
+              code: "conversation_run_active",
+              runId: active.rows[0].id,
+            });
+          }
+        }
+        throw new Error("Run could not be created");
+      }
       if (created.rows.length === 0) return { ...run, created: false };
+      recordConversationAdmission({ outcome: "accepted", channel: "run" });
       await client.query(
         `INSERT INTO run_attempts (run_id, organization_id, attempt_number, status, trigger)
          VALUES ($1, $2, 1, 'started', 'workflow')`,

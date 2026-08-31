@@ -9,6 +9,7 @@ import {
 import type { ConversationRecord, MessageRecord, ParticipantRecord } from "./conversation-repository";
 import type { RunRecord } from "./run-repository";
 import { ConversationHandoffService } from "../../handoff/service";
+import { recordConversationAdmission } from "../../telemetry/spans";
 
 export interface PlatformConversation {
   conversation: ConversationRecord;
@@ -219,6 +220,7 @@ export class PlatformChatRepository {
           [run.id],
         );
         if (!message.rows[0]) throw new Error("Idempotent platform message is incomplete");
+        recordConversationAdmission({ outcome: "idempotent", channel: "platform" });
         return { ...resolved, message: message.rows[0], run, created: false };
       }
 
@@ -247,6 +249,7 @@ export class PlatformChatRepository {
         [resolved.conversation.id],
       );
       if (openRun.rows[0]) {
+        recordConversationAdmission({ outcome: "busy", channel: "platform" });
         throw Object.assign(new Error("This agent is still finishing the previous message"), {
           statusCode: 409,
           code: "conversation_busy",
@@ -260,9 +263,7 @@ export class PlatformChatRepository {
            conversation_id, trigger_type, status, input, correlation_id, created_by, idempotency_key,
            reply_channel_type, resolved_model_provider, resolved_model)
          VALUES ($1, $2, $3, $4, $5, 'message', 'received', $6::jsonb, COALESCE($7::uuid, gen_random_uuid()), $8, $9, 'platform', $10, $11)
-         ON CONFLICT (organization_id, idempotency_key)
-         WHERE idempotency_key IS NOT NULL
-         DO NOTHING
+         ON CONFLICT DO NOTHING
          RETURNING *`,
         [
           input.organizationId,
@@ -284,7 +285,24 @@ export class PlatformChatRepository {
           [input.organizationId, input.idempotencyKey],
         );
         const run = raced.rows[0];
-        if (!run || run.installation_id !== input.installationId || run.conversation_id !== resolved.conversation.id) {
+        if (run && (run.installation_id !== input.installationId || run.conversation_id !== resolved.conversation.id)) {
+          throw new Error("Idempotency key already belongs to another request");
+        }
+        if (!run) {
+          const active = await client.query<{ id: string }>(
+            `SELECT id FROM agent_runs
+             WHERE conversation_id = $1
+               AND status IN ('received', 'queued', 'running', 'awaiting_approval', 'awaiting_human', 'awaiting_external_event')
+             ORDER BY created_at LIMIT 1`,
+            [resolved.conversation.id],
+          );
+          if (active.rows[0]) {
+            recordConversationAdmission({ outcome: "busy", channel: "platform" });
+            throw Object.assign(new Error("This agent is still finishing the previous message"), {
+              statusCode: 409,
+              code: "conversation_busy",
+            });
+          }
           throw new Error("Idempotency key already belongs to another request");
         }
         const message = await client.query<MessageRecord>(
@@ -292,6 +310,7 @@ export class PlatformChatRepository {
           [run.id],
         );
         if (!message.rows[0]) throw new Error("Idempotent platform message is incomplete");
+        recordConversationAdmission({ outcome: "idempotent", channel: "platform" });
         return { ...resolved, message: message.rows[0], run, created: false };
       }
       const run = createdRun.rows[0];
@@ -340,6 +359,7 @@ export class PlatformChatRepository {
       );
       const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, resolved.conversation.id);
       await enqueueAgentConversationMessage(client, context, createdMessage.rows[0]!, "created");
+      recordConversationAdmission({ outcome: "accepted", channel: "platform" });
       return { ...resolved, message: createdMessage.rows[0]!, run, created: true };
     });
   }
@@ -405,6 +425,7 @@ export class PlatformChatRepository {
         [resolved.conversation.id],
       );
       if (openRun.rows[0]) {
+        recordConversationAdmission({ outcome: "busy", channel: "platform" });
         throw Object.assign(new Error("This agent is still finishing the previous message"), {
           statusCode: 409,
           code: "conversation_busy",
@@ -420,6 +441,7 @@ export class PlatformChatRepository {
            reply_channel_type, reply_binding_id, resolved_model_provider, resolved_model)
          VALUES ($1, $2, $3, $4, $5, 'message', 'received', $6::jsonb,
                  COALESCE($7::uuid, gen_random_uuid()), $8, $9, $10, 'platform', NULL, $11, $12)
+         ON CONFLICT DO NOTHING
          RETURNING *`,
         [
           input.organizationId,
@@ -437,7 +459,23 @@ export class PlatformChatRepository {
         ],
       );
       const run = createdRun.rows[0];
-      if (!run) throw new Error("Retry run could not be created");
+      if (!run) {
+        const active = await client.query<{ id: string }>(
+          `SELECT id FROM agent_runs
+           WHERE conversation_id = $1
+             AND status IN ('received', 'queued', 'running', 'awaiting_approval', 'awaiting_human', 'awaiting_external_event')
+           ORDER BY created_at LIMIT 1`,
+          [resolved.conversation.id],
+        );
+        if (active.rows[0]) {
+          recordConversationAdmission({ outcome: "busy", channel: "platform" });
+          throw Object.assign(new Error("This agent is still finishing the previous message"), {
+            statusCode: 409,
+            code: "conversation_busy",
+          });
+        }
+        throw new Error("Retry run could not be created");
+      }
       await client.query(
         `INSERT INTO run_attempts (run_id, organization_id, attempt_number, status, trigger)
          VALUES ($1, $2, 1, 'started', 'workflow')`,
@@ -462,6 +500,7 @@ export class PlatformChatRepository {
         ],
       );
       await client.query("UPDATE conversations SET updated_at = now() WHERE id = $1", [resolved.conversation.id]);
+      recordConversationAdmission({ outcome: "retry", channel: "platform" });
       return { ...resolved, message: sourceMessage.rows[0]!, run, created: true };
     });
   }
@@ -604,6 +643,7 @@ export class PlatformChatRepository {
            LIMIT 1`,
           [input.organizationId, duplicate.rows[0].id],
         );
+        recordConversationAdmission({ outcome: "redelivery", channel: input.channelType });
         return {
           ...resolved,
           sourceParticipant,
@@ -701,6 +741,7 @@ export class PlatformChatRepository {
         [resolved.conversation.id],
       );
       if (openRun.rows[0]) {
+        recordConversationAdmission({ outcome: "busy", channel: input.channelType });
         throw Object.assign(new Error("This agent is still finishing the previous message"), {
           statusCode: 409,
           code: "conversation_busy",
@@ -714,9 +755,7 @@ export class PlatformChatRepository {
            idempotency_key, reply_channel_type, reply_binding_id, resolved_model_provider, resolved_model)
          VALUES ($1, $2, $3, $4, $5, 'message', 'received', $6::jsonb,
                  COALESCE($7::uuid, gen_random_uuid()), $8, $9, $10, $11, $12, $13)
-         ON CONFLICT (organization_id, idempotency_key)
-         WHERE idempotency_key IS NOT NULL
-         DO NOTHING
+         ON CONFLICT DO NOTHING
          RETURNING *`,
         [
           input.organizationId,
@@ -738,7 +777,23 @@ export class PlatformChatRepository {
         ],
       );
       const run = runResult.rows[0];
-      if (!run) throw new Error("External message run could not be created");
+      if (!run) {
+        const active = await client.query<{ id: string }>(
+          `SELECT id FROM agent_runs
+           WHERE conversation_id = $1
+             AND status IN ('received', 'queued', 'running', 'awaiting_approval', 'awaiting_human', 'awaiting_external_event')
+           ORDER BY created_at LIMIT 1`,
+          [resolved.conversation.id],
+        );
+        if (active.rows[0]) {
+          recordConversationAdmission({ outcome: "busy", channel: input.channelType });
+          throw Object.assign(new Error("This agent is still finishing the previous message"), {
+            statusCode: 409,
+            code: "conversation_busy",
+          });
+        }
+        throw new Error("External message run could not be created");
+      }
       const linkedMessage = await client.query<MessageRecord>(
         `UPDATE messages SET run_id = $2 WHERE id = $1 RETURNING *`,
         [message.id, run.id],
@@ -769,6 +824,7 @@ export class PlatformChatRepository {
       );
       const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, resolved.conversation.id);
       await enqueueAgentConversationMessage(client, context, linkedMessage.rows[0], "created");
+      recordConversationAdmission({ outcome: "accepted", channel: input.channelType });
       return { ...resolved, sourceParticipant, message: linkedMessage.rows[0], run, created: true };
     });
   }
@@ -862,13 +918,19 @@ export class PlatformChatRepository {
       [input.organizationId, input.installationId, input.channelType, input.channelKey, input.externalConversationId, title],
     )).rows[0];
     if (!conversation) throw new Error("Customer conversation could not be resolved");
-    if (conversation.status !== "active") throw new Error("Customer conversation is not active");
+    const lockedConversation = await client.query<ConversationRecord>(
+      "SELECT * FROM conversations WHERE id = $1 AND organization_id = $2 FOR UPDATE",
+      [conversation.id, input.organizationId],
+    );
+    if (!lockedConversation.rows[0]) throw new Error("Customer conversation could not be resolved");
+    const currentConversation = lockedConversation.rows[0];
+    if (currentConversation.status !== "active") throw new Error("Customer conversation is not active");
     if (created.rows[0]) {
-      const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, conversation.id);
+      const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, currentConversation.id);
       await enqueueAgentConversationLifecycle(client, context, {
         action: "created",
         actorType: "system",
-        occurredAt: conversation.created_at,
+        occurredAt: currentConversation.created_at,
       });
     }
     const customerParticipant = await this.upsertParticipant(client, {
@@ -885,7 +947,7 @@ export class PlatformChatRepository {
       externalId: installation.agent_definition_id,
       displayName: installation.agent_name,
     });
-    return { conversation, userParticipant: customerParticipant, agentParticipant };
+    return { conversation: currentConversation, userParticipant: customerParticipant, agentParticipant };
   }
 
   private async resolveOwnedConversationInTransaction(
