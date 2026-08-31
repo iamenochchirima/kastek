@@ -683,12 +683,16 @@ export function createAgentVersion(agentId: string, input: { instructions: strin
   return request(`/api/agents/${encodeURIComponent(agentId)}/versions`, { method: "POST", body: JSON.stringify({ configuration: {}, policy: {}, ...input }) });
 }
 
-export function createAgentInstallation(agentVersionId: string, settings: Record<string, unknown> = {}, releaseMode?: "pinned" | "follow_published"): Promise<AgentInstallation> {
+export function createAgentInstallation(agentVersionId: string, settings: Record<string, unknown> = {}, releaseMode?: "pinned" | "follow_published" | "staged"): Promise<AgentInstallation> {
   return request("/api/agents/installations", { method: "POST", body: JSON.stringify({ agentVersionId, scopeType: "organization", settings, ...(releaseMode ? { releaseMode } : {}) }) });
 }
 
 export function deployAgentInstallation(installationId: string, versionId: string, expectedVersionId?: string): Promise<AgentInstallation> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/deploy`, { method: "POST", body: JSON.stringify({ versionId, ...(expectedVersionId ? { expectedVersionId } : {}) }) });
+}
+
+export function deployStagedAgentVersion(agentId: string, versionId: string, input: { installationIds?: string[]; percentage?: number }): Promise<{ versionId: string; deployedInstallationIds: string[]; deploymentCount: number }> {
+  return request(`/api/agents/${encodeURIComponent(agentId)}/versions/${encodeURIComponent(versionId)}/deploy`, { method: "POST", body: JSON.stringify(input) });
 }
 
 export type AgentTemplate = {

@@ -9,6 +9,7 @@ import {
   createInstallationCredentialInputSchema,
   createInstallationInputSchema,
   deployInstallationInputSchema,
+  deployStagedVersionInputSchema,
   createVersionInputSchema,
   updateAgentInputSchema,
   startRunInputSchema,
@@ -2459,6 +2460,16 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const input = deployInstallationInputSchema.parse(request.body);
     return agents.deployInstallation(auth.organizationId, auth.actorId, request.params.installationId, input);
   });
+
+  app.post<{ Params: { agentId: string; versionId: string } }>(
+    "/v1/agents/:agentId/versions/:versionId/deploy",
+    async (request) => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "agents:write");
+      const input = deployStagedVersionInputSchema.parse(request.body);
+      return agents.deployStagedVersion(auth.organizationId, auth.actorId, request.params.agentId, request.params.versionId, input);
+    },
+  );
 
   app.get<{ Params: { installationId: string } }>("/v1/installations/:installationId/readiness", async (request, reply) => {
     const auth = requireAuth(request, dependencies.config);

@@ -54,9 +54,10 @@ describe("agent release mode contract", () => {
     expect(() => assertAgentReleaseMode("kasitek_hosted", "pinned")).not.toThrow();
   });
 
-  it("does not silently enable staged rollout or follow-published for protected modes", () => {
-    expect(() => assertAgentReleaseMode("kasitek_hosted", "staged")).toThrow(/not available yet/);
+  it("allows staged rollout only for hosted organization installations", () => {
+    expect(() => assertAgentReleaseMode("kasitek_hosted", "staged")).not.toThrow();
     expect(() => assertAgentReleaseMode("system_hosted", "follow_published")).toThrow(/Only hosted/);
     expect(() => assertAgentReleaseMode("external_connected", "follow_published")).toThrow(/Only hosted/);
+    expect(() => assertAgentReleaseMode("system_hosted", "staged")).toThrow(/Only hosted/);
   });
 });

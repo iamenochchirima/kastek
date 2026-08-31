@@ -12,6 +12,7 @@ import {
   buildFailedAgentRunEvent,
   buildFailedModelCallEvent,
   buildInstallationLifecycleEvent,
+  buildInstallationDeploymentEvent,
   buildReadinessSnapshotEvent,
   buildScheduleLifecycleEvent,
   buildToolInvocationLifecycleEvent,
@@ -402,6 +403,36 @@ describe("Agent analytics producer", () => {
     });
     expect(JSON.stringify(record.envelope)).not.toContain("instructions");
     expect(JSON.stringify(record.envelope)).not.toContain("configuration");
+  });
+
+  it("builds deployment outcomes with rollback metadata and bounded failure codes", () => {
+    const record = buildInstallationDeploymentEvent({
+      installationId: "installation-1",
+      organizationId: "org-1",
+      agentDefinitionId: "agent-1",
+      agentVersionId: "version-2",
+      previousAgentVersionId: "version-1",
+      releaseMode: "staged",
+      action: "failed",
+      trigger: "canary",
+      outcome: "failure",
+      errorCode: "INSTALLATION VERSION CONFLICT/unsafe value",
+      actorType: "human",
+      occurredAt: "2026-08-22T10:04:00.000Z",
+    });
+    expect(record.envelope).toMatchObject({
+      type: "agent.installation.deployment@1",
+      subject: "installation:installation-1",
+    });
+    expect(record.envelope.data).toMatchObject({
+      previous_agent_version_id: "version-1",
+      release_mode: "staged",
+      action: "failed",
+      trigger: "canary",
+      outcome: "failure",
+      error_code: "INSTALLATION_VERSION_CONFLICT_unsafe_value",
+    });
+    expect(record.envelope.data.error_code).toMatch(/^[A-Za-z0-9_.:-]+$/);
   });
 
   it("builds definition lifecycle facts without definition content", () => {

@@ -2,7 +2,7 @@
 
 pub const REGISTRY_VERSION: &str = "20260824.1";
 pub const REGISTRY_SHA256: &str =
-    "02ce8a2e1742e2bd788d5bc49201bb87dd25a627c9a79fc623902b4657a47473";
+    "ae3675e505498f5804520da2fe0e2a981b9c3578a1a38c1b6c6eadf04c42caff";
 
 pub const CONTRACT_KEYS: &[&str] = &[
     "agent.approval.lifecycle@1",
@@ -17,6 +17,7 @@ pub const CONTRACT_KEYS: &[&str] = &[
     "agent.definition.lifecycle@1",
     "agent.effect.lifecycle@1",
     "agent.handoff.lifecycle@1",
+    "agent.installation.deployment@1",
     "agent.installation.lifecycle@1",
     "agent.model_call.completed@1",
     "agent.model_call.failed@1",
@@ -63,6 +64,7 @@ pub const METRIC_KEYS: &[&str] = &[
     "agent.effects.lifecycle_events@1",
     "agent.handoffs.lifecycle_events@1",
     "agent.installations.lifecycle_events@1",
+    "agent.installations.version_deployments@1",
     "agent.model_calls.completed@1",
     "agent.model_calls.failed@1",
     "agent.readiness.evaluations@1",
@@ -186,6 +188,8 @@ pub mod metric_keys {
     pub const AGENT_HANDOFFS_LIFECYCLE_EVENTS_1: &str = "agent.handoffs.lifecycle_events@1";
     pub const AGENT_INSTALLATIONS_LIFECYCLE_EVENTS_1: &str =
         "agent.installations.lifecycle_events@1";
+    pub const AGENT_INSTALLATIONS_VERSION_DEPLOYMENTS_1: &str =
+        "agent.installations.version_deployments@1";
     pub const AGENT_MODEL_CALLS_COMPLETED_1: &str = "agent.model_calls.completed@1";
     pub const AGENT_MODEL_CALLS_FAILED_1: &str = "agent.model_calls.failed@1";
     pub const AGENT_READINESS_EVALUATIONS_1: &str = "agent.readiness.evaluations@1";

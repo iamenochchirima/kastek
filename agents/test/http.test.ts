@@ -1004,6 +1004,38 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("routes organization-scoped manual and staged deployments through the deployment module", async () => {
+    const deployInstallation = vi.fn(async () => ({ id: "installation-1", agent_version_id: "22222222-2222-4222-8222-222222222222" }));
+    const deployStagedVersion = vi.fn(async () => ({
+      versionId: "22222222-2222-4222-8222-222222222222",
+      deployedInstallationIds: ["33333333-3333-4333-8333-333333333333"],
+      deploymentCount: 1,
+    }));
+    const app = buildApp({ config, pool: fakePool, agents: { deployInstallation, deployStagedVersion } as unknown as AgentRepository });
+    const manual = await app.inject({
+      method: "POST",
+      url: "/v1/installations/33333333-3333-4333-8333-333333333333/deploy",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { versionId: "22222222-2222-4222-8222-222222222222", expectedVersionId: "11111111-1111-4111-8111-111111111111" },
+    });
+    const staged = await app.inject({
+      method: "POST",
+      url: "/v1/agents/44444444-4444-4444-8444-444444444444/versions/22222222-2222-4222-8222-222222222222/deploy",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { installationIds: ["33333333-3333-4333-8333-333333333333"] },
+    });
+    expect(manual.statusCode).toBe(200);
+    expect(staged.statusCode).toBe(200);
+    expect(deployInstallation).toHaveBeenCalledWith("org-1", "user-1", "33333333-3333-4333-8333-333333333333", {
+      versionId: "22222222-2222-4222-8222-222222222222",
+      expectedVersionId: "11111111-1111-4111-8111-111111111111",
+    });
+    expect(deployStagedVersion).toHaveBeenCalledWith("org-1", "user-1", "44444444-4444-4444-8444-444444444444", "22222222-2222-4222-8222-222222222222", {
+      installationIds: ["33333333-3333-4333-8333-333333333333"],
+    });
+    await app.close();
+  });
+
   it("creates a dedicated external-connected aggregate and returns its secret once", async () => {
     const createExternalInstallation = vi.fn(async (_organizationId: string, _actorId: string, input: Record<string, unknown>) => ({
       agent: { id: "external-agent-1", owner_type: "organization", protected: false },

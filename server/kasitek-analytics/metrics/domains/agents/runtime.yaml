@@ -396,6 +396,39 @@ definitions:
     applicability: an Agent installation is created or changes status
     dependencies: []
 
+  - key: agent.installations.version_deployments
+    version: 1
+    domain: agents
+    owner: agent-platform
+    lifecycle: active
+    description: Agent installation version deployment attempts.
+    value_type: integer
+    unit: count
+    precision: 0
+    sources:
+      - agent.installation.deployment@1
+    formula: count(agent.installation.deployment@1)
+    eligible_population: persisted installation deployment outcomes
+    exclusions: [version instructions, settings, credentials, prompts, responses, and raw configuration]
+    time_semantics: event_time
+    default_aggregation: count
+    temporal_aggregation: sum
+    comparison: previous_period
+    deduplication: source_entity
+    descendant_aggregation: sum
+    supported_intervals: [hour, day, week, month]
+    scope_kinds: [core_organization, tenant_workspace, tenant_client]
+    dimensions: [agent_definition, agent_version, agent_installation, lifecycle_action, outcome]
+    permissions: [analytics:read]
+    privacy_class: aggregate
+    exactness: exact
+    freshness: {max_age_seconds: 3600, late_data_window_seconds: 86400}
+    coverage: {mode: partial, required_sources: [agent.installation.deployment@1]}
+    availability: when_instrumented
+    effective_from: "2026-08-31T00:00:00Z"
+    applicability: an Agent installation is deployed, rolled back, or a deployment fails
+    dependencies: []
+
   - key: agent.versions.lifecycle_events
     version: 1
     domain: agents

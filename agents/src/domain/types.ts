@@ -116,6 +116,19 @@ export const deployInstallationInputSchema = z.object({
 });
 export type DeployInstallationInput = z.infer<typeof deployInstallationInputSchema>;
 
+export const deployStagedVersionInputSchema = z.object({
+  installationIds: z.array(z.string().uuid()).min(1).max(100).optional(),
+  percentage: z.number().int().min(1).max(100).optional(),
+}).superRefine((value, context) => {
+  if (value.installationIds === undefined && value.percentage === undefined) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "installationIds or percentage is required" });
+  }
+  if (value.installationIds !== undefined && value.percentage !== undefined) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Choose installationIds or percentage, not both" });
+  }
+});
+export type DeployStagedVersionInput = z.infer<typeof deployStagedVersionInputSchema>;
+
 const externalScopeSchema = z.object({
   resourceType: z.string().trim().min(1).max(120),
   resourceId: z.string().trim().min(1).max(240),

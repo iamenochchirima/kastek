@@ -8,6 +8,7 @@ import type {
   CreateExternalAgentInput,
   CreateInstallationInput,
   DeployInstallationInput,
+  DeployStagedVersionInput,
   CreateVersionInput,
   HostedAgentCreationProfile,
   UpdateAgentInput,
@@ -22,6 +23,7 @@ import { KASIAI_KNOWLEDGE_CHUNKS, KASIAI_KNOWLEDGE_SOURCE_NAME, KASIAI_KNOWLEDGE
 import { KASIAI_EVALUATION_SCENARIOS, KASIAI_EVALUATION_VERSION } from "../../system/kasiai-evaluations";
 import { createInstallationCredentialInTransaction, type CreatedInstallationCredential } from "./installation-credential-repository";
 import { buildDefinitionLifecycleEvent, buildInstallationLifecycleEvent, buildVersionLifecycleEvent, enqueueOutbox, type DefinitionLifecycleAnalyticsInput, type InstallationLifecycleAnalyticsInput, type VersionLifecycleAnalyticsInput } from "../../analytics";
+import { AgentDeploymentModule, type StagedDeploymentResult } from "./agent-deployment-repository";
 
 type DbExecutor = Pool | PoolClient;
 
@@ -146,6 +148,8 @@ function checksumVersion(input: CreateVersionInput, versionNumber: number): stri
 }
 
 export class AgentRepository {
+  private readonly deploymentModule = new AgentDeploymentModule();
+
   public constructor(private readonly pool: Pool) {}
 
   private async assertHostedDefinition(client: PoolClient, organizationId: string, agentId: string): Promise<void> {
@@ -1183,7 +1187,7 @@ export class AgentRepository {
         await this.enqueueVersionLifecycle(client, organizationId, version, "retired", "human", lifecycleAt);
       }
       await this.enqueueVersionLifecycle(client, organizationId, published.rows[0], "published", "human", lifecycleAt);
-      await this.deployFollowPublishedInstallations(client, {
+      await this.deploymentModule.deployFollowPublishedInstallations(client, {
         organizationId,
         agentId,
         versionId,
@@ -1237,7 +1241,7 @@ export class AgentRepository {
       }
       if (published.rows[0]) {
         await this.enqueueVersionLifecycle(client, organizationId, published.rows[0], "rolled_back", "human", lifecycleAt);
-        await this.deployFollowPublishedInstallations(client, {
+        await this.deploymentModule.deployFollowPublishedInstallations(client, {
           organizationId,
           agentId,
           versionId,
@@ -1253,56 +1257,6 @@ export class AgentRepository {
       );
       return published.rows[0]!;
     });
-  }
-
-  private async deployFollowPublishedInstallations(
-    client: PoolClient,
-    input: {
-      organizationId: string;
-      agentId: string;
-      versionId: string;
-      actorId: string;
-      trigger: "version_published" | "version_rolled_back";
-    },
-  ): Promise<number> {
-    const installations = await client.query<InstallationRecord>(
-      `SELECT * FROM agent_installations
-       WHERE organization_id = $1
-         AND agent_definition_id = $2
-         AND release_mode = 'follow_published'
-         AND status <> 'disabled'
-         AND agent_version_id <> $3
-       FOR UPDATE`,
-      [input.organizationId, input.agentId, input.versionId],
-    );
-    for (const installation of installations.rows) {
-      const updated = await client.query<InstallationRecord>(
-        `UPDATE agent_installations
-         SET agent_version_id = $2, updated_at = now()
-         WHERE id = $1 AND organization_id = $3
-         RETURNING *`,
-        [installation.id, input.versionId, input.organizationId],
-      );
-      if (!updated.rows[0]) throw new Error("Agent installation deployment failed");
-      await client.query(
-        `INSERT INTO audit_records
-          (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
-         VALUES ($1, 'human', $2, 'agent_installation.version_deployed', 'agent_installation', $3, $4::jsonb)`,
-        [
-          input.organizationId,
-          input.actorId,
-          installation.id,
-          JSON.stringify({
-            agentId: input.agentId,
-            previousVersionId: installation.agent_version_id,
-            versionId: input.versionId,
-            releaseMode: installation.release_mode,
-            trigger: input.trigger,
-          }),
-        ],
-      );
-    }
-    return installations.rowCount ?? 0;
   }
 
   public async retireVersion(
@@ -1611,65 +1565,17 @@ export class AgentRepository {
     installationId: string,
     input: DeployInstallationInput,
   ): Promise<InstallationRecord> {
-    return withTransaction(this.pool, async (client) => {
-      const currentResult = await client.query<InstallationRecord>(
-        `SELECT ai.*
-         FROM agent_installations ai
-         JOIN agent_definitions ad ON ad.id = ai.agent_definition_id
-         WHERE ai.id = $1 AND ai.organization_id = $2
-         FOR UPDATE`,
-        [installationId, organizationId],
-      );
-      const current = currentResult.rows[0];
-      if (!current) throw Object.assign(new Error("Installation not found"), { statusCode: 404, code: "INSTALLATION_NOT_FOUND" });
-      if (current.status === "disabled") {
-        throw Object.assign(new Error("Disabled installations cannot be deployed"), { statusCode: 409, code: "INSTALLATION_DISABLED" });
-      }
-      if (input.expectedVersionId && current.agent_version_id !== input.expectedVersionId) {
-        throw Object.assign(new Error("Installation version changed before deployment"), { statusCode: 409, code: "INSTALLATION_VERSION_CONFLICT" });
-      }
-      if (current.execution_mode !== "kasitek_hosted") {
-        throw Object.assign(new Error("Only hosted organization installations can be deployed here"), { statusCode: 403, code: "INSTALLATION_DEPLOYMENT_NOT_ALLOWED" });
-      }
-      const targetResult = await client.query<AgentVersionRecord>(
-        `SELECT av.*
-         FROM agent_versions av
-         JOIN agent_definitions ad ON ad.id = av.agent_definition_id
-         WHERE av.id = $1 AND av.agent_definition_id = $2
-           AND ad.organization_id = $3 AND ad.owner_type = 'organization' AND ad.protected = FALSE
-           AND av.status = 'published'
-         FOR SHARE OF av`,
-        [input.versionId, current.agent_definition_id, organizationId],
-      );
-      if (!targetResult.rows[0]) {
-        throw Object.assign(new Error("Published agent version not found"), { statusCode: 404, code: "AGENT_VERSION_NOT_FOUND" });
-      }
-      if (current.agent_version_id === input.versionId) return current;
-      const updated = await client.query<InstallationRecord>(
-        `UPDATE agent_installations
-         SET agent_version_id = $2, updated_at = now()
-         WHERE id = $1 AND organization_id = $3 AND agent_version_id = $4
-         RETURNING *`,
-        [installationId, input.versionId, organizationId, current.agent_version_id],
-      );
-      const installation = updated.rows[0];
-      if (!installation) {
-        throw Object.assign(new Error("Installation version changed before deployment"), { statusCode: 409, code: "INSTALLATION_VERSION_CONFLICT" });
-      }
-      await client.query(
-        `INSERT INTO audit_records
-          (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata)
-         VALUES ($1, 'human', $2, 'agent_installation.version_deployed', 'agent_installation', $3, $4::jsonb)`,
-        [organizationId, actorId, installation.id, JSON.stringify({
-          agentId: current.agent_definition_id,
-          previousVersionId: current.agent_version_id,
-          versionId: input.versionId,
-          releaseMode: current.release_mode,
-          trigger: "manual",
-        })],
-      );
-      return installation;
-    });
+    return withTransaction(this.pool, (client) => this.deploymentModule.deployInstallation(client, organizationId, actorId, installationId, input));
+  }
+
+  public async deployStagedVersion(
+    organizationId: string,
+    actorId: string,
+    agentId: string,
+    versionId: string,
+    input: DeployStagedVersionInput,
+  ): Promise<StagedDeploymentResult> {
+    return withTransaction(this.pool, (client) => this.deploymentModule.deployStagedVersion(client, organizationId, actorId, agentId, versionId, input));
   }
 
   public async ensureSystemInstallation(input: {

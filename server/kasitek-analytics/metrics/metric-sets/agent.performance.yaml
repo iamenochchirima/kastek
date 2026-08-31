@@ -18,6 +18,7 @@ definitions:
       - agent.effects.lifecycle_events@1
       - agent.schedules.lifecycle_events@1
       - agent.installations.lifecycle_events@1
+      - agent.installations.version_deployments@1
       - agent.versions.lifecycle_events@1
       - agent.definitions.lifecycle_events@1
       - agent.readiness.evaluations@1

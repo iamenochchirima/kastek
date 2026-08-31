@@ -133,6 +133,22 @@ export interface InstallationLifecycleAnalyticsInput {
   correlationId?: string | null;
 }
 
+export interface InstallationDeploymentAnalyticsInput {
+  installationId: string;
+  organizationId: string;
+  agentDefinitionId: string;
+  agentVersionId: string;
+  previousAgentVersionId: string | null;
+  releaseMode: "pinned" | "follow_published" | "staged";
+  action: "deployed" | "rolled_back" | "failed";
+  trigger: "version_published" | "version_rolled_back" | "manual" | "canary";
+  outcome: "success" | "failure";
+  errorCode?: string | null;
+  actorType: "human" | "system";
+  occurredAt: Date | string;
+  correlationId?: string | null;
+}
+
 export interface VersionLifecycleAnalyticsInput {
   organizationId: string;
   agentDefinitionId: string;
@@ -459,6 +475,38 @@ export function buildInstallationLifecycleEvent(input: InstallationLifecycleAnal
   });
 }
 
+export function buildInstallationDeploymentEvent(input: InstallationDeploymentAnalyticsInput): AnalyticsOutboxRecord {
+  const occurredAt = timestampAttribute(input.occurredAt);
+  const attributes: JsonObject = {
+    installation_id: input.installationId,
+    agent_definition_id: input.agentDefinitionId,
+    agent_version_id: input.agentVersionId,
+    previous_agent_version_id: input.previousAgentVersionId,
+    release_mode: input.releaseMode,
+    action: input.action,
+    trigger: input.trigger,
+    outcome: input.outcome,
+    error_code: input.errorCode ? safeDeploymentErrorCode(input.errorCode) : null,
+    actor_type: input.actorType,
+    occurred_at: occurredAt,
+  };
+  const identity = `installation-deployment:${input.installationId}:${input.action}:${input.agentVersionId}:${occurredAt}`;
+  return buildEvent({
+    recordId: identity,
+    sourceDomain: "agents",
+    sourceStreamKey: `organization:${input.organizationId}:installation-deployments`,
+    contractName: "agent.installation.deployment@1",
+    schemaVersion: 1,
+    scopeKind: "core_organization",
+    scopeExternalId: input.organizationId,
+    subject: `installation:${input.installationId}`,
+    occurredAt: input.occurredAt,
+    attributes,
+    correlationId: input.correlationId ?? undefined,
+    idempotencyKey: `agent-platform:${identity}`,
+  });
+}
+
 export function buildVersionLifecycleEvent(input: VersionLifecycleAnalyticsInput): AnalyticsOutboxRecord {
   const occurredAt = timestampAttribute(input.occurredAt);
   const attributes: JsonObject = {
@@ -702,6 +750,10 @@ function nonNegativeIntegerOrNull(value: number | null | undefined): number | nu
 
 function timestampAttribute(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value;
+}
+
+function safeDeploymentErrorCode(value: string): string {
+  return value.trim().replace(/[^A-Za-z0-9_.:-]/g, "_").slice(0, 120) || "deployment_failed";
 }
 
 function deploymentSurface(input: AgentRunTerminalInput): AgentDeploymentSurface {

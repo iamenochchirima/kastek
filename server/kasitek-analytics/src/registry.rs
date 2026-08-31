@@ -179,6 +179,20 @@ const CONTRACT_SOURCES: &[ContractSource] = &[
         )],
     },
     ContractSource {
+        path: "events/agent/installation_deployment/v1.schema.json",
+        schema: include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/contracts/events/agent/installation_deployment/v1.schema.json"
+        )),
+        examples: &[(
+            "examples/agent/installation_deployment.json",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/contracts/examples/agent/installation_deployment.json"
+            )),
+        )],
+    },
+    ContractSource {
         path: "events/agent/version_lifecycle/v1.schema.json",
         schema: include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
