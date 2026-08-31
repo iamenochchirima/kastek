@@ -28,6 +28,11 @@ type EmbeddedSignupFinishData = {
   phoneNumberId?: string;
 };
 
+type WhatsappAccessRequest = {
+  connectionId?: string;
+  capabilities?: string[];
+};
+
 type FbAuthResponse = {
   code?: string;
 };
@@ -35,6 +40,20 @@ type FbAuthResponse = {
 type FbLoginResponse = {
   authResponse?: FbAuthResponse;
   status?: string;
+};
+
+type EmbeddedSignupResult = {
+  error?: string;
+  connection?: {
+    id?: string;
+    phoneDisplayNumber?: string | null;
+    phoneNumberId?: string;
+  };
+  externalConnectionId?: string;
+  webhookSubscribed?: boolean;
+  webhookError?: string;
+  diagnostics?: unknown[];
+  templateSync?: { synced?: number };
 };
 
 type EmbeddedSignupStatus = {
@@ -116,9 +135,11 @@ function parseEmbeddedSignupMessage(rawData: unknown):
 export default function WhatsappEmbeddedSignupCard({
   connections,
   hidden = false,
+  accessRequest,
 }: {
   connections: WhatsappConnectionView[];
   hidden?: boolean;
+  accessRequest?: WhatsappAccessRequest;
 }) {
   const router = useRouter();
   const [sdkReady, setSdkReady] = useState(false);
@@ -133,9 +154,13 @@ export default function WhatsappEmbeddedSignupCard({
 
   const finishDataRef = useRef<EmbeddedSignupFinishData | null>(null);
   const startSignupRef = useRef<() => void>(() => undefined);
+  const autoStartedAccessRequestRef = useRef<string | null>(null);
 
   const appId = process.env.NEXT_PUBLIC_META_APP_ID || "";
   const configId = process.env.NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID || "";
+  const accessRequestKey = accessRequest
+    ? `${accessRequest.connectionId || ""}:${(accessRequest.capabilities || []).join(",")}`
+    : "";
 
   function notifyStatus(status: EmbeddedSignupStatus) {
     window.dispatchEvent(new CustomEvent<EmbeddedSignupStatus>(STATUS_EVENT, { detail: status }));
@@ -207,6 +232,14 @@ export default function WhatsappEmbeddedSignupCard({
     };
   }, [appId, envMissing.length]);
 
+  useEffect(() => {
+    if (!hidden || !accessRequestKey) return;
+    if (!sdkReady && envMissing.length === 0) return;
+    if (autoStartedAccessRequestRef.current === accessRequestKey) return;
+    autoStartedAccessRequestRef.current = accessRequestKey;
+    startSignupRef.current();
+  }, [accessRequestKey, envMissing.length, hidden, sdkReady]);
+
   async function finalizeSignup(code: string) {
     const finishData = finishDataRef.current;
 
@@ -223,7 +256,7 @@ export default function WhatsappEmbeddedSignupCard({
       }),
     });
 
-    const body = await res.json();
+    const body = await res.json() as EmbeddedSignupResult;
     if (!res.ok) {
       throw new Error(body.error || "Failed to complete WhatsApp onboarding");
     }
@@ -243,7 +276,17 @@ export default function WhatsappEmbeddedSignupCard({
       templates: String(body.templateSync?.synced || 0),
     });
 
-    router.push(`/connections/whatsapp-onboarding?${params.toString()}`);
+    if (accessRequest) {
+      const params = new URLSearchParams({ access: "granted" });
+      const connectionId = body.externalConnectionId || accessRequest.connectionId;
+      if (connectionId) params.set("connectionId", connectionId);
+      if (accessRequest.capabilities?.length) {
+        params.set("capabilities", accessRequest.capabilities.join(","));
+      }
+      router.push(`/connections?${params.toString()}`);
+    } else {
+      router.push(`/connections/whatsapp-onboarding?${params.toString()}`);
+    }
   }
 
   async function runHealthCheck(connectionId: string) {

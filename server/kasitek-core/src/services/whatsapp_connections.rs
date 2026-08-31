@@ -11,7 +11,9 @@ use std::time::Instant;
 use crate::db::models::{WhatsappConnectionPublic, WhatsappConnectionRow};
 use crate::error::AppError;
 use crate::services::connections;
-use crate::services::social::{decrypt_social_secret, encrypt_social_secret};
+use crate::services::social::{
+    decrypt_social_secret, encrypt_social_secret, fetch_meta_permissions,
+};
 
 use super::whatsapp::{fetch_graph_json, GRAPH_BASE};
 use super::whatsapp_templates::sync_connection_templates;
@@ -69,6 +71,55 @@ fn connection_label(phone: &GraphPhoneNumber, manual: Option<&str>) -> Option<St
         .filter(|value| !value.is_empty())
         .or_else(|| phone.verified_name.clone())
         .or_else(|| phone.display_phone_number.clone())
+}
+
+fn whatsapp_permission_record(permissions: Vec<String>, auth_method: &str) -> Value {
+    json!({
+        "permissions": permissions,
+        "permissionsInspected": true,
+        "authMethod": auth_method,
+    })
+}
+
+fn add_whatsapp_capability_checks(
+    record: Option<Value>,
+    webhook_subscribed: bool,
+    phone_lookup_succeeded: bool,
+) -> Option<Value> {
+    let Some(record) = record else {
+        return None;
+    };
+    let mut object = match record {
+        Value::Object(object) => object,
+        Value::Array(permissions) => serde_json::Map::from_iter([
+            ("permissions".to_string(), Value::Array(permissions)),
+            ("permissionsInspected".to_string(), Value::Bool(true)),
+        ]),
+        _ => return None,
+    };
+    let permissions = object
+        .get("permissions")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let has_messaging = permissions
+        .iter()
+        .any(|value| value.as_str() == Some("whatsapp_business_messaging"));
+    let has_management = permissions.iter().any(|value| {
+        matches!(
+            value.as_str(),
+            Some("whatsapp_business_management") | Some("business_management")
+        )
+    });
+    object.insert(
+        "capabilityChecks".to_string(),
+        json!({
+            "MESSAGING_INBOUND": has_messaging && webhook_subscribed,
+            "MESSAGING_OUTBOUND": has_messaging && phone_lookup_succeeded,
+            "MEDIA_PUBLISH": has_management && phone_lookup_succeeded,
+        }),
+    );
+    Some(Value::Object(object))
 }
 
 async fn fetch_connection_phone(
@@ -216,8 +267,10 @@ pub(crate) fn select_connection_sql() -> &'static str {
     r#"
     SELECT id, "userId" AS user_id, "orgId" AS org_id, "phoneNumberId" AS phone_number_id,
            "phoneDisplayNumber" AS phone_display_number, "accessTokenEncrypted" AS access_token_encrypted,
-           "wabaId" AS waba_id, "currentQualityRating"::text AS current_quality_rating,
+           "wabaId" AS waba_id, "authMethod" AS auth_method,
+           "currentQualityRating"::text AS current_quality_rating,
            "dailyLimitEstimate" AS daily_limit_estimate, verified,
+           "providerPermissions" AS provider_permissions,
            "createdAt" AT TIME ZONE 'UTC' AS created_at,
            "updatedAt" AT TIME ZONE 'UTC' AS updated_at
     FROM "WhatsappConnection"
@@ -283,6 +336,29 @@ pub async fn connect_manual_connection(
     access_token: &str,
     phone_display_number: Option<&str>,
 ) -> Result<Value, AppError> {
+    connect_connection(
+        pool,
+        user_id,
+        org_id,
+        waba_id,
+        phone_number_id,
+        access_token,
+        phone_display_number,
+        "whatsapp_manual",
+    )
+    .await
+}
+
+async fn connect_connection(
+    pool: &PgPool,
+    user_id: &str,
+    org_id: &str,
+    waba_id: &str,
+    phone_number_id: &str,
+    access_token: &str,
+    phone_display_number: Option<&str>,
+    auth_method: &str,
+) -> Result<Value, AppError> {
     if waba_id.trim().is_empty()
         || phone_number_id.trim().is_empty()
         || access_token.trim().is_empty()
@@ -293,6 +369,10 @@ pub async fn connect_manual_connection(
     }
 
     let phone = fetch_connection_phone(access_token, phone_number_id).await?;
+    let provider_permissions = fetch_meta_permissions(access_token)
+        .await
+        .ok()
+        .map(|permissions| whatsapp_permission_record(permissions, auth_method));
     let existing_other = sqlx::query_scalar::<_, Option<String>>(
         r#"SELECT "orgId" FROM "WhatsappConnection" WHERE "phoneNumberId" = $1 LIMIT 1"#,
     )
@@ -315,10 +395,10 @@ pub async fn connect_manual_connection(
         r#"
         INSERT INTO "WhatsappConnection" (
             id, "userId", "orgId", "phoneNumberId", "phoneDisplayNumber", "accessTokenEncrypted",
-            "wabaId", "currentQualityRating", "dailyLimitEstimate", verified, "createdAt", "updatedAt"
+            "wabaId", "authMethod", "currentQualityRating", "dailyLimitEstimate", verified, "providerPermissions", "createdAt", "updatedAt"
         )
         VALUES (
-            $1, $2, $3, $4, $5, $6, $7, CAST($8 AS "WhatsappConnectionQualityRating"), $9, $10, NOW(), NOW()
+            $1, $2, $3, $4, $5, $6, $7, $8, CAST($9 AS "WhatsappConnectionQualityRating"), $10, $11, $12, NOW(), NOW()
         )
         ON CONFLICT ("phoneNumberId")
         DO UPDATE SET
@@ -327,9 +407,11 @@ pub async fn connect_manual_connection(
             "phoneDisplayNumber" = EXCLUDED."phoneDisplayNumber",
             "accessTokenEncrypted" = EXCLUDED."accessTokenEncrypted",
             "wabaId" = EXCLUDED."wabaId",
+            "authMethod" = EXCLUDED."authMethod",
             "currentQualityRating" = EXCLUDED."currentQualityRating",
             "dailyLimitEstimate" = EXCLUDED."dailyLimitEstimate",
             verified = EXCLUDED.verified,
+            "providerPermissions" = COALESCE(EXCLUDED."providerPermissions", "WhatsappConnection"."providerPermissions"),
             "updatedAt" = NOW()
         "#,
     )
@@ -340,6 +422,7 @@ pub async fn connect_manual_connection(
     .bind(connection_label(&phone, phone_display_number))
     .bind(encrypted)
     .bind(waba_id.trim())
+    .bind(auth_method)
     .bind(map_quality_rating(phone.quality_rating.as_deref()))
     .bind(
         estimate_daily_limit_from_tier(phone.messaging_limit_tier.as_deref())
@@ -349,6 +432,7 @@ pub async fn connect_manual_connection(
         phone.code_verification_status.as_deref() == Some("VERIFIED")
             || phone.name_status.as_deref() == Some("APPROVED"),
     )
+    .bind(&provider_permissions)
     .execute(pool)
     .await?;
 
@@ -380,9 +464,23 @@ pub async fn connect_manual_connection(
     let template_sync = sync_connection_templates(pool, user_id, org_id, &connection.id)
         .await
         .ok();
+    let provider_permissions = add_whatsapp_capability_checks(
+        provider_permissions.or_else(|| connection.provider_permissions.clone()),
+        webhook_result.is_none(),
+        true,
+    );
+    sqlx::query(
+        r#"UPDATE "WhatsappConnection" SET "providerPermissions" = $1, "updatedAt" = NOW() WHERE id = $2"#,
+    )
+    .bind(provider_permissions)
+    .bind(&connection.id)
+    .execute(pool)
+    .await?;
 
+    let external_connection_id = format!("ext_{}", connection.id);
     Ok(json!({
         "connection": WhatsappConnectionPublic::from(connection),
+        "externalConnectionId": external_connection_id,
         "webhookSubscribed": webhook_result.is_none(),
         "webhookError": webhook_result.map(|err| err.to_string()),
         "templateSync": template_sync.unwrap_or(json!({
@@ -420,7 +518,7 @@ pub async fn complete_embedded_signup(
         "detail": format!("Selected phone number id: {}", phone.id)
     }));
 
-    let result = connect_manual_connection(
+    let result = connect_connection(
         pool,
         user_id,
         org_id,
@@ -428,6 +526,7 @@ pub async fn complete_embedded_signup(
         &phone.id,
         &access_token,
         phone.display_phone_number.as_deref(),
+        "whatsapp_embedded_signup",
     )
     .await?;
 
@@ -490,6 +589,10 @@ async fn refresh_connection_inner(
         .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
     let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
     let phone = fetch_connection_phone(&access_token, &connection.phone_number_id).await?;
+    let provider_permissions = fetch_meta_permissions(&access_token)
+        .await
+        .ok()
+        .map(|permissions| whatsapp_permission_record(permissions, &connection.auth_method));
 
     sqlx::query(
         r#"
@@ -498,8 +601,9 @@ async fn refresh_connection_inner(
             "currentQualityRating" = CAST($2 AS "WhatsappConnectionQualityRating"),
             verified = $3,
             "dailyLimitEstimate" = $4,
+            "providerPermissions" = $5,
             "updatedAt" = NOW()
-        WHERE id = $5
+        WHERE id = $6
         "#,
     )
     .bind(connection_label(&phone, None))
@@ -512,6 +616,7 @@ async fn refresh_connection_inner(
         estimate_daily_limit_from_tier(phone.messaging_limit_tier.as_deref())
             .unwrap_or(default_daily_limit()),
     )
+    .bind(provider_permissions.clone())
     .bind(connection_id)
     .execute(pool)
     .await?;
@@ -521,6 +626,18 @@ async fn refresh_connection_inner(
         .ok_or_else(|| AppError::Internal("Failed to reload connection".to_string()))?;
     connections::record_source_health(pool, org_id, "WHATSAPP", connection_id, true, None, None)
         .await?;
+    let provider_permissions = add_whatsapp_capability_checks(
+        provider_permissions.or_else(|| connection.provider_permissions.clone()),
+        true,
+        true,
+    );
+    sqlx::query(
+        r#"UPDATE "WhatsappConnection" SET "providerPermissions" = $1, "updatedAt" = NOW() WHERE id = $2"#,
+    )
+    .bind(provider_permissions)
+    .bind(connection_id)
+    .execute(pool)
+    .await?;
     Ok(json!({
         "connection": WhatsappConnectionPublic::from(refreshed),
         "messagingLimitTier": phone.messaging_limit_tier
@@ -541,6 +658,10 @@ pub async fn update_connection_access_token(
     }
     let phone = fetch_connection_phone(access_token, &connection.phone_number_id).await?;
     let encrypted = encrypt_social_secret(access_token)?;
+    let provider_permissions = fetch_meta_permissions(access_token)
+        .await
+        .ok()
+        .map(|permissions| whatsapp_permission_record(permissions, &connection.auth_method));
 
     sqlx::query(
         r#"
@@ -550,8 +671,9 @@ pub async fn update_connection_access_token(
             "currentQualityRating" = CAST($3 AS "WhatsappConnectionQualityRating"),
             verified = $4,
             "dailyLimitEstimate" = $5,
+            "providerPermissions" = $6,
             "updatedAt" = NOW()
-        WHERE id = $6
+        WHERE id = $7
         "#,
     )
     .bind(encrypted)
@@ -568,6 +690,7 @@ pub async fn update_connection_access_token(
         estimate_daily_limit_from_tier(phone.messaging_limit_tier.as_deref())
             .unwrap_or(default_daily_limit()),
     )
+    .bind(provider_permissions.clone())
     .bind(connection_id)
     .execute(pool)
     .await?;
@@ -593,6 +716,18 @@ pub async fn update_connection_access_token(
         webhook_error_message.as_deref(),
     )
     .await?;
+    let provider_permissions = add_whatsapp_capability_checks(
+        provider_permissions.or_else(|| connection.provider_permissions.clone()),
+        webhook_error.is_none(),
+        true,
+    );
+    sqlx::query(
+        r#"UPDATE "WhatsappConnection" SET "providerPermissions" = $1, "updatedAt" = NOW() WHERE id = $2"#,
+    )
+    .bind(provider_permissions)
+    .bind(connection_id)
+    .execute(pool)
+    .await?;
 
     Ok(json!({
         "connection": WhatsappConnectionPublic::from(updated),
@@ -614,6 +749,11 @@ pub async fn connection_health(
     let mut webhook_subscribed = false;
     let mut steps = Vec::new();
     let mut quality_rating = connection.current_quality_rating.clone();
+    let provider_permissions = fetch_meta_permissions(&token)
+        .await
+        .ok()
+        .map(|permissions| whatsapp_permission_record(permissions, &connection.auth_method))
+        .or_else(|| connection.provider_permissions.clone());
 
     match fetch_connection_phone(&token, &connection.phone_number_id).await {
         Ok(phone) => {
@@ -689,6 +829,18 @@ pub async fn connection_health(
             Some("WhatsApp token validation or webhook subscription failed")
         },
     )
+    .await?;
+
+    let provider_permissions =
+        add_whatsapp_capability_checks(provider_permissions, webhook_subscribed, token_valid);
+    sqlx::query(
+        r#"UPDATE "WhatsappConnection"
+           SET "providerPermissions" = COALESCE($1, "providerPermissions"), "updatedAt" = NOW()
+           WHERE id = $2"#,
+    )
+    .bind(provider_permissions)
+    .bind(connection_id)
+    .execute(pool)
     .await?;
 
     Ok(json!({

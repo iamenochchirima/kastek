@@ -25,6 +25,10 @@ pub struct WhatsappConnectionRow {
     pub access_token_encrypted: String,
     #[sqlx(rename = "waba_id")]
     pub waba_id: String,
+    #[sqlx(rename = "auth_method")]
+    pub auth_method: String,
+    #[sqlx(rename = "provider_permissions")]
+    pub provider_permissions: Option<Value>,
     #[sqlx(rename = "current_quality_rating")]
     pub current_quality_rating: String,
     #[sqlx(rename = "daily_limit_estimate")]

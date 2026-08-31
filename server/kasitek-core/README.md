@@ -125,6 +125,78 @@ All social OAuth callback URLs must be reachable at the public API origin. Set
 use an active HTTPS tunnel. Set `NEXT_PUBLIC_API_BASE_URL` to the API origin the browser
 uses. `FRONTEND_URL` remains the browser app origin used after an OAuth callback completes.
 
+### Meta, Facebook, Instagram, and WhatsApp
+
+Configure the production Meta credentials in the Core vault. The scope value is comma-separated;
+the access center derives a smaller request from product capability keys when a user asks for
+additional access:
+
+```text
+AUTH_META_APP_ID=
+AUTH_META_APP_SECRET=
+AUTH_META_SCOPES=pages_show_list,pages_manage_metadata,pages_read_engagement,pages_manage_posts,pages_messaging,pages_manage_engagement,read_insights,instagram_basic,instagram_content_publish,instagram_manage_messages,instagram_manage_comments,instagram_manage_insights
+META_WEBHOOK_VERIFY_TOKEN=
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=
+```
+
+The client build must use the same Live Meta app and its approved Embedded Signup configuration:
+
+```text
+NEXT_PUBLIC_META_APP_ID=<the same AUTH_META_APP_ID>
+NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID=<the Live Embedded Signup configuration ID>
+```
+
+Register these production URLs in the Live Meta app:
+
+```text
+https://api.kasitek.co.za/api/social/oauth/meta/callback
+https://api.kasitek.co.za/api/social/oauth/instagram/callback
+https://api.kasitek.co.za/api/webhooks/meta
+https://api.kasitek.co.za/api/webhooks/whatsapp
+```
+
+Enable Facebook Login for Business, Instagram API with Facebook Login, and WhatsApp Business
+Platform. Request Advanced Access through App Review for every permission used by the deployed
+flows:
+
+```text
+Meta Login:
+pages_show_list
+pages_manage_metadata
+pages_read_engagement
+pages_manage_posts
+pages_messaging
+pages_manage_engagement
+read_insights
+instagram_basic
+instagram_content_publish
+instagram_manage_messages
+instagram_manage_comments
+instagram_manage_insights
+
+Direct Instagram Login (separate Instagram app configuration):
+instagram_business_basic
+instagram_business_content_publish
+instagram_business_manage_messages
+instagram_business_manage_comments
+instagram_business_manage_insights
+
+WhatsApp Embedded Signup:
+whatsapp_business_management
+whatsapp_business_messaging
+```
+
+Add `business_management` only for a reviewed Solution Partner operation that actually performs
+business portfolio actions. Meta's Live Embedded Signup flow exposes only permissions approved for
+Advanced Access. The app-review submission must demonstrate the real use of each permission; this
+external dashboard approval is a release prerequisite and is not automated by Core.
+
+The OAuth callback and the webhook URLs are separate concerns. The production Core origin must be
+set in `KASITEK_CORE_PUBLIC_URL`; `FRONTEND_URL` is only the post-callback browser destination.
+After applying a Meta configuration change, connect one test Page, one Instagram professional
+account, and one WhatsApp WABA, then verify the Access section and webhook health before enabling
+the flow for all workspaces.
+
 ### Threads
 
 ```text

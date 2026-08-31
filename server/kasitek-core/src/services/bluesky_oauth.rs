@@ -13,6 +13,8 @@ use std::net::IpAddr;
 use crate::services::social::{decrypt_social_secret, encrypt_social_secret};
 use crate::{config::AppConfig, error::AppError};
 
+use super::connection_permission_providers::adapter_for;
+
 const SCOPE: &str = "atproto repo:app.bsky.feed.post";
 const STATE_TTL_MINUTES: i64 = 10;
 
@@ -498,6 +500,22 @@ pub async fn start(
     org_id: &str,
     handle: &str,
 ) -> Result<String, AppError> {
+    start_with_state(pool, config, user_id, org_id, handle, None, &[]).await
+}
+
+pub fn create_authorization_state() -> String {
+    generate_token(24)
+}
+
+pub async fn start_with_state(
+    pool: &PgPool,
+    config: &AppConfig,
+    user_id: &str,
+    org_id: &str,
+    handle: &str,
+    state_override: Option<&str>,
+    requested_capabilities: &[String],
+) -> Result<String, AppError> {
     verify_public_client_metadata(config).await?;
     let handle = normalize_handle(handle);
     if handle.is_empty() {
@@ -507,7 +525,19 @@ pub async fn start(
     }
     let (did, pds_url) = resolve_identity(&handle).await?;
     let metadata = authorization_metadata(&pds_url).await?;
-    let state = generate_token(24);
+    let state = state_override
+        .map(ToString::to_string)
+        .unwrap_or_else(create_authorization_state);
+    let scope = if requested_capabilities.is_empty() {
+        SCOPE.to_string()
+    } else {
+        let mut scopes =
+            adapter_for("BLUESKY", None, None).required_scopes(requested_capabilities, None);
+        if !scopes.iter().any(|scope| scope == "atproto") {
+            scopes.insert(0, "atproto".to_string());
+        }
+        scopes.join(" ")
+    };
     let verifier = generate_token(48);
     let challenge = sha256_base64_url(&verifier);
     let dpop_key = SigningKey::random(&mut thread_rng());
@@ -515,7 +545,7 @@ pub async fn start(
         ("client_id".into(), client_id(config)),
         ("response_type".into(), "code".into()),
         ("redirect_uri".into(), callback_url(config)),
-        ("scope".into(), SCOPE.into()),
+        ("scope".into(), scope),
         ("state".into(), state.clone()),
         ("code_challenge".into(), challenge),
         ("code_challenge_method".into(), "S256".into()),

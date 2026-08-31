@@ -20,18 +20,55 @@ Use this when a provider account shows `NEEDS_ATTENTION`, messages stop arriving
 3. If webhook validation fails, confirm the WABA is subscribed to the Meta app and that `WHATSAPP_WEBHOOK_VERIFY_TOKEN` matches the callback configuration.
 4. Confirm the callback is reachable over HTTPS and inspect recent webhook response codes.
 5. Refresh the connection and re-run template synchronization after health is restored.
+6. In the connection **Access** section, treat `GRANTED` messaging as the combination of the
+   inspected Meta permission, a valid phone lookup, and a subscribed WABA webhook. A token with
+   `whatsapp_business_messaging` alone is not sufficient.
+7. Embedded Signup uses the fixed Meta configuration. If a requested access action opens setup,
+   complete Embedded Signup for the same business and phone; do not create a duplicate manual
+   connection unless the setup flow is unavailable.
 
 ## Facebook and Instagram
 
-1. Reconnect through Meta OAuth from `/connections` when credentials are expired or permissions changed.
-2. Confirm the expected Page and Instagram professional account were returned by Meta.
-3. Confirm required Page, messaging, publishing, and Instagram permissions are approved for the app and granted by the customer.
-4. Confirm `META_WEBHOOK_VERIFY_TOKEN` or `AUTH_META_WEBHOOK_VERIFY_TOKEN` matches the Meta webhook subscription.
-5. Confirm the Meta app's `page` subscription callback is the production Core URL: `https://api.kasitek.co.za/api/webhooks/meta`. A stale local or ngrok callback means Page messages will never reach Core even when each Page is marked connected.
-6. Confirm each Page is subscribed to the app's messaging fields. Loading the workspace social-channel list re-applies the app-level Page callback and refreshes connected Page subscriptions.
-7. If Inbox receives the message but the agent does not respond, open the agent's **Integrations** tab and confirm the account is **Assigned**. The route key is the workspace `ExternalConnection` owned by Core; reconnecting the account creates a new route key that must be assigned again.
-8. Check Core logs for `provider.webhook.received`/`webhook.receive`, `agent_platform.meta_ingest` and Agent Platform logs for `channel.ingest`. A route conflict means another active customer-service agent owns the same Page or Instagram account; remove that route before assigning it elsewhere.
-9. If agent replies fail, inspect the Core `channel.delivery` event and Meta response. Core must remain the only service holding the Meta access token.
+1. Open the affected account in `/connections` and inspect the **Access** section before disconnecting anything.
+2. Use **Grant access** for requestable missing access. Reauthorization updates the existing connection and does not remove drafts, history, or agent assignments.
+3. Confirm the expected Page and Instagram professional account were returned by Meta.
+4. Confirm required Page, messaging, publishing, and Instagram permissions are approved for the app and granted by the customer.
+5. Published Instagram media deletion is not supported by the current provider adapter. Direct
+   Instagram Login and Meta Login both report this limitation; local draft deletion remains a
+   separate operation.
+6. Confirm `META_WEBHOOK_VERIFY_TOKEN` or `AUTH_META_WEBHOOK_VERIFY_TOKEN` matches the Meta webhook subscription.
+7. Confirm the Meta app's `page` subscription callback is the production Core URL: `https://api.kasitek.co.za/api/webhooks/meta`. A stale local or ngrok callback means Page messages will never reach Core even when each Page is marked connected.
+8. Confirm each Page is subscribed to the app's messaging fields. Loading the workspace social-channel list re-applies the app-level Page callback and refreshes connected Page subscriptions.
+9. If Inbox receives the message but the agent does not respond, open the agent's **Integrations** tab and confirm the account is **Assigned**. The route key is the workspace `ExternalConnection` owned by Core.
+10. Check Core logs for `provider.webhook.received`/`webhook.receive`, `agent_platform.meta_ingest` and Agent Platform logs for `channel.ingest`. A route conflict means another active customer-service agent owns the same Page or Instagram account; remove that route before assigning it elsewhere.
+11. If agent replies fail, inspect the Core `channel.delivery` event and Meta response. Core must remain the only service holding the Meta access token.
+
+## Production Meta approval gate
+
+Before enabling production connections, verify all of the following in the production Meta app:
+
+- App mode is **Live**.
+- Facebook Login for Business, Instagram API with Facebook Login, and WhatsApp Business Platform
+  are configured for the app.
+- Advanced Access/App Review is approved for the exact Meta Login permissions listed in the public
+  Social Connections documentation.
+- WhatsApp Embedded Signup is configured for `whatsapp_business_management` and
+  `whatsapp_business_messaging`; add `business_management` only for a reviewed Solution Partner
+  operation that needs it.
+- The registered OAuth callback is `https://api.kasitek.co.za/api/social/oauth/meta/callback`.
+- The WhatsApp webhook is `https://api.kasitek.co.za/api/webhooks/whatsapp` and the Meta messaging
+  webhook is `https://api.kasitek.co.za/api/webhooks/meta`.
+- The production `AUTH_META_APP_ID`, `AUTH_META_APP_SECRET`, `AUTH_META_SCOPES`, and webhook verify
+  token belong to the same Live app.
+
+Record the Meta App Review decision and configuration revision with the release evidence. This is
+an external dashboard gate and cannot be completed by a repository commit.
+
+When an agent returns a typed authorization requirement, the runtime carries it with the durable
+response. Dashboard agent transcripts render **Grant access** or **Review access** using the
+connection reference; WhatsApp, Telegram, Discord, and Core-backed delivery adapters append the
+same provider-neutral recovery action while preserving their native formatting. Do not copy a
+connection ID, provider scope, token, or raw provider error into a user message.
 
 ## LinkedIn and X
 

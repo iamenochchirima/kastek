@@ -27,12 +27,17 @@ export default async function ConnectionsPage({
     pages_count?: string;
     pages_status?: string;
     error?: string;
+    access?: string;
+    provider?: string;
+    connectionId?: string;
+    capabilities?: string;
   }>;
 }) {
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
 
   const params = await searchParams;
+  const requestedCapabilities = params.capabilities?.split(",").map((value) => value.trim().toUpperCase()).filter(Boolean);
 
   const [sharedResponse, whatsappResponse] = await Promise.all([
     fetchRustJson<{ connections: WorkspaceConnection[] }>("/api/connections").catch(() => ({ connections: [] })),
@@ -107,11 +112,34 @@ export default async function ConnectionsPage({
           </div>
         ) : null}
 
+        {params.access === "granted" ? (
+          <div className="rounded-xl border border-status-success/30 bg-status-success-soft px-4 py-3 text-sm text-status-success">
+            Connection access updated.
+          </div>
+        ) : null}
+
         <FeatureAnalyticsPanel title="Connection" description="Lifecycle and health reporting." metricKeys={CONNECTION_ANALYTICS_METRICS} />
 
-        <WhatsappEmbeddedSignupCard connections={whatsappResponse.connections} hidden />
+        <WhatsappEmbeddedSignupCard
+          connections={whatsappResponse.connections}
+          hidden
+          accessRequest={params.access === "required" ? {
+            connectionId: params.connectionId,
+            capabilities: requestedCapabilities,
+          } : undefined}
+        />
 
-        <ConnectionsManager connections={sharedResponse.connections} />
+        <ConnectionsManager
+          connections={sharedResponse.connections}
+          initialAccessRequest={params.connectionId ? {
+            connectionId: params.connectionId,
+            capabilities: requestedCapabilities,
+            provider: params.provider,
+          } : params.provider ? {
+            capabilities: requestedCapabilities,
+            provider: params.provider,
+          } : undefined}
+        />
 
         <section id="whatsapp-setup" className="scroll-mt-6 space-y-3">
           <details className="rounded-xl border border-border bg-card">

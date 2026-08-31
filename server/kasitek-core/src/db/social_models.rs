@@ -269,6 +269,7 @@ pub struct ExternalConnection {
     pub last_error: Option<String>,
     pub metadata: Option<Value>,
     pub capabilities: Value,
+    pub permissions: Value,
     pub consumers: Value,
     #[sqlx(rename = "created_at")]
     #[serde(rename = "createdAt")]

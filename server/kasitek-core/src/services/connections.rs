@@ -7,6 +7,8 @@ use crate::analytics;
 use crate::db::models::ExternalConnection;
 use crate::error::AppError;
 
+use super::connection_permissions;
+
 const MUTABLE_STATUSES: &[&str] = &["CONNECTED", "DISCONNECTED", "REVOKED"];
 
 #[derive(Clone, Debug, Eq, PartialEq, sqlx::FromRow)]
@@ -268,7 +270,12 @@ async fn sync_whatsapp(tx: &mut Transaction<'_, Postgres>, org_id: &str) -> Resu
                 'wabaId', wc."wabaId",
                 'qualityRating', wc."currentQualityRating"::text,
                 'dailyLimitEstimate', wc."dailyLimitEstimate",
-                'verified', wc.verified
+                'verified', wc.verified,
+                'authMethod', wc."authMethod",
+                'permissions', COALESCE(wc."providerPermissions"->'permissions', '[]'::jsonb),
+                'permissionsInspected', wc."providerPermissions" IS NOT NULL,
+                'capabilityChecks', COALESCE(wc."providerPermissions"->'capabilityChecks', '{}'::jsonb),
+                'permissionEvidence', 'meta_permissions_endpoint'
             ), wc."createdAt", wc."updatedAt"
         FROM "WhatsappConnection" wc
         WHERE wc."orgId" = $1
@@ -422,6 +429,7 @@ async fn sync_capabilities(
                 ('SOCIAL_ANALYTICS', 'feature.analytics.view', ARRAY['FACEBOOK', 'INSTAGRAM', 'THREADS', 'TIKTOK', 'BLUESKY', 'LINKEDIN', 'X']),
                 ('COMMENTS_MANAGE', 'feature.content.manage', ARRAY['FACEBOOK', 'INSTAGRAM', 'X']),
                 ('MEDIA_PUBLISH', 'feature.content.publish', ARRAY['FACEBOOK', 'INSTAGRAM', 'TIKTOK', 'LINKEDIN', 'X']),
+                ('SOCIAL_POST_DELETE', 'feature.content.manage', ARRAY['FACEBOOK', 'INSTAGRAM', 'THREADS', 'LINKEDIN', 'X']),
                 ('CALLS_INBOUND', NULL::text, ARRAY['TWILIO']),
                 ('CALLS_OUTBOUND', NULL::text, ARRAY['TWILIO']),
                 ('CALLS_BROWSER', NULL::text, ARRAY['TWILIO'])
@@ -478,7 +486,8 @@ pub async fn list_connections(
     org_id: &str,
 ) -> Result<Vec<ExternalConnection>, AppError> {
     sync_org_connections(pool, org_id).await?;
-    sqlx::query_as::<_, ExternalConnection>(
+    connection_permissions::sync_permission_inventory(pool, org_id).await?;
+    let mut connections = sqlx::query_as::<_, ExternalConnection>(
         r#"
         SELECT connection.id, connection.provider,
                connection."externalAccountId" AS external_account_id,
@@ -499,6 +508,19 @@ pub async fn list_connections(
                    WHERE capability."connectionId" = connection.id
                ), '[]'::jsonb) AS capabilities,
                COALESCE((
+                   SELECT jsonb_agg(jsonb_build_object(
+                       'key', permission.key,
+                       'state', permission.state,
+                       'requestable', permission.requestable,
+                       'reasonCode', permission."reasonCode",
+                       'authMode', permission."authMode",
+                       'verificationSource', permission."verificationSource",
+                       'observedAt', permission."observedAt" AT TIME ZONE 'UTC'
+                   ) ORDER BY permission.key)
+                   FROM "ExternalConnectionPermission" permission
+                   WHERE permission."connectionId" = connection.id
+               ), '[]'::jsonb) AS permissions,
+               COALESCE((
                    SELECT jsonb_agg(consumer."productKey" ORDER BY consumer."productKey")
                    FROM "ExternalConnectionConsumer" consumer
                    WHERE consumer."connectionId" = connection.id
@@ -515,7 +537,40 @@ pub async fn list_connections(
     .bind(org_id)
     .fetch_all(pool)
     .await
-    .map_err(AppError::from)
+    .map_err(AppError::from)?;
+
+    for connection in &mut connections {
+        connection.permissions = serde_json::to_value(
+            connection_permissions::permission_snapshots(
+                &connection.provider,
+                connection.metadata.as_ref(),
+            )
+            .into_iter()
+            .map(|snapshot| snapshot.definition)
+            .collect::<Vec<_>>(),
+        )
+        .unwrap_or_else(|_| serde_json::json!([]));
+        sanitize_connection_metadata(&mut connection.metadata);
+    }
+    Ok(connections)
+}
+
+fn sanitize_connection_metadata(metadata: &mut Option<serde_json::Value>) {
+    let Some(serde_json::Value::Object(object)) = metadata.as_mut() else {
+        return;
+    };
+    for key in [
+        "permissions",
+        "scope",
+        "tasks",
+        "permissionsInspected",
+        "capabilityChecks",
+        "tokenType",
+        "dpopPrivateKey",
+        "dpopAuthorizationNonce",
+    ] {
+        object.remove(key);
+    }
 }
 
 pub async fn update_status(

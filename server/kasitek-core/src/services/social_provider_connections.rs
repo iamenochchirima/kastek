@@ -110,6 +110,7 @@ pub async fn upsert_threads_connection_for_org(
         None,
         json!({
             "provider":"threads",
+            "scope":tokens.scope,
             "expiresAt":tokens.expires_in.map(|s|(Utc::now()+Duration::seconds(s)).to_rfc3339()),
             "avatarUrl":profile.threads_profile_picture_url
         }),
@@ -122,6 +123,7 @@ pub async fn upsert_meta_connections_for_org(
     org_id: &str,
     user_tokens: &MetaTokenResponse,
     pages: &[MetaPageAccount],
+    granted_permissions: Option<&[String]>,
     include_facebook_pages: bool,
     include_instagram_accounts: bool,
 ) -> Result<Vec<SocialChannel>, AppError> {
@@ -143,6 +145,7 @@ pub async fn upsert_meta_connections_for_org(
         let encrypted_page_access_token = encrypt_social_secret(page_access_token)?;
         let page_metadata = json!({
             "provider": "meta",
+            "authMethod": "meta_login",
             "assetType": "facebook_page",
             "pageId": page.id,
             "username": page.username,
@@ -150,6 +153,8 @@ pub async fn upsert_meta_connections_for_org(
             "tasks": page.tasks.clone().unwrap_or_default(),
             "userTokenExpiresAt": user_token_expires_at,
             "tokenType": user_tokens.token_type.clone().unwrap_or_else(|| "bearer".to_string()),
+            "permissions": granted_permissions.unwrap_or_default(),
+            "permissionsInspected": granted_permissions.is_some(),
         });
 
         if include_facebook_pages {
@@ -217,6 +222,7 @@ pub async fn upsert_meta_connections_for_org(
         if let Some(instagram) = instagram {
             let instagram_metadata = json!({
                 "provider": "meta",
+                "authMethod": "meta_login",
                 "assetType": "instagram_professional_account",
                 "instagramAccountId": instagram.id,
                 "pageId": page.id,
@@ -224,6 +230,8 @@ pub async fn upsert_meta_connections_for_org(
                 "profilePictureUrl": instagram.profile_picture_url,
                 "userTokenExpiresAt": user_token_expires_at,
                 "tokenType": user_tokens.token_type.clone().unwrap_or_else(|| "bearer".to_string()),
+                "permissions": granted_permissions.unwrap_or_default(),
+                "permissionsInspected": granted_permissions.is_some(),
             });
 
             sqlx::query(
@@ -337,6 +345,7 @@ pub async fn upsert_instagram_connection_for_org(
         "followsCount": profile.follows_count,
         "mediaCount": profile.media_count,
         "permissions": permissions,
+        "permissionsInspected": true,
         "tokenType": tokens.token_type.clone().unwrap_or_else(|| "bearer".to_string()),
         "tokenExpiresAt": expires_at,
     });
@@ -474,18 +483,32 @@ pub async fn upsert_x_connection_for_org(
     .bind(cuid2::create_id())
     .bind(user_id)
     .bind(org_id)
-    .bind(profile.name.clone().or(profile.username.clone()).unwrap_or_else(|| "X account".to_string()))
-    .bind(profile.username.as_ref().map(|username| format!("@{username}")))
+    .bind(
+        profile
+            .name
+            .clone()
+            .or(profile.username.clone())
+            .unwrap_or_else(|| "X account".to_string()),
+    )
+    .bind(
+        profile
+            .username
+            .as_ref()
+            .map(|username| format!("@{username}")),
+    )
     .bind(&profile.id)
     .bind(encrypted_access)
     .bind(encrypted_refresh)
-    .bind(merge_channel_metadata_with_capabilities("X", Some(json!({
-        "provider": "x",
-        "tokenType": tokens.token_type.clone().unwrap_or_else(|| "bearer".to_string()),
-        "scope": tokens.scope.clone().unwrap_or_else(|| "tweet.read tweet.write users.read offline.access".to_string()),
-        "expiresAt": expires_at,
-        "avatarUrl": profile.profile_image_url,
-    }))))
+    .bind(merge_channel_metadata_with_capabilities(
+        "X",
+        Some(json!({
+            "provider": "x",
+            "tokenType": tokens.token_type.clone().unwrap_or_else(|| "bearer".to_string()),
+            "scope": tokens.scope,
+            "expiresAt": expires_at,
+            "avatarUrl": profile.profile_image_url,
+        })),
+    ))
     .execute(pool)
     .await?;
 
@@ -553,7 +576,7 @@ pub async fn upsert_linkedin_connection_for_org(
             "provider": "linkedin",
             "accountType": "member",
             "actorType": "person",
-            "scope": tokens.scope.clone().unwrap_or_else(|| "openid profile email w_member_social r_organization_admin w_organization_social".to_string()),
+            "scope": tokens.scope,
             "expiresAt": expires_at,
             "picture": profile.picture,
             "email": profile.email,
@@ -605,7 +628,7 @@ pub async fn upsert_linkedin_page_connections_for_org(
                 "actorUrn": page.urn,
                 "role": page.role,
                 "vanityName": page.vanity_name,
-                "scope": tokens.scope.clone().unwrap_or_else(|| "openid profile email w_member_social r_organization_admin w_organization_social".to_string()),
+                "scope": tokens.scope,
                 "expiresAt": expires_at.clone(),
             }),
         )
@@ -675,7 +698,7 @@ pub async fn upsert_bluesky_oauth_connection_for_org(
         Some(&authorization.refresh_token),
         json!({
             "provider":"bluesky",
-            "authMethod":"oauth",
+            "authMethod":"bluesky_oauth",
             "pds":authorization.pds_url,
             "authorizationServer":authorization.authorization_url,
             "dpopPrivateKey":encrypt_social_secret(&authorization.dpop_private_key)?,

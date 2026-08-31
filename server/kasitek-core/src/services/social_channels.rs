@@ -97,7 +97,7 @@ pub async fn list_social_channels(
     pool: &PgPool,
     org_id: &str,
 ) -> Result<Vec<SocialChannel>, AppError> {
-    sqlx::query_as::<_, SocialChannel>(
+    let mut channels = sqlx::query_as::<_, SocialChannel>(
         r#"
         SELECT id, "userId" AS user_id, platform::text AS platform, status::text AS status,
                "displayName" AS display_name, handle, "externalAccountId" AS external_account_id,
@@ -110,7 +110,27 @@ pub async fn list_social_channels(
     .bind(org_id)
     .fetch_all(pool)
     .await
-    .map_err(AppError::from)
+    .map_err(AppError::from)?;
+    for channel in &mut channels {
+        sanitize_public_channel_metadata(&mut channel.metadata);
+    }
+    Ok(channels)
+}
+
+fn sanitize_public_channel_metadata(metadata: &mut Option<Value>) {
+    let Some(Value::Object(object)) = metadata.as_mut() else {
+        return;
+    };
+    for key in [
+        "scope",
+        "permissions",
+        "tasks",
+        "tokenType",
+        "dpopPrivateKey",
+        "dpopAuthorizationNonce",
+    ] {
+        object.remove(key);
+    }
 }
 
 pub async fn get_social_channel(

@@ -112,6 +112,32 @@ discovery use the same projection. Discovery reports stable reason codes such as
 `approval_required`. External health reports KasiTek-side installation and credential readiness; it
 does not pretend to prove that the customer’s remote runtime is reachable.
 
+Workspace connection discovery also includes a safe, provider-neutral permission summary. It may
+report access as granted, requestable, unsupported, provider approval required, or unknown. Agents
+must explain a missing capability and direct the user to the Connections access flow; they must not
+request tokens, expose raw provider scopes, or instruct the user to disconnect by default.
+Authorization-required tool results include the provider, required capability keys, and the stable
+`remediation: "connections_access"` intent. When available, `connectionId` is a workspace-scoped
+UI reference for opening the exact connection; it is not a provider identifier and must not be
+quoted to end users. Web clients can open the connection-access experience from this contract.
+WhatsApp, Telegram, Discord, and Core-backed channel adapters keep their native text, media, and
+link behavior while adding the same bounded recovery action. No adapter may request tokens or
+bypass provider consent or the existing approval flow.
+
 The `kasitek.core.connections_list` capability is organization-scoped. Omit `provider` and `status`
 to list every workspace connection; provide the actual provider or status only when filtering is
 needed. Empty or `all` filter values are treated as omitted for compatibility.
+
+The browser access surface is provider-neutral:
+
+```text
+GET /api/connections/{connectionId}/access
+GET /api/connections/{connectionId}/access/request?capabilities=SOCIAL_PUBLISH,MEDIA_PUBLISH
+```
+
+The first route returns the safe capability inventory. The second validates product capability keys,
+records a short-lived authorization attempt, and redirects to the provider's consent or setup flow.
+The client does not choose provider OAuth routes for an existing connection. WhatsApp redirects to
+the Connections setup surface because Embedded Signup uses a fixed provider configuration rather
+than arbitrary scope checkboxes. A callback updates the existing logical connection and preserves
+its local content and agent assignments.

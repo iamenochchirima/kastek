@@ -161,6 +161,8 @@ model ExternalConnection {
   metadata          Json?
 
   capabilities  ExternalConnectionCapability[]
+  permissions   ExternalConnectionPermission[]
+  authorizationAttempts ExternalConnectionAuthorizationAttempt[]
   consumers     ExternalConnectionConsumer[]
   conversations Conversation[]
   calls         CommunicationCall[]
@@ -187,6 +189,50 @@ model ExternalConnectionCapability {
 
   @@unique([connectionId, key])
   @@index([key, enabled])
+}
+
+model ExternalConnectionPermission {
+  id                  String             @id @default(cuid())
+  connectionId        String
+  connection          ExternalConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  key                 String
+  providerPermission  String?
+  state               String
+  requestable         Boolean            @default(false)
+  reasonCode          String?
+  authMode            String?
+  verificationSource  String?
+  observedAt          DateTime           @default(now())
+  metadata            Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([connectionId, key])
+  @@index([connectionId, state])
+  @@index([key, state])
+}
+
+model ExternalConnectionAuthorizationAttempt {
+  id                    String             @id @default(cuid())
+  connectionId          String
+  connection            ExternalConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  orgId                 String
+  userId                String
+  provider              String
+  authMode              String
+  target                String
+  state                 String             @unique
+  requestedCapabilities String[]           @default([])
+  status                String             @default("STARTED")
+  failureCode           String?
+  expiresAt             DateTime
+  completedAt           DateTime?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  @@index([connectionId, status])
+  @@index([orgId, expiresAt])
 }
 
 model ExternalConnectionConsumer {
@@ -1931,6 +1977,8 @@ model WhatsappConnection {
   phoneDisplayNumber   String?
   accessTokenEncrypted String  @db.Text
   wabaId               String
+  authMethod           String  @default("whatsapp_embedded_signup")
+  providerPermissions  Json?
 
   currentQualityRating WhatsappConnectionQualityRating @default(UNKNOWN)
   dailyLimitEstimate   Int?

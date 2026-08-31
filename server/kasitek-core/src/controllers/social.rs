@@ -10,7 +10,9 @@ use crate::db::models::{
 };
 use crate::error::AppError;
 use crate::middleware::{extract_user, resolve_active_org_id};
-use crate::services::{bluesky_oauth, connections, orgs, social, social_posts};
+use crate::services::{
+    bluesky_oauth, connection_permissions, connections, orgs, social, social_posts,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct PublicMediaQuery {
@@ -22,6 +24,86 @@ pub struct PublicMediaQuery {
 struct SocialPostDeleteRequest {
     #[serde(rename = "deleteFromPlatforms")]
     delete_from_platforms: Option<bool>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct ProviderAccessStartQuery {
+    #[serde(rename = "connectionId")]
+    connection_id: Option<String>,
+    capabilities: Option<String>,
+}
+
+async fn prepare_provider_access_attempt(
+    pool: &PgPool,
+    org_id: &str,
+    user_id: &str,
+    query: &ProviderAccessStartQuery,
+    expected_provider: &str,
+    target: &str,
+    state: String,
+) -> Result<(String, Option<connection_permissions::AuthorizationAttempt>), AppError> {
+    let requested = match query.connection_id.as_deref() {
+        Some(_) => {
+            connection_permissions::parse_requested_capabilities(query.capabilities.as_deref())?
+        }
+        None => {
+            connection_permissions::normalize_requested_capabilities(query.capabilities.as_deref())
+        }
+    };
+    let Some(connection_id) = query.connection_id.as_deref() else {
+        return Ok((state, None));
+    };
+    let plan = connection_permissions::plan_access_request(pool, org_id, connection_id, &requested)
+        .await?;
+    if !plan
+        .context
+        .provider
+        .eq_ignore_ascii_case(expected_provider)
+    {
+        return Err(AppError::BadRequest(
+            "The access request provider does not match the connection".to_string(),
+        ));
+    }
+    let attempt = connection_permissions::create_authorization_attempt_with_state(
+        pool,
+        org_id,
+        user_id,
+        connection_id,
+        &plan.context.provider,
+        plan.adapter.auth_mode(),
+        target,
+        &requested,
+        state.clone(),
+    )
+    .await?;
+    Ok((state, Some(attempt)))
+}
+
+async fn finish_provider_attempt(
+    pool: &PgPool,
+    org_id: &str,
+    user_id: &str,
+    state: Option<&str>,
+    expected_provider: &str,
+    status: &str,
+    failure_code: Option<&str>,
+) -> Result<Option<connection_permissions::AuthorizationAttempt>, AppError> {
+    let Some(state) = state else {
+        return Ok(None);
+    };
+    let Some(attempt) =
+        connection_permissions::find_authorization_attempt(pool, org_id, user_id, state).await?
+    else {
+        return Ok(None);
+    };
+    if !attempt.provider.eq_ignore_ascii_case(expected_provider) {
+        return Err(AppError::BadRequest(
+            "OAuth state does not match the requested provider".to_string(),
+        ));
+    }
+    connection_permissions::finish_authorization_attempt(pool, &attempt.id, status, failure_code)
+        .await?;
+    Ok(Some(attempt))
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -463,6 +545,7 @@ pub async fn delete_post(
                 "error": "The post was not removed from KasiTek because one or more platform deletions failed.",
                 "localDeleted": result.local_deleted,
                 "providerResults": result.provider_results,
+                "authorizationRequired": result.authorization_required,
             })));
         }
         return Ok(HttpResponse::Ok().json(result));
@@ -634,16 +717,36 @@ pub async fn start_x_oauth(
     config: web::Data<AppConfig>,
     pool: web::Data<PgPool>,
     req: HttpRequest,
+    query: web::Query<ProviderAccessStartQuery>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let _org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     let state = social::create_x_oauth_state();
-    let authorize_url =
-        social::build_x_authorize_url(config.get_ref(), &state.state, &state.challenge)?;
+    let requested_capabilities =
+        connection_permissions::normalize_requested_capabilities(query.capabilities.as_deref());
+    let (state_value, access_attempt) = prepare_provider_access_attempt(
+        pool.get_ref(),
+        &org_id,
+        &user.id,
+        &query,
+        "X",
+        "x",
+        state.state.clone(),
+    )
+    .await?;
+    let authorize_url = social::build_x_authorize_url_for_request(
+        config.get_ref(),
+        &state_value,
+        &state.challenge,
+        access_attempt
+            .as_ref()
+            .map(|attempt| attempt.requested_capabilities.as_slice())
+            .unwrap_or(requested_capabilities.as_slice()),
+    )?;
     Ok(HttpResponse::Found()
         .append_header(("Location", authorize_url))
         .cookie(
-            actix_web::cookie::Cookie::build(social::X_STATE_COOKIE, state.state)
+            actix_web::cookie::Cookie::build(social::X_STATE_COOKIE, state_value)
                 .path("/")
                 .http_only(true)
                 .same_site(actix_web::cookie::SameSite::Lax)
@@ -670,6 +773,16 @@ pub async fn x_oauth_callback(
     let user = extract_user(&req, pool.get_ref()).await?;
     let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     if let Some(error) = query.error.as_ref() {
+        finish_provider_attempt(
+            pool.get_ref(),
+            &org_id,
+            &user.id,
+            query.state.as_deref(),
+            "X",
+            "DECLINED",
+            Some("provider_denied"),
+        )
+        .await?;
         let message = query
             .error_description
             .clone()
@@ -715,8 +828,22 @@ pub async fn x_oauth_callback(
     let _channel =
         social::upsert_x_connection_for_org(pool.get_ref(), &user.id, &org_id, &tokens, &profile)
             .await?;
+    let access_attempt = finish_provider_attempt(
+        pool.get_ref(),
+        &org_id,
+        &user.id,
+        Some(returned_state),
+        "X",
+        "COMPLETED",
+        None,
+    )
+    .await?;
 
-    let redirect = format!("{}/connections?connected=x", config.auth_url);
+    let redirect = if access_attempt.is_some() {
+        format!("{}/connections?connected=x&access=granted", config.auth_url)
+    } else {
+        format!("{}/connections?connected=x", config.auth_url)
+    };
     Ok(HttpResponse::Found()
         .append_header(("Location", redirect))
         .cookie(
@@ -738,15 +865,52 @@ pub async fn start_linkedin_oauth(
     config: web::Data<AppConfig>,
     pool: web::Data<PgPool>,
     req: HttpRequest,
+    query: web::Query<ProviderAccessStartQuery>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let _org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     let state = social::create_linkedin_oauth_state();
-    let authorize_url = social::build_linkedin_authorize_url(config.get_ref(), &state)?;
+    let requested_capabilities =
+        connection_permissions::normalize_requested_capabilities(query.capabilities.as_deref());
+    let organization = if let Some(connection_id) = query.connection_id.as_deref() {
+        let context = connection_permissions::get_connection_access_context(
+            pool.get_ref(),
+            &org_id,
+            connection_id,
+        )
+        .await?;
+        context
+            .metadata
+            .as_ref()
+            .and_then(|metadata| metadata.get("accountType"))
+            .and_then(|value| value.as_str())
+            == Some("organization")
+    } else {
+        false
+    };
+    let (state_value, access_attempt) = prepare_provider_access_attempt(
+        pool.get_ref(),
+        &org_id,
+        &user.id,
+        &query,
+        "LINKEDIN",
+        "linkedin",
+        state,
+    )
+    .await?;
+    let authorize_url = social::build_linkedin_authorize_url_for_request(
+        config.get_ref(),
+        &state_value,
+        access_attempt
+            .as_ref()
+            .map(|attempt| attempt.requested_capabilities.as_slice())
+            .unwrap_or(requested_capabilities.as_slice()),
+        organization,
+    )?;
     Ok(HttpResponse::Found()
         .append_header(("Location", authorize_url))
         .cookie(
-            actix_web::cookie::Cookie::build(social::LINKEDIN_STATE_COOKIE, state)
+            actix_web::cookie::Cookie::build(social::LINKEDIN_STATE_COOKIE, state_value)
                 .path("/")
                 .http_only(true)
                 .same_site(actix_web::cookie::SameSite::Lax)
@@ -763,7 +927,7 @@ pub async fn start_meta_oauth(
     query: web::Query<social::MetaOAuthStartQuery>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let _org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     let target = match query.target.as_deref().unwrap_or("facebook") {
         "facebook" => "facebook",
         "instagram" => "instagram",
@@ -773,8 +937,51 @@ pub async fn start_meta_oauth(
             ))
         }
     };
-    let state = social::create_meta_oauth_state();
-    let authorize_url = social::build_meta_authorize_url(config.get_ref(), &state)?;
+    let requested_capabilities = if query.connection_id.is_some() {
+        connection_permissions::parse_requested_capabilities(query.capabilities.as_deref())?
+    } else {
+        connection_permissions::normalize_requested_capabilities(query.capabilities.as_deref())
+    };
+    let state = if let Some(connection_id) = query.connection_id.as_deref() {
+        let plan = connection_permissions::plan_access_request(
+            pool.get_ref(),
+            &org_id,
+            connection_id,
+            &requested_capabilities,
+        )
+        .await?;
+        let expected_provider = if target == "facebook" {
+            "FACEBOOK"
+        } else {
+            "INSTAGRAM"
+        };
+        if plan.context.provider != expected_provider || plan.adapter.auth_mode() != "meta_login" {
+            return Err(AppError::BadRequest(
+                "The access request target does not match the connection authorization mode"
+                    .to_string(),
+            ));
+        }
+        connection_permissions::create_authorization_attempt(
+            pool.get_ref(),
+            &org_id,
+            &user.id,
+            connection_id,
+            &plan.context.provider,
+            plan.adapter.auth_mode(),
+            target,
+            &requested_capabilities,
+        )
+        .await?
+        .state
+    } else {
+        social::create_meta_oauth_state()
+    };
+    let authorize_url = social::build_meta_authorize_url_for_request(
+        config.get_ref(),
+        &state,
+        target,
+        &requested_capabilities,
+    )?;
     Ok(HttpResponse::Found()
         .append_header(("Location", authorize_url))
         .cookie(
@@ -800,11 +1007,48 @@ pub async fn start_instagram_oauth(
     config: web::Data<AppConfig>,
     pool: web::Data<PgPool>,
     req: HttpRequest,
+    query: web::Query<social::MetaOAuthStartQuery>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    let _org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
-    let state = social::create_instagram_oauth_state();
-    let authorize_url = social::build_instagram_authorize_url(config.get_ref(), &state)?;
+    let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
+    let requested_capabilities = if query.connection_id.is_some() {
+        connection_permissions::parse_requested_capabilities(query.capabilities.as_deref())?
+    } else {
+        connection_permissions::normalize_requested_capabilities(query.capabilities.as_deref())
+    };
+    let state = if let Some(connection_id) = query.connection_id.as_deref() {
+        let plan = connection_permissions::plan_access_request(
+            pool.get_ref(),
+            &org_id,
+            connection_id,
+            &requested_capabilities,
+        )
+        .await?;
+        if plan.context.provider != "INSTAGRAM" || plan.adapter.auth_mode() != "instagram_login" {
+            return Err(AppError::BadRequest(
+                "This connection must be authorized through Instagram Login".to_string(),
+            ));
+        }
+        connection_permissions::create_authorization_attempt(
+            pool.get_ref(),
+            &org_id,
+            &user.id,
+            connection_id,
+            &plan.context.provider,
+            plan.adapter.auth_mode(),
+            "instagram",
+            &requested_capabilities,
+        )
+        .await?
+        .state
+    } else {
+        social::create_instagram_oauth_state()
+    };
+    let authorize_url = social::build_instagram_authorize_url_for_request(
+        config.get_ref(),
+        &state,
+        &requested_capabilities,
+    )?;
     Ok(HttpResponse::Found()
         .append_header(("Location", authorize_url))
         .cookie(
@@ -827,6 +1071,24 @@ pub async fn meta_oauth_callback(
     let user = extract_user(&req, pool.get_ref()).await?;
     let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     if let Some(error) = query.error.as_ref() {
+        if let Some(state) = query.state.as_deref() {
+            if let Some(attempt) = connection_permissions::find_authorization_attempt(
+                pool.get_ref(),
+                &org_id,
+                &user.id,
+                state,
+            )
+            .await?
+            {
+                connection_permissions::finish_authorization_attempt(
+                    pool.get_ref(),
+                    &attempt.id,
+                    "DECLINED",
+                    Some("provider_denied"),
+                )
+                .await?;
+            }
+        }
         let message = query
             .error_description
             .clone()
@@ -856,9 +1118,20 @@ pub async fn meta_oauth_callback(
     if stored_state != returned_state {
         return Err(AppError::BadRequest("Invalid OAuth state".to_string()));
     }
-    let target = req
-        .cookie(social::META_TARGET_COOKIE)
-        .map(|cookie| cookie.value().to_string())
+    let attempt = connection_permissions::find_authorization_attempt(
+        pool.get_ref(),
+        &org_id,
+        &user.id,
+        returned_state,
+    )
+    .await?;
+    let target = attempt
+        .as_ref()
+        .map(|item| item.target.clone())
+        .or_else(|| {
+            req.cookie(social::META_TARGET_COOKIE)
+                .map(|cookie| cookie.value().to_string())
+        })
         .unwrap_or_else(|| "facebook".to_string());
     let (include_facebook_pages, include_instagram_accounts) = match target.as_str() {
         "facebook" => (true, false),
@@ -879,19 +1152,31 @@ pub async fn meta_oauth_callback(
     )
     .await
     .unwrap_or(short_lived_tokens);
-    let pages = social::fetch_meta_pages(
-        tokens
-            .access_token
-            .as_deref()
-            .ok_or_else(|| AppError::BadRequest("Missing Meta access token".to_string()))?,
-    )
-    .await?;
+    let access_token = tokens
+        .access_token
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("Missing Meta access token".to_string()))?;
+    let granted_permissions = match social::fetch_meta_permissions(access_token).await {
+        Ok(permissions) => Some(permissions),
+        Err(error) => {
+            observability::tracing::warn!(
+                event = "provider.call.failed",
+                provider = "meta",
+                operation = "oauth.permissions.inspect",
+                error_type = %std::any::type_name_of_val(&error),
+                "Meta permission inspection failed; access will be shown as unknown"
+            );
+            None
+        }
+    };
+    let pages = social::fetch_meta_pages(access_token).await?;
     let connected = social::upsert_meta_connections_for_org(
         pool.get_ref(),
         &user.id,
         &org_id,
         &tokens,
         &pages,
+        granted_permissions.as_deref(),
         include_facebook_pages,
         include_instagram_accounts,
     )
@@ -997,9 +1282,25 @@ pub async fn meta_oauth_callback(
     }
 
     let redirect = format!(
-        "{}/connections?connected=meta&facebook_count={}&instagram_count={}",
-        config.auth_url, facebook_count, instagram_count
+        "{}/connections?connected=meta&facebook_count={}&instagram_count={}&access={}",
+        config.auth_url,
+        facebook_count,
+        instagram_count,
+        if attempt.is_some() {
+            "granted"
+        } else {
+            "connected"
+        }
     );
+    if let Some(attempt) = attempt.as_ref() {
+        connection_permissions::finish_authorization_attempt(
+            pool.get_ref(),
+            &attempt.id,
+            "COMPLETED",
+            None,
+        )
+        .await?;
+    }
     Ok(HttpResponse::Found()
         .append_header(("Location", redirect))
         .cookie(
@@ -1026,6 +1327,24 @@ pub async fn instagram_oauth_callback(
     let user = extract_user(&req, pool.get_ref()).await?;
     let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     if let Some(error) = query.error.as_ref() {
+        if let Some(state) = query.state.as_deref() {
+            if let Some(attempt) = connection_permissions::find_authorization_attempt(
+                pool.get_ref(),
+                &org_id,
+                &user.id,
+                state,
+            )
+            .await?
+            {
+                connection_permissions::finish_authorization_attempt(
+                    pool.get_ref(),
+                    &attempt.id,
+                    "DECLINED",
+                    Some("provider_denied"),
+                )
+                .await?;
+            }
+        }
         let message = query
             .error_description
             .clone()
@@ -1057,6 +1376,13 @@ pub async fn instagram_oauth_callback(
             "Invalid Instagram OAuth state".to_string(),
         ));
     }
+    let attempt = connection_permissions::find_authorization_attempt(
+        pool.get_ref(),
+        &org_id,
+        &user.id,
+        returned_state,
+    )
+    .await?;
 
     let short_lived = social::exchange_instagram_code_for_token(config.get_ref(), code).await?;
     let short_lived_access_token = short_lived
@@ -1110,7 +1436,24 @@ pub async fn instagram_oauth_callback(
         );
     }
 
-    let redirect = format!("{}/connections?connected=instagram", config.auth_url);
+    let redirect = format!(
+        "{}/connections?connected=instagram&access={}",
+        config.auth_url,
+        if attempt.is_some() {
+            "granted"
+        } else {
+            "connected"
+        }
+    );
+    if let Some(attempt) = attempt.as_ref() {
+        connection_permissions::finish_authorization_attempt(
+            pool.get_ref(),
+            &attempt.id,
+            "COMPLETED",
+            None,
+        )
+        .await?;
+    }
     Ok(HttpResponse::Found()
         .append_header(("Location", redirect))
         .cookie(
@@ -1131,6 +1474,16 @@ pub async fn linkedin_oauth_callback(
     let user = extract_user(&req, pool.get_ref()).await?;
     let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     if let Some(error) = query.error.as_ref() {
+        let _ = finish_provider_attempt(
+            pool.get_ref(),
+            &org_id,
+            &user.id,
+            query.state.as_deref(),
+            "LINKEDIN",
+            "DECLINED",
+            Some("provider_denied"),
+        )
+        .await?;
         let message = query
             .error_description
             .clone()
@@ -1240,15 +1593,30 @@ pub async fn linkedin_oauth_callback(
     )
     .await?;
     connections::sync_org_connections(pool.get_ref(), &org_id).await?;
+    let access_attempt = finish_provider_attempt(
+        pool.get_ref(),
+        &org_id,
+        &user.id,
+        Some(returned_state),
+        "LINKEDIN",
+        "COMPLETED",
+        None,
+    )
+    .await?;
 
     let redirect = format!(
-        "{}/connections?connected=linkedin&pages_count={}&pages_status={}",
+        "{}/connections?connected=linkedin&pages_count={}&pages_status={}&access={}",
         config.auth_url,
         page_channels.len(),
         if page_discovery_unavailable {
             "unavailable"
         } else {
             "ready"
+        },
+        if access_attempt.is_some() {
+            "granted"
+        } else {
+            "connected"
         }
     );
     Ok(HttpResponse::Found()
@@ -1281,16 +1649,36 @@ pub async fn start_threads_oauth(
     config: web::Data<AppConfig>,
     pool: web::Data<PgPool>,
     req: HttpRequest,
+    query: web::Query<ProviderAccessStartQuery>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     let state = social::create_threads_oauth_state();
-    let url = social::build_threads_authorize_url(config.get_ref(), &state)?;
+    let requested_capabilities =
+        connection_permissions::normalize_requested_capabilities(query.capabilities.as_deref());
+    let (state_value, access_attempt) = prepare_provider_access_attempt(
+        pool.get_ref(),
+        &org_id,
+        &user.id,
+        &query,
+        "THREADS",
+        "threads",
+        state,
+    )
+    .await?;
+    let url = social::build_threads_authorize_url_for_request(
+        config.get_ref(),
+        &state_value,
+        access_attempt
+            .as_ref()
+            .map(|attempt| attempt.requested_capabilities.as_slice())
+            .unwrap_or(requested_capabilities.as_slice()),
+    )?;
     Ok(HttpResponse::Found()
         .append_header(("Location", url))
         .cookie(oauth_state_cookie(
             social::THREADS_STATE_COOKIE,
-            state,
+            state_value,
             config.is_production(),
         ))
         .finish())
@@ -1305,6 +1693,16 @@ pub async fn threads_oauth_callback(
     let user = extract_user(&req, pool.get_ref()).await?;
     let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     if let Some(error) = query.error.as_ref() {
+        finish_provider_attempt(
+            pool.get_ref(),
+            &org_id,
+            &user.id,
+            query.state.as_deref(),
+            "THREADS",
+            "DECLINED",
+            Some("provider_denied"),
+        )
+        .await?;
         let message = query.error_description.as_ref().unwrap_or(error);
         return Ok(HttpResponse::Found()
             .append_header((
@@ -1343,11 +1741,26 @@ pub async fn threads_oauth_callback(
     social::upsert_threads_connection_for_org(pool.get_ref(), &user.id, &org_id, &tokens, &profile)
         .await?;
     connections::sync_org_connections(pool.get_ref(), &org_id).await?;
+    let access_attempt = finish_provider_attempt(
+        pool.get_ref(),
+        &org_id,
+        &user.id,
+        Some(state),
+        "THREADS",
+        "COMPLETED",
+        None,
+    )
+    .await?;
+    let redirect = if access_attempt.is_some() {
+        format!(
+            "{}/connections?connected=threads&access=granted",
+            config.auth_url
+        )
+    } else {
+        format!("{}/connections?connected=threads", config.auth_url)
+    };
     Ok(HttpResponse::Found()
-        .append_header((
-            "Location",
-            format!("{}/connections?connected=threads", config.auth_url),
-        ))
+        .append_header(("Location", redirect))
         .cookie(clear_oauth_cookie(social::THREADS_STATE_COOKIE))
         .finish())
 }
@@ -1455,16 +1868,36 @@ pub async fn start_tiktok_oauth(
     config: web::Data<AppConfig>,
     pool: web::Data<PgPool>,
     req: HttpRequest,
+    query: web::Query<ProviderAccessStartQuery>,
 ) -> Result<HttpResponse, AppError> {
     let user = extract_user(&req, pool.get_ref()).await?;
-    require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
+    let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     let state = social::create_tiktok_oauth_state();
-    let url = social::build_tiktok_authorize_url(config.get_ref(), &state)?;
+    let requested_capabilities =
+        connection_permissions::normalize_requested_capabilities(query.capabilities.as_deref());
+    let (state_value, access_attempt) = prepare_provider_access_attempt(
+        pool.get_ref(),
+        &org_id,
+        &user.id,
+        &query,
+        "TIKTOK",
+        "tiktok",
+        state,
+    )
+    .await?;
+    let url = social::build_tiktok_authorize_url_for_request(
+        config.get_ref(),
+        &state_value,
+        access_attempt
+            .as_ref()
+            .map(|attempt| attempt.requested_capabilities.as_slice())
+            .unwrap_or(requested_capabilities.as_slice()),
+    )?;
     Ok(HttpResponse::Found()
         .append_header(("Location", url))
         .cookie(oauth_state_cookie(
             social::TIKTOK_STATE_COOKIE,
-            state,
+            state_value,
             config.is_production(),
         ))
         .finish())
@@ -1479,6 +1912,16 @@ pub async fn tiktok_oauth_callback(
     let user = extract_user(&req, pool.get_ref()).await?;
     let org_id = require_social_connection_admin(pool.get_ref(), &req, &user.id).await?;
     if let Some(error) = query.error.as_ref() {
+        finish_provider_attempt(
+            pool.get_ref(),
+            &org_id,
+            &user.id,
+            query.state.as_deref(),
+            "TIKTOK",
+            "DECLINED",
+            Some("provider_denied"),
+        )
+        .await?;
         let message = query.error_description.as_ref().unwrap_or(error);
         return Ok(HttpResponse::Found()
             .append_header((
@@ -1517,11 +1960,26 @@ pub async fn tiktok_oauth_callback(
     social::upsert_tiktok_connection_for_org(pool.get_ref(), &user.id, &org_id, &tokens, &profile)
         .await?;
     connections::sync_org_connections(pool.get_ref(), &org_id).await?;
+    let access_attempt = finish_provider_attempt(
+        pool.get_ref(),
+        &org_id,
+        &user.id,
+        Some(state),
+        "TIKTOK",
+        "COMPLETED",
+        None,
+    )
+    .await?;
+    let redirect = if access_attempt.is_some() {
+        format!(
+            "{}/connections?connected=tiktok&access=granted",
+            config.auth_url
+        )
+    } else {
+        format!("{}/connections?connected=tiktok", config.auth_url)
+    };
     Ok(HttpResponse::Found()
-        .append_header((
-            "Location",
-            format!("{}/connections?connected=tiktok", config.auth_url),
-        ))
+        .append_header(("Location", redirect))
         .cookie(clear_oauth_cookie(social::TIKTOK_STATE_COOKIE))
         .finish())
 }
@@ -1563,8 +2021,48 @@ pub async fn start_bluesky_oauth(
         .map(str::trim)
         .filter(|v| !v.is_empty())
         .ok_or_else(|| AppError::BadRequest("Bluesky handle is required".to_string()))?;
-    let url =
-        bluesky_oauth::start(pool.get_ref(), config.get_ref(), &user.id, &org_id, handle).await?;
+    let url = if query.connection_id.is_some() {
+        let state = bluesky_oauth::create_authorization_state();
+        let requested_capabilities =
+            connection_permissions::normalize_requested_capabilities(query.capabilities.as_deref());
+        let access_query = ProviderAccessStartQuery {
+            connection_id: query.connection_id.clone(),
+            capabilities: query.capabilities.clone(),
+        };
+        let (state, _attempt) = prepare_provider_access_attempt(
+            pool.get_ref(),
+            &org_id,
+            &user.id,
+            &access_query,
+            "BLUESKY",
+            "bluesky",
+            state,
+        )
+        .await?;
+        bluesky_oauth::start_with_state(
+            pool.get_ref(),
+            config.get_ref(),
+            &user.id,
+            &org_id,
+            handle,
+            Some(&state),
+            &requested_capabilities,
+        )
+        .await?
+    } else {
+        let requested_capabilities =
+            connection_permissions::normalize_requested_capabilities(query.capabilities.as_deref());
+        bluesky_oauth::start_with_state(
+            pool.get_ref(),
+            config.get_ref(),
+            &user.id,
+            &org_id,
+            handle,
+            None,
+            &requested_capabilities,
+        )
+        .await?
+    };
     Ok(HttpResponse::Found()
         .append_header(("Location", url))
         .finish())
@@ -1600,10 +2098,36 @@ pub async fn bluesky_oauth_callback(
     let org_id = authorization.org_id.clone();
     social::upsert_bluesky_oauth_connection_for_org(pool.get_ref(), &authorization).await?;
     connections::sync_org_connections(pool.get_ref(), &org_id).await?;
+    let access_attempt = connection_permissions::find_authorization_attempt(
+        pool.get_ref(),
+        &org_id,
+        &authorization.user_id,
+        state,
+    )
+    .await?;
+    if let Some(attempt) = access_attempt.as_ref() {
+        if !attempt.provider.eq_ignore_ascii_case("BLUESKY") {
+            return Err(AppError::BadRequest(
+                "OAuth state does not match the requested provider".to_string(),
+            ));
+        }
+        connection_permissions::finish_authorization_attempt(
+            pool.get_ref(),
+            &attempt.id,
+            "COMPLETED",
+            None,
+        )
+        .await?;
+    }
+    let redirect = if access_attempt.is_some() {
+        format!(
+            "{}/connections?connected=bluesky&access=granted",
+            config.auth_url
+        )
+    } else {
+        format!("{}/connections?connected=bluesky", config.auth_url)
+    };
     Ok(HttpResponse::Found()
-        .append_header((
-            "Location",
-            format!("{}/connections?connected=bluesky", config.auth_url),
-        ))
+        .append_header(("Location", redirect))
         .finish())
 }

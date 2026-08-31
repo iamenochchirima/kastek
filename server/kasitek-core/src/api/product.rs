@@ -180,6 +180,11 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api/connections")
             .route("", web::get().to(connections::list))
+            .route("/{id}/access", web::get().to(connections::access))
+            .route(
+                "/{id}/access/request",
+                web::get().to(connections::request_access),
+            )
             .route("/{id}/status", web::patch().to(connections::update_status)),
     );
     cfg.service(
