@@ -658,6 +658,7 @@ model AgentWebsiteDeliveryEvent {
   session     AgentWebsiteVisitorSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   eventKey    String                     @unique
   messageText String                     @db.Text
+  messageContent Json                     @default("{}")
   createdAt   DateTime                   @default(now()) @db.Timestamptz(3)
 
   @@index([sessionId, createdAt])

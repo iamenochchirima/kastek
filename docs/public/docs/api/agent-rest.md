@@ -46,6 +46,36 @@ to call with a read-only API credential. Each tool also exposes an effective-acc
 stable reason code such as `available`, `approval_required`, `provider_not_configured`, or
 `credential_denied`.
 
+## Workspace media
+
+Content tools identify workspace media with stable `assetId` values. If the installation has the
+`content.read` grant, it can call these read-only capabilities:
+
+- `kasitek.core.content_media_get` returns organization-scoped metadata and processing/scan state.
+- `kasitek.core.content_media_preview` returns the same metadata and a short-lived preview URL.
+
+Do not persist preview URLs. A hosted agent response uses the versioned shape below; the Agent
+Platform and each channel gateway resolve the asset at delivery time.
+
+```json
+{
+  "version": "1",
+  "text": "Here is the image.",
+  "media": [
+    {
+      "assetId": "core-asset-id",
+      "kind": "image",
+      "fileName": "announcement.png",
+      "altText": "Payment announcement",
+      "disposition": "inline"
+    }
+  ]
+}
+```
+
+The durable contract contains no provider URL or file bytes. Unsupported provider media is
+delivered through the gateway's documented text/link fallback.
+
 ## Invoke a tool
 
 ```http

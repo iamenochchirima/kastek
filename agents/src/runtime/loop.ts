@@ -4,9 +4,10 @@ import { ModelProviderError } from "../model/types";
 import { ToolPolicyError, type ToolApproval, type ToolInvocationContext } from "../tools/types";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
 import { classifyFailureCode } from "./failures";
-import { redactSensitiveValue } from "../tools/redaction";
+import { redactSensitiveValue, redactToolOutput } from "../tools/redaction";
 import type { GroundingProvenance } from "./provenance";
 import { buildApprovedToolCompletionMessage, buildApprovedToolFailureMessage } from "./approved-tool-completion";
+import type { AgentResponse } from "../media/contracts";
 
 export interface AgentLoopLimits {
   maxIterations: number;
@@ -95,6 +96,7 @@ export interface AgentLoopResult {
   messages: ModelMessage[];
   response?: ModelResponse;
   completionMessage?: string;
+  completionResponse?: AgentResponse;
   pendingToolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown>; argumentsHash: string }>;
   usage: { inputTokens: number; outputTokens: number; totalTokens: number; estimatedCostUsd: number };
   iterations: number;
@@ -163,9 +165,10 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       });
       messages.push({ role: "assistant", content: "", toolCalls: [{ id: resumed.id, name: resumed.name, arguments: resumed.arguments }] });
       const safeOutput = redactSensitiveValue(result.output);
+      const durableOutput = redactToolOutput(result.output, resumedManifest?.manifest?.redaction ?? []);
       messages.push({ role: "tool", name: resumed.name, toolCallId: resumed.id, content: JSON.stringify(safeOutput) });
       toolCalls += 1;
-      await input.onToolCompleted?.({ toolCallId: resumed.id, name: resumed.name, argumentsHash: hashToolArguments(resumed.arguments), output: safeOutput, latencyMs: result.latencyMs, effectId: result.effectId, approval: resumed.approval });
+      await input.onToolCompleted?.({ toolCallId: resumed.id, name: resumed.name, argumentsHash: hashToolArguments(resumed.arguments), output: durableOutput, latencyMs: result.latencyMs, effectId: result.effectId, approval: resumed.approval });
       await emit(input, { type: "tool.completed", iteration: 0, payload: { name: resumed.name, resumed: true, latencyMs: result.latencyMs } });
       const completionMessage = buildApprovedToolCompletionMessage(resumed.name, resumed.arguments, safeOutput);
       messages.push({ role: "assistant", content: completionMessage });
@@ -305,6 +308,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             } : undefined,
           });
           const safeOutput = redactSensitiveValue(result.output);
+          const durableOutput = redactToolOutput(result.output, manifest?.manifest?.redaction ?? []);
           messages.push({
             role: "tool",
             name: toolCall.name,
@@ -312,7 +316,12 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             content: JSON.stringify(safeOutput),
           });
           await emit(input, { type: "tool.completed", iteration, payload: { name: toolCall.name, latencyMs: result.latencyMs } });
-          await input.onToolCompleted?.({ toolCallId: toolCall.id, name: toolCall.name, argumentsHash, output: safeOutput, latencyMs: result.latencyMs, effectId: result.effectId });
+          await input.onToolCompleted?.({ toolCallId: toolCall.id, name: toolCall.name, argumentsHash, output: durableOutput, latencyMs: result.latencyMs, effectId: result.effectId });
+          if (result.control === "final_response") {
+            const completionResponse = (safeOutput as { response: AgentResponse }).response;
+            await emit(input, { type: "loop.completed", iteration, payload: { toolCalls, totalTokens: usage.totalTokens, responseFormat: "agent-response.v1" } });
+            return { status: "completed", messages, response, completionMessage: completionResponse.text, completionResponse, usage, iterations: iteration, toolCalls };
+          }
           if (result.control === "awaiting_human") {
             await emit(input, { type: "loop.paused", iteration, payload: { reason: "handoff", name: toolCall.name } });
             const safeOutputRecord = safeOutput && typeof safeOutput === "object" ? safeOutput as Record<string, unknown> : undefined;

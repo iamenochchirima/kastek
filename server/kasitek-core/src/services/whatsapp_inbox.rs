@@ -8,11 +8,13 @@ use actix_multipart::Multipart;
 use chrono::Utc;
 use futures_util::StreamExt;
 use regex::Regex;
+use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::{PgPool, Row};
 use std::collections::HashSet;
 
 use crate::analytics;
+use crate::config::AppConfig;
 use crate::db::models::{
     ConversationUpdateRequest, InboxConversationListRow, MessageRow, WhatsappReactionRequest,
     WhatsappSendMessageRequest, WhatsappStartConversationRequest, WhatsappTemplateRow,
@@ -20,7 +22,7 @@ use crate::db::models::{
 use crate::error::AppError;
 use crate::services::realtime;
 use crate::services::social::decrypt_social_secret;
-use crate::services::{connections, message_domain};
+use crate::services::{connections, content_media, message_domain};
 
 use super::whatsapp::{
     display_text, find_or_create_conversation, get_connection_row_for_org, load_conversation_by_id,
@@ -379,10 +381,12 @@ fn is_whatsapp_horizontal_rule(line: &str) -> bool {
 
 pub async fn deliver_agent_message(
     pool: &PgPool,
+    config: &AppConfig,
     org_id: &str,
     conversation_id: &str,
     text: &str,
     idempotency_key: &str,
+    media: &[AgentMediaAttachment],
     buttons: &[WhatsappReplyButton],
 ) -> Result<Value, AppError> {
     let idempotency_key = validate_agent_delivery_idempotency_key(idempotency_key)?;
@@ -391,7 +395,7 @@ pub async fn deliver_agent_message(
         .ok_or_else(|| AppError::NotFound("WhatsApp conversation not found".to_string()))?;
     if let Some(existing) = sqlx::query(
         r#"
-        SELECT "whatsappMessageId" AS provider_message_id, "whatsappStatus" AS status
+        SELECT id, "whatsappMessageId" AS provider_message_id, "whatsappStatus" AS status
         FROM "Message"
         WHERE "conversationId" = $1
           AND "providerMetadata"->>'_kasitek_agent_idempotency_key' = $2
@@ -415,11 +419,18 @@ pub async fn deliver_agent_message(
                 "idempotentReplay": true,
             }));
         }
-        return Ok(json!({
-            "status": "unknown",
-            "idempotentReplay": true,
-            "providerStatus": existing.try_get::<Option<String>, _>("status").ok().flatten(),
-        }));
+        let provider_status = existing
+            .try_get::<Option<String>, _>("status")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        if provider_status.to_ascii_uppercase() != "FAILED" {
+            return Ok(json!({
+                "status": "unknown",
+                "idempotentReplay": true,
+                "providerStatus": provider_status,
+            }));
+        }
     }
     let (connection_id, phone) =
         parse_conversation_identifier(&conversation.customer_identifier)
@@ -430,6 +441,11 @@ pub async fn deliver_agent_message(
     let access_token = decrypt_social_secret(&connection.access_token_encrypted)?;
     let message_id = cuid2::create_id();
     let occurred_at = Utc::now();
+    let analytics_message_type = if media.is_empty() {
+        "text"
+    } else {
+        "attachment"
+    };
     let mut tx = pool.begin().await?;
     sqlx::query(
         r#"
@@ -440,7 +456,7 @@ pub async fn deliver_agent_message(
     .bind(&message_id)
     .bind(&conversation.id)
     .bind(text)
-    .bind(json!({ "_kasitek_agent_idempotency_key": idempotency_key }))
+    .bind(json!({ "_kasitek_agent_idempotency_key": idempotency_key, "_kasitek_agent_media": media }))
     .bind(occurred_at)
     .execute(&mut *tx)
     .await?;
@@ -466,7 +482,7 @@ pub async fn deliver_agent_message(
         "created",
         "outbound",
         "agent",
-        "text",
+        analytics_message_type,
         Some("sending"),
         response_time_ms,
         occurred_at,
@@ -478,8 +494,53 @@ pub async fn deliver_agent_message(
     tx.commit().await?;
     let (text_without_images, images) = extract_markdown_images(text);
     let rendered_text = format_whatsapp_text(&text_without_images);
-    let send_result = if buttons.is_empty() && !images.is_empty() {
+    let send_result = if buttons.is_empty() && (!images.is_empty() || !media.is_empty()) {
         let mut last_result = None;
+        for item in media {
+            let stored = match item.kind.as_str() {
+                "image" | "video" | "audio" => {
+                    content_media::read_content_media_bytes(pool, config, org_id, &item.asset_id)
+                        .await?
+                }
+                _ => {
+                    continue;
+                }
+            };
+            let filename = item
+                .file_name
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or("attachment");
+            let (uploaded_media_id, _) = upload_whatsapp_media(
+                &connection.phone_number_id,
+                &access_token,
+                stored.bytes,
+                filename,
+                Some(&stored.mime_type),
+            )
+            .await?;
+            let caption = item
+                .caption
+                .as_deref()
+                .or_else(|| {
+                    (last_result.is_none() && rendered_text.chars().count() <= 1_024)
+                        .then_some(rendered_text.as_str())
+                })
+                .filter(|value| !value.is_empty());
+            last_result = Some(
+                send_media_message(
+                    &connection.phone_number_id,
+                    &access_token,
+                    &phone,
+                    &item.kind,
+                    &uploaded_media_id,
+                    caption,
+                    Some(filename),
+                    None,
+                )
+                .await?,
+            );
+        }
         for (index, image_url) in images.iter().enumerate() {
             let caption = (index == 0 && rendered_text.chars().count() <= 1_024)
                 .then_some(rendered_text.as_str())
@@ -496,7 +557,9 @@ pub async fn deliver_agent_message(
                 .await?,
             );
         }
-        if !rendered_text.is_empty() && rendered_text.chars().count() > 1_024 {
+        if !rendered_text.is_empty()
+            && (rendered_text.chars().count() > 1_024 || last_result.is_none())
+        {
             last_result = Some(
                 send_text_message(
                     &connection.phone_number_id,
@@ -508,7 +571,22 @@ pub async fn deliver_agent_message(
                 .await?,
             );
         }
-        Ok(last_result.expect("image list is non-empty"))
+        if let Some(result) = last_result {
+            Ok(result)
+        } else if !rendered_text.is_empty() {
+            send_text_message(
+                &connection.phone_number_id,
+                &access_token,
+                &phone,
+                &rendered_text,
+                None,
+            )
+            .await
+        } else {
+            Err(AppError::BadRequest(
+                "WhatsApp has no compatible media or text to deliver".to_string(),
+            ))
+        }
     } else if buttons.is_empty() {
         send_text_message(
             &connection.phone_number_id,
@@ -549,7 +627,7 @@ pub async fn deliver_agent_message(
                 "delivery_updated",
                 "outbound",
                 "agent",
-                "text",
+                analytics_message_type,
                 Some("sent"),
                 None,
                 Utc::now(),
@@ -591,7 +669,7 @@ pub async fn deliver_agent_message(
                 "delivery_updated",
                 "outbound",
                 "agent",
-                "text",
+                analytics_message_type,
                 Some("failed"),
                 None,
                 Utc::now(),
@@ -646,6 +724,18 @@ pub async fn deliver_agent_message(
             Err(error)
         }
     }
+}
+
+#[derive(Debug, Clone, Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentMediaAttachment {
+    pub asset_id: String,
+    pub kind: String,
+    pub mime_type: Option<String>,
+    pub file_name: Option<String>,
+    pub alt_text: Option<String>,
+    pub caption: Option<String>,
+    pub disposition: Option<String>,
 }
 
 fn is_provider_authentication_failure(error: &str) -> bool {

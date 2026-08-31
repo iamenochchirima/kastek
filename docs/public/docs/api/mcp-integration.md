@@ -65,6 +65,27 @@ JSON-RPC traffic, and does not contain KasiTek tools, policy, product data, or R
 Clients that support remote Streamable HTTP do not need the package. REST remains a separate API
 and SDK/CLI surface.
 
+## Workspace media
+
+Granted installations can discover `kasitek.core.content_media_get` for organization-scoped media
+metadata and `kasitek.core.content_media_preview` for a short-lived preview URL. Media returned by
+content tools is identified by a stable `assetId`; preview URLs are transport values and must not be
+stored in agent state, messages, or external caches.
+
+Hosted-agent replies use the shared `AgentResponse@1` envelope:
+
+```json
+{
+  "version": "1",
+  "text": "Here is the image.",
+  "media": [{ "assetId": "core-asset-id", "kind": "image", "disposition": "inline" }]
+}
+```
+
+The hosted harness validates the asset against the current workspace before completing the run.
+Channel gateways then select native media delivery or an explicit provider fallback. Older text-only
+responses remain supported during the compatibility window.
+
 ## Installation identity
 
 The Developer API key is the only user-facing MCP credential. On first use, the Agent Platform

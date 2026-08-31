@@ -77,9 +77,9 @@ import {
   type WhatsappConnectionOption,
 } from "@/lib/agent-platform";
 import { AgentApprovalPreview } from "@/components/dashboard/agents/agent-approval-preview";
+import { AgentMessageMedia, agentMessageHasMedia } from "@/components/dashboard/agents/agent-message-media";
 import { AudioMessageControl } from "@/components/dashboard/kasiai/audio-message-control";
 import { cn } from "@/lib/utils";
-import { apiUrl } from "@/lib/server-api";
 
 type View = "chat" | "library" | "settings";
 type SettingsSection = "general" | "model" | "connections" | "memory";
@@ -166,9 +166,13 @@ function messageChannel(message: AgentMessage) {
   ).toLowerCase();
 }
 function messageText(message: AgentMessage) {
-  return typeof message.content?.text === "string"
-    ? message.content.text
-    : JSON.stringify(message.content);
+  if (typeof message.content?.text === "string") return message.content.text;
+  if (Array.isArray(message.content?.media) || typeof message.content?.assetId === "string") return "Attachment";
+  return JSON.stringify(message.content);
+}
+function messageRenderText(message: AgentMessage) {
+  if (agentMessageHasMedia(message) && typeof message.content?.text !== "string") return "";
+  return messageText(message);
 }
 function sorted(messages: AgentMessage[]) {
   return [...messages].sort(
@@ -1676,28 +1680,17 @@ export function KasiAiChat({
                                     retryable && "ring-1 ring-destructive/60",
                                   )}
                                 >
-                                  {message.content?.mediaKind === "audio" &&
-                                  typeof message.content.assetId === "string" ? (
-                                    <audio
-                                      controls
-                                      preload="metadata"
-                                      className="mb-2 h-9 w-full min-w-52 max-w-sm"
-                                      src={apiUrl(
-                                        `/api/social/media/${encodeURIComponent(message.content.assetId)}`,
-                                      )}
-                                      aria-label="Audio message"
-                                    />
-                                  ) : null}
+                                  <AgentMessageMedia message={message} />
                                   {message.direction === "outbound" ? (
                                     <ReactMarkdown
                                       remarkPlugins={[remarkGfm]}
                                       components={markdownComponents}
                                       skipHtml
                                     >
-                                      {messageText(message)}
+                                      {messageRenderText(message)}
                                     </ReactMarkdown>
                                   ) : (
-                                    messageText(message)
+                                    messageRenderText(message)
                                   )}
                                 </div>
                                 {source === "platform" &&

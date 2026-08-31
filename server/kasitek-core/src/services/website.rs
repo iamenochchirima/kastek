@@ -1,6 +1,7 @@
 use chrono::{Duration, Utc};
 use reqwest::Url;
 use serde_json::json;
+use serde_json::Value;
 use sqlx::PgPool;
 
 use crate::config::AppConfig;
@@ -554,29 +555,38 @@ pub async fn active_agent_website_visitor_session(
 
 pub async fn record_agent_website_delivery(
     pool: &PgPool,
+    org_id: &str,
     external_conversation_id: &str,
     event_key: &str,
     text: &str,
+    media: &[crate::services::whatsapp_inbox::AgentMediaAttachment],
 ) -> Result<Option<AgentWebsiteDeliveryEventRow>, AppError> {
     let session_id = sqlx::query_scalar::<_, String>(
-        r#"SELECT id FROM "AgentWebsiteVisitorSession" WHERE "externalConversationId" = $1 LIMIT 1"#,
+        r#"SELECT session.id
+           FROM "AgentWebsiteVisitorSession" session
+           INNER JOIN "AgentWebsiteDeployment" deployment ON deployment.id = session."deploymentId"
+           WHERE session."externalConversationId" = $1 AND deployment."orgId" = $2
+           LIMIT 1"#,
     )
     .bind(external_conversation_id.trim())
+    .bind(org_id)
     .fetch_optional(pool)
     .await?;
     let Some(session_id) = session_id else {
         return Ok(None);
     };
     let event = sqlx::query_as::<_, AgentWebsiteDeliveryEventRow>(
-        r#"INSERT INTO "AgentWebsiteDeliveryEvent" (id, "sessionId", "eventKey", "messageText", "createdAt")
-           VALUES ($1, $2, $3, $4, NOW())
+        r#"INSERT INTO "AgentWebsiteDeliveryEvent" (id, "sessionId", "eventKey", "messageText", "messageContent", "createdAt")
+           VALUES ($1, $2, $3, $4, $5, NOW())
            ON CONFLICT ("eventKey") DO UPDATE SET "eventKey" = EXCLUDED."eventKey"
-           RETURNING id, "eventKey" AS event_key, "messageText" AS message_text, "createdAt" AS created_at"#,
+           RETURNING id, "eventKey" AS event_key, "messageText" AS message_text,
+                     "messageContent" AS message_content, "createdAt" AS created_at"#,
     )
     .bind(cuid2::create_id())
     .bind(session_id)
     .bind(event_key)
     .bind(text)
+    .bind(serde_json::json!({ "version": "1", "text": text, "media": media }))
     .fetch_one(pool)
     .await?;
     Ok(Some(event))
@@ -588,7 +598,8 @@ pub async fn list_agent_website_deliveries(
     after: Option<&str>,
 ) -> Result<Vec<AgentWebsiteDeliveryEventRow>, AppError> {
     sqlx::query_as::<_, AgentWebsiteDeliveryEventRow>(
-        r#"SELECT id, "eventKey" AS event_key, "messageText" AS message_text, "createdAt" AS created_at
+        r#"SELECT id, "eventKey" AS event_key, "messageText" AS message_text,
+                  "messageContent" AS message_content, "createdAt" AS created_at
            FROM "AgentWebsiteDeliveryEvent"
            WHERE "sessionId" = $1
              AND (
@@ -606,6 +617,50 @@ pub async fn list_agent_website_deliveries(
     .fetch_all(pool)
     .await
     .map_err(AppError::from)
+}
+
+pub async fn add_agent_website_delivery_previews(
+    pool: &PgPool,
+    config: &AppConfig,
+    org_id: &str,
+    deliveries: &mut [AgentWebsiteDeliveryEventRow],
+) -> Result<(), AppError> {
+    for delivery in deliveries {
+        let Some(media) = delivery
+            .message_content
+            .get_mut("media")
+            .and_then(Value::as_array_mut)
+        else {
+            continue;
+        };
+        for item in media {
+            let Some(object) = item.as_object_mut() else {
+                continue;
+            };
+            let Some(asset_id) = object.get("assetId").and_then(Value::as_str) else {
+                continue;
+            };
+            let (_, preview_url) = crate::services::content_media::get_content_media_preview(
+                pool, config, org_id, asset_id,
+            )
+            .await?;
+            object.insert("previewUrl".to_string(), Value::String(preview_url));
+        }
+    }
+    Ok(())
+}
+
+pub async fn agent_website_deployment_org_id(
+    pool: &PgPool,
+    deployment_id: &str,
+) -> Result<String, AppError> {
+    sqlx::query_scalar::<_, String>(
+        r#"SELECT "orgId" FROM "AgentWebsiteDeployment" WHERE id = $1 LIMIT 1"#,
+    )
+    .bind(deployment_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Website Chat deployment not found".to_string()))
 }
 
 fn normalize_required(value: Option<&str>, field: &str) -> Result<String, AppError> {

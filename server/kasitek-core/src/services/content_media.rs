@@ -306,6 +306,32 @@ async fn asset_view(
     .map_err(AppError::from)
 }
 
+/// Returns safe metadata for an organisation-owned asset. This deliberately
+/// excludes storage keys and bytes; callers can request a separately
+/// authorized read only at the point where bytes are required.
+pub async fn get_content_media_asset(
+    pool: &PgPool,
+    org_id: &str,
+    asset_id: &str,
+) -> Result<ContentMediaAssetView, AppError> {
+    asset_view(pool, org_id, asset_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Media asset not found".to_string()))
+}
+
+pub async fn get_content_media_preview(
+    pool: &PgPool,
+    config: &AppConfig,
+    org_id: &str,
+    asset_id: &str,
+) -> Result<(ContentMediaAssetView, String), AppError> {
+    let asset = get_content_media_asset(pool, org_id, asset_id).await?;
+    if asset.processing_status != "READY" || asset.scan_status != "CLEAN" {
+        return Err(AppError::Conflict("Media asset is not ready".to_string()));
+    }
+    Ok((asset, public_media_url(config, asset_id)))
+}
+
 #[derive(Debug, sqlx::FromRow)]
 struct ContentMediaAssetViewRow {
     id: String,

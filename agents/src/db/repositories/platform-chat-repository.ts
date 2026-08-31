@@ -40,6 +40,38 @@ function fallbackConversationTitle(message: string): string {
   return words.length > 72 ? `${words.slice(0, 69).trimEnd()}…` : words;
 }
 
+function normalizeMediaKind(value: unknown): string {
+  const kind = typeof value === "string" ? value.trim().toLowerCase() : "file";
+  return ["image", "video", "audio", "document", "file"].includes(kind) ? kind : "file";
+}
+
+function normalizeAgentMediaContent(content: Record<string, unknown>): Record<string, unknown> {
+  const source = Array.isArray(content.media)
+    ? content.media
+    : typeof content.assetId === "string" && content.assetId.trim()
+      ? [content]
+      : [];
+  const media = source.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const value = item as Record<string, unknown>;
+    const assetId = typeof value.assetId === "string" ? value.assetId.trim() : "";
+    if (!assetId) return [];
+    return [{
+      assetId,
+      kind: normalizeMediaKind(value.kind ?? value.mediaKind),
+      ...(typeof value.mimeType === "string" ? { mimeType: value.mimeType.slice(0, 160) } : {}),
+      ...(typeof value.fileName === "string" ? { fileName: value.fileName.slice(0, 240) } : {}),
+      ...(typeof value.altText === "string" ? { altText: value.altText.slice(0, 1_000) } : {}),
+      ...(typeof value.caption === "string" ? { caption: value.caption.slice(0, 2_000) } : {}),
+      disposition: value.disposition === "attachment" ? "attachment" : "inline",
+    }];
+  });
+  if (!media.length) return content;
+  const seen = new Set<string>();
+  const uniqueMedia = media.filter((item) => !seen.has(item.assetId) && seen.add(item.assetId));
+  return { ...content, media: uniqueMedia };
+}
+
 export class PlatformChatRepository {
   public constructor(private readonly pool: Pool) {}
 
@@ -152,6 +184,7 @@ export class PlatformChatRepository {
     model?: string;
   }): Promise<AcceptedPlatformMessage> {
     return withTransaction(this.pool, async (client) => {
+      const content = normalizeAgentMediaContent(input.content ?? { text: input.message });
       const existing = await client.query<RunRecord>(
         `SELECT * FROM agent_runs
          WHERE organization_id = $1 AND idempotency_key = $2
@@ -230,7 +263,7 @@ export class PlatformChatRepository {
           installation.agent_version_id,
           input.installationId,
           resolved.conversation.id,
-          JSON.stringify({ message: input.content?.assetId ? input.content : input.message, context: input.context ?? {} }),
+          JSON.stringify({ message: content.media ? content : input.message, context: input.context ?? {} }),
           input.correlationId ?? null,
           input.actorId,
           input.idempotencyKey,
@@ -269,7 +302,7 @@ export class PlatformChatRepository {
           input.organizationId,
           resolved.userParticipant.id,
           input.messageType ?? "text",
-          JSON.stringify(input.content ?? { text: input.message }),
+          JSON.stringify(content),
           `${input.organizationId}:${input.idempotencyKey}`,
           nextSequence,
           run.id,
@@ -296,7 +329,7 @@ export class PlatformChatRepository {
          SET updated_at = now(), last_message_at = now(), last_message_direction = 'inbound',
              last_message_preview = LEFT($2, 500), message_count = message_count + 1
          WHERE id = $1`,
-        [resolved.conversation.id, input.message],
+        [resolved.conversation.id, typeof content.text === "string" ? content.text : input.message],
       );
       const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, resolved.conversation.id);
       await enqueueAgentConversationMessage(client, context, createdMessage.rows[0]!, "created");
@@ -443,6 +476,7 @@ export class PlatformChatRepository {
     correlationId?: string;
   }): Promise<AcceptedExternalMessage> {
     return withTransaction(this.pool, async (client) => {
+      const content = normalizeAgentMediaContent(input.content);
       type ChannelRoute = {
         id: string;
         owner_actor_id: string | null;
@@ -598,7 +632,7 @@ export class PlatformChatRepository {
           route.installation_id,
           resolved.conversation.id,
           JSON.stringify({
-            message: typeof input.content.assetId === "string" ? input.content : (input.content.text ?? input.content),
+            message: content.media ? content : (content.text ?? content),
             context: { sourceChannel: input.channelType },
           }),
           input.correlationId ?? null,
@@ -627,7 +661,7 @@ export class PlatformChatRepository {
           input.organizationId,
           sourceParticipant.id,
           input.messageType,
-          JSON.stringify(input.content),
+          JSON.stringify(content),
           input.provider,
           input.providerMessageId,
           nextSequence,
@@ -673,7 +707,7 @@ export class PlatformChatRepository {
         [
           resolved.conversation.id,
           input.occurredAt ?? null,
-          typeof input.content.text === "string" ? input.content.text : null,
+          typeof content.text === "string" ? content.text : null,
           input.messageType,
         ],
       );

@@ -71,6 +71,31 @@ export class DiscordBotClient {
     return { providerMessageId: typeof result.id === "string" ? result.id : undefined, status: "sent" };
   }
 
+  public async sendMediaResponse(
+    token: string,
+    channelId: string,
+    text: string,
+    media: readonly ResolvedAgentMedia[],
+    options: { buttons?: DiscordComponentButton[] } = {},
+  ): Promise<DiscordSendResult> {
+    if (!media.length) return this.sendMessage(token, channelId, text, options);
+    const imageEmbeds = media
+      .filter((item) => item.kind === "image")
+      .map((item) => ({ image: { url: item.previewUrl }, ...(item.fileName ? { title: item.fileName } : {}) }));
+    const links = media
+      .filter((item) => item.kind !== "image")
+      .map((item) => `[${item.fileName || "Attachment"}](${item.previewUrl})`);
+    const content = [text.trim(), ...links].filter(Boolean).join("\n\n");
+    const components = options.buttons?.length
+      ? [{ type: 1, components: options.buttons.slice(0, 5).map((button) => ({ type: 2, style: button.style === "danger" ? 4 : 3, label: button.label.slice(0, 80), custom_id: button.customId })) }]
+      : undefined;
+    const result = await this.call<{ id?: unknown }>(token, `/channels/${encodeURIComponent(channelId)}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ content: content || undefined, ...(imageEmbeds.length ? { embeds: imageEmbeds.slice(0, 10) } : {}), ...(components ? { components } : {}) }),
+    });
+    return { providerMessageId: typeof result.id === "string" ? result.id : undefined, status: "sent" };
+  }
+
   public async downloadAttachment(token: string, url: string, maxBytes = 25 * 1024 * 1024): Promise<DiscordDownloadedAttachment> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -166,3 +191,4 @@ export class DiscordBotClient {
     });
   }
 }
+import type { ResolvedAgentMedia } from "../media/delivery";

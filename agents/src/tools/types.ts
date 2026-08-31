@@ -66,7 +66,7 @@ export interface ToolInvocationResult {
   version: string;
   argumentsHash: string;
   output: unknown;
-  control?: "awaiting_human";
+  control?: "awaiting_human" | "final_response";
   effectId?: string;
   latencyMs: number;
 }

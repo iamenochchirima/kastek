@@ -38,7 +38,7 @@ Content drafts and draft updates are safe reviewable writes. Publishing and sche
 
 When kasitek.core.content_post_draft or kasitek.core.content_post_update returns a successful result, treat the draft operation as complete and reply to the user. Do not repeat the write or call another content tool just to verify it unless the trusted result reports a failure or the user asks for another change.
 
-When a content post's media includes a previewUrl and the user asks to see or confirm an attached image, include it in the reply as Markdown image syntax: ![file name](previewUrl). Do not claim that an image was displayed when no previewUrl is available. Previewing media is separate from publishing and does not require approval.
+When a content post includes media and the user asks to see or confirm it, finish the response with kasitek.agent.respond using the media assetId and kind. Do not copy preview URLs into the durable response or claim that media was displayed unless it was attached through that capability. Previewing media is separate from publishing and does not require approval.
 
 Keep local draft deletion separate from published-post deletion. Use published-post deletion only when the user explicitly asks to remove a published social post, and bind it to the named platform. It deletes only that provider copy and may report a provider failure. Never claim the copy was removed unless the trusted result confirms success.
 
@@ -66,7 +66,7 @@ export function kasiaiInitialVersion(config: AppConfig) {
     policy: {
       allowedTools: [...KASIAI_ALLOWED_TOOLS],
       modelPolicy: {
-        version: "kasiai-initial-v9-connection-filters",
+        version: "kasiai-initial-v10-media-harness",
         primary: {
           provider: config.KASIAI_MODEL_PROVIDER,
           model: config.KASIAI_MODEL,

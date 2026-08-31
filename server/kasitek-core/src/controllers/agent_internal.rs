@@ -23,7 +23,9 @@ use crate::error::AppError;
 use crate::identity::internal_delegation;
 use crate::identity::request_context::RequestContext;
 use crate::services::whatsapp::WhatsappReplyButton;
-use crate::services::{connections, content_media, credits, customers, inbox, website, whatsapp};
+use crate::services::{
+    connections, content_media, credits, customers, inbox, website, whatsapp, whatsapp_inbox,
+};
 
 #[derive(Debug, Default, Deserialize)]
 pub struct AgentContentInsightsQuery {
@@ -1232,6 +1234,44 @@ pub async fn download_content_media(
     Ok(response.body(stored.bytes))
 }
 
+/// Metadata projection for the Agent Media Harness. The response contains a
+/// stable asset identity and safe display fields only; it never includes an
+/// expiring preview URL, storage key, or bytes.
+pub async fn get_content_media_metadata(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (organization_id, _) =
+        require_internal_agent(config.get_ref(), &req, "kasitek.core.content_media_read").await?;
+    let asset = content_media::get_content_media_asset(
+        pool.get_ref(),
+        &organization_id,
+        &path.into_inner(),
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(json!({ "asset": asset })))
+}
+
+pub async fn get_content_media_preview(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let (organization_id, _) =
+        require_internal_agent(config.get_ref(), &req, "kasitek.core.content_media_read").await?;
+    let (asset, preview_url) = content_media::get_content_media_preview(
+        pool.get_ref(),
+        config.get_ref(),
+        &organization_id,
+        &path.into_inner(),
+    )
+    .await?;
+    Ok(HttpResponse::Ok().json(json!({ "asset": asset, "previewUrl": preview_url })))
+}
+
 pub async fn delete_audio_content_media(
     pool: web::Data<PgPool>,
     config: web::Data<AppConfig>,
@@ -1383,7 +1423,10 @@ pub struct AgentContentDeletePublishedRequest {
 pub struct AgentChannelDeliveryRequest {
     pub channel_type: String,
     pub external_conversation_id: String,
+    #[serde(default)]
     pub text: String,
+    #[serde(default)]
+    pub media: Vec<whatsapp_inbox::AgentMediaAttachment>,
     #[serde(default)]
     pub buttons: Vec<WhatsappReplyButton>,
 }
@@ -1407,19 +1450,26 @@ pub async fn deliver_channel_message(
     })?;
     let channel_type = body.channel_type.trim().to_ascii_lowercase();
     let text = body.text.trim();
-    if text.is_empty() || text.len() > 20_000 {
+    if (text.is_empty() && body.media.is_empty()) || text.len() > 20_000 {
         return Err(AppError::BadRequest(
-            "Agent reply text is invalid".to_string(),
+            "Agent reply must include text or media".to_string(),
         ));
     }
     let result = match channel_type.as_str() {
         "whatsapp" => {
+            if !body.buttons.is_empty() && !body.media.is_empty() {
+                return Err(AppError::BadRequest(
+                    "WhatsApp replies cannot combine buttons and media".to_string(),
+                ));
+            }
             whatsapp::deliver_agent_message(
                 pool.get_ref(),
+                config.get_ref(),
                 &organization_id,
                 body.external_conversation_id.trim(),
                 text,
                 idempotency_key,
+                &body.media,
                 &body.buttons,
             )
             .await?
@@ -1427,16 +1477,18 @@ pub async fn deliver_channel_message(
         "website" => {
             let event = website::record_agent_website_delivery(
                 pool.get_ref(),
+                &organization_id,
                 body.external_conversation_id.trim(),
                 idempotency_key,
                 text,
+                &body.media,
             )
             .await?
             .ok_or_else(|| AppError::NotFound("Website Chat session not found".to_string()))?;
             serde_json::json!({ "providerMessageId": event.id, "status": "sent" })
         }
         "facebook" | "instagram" => {
-            if !body.buttons.is_empty() {
+            if !body.buttons.is_empty() || !body.media.is_empty() {
                 return Err(AppError::BadRequest(
                     "Facebook and Instagram agent replies support text only".to_string(),
                 ));
@@ -1462,6 +1514,7 @@ pub async fn deliver_channel_message(
         channel = %channel_type,
         organization_id = %organization_id,
         actor_id = %actor_id,
+        media_count = body.media.len(),
         "agent channel delivery completed"
     );
     Ok(HttpResponse::Ok().json(result))

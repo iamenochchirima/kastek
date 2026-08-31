@@ -39,6 +39,89 @@ Get the current UTC time from the trusted platform runtime.
   "additionalProperties": false
 }
 ```
+## kasitek.core.content_media_get (1.0.0)
+
+Read safe metadata for one workspace media asset. Use it to verify an asset before attaching it to a hosted-agent response.
+
+- Owner: `kasitek-core`
+- Permission: `content.read` (Content Read permission)
+- Risk: `read`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 12000ms
+- Resource scope: `content_media`
+- Audit: `restricted`; redacts: none
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "assetId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    }
+  },
+  "required": [
+    "assetId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "required": [
+    "asset"
+  ],
+  "additionalProperties": false
+}
+```
+## kasitek.core.content_media_preview (1.0.0)
+
+Resolve one authorized workspace media asset to safe metadata and a short-lived preview URL for the current response.
+
+- Owner: `kasitek-core`
+- Permission: `content.read` (Content Read permission)
+- Risk: `read`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 12000ms
+- Resource scope: `content_media`
+- Audit: `restricted`; redacts: `previewUrl`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "assetId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    }
+  },
+  "required": [
+    "assetId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "required": [
+    "asset",
+    "previewUrl"
+  ],
+  "additionalProperties": false
+}
+```
 ## kasitek.core.customer_get (1.0.0)
 
 Read a customer profile and scoped history from kasitek-core.
@@ -1023,7 +1106,7 @@ List the current workspace's content drafts, schedules, and publication records.
 - Permission: `content.read` (Content Read permission)
 - Risk: `read`; execution: `immediate`; approval: `none`
 - Idempotency: `not_applicable`; timeout: 12000ms
-- Audit: `restricted`; redacts: `posts.publishJobs.providerReceipt`
+- Audit: `restricted`; redacts: `posts.publishJobs.providerReceipt`, `posts.media.previewUrl`
 
 ### Input schema
 
@@ -1059,7 +1142,7 @@ Read one workspace-owned content post and its safe publication status.
 - Risk: `read`; execution: `immediate`; approval: `none`
 - Idempotency: `not_applicable`; timeout: 12000ms
 - Resource scope: `content_post`
-- Audit: `restricted`; redacts: `post.publishJobs.providerReceipt`
+- Audit: `restricted`; redacts: `post.publishJobs.providerReceipt`, `post.media.previewUrl`
 
 ### Input schema
 
@@ -1245,7 +1328,7 @@ Update a workspace content draft without publishing it. Use media assetId values
 - Risk: `draft`; execution: `immediate`; approval: `none`
 - Idempotency: `not_applicable`; timeout: 15000ms
 - Resource scope: `content_post`
-- Audit: `full`; redacts: `post.publishJobs.providerReceipt`
+- Audit: `full`; redacts: `post.publishJobs.providerReceipt`, `post.media.previewUrl`
 
 ### Input schema
 
@@ -1389,7 +1472,7 @@ Create a workspace content draft without publishing it to any provider. When the
 - Permission: `content.write` (Content Write permission)
 - Risk: `draft`; execution: `immediate`; approval: `none`
 - Idempotency: `required`; timeout: 15000ms
-- Audit: `full`; redacts: `post.publishJobs.providerReceipt`
+- Audit: `full`; redacts: `post.publishJobs.providerReceipt`, `post.media.previewUrl`
 
 ### Input schema
 

@@ -53,6 +53,21 @@ describe("Telegram bot client", () => {
     });
   });
 
+  it("sends typed media using Telegram's native media methods", async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { message_id: 459 } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { message_id: 460 } }), { status: 200 }));
+    const client = new TelegramBotClient({ apiBaseUrl: "https://telegram.test", fetchImpl });
+
+    await expect(client.sendMediaResponse("token", "42", "See these files", [
+      { assetId: "image-1", kind: "image", previewUrl: "https://core.test/image", fileName: "image.png" },
+      { assetId: "doc-1", kind: "document", previewUrl: "https://core.test/doc", fileName: "brief.pdf" },
+    ])).resolves.toEqual({ providerMessageId: "460", status: "sent" });
+    expect(fetchImpl).toHaveBeenNthCalledWith(1, "https://telegram.test/bottoken/sendPhoto", expect.objectContaining({ method: "POST" }));
+    expect(fetchImpl).toHaveBeenNthCalledWith(2, "https://telegram.test/bottoken/sendDocument", expect.objectContaining({ method: "POST" }));
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toMatchObject({ photo: "https://core.test/image", caption: "See these files", parse_mode: "HTML" });
+  });
+
   it("sends approval buttons and acknowledges callback clicks", async () => {
     const fetchImpl = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { message_id: 99 } }), { status: 200 }))

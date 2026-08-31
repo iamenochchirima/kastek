@@ -36,7 +36,7 @@ import { authorizeInstallationCapability } from "../capabilities/authorization";
 import { validateWorkflowGraph, type WorkflowGraph } from "../workflows/graph";
 import { executeWorkflowGraph } from "../workflows/executor";
 import { WorkflowStateRepository } from "../db/repositories/workflow-state-repository";
-import { redactSensitiveValue } from "../tools/redaction";
+import { redactSensitiveValue, redactToolOutput } from "../tools/redaction";
 import type { ModelCredentials, ModelRequest, ModelResponse } from "../model/types";
 import { buildGroundingProvenance } from "../runtime/provenance";
 import type { ToolInvocationContext } from "../tools/types";
@@ -51,6 +51,9 @@ import { IntegrationRepository } from "../integrations/repository";
 import { IntegrationToolService } from "../integrations/service";
 import { registerIntegrationTools } from "../integrations/tools";
 import { withSpan } from "../telemetry/spans";
+import { agentResponseSchema, agentResponseToolInputSchema, parseAgentResponse } from "../media/contracts";
+import { materializeResponseLinks, type ResolvedAgentMedia } from "../media/delivery";
+import { channelMediaProfile } from "../media/profiles";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -163,6 +166,38 @@ export async function reserveModelCredits(input: {
 export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversationActions?: ConversationActionService, integrationTools?: IntegrationToolService): ToolRegistry {
   const tools = new ToolRegistry();
   tools.register({
+    name: "kasitek.agent.respond",
+    version: "1.0.0",
+    description: "Finish the current hosted-agent reply. Use this when returning workspace media: provide the normal text plus stable media asset references. Do not put URLs or raw bytes in the response.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 1_000,
+    inputSchema: agentResponseToolInputSchema,
+    outputSchema: {
+      type: "object",
+      properties: { control: { type: "string", const: "final_response" }, response: agentResponseToolInputSchema },
+      required: ["control", "response"],
+      additionalProperties: false,
+    },
+    handler: async (context, args) => {
+      const response = agentResponseSchema.parse(args);
+      if (!response.media.length) return { control: "final_response", response };
+      if (!coreClient) throw new Error("kasitek-core media boundary is not configured");
+      const media = await Promise.all(response.media.map(async (item) => {
+        const { asset } = await coreClient.getContentMediaMetadata(context, item.assetId);
+        const kind = asset.kind.toLowerCase();
+        if (kind !== item.kind) throw new Error(`Media kind does not match asset: ${item.assetId}`);
+        if (asset.processingStatus !== "READY" || asset.scanStatus !== "CLEAN") throw new Error(`Media asset is not ready: ${item.assetId}`);
+        return {
+          ...item,
+          mimeType: asset.mimeType,
+          ...(asset.fileName ? { fileName: asset.fileName } : {}),
+        };
+      }));
+      return { control: "final_response", response: { ...response, media } };
+    },
+  });
+  tools.register({
     name: "platform.current_time",
     version: "1.0.0",
     description: "Get the current UTC time from the trusted platform runtime.",
@@ -178,6 +213,46 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     },
     manifest: { ownerService: "agents", requiredScope: "platform.time.read", execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "access", redaction: [] },
     handler: async () => ({ iso: new Date().toISOString() }),
+  });
+  tools.register({
+    name: "kasitek.core.content_media_get",
+    version: "1.0.0",
+    description: "Read safe metadata for one workspace media asset. Use it to verify an asset before attaching it to a hosted-agent response.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 12_000,
+    inputSchema: {
+      type: "object",
+      properties: { assetId: { type: "string", minLength: 1, maxLength: 160 } },
+      required: ["assetId"],
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object", required: ["asset"], additionalProperties: false },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.read", resourceSelector: { type: "content_media", argument: "assetId" }, execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: [] },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core media boundary is not configured");
+      return coreClient.getContentMediaMetadata(context, String(args.assetId));
+    },
+  });
+  tools.register({
+    name: "kasitek.core.content_media_preview",
+    version: "1.0.0",
+    description: "Resolve one authorized workspace media asset to safe metadata and a short-lived preview URL for the current response.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 12_000,
+    inputSchema: {
+      type: "object",
+      properties: { assetId: { type: "string", minLength: 1, maxLength: 160 } },
+      required: ["assetId"],
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object", required: ["asset", "previewUrl"], additionalProperties: false },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.read", resourceSelector: { type: "content_media", argument: "assetId" }, execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: ["previewUrl"] },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core media boundary is not configured");
+      return coreClient.getContentMediaPreview(context, String(args.assetId));
+    },
   });
   tools.register({
     name: "kasitek.core.customer_get",
@@ -786,7 +861,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     timeoutMs: 12_000,
     inputSchema: { type: "object", additionalProperties: false },
     outputSchema: { type: "object", properties: { posts: { type: "array" } }, required: ["posts"], additionalProperties: false },
-    manifest: { ownerService: "kasitek-core", requiredScope: "content.read", execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: ["posts.publishJobs.providerReceipt"] },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.read", execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: ["posts.publishJobs.providerReceipt", "posts.media.previewUrl"] },
     handler: async (context) => {
       if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
       return projectContentPostsForAgent(await coreClient.listContentPosts(context));
@@ -801,7 +876,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     timeoutMs: 12_000,
     inputSchema: { type: "object", properties: { postId: { type: "string", minLength: 1, maxLength: 160 } }, required: ["postId"], additionalProperties: false },
     outputSchema: { type: "object", required: ["post"], additionalProperties: true },
-    manifest: { ownerService: "kasitek-core", requiredScope: "content.read", resourceSelector: { type: "content_post", argument: "postId" }, execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: ["post.publishJobs.providerReceipt"] },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.read", resourceSelector: { type: "content_post", argument: "postId" }, execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: ["post.publishJobs.providerReceipt", "post.media.previewUrl"] },
     handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
       const response = await coreClient.getContentPost(context, String(args.postId));
@@ -931,7 +1006,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
       additionalProperties: false,
     },
     outputSchema: { type: "object", required: ["post"], additionalProperties: true },
-    manifest: { ownerService: "kasitek-core", requiredScope: "content.write", resourceSelector: { type: "content_post", argument: "postId" }, execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "full", redaction: ["post.publishJobs.providerReceipt"] },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.write", resourceSelector: { type: "content_post", argument: "postId" }, execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "full", redaction: ["post.publishJobs.providerReceipt", "post.media.previewUrl"] },
     handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
       const input = {
@@ -1004,7 +1079,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
       additionalProperties: false,
     },
     outputSchema: { type: "object", required: ["post"], additionalProperties: true },
-    manifest: { ownerService: "kasitek-core", requiredScope: "content.write", execution: "immediate", idempotency: "required", approval: "none", auditClassification: "full", redaction: ["post.publishJobs.providerReceipt"] },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.write", execution: "immediate", idempotency: "required", approval: "none", auditClassification: "full", redaction: ["post.publishJobs.providerReceipt", "post.media.previewUrl"] },
     handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
       const input = {
@@ -1236,11 +1311,18 @@ function boundedPreviewString(value: unknown, maxLength = 256): string | undefin
   return trimmed ? trimmed.slice(0, maxLength) : undefined;
 }
 
+function durableDeliveryTextPreview(value: string): string {
+  return value
+    .replace(/https?:\/\/[^\s)]+/gi, "[link]")
+    .trim()
+    .slice(0, 1_000);
+}
+
 function projectContentMediaForAgent(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const media = value as Record<string, unknown>;
   const assetId = boundedPreviewString(media.assetId ?? media.asset_id, 160);
-  const kind = boundedPreviewString(media.kind, 40);
+  const kind = boundedPreviewString(media.kind, 40)?.toLowerCase();
   const fileName = boundedPreviewString(media.fileName ?? media.file_name, 240);
   const previewUrl = boundedPreviewString(media.previewUrl ?? media.preview_url, 2_048);
   const processingStatus = boundedPreviewString(media.processingStatus ?? media.processing_status, 40);
@@ -1778,29 +1860,57 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       if (await controls.isHeld({ organizationId: pending.organization_id, installationId: pending.installation_id, runId: pending.run_id, holdType: "delivery" })) {
         throw new Error("AGENT_DELIVERY_HOLD_ACTIVE");
       }
-      const text = typeof pending.content.text === "string" ? pending.content.text.trim() : "";
-      if (!text) throw new Error("External channel reply has no text content");
+      const response = parseAgentResponse(pending.content);
+      const channelType = pending.channel_type.trim().toLowerCase();
+      const mediaProfile = channelMediaProfile(channelType);
+      const coreMediaChannel = channelType === "whatsapp" || channelType === "website";
+      const linkChannel = channelType === "telegram" || channelType === "discord";
+      const nativeMedia = response.media.filter((item) => mediaProfile.nativeKinds.has(item.kind));
+      const fallbackMedia = response.media.filter((item) => !mediaProfile.nativeKinds.has(item.kind));
+      const resolvedMedia: ResolvedAgentMedia[] = [];
+      if (response.media.length && coreClient && (linkChannel || fallbackMedia.length)) {
+        for (const item of (linkChannel ? response.media : fallbackMedia)) {
+          const preview = await coreClient.getContentMediaPreview({
+            organizationId: pending.organization_id,
+            installationId: pending.installation_id,
+            actorId: pending.actor_id,
+            runId: pending.run_id,
+            correlationId: pending.correlation_id,
+          }, item.assetId);
+          resolvedMedia.push({ assetId: item.assetId, kind: item.kind, fileName: preview.asset.fileName, previewUrl: preview.previewUrl });
+        }
+      }
+      const fallbackText = fallbackMedia.length && mediaProfile.fallback === "link"
+        ? materializeResponseLinks({ ...response, text: "", media: fallbackMedia }, resolvedMedia).trim()
+        : fallbackMedia.length ? "Attachment unavailable on this channel." : "";
+      const text = (coreMediaChannel
+        ? [response.text.trim(), fallbackText].filter(Boolean).join("\n\n")
+        : mediaProfile.fallback === "text"
+          ? [response.text.trim(), fallbackText].filter(Boolean).join("\n\n")
+          : materializeResponseLinks(response, resolvedMedia)).trim()
+        || (!coreMediaChannel && response.media.length ? "Attachment" : "");
+      if (!text && !response.media.length) throw new Error("External channel reply has no text or media content");
       const deliveryStep = await runSteps.startStep({
         runId: pending.run_id,
         organizationId: pending.organization_id,
         stepType: "delivery",
-        input: { preview: buildDomainApprovalSnapshot("kasitek.core.channel_deliver", { channelType: pending.channel_type, externalConversationId: pending.external_conversation_id, text }) },
+        input: { preview: buildDomainApprovalSnapshot("kasitek.core.channel_deliver", { channelType, externalConversationId: pending.external_conversation_id, text: durableDeliveryTextPreview(response.text || (response.media.length ? "[media attachment]" : "")), media: response.media.map((item) => ({ assetId: item.assetId, kind: item.kind })) }) },
       });
       let claimed = false;
       try {
         await channels.claimDelivery(pending.organization_id, pending.attempt_id);
         claimed = true;
-        const result = pending.channel_type === "telegram"
+        const result = channelType === "telegram"
           ? await (async () => {
             if (!channelCredentials || !telegramClient || !pending.credential_reference) throw new Error("Telegram channel delivery is not configured");
             const token = await channelCredentials.resolve(pending.organization_id, pending.credential_reference, "telegram");
-            return telegramClient.sendMessage(token, pending.external_conversation_id, text);
+            return telegramClient.sendMediaResponse(token, pending.external_conversation_id, response.text, resolvedMedia);
           })()
-          : pending.channel_type === "discord"
+          : channelType === "discord"
           ? await (async () => {
             if (!channelCredentials || !discordClient || !pending.credential_reference) throw new Error("Discord channel delivery is not configured");
             const token = await channelCredentials.resolve(pending.organization_id, pending.credential_reference, "discord");
-            return discordClient.sendMessage(token, pending.external_conversation_id, text);
+            return discordClient.sendMediaResponse(token, pending.external_conversation_id, response.text, resolvedMedia);
           })()
           : await (async () => {
             if (!coreClient) throw new Error("kasitek-core channel delivery boundary is not configured");
@@ -1810,11 +1920,13 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
               actorId: pending.actor_id,
               runId: pending.run_id,
               correlationId: pending.correlation_id,
-              channelType: pending.channel_type,
+              channelType,
               externalConversationId: pending.external_conversation_id,
               text,
+              ...(coreMediaChannel && nativeMedia.length ? { media: nativeMedia } : {}),
             });
           })();
+        if (result.status === "unknown") throw new Error("CHANNEL_DELIVERY_UNKNOWN");
         await channels.markDelivered({
           organizationId: pending.organization_id,
           attemptId: pending.attempt_id,
@@ -1826,7 +1938,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           runId: pending.run_id,
           installationId: pending.installation_id,
           eventType: "agent.reply.delivered",
-          payload: { channelType: pending.channel_type, status: result.status },
+          payload: { channelType, status: result.status, mediaCount: response.media.length, mediaKinds: [...new Set(response.media.map((item) => item.kind))] },
         });
       } catch (error) {
         if (claimed) {
@@ -1842,7 +1954,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           runId: pending.run_id,
           installationId: pending.installation_id,
           eventType: "agent.reply.delivery_failed",
-          payload: { channelType: pending.channel_type, message: error instanceof Error ? error.message : "Channel delivery failed" },
+          payload: { channelType, mediaCount: response.media.length, mediaKinds: [...new Set(response.media.map((item) => item.kind))], message: error instanceof Error ? error.message : "Channel delivery failed" },
         });
       }
     },
@@ -2050,14 +2162,15 @@ async function executeMcpToolRun(
         correlationId: run.correlation_id,
       },
     });
+    const durableOutput = redactToolOutput(result.output, manifest.manifest?.redaction ?? []);
     await toolInvocations.recordCompleted({
       runId: run.id,
       providerToolCallId: invocation.id,
-      output: result.output,
+      output: durableOutput,
       latencyMs: result.latencyMs,
       effectId: result.effectId,
     });
-    if (result.effectId) await effectReceipts.markSucceededByKey(run.organization_id, `${run.id}:${invocation.name}:${argumentsHash}`, result.output);
+    if (result.effectId) await effectReceipts.markSucceededByKey(run.organization_id, `${run.id}:${invocation.name}:${argumentsHash}`, durableOutput);
     if (stepId) await runSteps.finishStep({ stepId, status: "completed", output: { latencyMs: result.latencyMs } });
     await runs.appendEvent({
       organizationId: run.organization_id,
@@ -2156,6 +2269,9 @@ async function executeLoopForRun(
   if (await killSwitches.isBlocked({ organizationId: run.organization_id, agentId: run.agent_definition_id, installationId: run.installation_id, toolNames: [...allowedTools] })) {
     throw new Error("AGENT_KILL_SWITCH_ACTIVE");
   }
+  // Harness controls are available to every hosted run. They are not an
+  // installation grant and are never exposed as external business actions.
+  allowedTools.add("kasitek.agent.respond");
   if (!(await controls.isFeatureEnabled(run.organization_id, "agent_execution_enabled", run.installation_id))) throw new Error("AGENT_EXECUTION_FLAG_DISABLED");
   if (await controls.isHeld({ organizationId: run.organization_id, installationId: run.installation_id, runId: run.id, holdType: "execution" })) throw new Error("AGENT_EXECUTION_HOLD_ACTIVE");
   const credentialReference = isKasiAiInstallation && typeof preference?.default_credential_reference === "string"
@@ -2183,16 +2299,18 @@ async function executeLoopForRun(
     : undefined;
   const currentMessage = typeof currentInputMessage === "string"
     ? currentInputMessage
-    : currentInputRecord && typeof currentInputRecord.assetId === "string"
-      ? JSON.stringify({
-        text: currentInputRecord.text,
-        attachedWorkspaceMedia: {
-          assetId: currentInputRecord.assetId,
-          mimeType: currentInputRecord.mimeType,
-          fileName: currentInputRecord.fileName,
-          mediaKind: currentInputRecord.mediaKind,
-        },
-      })
+    : currentInputRecord && Array.isArray(currentInputRecord.media)
+        ? JSON.stringify({ text: currentInputRecord.text, attachedWorkspaceMedia: currentInputRecord.media })
+      : currentInputRecord && typeof currentInputRecord.assetId === "string"
+        ? JSON.stringify({
+          text: currentInputRecord.text,
+          attachedWorkspaceMedia: {
+            assetId: currentInputRecord.assetId,
+            mimeType: currentInputRecord.mimeType,
+            fileName: currentInputRecord.fileName,
+            mediaKind: currentInputRecord.mediaKind,
+          },
+        })
       : JSON.stringify(currentInputMessage ?? run.input);
   const rawDynamicContext = run.input.context && typeof run.input.context === "object" && !Array.isArray(run.input.context)
     ? run.input.context as Record<string, unknown>
@@ -2270,6 +2388,7 @@ async function executeLoopForRun(
         : run.instructions.replace(/You are a general-purpose KasiTek workspace assistant\.\s*/gi, ""),
       preferenceInstruction,
       userAgentIdentityInstruction,
+      "Media delivery is a shared harness capability across every hosted agent and channel. Use kasitek.agent.respond for final responses containing workspace media, passing stable asset IDs and kinds. Keep provider URLs and raw bytes out of durable responses; the channel adapter resolves the appropriate preview, upload, or native attachment at delivery time.",
     ].filter(Boolean).join("\n\n"),
     organizationId: run.organization_id,
     agentId: run.agent_definition_id,
@@ -2415,7 +2534,7 @@ async function executeLoopForRun(
         installationId: run.installation_id,
         name: invocation.name,
         argumentsValue: invocation.arguments,
-        grantedTools,
+        grantedTools: allowedTools,
         tools,
         installationGrants,
         approved: invocation.approved,
@@ -2504,7 +2623,7 @@ async function executeLoopForRun(
         installationId: run.installation_id,
         name: execution.name,
         argumentsValue: execution.arguments,
-        grantedTools,
+        grantedTools: allowedTools,
         tools,
         installationGrants,
         approved: execution.requiresApproval,
@@ -2748,9 +2867,10 @@ async function executeConfiguredWorkflow(input: {
         } : undefined,
       });
       const safeOutput = redactSensitiveValue(result.output);
-      await input.toolInvocations.recordCompleted({ runId: input.run.id, providerToolCallId, output: safeOutput, latencyMs: result.latencyMs, effectId: result.effectId });
+      const durableOutput = redactToolOutput(result.output, manifest.manifest?.redaction ?? []);
+      await input.toolInvocations.recordCompleted({ runId: input.run.id, providerToolCallId, output: durableOutput, latencyMs: result.latencyMs, effectId: result.effectId });
       await input.runSteps.finishStep({ stepId: step.id, status: "completed", output: { latencyMs: result.latencyMs } });
-      if (result.effectId) await input.effectReceipts.markSucceededByKey(input.run.organization_id, `${input.run.id}:${request.name}:${argumentsHash}`, safeOutput);
+      if (result.effectId) await input.effectReceipts.markSucceededByKey(input.run.organization_id, `${input.run.id}:${request.name}:${argumentsHash}`, durableOutput);
       return safeOutput;
     } catch (error) {
       const normalized = { code: error instanceof Error && "code" in error ? String((error as { code?: unknown }).code) : "WORKFLOW_TOOL_FAILED", message: error instanceof Error ? error.message : "Workflow tool failed" };
@@ -2849,9 +2969,19 @@ async function executeConfiguredWorkflow(input: {
   }
   if (result.status === "failed") return { status: "failed", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value, error: { code: "WORKFLOW_FAILED", message: result.error ?? "Workflow execution failed" }, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
   await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: null, __workflowState: result.state } });
-  const output = typeof result.state.output === "string" ? result.state.output : typeof result.state.answer === "string" ? result.state.answer : lastModelResponse?.message.content ?? "Workflow completed";
+  const workflowResponse = (() => {
+    const candidate = result.state.response ?? result.state.output;
+    if (candidate === undefined) return undefined;
+    try {
+      return parseAgentResponse(candidate);
+    } catch {
+      return undefined;
+    }
+  })();
+  const output = workflowResponse?.text
+    || (typeof result.state.output === "string" ? result.state.output : typeof result.state.answer === "string" ? result.state.answer : lastModelResponse?.message.content ?? "Workflow completed");
   const response = lastModelResponse ?? { provider: input.modelProvider, model: input.model, message: { role: "assistant" as const, content: output }, toolCalls: [], finishReason: "workflow", usage: emptyWorkflowUsage(), latencyMs: 0 };
-  return { status: "completed", messages: [response.message], response, usage: { ...response.usage, estimatedCostUsd: response.usage.estimatedCostUsd ?? 0 }, iterations: result.trace.length, toolCalls: toolSequence.value, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
+  return { status: "completed", messages: [response.message], response, ...(workflowResponse ? { completionResponse: workflowResponse } : {}), usage: { ...response.usage, estimatedCostUsd: response.usage.estimatedCostUsd ?? 0 }, iterations: result.trace.length, toolCalls: toolSequence.value, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
 }
 
 function emptyWorkflowUsage(): { inputTokens: number; outputTokens: number; totalTokens: number; estimatedCostUsd: number } {
