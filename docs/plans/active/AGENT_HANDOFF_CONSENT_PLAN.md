@@ -1,6 +1,6 @@
 # Agent Handoff Consent and Escalation Plan
 
-**Status:** Active; implementation complete locally, production rollout pending
+**Status:** Deployed; production channel acceptance pending
 
 **Owner:** Platform
 
@@ -341,8 +341,9 @@ conversation remains `agent_active`; it must not use `awaiting_human` or create 
       the existing handoff repository suite.
 - [x] Test hosted, workflow, MCP/REST, and supported channel adapters through the shared seam where
       existing contract tests cover those boundaries.
-- [ ] Run Agent lint, typecheck, targeted tests, full tests, Core checks, client checks, and relevant
-      end-to-end channel smoke tests.
+- [x] Run Agent lint, typecheck, targeted tests, full tests, Core checks, and client checks.
+- [ ] Run end-to-end channel smoke tests on a dedicated test agent/channel without contacting
+      customer traffic.
 
 ### Rollout and operations
 
@@ -350,7 +351,7 @@ conversation remains `agent_active`; it must not use `awaiting_human` or create 
 - [ ] Roll out to a dedicated test agent and test channel first.
 - [ ] Monitor offer-to-acceptance rate, unconfirmed offer expiry, confirmed requests, duplicate
       decisions, blocked unauthorized transitions, and provider delivery failures.
-- [ ] Add structured logs with organization, installation, conversation, offer/request IDs,
+- [x] Add structured logs with organization, installation, conversation, offer/request IDs,
       correlation ID, policy revision, outcome, and bounded error code; exclude full message bodies.
 - [x] Define rollback without re-enabling unguarded model-created handoffs.
 - [ ] Move this plan to `docs/plans/completed/` only after production acceptance and evidence are
@@ -392,9 +393,10 @@ conversation remains `agent_active`; it must not use `awaiting_human` or create 
 - The existing `AGENT_CONVERSATIONS_HANDOFF_PLAN.md` records the earlier direct-request behavior as
   complete. This plan is the narrower consent and escalation correction and should become the
   governing handoff-policy execution document.
-- Local implementation and build verification are complete. Production rollout still requires the
-  migration step, channel verification, and deployment credentials. Existing unverified requests
-  remain explicitly marked `legacy_unverified`.
+- Local implementation and build verification are complete. Production API, worker, gateway, and
+  migration rollout are complete. Dedicated channel acceptance remains open because it requires a
+  non-customer test conversation. Existing unverified requests remain explicitly marked
+  `legacy_unverified`.
 
 ## Release record
 
@@ -409,8 +411,12 @@ Core inbound proxy and channel delivery coordination, hosted/MCP/REST agent exec
 WhatsApp, Messenger, Instagram, Telegram, Discord, Agent Conversations, and customer-facing handoff
 prompts.
 
-**Platform release version or release ID:** Pending commit and deployment; record commit SHA,
-Agent/Core artifacts, client deployment, migration `077`, and consent policy revision `v1-en`.
+**Platform release version or release ID:** Commit `261d6b96a1c0c2a8e35ea754c9b3511d2c354964`,
+including feature commit `29a6a84b`, merged and pushed to `origin/main`. Consent policy revision is
+`v1-en`. Railway production deployments: Agents API
+`4940e42b-4e00-46e9-b99d-88d9bb6e8b50`, Agents worker
+`1e7e03e7-193f-42aa-af39-3836f2fc0373`, and MCP Gateway
+`abb29b6c-9e15-4e94-9ebf-efb13b7cd1ad`; all report `SUCCESS`.
 
 **API/schema/migration changes:** Durable `agent_handoff_offers` table, consent provenance fields,
 versioned intent contract, and guarded request transition. Existing operator APIs remain backward
@@ -435,10 +441,13 @@ server-side OpenTelemetry requirements apply.
 customer handoff architecture reference, and public conversation operations documentation. A
 separate API page was not applicable because the existing response contract remains additive.
 
-**Validation evidence:** 36 focused handoff/contract tests pass; full Agent suite has 470 passing
-tests and 18 database integration files skipped without `DATABASE_URL`; Agent build, client
-typecheck, client webpack production build, and Core `cargo check -p kasitek-core` pass. Two full-suite
-socket tests remain sandbox-blocked by `listen EPERM`.
+**Validation evidence:** Post-merge focused Agent coverage has 66 passing tests and 9 database
+integration tests skipped without a database. The client TypeScript check, client webpack
+production build, client lint, Agent build, and Core checks pass. The client is responding HTTP
+200 at `https://app.kasitek.co.za`; direct Vercel deployment inspection is unavailable because
+this environment is logged out of Vercel. Railway migration `077_consent_gated_handoff.sql`
+logged `migration.applied`. `https://api.kasitek.co.za/health` and
+`https://agents.kasitek.co.za/health/ready` both returned HTTP 200.
 
 **Rollback or disable plan:** Disable the consent-protocol feature for new offers while preserving
 confirmed requests and historical evidence. Do not roll back to an unguarded model-to-queue path.
