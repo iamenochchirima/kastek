@@ -104,8 +104,9 @@ reference, dashboard copy, migration notes, and deployment runbook.
 
 Validation evidence: Agents build passed; the full Agents suite passed with 486 tests and 18
 database-backed integration files skipped because `AGENTS_DATABASE_URL` is unset. Client
-type-check and lint passed. The migration itself and the database-backed release tests still need
-an isolated database run.
+type-check and lint passed. Migration `078_agent_installation_release_modes.sql` was applied to
+Production through the Railway Agents database SSH tunnel on 2026-08-31. The pushed code is
+commit `487829a4`; its Agents API deployment is awaiting Railway approval.
 
 Rollback or disable plan: Disable automatic deployment for user installations, preserve pinned
 version IDs, and run the explicit rollback operation. The migration is additive and its backfill
@@ -126,8 +127,8 @@ Post-release review date: Set at release time.
 ## Notes and blockers
 
 The local PostgreSQL server is reachable, but `AGENTS_DATABASE_URL` is not configured and the
-available local connection requires credentials, so the migration and database-backed lifecycle
-tests have not been exercised locally. No external blocker is currently known. The existing
-working tree contains unrelated changes in
+available local connection requires credentials, so the database-backed lifecycle tests have not
+been exercised locally. Production migration is complete; Railway approval is still required
+before the Agents API deployment becomes active. The existing working tree contains unrelated changes in
 `.github/workflows/observability.yml` and `docs/plans/active/AGENT_MEDIA_HARNESS_PLAN.md`; those
 files are outside this implementation slice and must remain untouched.
