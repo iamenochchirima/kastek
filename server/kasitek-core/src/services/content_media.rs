@@ -691,7 +691,8 @@ pub async fn download_public_content_media(
         match sqlx::query_as::<_, ContentMediaDownloadRow>(
             r#"
             SELECT "storageKey" AS storage_key, "mimeType" AS mime_type, "fileName" AS file_name,
-                   "processingStatus"::text AS processing_status, "scanStatus"::text AS scan_status
+                   checksum, "processingStatus"::text AS processing_status,
+                   "scanStatus"::text AS scan_status
             FROM "ContentMediaAsset"
             WHERE id = $1
             "#,
