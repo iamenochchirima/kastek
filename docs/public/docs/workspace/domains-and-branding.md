@@ -66,6 +66,11 @@ Website Chat deployments provide an embed snippet with an absolute Kasitek API U
 snippet from the deployment controls and paste it into the target website; the website does not
 need to know or proxy the Kasitek API domain.
 
+The widget keeps the deployment's title, welcome message, primary colour, launcher position,
+size, corner radius, screen offset, avatar, and branding setting. Visitors can send text, use
+the audio controls when enabled, choose a starter question, and expand the chat window. The
+widget also shows an AI accuracy notice.
+
 ## Feature flags through branding
 
 The current portal also reads feature configuration from `widgetConfig`.

@@ -28,15 +28,18 @@ const WEBSITE_CHAT_LOADER: &str = r#"(() => {
   ]).then(([config, session]) => {
     const appearance = config.appearance || {};
     const color = appearance.primaryColor || ({ indigo: '#3730a3', violet: '#7c3aed', emerald: '#059669', blue: '#2563eb', slate: '#334155' })[config.colorPreset] || '#3730a3';
+    const colorAlpha = color.length === 4 ? `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}1a` : `${color}1a`;
     const launcherSize = Number(appearance.launcherSize) || 56;
     const launcherOffset = Number(appearance.launcherOffset) || 16;
+    const viewportGap = Math.max(24, launcherOffset * 2);
     const windowWidth = Number(appearance.windowWidth) || 390;
     const windowHeight = Number(appearance.windowHeight) || 620;
     const launcher = document.createElement('button');
     launcher.type = 'button';
     launcher.setAttribute('aria-label', `Open ${config.displayName || 'KasiTek'} chat`);
-    launcher.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11.5a8 8 0 0 1-8 8 8.7 8.7 0 0 1-3.7-.8L4 20l1.3-3.4A8 8 0 1 1 20 11.5Z"></path><path d="M8 11.5h.01M12 11.5h.01M16 11.5h.01"></path></svg>';
-    launcher.style.cssText = `position:absolute;z-index:2;width:${launcherSize}px;height:${launcherSize}px;border:0;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;background:${color};box-shadow:0 8px 24px #11182740;pointer-events:auto;${config.launcherPosition === 'bottom-right' ? `right:${launcherOffset}px` : `left:${launcherOffset}px`};bottom:${launcherOffset}px`;
+    launcher.setAttribute('aria-expanded', 'false');
+    launcher.innerHTML = '<svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11.5a8 8 0 0 1-8 8 8.7 8.7 0 0 1-3.7-.8L4 20l1.3-3.4A8 8 0 1 1 20 11.5Z"></path><path d="M8 11.5h.01M12 11.5h.01M16 11.5h.01"></path></svg>';
+    launcher.style.cssText = `position:absolute;z-index:2;width:${launcherSize}px;height:${launcherSize}px;border:1px solid #ffffffb8;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;background:${color};box-shadow:0 10px 28px #11182745,0 0 0 5px ${colorAlpha};pointer-events:auto;transition:transform 160ms ease,box-shadow 160ms ease;${config.launcherPosition === 'bottom-right' ? `right:${launcherOffset}px` : `left:${launcherOffset}px`};bottom:${launcherOffset}px`;
     const overlay = document.createElement('div');
     overlay.setAttribute('data-kasitek-chat-overlay', deployment);
     overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483000;pointer-events:none;';
@@ -45,10 +48,17 @@ const WEBSITE_CHAT_LOADER: &str = r#"(() => {
     frame.src = `${api}/frame.html`;
     frame.title = `${config.displayName || 'KasiTek'} chat`;
     frame.setAttribute('aria-label', `${config.displayName || 'KasiTek'} chat`);
-    frame.style.cssText = `position:absolute;z-index:1;border:0;width:${windowWidth}px;height:${windowHeight}px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);${config.launcherPosition === 'bottom-left' ? `left:${launcherOffset}px` : `right:${launcherOffset}px`};bottom:${launcherOffset}px;display:none;background:transparent;pointer-events:auto`;
+    frame.style.cssText = `position:absolute;z-index:1;border:0;width:${windowWidth}px;height:${windowHeight}px;max-width:calc(100vw - ${viewportGap}px);max-height:calc(100vh - ${viewportGap}px);${config.launcherPosition === 'bottom-left' ? `left:${launcherOffset}px` : `right:${launcherOffset}px`};bottom:${launcherOffset}px;display:none;background:transparent;pointer-events:auto`;
     overlay.appendChild(frame);
     document.body.appendChild(overlay);
     let ready = false;
+    let expanded = false;
+    const setFrameLayout = () => {
+      const display = frame.style.display || 'none';
+      frame.style.cssText = expanded
+        ? `position:absolute;z-index:1;border:0;inset:12px;width:auto;height:auto;max-width:none;max-height:none;display:${display};background:transparent;pointer-events:auto`
+        : `position:absolute;z-index:1;border:0;width:${windowWidth}px;height:${windowHeight}px;max-width:calc(100vw - ${viewportGap}px);max-height:calc(100vh - ${viewportGap}px);${config.launcherPosition === 'bottom-left' ? `left:${launcherOffset}px` : `right:${launcherOffset}px`};bottom:${launcherOffset}px;display:${display};background:transparent;pointer-events:auto`;
+    };
     const emit = (payload) => { if (ready) frame.contentWindow?.postMessage(payload, base); };
     const pollAudioStatus = (jobId) => {
       const poll = () => fetch(`${api}/sessions/${encodeURIComponent(session.sessionId)}/audio/${encodeURIComponent(jobId)}${shareSuffix}`, { credentials: 'omit' })
@@ -81,13 +91,14 @@ const WEBSITE_CHAT_LOADER: &str = r#"(() => {
         return { key: `audio-${crypto.randomUUID()}`, storageKey: '' };
       }
     };
-    instance.open = () => { frame.style.display = 'block'; launcher.style.display = 'none'; emit({ type: 'kasitek:open' }); };
-    instance.close = () => { frame.style.display = 'none'; launcher.style.display = 'flex'; };
+    instance.open = () => { expanded = false; frame.style.display = 'block'; setFrameLayout(); launcher.style.display = 'none'; launcher.setAttribute('aria-expanded', 'true'); emit({ type: 'kasitek:open' }); };
+    instance.close = () => { expanded = false; frame.style.display = 'none'; setFrameLayout(); launcher.style.display = 'flex'; launcher.setAttribute('aria-expanded', 'false'); emit({ type: 'kasitek:collapse' }); };
     launcher.addEventListener('click', instance.open);
     window.addEventListener('message', (event) => {
       if (event.source !== frame.contentWindow || event.origin !== base || !event.data) return;
       if (event.data.type === 'kasitek:ready') { ready = true; emit({ type: 'kasitek:init', config, sessionId: session.sessionId }); }
       if (event.data.type === 'kasitek:close') instance.close();
+      if (event.data.type === 'kasitek:toggle-expand') { expanded = event.data.expanded === true; setFrameLayout(); }
       if (event.data.type === 'kasitek:send-audio' && event.data.audio instanceof Blob) {
         const audio = event.data.audio;
         audioIdempotencyKey(audio).then(({ key, storageKey }) => {
@@ -125,16 +136,34 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
     *{box-sizing:border-box}
+    :root{color-scheme:light;--chat-primary:#3730a3;--chat-ink:#1f1f1f;--chat-muted:#8b8b8b}
     html,body{width:100%;height:100%;overflow:hidden}
-    body{margin:0;font-family:Inter,system-ui,sans-serif;color:#172033}
-    #chat{height:100%;min-height:0;display:flex;flex-direction:column;background:#fff;border:1px solid #d8deea;border-radius:var(--chat-radius,16px);box-shadow:0 18px 50px #11182730;overflow:hidden}
-    header{padding:15px 16px;background:var(--chat-primary,#3730a3);color:#fff;font-weight:650;display:flex;justify-content:space-between;flex:0 0 auto}
+    body{margin:0;background:transparent;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--chat-ink);font-size:14px}
+    #chat{height:100%;min-height:0;display:flex;flex-direction:column;background:#fff;border:1px solid #d9d9d9;border-radius:var(--chat-radius,18px);box-shadow:0 20px 55px #1118272e;overflow:hidden}
+    header{min-height:72px;padding:14px 15px;background:#1f1f1f;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;flex:0 0 auto}
     button{border:0;background:transparent;color:inherit;font:inherit;cursor:pointer}
-    button:disabled,input:disabled{cursor:not-allowed;opacity:.65}
-    #messages{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:14px;background:#f8fafc;display:flex;flex-direction:column;gap:9px}
-    .m{max-width:88%;padding:10px 12px;border-radius:12px;overflow-wrap:anywhere;word-break:break-word;line-height:1.35}
-    .me{align-self:flex-end;background:var(--chat-primary,#3730a3);color:#fff}
-    .bot{align-self:flex-start;max-width:92%;background:#e7eaf2}
+    button:focus-visible,input:focus-visible{outline:2px solid var(--chat-primary);outline-offset:2px}
+    button:disabled,input:disabled{cursor:not-allowed;opacity:.6}
+    .header-content{display:flex;align-items:center;min-width:0;gap:11px}
+    .avatar{position:relative;width:40px;height:40px;display:grid;place-items:center;flex:0 0 auto;border:2px solid #fff;border-radius:50%;background:#f4f4f2;color:#1f1f1f;overflow:visible}
+    .avatar:after{content:"";position:absolute;right:-2px;bottom:-1px;width:9px;height:9px;border:2px solid #1f1f1f;border-radius:50%;background:var(--chat-primary)}
+    .avatar svg{width:27px;height:27px}
+    .avatar img{width:100%;height:100%;border-radius:50%;object-fit:cover}
+    .header-copy{display:flex;min-width:0;flex-direction:column;gap:2px}
+    #name{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px;font-weight:700;line-height:1.2}
+    .eyebrow{color:#bdbdbd;font-size:11px;font-weight:500;line-height:1.2}
+    .header-actions{display:flex;align-items:center;gap:2px;flex:0 0 auto}
+    .header-action{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;color:#d1d1d1;transition:background 140ms ease,color 140ms ease}
+    .header-action:hover{background:#ffffff14;color:#fff}
+    .header-action svg{width:19px;height:19px}
+    #messages{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:16px 15px;background:#fff;display:flex;flex-direction:column;gap:10px;scrollbar-color:#d5d5d5 transparent;scrollbar-width:thin}
+    .m{max-width:88%;padding:10px 13px;border-radius:16px;overflow-wrap:anywhere;word-break:break-word;line-height:1.42;font-size:13.5px}
+    .me{align-self:flex-end;background:var(--chat-primary);color:#fff;border-radius:16px 5px 16px 16px;box-shadow:0 4px 12px #1118271c}
+    .bot{align-self:flex-start;max-width:92%;background:#f3f1f0;color:#292929;border-radius:5px 16px 16px 16px}
+    .quick-replies{display:flex;align-self:flex-start;flex-wrap:wrap;gap:6px;max-width:100%;padding:0 1px 2px}
+    .quick-replies[hidden]{display:none}
+    .quick-replies button{padding:7px 10px;border:1px solid #d0d0d0;border-radius:999px;background:#fff;color:#3a3a3a;font-size:12px;line-height:1.2;transition:background 140ms ease,border-color 140ms ease}
+    .quick-replies button:hover{border-color:#969696;background:#f6f6f6}
     .line{min-height:1.35em}
     .line.bullet{padding-left:4px}
     .bot strong{font-weight:700;color:#111827}
@@ -148,35 +177,55 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     .bot table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
     .bot th,.bot td{padding:7px 8px;border:1px solid #cbd5e1;text-align:left;vertical-align:top;overflow-wrap:anywhere;word-break:break-word}
     .bot th{background:#dce2ee;font-weight:700}
-    form{display:flex;gap:8px;padding:10px;border-top:1px solid #e2e8f0;flex:0 0 auto}
-    input{min-width:0;flex:1;border:1px solid #cbd5e1;border-radius:9px;padding:10px;font:inherit}
-    form button{background:var(--chat-primary,#3730a3);color:#fff;border-radius:9px;padding:0 13px;white-space:nowrap}
-    #audio-button,#file-button{width:38px;padding:0;background:transparent;color:#475569;font-size:18px}
-    #audio-button.recording{color:#b91c1c}
+    form{display:flex;padding:10px 12px 9px;border-top:1px solid #eeeeee;background:#fff;flex:0 0 auto}
+    .composer{display:flex;align-items:center;gap:2px;width:100%;min-height:46px;padding:4px 5px 4px 11px;border:1px solid #bdbdbd;border-radius:24px;background:#fff;transition:border-color 140ms ease,box-shadow 140ms ease}
+    .composer:focus-within{border-color:#777;box-shadow:0 0 0 3px color-mix(in srgb,var(--chat-primary) 13%,transparent)}
+    input{min-width:0;flex:1;border:0;outline:0;padding:8px 6px;background:transparent;color:#242424;font:inherit;font-size:13.5px}
+    input::placeholder{color:#848484;opacity:1}
+    .composer-button{display:grid;place-items:center;width:34px;height:34px;flex:0 0 auto;border-radius:50%;color:#8b8b8b;transition:background 140ms ease,color 140ms ease}
+    .composer-button:hover{background:#f2f2f2;color:#3a3a3a}
+    .composer-button svg{width:18px;height:18px}
+    #audio-button.recording{color:#b91c1c;background:#fee2e2}
+    #send-button{background:var(--chat-primary);color:#fff}
+    #send-button:hover{background:color-mix(in srgb,var(--chat-primary) 86%,#000)}
+    #send-button:disabled{background:#d7d7d7;color:#fff}
     #file-input{display:none}
-    small{display:block;padding:0 12px 10px;color:#64748b;text-align:center;flex:0 0 auto}
-    small[hidden]{display:none}
+    small{display:block;padding:0 12px 11px;color:#8c8c8c;text-align:center;font-size:11px;line-height:1.35;flex:0 0 auto}
+    small[hidden]{display:none!important}
     small a{color:inherit;text-decoration:none}
     small a:hover{text-decoration:underline}
-    #error{color:#b91c1c;padding:0 12px 8px;font-size:12px;flex:0 0 auto}
-    .typing{display:flex;align-items:center;gap:4px;color:#64748b}
+    #powered-by{white-space:nowrap}
+    #powered-by[hidden]{display:none}
+    #error{color:#b91c1c;padding:0 14px 8px;font-size:12px;line-height:1.35;flex:0 0 auto}
+    #error:empty{display:none}
+    .typing{display:flex;align-items:center;gap:4px;color:#777}
     .typing[hidden]{display:none!important}
     .typing span{margin-right:2px}
-    .typing i{width:5px;height:5px;border-radius:50%;background:#64748b;animation:typing-dot 1s infinite ease-in-out}
+    .typing i{width:5px;height:5px;border-radius:50%;background:#777;animation:typing-dot 1s infinite ease-in-out}
     .typing i:nth-child(2){animation-delay:.15s}
     .typing i:nth-child(3){animation-delay:.3s}
     .typing i:nth-child(4){animation-delay:.45s}
     @keyframes typing-dot{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-2px)}}
+    @media (max-width:480px){header{min-height:66px;padding:12px}.avatar{width:36px;height:36px}.avatar svg{width:24px;height:24px}.header-action{width:32px;height:32px}#messages{padding:14px 12px}form{padding-left:10px;padding-right:10px}}
+    @media (prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
   </style>
 </head>
 <body>
   <div id="chat">
-    <header><span id="name">Chat</span><button id="close" aria-label="Close chat">×</button></header>
-    <main id="messages"></main>
-    <div id="typing" class="m bot typing" hidden aria-live="polite"><span>Thinking</span><i></i><i></i><i></i></div>
+    <header>
+      <div class="header-content">
+        <div id="avatar" class="avatar" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="7" width="14" height="11" rx="3"></rect><path d="M9 7V5h6v2M8 12h.01M16 12h.01M9 15h6"></path></svg></div>
+        <div class="header-copy"><strong id="name">Chat</strong><span class="eyebrow">Powered by AI</span></div>
+      </div>
+      <div class="header-actions">
+        <button id="expand" class="header-action" type="button" aria-label="Expand chat" title="Expand chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H3v5M3 3l7 7M16 21h5v-5M21 21l-7-7"></path></svg></button>
+        <button id="close" class="header-action" type="button" aria-label="Close chat" title="Close chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg></button>
+      </div>
+    </header>
+    <main id="messages"><div id="quick-replies" class="quick-replies" hidden></div><div id="typing" class="m bot typing" hidden aria-live="polite"><span>Thinking</span><i></i><i></i><i></i></div></main>
     <div id="error" role="alert"></div>
-    <form id="form"><button id="audio-button" type="button" aria-label="Record audio" title="Record audio">●</button><button id="file-button" type="button" aria-label="Attach audio" title="Attach audio">＋</button><input id="file-input" type="file" accept="audio/*"><input id="input" maxlength="4000" placeholder="Type a message…" aria-label="Message"><button id="send-button" type="submit">Send</button></form>
-    <small id="branding">Powered by <a href="https://kasitek.co.za" target="_blank" rel="noopener noreferrer">KasiTek</a></small>
+    <form id="form"><div class="composer"><button id="audio-button" class="composer-button" type="button" aria-label="Record audio" title="Record audio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="3" width="8" height="12" rx="4"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"></path></svg></button><input id="input" maxlength="4000" placeholder="Ask me anything..." aria-label="Message"><button id="file-button" class="composer-button" type="button" aria-label="Attach audio" title="Attach audio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m20.5 11.5-7.8 7.8a5 5 0 0 1-7.1-7.1l8.4-8.4a3.5 3.5 0 0 1 5 5l-8.4 8.4a2 2 0 1 1-2.8-2.8l7.8-7.8"></path></svg></button><button id="send-button" class="composer-button" type="submit" aria-label="Send message" title="Send message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 14-7-4 14-3-6-7-1Z"></path><path d="m12 13 7-8"></path></svg></button><input id="file-input" type="file" accept="audio/*"></div></form>
+    <small id="branding"><span>AI-generated content may be inaccurate.</span><span id="powered-by"> · Powered by <a href="https://kasitek.co.za" target="_blank" rel="noopener noreferrer">KasiTek</a></span></small>
   </div>
   <script>
     const q=(selector)=>document.querySelector(selector);
@@ -187,15 +236,46 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     const fileButton=q('#file-button');
     const fileInput=q('#file-input');
     const typing=q('#typing');
+    const quickReplies=q('#quick-replies');
     const error=q('#error');
+    const expandButton=q('#expand');
     const parentOrigin=(()=>{try{return new URL(document.referrer).origin}catch{return ''}})();
     const targetOrigin=parentOrigin||'*';
+    const avatarFallback=q('#avatar').innerHTML;
+    const audioIcon=audioButton.innerHTML;
+    const stopIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"></rect></svg>';
+    const expandIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H3v5M3 3l7 7M16 21h5v-5M21 21l-7-7"></path></svg>';
+    const restoreIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3H3v6M3 3l7 7M15 21h6v-6M21 21l-7-7"></path></svg>';
     let pending=false;
     let pendingTimer=null;
     let recorder=null;
     let stream=null;
     let recordedChunks=[];
     let pendingAudioMessage=null;
+    let expanded=false;
+
+    const setSendState=(isSending)=>{
+      sendButton.setAttribute('aria-label',isSending?'Sending message':'Send message');
+      sendButton.title=isSending?'Sending message':'Send message';
+    };
+    const setExpandState=()=>{
+      expandButton.innerHTML=expanded?restoreIcon:expandIcon;
+      expandButton.setAttribute('aria-label',expanded?'Restore chat size':'Expand chat');
+      expandButton.title=expanded?'Restore chat size':'Expand chat';
+      expandButton.setAttribute('aria-expanded',String(expanded));
+    };
+    const renderQuickReplies=()=>{
+      ['What can you help with?','How does this work?','Talk to a person'].forEach((label)=>{
+        const button=document.createElement('button');
+        button.type='button';
+        button.textContent=label;
+        button.addEventListener('click',()=>sendText(label));
+        quickReplies.append(button);
+      });
+      quickReplies.hidden=false;
+      messages.append(quickReplies);
+    };
+    const hideQuickReplies=()=>{quickReplies.hidden=true};
 
     const scrollToBottom=()=>requestAnimationFrame(()=>{messages.scrollTop=messages.scrollHeight});
     const appendPlain=(parent,text)=>{
@@ -305,17 +385,18 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
       sendButton.disabled=false;
       audioButton.disabled=false;
       fileButton.disabled=false;
-      sendButton.textContent='Send';
+      setSendState(false);
       if(pendingTimer){window.clearTimeout(pendingTimer);pendingTimer=null}
     };
     const startPending=()=>{
       pending=true;
       typing.hidden=false;
+      messages.append(typing);
       input.disabled=true;
       sendButton.disabled=true;
       audioButton.disabled=true;
       fileButton.disabled=true;
-      sendButton.textContent='Sending…';
+      setSendState(true);
       scrollToBottom();
       if(pendingTimer)window.clearTimeout(pendingTimer);
       pendingTimer=window.setTimeout(()=>{
@@ -328,11 +409,12 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     const sendAudio=(audio,fileName)=>{
       if(pending)return;
       error.textContent='';
+      hideQuickReplies();
       pendingAudioMessage=add('Audio message','me');
       startPending();
       parent.postMessage({type:'kasitek:send-audio',audio,fileName},targetOrigin);
     };
-    const stopTracks=()=>{if(stream){stream.getTracks().forEach((track)=>track.stop());stream=null}recorder=null;audioButton.classList.remove('recording');audioButton.textContent='●';audioButton.setAttribute('aria-label','Record audio');audioButton.title='Record audio'};
+    const stopTracks=()=>{if(stream){stream.getTracks().forEach((track)=>track.stop());stream=null}recorder=null;audioButton.classList.remove('recording');audioButton.innerHTML=audioIcon;audioButton.setAttribute('aria-label','Record audio');audioButton.title='Record audio'};
     const supportedRecordingType=()=>{if(typeof MediaRecorder==='undefined')return '';return ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/ogg'].find((value)=>MediaRecorder.isTypeSupported(value))||''};
     audioButton.onclick=async()=>{
       if(pending)return;
@@ -347,7 +429,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
         recorder.onerror=()=>{stopTracks();error.textContent='Audio recording failed'};
         recorder.onstop=()=>{const mime=recorder.mimeType||type||'audio/webm';const blob=new Blob(recordedChunks,{type:mime});stopTracks();if(blob.size)sendAudio(blob,`website-recording.${mime.includes('ogg')?'ogg':'webm'}`);else error.textContent='No audio was recorded'};
         recorder.start();
-        audioButton.classList.add('recording');audioButton.textContent='■';audioButton.setAttribute('aria-label','Stop recording');audioButton.title='Stop recording';
+        audioButton.classList.add('recording');audioButton.innerHTML=stopIcon;audioButton.setAttribute('aria-label','Stop recording');audioButton.title='Stop recording';
       }catch(errorValue){stopTracks();error.textContent=errorValue?.name==='NotAllowedError'?'Microphone permission is required':'Unable to access the microphone'}
     };
     fileButton.onclick=()=>{if(!pending)fileInput.click()};
@@ -362,9 +444,12 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
         const root=document.documentElement;
         if(typeof appearance.primaryColor==='string')root.style.setProperty('--chat-primary',appearance.primaryColor);
         if(Number.isFinite(Number(appearance.borderRadius)))root.style.setProperty('--chat-radius',`${appearance.borderRadius}px`);
-        q('#branding').hidden=appearance.showBranding===false;
+        q('#powered-by').hidden=appearance.showBranding===false;
+        if(typeof data.config.avatarUrl==='string'&&data.config.avatarUrl){const image=document.createElement('img');image.src=data.config.avatarUrl;image.alt='';image.onload=()=>{q('#avatar').replaceChildren(image)};image.onerror=()=>{q('#avatar').innerHTML=avatarFallback}};
         if(data.config.welcomeText)add(data.config.welcomeText,'bot');
+        renderQuickReplies();
       }
+      if(data.type==='kasitek:collapse'){expanded=false;setExpandState()}
       if(data.type==='kasitek:accepted'){
         error.textContent='';
         if(pendingAudioMessage){const transcript=pendingAudioMessage.querySelector('.transcript');if(transcript)transcript.textContent='Transcribing…';else{const next=document.createElement('div');next.className='transcript';next.textContent='Transcribing…';pendingAudioMessage.append(next)}}
@@ -390,18 +475,25 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
         scrollToBottom();
       }
     });
+    expandButton.onclick=()=>{expanded=!expanded;setExpandState();parent.postMessage({type:'kasitek:toggle-expand',expanded},targetOrigin)};
     q('#close').onclick=()=>parent.postMessage({type:'kasitek:close'},targetOrigin);
+    const sendText=(value)=>{
+      if(pending)return;
+      const text=String(value||'').trim();
+      if(!text)return;
+      error.textContent='';
+      hideQuickReplies();
+      add(text,'me');
+      startPending();
+      parent.postMessage({type:'kasitek:send',text},targetOrigin);
+    };
     q('#form').onsubmit=(event)=>{
       event.preventDefault();
-      if(pending)return;
-      const value=input.value.trim();
-      if(!value)return;
-      error.textContent='';
-      add(value,'me');
+      const value=input.value;
       input.value='';
-      startPending();
-      parent.postMessage({type:'kasitek:send',text:value},targetOrigin);
+      sendText(value);
     };
+    setExpandState();
     parent.postMessage({type:'kasitek:ready'},targetOrigin);
   </script>
 </body>
@@ -1010,7 +1102,10 @@ pub async fn retry_agent_website_chat_audio(
 
 #[cfg(test)]
 mod tests {
-    use super::{website_channel_audio_payload, website_channel_message_payload};
+    use super::{
+        website_channel_audio_payload, website_channel_message_payload, WEBSITE_CHAT_FRAME,
+        WEBSITE_CHAT_LOADER,
+    };
 
     #[test]
     fn omits_optional_display_name_when_not_provided() {
@@ -1063,6 +1158,24 @@ mod tests {
         assert_eq!(payload["content"]["mediaKind"], "audio");
         assert_eq!(payload["content"]["transcription"]["status"], "queued");
         assert!(!payload.as_object().unwrap().contains_key("displayName"));
+    }
+
+    #[test]
+    fn widget_frame_keeps_the_polished_shell_and_existing_controls() {
+        assert!(WEBSITE_CHAT_FRAME.contains("Powered by AI"));
+        assert!(WEBSITE_CHAT_FRAME.contains("Ask me anything..."));
+        assert!(WEBSITE_CHAT_FRAME.contains("AI-generated content may be inaccurate."));
+        assert!(WEBSITE_CHAT_FRAME.contains("quick-replies"));
+        assert!(WEBSITE_CHAT_FRAME.contains("id=\"audio-button\""));
+        assert!(WEBSITE_CHAT_FRAME.contains("id=\"file-button\""));
+        assert!(WEBSITE_CHAT_FRAME.contains("id=\"send-button\""));
+    }
+
+    #[test]
+    fn widget_loader_supports_expanding_and_restoring_the_frame() {
+        assert!(WEBSITE_CHAT_LOADER.contains("kasitek:toggle-expand"));
+        assert!(WEBSITE_CHAT_LOADER.contains("inset:12px"));
+        assert!(WEBSITE_CHAT_LOADER.contains("aria-expanded"));
     }
 }
 
