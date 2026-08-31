@@ -1,6 +1,6 @@
 # Agent Conversations and Human Handoff Plan
 
-Status: approved for implementation
+Status: implementation complete; client publication pending
 
 This plan covers the split between personal and customer-service agents, customer conversation ownership, human handoff, and the live Agent Conversations surface. Analytics reporting remains in `ANALYTICS_PLAN.md` and `ANALYTICS_EXECUTION_PLAN.md`; this plan emits the lifecycle data those documents require.
 
@@ -177,7 +177,7 @@ Risk: standard
 
 Affected services and user surfaces: Agents API conversation repository and route, Core Agent Platform proxy, client `/agents/conversations` Live Chat tabs and detail view.
 
-Platform release version or release ID: pending implementation commit and service deployment IDs.
+Platform release version or release ID: source commit `daa6d6cc`; Agents API deployment `34ace435-6055-468c-8877-7c5bdb72b1df`; Core deployment `8ce64ee5-443d-4a2d-a0d1-5a8dfa5cdc69`.
 
 API/schema/migration changes: Add the organization-scoped conversation summary read route. Change the existing live conversation projection to return conversation activity data rather than requiring an active `agent_runs` row. No database migration.
 
@@ -189,11 +189,13 @@ Logs, metrics, dashboards, and alerts: not applicable; existing authenticated HT
 
 User, API, internal, and operational documentation: Update the channel identity ADR and this plan with the Live definition and website heartbeat boundary.
 
-Validation evidence: pending implementation and targeted Agent API, Core, and client verification.
+Validation evidence: Agent full test suite passed (461 passed, 45 skipped); Agent TypeScript build passed; Core `cargo fmt --check` and `cargo check` passed; client targeted ESLint and `tsc --noEmit` passed; client webpack production build passed; production Core `/health` and Agent Gateway `/health/ready` returned 200 after deployment on 2026-08-31.
 
 Rollback or disable plan: revert the Agents API, Core proxy, and client changes together; the existing handoff and customer conversation routes remain independently available.
 
 Post-release review date: 2026-09-07
+
+Release blocker: The client bundle has not been published to Vercel because the available environment is logged out and has no linked Vercel project. Publish the client from the connected Vercel project (or provide Vercel authentication) before treating the browser UI portion as fully released.
 
 ## Approved defaults
 
