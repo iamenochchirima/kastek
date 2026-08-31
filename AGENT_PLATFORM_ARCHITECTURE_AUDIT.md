@@ -588,7 +588,14 @@ triggers for memory, knowledge, installations, and runs. This is a strong applic
 
 PostgreSQL row-level security is not enabled. Some new constraints are `NOT VALID`, so legacy rows
 have not been proven to satisfy them. A missed predicate in a future query could bypass the
-intended isolation rules.
+intended isolation rules. The production Agents runtime also connects as the `postgres` superuser,
+which would bypass RLS even if policies were added today.
+
+The table and parent-path inventory is recorded in
+[`agents-tenant-isolation-inventory.md`](docs/internal/architecture/agents-tenant-isolation-inventory.md).
+The production ownership audit found no ordinary agent/organization mismatches; the two apparent
+installation and knowledge-source mismatches are protected system-agent rows required by the
+system-installation design.
 
 #### Required design
 
@@ -611,9 +618,11 @@ intended isolation rules.
 
 #### Implementation checklist
 
-- [ ] Produce a tenant-owned table inventory with ownership paths and intentional cross-tenant
-      operations.
-- [ ] Audit existing rows and write a report for orphaned or inconsistent ownership.
+- [x] Produce a tenant-owned table inventory with ownership paths and intentional cross-tenant
+      operations ([agents-tenant-isolation-inventory.md](docs/internal/architecture/agents-tenant-isolation-inventory.md)).
+- [x] Audit existing rows and write a report for orphaned or inconsistent ownership; production
+      exceptions are protected system-agent rows, while local legacy test data remains outside
+      production validation ([agents-tenant-isolation-inventory.md](docs/internal/architecture/agents-tenant-isolation-inventory.md)).
 - [ ] Repair or quarantine invalid legacy rows before validating constraints.
 - [ ] Add transaction-scoped organization and actor context to API, worker, publisher, and operator
       database adapters.

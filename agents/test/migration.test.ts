@@ -332,4 +332,14 @@ describe("foundation migration", () => {
     expect(migration).toContain("messages_memory_consolidation_enqueue_trigger");
     expect(migration).toContain("deterministic-v1");
   });
+
+  it("creates a restricted runtime group without enabling RLS implicitly", async () => {
+    const migration = await readFile(new URL("../migrations/090_agents_runtime_role.sql", import.meta.url), "utf8");
+    expect(migration).toContain("kasitek_agents_runtime");
+    expect(migration).toContain("NOSUPERUSER");
+    expect(migration).toContain("NOLOGIN");
+    expect(migration).toContain("ALTER DEFAULT PRIVILEGES");
+    expect(migration).not.toContain("BYPASSRLS");
+    expect(migration).not.toContain("ENABLE ROW LEVEL SECURITY");
+  });
 });
