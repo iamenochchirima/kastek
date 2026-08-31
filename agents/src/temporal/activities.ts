@@ -40,7 +40,7 @@ import { redactSensitiveValue } from "../tools/redaction";
 import type { ModelCredentials, ModelRequest, ModelResponse } from "../model/types";
 import { buildGroundingProvenance } from "../runtime/provenance";
 import type { ToolInvocationContext } from "../tools/types";
-import type { CoreContentPost } from "../core/client";
+import type { CoreContentPost, CoreContentPosts, CoreWorkspaceConnections } from "../core/client";
 import { buildDomainApprovalSnapshot, projectBookingApprovalResource, projectCampaignApprovalResource } from "../approval/domain-preview";
 import { ConversationActionService } from "../actions/conversation-actions";
 import type { RequestHumanArguments } from "../actions/conversation-actions";
@@ -264,11 +264,12 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     },
     handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
-      return coreClient.listWorkspaceConnections(context, {
+      const response = await coreClient.listWorkspaceConnections(context, {
         provider: normalizeConnectionFilter(args.provider),
         status: normalizeConnectionFilter(args.status),
         limit: typeof args.limit === "number" ? args.limit : undefined,
       });
+      return projectWorkspaceConnectionsForAgent(response);
     },
   });
   tools.register({
@@ -788,7 +789,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     manifest: { ownerService: "kasitek-core", requiredScope: "content.read", execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: ["posts.publishJobs.providerReceipt"] },
     handler: async (context) => {
       if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
-      return coreClient.listContentPosts(context);
+      return projectContentPostsForAgent(await coreClient.listContentPosts(context));
     },
   });
   tools.register({
@@ -803,7 +804,8 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     manifest: { ownerService: "kasitek-core", requiredScope: "content.read", resourceSelector: { type: "content_post", argument: "postId" }, execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: ["post.publishJobs.providerReceipt"] },
     handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
-      return coreClient.getContentPost(context, String(args.postId));
+      const response = await coreClient.getContentPost(context, String(args.postId));
+      return { post: projectContentPostForAgent(response.post) };
     },
   });
   tools.register({
@@ -932,7 +934,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     manifest: { ownerService: "kasitek-core", requiredScope: "content.write", resourceSelector: { type: "content_post", argument: "postId" }, execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "full", redaction: ["post.publishJobs.providerReceipt"] },
     handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
-      return coreClient.updateContentDraft(context, String(args.postId), {
+      const input = {
         title: typeof args.title === "string" ? args.title : undefined,
         prompt: typeof args.prompt === "string" ? args.prompt : undefined,
         content: typeof args.content === "string" ? args.content : undefined,
@@ -942,7 +944,9 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
         variants: Array.isArray(args.variants) ? args.variants as Array<{ platform: string; content: string; status?: string; aiGenerated?: boolean; metadata?: Record<string, unknown> }> : undefined,
         media: Array.isArray(args.media) ? args.media as Array<{ assetId: string; sortOrder?: number; altText?: string }> : undefined,
         metadata: args.metadata && typeof args.metadata === "object" ? args.metadata as Record<string, unknown> : undefined,
-      });
+      };
+      const response = await coreClient.updateContentDraft(context, String(args.postId), input);
+      return projectContentWriteResult(response, "draft_updated", input.channelSelections);
     },
   });
   tools.register({
@@ -1003,7 +1007,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     manifest: { ownerService: "kasitek-core", requiredScope: "content.write", execution: "immediate", idempotency: "required", approval: "none", auditClassification: "full", redaction: ["post.publishJobs.providerReceipt"] },
     handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
-      return coreClient.createContentDraft(context, {
+      const input = {
         title: typeof args.title === "string" ? args.title : undefined,
         prompt: typeof args.prompt === "string" ? args.prompt : undefined,
         content: String(args.content),
@@ -1013,7 +1017,9 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
         variants: Array.isArray(args.variants) ? args.variants as Array<{ platform: string; content: string; status?: string; aiGenerated?: boolean; metadata?: Record<string, unknown> }> : undefined,
         media: Array.isArray(args.media) ? args.media as Array<{ assetId: string; sortOrder?: number; altText?: string }> : undefined,
         metadata: args.metadata && typeof args.metadata === "object" ? args.metadata as Record<string, unknown> : undefined,
-      });
+      };
+      const response = await coreClient.createContentDraft(context, input);
+      return projectContentWriteResult(response, "draft_created", input.channelSelections);
     },
   });
   tools.register({
@@ -1228,6 +1234,101 @@ function boundedPreviewString(value: unknown, maxLength = 256): string | undefin
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed ? trimmed.slice(0, maxLength) : undefined;
+}
+
+function projectContentMediaForAgent(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const media = value as Record<string, unknown>;
+  const assetId = boundedPreviewString(media.assetId ?? media.asset_id, 160);
+  const kind = boundedPreviewString(media.kind, 40);
+  const fileName = boundedPreviewString(media.fileName ?? media.file_name, 240);
+  const processingStatus = boundedPreviewString(media.processingStatus ?? media.processing_status, 40);
+  const scanStatus = boundedPreviewString(media.scanStatus ?? media.scan_status, 40);
+  if (!assetId && !kind && !fileName) return null;
+  return {
+    ...(assetId ? { assetId } : {}),
+    ...(kind ? { kind } : {}),
+    ...(fileName ? { fileName } : {}),
+    ...(processingStatus ? { processingStatus } : {}),
+    ...(scanStatus ? { scanStatus } : {}),
+  };
+}
+
+/** Keep content tool results useful to the model without replaying provider metadata into every turn. */
+function projectContentPostForAgent(post: CoreContentPost): Record<string, unknown> {
+  const variants = Array.isArray(post.variants)
+    ? post.variants.map(projectContentVariant).filter((value): value is Record<string, unknown> => Boolean(value)).slice(0, 20)
+    : [];
+  const media = Array.isArray(post.media)
+    ? post.media.map(projectContentMediaForAgent).filter((value): value is Record<string, unknown> => Boolean(value)).slice(0, 10)
+    : [];
+  const content = boundedPreviewString(post.content, 4_000) ?? "";
+  return {
+    id: boundedPreviewString(post.id, 160) ?? "",
+    ...(boundedPreviewString(post.title, 240) ? { title: boundedPreviewString(post.title, 240) } : {}),
+    content,
+    status: boundedPreviewString(post.status, 40) ?? "UNKNOWN",
+    channels: Array.isArray(post.channels)
+      ? post.channels.filter((value): value is string => typeof value === "string").map((value) => value.slice(0, 80)).slice(0, 20)
+      : [],
+    ...(boundedPreviewString(post.scheduled_for, 64) ? { scheduledFor: boundedPreviewString(post.scheduled_for, 64) } : {}),
+    ...(boundedPreviewString(post.published_at, 64) ? { publishedAt: boundedPreviewString(post.published_at, 64) } : {}),
+    ...(variants.length ? { variants } : {}),
+    ...(media.length ? { media } : {}),
+  };
+}
+
+function projectContentPostsForAgent(response: CoreContentPosts): Record<string, unknown> {
+  return {
+    posts: Array.isArray(response.posts) ? response.posts.map(projectContentPostForAgent).slice(0, 100) : [],
+  };
+}
+
+function projectContentWriteResult(
+  response: { post: CoreContentPost },
+  operation: "draft_created" | "draft_updated",
+  channelSelections?: Record<string, string>,
+): Record<string, unknown> {
+  return {
+    operation,
+    completed: true,
+    post: projectContentPostForAgent(response.post),
+    ...(channelSelections && Object.keys(channelSelections).length ? { selectedAccounts: channelSelections } : {}),
+  };
+}
+
+function projectWorkspaceConnectionsForAgent(response: CoreWorkspaceConnections): Record<string, unknown> {
+  return {
+    organizationId: response.organizationId,
+    connections: Array.isArray(response.connections)
+      ? response.connections.map((connection) => {
+        const capabilities = Array.isArray(connection.capabilities)
+          ? connection.capabilities.map((capability) => {
+            if (typeof capability === "string") return capability;
+            if (!capability || typeof capability !== "object" || Array.isArray(capability)) return undefined;
+            const key = (capability as Record<string, unknown>).key;
+            const enabled = (capability as Record<string, unknown>).enabled;
+            return typeof key === "string" && enabled !== false ? key : undefined;
+          }).filter((value): value is string => Boolean(value)).slice(0, 30)
+          : [];
+        const consumers = Array.isArray(connection.consumers)
+          ? connection.consumers.filter((value): value is string => typeof value === "string").slice(0, 20)
+          : [];
+        return {
+          provider: connection.provider,
+          displayName: connection.displayName,
+          ...(connection.handle ? { handle: connection.handle } : {}),
+          status: connection.status,
+          credentialStatus: connection.credentialStatus,
+          healthStatus: connection.healthStatus,
+          webhookStatus: connection.webhookStatus,
+          ...(connection.lastCheckedAt ? { lastCheckedAt: connection.lastCheckedAt } : {}),
+          ...(capabilities.length ? { capabilities } : {}),
+          ...(consumers.length ? { consumers } : {}),
+        };
+      }).slice(0, 200)
+      : [],
+  };
 }
 
 function projectContentVariant(value: unknown): Record<string, unknown> | null {

@@ -240,6 +240,90 @@ describe("content capability contract", () => {
     }));
   });
 
+  it("returns a compact completion marker after a content write", async () => {
+    const updateContentDraft = vi.fn(async () => ({
+      post: {
+        id: "post-1",
+        content: "Updated",
+        channels: ["INSTAGRAM"],
+        status: "DRAFT",
+        metadata: { internal: "omit" },
+        publishJobs: [{ providerPayload: "omit" }],
+        media: [{ asset_id: "asset-1", kind: "IMAGE", file_name: "post.jpg", processing_status: "READY", scan_status: "CLEAN" }],
+      },
+    }));
+    const tools = createDefaultTools({ updateContentDraft } as never);
+    const toolName = "kasitek.core.content_post_update";
+
+    const result = await tools.invoke({
+      name: toolName,
+      arguments: {
+        postId: "post-1",
+        channels: ["INSTAGRAM"],
+        channelSelections: { INSTAGRAM: "@kasiteklabs" },
+      },
+      context,
+      grantedTools: new Set([toolName]),
+    });
+
+    expect(result.output).toEqual({
+      operation: "draft_updated",
+      completed: true,
+      selectedAccounts: { INSTAGRAM: "@kasiteklabs" },
+      post: {
+        id: "post-1",
+        content: "Updated",
+        status: "DRAFT",
+        channels: ["INSTAGRAM"],
+        media: [{ assetId: "asset-1", kind: "IMAGE", fileName: "post.jpg", processingStatus: "READY", scanStatus: "CLEAN" }],
+      },
+    });
+  });
+
+  it("projects connection capabilities before returning them to the model", async () => {
+    const listWorkspaceConnections = vi.fn(async () => ({
+      organizationId: "org-test",
+      connections: [{
+        provider: "INSTAGRAM",
+        displayName: "KasiTek",
+        handle: "@kasiteklabs",
+        status: "CONNECTED",
+        credentialStatus: "ACTIVE",
+        healthStatus: "HEALTHY",
+        webhookStatus: "ACTIVE",
+        lastCheckedAt: "2026-08-31T00:00:00.000Z",
+        capabilities: [{ key: "SOCIAL_PUBLISH", enabled: true }, { key: "SECRET", enabled: false }],
+        consumers: ["agents"],
+        metadata: { internal: "omit" },
+      }],
+    }));
+    const tools = createDefaultTools({ listWorkspaceConnections } as never);
+    const toolName = "kasitek.core.connections_list";
+
+    const result = await tools.invoke({
+      name: toolName,
+      arguments: {},
+      context,
+      grantedTools: new Set([toolName]),
+    });
+
+    expect(result.output).toEqual({
+      organizationId: "org-test",
+      connections: [{
+        provider: "INSTAGRAM",
+        displayName: "KasiTek",
+        handle: "@kasiteklabs",
+        status: "CONNECTED",
+        credentialStatus: "ACTIVE",
+        healthStatus: "HEALTHY",
+        webhookStatus: "ACTIVE",
+        lastCheckedAt: "2026-08-31T00:00:00.000Z",
+        capabilities: ["SOCIAL_PUBLISH"],
+        consumers: ["agents"],
+      }],
+    });
+  });
+
   it("enforces grants and approval before any content handler is invoked", async () => {
     await expect(registry.invoke({
       name: "kasitek.core.content_post_publish",
