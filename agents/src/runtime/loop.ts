@@ -7,7 +7,7 @@ import { classifyFailureCode } from "./failures";
 import { redactSensitiveValue, redactToolOutput } from "../tools/redaction";
 import type { GroundingProvenance } from "./provenance";
 import { buildApprovedToolCompletionMessage, buildApprovedToolFailureMessage } from "./approved-tool-completion";
-import type { AgentResponse } from "../media/contracts";
+import { findAuthorizationRequirement, type AgentAuthorizationRequirement, type AgentResponse } from "../media/contracts";
 
 export interface AgentLoopLimits {
   maxIterations: number;
@@ -148,6 +148,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
   const messages = [...input.messages];
   const usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
   let toolCalls = 0;
+  let authorizationRequired: AgentAuthorizationRequirement | undefined;
   let lastModelAttempt: { model: AgentLoopInput["model"]; credentials: ModelCredentials } = { model: input.model, credentials: input.credentials };
   let lastModelOperationKey: string | undefined;
   const startedAt = Date.now();
@@ -193,16 +194,37 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         } : undefined,
       });
       messages.push({ role: "assistant", content: "", toolCalls: [{ id: resumed.id, name: resumed.name, arguments: resumed.arguments }] });
+      const authorization = findAuthorizationRequirement(result.output);
       const safeOutput = redactSensitiveValue(result.output);
       const durableOutput = redactToolOutput(result.output, resumedManifest?.manifest?.redaction ?? []);
+      authorizationRequired = authorization;
       messages.push({ role: "tool", name: resumed.name, toolCallId: resumed.id, content: JSON.stringify(safeOutput) });
       toolCalls += 1;
       await input.onToolCompleted?.({ toolCallId: resumed.id, name: resumed.name, argumentsHash: hashToolArguments(resumed.arguments), output: durableOutput, latencyMs: result.latencyMs, effectId: result.effectId, approval: resumed.approval });
-      await emit(input, { type: "tool.completed", iteration: 0, payload: { name: resumed.name, resumed: true, latencyMs: result.latencyMs } });
+      await emit(input, {
+        type: "tool.completed",
+        iteration: 0,
+        payload: {
+          name: resumed.name,
+          resumed: true,
+          latencyMs: result.latencyMs,
+          ...(authorizationRequired ? { authorizationRequired } : {}),
+        },
+      });
       const completionMessage = buildApprovedToolCompletionMessage(resumed.name, resumed.arguments, safeOutput);
       messages.push({ role: "assistant", content: completionMessage });
       await emit(input, { type: "loop.completed", iteration: 0, payload: { toolCalls, totalTokens: usage.totalTokens, resumed: true } });
-      return { status: "completed", messages, completionMessage, usage, iterations: 0, toolCalls };
+      return {
+        status: "completed",
+        messages,
+        completionMessage,
+        ...(authorizationRequired
+          ? { completionResponse: { version: "1" as const, text: completionMessage, media: [], authorizationRequired } }
+          : {}),
+        usage,
+        iterations: 0,
+        toolCalls,
+      };
     } catch (error) {
       const normalized = error instanceof ToolPolicyError
         ? { code: error.code, message: error.message, failureClass: classifyFailureCode(error.code) }
@@ -340,7 +362,18 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           return { status: "failed", messages, response, usage, iterations: iteration, toolCalls, error };
         }
         await emit(input, { type: "loop.completed", iteration, payload: { toolCalls, totalTokens: usage.totalTokens } });
-        return { status: "completed", messages, response, usage, iterations: iteration, toolCalls };
+        const completionResponse = authorizationRequired
+          ? { version: "1" as const, text: response.message.content, media: [], authorizationRequired }
+          : undefined;
+        return {
+          status: "completed",
+          messages,
+          response,
+          ...(completionResponse ? { completionResponse } : {}),
+          usage,
+          iterations: iteration,
+          toolCalls,
+        };
       }
       for (const toolCall of response.toolCalls) {
         toolCalls += 1;
@@ -386,6 +419,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
               });
             } : undefined,
           });
+          const toolAuthorization = findAuthorizationRequirement(result.output);
           const safeOutput = redactSensitiveValue(result.output);
           const durableOutput = redactToolOutput(result.output, manifest?.manifest?.redaction ?? []);
           messages.push({
@@ -394,10 +428,22 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             toolCallId: toolCall.id,
             content: JSON.stringify(safeOutput),
           });
-          await emit(input, { type: "tool.completed", iteration, payload: { name: toolCall.name, latencyMs: result.latencyMs } });
+          if (toolAuthorization) authorizationRequired = toolAuthorization;
+          await emit(input, {
+            type: "tool.completed",
+            iteration,
+            payload: {
+              name: toolCall.name,
+              latencyMs: result.latencyMs,
+              ...(toolAuthorization ? { authorizationRequired: toolAuthorization } : {}),
+            },
+          });
           await input.onToolCompleted?.({ toolCallId: toolCall.id, name: toolCall.name, argumentsHash, output: durableOutput, latencyMs: result.latencyMs, effectId: result.effectId });
           if (result.control === "final_response") {
-            const completionResponse = (safeOutput as { response: AgentResponse }).response;
+            const agentResponse = (safeOutput as { response: AgentResponse }).response;
+            const completionResponse = authorizationRequired
+              ? { ...agentResponse, authorizationRequired }
+              : agentResponse;
             await emit(input, { type: "loop.completed", iteration, payload: { toolCalls, totalTokens: usage.totalTokens, responseFormat: "agent-response.v1" } });
             return { status: "completed", messages, response, completionMessage: completionResponse.text, completionResponse, usage, iterations: iteration, toolCalls };
           }

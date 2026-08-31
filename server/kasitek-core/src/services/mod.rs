@@ -8,6 +8,7 @@ pub mod billing;
 pub mod billing_provider;
 pub mod bluesky_oauth;
 pub mod calls;
+pub mod connection_permissions;
 pub mod connections;
 pub mod content_media;
 pub mod credits;

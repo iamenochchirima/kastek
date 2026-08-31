@@ -546,4 +546,68 @@ describe("audio transcription HTTP contracts", () => {
       await app.close();
     }
   });
+
+  it("stores Discord image attachments as workspace media before starting the agent", async () => {
+    const discordDownload = vi.fn().mockResolvedValue({ bytes: Buffer.from("\x89PNG\r\n\x1a\nimage") });
+    const coreFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      asset: {
+        id: "asset-discord-image-1",
+        kind: "IMAGE",
+        mimeType: "image/png",
+        fileName: "announcement.png",
+        byteSize: 14,
+        processingStatus: "READY",
+        scanStatus: "CLEAN",
+      },
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    const acceptExternalMessage = vi.fn().mockResolvedValue({ created: true, run: { id: "run-discord-image-1", status: "received" } });
+    const startWorkflow = vi.fn();
+    vi.stubGlobal("fetch", coreFetch);
+    const app = buildApp({
+      config: { ...config, TEMPORAL_ENABLED: true },
+      pool: fakePool,
+      channels: { getConnectionForWebhook: vi.fn().mockResolvedValue(channelConnection("discord")) } as never,
+      channelCredentials: { resolve: vi.fn().mockResolvedValue("discord-token") } as never,
+      discordClient: { downloadAttachment: discordDownload, sendMessage: vi.fn() } as never,
+      platformChat: { acceptExternalMessage } as never,
+      startWorkflow,
+    });
+
+    try {
+      const response = await app.inject({
+        method: "POST",
+        url: "/v1/webhooks/discord/discord-connection-1",
+        headers: { ...authHeaders(), "x-kasitek-core-forward-secret": "forward-secret" },
+        payload: {
+          id: "discord-event-image-1",
+          channel_id: "channel-1",
+          content: "Use this artwork",
+          author: { id: "user-1" },
+          attachments: [{
+            id: "attachment-image-1",
+            filename: "announcement.png",
+            content_type: "image/png",
+            url: "https://cdn.discord.test/temporary-image",
+          }],
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ ok: true });
+      expect(discordDownload).toHaveBeenCalledWith("discord-token", "https://cdn.discord.test/temporary-image", 25 * 1024 * 1024);
+      expect(coreFetch).toHaveBeenCalledWith("https://core.example.test/api/internal/agents/v1/content/media", expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "content-type": "image/png", "x-media-source": "discord" }),
+      }));
+      expect(acceptExternalMessage).toHaveBeenCalledWith(expect.objectContaining({
+        messageType: "attachment",
+        content: expect.objectContaining({ assetId: "asset-discord-image-1", mediaKind: "image", text: "Use this artwork" }),
+      }));
+      const accepted = acceptExternalMessage.mock.calls[0]?.[0] as { content: Record<string, unknown> };
+      expect(accepted.content).not.toHaveProperty("url");
+      expect(startWorkflow).toHaveBeenCalledWith("run-discord-image-1");
+    } finally {
+      await app.close();
+    }
+  });
 });

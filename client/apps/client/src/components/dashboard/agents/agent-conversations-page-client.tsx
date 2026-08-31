@@ -46,6 +46,7 @@ import {
 import { MotionReveal } from "@/components/ui/motion-reveal";
 import { PageHeader, PageHeaderContent, PageHeaderDescription, PageHeaderTitle } from "@/components/ui/page-header";
 import { AgentMessageMedia, agentMessageHasMedia } from "./agent-message-media";
+import { AgentAuthorizationAction } from "./agent-authorization-action";
 
 type QueueView = "handoff" | "human" | "live" | "all";
 
@@ -91,6 +92,7 @@ function AgentTranscriptMessage({ message }: { message: AgentMessage }) {
       <div className={`max-w-[86%] rounded-xl px-3 py-2 text-sm ${isInbound ? "bg-secondary text-foreground" : "bg-primary text-primary-foreground"}`}>
         <AgentMessageMedia message={message} />
         {text ? <p className="whitespace-pre-wrap leading-5">{text}</p> : !agentMessageHasMedia(message) ? <p className="whitespace-pre-wrap leading-5">{message.message_type}</p> : null}
+        <AgentAuthorizationAction message={message} />
         <p className={`mt-1 text-[10px] ${isInbound ? "text-muted-foreground" : "text-primary-foreground/70"}`}>{messageAttribution(message)} · {timeLabel(message.created_at)}</p>
       </div>
     </div>

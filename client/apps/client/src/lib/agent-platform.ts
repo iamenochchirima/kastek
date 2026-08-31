@@ -46,7 +46,11 @@ export type AgentMessage = {
   conversation_id: string;
   direction: "inbound" | "outbound" | "system";
   message_type: string;
-  content: { text?: string; [key: string]: unknown };
+  content: {
+    text?: string;
+    authorizationRequired?: AgentAuthorizationRequirement;
+    [key: string]: unknown;
+  };
   sequence_number: string | number;
   created_at: string;
   run_id?: string | null;
@@ -60,6 +64,17 @@ export type AgentMessage = {
   external_conversation_id?: string | null;
   occurred_at?: string;
   delivery_status?: "local" | "queued" | "sending" | "sent" | "delivered" | "read" | "failed" | "unknown" | null;
+};
+
+export type AgentAuthorizationRequirement = {
+  code: string;
+  provider: string;
+  connectionId?: string;
+  requiredCapabilities: string[];
+  requestable: boolean;
+  authMode?: string | null;
+  reasonCode: string;
+  remediation: string;
 };
 
 export type AgentConversation = {

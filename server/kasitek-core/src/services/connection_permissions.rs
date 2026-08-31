@@ -1,0 +1,826 @@
+//! Provider-neutral connection access inventory.
+//!
+//! This module deliberately keeps provider scope names behind a small seam. The rest of Core,
+//! the client, and Agent Platform deal in KasiTek capability keys and safe status codes.
+
+use std::collections::HashSet;
+
+use chrono::{Duration, Utc};
+use crypto_utils::generate_token;
+use serde::Serialize;
+use serde_json::Value;
+use sqlx::{FromRow, PgPool, Postgres, Transaction};
+
+use crate::error::AppError;
+
+pub const MESSAGING_INBOUND: &str = "MESSAGING_INBOUND";
+pub const MESSAGING_OUTBOUND: &str = "MESSAGING_OUTBOUND";
+pub const SOCIAL_PUBLISH: &str = "SOCIAL_PUBLISH";
+pub const MEDIA_PUBLISH: &str = "MEDIA_PUBLISH";
+pub const SOCIAL_ANALYTICS: &str = "SOCIAL_ANALYTICS";
+pub const COMMENTS_MANAGE: &str = "COMMENTS_MANAGE";
+pub const SOCIAL_POST_DELETE: &str = "SOCIAL_POST_DELETE";
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AuthorizationRequirement {
+    pub code: &'static str,
+    pub provider: String,
+    #[serde(rename = "connectionId", skip_serializing_if = "Option::is_none")]
+    pub connection_id: Option<String>,
+    #[serde(rename = "requiredCapabilities")]
+    pub required_capabilities: Vec<&'static str>,
+    pub requestable: bool,
+    #[serde(rename = "authMode")]
+    pub auth_mode: Option<String>,
+    #[serde(rename = "reasonCode")]
+    pub reason_code: String,
+    pub remediation: &'static str,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ConnectionPermissionDefinition {
+    pub key: String,
+    pub group: String,
+    pub label: String,
+    pub description: String,
+    pub state: String,
+    pub requestable: bool,
+    #[serde(rename = "reasonCode")]
+    pub reason_code: Option<String>,
+    #[serde(rename = "authMode")]
+    pub auth_mode: Option<String>,
+    #[serde(rename = "verificationSource")]
+    pub verification_source: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct PermissionDefinition {
+    key: &'static str,
+    group: &'static str,
+    label: &'static str,
+    description: &'static str,
+    requestable: bool,
+}
+
+#[derive(Debug, FromRow)]
+struct ConnectionMetadataRow {
+    id: String,
+    provider: String,
+    metadata: Option<Value>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct PermissionSnapshot {
+    pub(crate) definition: ConnectionPermissionDefinition,
+    provider_permission: Option<&'static str>,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct AuthorizationAttempt {
+    pub id: String,
+    #[sqlx(rename = "connection_id")]
+    pub connection_id: String,
+    pub provider: String,
+    #[sqlx(rename = "auth_mode")]
+    pub auth_mode: String,
+    pub target: String,
+    pub state: String,
+    #[sqlx(rename = "requested_capabilities")]
+    pub requested_capabilities: Vec<String>,
+}
+
+const DEFINITIONS: &[PermissionDefinition] = &[
+    PermissionDefinition {
+        key: MESSAGING_INBOUND,
+        group: "MESSAGING",
+        label: "Receive messages",
+        description: "Let KasiTek receive messages for this account.",
+        requestable: false,
+    },
+    PermissionDefinition {
+        key: MESSAGING_OUTBOUND,
+        group: "MESSAGING",
+        label: "Reply to messages",
+        description: "Let KasiTek send replies from this account.",
+        requestable: false,
+    },
+    PermissionDefinition {
+        key: SOCIAL_PUBLISH,
+        group: "PUBLISHING",
+        label: "Publish content",
+        description: "Create and publish content to this account.",
+        requestable: false,
+    },
+    PermissionDefinition {
+        key: MEDIA_PUBLISH,
+        group: "MEDIA",
+        label: "Use media",
+        description: "Upload and use images or videos in content.",
+        requestable: false,
+    },
+    PermissionDefinition {
+        key: SOCIAL_ANALYTICS,
+        group: "ANALYTICS",
+        label: "View analytics",
+        description: "Read performance and audience metrics.",
+        requestable: false,
+    },
+    PermissionDefinition {
+        key: COMMENTS_MANAGE,
+        group: "COMMUNITY",
+        label: "Manage comments",
+        description: "Read and manage supported comments and interactions.",
+        requestable: false,
+    },
+    PermissionDefinition {
+        key: SOCIAL_POST_DELETE,
+        group: "CONTENT_MANAGEMENT",
+        label: "Manage published content",
+        description: "Edit or delete published provider content where supported.",
+        requestable: false,
+    },
+];
+
+pub fn normalize_requested_capabilities(value: Option<&str>) -> Vec<String> {
+    let allowed: HashSet<&str> = DEFINITIONS.iter().map(|item| item.key).collect();
+    let mut requested = Vec::new();
+    for capability in value.unwrap_or_default().split(',') {
+        let normalized = capability.trim().to_ascii_uppercase();
+        if allowed.contains(normalized.as_str()) && !requested.contains(&normalized) {
+            requested.push(normalized);
+        }
+    }
+    requested
+}
+
+pub fn is_authorization_error(error: &AppError) -> bool {
+    match error {
+        AppError::Unauthorized | AppError::Forbidden(_) => true,
+        AppError::BadRequest(message) => {
+            let message = message.to_ascii_lowercase();
+            [
+                "permission",
+                "oauth",
+                "unauthor",
+                "forbidden",
+                "access token",
+                "scope",
+            ]
+            .iter()
+            .any(|marker| message.contains(marker))
+        }
+        _ => false,
+    }
+}
+
+/// Build the Meta scopes needed for a product-level access request. The provider adapter remains
+/// the only place where raw Meta permission names are defined.
+pub fn meta_scopes_for_request(target: &str, requested_capabilities: &[String]) -> Vec<String> {
+    let mut scopes = vec![
+        "pages_show_list".to_string(),
+        "pages_manage_metadata".to_string(),
+    ];
+    if requested_capabilities.is_empty() {
+        scopes.extend(
+            [
+                "pages_read_engagement",
+                "pages_manage_posts",
+                "pages_messaging",
+                "instagram_basic",
+                "instagram_content_publish",
+                "instagram_manage_messages",
+            ]
+            .into_iter()
+            .map(str::to_string),
+        );
+    } else {
+        for capability in requested_capabilities {
+            let mapped = match capability.as_str() {
+                MESSAGING_INBOUND | MESSAGING_OUTBOUND => {
+                    if target == "instagram" {
+                        ["instagram_manage_messages"].as_slice()
+                    } else {
+                        ["pages_messaging"].as_slice()
+                    }
+                }
+                SOCIAL_PUBLISH | MEDIA_PUBLISH => {
+                    if target == "instagram" {
+                        ["instagram_content_publish"].as_slice()
+                    } else {
+                        ["pages_manage_posts"].as_slice()
+                    }
+                }
+                SOCIAL_ANALYTICS => {
+                    if target == "instagram" {
+                        ["instagram_manage_insights"].as_slice()
+                    } else {
+                        ["pages_read_engagement"].as_slice()
+                    }
+                }
+                COMMENTS_MANAGE => {
+                    if target == "instagram" {
+                        ["instagram_manage_comments"].as_slice()
+                    } else {
+                        ["pages_manage_metadata"].as_slice()
+                    }
+                }
+                SOCIAL_POST_DELETE => {
+                    if target == "instagram" {
+                        ["instagram_manage_contents"].as_slice()
+                    } else {
+                        ["pages_manage_posts"].as_slice()
+                    }
+                }
+                _ => &[],
+            };
+            for scope in mapped {
+                if !scopes.iter().any(|existing| existing == scope) {
+                    scopes.push((*scope).to_string());
+                }
+            }
+        }
+    }
+
+    if target == "instagram" && !scopes.iter().any(|scope| scope == "instagram_basic") {
+        scopes.push("instagram_basic".to_string());
+    }
+    scopes
+}
+
+pub fn instagram_scopes_for_request(requested_capabilities: &[String]) -> Vec<String> {
+    if requested_capabilities.is_empty() {
+        return [
+            "instagram_business_basic",
+            "instagram_business_content_publish",
+            "instagram_business_manage_messages",
+            "instagram_business_manage_comments",
+            "instagram_business_manage_insights",
+        ]
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+    }
+
+    let mut scopes = vec!["instagram_business_basic".to_string()];
+    for capability in requested_capabilities {
+        let scope = match capability.as_str() {
+            MESSAGING_INBOUND | MESSAGING_OUTBOUND => "instagram_business_manage_messages",
+            SOCIAL_PUBLISH | MEDIA_PUBLISH => "instagram_business_content_publish",
+            SOCIAL_ANALYTICS => "instagram_business_manage_insights",
+            COMMENTS_MANAGE => "instagram_business_manage_comments",
+            // Direct Instagram Login does not expose published-post deletion.
+            SOCIAL_POST_DELETE => continue,
+            _ => continue,
+        };
+        if !scopes.iter().any(|existing| existing == scope) {
+            scopes.push(scope.to_string());
+        }
+    }
+    scopes
+}
+
+pub async fn sync_permission_inventory(pool: &PgPool, org_id: &str) -> Result<(), AppError> {
+    let rows = sqlx::query_as::<_, ConnectionMetadataRow>(
+        r#"SELECT id, provider, metadata
+           FROM "ExternalConnection"
+           WHERE "orgId" = $1"#,
+    )
+    .bind(org_id)
+    .fetch_all(pool)
+    .await?;
+
+    let mut tx = pool.begin().await?;
+    for row in rows {
+        sync_connection_permissions(&mut tx, &row.id, &row.provider, row.metadata.as_ref()).await?;
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
+async fn sync_connection_permissions(
+    tx: &mut Transaction<'_, Postgres>,
+    connection_id: &str,
+    provider: &str,
+    metadata: Option<&Value>,
+) -> Result<(), AppError> {
+    let snapshots = permission_snapshots(provider, metadata);
+    sqlx::query(r#"DELETE FROM "ExternalConnectionPermission" WHERE "connectionId" = $1"#)
+        .bind(connection_id)
+        .execute(&mut **tx)
+        .await?;
+
+    for snapshot in snapshots {
+        sqlx::query(
+            r#"INSERT INTO "ExternalConnectionPermission" (
+                   id, "connectionId", key, "providerPermission", state, requestable,
+                   "reasonCode", "authMode", "verificationSource", "observedAt", "createdAt", "updatedAt"
+               ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),NOW(),NOW())"#,
+        )
+        .bind(cuid2::create_id())
+        .bind(connection_id)
+        .bind(&snapshot.definition.key)
+        .bind(snapshot.provider_permission)
+        .bind(&snapshot.definition.state)
+        .bind(snapshot.definition.requestable)
+        .bind(&snapshot.definition.reason_code)
+        .bind(&snapshot.definition.auth_mode)
+        .bind(&snapshot.definition.verification_source)
+        .execute(&mut **tx)
+        .await?;
+    }
+    Ok(())
+}
+
+pub(crate) fn permission_snapshots(
+    provider: &str,
+    metadata: Option<&Value>,
+) -> Vec<PermissionSnapshot> {
+    let provider = provider.to_ascii_uppercase();
+    let permissions = metadata_values(metadata, "permissions");
+    let scopes = metadata_values(metadata, "scope");
+    let tasks = metadata_values(metadata, "tasks");
+    let auth_mode = metadata
+        .and_then(|value| value.get("authMethod"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .or_else(|| {
+            (provider == "FACEBOOK" || provider == "INSTAGRAM").then_some("meta_login".to_string())
+        });
+    let verified_source = if !permissions.is_empty() {
+        Some("oauth_permissions".to_string())
+    } else if !tasks.is_empty() {
+        Some("provider_tasks".to_string())
+    } else if !scopes.is_empty() {
+        Some("oauth_scope".to_string())
+    } else {
+        None
+    };
+
+    DEFINITIONS
+        .iter()
+        .map(|definition| {
+            let (granted, provider_permission) = capability_grant(
+                &provider,
+                definition.key,
+                &permissions,
+                &scopes,
+                &tasks,
+                metadata,
+            );
+            let unsupported = provider == "INSTAGRAM"
+                && auth_mode.as_deref() == Some("instagram_login")
+                && definition.key == SOCIAL_POST_DELETE;
+            let provider_requestable = if unsupported {
+                false
+            } else {
+                definition.requestable
+                    || provider == "META"
+                    || provider == "FACEBOOK"
+                    || provider == "INSTAGRAM"
+            };
+            let state = if unsupported {
+                "UNSUPPORTED"
+            } else if granted {
+                "GRANTED"
+            } else if metadata
+                .and_then(|value| value.get("requiresAppReview"))
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            {
+                "REQUIRES_PROVIDER_APPROVAL"
+            } else if permissions.is_empty() && scopes.is_empty() && tasks.is_empty() {
+                "UNKNOWN"
+            } else if provider_requestable {
+                "REQUESTABLE"
+            } else {
+                "UNKNOWN"
+            };
+            let requestable =
+                provider_requestable && !granted && state != "REQUIRES_PROVIDER_APPROVAL";
+            let reason_code = if unsupported {
+                Some("direct_instagram_login_unsupported".to_string())
+            } else if state == "REQUESTABLE" {
+                Some("missing_provider_permission".to_string())
+            } else if state == "UNKNOWN" {
+                Some("provider_permission_unavailable".to_string())
+            } else if state == "REQUIRES_PROVIDER_APPROVAL" {
+                Some("provider_approval_required".to_string())
+            } else {
+                None
+            };
+            PermissionSnapshot {
+                definition: ConnectionPermissionDefinition {
+                    key: definition.key.to_string(),
+                    group: definition.group.to_string(),
+                    label: definition.label.to_string(),
+                    description: definition.description.to_string(),
+                    state: state.to_string(),
+                    requestable,
+                    reason_code,
+                    auth_mode: auth_mode.clone(),
+                    verification_source: verified_source.clone(),
+                },
+                provider_permission,
+            }
+        })
+        .collect()
+}
+
+pub(crate) fn authorization_requirement(
+    provider: &str,
+    metadata: Option<&Value>,
+    capability: &'static str,
+) -> Option<AuthorizationRequirement> {
+    let permission = permission_snapshots(provider, metadata)
+        .into_iter()
+        .find(|item| item.definition.key == capability)?;
+    if permission.definition.state == "GRANTED" {
+        return None;
+    }
+    Some(AuthorizationRequirement {
+        code: "authorization_required",
+        provider: provider.to_ascii_uppercase(),
+        connection_id: None,
+        required_capabilities: vec![capability],
+        requestable: permission.definition.requestable,
+        auth_mode: permission.definition.auth_mode,
+        reason_code: permission
+            .definition
+            .reason_code
+            .unwrap_or_else(|| "missing_provider_permission".to_string()),
+        remediation: "connections_access",
+    })
+}
+
+pub async fn get_connection_for_request(
+    pool: &PgPool,
+    org_id: &str,
+    connection_id: &str,
+    target: &str,
+) -> Result<(String, String), AppError> {
+    let row = sqlx::query_as::<_, (String, String, Option<Value>)>(
+        r#"SELECT provider, "sourceType", metadata
+           FROM "ExternalConnection"
+           WHERE id = $1 AND "orgId" = $2"#,
+    )
+    .bind(connection_id)
+    .bind(org_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Connection not found".to_string()))?;
+
+    let provider = row.0.to_ascii_uppercase();
+    if row.1 != "SOCIAL" || !matches!(provider.as_str(), "FACEBOOK" | "INSTAGRAM") {
+        return Err(AppError::BadRequest(
+            "Access requests are not available for this connection yet".to_string(),
+        ));
+    }
+    let expected_target = if provider == "FACEBOOK" {
+        "facebook"
+    } else {
+        "instagram"
+    };
+    if target != expected_target {
+        return Err(AppError::BadRequest(
+            "The access request target does not match the connection".to_string(),
+        ));
+    }
+    let auth_mode = row
+        .2
+        .as_ref()
+        .and_then(|metadata| metadata.get("authMethod"))
+        .and_then(Value::as_str)
+        .unwrap_or("meta_login")
+        .to_string();
+    Ok((provider, auth_mode))
+}
+
+pub async fn create_authorization_attempt(
+    pool: &PgPool,
+    org_id: &str,
+    user_id: &str,
+    connection_id: &str,
+    provider: &str,
+    auth_mode: &str,
+    target: &str,
+    requested_capabilities: &[String],
+) -> Result<AuthorizationAttempt, AppError> {
+    let state = generate_token(32);
+    let id = cuid2::create_id();
+    let expires_at = Utc::now() + Duration::minutes(10);
+    sqlx::query(
+        r#"INSERT INTO "ExternalConnectionAuthorizationAttempt" (
+               id, "connectionId", "orgId", "userId", provider, "authMode", target, state,
+               "requestedCapabilities", status, "expiresAt", "createdAt", "updatedAt"
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'STARTED',$10,NOW(),NOW())"#,
+    )
+    .bind(&id)
+    .bind(connection_id)
+    .bind(org_id)
+    .bind(user_id)
+    .bind(provider)
+    .bind(auth_mode)
+    .bind(target)
+    .bind(&state)
+    .bind(requested_capabilities)
+    .bind(expires_at)
+    .execute(pool)
+    .await?;
+
+    Ok(AuthorizationAttempt {
+        id,
+        connection_id: connection_id.to_string(),
+        provider: provider.to_string(),
+        auth_mode: auth_mode.to_string(),
+        target: target.to_string(),
+        state,
+        requested_capabilities: requested_capabilities.to_vec(),
+    })
+}
+
+pub async fn find_authorization_attempt(
+    pool: &PgPool,
+    org_id: &str,
+    user_id: &str,
+    state: &str,
+) -> Result<Option<AuthorizationAttempt>, AppError> {
+    sqlx::query_as::<_, AuthorizationAttempt>(
+        r#"SELECT id, "connectionId" AS connection_id, provider, "authMode" AS auth_mode,
+                  target, state, "requestedCapabilities" AS requested_capabilities
+           FROM "ExternalConnectionAuthorizationAttempt"
+           WHERE state = $1 AND "orgId" = $2 AND "userId" = $3
+             AND status = 'STARTED' AND "expiresAt" > NOW()"#,
+    )
+    .bind(state)
+    .bind(org_id)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::from)
+}
+
+pub async fn finish_authorization_attempt(
+    pool: &PgPool,
+    attempt_id: &str,
+    status: &str,
+    failure_code: Option<&str>,
+) -> Result<(), AppError> {
+    sqlx::query(
+        r#"UPDATE "ExternalConnectionAuthorizationAttempt"
+           SET status = $1, "failureCode" = $2, "completedAt" = NOW(), "updatedAt" = NOW()
+           WHERE id = $3"#,
+    )
+    .bind(status)
+    .bind(failure_code)
+    .bind(attempt_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+fn capability_grant(
+    provider: &str,
+    key: &str,
+    permissions: &[String],
+    scopes: &[String],
+    tasks: &[String],
+    _metadata: Option<&Value>,
+) -> (bool, Option<&'static str>) {
+    let has = |values: &[&str]| {
+        values.iter().any(|candidate| {
+            permissions.iter().any(|value| value == candidate)
+                || scopes.iter().any(|value| value == candidate)
+                || tasks.iter().any(|value| value == candidate)
+        })
+    };
+    match (provider, key) {
+        ("FACEBOOK", MESSAGING_INBOUND | MESSAGING_OUTBOUND) => (
+            has(&["pages_messaging", "MESSAGING"]),
+            Some("pages_messaging"),
+        ),
+        ("INSTAGRAM", MESSAGING_INBOUND | MESSAGING_OUTBOUND) => (
+            has(&[
+                "instagram_manage_messages",
+                "instagram_business_manage_messages",
+                "MESSAGING",
+            ]),
+            Some("instagram_manage_messages"),
+        ),
+        ("FACEBOOK", SOCIAL_PUBLISH | MEDIA_PUBLISH) => (
+            has(&["pages_manage_posts", "CREATE_CONTENT"]),
+            Some("pages_manage_posts"),
+        ),
+        ("INSTAGRAM", SOCIAL_PUBLISH | MEDIA_PUBLISH) => (
+            has(&[
+                "instagram_content_publish",
+                "instagram_business_content_publish",
+            ]),
+            Some("instagram_content_publish"),
+        ),
+        ("FACEBOOK", SOCIAL_ANALYTICS) => (
+            has(&["pages_read_engagement", "VIEW_INSIGHTS"]),
+            Some("pages_read_engagement"),
+        ),
+        ("INSTAGRAM", SOCIAL_ANALYTICS) => (
+            has(&[
+                "instagram_manage_insights",
+                "instagram_business_manage_insights",
+                "VIEW_INSIGHTS",
+            ]),
+            Some("instagram_manage_insights"),
+        ),
+        ("FACEBOOK", COMMENTS_MANAGE) => (
+            has(&["pages_manage_metadata", "MODERATE", "COMMUNITY"]),
+            Some("pages_manage_metadata"),
+        ),
+        ("INSTAGRAM", COMMENTS_MANAGE) => (
+            has(&[
+                "instagram_manage_comments",
+                "instagram_business_manage_comments",
+                "MODERATE",
+            ]),
+            Some("instagram_manage_comments"),
+        ),
+        ("FACEBOOK", SOCIAL_POST_DELETE) => (
+            has(&["pages_manage_posts", "CREATE_CONTENT", "MANAGE"]),
+            Some("pages_manage_posts"),
+        ),
+        ("INSTAGRAM", SOCIAL_POST_DELETE) => (
+            has(&["instagram_manage_contents"]),
+            Some("instagram_manage_contents"),
+        ),
+        _ => {
+            let granted = match key {
+                SOCIAL_PUBLISH | MEDIA_PUBLISH => has(&[
+                    "tweet.write",
+                    "w_member_social",
+                    "w_organization_social",
+                    "video.publish",
+                    "threads_content_publish",
+                ]),
+                SOCIAL_ANALYTICS => has(&[
+                    "tweet.read",
+                    "r_member_postAnalytics",
+                    "r_organization_social",
+                    "instagram_business_manage_insights",
+                ]),
+                _ => false,
+            };
+            (granted, None)
+        }
+    }
+}
+
+fn metadata_values(metadata: Option<&Value>, key: &str) -> Vec<String> {
+    let Some(value) = metadata.and_then(|item| item.get(key)) else {
+        return Vec::new();
+    };
+    match value {
+        Value::Array(values) => values
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::to_string)
+            .collect(),
+        Value::String(value) => value
+            .split([',', ' '])
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+            .map(str::to_string)
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        authorization_requirement, is_authorization_error, meta_scopes_for_request,
+        normalize_requested_capabilities, permission_snapshots, SOCIAL_POST_DELETE,
+    };
+    use crate::error::AppError;
+    use serde_json::json;
+
+    #[test]
+    fn instagram_meta_delete_access_is_requestable_when_missing() {
+        let permissions = permission_snapshots(
+            "INSTAGRAM",
+            Some(&json!({
+                "authMethod": "meta_login",
+                "permissions": ["instagram_content_publish"]
+            })),
+        );
+        let delete = permissions
+            .iter()
+            .find(|item| item.definition.key == SOCIAL_POST_DELETE)
+            .unwrap();
+        assert_eq!(delete.definition.state, "REQUESTABLE");
+        assert!(delete.definition.requestable);
+    }
+
+    #[test]
+    fn direct_instagram_login_reports_delete_as_unsupported() {
+        let permissions = permission_snapshots(
+            "INSTAGRAM",
+            Some(&json!({
+                "authMethod": "instagram_login",
+                "permissions": ["instagram_business_content_publish"]
+            })),
+        );
+        let delete = permissions
+            .iter()
+            .find(|item| item.definition.key == SOCIAL_POST_DELETE)
+            .unwrap();
+        assert_eq!(delete.definition.state, "UNSUPPORTED");
+        assert!(!delete.definition.requestable);
+    }
+
+    #[test]
+    fn meta_request_adds_only_selected_capability_scopes() {
+        let scopes = meta_scopes_for_request("instagram", &[SOCIAL_POST_DELETE.to_string()]);
+        assert!(scopes.contains(&"instagram_manage_contents".to_string()));
+        assert!(scopes.contains(&"instagram_basic".to_string()));
+        assert!(!scopes.contains(&"pages_messaging".to_string()));
+    }
+
+    #[test]
+    fn provider_tasks_are_treated_as_grants() {
+        let permissions = permission_snapshots(
+            "FACEBOOK",
+            Some(&json!({
+                "authMethod": "meta_login",
+                "tasks": ["CREATE_CONTENT", "MODERATE"]
+            })),
+        );
+        let delete = permissions
+            .iter()
+            .find(|item| item.definition.key == SOCIAL_POST_DELETE)
+            .unwrap();
+        assert_eq!(delete.definition.state, "GRANTED");
+        assert!(!delete.definition.requestable);
+    }
+
+    #[test]
+    fn absent_provider_inventory_is_unknown_not_not_granted() {
+        let permissions =
+            permission_snapshots("FACEBOOK", Some(&json!({"authMethod": "meta_login"})));
+        let publish = permissions
+            .iter()
+            .find(|item| item.definition.key == "SOCIAL_PUBLISH")
+            .unwrap();
+        assert_eq!(publish.definition.state, "UNKNOWN");
+        assert_eq!(
+            publish.definition.reason_code.as_deref(),
+            Some("provider_permission_unavailable")
+        );
+    }
+
+    #[test]
+    fn provider_review_access_is_not_user_requestable() {
+        let permissions = permission_snapshots(
+            "FACEBOOK",
+            Some(&json!({
+                "authMethod": "meta_login",
+                "permissions": ["pages_manage_posts"],
+                "requiresAppReview": true
+            })),
+        );
+        let messaging = permissions
+            .iter()
+            .find(|item| item.definition.key == "MESSAGING_INBOUND")
+            .unwrap();
+        assert_eq!(messaging.definition.state, "REQUIRES_PROVIDER_APPROVAL");
+        assert!(!messaging.definition.requestable);
+    }
+
+    #[test]
+    fn request_normalization_allowlists_and_deduplicates_capabilities() {
+        assert_eq!(
+            normalize_requested_capabilities(Some("social_post_delete, SOCIAL_POST_DELETE, nope",)),
+            vec!["SOCIAL_POST_DELETE"]
+        );
+    }
+
+    #[test]
+    fn authorization_requirement_contains_client_remediation_intent() {
+        let requirement = authorization_requirement(
+            "INSTAGRAM",
+            Some(&json!({
+                "authMethod": "meta_login",
+                "permissions": ["instagram_content_publish"]
+            })),
+            SOCIAL_POST_DELETE,
+        )
+        .unwrap();
+        assert_eq!(requirement.remediation, "connections_access");
+    }
+
+    #[test]
+    fn only_provider_authorization_failures_trigger_permission_remediation() {
+        assert!(is_authorization_error(&AppError::BadRequest(
+            "OAuthException: permission denied".to_string(),
+        )));
+        assert!(!is_authorization_error(&AppError::BadRequest(
+            "Failed to delete the post: provider unavailable".to_string(),
+        )));
+    }
+}

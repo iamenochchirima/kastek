@@ -122,6 +122,7 @@ pub async fn upsert_meta_connections_for_org(
     org_id: &str,
     user_tokens: &MetaTokenResponse,
     pages: &[MetaPageAccount],
+    granted_permissions: Option<&[String]>,
     include_facebook_pages: bool,
     include_instagram_accounts: bool,
 ) -> Result<Vec<SocialChannel>, AppError> {
@@ -143,6 +144,7 @@ pub async fn upsert_meta_connections_for_org(
         let encrypted_page_access_token = encrypt_social_secret(page_access_token)?;
         let page_metadata = json!({
             "provider": "meta",
+            "authMethod": "meta_login",
             "assetType": "facebook_page",
             "pageId": page.id,
             "username": page.username,
@@ -150,6 +152,7 @@ pub async fn upsert_meta_connections_for_org(
             "tasks": page.tasks.clone().unwrap_or_default(),
             "userTokenExpiresAt": user_token_expires_at,
             "tokenType": user_tokens.token_type.clone().unwrap_or_else(|| "bearer".to_string()),
+            "permissions": granted_permissions.unwrap_or_default(),
         });
 
         if include_facebook_pages {
@@ -217,6 +220,7 @@ pub async fn upsert_meta_connections_for_org(
         if let Some(instagram) = instagram {
             let instagram_metadata = json!({
                 "provider": "meta",
+                "authMethod": "meta_login",
                 "assetType": "instagram_professional_account",
                 "instagramAccountId": instagram.id,
                 "pageId": page.id,
@@ -224,6 +228,7 @@ pub async fn upsert_meta_connections_for_org(
                 "profilePictureUrl": instagram.profile_picture_url,
                 "userTokenExpiresAt": user_token_expires_at,
                 "tokenType": user_tokens.token_type.clone().unwrap_or_else(|| "bearer".to_string()),
+                "permissions": granted_permissions.unwrap_or_default(),
             });
 
             sqlx::query(

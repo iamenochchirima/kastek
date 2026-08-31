@@ -1,5 +1,5 @@
 import { formatTelegramText } from "./formatting";
-import type { ResolvedAgentMedia } from "../media/delivery";
+import { materializeResolvedMediaLinks, type ResolvedAgentMedia } from "../media/delivery";
 
 export interface TelegramBotProfile {
   id: number;
@@ -36,6 +36,11 @@ function isRichMessageFallbackError(error: unknown): boolean {
   if (statusCode !== 400) return false;
   const message = error instanceof Error ? error.message.toLowerCase() : "";
   return /rich|method|parse|markdown|unsupported|entity/.test(message);
+}
+
+function isNativeMediaFallbackError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  return (error as { statusCode?: unknown }).statusCode === 400;
 }
 
 const markdownImagePattern = /!\[([^\]\r\n]*)\]\((https?:\/\/[^\s)]+)(?:\s+["']([^"']*)["'])?\)/g;
@@ -137,34 +142,42 @@ export class TelegramBotClient {
     options: { inlineButtons?: TelegramInlineButton[][] } = {},
   ): Promise<TelegramSendResult> {
     if (!media.length) return this.sendMessage(token, chatId, text, options);
-    let lastResult: TelegramSendResult | undefined;
-    let textSent = false;
-    for (const [index, item] of media.entries()) {
-      const method = item.kind === "image"
-        ? "sendPhoto"
-        : item.kind === "video"
-          ? "sendVideo"
-          : item.kind === "audio"
-            ? "sendAudio"
-            : "sendDocument";
-      const field = method === "sendPhoto" ? "photo" : method === "sendVideo" ? "video" : method === "sendAudio" ? "audio" : "document";
-      const plainText = text.trim();
-      const caption: string = !textSent && plainText.length <= 1_024 ? formatTelegramText(plainText) : "";
-      const result = await this.call<{ message_id: number }>(token, method, {
-        chat_id: chatId,
-        [field]: item.previewUrl,
-        ...(caption ? { caption, parse_mode: "HTML" } : {}),
-        ...(index === media.length - 1 && options.inlineButtons?.length ? {
-          reply_markup: {
-            inline_keyboard: options.inlineButtons.map((row) => row.map((button) => ({ text: button.text, callback_data: button.callbackData }))),
-          },
-        } : {}),
-      });
-      lastResult = { providerMessageId: String(result.message_id), status: "sent" };
-      textSent = textSent || Boolean(caption);
+    try {
+      let lastResult: TelegramSendResult | undefined;
+      let textSent = false;
+      for (const [index, item] of media.entries()) {
+        const method = item.kind === "image"
+          ? "sendPhoto"
+          : item.kind === "video"
+            ? "sendVideo"
+            : item.kind === "audio"
+              ? "sendAudio"
+              : "sendDocument";
+        const field = method === "sendPhoto" ? "photo" : method === "sendVideo" ? "video" : method === "sendAudio" ? "audio" : "document";
+        const plainText = text.trim();
+        const caption: string = !textSent && plainText.length <= 1_024 ? formatTelegramText(plainText) : "";
+        const result = await this.call<{ message_id: number }>(token, method, {
+          chat_id: chatId,
+          [field]: item.previewUrl,
+          ...(caption ? { caption, parse_mode: "HTML" } : {}),
+          ...(index === media.length - 1 && options.inlineButtons?.length ? {
+            reply_markup: {
+              inline_keyboard: options.inlineButtons.map((row) => row.map((button) => ({ text: button.text, callback_data: button.callbackData }))),
+            },
+          } : {}),
+        });
+        lastResult = { providerMessageId: String(result.message_id), status: "sent" };
+        textSent = textSent || Boolean(caption);
+      }
+      if (!textSent && text.trim()) lastResult = await this.sendFormattedMessage(token, chatId, text, options);
+      return lastResult!;
+    } catch (error) {
+      if (!isNativeMediaFallbackError(error)) throw error;
+      // A provider may reject a signed URL after Core resolved it. Preserve the
+      // reply and give the user a clickable fallback instead of leaving the run
+      // looking stuck. This follows the existing text-send fallback policy.
+      return this.sendFormattedMessage(token, chatId, materializeResolvedMediaLinks(text, media), options);
     }
-    if (!textSent && text.trim()) lastResult = await this.sendFormattedMessage(token, chatId, text, options);
-    return lastResult!;
   }
 
   private async sendFormattedMessage(token: string, chatId: string, text: string, options: { inlineButtons?: TelegramInlineButton[][] } = {}): Promise<TelegramSendResult> {

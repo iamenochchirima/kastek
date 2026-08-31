@@ -3,6 +3,7 @@ use crypto_utils::{generate_token, sha256_base64_url};
 use crate::config::AppConfig;
 use crate::error::AppError;
 
+use super::connection_permissions::{instagram_scopes_for_request, meta_scopes_for_request};
 use super::social::{required_env, social_app_url};
 
 const X_AUTHORIZE_URL: &str = "https://twitter.com/i/oauth2/authorize";
@@ -142,21 +143,23 @@ pub fn build_linkedin_authorize_url(config: &AppConfig, state: &str) -> Result<S
 }
 
 pub fn build_meta_authorize_url(config: &AppConfig, state: &str) -> Result<String, AppError> {
+    build_meta_authorize_url_for_request(config, state, "facebook", &[])
+}
+
+pub fn build_meta_authorize_url_for_request(
+    config: &AppConfig,
+    state: &str,
+    target: &str,
+    requested_capabilities: &[String],
+) -> Result<String, AppError> {
     let client_id = required_env("AUTH_META_APP_ID")?;
     let redirect_uri = format!("{}/api/social/oauth/meta/callback", social_app_url(config));
-    let scope = std::env::var("AUTH_META_SCOPES").unwrap_or_else(|_| {
-        [
-            "pages_show_list",
-            "pages_manage_metadata",
-            "pages_read_engagement",
-            "pages_manage_posts",
-            "pages_messaging",
-            "instagram_basic",
-            "instagram_content_publish",
-            "instagram_manage_messages",
-        ]
-        .join(",")
-    });
+    let scope = if requested_capabilities.is_empty() {
+        std::env::var("AUTH_META_SCOPES")
+            .unwrap_or_else(|_| meta_scopes_for_request(target, &[]).join(","))
+    } else {
+        meta_scopes_for_request(target, requested_capabilities).join(",")
+    };
 
     Ok(format!(
         "{META_AUTHORIZE_URL}?client_id={}&redirect_uri={}&state={}&response_type=code&scope={}",
@@ -184,21 +187,25 @@ pub(crate) fn instagram_app_secret() -> Result<String, AppError> {
 }
 
 pub fn build_instagram_authorize_url(config: &AppConfig, state: &str) -> Result<String, AppError> {
+    build_instagram_authorize_url_for_request(config, state, &[])
+}
+
+pub fn build_instagram_authorize_url_for_request(
+    config: &AppConfig,
+    state: &str,
+    requested_capabilities: &[String],
+) -> Result<String, AppError> {
     let client_id = instagram_app_id()?;
     let redirect_uri = format!(
         "{}/api/social/oauth/instagram/callback",
         social_app_url(config)
     );
-    let scope = std::env::var("AUTH_INSTAGRAM_SCOPES").unwrap_or_else(|_| {
-        [
-            "instagram_business_basic",
-            "instagram_business_content_publish",
-            "instagram_business_manage_messages",
-            "instagram_business_manage_comments",
-            "instagram_business_manage_insights",
-        ]
-        .join(",")
-    });
+    let scope = if requested_capabilities.is_empty() {
+        std::env::var("AUTH_INSTAGRAM_SCOPES")
+            .unwrap_or_else(|_| instagram_scopes_for_request(&[]).join(","))
+    } else {
+        instagram_scopes_for_request(requested_capabilities).join(",")
+    };
 
     Ok(format!(
         "{INSTAGRAM_AUTHORIZE_URL}?force_reauth=true&client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",

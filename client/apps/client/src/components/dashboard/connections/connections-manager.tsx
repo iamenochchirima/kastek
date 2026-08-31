@@ -16,7 +16,9 @@ import {
   Bot,
   CircleAlert,
   CircleCheck,
+  Check,
   LoaderCircle,
+  LockKeyhole,
   MessageCircle,
   Radio,
   RefreshCw,
@@ -108,6 +110,57 @@ const productLabels: Record<string, string> = {
   social: "Content",
 };
 
+const ACCESS_OPTIONS = [
+  { key: "MESSAGING_INBOUND", group: "MESSAGING", label: "Receive messages", description: "Let KasiTek receive messages for this account." },
+  { key: "MESSAGING_OUTBOUND", group: "MESSAGING", label: "Reply to messages", description: "Let KasiTek send replies from this account." },
+  { key: "SOCIAL_PUBLISH", group: "PUBLISHING", label: "Publish content", description: "Create and publish content to this account." },
+  { key: "MEDIA_PUBLISH", group: "MEDIA", label: "Use media", description: "Upload and use images or videos in content." },
+  { key: "SOCIAL_ANALYTICS", group: "ANALYTICS", label: "View analytics", description: "Read performance and audience metrics." },
+  { key: "COMMENTS_MANAGE", group: "COMMUNITY", label: "Manage comments", description: "Read and manage supported comments and interactions." },
+  { key: "SOCIAL_POST_DELETE", group: "CONTENT_MANAGEMENT", label: "Manage published content", description: "Edit or delete published provider content where supported." },
+] as const;
+
+const DEFAULT_ACCESS_KEYS = [
+  "MESSAGING_INBOUND",
+  "MESSAGING_OUTBOUND",
+  "SOCIAL_PUBLISH",
+  "MEDIA_PUBLISH",
+  "SOCIAL_ANALYTICS",
+];
+
+const accessStateLabels: Record<string, string> = {
+  GRANTED: "Granted",
+  REQUESTABLE: "Not granted",
+  NOT_GRANTED: "Not granted",
+  UNSUPPORTED: "Unsupported",
+  UNKNOWN: "Not verified",
+  REQUIRES_PROVIDER_APPROVAL: "Provider approval needed",
+};
+
+type InitialAccessRequest = {
+  connectionId?: string;
+  provider?: string;
+  capabilities?: string[];
+};
+
+function accessStateClass(state: string) {
+  switch (state) {
+    case "GRANTED":
+      return "border-status-success/30 bg-status-success-soft text-status-success";
+    case "REQUESTABLE":
+    case "NOT_GRANTED":
+      return "border-status-attention/30 bg-status-attention-soft text-status-attention";
+    case "UNSUPPORTED":
+      return "border-border bg-secondary text-muted-foreground";
+    default:
+      return "border-status-info/30 bg-status-info-soft text-status-info";
+  }
+}
+
+function metaTargetForProvider(provider: string) {
+  return provider === "FACEBOOK" ? "facebook" : "instagram";
+}
+
 function statusPresentation(status: WorkspaceConnection["status"]) {
   switch (status) {
     case "CONNECTED":
@@ -147,7 +200,45 @@ function normalizeBlueskyHandle(value: string) {
   return handle && !handle.includes(".") ? `${handle}.bsky.social` : handle;
 }
 
-export function ConnectionsManager({ connections }: { connections: WorkspaceConnection[] }) {
+function AccessSelection({ value, onChange }: { value: string[]; onChange: (keys: string[]) => void }) {
+  return (
+    <div className="space-y-3 rounded-lg border bg-secondary/20 p-4">
+      <div>
+        <h3 className="text-sm font-medium">Choose access</h3>
+        <p className="mt-1 text-xs text-muted-foreground">You can add more access later from the connection details.</p>
+      </div>
+      <div className="space-y-1">
+        {ACCESS_OPTIONS.map((option) => {
+          const checked = value.includes(option.key);
+          return (
+            <label key={option.key} className="flex cursor-pointer items-start gap-3 rounded-md p-2 hover:bg-secondary/60">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 accent-primary"
+                checked={checked}
+                onChange={(event) => onChange(event.target.checked
+                  ? [...value, option.key]
+                  : value.filter((key) => key !== option.key))}
+              />
+              <span>
+                <span className="block text-sm font-medium">{option.label}</span>
+                <span className="block text-xs text-muted-foreground">{option.description}</span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function ConnectionsManager({
+  connections,
+  initialAccessRequest,
+}: {
+  connections: WorkspaceConnection[];
+  initialAccessRequest?: InitialAccessRequest;
+}) {
   const router = useRouter();
   const { confirm } = useConfirmationDialog();
   const [pending, setPending] = useState<string | null>(null);
@@ -158,6 +249,8 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
   const [blueskyHandle, setBlueskyHandle] = useState("");
   const [threadsConnectPath, setThreadsConnectPath] = useState<string | null>(null);
   const [instagramConnectPath, setInstagramConnectPath] = useState<string | null>(null);
+  const [selectedAccess, setSelectedAccess] = useState<string[]>(DEFAULT_ACCESS_KEYS);
+  const [requestedPermissionKeys, setRequestedPermissionKeys] = useState<string[]>([]);
 
   useEffect(() => {
     function handleWhatsappSignupStatus(event: Event) {
@@ -174,6 +267,22 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
     window.addEventListener(WHATSAPP_SIGNUP_STATUS_EVENT, handleWhatsappSignupStatus);
     return () => window.removeEventListener(WHATSAPP_SIGNUP_STATUS_EVENT, handleWhatsappSignupStatus);
   }, []);
+
+  useEffect(() => {
+    if (!initialAccessRequest?.connectionId && !initialAccessRequest?.provider) return;
+    const matching = connections.filter((item) => initialAccessRequest.connectionId
+      ? item.id === initialAccessRequest.connectionId
+      : item.provider.toLowerCase() === initialAccessRequest.provider?.trim().toLowerCase());
+    const connection = matching.length === 1 ? matching[0] : undefined;
+    if (!connection) return;
+    const requested = new Set(initialAccessRequest.capabilities ?? []);
+    setSelectedConnection(connection);
+    setRequestedPermissionKeys(
+      connection.permissions
+        .filter((permission) => permission.requestable && requested.has(permission.key))
+        .map((permission) => permission.key),
+    );
+  }, [connections, initialAccessRequest?.capabilities, initialAccessRequest?.connectionId, initialAccessRequest?.provider]);
 
   const groupedConnections = Object.entries(providerDetails)
     .map(([provider, detail]) => ({
@@ -225,7 +334,37 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
   }
 
   function startOAuthConnection(path: string) {
+    setPending("oauth:redirect");
     window.location.assign(apiUrl(path));
+  }
+
+  function metaConnectionPath(target: "facebook" | "instagram", capabilities: string[], connectionId?: string) {
+    const params = new URLSearchParams({ target });
+    if (capabilities.length) params.set("capabilities", capabilities.join(","));
+    if (connectionId) params.set("connectionId", connectionId);
+    return `/api/social/oauth/meta/start?${params.toString()}`;
+  }
+
+  function requestConnectionAccess() {
+    if (!selectedConnection || requestedPermissionKeys.length === 0) return;
+    if (selectedConnection.provider !== "FACEBOOK" && selectedConnection.provider !== "INSTAGRAM") {
+      setError("Access requests are not available for this provider yet.");
+      return;
+    }
+    const authMode = selectedConnection.permissions.find((permission) => permission.authMode)?.authMode;
+    if (selectedConnection.provider === "INSTAGRAM" && authMode === "instagram_login") {
+      const params = new URLSearchParams({
+        capabilities: requestedPermissionKeys.join(","),
+        connectionId: selectedConnection.id,
+      });
+      startOAuthConnection(`/api/social/oauth/instagram/start?${params.toString()}`);
+      return;
+    }
+    startOAuthConnection(metaConnectionPath(
+      metaTargetForProvider(selectedConnection.provider),
+      requestedPermissionKeys,
+      selectedConnection.id,
+    ));
   }
 
   async function connectBluesky() {
@@ -386,7 +525,10 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                         <MotionReveal key={connection.id} delay={0.08 + index * 0.05} hoverLift>
                         <Card
                           className="group cursor-pointer gap-0 rounded-lg border-primary/20 bg-secondary/10 !py-0 shadow-none transition-colors hover:border-primary/50 hover:bg-secondary/20"
-                          onClick={() => setSelectedConnection(connection)}
+                          onClick={() => {
+                            setRequestedPermissionKeys([]);
+                            setSelectedConnection(connection);
+                          }}
                         >
                           <CardContent className="flex min-h-10 items-center gap-2 !p-1.5">
                             <div className="rounded-md border bg-background p-1"><Icon className={`size-3.5 ${detail?.iconClass ?? "text-muted-foreground"}`} /></div>
@@ -522,9 +664,11 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                       </div>
                     </div>
                   </div>
+                  <AccessSelection value={selectedAccess} onChange={setSelectedAccess} />
                   <Button
                     className="w-full"
-                    onClick={() => startOAuthConnection("/api/social/oauth/meta/start?target=facebook")}
+                    disabled={selectedAccess.length === 0}
+                    onClick={() => startOAuthConnection(metaConnectionPath("facebook", selectedAccess))}
                   >
                     Continue to Meta
                   </Button>
@@ -533,38 +677,45 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  <button
-                    type="button"
-                    onClick={() => setInstagramConnectPath("/api/social/oauth/instagram/start")}
-                    className="block w-full rounded-lg border p-4 text-left transition-colors hover:border-primary/60 hover:bg-secondary/40"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="rounded-md border bg-secondary p-2"><InstagramBrandIcon className={`h-5 w-5 ${getPlatformBrandColor("INSTAGRAM")}`} /></div>
-                      <div>
-                        <h3 className="font-medium">Instagram Business or Creator account</h3>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          Connect your professional Instagram account directly.
-                        </p>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setInstagramConnectPath("/api/social/oauth/instagram/start")}
+                      className="block w-full rounded-lg border p-4 text-left transition-colors hover:border-primary/60 hover:bg-secondary/40"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-md border bg-secondary p-2"><InstagramBrandIcon className={`h-5 w-5 ${getPlatformBrandColor("INSTAGRAM")}`} /></div>
+                        <div>
+                          <h3 className="font-medium">Instagram Business or Creator account</h3>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Connect your professional Instagram account directly.
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  </button>
+                    </button>
+                    <p className="px-1 text-xs text-muted-foreground">Instagram controls the access bundle for direct login.</p>
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => startOAuthConnection("/api/social/oauth/meta/start?target=instagram")}
-                    className="block w-full rounded-lg border p-4 text-left transition-colors hover:border-primary/60 hover:bg-secondary/40"
-                  >
+                  <div className="space-y-3 rounded-lg border p-4">
                     <div className="flex items-start gap-3">
                       <div className="rounded-md border bg-secondary p-2"><FacebookBrandIcon className={`h-5 w-5 ${getPlatformBrandColor("FACEBOOK")}`} /></div>
                       <div>
-                        <h3 className="font-medium">Instagram account linked to a Facebook Page</h3>
+                        <h3 className="font-medium">Instagram through Meta Login</h3>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          Connect Instagram through its linked Facebook Page.
+                          Choose the access KasiTek should request for the Instagram account linked to a Facebook Page.
                         </p>
                       </div>
                     </div>
-                  </button>
+                    <AccessSelection value={selectedAccess} onChange={setSelectedAccess} />
+                    <Button
+                      className="w-full"
+                      disabled={selectedAccess.length === 0}
+                      onClick={() => startOAuthConnection(metaConnectionPath("instagram", selectedAccess))}
+                    >
+                      Continue to Meta
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -592,6 +743,11 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
             const isLinkedInPage = selectedConnection.provider === "LINKEDIN"
               && selectedConnection.metadata?.accountType === "organization";
             const reconnectPath = providerDetail?.connectPath;
+            const requestablePermissions = selectedConnection.permissions.filter((permission) => permission.requestable);
+            const authMode = selectedConnection.permissions.find((permission) => permission.authMode)?.authMode;
+            const needsMetaUpgrade = selectedConnection.provider === "INSTAGRAM"
+              && authMode === "instagram_login"
+              && selectedConnection.permissions.some((permission) => permission.key === "SOCIAL_POST_DELETE" && permission.state === "UNSUPPORTED");
             const rows = [
               ["Provider", providerDetail?.label ?? selectedConnection.provider],
               ["Account ID", selectedConnection.externalAccountId ?? "—"],
@@ -620,6 +776,71 @@ export function ConnectionsManager({ connections }: { connections: WorkspaceConn
                 <div><h3 className="mb-2 text-sm font-semibold">Workspace use</h3><div className="flex flex-wrap gap-1.5">{selectedConnection.consumers.length ? selectedConnection.consumers.map((item) => <Badge key={item} variant="secondary">{productLabels[item] ?? item}</Badge>) : <span className="text-sm text-muted-foreground">Not assigned to a workspace feature yet.</span>}</div></div>
 
                 <div><h3 className="mb-2 text-sm font-semibold">Capabilities</h3><div className="flex flex-wrap gap-1.5">{selectedConnection.capabilities.length ? selectedConnection.capabilities.map((capability) => <Badge key={capability.key} variant="outline" className={!capability.enabled ? "opacity-50" : ""}>{capability.key.toLowerCase().replaceAll("_", " ")}{capability.entitlementKey ? ` · ${capability.entitlementKey}` : ""}</Badge>) : <span className="text-sm text-muted-foreground">No capabilities reported.</span>}</div></div>
+
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold">Access</h3>
+                      <p className="text-xs text-muted-foreground">Provider access for this connection.</p>
+                    </div>
+                    {selectedConnection.permissions.some((permission) => permission.authMode) ? (
+                      <Badge variant="outline" className="text-xs">
+                        {selectedConnection.permissions.find((permission) => permission.authMode)?.authMode === "instagram_login" ? "Instagram Login" : "Meta Login"}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <div className="space-y-2 rounded-lg border p-3">
+                    {selectedConnection.permissions.length ? selectedConnection.permissions.map((permission) => (
+                      <label key={permission.key} className={`flex items-start gap-3 rounded-md p-2 ${permission.requestable ? "cursor-pointer hover:bg-secondary/50" : ""}`}>
+                        {permission.requestable ? (
+                          <input
+                            type="checkbox"
+                            aria-label={`Request ${permission.label}`}
+                            className="mt-0.5 size-4 accent-primary"
+                            checked={requestedPermissionKeys.includes(permission.key)}
+                            onChange={(event) => setRequestedPermissionKeys((current) => event.target.checked
+                              ? [...current, permission.key]
+                              : current.filter((key) => key !== permission.key))}
+                          />
+                        ) : permission.state === "GRANTED" ? (
+                          <Check className="mt-0.5 size-4 text-status-success" aria-label="Granted" />
+                        ) : (
+                          <LockKeyhole className="mt-0.5 size-4 text-muted-foreground" aria-label={accessStateLabels[permission.state] ?? "Unavailable"} />
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                            {permission.label}
+                            <span className={`rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${accessStateClass(permission.state)}`}>
+                              {accessStateLabels[permission.state] ?? permission.state.replaceAll("_", " ")}
+                            </span>
+                          </span>
+                          <span className="mt-0.5 block text-xs text-muted-foreground">{permission.description}</span>
+                          {permission.state === "UNSUPPORTED" ? <span className="mt-0.5 block text-xs text-muted-foreground">This access is not available through this connection type.</span> : null}
+                        </span>
+                      </label>
+                    )) : <span className="text-sm text-muted-foreground">Access has not been verified yet.</span>}
+                  </div>
+                  {requestablePermissions.length ? (
+                    <Button
+                      size="sm"
+                      className="mt-3"
+                      disabled={pending !== null || requestedPermissionKeys.length === 0}
+                      onClick={requestConnectionAccess}
+                    >
+                      <LockKeyhole />Grant access
+                    </Button>
+                  ) : null}
+                  {needsMetaUpgrade ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={pending !== null}
+                      onClick={() => startOAuthConnection(metaConnectionPath("instagram", ["SOCIAL_POST_DELETE"], selectedConnection.id))}
+                    >
+                      <RefreshCw />Switch to Meta Login
+                    </Button>
+                  ) : null}
+                </div>
 
                 {selectedConnection.lastError ? <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{selectedConnection.lastError}</div> : null}
 

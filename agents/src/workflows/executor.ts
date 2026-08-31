@@ -1,5 +1,6 @@
 import { compileWorkflowStateSchema, type WorkflowGraph, type WorkflowStateValidator } from "./graph";
 import { hashToolArguments } from "../tools/registry";
+import { findAuthorizationRequirement, type AgentAuthorizationRequirement } from "../media/contracts";
 
 export interface GraphToolRequest {
   name: string;
@@ -55,6 +56,7 @@ export interface GraphExecutionResult {
   error?: string;
   usage: GraphExecutionUsage;
   boundaryReached?: boolean;
+  authorizationRequired?: AgentAuthorizationRequirement;
 }
 
 interface GraphExecutionContext {
@@ -124,6 +126,7 @@ export async function executeWorkflowGraph(
     validateState: compileWorkflowStateSchema(graph),
   } satisfies GraphExecutionContext;
   const { usage } = execution;
+  let authorizationRequired: AgentAuthorizationRequirement | undefined;
   let current = graph.entryNodeId;
   try {
     execution.validateState(state);
@@ -170,17 +173,20 @@ export async function executeWorkflowGraph(
         if (!dependencies.tool || typeof node.config.toolName !== "string") throw new Error(`Tool node is not configured: ${node.id}`);
         consumeToolCall(usage, dependencies.limits);
         result = await dependencies.tool({ name: node.config.toolName, arguments: (node.config.arguments ?? {}) as Record<string, unknown>, nodeId: node.id });
+        authorizationRequired = findAuthorizationRequirement(result) ?? authorizationRequired;
         addReportedUsage(usage, result);
         applyConfiguredWrites(state, node, result);
       } else if (node.type === "model") {
         if (!dependencies.model) throw new Error(`Model node is not configured: ${node.id}`);
         consumeModelCall(usage, dependencies.limits);
         result = await dependencies.model({ nodeId: node.id, config: node.config, state });
+        authorizationRequired = findAuthorizationRequirement(result) ?? authorizationRequired;
         addReportedUsage(usage, result);
         applyConfiguredWrites(state, node, result);
       } else if (node.type === "agent_loop") {
         if (!dependencies.agentLoop) throw new Error(`Agent-loop node is not configured: ${node.id}`);
         result = await dependencies.agentLoop({ nodeId: node.id, config: node.config, state });
+        authorizationRequired = findAuthorizationRequirement(result) ?? authorizationRequired;
         applyConfiguredWrites(state, node, result);
       } else if (node.type === "approval") {
         const approvalConfig = node.config ?? {};
@@ -194,6 +200,7 @@ export async function executeWorkflowGraph(
           if (resumed && resumed.id === toolCallId && resumed.name === toolName) {
             consumeToolCall(usage, dependencies.limits);
             result = await dependencies.tool({ name: toolName, arguments: toolArguments, nodeId: node.id, approved: resumed.approval });
+            authorizationRequired = findAuthorizationRequirement(result) ?? authorizationRequired;
             addReportedUsage(usage, result);
             applyConfiguredWrites(state, node, result);
           } else {
@@ -236,14 +243,14 @@ export async function executeWorkflowGraph(
       }
       execution.validateState(state);
       const postNodeLimitError = executionLimitError(usage, dependencies.limits, execution.startedAt);
-      if (postNodeLimitError) return { status: "failed", state, trace, usage, error: postNodeLimitError };
+      if (postNodeLimitError) return { status: "failed", state, trace, usage, error: postNodeLimitError, ...(authorizationRequired ? { authorizationRequired } : {}) };
       trace.push({ nodeId: node.id, type: node.type, status: "completed" });
       const outgoing = graph.edges
         .map((edge, index) => ({ edge, index }))
         .filter(({ edge }) => edge.from === node.id && edgeMatches(edge, state));
       const nextNodeId = node.type === "fan_out" ? undefined : outgoing[0]?.edge.to;
       await checkpointNode(dependencies, node.id, nextNodeId, "completed", state, result, trace, usage, count);
-      if (!outgoing.length) return { status: "completed", state, trace, usage };
+      if (!outgoing.length) return { status: "completed", state, trace, usage, ...(authorizationRequired ? { authorizationRequired } : {}) };
       if (node.type === "fan_out") {
         const fanInNodeId = typeof node.config.fanInNodeId === "string" ? node.config.fanInNodeId : undefined;
         const previousBoundary = execution.stopAtNodeId;
@@ -260,7 +267,8 @@ export async function executeWorkflowGraph(
         const mergedState = structuredClone(state);
         const mergedPaths: Array<{ path: string; value: unknown }> = [];
         for (const branch of branches) {
-          if (branch.status !== "completed") return { ...branch, trace: [...trace, ...branch.trace], usage };
+          authorizationRequired = branch.authorizationRequired ?? authorizationRequired;
+          if (branch.status !== "completed") return { ...branch, trace: [...trace, ...branch.trace], usage, ...(authorizationRequired ? { authorizationRequired } : {}) };
           if (fanInNodeId && !branch.boundaryReached) throw new Error(`Fan-out branch did not reach its fan-in node: ${fanInNodeId}`);
           for (const path of changedStatePaths(state, branch.state)) {
             const value = getPath(branch.state, path);
@@ -280,17 +288,17 @@ export async function executeWorkflowGraph(
           current = fanInNodeId;
           continue;
         }
-        return { status: "completed", state, trace, usage };
+        return { status: "completed", state, trace, usage, ...(authorizationRequired ? { authorizationRequired } : {}) };
       }
       const next = outgoing[0]!;
       consumeEdgeIteration(next.edge, next.index, execution.edgeIterations);
       current = next.edge.to;
     } catch (error) {
       trace.push({ nodeId: node.id, type: node.type, status: "failed" });
-      return { status: "failed", state, trace, usage, error: error instanceof Error ? error.message : "Workflow node failed" };
+      return { status: "failed", state, trace, usage, error: error instanceof Error ? error.message : "Workflow node failed", ...(authorizationRequired ? { authorizationRequired } : {}) };
     }
   }
-  return { status: "failed", state, trace, usage, error: "Workflow step limit exceeded" };
+  return { status: "failed", state, trace, usage, error: "Workflow step limit exceeded", ...(authorizationRequired ? { authorizationRequired } : {}) };
 }
 
 function createWorkflowArgumentsHash(argumentsValue: Record<string, unknown>): string {

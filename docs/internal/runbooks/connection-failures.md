@@ -23,15 +23,23 @@ Use this when a provider account shows `NEEDS_ATTENTION`, messages stop arriving
 
 ## Facebook and Instagram
 
-1. Reconnect through Meta OAuth from `/connections` when credentials are expired or permissions changed.
-2. Confirm the expected Page and Instagram professional account were returned by Meta.
-3. Confirm required Page, messaging, publishing, and Instagram permissions are approved for the app and granted by the customer.
-4. Confirm `META_WEBHOOK_VERIFY_TOKEN` or `AUTH_META_WEBHOOK_VERIFY_TOKEN` matches the Meta webhook subscription.
-5. Confirm the Meta app's `page` subscription callback is the production Core URL: `https://api.kasitek.co.za/api/webhooks/meta`. A stale local or ngrok callback means Page messages will never reach Core even when each Page is marked connected.
-6. Confirm each Page is subscribed to the app's messaging fields. Loading the workspace social-channel list re-applies the app-level Page callback and refreshes connected Page subscriptions.
-7. If Inbox receives the message but the agent does not respond, open the agent's **Integrations** tab and confirm the account is **Assigned**. The route key is the workspace `ExternalConnection` owned by Core; reconnecting the account creates a new route key that must be assigned again.
-8. Check Core logs for `provider.webhook.received`/`webhook.receive`, `agent_platform.meta_ingest` and Agent Platform logs for `channel.ingest`. A route conflict means another active customer-service agent owns the same Page or Instagram account; remove that route before assigning it elsewhere.
-9. If agent replies fail, inspect the Core `channel.delivery` event and Meta response. Core must remain the only service holding the Meta access token.
+1. Open the affected account in `/connections` and inspect the **Access** section before disconnecting anything.
+2. Use **Grant access** for requestable missing access. Reauthorization updates the existing connection and does not remove drafts, history, or agent assignments.
+3. Confirm the expected Page and Instagram professional account were returned by Meta.
+4. Confirm required Page, messaging, publishing, and Instagram permissions are approved for the app and granted by the customer.
+5. For Instagram published-post deletion, use Meta/Facebook Login with the required content-management access. Direct Instagram Login cannot provide this capability.
+6. Confirm `META_WEBHOOK_VERIFY_TOKEN` or `AUTH_META_WEBHOOK_VERIFY_TOKEN` matches the Meta webhook subscription.
+7. Confirm the Meta app's `page` subscription callback is the production Core URL: `https://api.kasitek.co.za/api/webhooks/meta`. A stale local or ngrok callback means Page messages will never reach Core even when each Page is marked connected.
+8. Confirm each Page is subscribed to the app's messaging fields. Loading the workspace social-channel list re-applies the app-level Page callback and refreshes connected Page subscriptions.
+9. If Inbox receives the message but the agent does not respond, open the agent's **Integrations** tab and confirm the account is **Assigned**. The route key is the workspace `ExternalConnection` owned by Core.
+10. Check Core logs for `provider.webhook.received`/`webhook.receive`, `agent_platform.meta_ingest` and Agent Platform logs for `channel.ingest`. A route conflict means another active customer-service agent owns the same Page or Instagram account; remove that route before assigning it elsewhere.
+11. If agent replies fail, inspect the Core `channel.delivery` event and Meta response. Core must remain the only service holding the Meta access token.
+
+When an agent returns a typed authorization requirement, the runtime carries it with the durable
+response. Dashboard agent transcripts render **Grant access** or **Review access** using the
+connection reference; WhatsApp, Telegram, Discord, and Core-backed delivery adapters append the
+same provider-neutral recovery action while preserving their native formatting. Do not copy a
+connection ID, provider scope, token, or raw provider error into a user message.
 
 ## LinkedIn and X
 

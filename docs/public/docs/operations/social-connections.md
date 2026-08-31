@@ -22,3 +22,18 @@ channel.
 
 If no Pages are found, reconnect after confirming the member's Page role and the app's organization
 permissions in the LinkedIn developer portal.
+
+## Connection access
+
+Open a connected account to view its access by feature. KasiTek separates provider access from
+connection health, so an account can be healthy for publishing while missing access for analytics,
+messaging, comments, or content management.
+
+Use **Grant access** to request additional access for an existing account. This updates the current
+connection and does not remove its drafts, published-post history, or agent assignments. The access
+selection is limited to permissions supported by that provider and connection type. Some providers
+use a fixed consent or setup flow instead of individual permission checkboxes.
+
+For Instagram published-post deletion, use the Instagram connection's Meta Login access flow. A
+direct Instagram Login connection does not provide that capability; the connection details will
+offer **Switch to Meta Login** when that upgrade is available.
