@@ -37,6 +37,22 @@ describe("Telegram bot client", () => {
     });
   });
 
+  it("sends Markdown image previews as Telegram photos", async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { message_id: 458 } }), { status: 200 }));
+    const client = new TelegramBotClient({ apiBaseUrl: "https://telegram.test", fetchImpl });
+
+    await expect(client.sendMessage("token", "42", "Please confirm:\n\n![announcement](https://core.test/api/social/media/asset-1/public?expires=123&signature=abc)"))
+      .resolves.toEqual({ providerMessageId: "458", status: "sent" });
+    expect(fetchImpl).toHaveBeenCalledWith("https://telegram.test/bottoken/sendPhoto", expect.objectContaining({ method: "POST" }));
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toMatchObject({
+      chat_id: "42",
+      photo: "https://core.test/api/social/media/asset-1/public?expires=123&signature=abc",
+      caption: "Please confirm:",
+      parse_mode: "HTML",
+    });
+  });
+
   it("sends approval buttons and acknowledges callback clicks", async () => {
     const fetchImpl = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { message_id: 99 } }), { status: 200 }))

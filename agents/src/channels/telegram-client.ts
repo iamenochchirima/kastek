@@ -37,6 +37,17 @@ function isRichMessageFallbackError(error: unknown): boolean {
   return /rich|method|parse|markdown|unsupported|entity/.test(message);
 }
 
+const markdownImagePattern = /!\[([^\]\r\n]*)\]\((https?:\/\/[^\s)]+)(?:\s+["']([^"']*)["'])?\)/g;
+
+function extractMarkdownImages(input: string): { text: string; images: Array<{ url: string; label: string }> } {
+  const images: Array<{ url: string; label: string }> = [];
+  const text = input.replace(markdownImagePattern, (_match, alt: string, url: string, title?: string) => {
+    images.push({ url, label: title || alt || "Image" });
+    return "";
+  }).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  return { text, images };
+}
+
 export interface TelegramBotClientOptions {
   apiBaseUrl?: string;
   fetchImpl?: typeof fetch;
@@ -84,6 +95,40 @@ export class TelegramBotClient {
   }
 
   public async sendMessage(token: string, chatId: string, text: string, options: { inlineButtons?: TelegramInlineButton[][] } = {}): Promise<TelegramSendResult> {
+    const extracted = extractMarkdownImages(text);
+    if (extracted.images.length) {
+      try {
+        let lastResult: TelegramSendResult | undefined;
+        for (const [index, image] of extracted.images.entries()) {
+          const caption = index === 0 && extracted.text ? formatTelegramText(extracted.text) : "";
+          const captionFits = caption.length <= 1024;
+          const result = await this.call<{ message_id: number }>(token, "sendPhoto", {
+            chat_id: chatId,
+            photo: image.url,
+            ...(captionFits && caption ? { caption, parse_mode: "HTML" } : {}),
+            ...(index === extracted.images.length - 1 && options.inlineButtons?.length ? {
+              reply_markup: {
+                inline_keyboard: options.inlineButtons.map((row) => row.map((button) => ({ text: button.text, callback_data: button.callbackData }))),
+              },
+            } : {}),
+          });
+          lastResult = { providerMessageId: String(result.message_id), status: "sent" };
+          if (index === 0 && extracted.text && !captionFits) {
+            lastResult = await this.sendFormattedMessage(token, chatId, extracted.text, options);
+          }
+        }
+        return lastResult!;
+      } catch (error) {
+        // Keep a useful clickable fallback if a signed preview URL has
+        // expired or Telegram cannot fetch it. The original Markdown is
+        // rendered as a normal link by the existing text formatter.
+        return this.sendFormattedMessage(token, chatId, text, options);
+      }
+    }
+    return this.sendFormattedMessage(token, chatId, text, options);
+  }
+
+  private async sendFormattedMessage(token: string, chatId: string, text: string, options: { inlineButtons?: TelegramInlineButton[][] } = {}): Promise<TelegramSendResult> {
     const replyMarkup = options.inlineButtons?.length ? {
       reply_markup: {
         inline_keyboard: options.inlineButtons.map((row) => row.map((button) => ({ text: button.text, callback_data: button.callbackData }))),

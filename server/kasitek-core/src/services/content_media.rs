@@ -14,6 +14,7 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 
 use crate::config::AppConfig;
@@ -681,18 +682,43 @@ pub async fn download_public_content_media(
     {
         return Err(AppError::Unauthorized);
     }
-    let row = sqlx::query_as::<_, ContentMediaDownloadRow>(
-        r#"
-        SELECT "storageKey" AS storage_key, "mimeType" AS mime_type, "fileName" AS file_name,
-               "processingStatus"::text AS processing_status, "scanStatus"::text AS scan_status
-        FROM "ContentMediaAsset"
-        WHERE id = $1
-        "#,
-    )
-    .bind(asset_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Media asset not found".to_string()))?;
+    // Provider fetches are external and cannot be retried by the provider if
+    // this endpoint briefly loses a pooled database connection. Retry the
+    // small metadata lookup here so a transient Core/DB blip does not become
+    // an opaque "invalid media type" error at Instagram or Meta.
+    let mut row = None;
+    for attempt in 0..3 {
+        match sqlx::query_as::<_, ContentMediaDownloadRow>(
+            r#"
+            SELECT "storageKey" AS storage_key, "mimeType" AS mime_type, "fileName" AS file_name,
+                   "processingStatus"::text AS processing_status, "scanStatus"::text AS scan_status
+            FROM "ContentMediaAsset"
+            WHERE id = $1
+            "#,
+        )
+        .bind(asset_id)
+        .fetch_optional(pool)
+        .await
+        {
+            Ok(value) => {
+                row = value;
+                break;
+            }
+            Err(error) if attempt < 2 => {
+                observability::tracing::warn!(
+                    event = "dependency.unavailable",
+                    dependency = "postgres",
+                    operation = "content_media.public_read.retry",
+                    attempt = attempt + 1,
+                    error_type = %std::any::type_name_of_val(&error),
+                    "public media metadata lookup failed; retrying"
+                );
+                tokio::time::sleep(Duration::from_millis(100 * (attempt as u64 + 1))).await;
+            }
+            Err(error) => return Err(AppError::from(error)),
+        }
+    }
+    let row = row.ok_or_else(|| AppError::NotFound("Media asset not found".to_string()))?;
     if row.processing_status != "READY" || row.scan_status != "CLEAN" {
         return Err(AppError::Conflict("Media asset is not ready".to_string()));
     }

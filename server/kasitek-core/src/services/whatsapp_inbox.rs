@@ -7,6 +7,7 @@
 use actix_multipart::Multipart;
 use chrono::Utc;
 use futures_util::StreamExt;
+use regex::Regex;
 use serde_json::{json, Value};
 use sqlx::{PgPool, Row};
 use std::collections::HashSet;
@@ -110,6 +111,34 @@ pub(crate) fn format_whatsapp_text(input: &str) -> String {
         output.push(format!("```\n{}\n```", code.join("\n")));
     }
     output.join("\n")
+}
+
+fn extract_markdown_images(input: &str) -> (String, Vec<String>) {
+    let pattern = Regex::new(r#"!\[([^\]\r\n]*)\]\((https?://[^\s)]+)(?:\s+["']([^"']*)["'])?\)"#)
+        .expect("valid Markdown image pattern");
+    let mut images = Vec::new();
+    let mut text = String::with_capacity(input.len());
+    let mut cursor = 0;
+    for captures in pattern.captures_iter(input) {
+        let Some(full) = captures.get(0) else {
+            continue;
+        };
+        text.push_str(&input[cursor..full.start()]);
+        if let Some(url) = captures
+            .get(2)
+            .map(|value| value.as_str())
+            .filter(|value| value.len() <= 2_048)
+        {
+            images.push(url.to_string());
+        }
+        cursor = full.end();
+    }
+    text.push_str(&input[cursor..]);
+    let mut text = text.trim().to_string();
+    while text.contains("\n\n\n") {
+        text = text.replace("\n\n\n", "\n\n");
+    }
+    (text, images)
 }
 
 fn format_whatsapp_inline(input: &str) -> String {
@@ -447,8 +476,40 @@ pub async fn deliver_agent_message(
         AppError::Internal(format!("Failed to queue Inbox analytics fact: {error}"))
     })?;
     tx.commit().await?;
-    let rendered_text = format_whatsapp_text(text);
-    let send_result = if buttons.is_empty() {
+    let (text_without_images, images) = extract_markdown_images(text);
+    let rendered_text = format_whatsapp_text(&text_without_images);
+    let send_result = if buttons.is_empty() && !images.is_empty() {
+        let mut last_result = None;
+        for (index, image_url) in images.iter().enumerate() {
+            let caption = (index == 0 && rendered_text.chars().count() <= 1_024)
+                .then_some(rendered_text.as_str())
+                .filter(|value| !value.is_empty());
+            last_result = Some(
+                send_media_link_message(
+                    &connection.phone_number_id,
+                    &access_token,
+                    &phone,
+                    image_url,
+                    caption,
+                    None,
+                )
+                .await?,
+            );
+        }
+        if !rendered_text.is_empty() && rendered_text.chars().count() > 1_024 {
+            last_result = Some(
+                send_text_message(
+                    &connection.phone_number_id,
+                    &access_token,
+                    &phone,
+                    &rendered_text,
+                    None,
+                )
+                .await?,
+            );
+        }
+        Ok(last_result.expect("image list is non-empty"))
+    } else if buttons.is_empty() {
         send_text_message(
             &connection.phone_number_id,
             &access_token,
@@ -631,7 +692,7 @@ fn whatsapp_deleted_message_responder_type(
 #[cfg(test)]
 mod tests {
     use super::{
-        format_whatsapp_text, is_provider_authentication_failure,
+        extract_markdown_images, format_whatsapp_text, is_provider_authentication_failure,
         validate_agent_delivery_idempotency_key, whatsapp_deleted_message_responder_type,
     };
     use serde_json::json;
@@ -703,6 +764,15 @@ mod tests {
         assert!(rendered.contains("Use ```npm test```"));
         assert!(rendered.contains("🖼️ Preview: https://example.com/image.png"));
         assert!(rendered.contains("```\nhello <world>\n```"));
+    }
+
+    #[test]
+    fn agent_image_previews_are_extracted_for_media_delivery() {
+        let (text, images) = extract_markdown_images(
+            "Please confirm:\n\n![announcement](https://core.test/media/asset-1)\n\nThanks",
+        );
+        assert_eq!(text, "Please confirm:\n\nThanks");
+        assert_eq!(images, vec!["https://core.test/media/asset-1"]);
     }
 
     #[test]
@@ -816,6 +886,56 @@ async fn send_media_message(
         .ok_or_else(|| {
             AppError::Internal(
                 "WhatsApp Cloud API media send did not return a message id".to_string(),
+            )
+        })?;
+    Ok((message_id.to_string(), raw))
+}
+
+async fn send_media_link_message(
+    phone_number_id: &str,
+    access_token: &str,
+    recipient_phone: &str,
+    media_url: &str,
+    caption: Option<&str>,
+    context_message_id: Option<&str>,
+) -> Result<(String, Value), AppError> {
+    let url = format!("{GRAPH_BASE}/{phone_number_id}/messages");
+    let payload = json!({
+        "messaging_product": "whatsapp",
+        "to": recipient_phone,
+        "type": "image",
+        "image": {
+            "link": media_url,
+            "caption": caption
+        },
+        "context": context_message_id.map(|id| json!({"message_id": id}))
+    });
+    let response = whatsapp_http_client()?
+        .post(&url)
+        .bearer_auth(access_token)
+        .json(&payload)
+        .send()
+        .await?;
+    let status = response.status();
+    let raw: Value = response.json().await.unwrap_or(Value::Null);
+    if !status.is_success() {
+        return Err(AppError::BadRequest(format!(
+            "WhatsApp Cloud API image send failed ({}): {}",
+            status,
+            raw.get("error")
+                .and_then(|value| value.get("message"))
+                .and_then(Value::as_str)
+                .unwrap_or("Unknown error")
+        )));
+    }
+    let message_id = raw
+        .get("messages")
+        .and_then(|value| value.get(0))
+        .and_then(|value| value.get("id"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            AppError::Internal(
+                "WhatsApp Cloud API image send did not return a message id".to_string(),
             )
         })?;
     Ok((message_id.to_string(), raw))

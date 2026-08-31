@@ -375,11 +375,34 @@ pub async fn publish(
         .and_then(|metadata| metadata.get("_kasitek_agent_idempotency_key"))
         .and_then(serde_json::Value::as_str);
     if prior_key == Some(idempotency_key) {
+        if job.status == "PUBLISHED" && job.external_post_id.is_some() {
+            return Ok(serde_json::json!({
+                "post": post,
+                "result": {
+                    "jobId": job.id,
+                    "postId": job.post_id,
+                    "platform": job.platform,
+                    "status": "PUBLISHED",
+                    "externalPostId": job.external_post_id,
+                },
+                "idempotentReplay": true,
+            }));
+        }
+        if job.status == "PROCESSING" {
+            return Err(AppError::Conflict(
+                "This publish job is already being processed".to_string(),
+            ));
+        }
+        if !social::claim_publish_job(pool, &job_id, &["PENDING", "FAILED", "QUEUED"]).await? {
+            return Err(AppError::Conflict(
+                "This publish job is already being processed".to_string(),
+            ));
+        }
         let result = social::execute_social_publish_job(pool, &job_id).await?;
         let refreshed = social::get_social_post(pool, &context.organization_id, post_id).await?;
         return Ok(serde_json::json!({ "post": refreshed, "result": result }));
     }
-    if prior_key.is_some() {
+    if prior_key.is_some() && job.status != "FAILED" {
         return Err(AppError::Conflict(
             "This publish job already has an idempotent execution".to_string(),
         ));
@@ -392,10 +415,18 @@ pub async fn publish(
     let marked = sqlx::query(
         r#"UPDATE "SocialPublishJob"
            SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{_kasitek_agent_idempotency_key}', to_jsonb($2::text), true), "updatedAt" = NOW()
-           WHERE id = $1 AND metadata->>'_kasitek_agent_idempotency_key' IS NULL"#,
+           WHERE id = $1
+             AND (
+               metadata->>'_kasitek_agent_idempotency_key' IS NULL
+               OR (
+                 status = 'FAILED'::"SocialPublishJobStatus"
+                 AND metadata->>'_kasitek_agent_idempotency_key' = $3
+               )
+             )"#,
     )
     .bind(&job_id)
     .bind(idempotency_key)
+    .bind(prior_key.unwrap_or_default())
     .execute(pool)
     .await?;
     if marked.rows_affected() != 1 {

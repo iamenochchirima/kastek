@@ -10,7 +10,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use chrono::{DateTime, Utc};
 use futures_util::StreamExt;
 use serde::Deserialize;
-use serde_json::json;
+use serde_json::{json, Value};
 use sqlx::{PgPool, Row};
 
 use crate::capabilities::{content_adapter, core_adapter};
@@ -959,7 +959,9 @@ pub async fn list_content_posts(
         resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.content_posts_list")
             .await?;
     let posts = content_adapter::list_posts(pool.get_ref(), &context).await?;
-    Ok(HttpResponse::Ok().json(json!({ "posts": posts })))
+    let mut response = json!({ "posts": posts });
+    add_agent_media_preview_urls(&mut response, config.get_ref());
+    Ok(HttpResponse::Ok().json(response))
 }
 
 pub async fn get_content_post(
@@ -974,7 +976,43 @@ pub async fn get_content_post(
     let post = content_adapter::get_post(pool.get_ref(), &context, &path.into_inner())
         .await?
         .ok_or_else(|| AppError::NotFound("Content post not found".to_string()))?;
-    Ok(HttpResponse::Ok().json(json!({ "post": post })))
+    let mut response = json!({ "post": post });
+    add_agent_media_preview_urls(&mut response, config.get_ref());
+    Ok(HttpResponse::Ok().json(response))
+}
+
+/// Add short-lived, provider-readable media URLs only to the private Agent
+/// content projection. The durable social model still exposes asset ids, and
+/// the signed URL never grants access outside the asset's existing public
+/// media checks.
+fn add_agent_media_preview_urls(payload: &mut Value, config: &AppConfig) {
+    let Some(posts) = payload.get_mut("posts").and_then(Value::as_array_mut) else {
+        if let Some(post) = payload.get_mut("post") {
+            add_agent_post_media_preview_urls(post, config);
+        }
+        return;
+    };
+    for post in posts {
+        add_agent_post_media_preview_urls(post, config);
+    }
+}
+
+fn add_agent_post_media_preview_urls(post: &mut Value, config: &AppConfig) {
+    let Some(media) = post.get_mut("media").and_then(Value::as_array_mut) else {
+        return;
+    };
+    for item in media {
+        let Some(object) = item.as_object_mut() else {
+            continue;
+        };
+        let Some(asset_id) = object.get("assetId").and_then(Value::as_str) else {
+            continue;
+        };
+        object.insert(
+            "previewUrl".to_string(),
+            Value::String(content_media::public_media_url(config, asset_id)),
+        );
+    }
 }
 
 pub async fn list_content_post_insights(

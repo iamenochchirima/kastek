@@ -1242,6 +1242,7 @@ function projectContentMediaForAgent(value: unknown): Record<string, unknown> | 
   const assetId = boundedPreviewString(media.assetId ?? media.asset_id, 160);
   const kind = boundedPreviewString(media.kind, 40);
   const fileName = boundedPreviewString(media.fileName ?? media.file_name, 240);
+  const previewUrl = boundedPreviewString(media.previewUrl ?? media.preview_url, 2_048);
   const processingStatus = boundedPreviewString(media.processingStatus ?? media.processing_status, 40);
   const scanStatus = boundedPreviewString(media.scanStatus ?? media.scan_status, 40);
   if (!assetId && !kind && !fileName) return null;
@@ -1249,6 +1250,7 @@ function projectContentMediaForAgent(value: unknown): Record<string, unknown> | 
     ...(assetId ? { assetId } : {}),
     ...(kind ? { kind } : {}),
     ...(fileName ? { fileName } : {}),
+    ...(previewUrl ? { previewUrl } : {}),
     ...(processingStatus ? { processingStatus } : {}),
     ...(scanStatus ? { scanStatus } : {}),
   };
