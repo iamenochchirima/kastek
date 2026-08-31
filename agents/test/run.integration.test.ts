@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { RunRepository } from "../src/db/repositories/run-repository";
 import { RunStepRepository } from "../src/db/repositories/run-step-repository";
 import { WorkflowStateRepository } from "../src/db/repositories/workflow-state-repository";
+import { WorkflowCheckpointRepository } from "../src/db/repositories/workflow-checkpoint-repository";
 import { ModelCallRepository } from "../src/db/repositories/model-call-repository";
 import { ToolInvocationRepository } from "../src/db/repositories/tool-invocation-repository";
 import { ApprovalRepository } from "../src/db/repositories/approval-repository";
@@ -20,6 +21,7 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
   const runs = new RunRepository(pool);
   const steps = new RunStepRepository(pool);
   const workflowState = new WorkflowStateRepository(pool);
+  const workflowCheckpoints = new WorkflowCheckpointRepository(pool);
   const modelCalls = new ModelCallRepository(pool);
   const toolInvocations = new ToolInvocationRepository(pool);
   const approvals = new ApprovalRepository(pool);
@@ -69,6 +71,31 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
     const updatedState = await workflowState.put({ organizationId, runId, expectedRevision: 0, state: { node: "model", attempt: 1 } });
     expect(updatedState).toMatchObject({ revision: 1, state: { node: "model", attempt: 1 } });
     await expect(workflowState.put({ organizationId, runId, expectedRevision: 0, state: { node: "stale" } })).rejects.toThrow("revision conflict");
+    const checkpoint = await workflowCheckpoints.put({
+      organizationId,
+      runId,
+      nodeId: "model",
+      nextNodeId: "tool",
+      status: "completed",
+      state: { answer: "checkpointed" },
+      output: { text: "checkpointed" },
+      trace: [{ nodeId: "model", type: "model", status: "completed" }],
+      usage: { modelCalls: 1, toolCalls: 0, inputTokens: 2, outputTokens: 3, totalTokens: 5, estimatedCostUsd: 0.001 },
+      idempotencyKey: "workflow:model:1:completed",
+    });
+    const duplicateCheckpoint = await workflowCheckpoints.put({
+      organizationId,
+      runId,
+      nodeId: "model",
+      nextNodeId: "tool",
+      status: "completed",
+      state: { answer: "different retry" },
+      trace: [],
+      usage: { modelCalls: 99, toolCalls: 99, inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 },
+      idempotencyKey: "workflow:model:1:completed",
+    });
+    expect(duplicateCheckpoint.id).toBe(checkpoint.id);
+    expect((await workflowCheckpoints.getLatest(organizationId, runId))?.state).toEqual({ answer: "checkpointed" });
     const completedAnalyticsRun = await runs.createRun(organizationId, "test-user", {
       installationId,
       idempotencyKey: `analytics-completed-${randomUUID()}`,

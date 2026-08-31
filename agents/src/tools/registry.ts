@@ -106,9 +106,17 @@ export class ToolRegistry {
     }
     const startedAt = Date.now();
     if (tool.riskClass === "external-effect") await request.beforeEffect?.();
+    const context = request.signal ? { ...request.context, signal: request.signal } : request.context;
     const output = await Promise.race([
-      tool.handler(request.context, request.arguments),
+      tool.handler(context, request.arguments),
       new Promise<never>((_, reject) => setTimeout(() => reject(new ToolPolicyError("TOOL_TIMEOUT", `Tool timed out: ${request.name}`)), tool.timeoutMs)),
+      ...(request.signal ? [new Promise<never>((_, reject) => {
+        if (request.signal?.aborted) {
+          reject(new ToolPolicyError("TOOL_CANCELLED", `Tool cancelled: ${request.name}`));
+          return;
+        }
+        request.signal?.addEventListener("abort", () => reject(new ToolPolicyError("TOOL_CANCELLED", `Tool cancelled: ${request.name}`)), { once: true });
+      })] : []),
     ]);
     if (!tool.validateOutput(output)) {
       throw new ToolPolicyError("INVALID_TOOL_OUTPUT", `Output failed the schema for ${request.name}`);

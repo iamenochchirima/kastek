@@ -24,6 +24,8 @@ export interface ToolInvocationContext {
   conversationId?: string;
   actorId?: string;
   correlationId: string;
+  /** Cancellation propagated from the enclosing durable activity when available. */
+  signal?: AbortSignal;
 }
 
 export interface ToolApproval {
@@ -57,6 +59,7 @@ export interface ToolInvocationRequest {
   context: ToolInvocationContext;
   grantedTools: ReadonlySet<string>;
   approval?: ToolApproval;
+  signal?: AbortSignal;
   /** Runs after all validation/approval checks and immediately before a real effect handler. */
   beforeEffect?: () => Promise<void> | void;
 }

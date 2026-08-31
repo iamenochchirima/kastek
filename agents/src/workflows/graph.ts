@@ -34,6 +34,8 @@ export interface GraphValidationResult {
   topologicalOrder: string[];
 }
 
+type StateSchemaDefinition = Record<string, unknown>;
+
 export function validateWorkflowGraph(input: unknown): GraphValidationResult {
   const graph = workflowGraphSchema.parse(input);
   const nodeIds = new Set<string>();
@@ -56,16 +58,16 @@ export function validateWorkflowGraph(input: unknown): GraphValidationResult {
       if (duplicateWrites.length) throw new Error(`Workflow node repeats a parallel state key: ${node.id}`);
     }
     if (node.type === "fan_out" && !node.parallelGroup) throw new Error(`Fan-out node requires parallelGroup: ${node.id}`);
+    if (node.type === "fan_out" || node.type === "fan_in" || node.type === "agent_loop") {
+      throw new Error(`Workflow node type is not supported until durable execution semantics are implemented: ${node.type}`);
+    }
   }
   const stack = new Set<string>();
   const visited = new Set<string>();
   const order: string[] = [];
   const visit = (id: string): void => {
     if (stack.has(id)) {
-      const node = nodes.get(id)!;
-      const hasBound = node.maxIterations !== undefined || graph.edges.some((edge) => edge.from === id && edge.to === id && edge.maxIterations !== undefined);
-      if (!hasBound) throw new Error(`Workflow contains an unbounded cycle at node: ${id}`);
-      return;
+      throw new Error(`Workflow cycles are not supported until durable execution semantics are implemented: ${id}`);
     }
     if (visited.has(id)) return;
     stack.add(id);
@@ -76,6 +78,63 @@ export function validateWorkflowGraph(input: unknown): GraphValidationResult {
   };
   visit(graph.entryNodeId);
   return { graph, topologicalOrder: order };
+}
+
+/** Validate the small JSON-Schema subset accepted for durable workflow state. */
+export function validateWorkflowState(graph: WorkflowGraph, state: Record<string, unknown>): void {
+  const raw = graph.stateSchema as StateSchemaDefinition;
+  const standardSchema = isRecord(raw.properties) ? raw : undefined;
+  const properties = standardSchema ? standardSchema.properties as StateSchemaDefinition : raw;
+  const required = standardSchema && Array.isArray(standardSchema.required)
+    ? standardSchema.required.filter((key): key is string => typeof key === "string")
+    : [];
+  const additionalProperties = standardSchema?.additionalProperties === false;
+  if (additionalProperties) {
+    for (const key of Object.keys(state)) {
+      if (!Object.prototype.hasOwnProperty.call(properties, key)) {
+        throw new Error(`Workflow state contains undeclared field: ${key}`);
+      }
+    }
+  }
+  for (const key of required) {
+    if (!Object.prototype.hasOwnProperty.call(state, key)) {
+      throw new Error(`Workflow state is missing required field: ${key}`);
+    }
+  }
+  for (const [key, descriptor] of Object.entries(properties)) {
+    if (!Object.prototype.hasOwnProperty.call(state, key)) continue;
+    validateWorkflowStateValue(state[key], descriptor, key);
+  }
+}
+
+function validateWorkflowStateValue(value: unknown, descriptor: unknown, path: string): void {
+  if (!isRecord(descriptor)) return;
+  if (Array.isArray(descriptor.enum) && !descriptor.enum.some((candidate) => JSON.stringify(candidate) === JSON.stringify(value))) {
+    throw new Error(`Workflow state field ${path} is not one of the declared values`);
+  }
+  if (typeof descriptor.type === "string" && !matchesStateType(value, descriptor.type)) {
+    throw new Error(`Workflow state field ${path} must be ${descriptor.type}`);
+  }
+  if (isRecord(descriptor.properties) && isRecord(value)) {
+    const nestedGraph = { stateSchema: descriptor } as unknown as WorkflowGraph;
+    validateWorkflowState(nestedGraph, value);
+  }
+  if (descriptor.items !== undefined && Array.isArray(value)) {
+    value.forEach((item, index) => validateWorkflowStateValue(item, descriptor.items, `${path}[${index}]`));
+  }
+}
+
+function matchesStateType(value: unknown, type: string): boolean {
+  if (type === "null") return value === null;
+  if (type === "array") return Array.isArray(value);
+  if (type === "object") return isRecord(value);
+  if (type === "integer") return Number.isSafeInteger(value);
+  if (type === "number") return typeof value === "number" && Number.isFinite(value);
+  return typeof value === type;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 export function validateVersionWorkflow(configuration: Record<string, unknown>): void {

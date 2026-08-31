@@ -19,7 +19,9 @@ import type {
 } from "./contracts";
 
 const activities = proxyActivities<AgentRunActivities>({
-  startToCloseTimeout: "1 minute",
+  scheduleToCloseTimeout: "15 minutes",
+  startToCloseTimeout: "5 minutes",
+  heartbeatTimeout: "20 seconds",
   retry: {
     initialInterval: "1 second",
     maximumInterval: "30 seconds",

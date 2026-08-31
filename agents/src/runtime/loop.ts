@@ -35,6 +35,7 @@ export interface AgentLoopInput {
   tools: ToolRegistry;
   toolContext: ToolInvocationContext;
   grantedTools: ReadonlySet<string>;
+  signal?: AbortSignal;
   limits?: Partial<AgentLoopLimits>;
   onEvent?: (event: AgentLoopEvent) => Promise<void> | void;
   onModelResponse?: (response: ModelResponse, attempt?: { model: AgentLoopInput["model"]; credentials: ModelCredentials }) => Promise<void> | void;
@@ -149,7 +150,8 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       const result = await input.tools.invoke({
         name: resumed.name,
         arguments: resumed.arguments,
-        context: input.toolContext,
+        context: input.signal ? { ...input.toolContext, signal: input.signal } : input.toolContext,
+        signal: input.signal,
         grantedTools: input.grantedTools,
         approval: resumed.approval,
         beforeEffect: resumedManifest?.riskClass === "external-effect" ? async () => {
@@ -213,6 +215,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           const request: ModelRequest = {
             ...attempt.model,
             messages,
+            signal: input.signal,
             tools: input.tools.list(input.grantedTools),
             maxTokens: attempt.model.maxTokens === undefined ? remainingTokens : Math.min(attempt.model.maxTokens, remainingTokens),
           };
@@ -294,7 +297,8 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           const result = await input.tools.invoke({
             name: toolCall.name,
             arguments: toolCall.arguments,
-            context: input.toolContext,
+            context: input.signal ? { ...input.toolContext, signal: input.signal } : input.toolContext,
+            signal: input.signal,
             grantedTools: input.grantedTools,
             beforeEffect: manifest?.riskClass === "external-effect" ? async () => {
               await input.onToolExecuting?.({

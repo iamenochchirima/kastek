@@ -19,6 +19,14 @@ describe("foundation migration", () => {
     expect(sql).toContain("source_message_id");
   });
 
+  it("adds durable workflow node checkpoints with run ownership and idempotency", async () => {
+    const sql = await readFile(new URL("../migrations/080_workflow_node_checkpoints.sql", import.meta.url), "utf8");
+    expect(sql).toContain("run_workflow_checkpoints");
+    expect(sql).toContain("kasitek_validate_run_child_scope");
+    expect(sql).toContain("UNIQUE (run_id, idempotency_key)");
+    expect(sql).toContain("next_node_id");
+  });
+
   it("contains the durable scope and run tables", async () => {
     const sql = await readFile(new URL("../migrations/001_agent_platform_foundation.sql", import.meta.url), "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_definitions");
