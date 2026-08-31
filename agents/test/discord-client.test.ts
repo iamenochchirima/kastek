@@ -26,4 +26,18 @@ describe("Discord bot client", () => {
     expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toMatchObject({ type: 5, data: { flags: 64 } });
     expect(fetchImpl).toHaveBeenNthCalledWith(2, "https://discord.test/api/v10/webhooks/app-1/interaction-token/messages/@original", expect.objectContaining({ method: "PATCH" }));
   });
+
+  it("renders typed images as embeds and other media as links", async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: "message-2" }), { status: 200 }));
+    const client = new DiscordBotClient({ apiBaseUrl: "https://discord.test/api/v10", fetchImpl });
+
+    await expect(client.sendMediaResponse("secret", "channel-1", "See these files", [
+      { assetId: "image-1", kind: "image", previewUrl: "https://core.test/image", fileName: "image.png" },
+      { assetId: "doc-1", kind: "document", previewUrl: "https://core.test/doc", fileName: "brief.pdf" },
+    ])).resolves.toEqual({ providerMessageId: "message-2", status: "sent" });
+    const body = JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body));
+    expect(body).toMatchObject({ content: "See these files\n\n[brief.pdf](https://core.test/doc)" });
+    expect(body.embeds).toEqual([{ image: { url: "https://core.test/image" }, title: "image.png" }]);
+  });
 });

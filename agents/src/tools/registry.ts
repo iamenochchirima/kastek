@@ -118,8 +118,8 @@ export class ToolRegistry {
       version: tool.version,
       argumentsHash,
       output,
-      control: output && typeof output === "object" && (output as Record<string, unknown>).control === "awaiting_human"
-        ? "awaiting_human"
+      control: output && typeof output === "object" && ["awaiting_human", "final_response"].includes(String((output as Record<string, unknown>).control))
+        ? (output as { control: "awaiting_human" | "final_response" }).control
         : undefined,
       effectId: tool.riskClass === "external-effect" ? effectIdForInvocation(request.context, tool.name, argumentsHash) : undefined,
       latencyMs: Date.now() - startedAt,

@@ -10,6 +10,7 @@ import {
   enqueueOutbox,
   type AgentRunTerminalInput,
 } from "../../analytics";
+import { parseAgentResponse } from "../../media/contracts";
 import type { ConversationRecord } from "./conversation-repository";
 
 export interface RunRecord {
@@ -285,7 +286,8 @@ export class RunRepository {
       if (!run) throw new Error("Run not found");
       if (run.status === "completed") return run;
       assertRunTransition(run.status, "completed");
-      const responseMessage = typeof output.message === "string" ? output.message.trim() : "";
+      const response = parseAgentResponse(output.response ?? { text: typeof output.message === "string" ? output.message : "" });
+      const responseMessage = response.text;
       let replySuppressed = false;
       if (run.conversation_id) {
         const conversation = await client.query<{
@@ -305,7 +307,7 @@ export class RunRepository {
         }
         replySuppressed = conversation.rows[0].conversation_kind === "customer"
           && conversation.rows[0].handoff_state !== "agent_active";
-        if (!replySuppressed && !responseMessage) throw new Error("Conversation run cannot complete without an assistant message");
+        if (!replySuppressed && !responseMessage && !response.media.length) throw new Error("Conversation run cannot complete without an assistant response");
         const participant = replySuppressed ? null : await client.query<{ id: string }>(
           `INSERT INTO participants
             (conversation_id, organization_id, participant_type, external_id, display_name)
@@ -331,9 +333,9 @@ export class RunRepository {
             (conversation_id, organization_id, participant_id, direction, message_type, content,
              provider, provider_message_id, sequence_number, run_id, source_channel,
              source_binding_id, external_conversation_id, occurred_at, delivery_status)
-           VALUES ($1, $2, $3, 'outbound', 'text', $4::jsonb, COALESCE($8, 'platform'), $5, $6, $7,
-                   COALESCE($8, 'platform'), $9, $10, now(),
-                   CASE WHEN COALESCE($8, 'platform') = 'platform' THEN 'local' ELSE 'queued' END)
+           VALUES ($1, $2, $3, 'outbound', $4, $5::jsonb, COALESCE($9, 'platform'), $6, $7, $8,
+                   COALESCE($9, 'platform'), $10, $11, now(),
+                   CASE WHEN COALESCE($9, 'platform') = 'platform' THEN 'local' ELSE 'queued' END)
            ON CONFLICT (run_id, direction)
            WHERE run_id IS NOT NULL AND direction IN ('inbound', 'outbound')
            DO NOTHING
@@ -342,7 +344,8 @@ export class RunRepository {
             run.conversation_id,
             run.organization_id,
             participant!.rows[0]!.id,
-            JSON.stringify({ text: responseMessage }),
+            response.media.length ? "attachment" : "text",
+            JSON.stringify(response),
             run.id,
             nextSequence!.rows[0]!.sequence_number,
             run.id,
@@ -366,7 +369,7 @@ export class RunRepository {
              SET updated_at = now(), last_message_at = now(), last_message_direction = 'outbound',
                  last_message_preview = LEFT($2, 500), message_count = message_count + 1
              WHERE id = $1`,
-            [run.conversation_id, responseMessage],
+            [run.conversation_id, responseMessage || "Attachment"],
           );
           const outboundMessage = await client.query<{
             id: string;

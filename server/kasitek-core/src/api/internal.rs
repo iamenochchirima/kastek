@@ -90,6 +90,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::post().to(agent_internal::upload_content_media),
             )
             .route(
+                "/content/media/{id}/metadata",
+                web::get().to(agent_internal::get_content_media_metadata),
+            )
+            .route(
+                "/content/media/{id}/preview",
+                web::get().to(agent_internal::get_content_media_preview),
+            )
+            .route(
                 "/content/media/{id}",
                 web::get().to(agent_internal::download_content_media),
             )

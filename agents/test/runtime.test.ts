@@ -4,6 +4,7 @@ import { ModelProviderError, type ModelAdapter, type ModelCredentials, type Mode
 import { ToolRegistry, effectIdForInvocation, hashToolArguments } from "../src/tools/registry";
 import { runBoundedAgentLoop } from "../src/runtime/loop";
 import { redactSensitiveValue } from "../src/tools/redaction";
+import { agentResponseSchema, agentResponseToolInputSchema } from "../src/media/contracts";
 
 const credentials: ModelCredentials = { apiKey: "test", fundingSource: "kasitek" };
 
@@ -20,6 +21,40 @@ function response(toolCalls: ModelResponse["toolCalls"], content = ""): ModelRes
 }
 
 describe("Tool Gateway and bounded runtime", () => {
+  it("completes a hosted response through the typed media control", async () => {
+    const registry = new ToolRegistry();
+    registry.register({
+      name: "kasitek.agent.respond",
+      version: "1.0.0",
+      description: "Respond with media",
+      riskClass: "read",
+      requiresApproval: false,
+      timeoutMs: 1_000,
+      inputSchema: agentResponseToolInputSchema,
+      outputSchema: {
+        type: "object",
+        properties: { control: { type: "string", const: "final_response" }, response: agentResponseToolInputSchema },
+        required: ["control", "response"],
+        additionalProperties: false,
+      },
+      handler: async (_context, args) => ({ control: "final_response", response: agentResponseSchema.parse(args) }),
+    });
+    const adapter: ModelAdapter = {
+      provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+      complete: async () => response([{ id: "reply-1", name: "kasitek.agent.respond", arguments: { text: "Here it is", media: [{ assetId: "asset-1", kind: "image" }] } }]),
+    };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "show image" }],
+      credentials,
+      gateway: new ModelGateway([adapter]),
+      tools: registry,
+      grantedTools: new Set(["kasitek.agent.respond"]),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+    });
+    expect(result).toMatchObject({ status: "completed", completionMessage: "Here it is", completionResponse: { version: "1", media: [{ assetId: "asset-1", kind: "image" }] } });
+  });
   it("redacts secret-like tool fields recursively before model-visible output", () => {
     expect(redactSensitiveValue({ profile: { name: "Ada" }, apiKey: "secret", nested: [{ token: "value" }] })).toEqual({ profile: { name: "Ada" }, apiKey: "[REDACTED]", nested: [{ token: "[REDACTED]" }] });
   });

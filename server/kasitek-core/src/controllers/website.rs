@@ -115,7 +115,7 @@ const WEBSITE_CHAT_LOADER: &str = r#"(() => {
     });
     let after = '';
     setInterval(() => fetch(`${api}/sessions/${encodeURIComponent(session.sessionId)}/deliveries${share ? `?share=1${after ? `&after=${encodeURIComponent(after)}` : ''}` : after ? `?after=${encodeURIComponent(after)}` : ''}`, { credentials: 'omit' })
-      .then((r) => r.ok ? r.json() : null).then((result) => result?.deliveries?.forEach((delivery) => { after = delivery.id; emit({ type: 'kasitek:reply', text: delivery.messageText }); })).catch(() => {}), 1500);
+      .then((r) => r.ok ? r.json() : null).then((result) => result?.deliveries?.forEach((delivery) => { after = delivery.id; emit({ type: 'kasitek:reply', text: delivery.messageText, content: delivery.messageContent }); })).catch(() => {}), 1500);
   }).catch((error) => console.warn('[KasiTek Chat]', error.message));
 })();"#;
 
@@ -139,6 +139,9 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     .line.bullet{padding-left:4px}
     .bot strong{font-weight:700;color:#111827}
     .bot code{padding:1px 4px;border-radius:4px;background:#d7dce8;font-size:.9em}
+    .media-preview{display:block;max-width:100%;max-height:320px;margin:8px 0;border-radius:8px;object-fit:contain;background:#d7dce8}
+    .media-link{display:block;margin:8px 0;color:#1d4ed8;font-weight:600;overflow-wrap:anywhere}
+    .media-caption{margin-top:5px;font-size:12px;opacity:.8}
     .transcript{margin-top:7px;padding-top:7px;border-top:1px solid #ffffff55;font-size:12px;line-height:1.35;opacity:.9}
     .transcript button{margin-left:7px;padding:2px 7px;border:1px solid #ffffff88;border-radius:6px;font-size:11px}
     .audio-player{display:block;width:min(100%,260px);height:32px;margin-bottom:7px}
@@ -267,10 +270,30 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
         hasContent=true;
       }
     };
-    const add=(text,kind)=>{
+    const appendMedia=(parent,content)=>{
+      const media=Array.isArray(content?.media)?content.media:[];
+      media.forEach((item)=>{
+        if(typeof item?.previewUrl!=='string'||!item.previewUrl)return;
+        const label=String(item.altText||item.fileName||item.caption||'Attachment');
+        let element;
+        if(item.kind==='image'){
+          element=document.createElement('img');element.className='media-preview';element.src=item.previewUrl;element.alt=label;element.loading='lazy';
+        }else if(item.kind==='video'){
+          element=document.createElement('video');element.className='media-preview';element.src=item.previewUrl;element.controls=true;element.preload='metadata';
+        }else if(item.kind==='audio'){
+          element=document.createElement('audio');element.className='media-preview';element.src=item.previewUrl;element.controls=true;element.preload='metadata';
+        }else{
+          element=document.createElement('a');element.className='media-link';element.href=item.previewUrl;element.target='_blank';element.rel='noopener noreferrer';element.textContent=`Download ${label}`;
+        }
+        parent.append(element);
+        if(item.caption){const caption=document.createElement('div');caption.className='media-caption';appendInline(caption,item.caption);parent.append(caption)}
+      });
+    };
+    const add=(text,kind,content)=>{
       const element=document.createElement('div');
       element.className='m '+kind;
       if(kind==='bot')appendFormatted(element,text);else appendInline(element,text);
+      if(kind==='bot')appendMedia(element,content);
       messages.append(element);
       scrollToBottom();
       return element;
@@ -359,7 +382,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
       }
       if(data.type==='kasitek:reply'){
         stopPending();
-        add(data.text,'bot');
+        add(data.text,'bot',data.content);
       }
       if(data.type==='kasitek:error'){
         stopPending();
@@ -1067,6 +1090,16 @@ pub async fn list_agent_website_chat_deliveries(
         pool.get_ref(),
         &session,
         query.get("after").map(String::as_str),
+    )
+    .await?;
+    let organization_id =
+        website::agent_website_deployment_org_id(pool.get_ref(), &session.deployment_id).await?;
+    let mut deliveries = deliveries;
+    website::add_agent_website_delivery_previews(
+        pool.get_ref(),
+        config.get_ref(),
+        &organization_id,
+        &mut deliveries,
     )
     .await?;
     let normalized_origin = website::normalize_origin(&origin)?;

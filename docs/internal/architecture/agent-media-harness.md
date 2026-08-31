@@ -1,0 +1,94 @@
+---
+title: Agent Media Harness
+owner: agent-platform
+last_reviewed: 2026-08-31
+---
+
+# Agent Media Harness
+
+The Agent Platform uses one media contract for hosted agents and channel gateways. Core owns
+workspace media bytes, authorization, scanning, processing state, and storage. Agent Platform owns
+agent reasoning, durable run output, and delivery orchestration. A gateway owns only the final
+provider-specific rendering.
+
+## Durable contract
+
+`AgentMediaReference@1` contains a stable Core `assetId`, `kind`, optional `mimeType`, `fileName`,
+`altText`, `caption`, and `disposition`. It never contains provider URLs, storage keys, or bytes.
+`AgentResponse@1` contains `version`, `text`, and `media[]`.
+
+The envelope is stored in run output and conversation message JSONB. Older `{ text }` records remain
+valid through the compatibility parser. Inbound channel attachments are normalized to the same
+stable `media[]` projection while retaining the legacy single-attachment fields for existing
+transcription and UI consumers.
+
+## Request and delivery flow
+
+```text
+provider or web input
+        |
+        v
+Core / channel adapter stores asset and stable assetId
+        |
+        v
+Agent Platform context + authorized media metadata
+        |
+        v
+kasitek.agent.respond { text, media[] }
+        |
+        v
+durable run/message envelope (URL-free)
+        |
+        +--> platform web: authenticated asset route
+        +--> website: session-authorized short-lived preview URL
+        +--> Telegram: native media method or link fallback
+        +--> WhatsApp: Core-owned upload and native Cloud API method
+        `--> Discord: image embed or authorized link fallback
+```
+
+`kasitek.core.content_media_get` returns organization-scoped metadata. The separate
+`kasitek.core.content_media_preview` capability returns a short-lived preview URL when a model or
+gateway needs one. The harness final-response capability validates asset ownership, media kind, and
+ready/clean state before completing the run.
+
+## Gateway profiles
+
+Profiles are explicit in `agents/src/media/profiles.ts` and are evaluated before delivery:
+
+| Gateway | Native handling | Fallback |
+| --- | --- | --- |
+| Platform web | Authenticated image, video, audio, and file rendering | None |
+| Website widget | Session-authorized image, video, audio, and file rendering | None |
+| Telegram | `sendPhoto`, `sendVideo`, `sendAudio`, or `sendDocument` | Text/link delivery |
+| WhatsApp | Core uploads workspace bytes and sends Cloud API media | Authorized link text for unsupported kinds |
+| Discord | Image embeds | Authorized links for other kinds |
+| Facebook / Instagram | Text only | Explicit text fallback |
+
+The profile is not permission. Core and Agent Platform still recheck organization ownership,
+processing state, scanning state, installation grants, and provider connection status.
+
+## Security and reliability
+
+- Signed URLs are minted only at read or delivery time and are not stored in responses, messages,
+  memory, summaries, or delivery events.
+- WhatsApp delivery reads bytes through Core and never passes provider credentials to the agent
+  worker.
+- Website delivery stores typed content and hydrates previews only after validating the active
+  visitor session and deployment organization.
+- Delivery retries reuse stable asset IDs and mint fresh transport resources.
+- Idempotency remains at the delivery-attempt boundary. A provider failure is recorded with a
+  bounded error and does not silently turn into a successful text-only response.
+- Delivery lifecycle events include channel, media count, media kinds, and outcome; they exclude
+  URLs, bytes, credentials, captions, and message bodies.
+
+## Operational checklist
+
+Before broad rollout, verify the agents worker, agents API, Core, database migration, website
+widget, and each configured provider with one non-sensitive image and one text-only reply. Monitor
+media resolve failures, native delivery failures, fallback count, delivery latency, and provider
+authentication failures. Disable native media per gateway and continue text delivery if a provider
+regression appears.
+
+The compatibility Markdown adapter remains for older agent versions. New agent runs should use
+`kasitek.agent.respond`; remove the adapter only after its usage and fallback metrics remain zero for
+the agreed compatibility window.

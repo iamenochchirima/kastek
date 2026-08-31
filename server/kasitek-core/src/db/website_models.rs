@@ -144,5 +144,6 @@ pub struct AgentWebsiteDeliveryEventRow {
     pub id: String,
     pub event_key: String,
     pub message_text: String,
+    pub message_content: serde_json::Value,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }

@@ -32,6 +32,7 @@ import {
   type AgentMessage,
 } from "@/lib/agent-platform";
 import { AgentModelPicker } from "./agent-model-picker";
+import { AgentMessageMedia, agentMessageHasMedia } from "./agent-message-media";
 
 const testChatActiveRunStatuses = new Set(["received", "queued", "running", "awaiting_approval", "awaiting_human", "awaiting_external_event"]);
 const testChatTerminalRunStatuses = new Set(["completed", "failed", "cancelled", "expired"]);
@@ -357,7 +358,8 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
               return <div key={message.id} className={`flex ${isSystem ? "justify-center" : isUser ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm sm:max-w-[78%] ${isSystem ? "rounded-lg border border-border bg-card text-muted-foreground" : isUser ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md border border-border bg-card text-foreground"}`}>
                   <div className={`mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${isSystem ? "text-muted-foreground" : isUser ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{isSystem ? "System" : isUser ? "You" : "Agent"}</div>
-                  <p className="whitespace-pre-wrap">{text || "(No text content)"}</p>
+                  <AgentMessageMedia message={message} />
+                  {text ? <p className="whitespace-pre-wrap">{text}</p> : !agentMessageHasMedia(message) ? <p className="whitespace-pre-wrap">(No text content)</p> : null}
                   <p className={`mt-1 text-[10px] ${isUser ? "text-primary-foreground/60" : "text-muted-foreground"}`}>{new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
                 </div>
               </div>;

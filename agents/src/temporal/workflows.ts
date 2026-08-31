@@ -7,6 +7,7 @@ import {
 } from "@temporalio/workflow";
 import type { RunStatus } from "../domain/types";
 import { sanitizeAssistantResponse } from "../runtime/context";
+import { parseAgentResponse } from "../media/contracts";
 import type {
   AgentRunActivities,
   ApprovalSignal,
@@ -220,8 +221,10 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         await activities.deliverRunReply({ runId: input.runId });
         return;
       }
-      const responseMessage = sanitizeAssistantResponse(result.completionMessage ?? result.response?.message.content ?? "");
-      if (!responseMessage) {
+      const response = result.completionResponse
+        ? parseAgentResponse({ ...result.completionResponse, text: sanitizeAssistantResponse(result.completionResponse.text) })
+        : parseAgentResponse({ text: sanitizeAssistantResponse(result.completionMessage ?? result.response?.message.content ?? "") });
+      if (!response.text && !response.media.length) {
         await activities.failRun({
           runId: input.runId,
           error: {
@@ -236,7 +239,8 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         runId: input.runId,
         output: {
           status: result.status,
-          message: responseMessage,
+          message: response.text,
+          response,
           usage: result.usage,
           iterations: result.iterations,
           toolCalls: result.toolCalls,

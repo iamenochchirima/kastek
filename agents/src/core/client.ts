@@ -1,4 +1,5 @@
 import type { AppConfig } from "../config";
+import type { AgentMediaReference } from "../media/contracts";
 import type { ToolInvocationContext } from "../tools/types";
 import { issueCoreDelegation } from "./delegation";
 import { createHash } from "node:crypto";
@@ -240,6 +241,15 @@ export interface CoreContentMediaBytes {
   bytes: Buffer;
   mimeType: string;
   checksum?: string | null;
+}
+
+export interface CoreContentMediaMetadata {
+  asset: CoreContentMediaAsset;
+}
+
+export interface CoreContentMediaPreview {
+  asset: CoreContentMediaAsset;
+  previewUrl: string;
 }
 
 export interface CoreContentMediaInput {
@@ -688,6 +698,30 @@ export class KasitekCoreReadClient {
     }
   }
 
+  public async getContentMediaMetadata(
+    context: CoreRequestContext,
+    assetId: string,
+  ): Promise<CoreContentMediaMetadata> {
+    return this.requestJson<CoreContentMediaMetadata>(
+      context,
+      `/api/internal/agents/v1/content/media/${encodeURIComponent(assetId)}/metadata`,
+      "Content media metadata",
+      { method: "GET" },
+    );
+  }
+
+  public async getContentMediaPreview(
+    context: CoreRequestContext,
+    assetId: string,
+  ): Promise<CoreContentMediaPreview> {
+    return this.requestJson<CoreContentMediaPreview>(
+      context,
+      `/api/internal/agents/v1/content/media/${encodeURIComponent(assetId)}/preview`,
+      "Content media preview",
+      { method: "GET" },
+    );
+  }
+
   public async deleteContentMedia(
     context: CoreRequestContext,
     assetId: string,
@@ -748,6 +782,7 @@ export class KasitekCoreReadClient {
     channelType: string;
     externalConversationId: string;
     text: string;
+    media?: AgentMediaReference[];
     buttons?: CoreChannelReplyButton[];
   }): Promise<CoreChannelDeliveryResult> {
     return this.requestJson<CoreChannelDeliveryResult>(
@@ -766,6 +801,7 @@ export class KasitekCoreReadClient {
           channelType: input.channelType,
           externalConversationId: input.externalConversationId,
           text: input.text,
+          ...(input.media?.length ? { media: input.media } : {}),
           ...(input.buttons?.length ? { buttons: input.buttons } : {}),
         }),
       },
