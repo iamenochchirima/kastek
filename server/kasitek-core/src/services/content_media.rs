@@ -375,7 +375,8 @@ pub async fn upload_content_media_bytes(
         .filter(|value| !value.is_empty())
     {
         let existing = sqlx::query_as::<_, ExistingContentMediaIdentity>(
-            r#"SELECT id, "mimeType" AS mime_type, "byteSize" AS byte_size, checksum
+            r#"SELECT id, "mimeType" AS mime_type, "byteSize" AS byte_size, checksum,
+                      "storageKey" AS storage_key
                FROM "ContentMediaAsset"
                WHERE "orgId" = $1 AND metadata->>'sourceKey' = $2
                ORDER BY "createdAt" DESC LIMIT 1"#,
@@ -395,8 +396,11 @@ pub async fn upload_content_media_bytes(
                     "Media idempotency key already belongs to different media".to_string(),
                 ));
             }
-            if let Some(asset) = asset_view(pool, org_id, &existing.id).await? {
-                return Ok(asset);
+            let path = storage_path(config, &existing.storage_key)?;
+            if tokio::fs::try_exists(path).await.unwrap_or(false) {
+                if let Some(asset) = asset_view(pool, org_id, &existing.id).await? {
+                    return Ok(asset);
+                }
             }
         }
     }
@@ -755,6 +759,7 @@ struct ExistingContentMediaIdentity {
     mime_type: String,
     byte_size: i64,
     checksum: Option<String>,
+    storage_key: String,
 }
 
 fn same_media_identity(
@@ -808,6 +813,7 @@ mod tests {
             checksum: Some(
                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string(),
             ),
+            storage_key: "org/asset-1.ogg".to_string(),
         };
         assert!(same_media_identity(
             &existing,
