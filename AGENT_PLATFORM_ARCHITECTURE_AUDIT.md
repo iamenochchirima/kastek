@@ -586,11 +586,13 @@ cross-agent access.
 Repositories usually include organization and agent predicates. Migration 057 adds ownership
 triggers for memory, knowledge, installations, and runs. This is a strong application-level base.
 
-PostgreSQL row-level security is not enabled. Some new constraints are `NOT VALID`, so legacy rows
-have not been proven to satisfy them. A missed predicate in a future query could bypass the
-intended isolation rules. The production Agents runtime previously connected as the `postgres`
-superuser; it now uses a restricted login without `SUPERUSER` or `BYPASSRLS`, but RLS remains off
-until transaction context and policies are implemented.
+PostgreSQL row-level security is now enabled for the first tranche: `memory_records`,
+`knowledge_sources`, `knowledge_chunks`, and `memory_deletion_jobs` use `FORCE ROW LEVEL
+SECURITY`. Some new constraints are still `NOT VALID`, so legacy rows have not been proven to
+satisfy all ownership rules. A missed predicate in a future query could still bypass isolation on
+the 60 tables outside this tranche. The production Agents runtime previously connected as the
+`postgres` superuser; it now uses a restricted login without `SUPERUSER` or `BYPASSRLS`, and API,
+worker, publisher, webhook, and Temporal paths set transaction-local tenant context.
 
 The table and parent-path inventory is recorded in
 [`agents-tenant-isolation-inventory.md`](docs/internal/architecture/agents-tenant-isolation-inventory.md).
@@ -604,8 +606,9 @@ system-installation design.
    conversation, and user ownership.
 2. Migrate or quarantine legacy rows that do not satisfy current ownership invariants.
 3. Validate all ownership constraints.
-4. Enable RLS first on memory, knowledge, conversations, messages, runs, grants, credentials,
-   approvals, effects, and channel bindings.
+4. Enable RLS first on memory and knowledge, then conversations, messages, runs, grants,
+   credentials, approvals, effects, and channel bindings. The memory/knowledge tranche is live;
+   the remaining groups are still pending.
 5. Set trusted organization and actor context on every transaction.
 6. Use a distinct migration and operator role that can bypass RLS deliberately.
 7. Prevent application roles from silently bypassing RLS.
@@ -628,17 +631,21 @@ system-installation design.
       PostgreSQL superuser ([090_agents_runtime_role.sql](agents/migrations/090_agents_runtime_role.sql),
       [AGENT_RLS_ROLLOUT_PLAN.md](docs/plans/active/AGENT_RLS_ROLLOUT_PLAN.md)).
 - [ ] Repair or quarantine invalid legacy rows before validating constraints.
-- [ ] Add transaction-scoped organization and actor context to API, worker, publisher, and operator
-      database adapters.
-- [ ] Add RLS policies in small migrations, starting with memory and knowledge before runtime and
-      credential tables.
-- [ ] Remove RLS bypass from application roles and document the restricted migration and operator
-      roles.
+- [x] Add transaction-scoped organization and actor context to API, worker, publisher, and operator
+      database adapters, including legacy Temporal activity scope recovery
+      ([context.ts](agents/src/db/context.ts), [pool.ts](agents/src/db/pool.ts)).
+- [x] Add the first RLS policy tranche for memory and knowledge with restricted-role negative
+      coverage ([091_memory_knowledge_rls.sql](agents/migrations/091_memory_knowledge_rls.sql));
+      runtime, credential, and control-plane table policies remain open.
+- [x] Remove RLS bypass from the application runtime role and document the restricted runtime and
+      one-shot migration boundary ([deployment-topology.md](docs/internal/operations/deployment-topology.md));
+      a dedicated long-lived migration role remains open.
 - [ ] Run repository and integration suites with the production-equivalent restricted role.
 - [ ] Add negative isolation tests for every protected table and every background process type.
 - [ ] Add a staged rollout, policy-disable procedure, migration rollback plan, and isolation alerting.
-- [ ] Record the final policy inventory and approved cross-organization queries in internal
-      documentation.
+- [x] Record the first policy inventory and approved platform-operator query scope in internal
+      documentation ([agents-tenant-isolation-inventory.md](docs/internal/architecture/agents-tenant-isolation-inventory.md));
+      the final inventory remains open until all table groups are covered.
 
 ### P1.3 Replace the retrieval gate and add hybrid ranking
 
@@ -1214,7 +1221,8 @@ KasiTek should retain its stronger platform features around that anatomy:
 - [ ] Replace the regex retrieval gate.
 - [ ] Enable hybrid keyword and vector retrieval.
 - [ ] Validate legacy ownership constraints.
-- [ ] Add RLS and negative isolation tests.
+- [x] Add the first memory/knowledge RLS tranche and restricted-role negative isolation tests;
+      remaining tenant-owned table groups are open.
 
 - [ ] Exit evidence recorded: agents learn only under declared policy, retrieve relevant evidence,
       and cannot access another agent's private data if an application query omits a tenant
@@ -1257,6 +1265,13 @@ KasiTek should retain its stronger platform features around that anatomy:
   non-database Agents suite (`85 passed, 18 skipped`; `533 passed, 52 skipped`), typecheck, and
   build. Its three Railway service deployments reached `SUCCESS` and health/readiness smoke checks
   returned `200`.
+- Tenant context/RLS tranche `2031a0ca` and compatibility follow-up `b831e1c3` passed the full
+  Agents suite (`542 passed, 57 skipped`),
+  typecheck, build, transaction-context integration, and restricted-role RLS integration (`3/3`).
+  Production deployments for API, worker, and Gateway reached `SUCCESS`; production migration
+  `091` is recorded and all four first-tranche tables report both RLS and FORCE RLS. Compatibility
+  follow-up `b831e1c3` adds scope recovery for legacy workflows and is deployed successfully on all
+  three Agents services.
 
 Passing tests do not invalidate the verified findings. The current suite does not cover those
 contracts.

@@ -1,14 +1,16 @@
 ---
 title: Agents tenant isolation inventory
 owner: agent-platform
-last_reviewed: 2026-08-31
+last_reviewed: 2026-09-01
 ---
 
 # Agents tenant isolation inventory
 
 This inventory covers the public schema of the Agents PostgreSQL database. It was checked against
 the local migrated database on 2026-08-31 and the production database through the Agents API
-container. The schema contains 64 base tables. RLS is currently disabled on all of them.
+container. The schema contains 64 base tables. Migration 091 now enables `FORCE ROW LEVEL
+SECURITY` on `memory_records`, `knowledge_sources`, `knowledge_chunks`, and
+`memory_deletion_jobs`; the remaining 60 tables are still outside the RLS rollout.
 
 ## Ownership roots
 
@@ -76,7 +78,8 @@ RLS policies.
 - Local database role: `enoch`, superuser; this is unsuitable for an RLS test.
 - Before the role-separation release, the production Agents runtime used `postgres`, a superuser
   with `rolbypassrls = true`. It now uses `kasitek_agents_app`, verified with `rolsuper = false`
-  and `rolbypassrls = false`; RLS remains disabled until context plumbing and policies are ready.
+  and `rolbypassrls = false`; the first RLS tranche is enabled only after context plumbing and
+  restricted-role checks passed.
 - Local database: one memory row and related legacy test rows failed the simple parent-organization
   query; they are not a safe basis for validation without scoped repair or quarantine.
 - Production database: zero missing-agent rows and zero ordinary agent/organization mismatches.
@@ -84,17 +87,27 @@ RLS policies.
   described above.
 - Existing ownership constraints for memory and knowledge are `NOT VALID`, so they protect new
   writes but do not prove all legacy rows are clean.
+- Production migration 091 is recorded in `schema_migrations` as `091`; all four first-tranche
+  tables report both `relrowsecurity = true` and `relforcerowsecurity = true`.
+- The transaction context integration test proves organization and actor settings are local to a
+  transaction and do not leak across concurrent pool users. The restricted-role RLS suite proves
+  cross-organization reads are hidden, cross-organization writes are denied, and explicit
+  platform-operator scope can inspect both test tenants.
 
 ## Required sequence
 
 1. Provision `kasitek_agents_runtime` and a separate login role without `SUPERUSER`, `BYPASSRLS`,
    `CREATEROLE`, or `CREATEDB`; move Agents API and worker connections off `postgres`. This role
-   separation is complete; the remaining steps are required before RLS is enabled.
+   separation is complete; the remaining steps are required before additional RLS groups are
+   enabled.
 2. Add transaction-scoped organization and actor context to every API, worker, publisher, and
-   operator database adapter. Connection-pool session state must never leak between tenants.
+   operator database adapter. Connection-pool session state must never leak between tenants. The
+   first context tranche is complete; legacy Temporal activities recover scope from their durable
+   run when older workflow inputs lack it.
 3. Repair or explicitly exempt legacy rows, validate ownership constraints, and add negative tests
    using the restricted role.
 4. Enable RLS in small migrations, beginning with memory and knowledge, then conversations, runs,
-   credentials, effects, approvals, and control-plane tables.
+   credentials, effects, approvals, and control-plane tables. The memory/knowledge tranche is
+   complete; the remaining table groups are not yet enabled.
 5. Keep migrations and deliberate operator projections on a separately controlled role, with audit
    records for every cross-tenant operation.
