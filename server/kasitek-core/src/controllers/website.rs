@@ -53,10 +53,11 @@ const WEBSITE_CHAT_LOADER: &str = r#"(() => {
     document.body.appendChild(overlay);
     let ready = false;
     let expanded = false;
+    const expandedSide = config.launcherPosition === 'bottom-left' ? 'left:24px;right:auto;' : 'left:auto;right:24px;';
     const setFrameLayout = () => {
       const display = frame.style.display || 'none';
       frame.style.cssText = expanded
-        ? `position:absolute;z-index:1;border:0;inset:12px;width:auto;height:auto;max-width:none;max-height:none;display:${display};background:transparent;pointer-events:auto`
+        ? `position:absolute;z-index:1;border:0;top:12px;bottom:12px;${expandedSide}width:min(500px,calc(100vw - 48px));height:calc(100vh - 24px);max-width:none;max-height:none;display:${display};background:transparent;pointer-events:auto`
         : `position:absolute;z-index:1;border:0;width:${windowWidth}px;height:${windowHeight}px;max-width:calc(100vw - ${viewportGap}px);max-height:calc(100vh - ${viewportGap}px);${config.launcherPosition === 'bottom-left' ? `left:${launcherOffset}px` : `right:${launcherOffset}px`};bottom:${launcherOffset}px;display:${display};background:transparent;pointer-events:auto`;
     };
     const emit = (payload) => { if (ready) frame.contentWindow?.postMessage(payload, base); };
@@ -156,6 +157,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     .header-action{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;color:#d1d1d1;transition:background 140ms ease,color 140ms ease}
     .header-action:hover{background:#ffffff14;color:#fff}
     .header-action svg{width:19px;height:19px}
+    #back[hidden]{display:none}
     #messages{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:16px 15px;background:#fff;display:flex;flex-direction:column;gap:10px;scrollbar-color:#d5d5d5 transparent;scrollbar-width:thin}
     .m{max-width:88%;padding:10px 13px;border-radius:16px;overflow-wrap:anywhere;word-break:break-word;line-height:1.42;font-size:13.5px}
     .me{align-self:flex-end;background:var(--chat-primary);color:#fff;border-radius:16px 5px 16px 16px;box-shadow:0 4px 12px #1118271c}
@@ -196,6 +198,8 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     small a:hover{text-decoration:underline}
     #powered-by{white-space:nowrap}
     #powered-by[hidden]{display:none}
+    #powered-by a{color:var(--chat-primary);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px}
+    #powered-by a:hover{opacity:.78}
     #error{color:#b91c1c;padding:0 14px 8px;font-size:12px;line-height:1.35;flex:0 0 auto}
     #error:empty{display:none}
     .typing{display:flex;align-items:center;gap:4px;color:#777}
@@ -214,6 +218,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
   <div id="chat">
     <header>
       <div class="header-content">
+        <button id="back" class="header-action" type="button" aria-label="Restore chat size" title="Restore chat size" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></button>
         <div id="avatar" class="avatar" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="7" width="14" height="11" rx="3"></rect><path d="M9 7V5h6v2M8 12h.01M16 12h.01M9 15h6"></path></svg></div>
         <div class="header-copy"><strong id="name">Chat</strong><span class="eyebrow">Powered by AI</span></div>
       </div>
@@ -239,6 +244,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     const quickReplies=q('#quick-replies');
     const error=q('#error');
     const expandButton=q('#expand');
+    const backButton=q('#back');
     const parentOrigin=(()=>{try{return new URL(document.referrer).origin}catch{return ''}})();
     const targetOrigin=parentOrigin||'*';
     const avatarFallback=q('#avatar').innerHTML;
@@ -263,6 +269,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
       expandButton.setAttribute('aria-label',expanded?'Restore chat size':'Expand chat');
       expandButton.title=expanded?'Restore chat size':'Expand chat';
       expandButton.setAttribute('aria-expanded',String(expanded));
+      backButton.hidden=!expanded;
     };
     const renderQuickReplies=()=>{
       ['What can you help with?','How does this work?','Talk to a person'].forEach((label)=>{
@@ -476,6 +483,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
       }
     });
     expandButton.onclick=()=>{expanded=!expanded;setExpandState();parent.postMessage({type:'kasitek:toggle-expand',expanded},targetOrigin)};
+    backButton.onclick=()=>{expanded=false;setExpandState();parent.postMessage({type:'kasitek:toggle-expand',expanded},targetOrigin)};
     q('#close').onclick=()=>parent.postMessage({type:'kasitek:close'},targetOrigin);
     const sendText=(value)=>{
       if(pending)return;
@@ -1165,16 +1173,19 @@ mod tests {
         assert!(WEBSITE_CHAT_FRAME.contains("Powered by AI"));
         assert!(WEBSITE_CHAT_FRAME.contains("Ask me anything..."));
         assert!(WEBSITE_CHAT_FRAME.contains("AI-generated content may be inaccurate."));
+        assert!(WEBSITE_CHAT_FRAME.contains("#powered-by a{color:var(--chat-primary)"));
         assert!(WEBSITE_CHAT_FRAME.contains("quick-replies"));
         assert!(WEBSITE_CHAT_FRAME.contains("id=\"audio-button\""));
         assert!(WEBSITE_CHAT_FRAME.contains("id=\"file-button\""));
         assert!(WEBSITE_CHAT_FRAME.contains("id=\"send-button\""));
+        assert!(WEBSITE_CHAT_FRAME.contains("id=\"back\""));
     }
 
     #[test]
     fn widget_loader_supports_expanding_and_restoring_the_frame() {
         assert!(WEBSITE_CHAT_LOADER.contains("kasitek:toggle-expand"));
-        assert!(WEBSITE_CHAT_LOADER.contains("inset:12px"));
+        assert!(WEBSITE_CHAT_LOADER.contains("width:min(500px,calc(100vw - 48px))"));
+        assert!(WEBSITE_CHAT_LOADER.contains("top:12px;bottom:12px"));
         assert!(WEBSITE_CHAT_LOADER.contains("aria-expanded"));
     }
 }
