@@ -166,7 +166,7 @@ function CustomerConversationDetail({
 }
 
 function EmptyQueue({ view }: { view: QueueView }) {
-  const label = view === "handoff" ? "No handoff requests" : view === "human" ? "No human-owned conversations" : view === "live" ? "No active agent conversations" : "No customer conversations";
+  const label = view === "handoff" ? "No handoff requests" : view === "human" ? "No assigned conversations" : view === "live" ? "No active agent conversations" : "No customer conversations";
   return (
     <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-border px-5 text-center">
       <Inbox className="h-6 w-6 text-muted-foreground" />
@@ -398,7 +398,7 @@ export function AgentConversationsPageClient({ initialQueue, initialCustomerConv
           <div className="mt-8 grid gap-3 sm:grid-cols-3">
             {(["handoff", "human", "live", "all"] as QueueView[]).map((key) => (
               <button key={key} type="button" onClick={() => changeView(key)} className={`rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary/40 ${view === key ? "border-primary/60 ring-1 ring-primary/20" : "border-border"}`}>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{key === "handoff" ? "Handoff requests" : key === "human" ? "Human owned" : key === "live" ? "Agent live" : "All activity"}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{key === "handoff" ? "Handoff requests" : key === "human" ? "Assigned" : key === "live" ? "Agent live" : "All activity"}</p>
                 <p className="mt-2 text-2xl font-semibold text-foreground">{key === "handoff" ? counts.handoff : key === "human" ? counts.human : key === "live" ? counts.live : counts.all}</p>
               </button>
             ))}
@@ -409,7 +409,7 @@ export function AgentConversationsPageClient({ initialQueue, initialCustomerConv
           <section className="mt-6 rounded-xl border border-border bg-card/80 p-3 sm:p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap gap-1 rounded-lg bg-secondary/70 p-1">
-                {(["handoff", "human", "live", "all"] as QueueView[]).map((key) => <button key={key} type="button" onClick={() => changeView(key)} className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${view === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{key === "handoff" ? "Handoff requests" : key === "human" ? "Human owned" : key === "live" ? "Agent live" : "All"}</button>)}
+                {(["handoff", "human", "live", "all"] as QueueView[]).map((key) => <button key={key} type="button" onClick={() => changeView(key)} className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${view === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{key === "handoff" ? "Handoff requests" : key === "human" ? "Assigned" : key === "live" ? "Agent live" : "All"}</button>)}
               </div>
               <div className="flex w-full flex-wrap gap-2 sm:w-auto"><div className="relative min-w-0 flex-1 sm:w-56"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => { setSearch(event.target.value); resetQueuePosition(); }} placeholder="Search conversations" className="pl-9" /></div><select aria-label="Channel" value={channelType} onChange={(event) => { setChannelType(event.target.value); resetQueuePosition(); }} className="h-9 rounded-md border border-border bg-background px-2.5 text-xs text-foreground"><option value="">All channels</option><option value="platform">Platform</option><option value="whatsapp">WhatsApp</option><option value="telegram">Telegram</option><option value="messenger">Messenger</option><option value="instagram">Instagram</option></select><select aria-label="Reason" value={reason} onChange={(event) => { setReason(event.target.value as AgentHandoffReason | ""); resetQueuePosition(); }} className="h-9 rounded-md border border-border bg-background px-2.5 text-xs text-foreground"><option value="">All reasons</option>{handoffReasons.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><select aria-label="Priority" value={priority} onChange={(event) => { setPriority(event.target.value as AgentHandoffPriority | ""); resetQueuePosition(); }} className="h-9 rounded-md border border-border bg-background px-2.5 text-xs text-foreground"><option value="">All priorities</option><option value="urgent">Urgent</option><option value="high">High</option><option value="normal">Normal</option></select></div>
             </div>
