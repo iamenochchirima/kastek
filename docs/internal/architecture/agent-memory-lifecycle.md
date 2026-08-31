@@ -68,13 +68,19 @@ can use the dual-approval `review_memory` command. Both paths enforce organizati
 installation, conversation, and user scope and append an audit record. Rejection moves the record
 to `rejected`, which is never searchable.
 
+Semantic facts may provide a stable `factKey`. If a new fact conflicts with an active fact using
+the same key and scope, the new record is held in `review_pending`; it never silently overwrites
+the old value. Approval must name the active conflicting record as `supersedesMemoryId`. The new
+record then becomes active and the old record becomes `superseded`, with immutable lineage retained
+in `memory_records.supersedes_memory_id` and provenance. A supersession target must match the
+organization, agent, installation, conversation, user, namespace, and fact key of the candidate.
+
 The current detector is a bounded first-pass classifier, not a complete adversarial defense.
-Contradiction detection, supersession links, multi-turn poisoning analysis, and automatic
-conversation extraction remain open.
+Multi-turn poisoning analysis and automatic conversation extraction remain open.
 
 ## Remaining work
 
-Conversation extraction, contradiction and correction links, vector ranking, source-message/model/
+Conversation extraction, vector ranking, source-message/model/
 extraction provenance, derived-store deletion, scope-rejection metrics, and organization-level
 row-level security remain separate audit items. They must be implemented behind the same lifecycle
 boundary rather than by adding direct writes to conversation handlers.

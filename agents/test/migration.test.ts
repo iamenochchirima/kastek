@@ -68,6 +68,14 @@ describe("foundation migration", () => {
     expect(sql).toContain("'review_memory'");
   });
 
+  it("stores scoped memory fact lineage without allowing implicit overwrite", async () => {
+    const sql = await readFile(new URL("../migrations/087_memory_fact_lineage.sql", import.meta.url), "utf8");
+    expect(sql).toContain("fact_key");
+    expect(sql).toContain("supersedes_memory_id");
+    expect(sql).toContain("status <> 'active'");
+    expect(sql).toContain("Memory supersession target is outside the memory scope");
+  });
+
   it("contains the durable scope and run tables", async () => {
     const sql = await readFile(new URL("../migrations/001_agent_platform_foundation.sql", import.meta.url), "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_definitions");

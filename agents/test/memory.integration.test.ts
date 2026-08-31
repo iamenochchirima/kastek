@@ -105,6 +105,57 @@ describe.skipIf(!runIntegration)("memory and knowledge isolation (integration)",
     })).rejects.toThrow("Procedural memory requires an explicit user or platform policy");
   });
 
+  it("requires explicit supersession when a fact key conflicts", async () => {
+    const scope = { organizationId, agentId, installationId, actorId: "user-1" };
+    const original = await memory.createMemory({
+      ...scope,
+      namespace: "agent_private",
+      memoryType: "semantic",
+      canonicalText: "The user prefers concise replies",
+      sourceType: "explicit",
+      factKey: "user.reply_style",
+    });
+    const conflicting = await memory.createMemory({
+      ...scope,
+      namespace: "agent_private",
+      memoryType: "semantic",
+      canonicalText: "The user prefers detailed replies",
+      sourceType: "imported",
+      actorId: "system",
+      factKey: "user.reply_style",
+    });
+    expect(conflicting.status).toBe("review_pending");
+    expect(conflicting.provenance).toMatchObject({
+      contradictionSignals: ["conflicting_fact_key"],
+      conflictsWithMemoryIds: [original.id],
+    });
+    await expect(memory.reviewMemory(scope, conflicting.id, "approve", "reviewer-1")).rejects.toThrow("explicit supersession target");
+    const approved = await memory.reviewMemory(scope, conflicting.id, "approve", "reviewer-1", original.id);
+    expect(approved).toMatchObject({ status: "active", supersedes_memory_id: original.id, fact_key: "user.reply_style" });
+    expect((await pool.query<{ status: string; superseded_at: string | null }>("SELECT status, superseded_at FROM memory_records WHERE id = $1", [original.id])).rows[0]).toMatchObject({ status: "superseded" });
+    expect((await memory.searchMemory(scope, "prefers replies")).map((entry) => entry.id)).toContain(approved.id);
+
+    const explicitOriginal = await memory.createMemory({
+      ...scope,
+      namespace: "agent_private",
+      memoryType: "semantic",
+      canonicalText: "The user prefers weekly summaries",
+      sourceType: "explicit",
+      factKey: "user.summary_frequency",
+    });
+    const explicitCorrection = await memory.createMemory({
+      ...scope,
+      namespace: "agent_private",
+      memoryType: "semantic",
+      canonicalText: "The user prefers monthly summaries",
+      sourceType: "explicit",
+      factKey: "user.summary_frequency",
+      supersedesMemoryId: explicitOriginal.id,
+    });
+    expect(explicitCorrection).toMatchObject({ status: "active", supersedes_memory_id: explicitOriginal.id });
+    expect((await pool.query<{ status: string }>("SELECT status FROM memory_records WHERE id = $1", [explicitOriginal.id])).rows[0]?.status).toBe("superseded");
+  });
+
   it("does not list or retrieve memory after its expiry window", async () => {
     const expired = await memory.createMemory({
       organizationId,

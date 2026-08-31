@@ -4626,6 +4626,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       installationId: z.string().uuid().optional(),
       conversationId: z.string().uuid().optional(),
       decision: z.enum(["approve", "reject"]),
+      supersedesMemoryId: z.string().uuid().optional(),
     }).parse(request.body);
     await requireHostedResourceScope(agents, auth.organizationId, input);
     const reviewed = await memory.reviewMemory(
@@ -4633,6 +4634,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       request.params.memoryId,
       input.decision,
       auth.actorId,
+      input.supersedesMemoryId,
     );
     await dependencies.pool.query(
       `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, correlation_id, metadata)

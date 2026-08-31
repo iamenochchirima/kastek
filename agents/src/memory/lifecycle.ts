@@ -9,6 +9,8 @@ export interface RememberInput {
   sensitivity?: "normal" | "sensitive" | "restricted";
   ownerUserId?: string;
   expiresAt?: string | null;
+  factKey?: string;
+  supersedesMemoryId?: string;
 }
 
 export class MemoryLifecycle {
@@ -48,6 +50,8 @@ export class MemoryLifecycle {
       sourceType: "explicit",
       provenance: scope.runId ? { sourceRunId: scope.runId } : undefined,
       ...(expiresAt === undefined || expiresAt === null ? {} : { expiresAt }),
+      ...(input.factKey ? { factKey: input.factKey } : {}),
+      ...(input.supersedesMemoryId ? { supersedesMemoryId: input.supersedesMemoryId } : {}),
       allowInferred: false,
       allowProceduralInference: false,
     });

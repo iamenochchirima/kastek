@@ -13,7 +13,9 @@ last_reviewed: 2026-08-31
 2. Confirm the organization, agent, installation, conversation, namespace, source type, and
    provenance are the expected scope.
 3. Approve only content that is a factual memory and does not contain instructions to change agent
-   policy, reveal credentials, or bypass approvals. Reject the candidate otherwise.
+   policy, reveal credentials, or bypass approvals. If it conflicts with an active fact, provide
+   the active record ID as `supersedesMemoryId`; never approve a conflicting fact without an
+   explicit replacement decision. Reject the candidate otherwise.
 4. Verify the status transition and the `memory.reviewed` audit record. Review actions are scoped
    and cannot be repeated after the candidate leaves a review state.
 
@@ -42,3 +44,5 @@ deletion so deletion jobs and audit records are created. Do not issue an unscope
 
 The safety migration is additive. Application rollback must leave migration 085 applied because
 the additional status values are needed to preserve review decisions; old statuses remain valid.
+Migration 087 is also additive. If its application code is rolled back, retain the columns and
+lineage trigger; old memory records remain valid and the new fields are nullable.

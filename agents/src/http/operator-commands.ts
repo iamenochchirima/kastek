@@ -490,8 +490,9 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
       installation_id: string | null;
       conversation_id: string | null;
       owner_user_id: string | null;
+      fact_key: string | null;
       status: string;
-    }>(dependencies.pool, `SELECT organization_id, agent_definition_id, installation_id, conversation_id, owner_user_id, status
+    }>(dependencies.pool, `SELECT organization_id, agent_definition_id, installation_id, conversation_id, owner_user_id, fact_key, status
       FROM memory_records WHERE id = $1`, [command.target_id])).rows[0];
     if (!target) throw Object.assign(new Error("Memory not found"), { statusCode: 404 });
     assertExpectedResource(command, "expectedOrganizationId", target.organization_id, "Memory organization");
@@ -525,8 +526,9 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
       installation_id: string | null;
       conversation_id: string | null;
       owner_user_id: string | null;
+      fact_key: string | null;
       status: string;
-    }>(dependencies.pool, `SELECT organization_id, agent_definition_id, installation_id, conversation_id, owner_user_id, status
+    }>(dependencies.pool, `SELECT organization_id, agent_definition_id, installation_id, conversation_id, owner_user_id, fact_key, status
       FROM memory_records WHERE id = $1`, [command.target_id])).rows[0];
     if (!target) throw Object.assign(new Error("Memory not found"), { statusCode: 404 });
     if (!target.agent_definition_id) throw Object.assign(new Error("Memory has no agent scope"), { statusCode: 409 });
@@ -542,19 +544,25 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
     if (decision !== "approve" && decision !== "reject") {
       throw Object.assign(new Error("Memory review decision must be approve or reject"), { statusCode: 400 });
     }
+    const supersedesMemoryId = typeof command.payload.supersedesMemoryId === "string"
+      ? command.payload.supersedesMemoryId.trim()
+      : undefined;
+    if (supersedesMemoryId && !target.fact_key) {
+      throw Object.assign(new Error("A fact key is required for memory supersession"), { statusCode: 400 });
+    }
     const reviewed = await dependencies.memory.reviewMemory({
       organizationId: target.organization_id,
       agentId: target.agent_definition_id,
       installationId: target.installation_id ?? undefined,
       conversationId: target.conversation_id ?? undefined,
       actorId: target.owner_user_id ?? undefined,
-    }, command.target_id, decision, actorId);
+    }, command.target_id, decision, actorId, supersedesMemoryId);
     await auditCommand(dependencies.pool, {
       organizationId: target.organization_id,
       actorId,
       action: "operator_command.memory_reviewed",
       commandId: command.id,
-      metadata: { memoryId: command.target_id, decision, status: reviewed.status },
+      metadata: { memoryId: command.target_id, decision, status: reviewed.status, ...(supersedesMemoryId ? { supersedesMemoryId } : {}) },
     });
     return { status: decision === "approve" ? "approved" : "rejected", memoryId: command.target_id };
   }
