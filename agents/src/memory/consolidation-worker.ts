@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { ConversationRepository } from "../db/repositories/conversation-repository";
+import { runWithDatabaseContext } from "../db/context";
 import { MemoryConsolidationJobRepository, type MemoryConsolidationJobRecord } from "../db/repositories/memory-consolidation-job-repository";
 import { MemoryRepository } from "../db/repositories/memory-repository";
 import { RunRepository } from "../db/repositories/run-repository";
@@ -52,7 +53,10 @@ export class MemoryConsolidationWorker {
   }
 
   public async runOnce(): Promise<number> {
-    const claimed = await this.jobs.claimDue(this.workerId, this.settings.batchSize, this.settings.leaseMs);
+    const claimed = await runWithDatabaseContext(
+      { organizationId: "platform", actorId: "system:memory-consolidation", operator: true },
+      () => this.jobs.claimDue(this.workerId, this.settings.batchSize, this.settings.leaseMs),
+    );
     claimed.forEach((job) => recordQueueAge("memory_consolidation", Math.max(0, (Date.now() - new Date(job.created_at).getTime()) / 1000)));
     await Promise.all(claimed.map((job) => withSpan(
       "memory.consolidation.job",
@@ -74,6 +78,10 @@ export class MemoryConsolidationWorker {
   }
 
   private async process(job: MemoryConsolidationJobRecord): Promise<void> {
+    return runWithDatabaseContext({ organizationId: job.organization_id, actorId: "system:memory-consolidation" }, () => this.processScoped(job));
+  }
+
+  private async processScoped(job: MemoryConsolidationJobRecord): Promise<void> {
     try {
       if (job.extraction_version !== MEMORY_EXTRACTION_VERSION) {
         throw new Error(`Unsupported memory extraction version: ${job.extraction_version}`);

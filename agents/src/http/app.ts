@@ -121,6 +121,7 @@ import { correlationIdFromHeader, currentCorrelationId, runWithCorrelationId } f
 import { operationalLogFields, operationalLogRedaction, operationalLogSerializers } from "../telemetry/logger";
 import { AudioTranscriptionError, ElevenLabsTranscriptionProvider, hasAudioFileSignature, isSupportedAudioMimeType, MAX_AUDIO_FILE_BYTES, normalizeAudioMimeType, type AudioTranscriptionProvider } from "../transcription";
 import { AudioTranscriptionJobRepository } from "../db/repositories/audio-transcription-job-repository";
+import { enterDatabaseContext, runWithDatabaseContext } from "../db/context";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -192,7 +193,7 @@ function secretHeaderMatches(expected: string | undefined, provided: string | un
 }
 
 function requireAuth(request: FastifyRequest, config: AppConfig): AuthContext {
-  return authenticateRequest(
+  const auth = authenticateRequest(
     {
       authorization: headerValue(request, "authorization"),
       organizationId: headerValue(request, "x-organization-id"),
@@ -202,6 +203,8 @@ function requireAuth(request: FastifyRequest, config: AppConfig): AuthContext {
     },
     config,
   );
+  enterDatabaseContext({ organizationId: auth.organizationId, actorId: auth.actorId, operator: auth.operator });
+  return auth;
 }
 
 function requireScope(auth: AuthContext, config: AppConfig, scope: string): void {
@@ -280,6 +283,7 @@ async function authenticateInstallationRequest(input: {
   } catch {
     throw Object.assign(new Error(`Invalid ${audience === "mcp" ? "MCP" : "public API"} installation token`), { statusCode: 401 });
   }
+  enterDatabaseContext({ organizationId: claims.organizationId, actorId: `installation:${claims.sub}` });
   const credential = await input.installationCredentials.getActiveForToken({
     credentialId: claims.credentialId,
     organizationId: claims.organizationId,
@@ -328,6 +332,7 @@ async function authenticateMcpRequest(input: {
   if (bearer.startsWith("kst_")) {
     const identity = await input.developerApiKeyResolver.resolve(bearer);
     if (!identity) throw Object.assign(new Error("Invalid Developer API key"), { statusCode: 401 });
+    enterDatabaseContext({ organizationId: identity.organizationId, actorId: `developer-api-key:${identity.apiKeyId}` });
     const aggregate = await input.agents.getOrCreateDeveloperApiKeyInstallation({
       organizationId: identity.organizationId,
       apiKeyId: identity.apiKeyId,
@@ -442,7 +447,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.addHook("onRequest", (request, reply, done) => {
     const correlationId = correlationIdFromHeader(request.headers["x-correlation-id"]);
     reply.header("x-correlation-id", correlationId);
-    runWithCorrelationId(correlationId, done);
+    runWithDatabaseContext(undefined, () => runWithCorrelationId(correlationId, done));
   });
   app.register(multipart, {
     limits: {
@@ -909,6 +914,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!secretHeaderMatches(dependencies.config.INTERNAL_AUTH_SECRET, headerValue(request, "x-kasitek-core-forward-secret"))) {
       return reply.code(401).send({ error: "Unauthorized" });
     }
+    enterDatabaseContext({ organizationId: "platform", actorId: "system:telegram-webhook", operator: true });
     const providerSecret = headerValue(request, "x-telegram-bot-api-secret-token");
     const connection = await channels.getConnectionForWebhook(request.params.connectionId);
     if (!connection || connection.channel_type !== "telegram" || connection.status !== "active" || connection.installation_status !== "active") {
@@ -917,6 +923,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!connection.webhook_secret_hash || !channelSecretsEqual(connection.webhook_secret_hash, providerSecret ?? "")) {
       return reply.code(401).send({ error: "Unauthorized" });
     }
+    enterDatabaseContext({ organizationId: connection.organization_id, actorId: `telegram-webhook:${connection.id}` });
     const update = request.body && typeof request.body === "object" ? request.body as Record<string, unknown> : {};
     if ((!update.message || typeof update.message !== "object") && (!update.callback_query || typeof update.callback_query !== "object")) {
       return reply.code(200).send({ ok: true, ignored: true });
@@ -1135,10 +1142,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!secretHeaderMatches(dependencies.config.INTERNAL_AUTH_SECRET, headerValue(request, "x-kasitek-core-forward-secret"))) {
       return reply.code(401).send({ error: "Unauthorized" });
     }
+    enterDatabaseContext({ organizationId: "platform", actorId: "system:discord-webhook", operator: true });
     const connection = await channels.getConnectionForWebhook(request.params.connectionId);
     if (!connection || connection.channel_type !== "discord" || connection.status !== "active" || connection.installation_status !== "active") {
       return reply.code(404).send({ error: "discord_connection_not_found" });
     }
+    enterDatabaseContext({ organizationId: connection.organization_id, actorId: `discord-webhook:${connection.id}` });
     const payload = request.body && typeof request.body === "object" ? request.body as Record<string, unknown> : {};
     if (payload.type !== 3 && (typeof payload.id !== "string" || typeof payload.channel_id !== "string" || !payload.author || typeof payload.author !== "object")) {
       return reply.code(200).send({ ok: true, ignored: true });
@@ -1675,6 +1684,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         context.addIssue({ code: z.ZodIssueCode.custom, path: ["secret"], message: "Provide exactly one of secret or clientAssertion" });
       }
     }).parse(request.body);
+    enterDatabaseContext({ organizationId: "platform", actorId: "system:installation-token-exchange", operator: true });
     if (!dependencies.config.INSTALLATION_TOKEN_PRIVATE_KEY) return reply.code(503).send({ error: "installation_token_exchange_unavailable" });
     let credential;
     if (body.secret) {
@@ -1694,6 +1704,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         return reply.code(401).send({ error: "invalid_installation_client_assertion" });
       }
     }
+    enterDatabaseContext({ organizationId: credential.organization_id, actorId: `installation-token:${credential.installation_id}` });
     const token = issueInstallationToken({
       privateKeyPem: dependencies.config.INSTALLATION_TOKEN_PRIVATE_KEY,
       issuer: dependencies.config.INSTALLATION_TOKEN_ISSUER,

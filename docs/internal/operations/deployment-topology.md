@@ -105,6 +105,12 @@ The Agents image contains the compiled migration file. For a one-shot deployment
 node dist/db/migrate.js
 ```
 
+The migration process must receive `AGENTS_MIGRATION_DATABASE_URL` for a separately controlled
+DDL-capable migration role. `AGENTS_DATABASE_URL` remains the restricted application connection.
+Set the migration variable only for the one-shot migration deployment, verify the migration, then
+remove it before restoring the API start command. Never grant the runtime role `SUPERUSER` or
+`BYPASSRLS` as a migration workaround.
+
 After the command exits successfully, restore `node dist/http/server.js`. Do not use
 `pnpm run migrate` in the production image: that script references the source tree and the
 development `tsx` dependency, which are not included in the runtime image.

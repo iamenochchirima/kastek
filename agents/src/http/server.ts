@@ -3,6 +3,7 @@ import { shutdownTelemetry } from "../telemetry";
 import { loadConfig } from "../config";
 import { createPool } from "../db/pool";
 import { AgentRepository } from "../db/repositories/agent-repository";
+import { RunRepository } from "../db/repositories/run-repository";
 import { buildApp } from "./app";
 import { synchronizeKasiAi } from "../system/kasiai";
 import { connectTemporal, signalRunApproval, signalRunCancellation, signalRunExternalEvent, startDurableRun } from "../temporal/client";
@@ -11,6 +12,7 @@ import { operationalLogger } from "../telemetry/logger";
 async function main(): Promise<void> {
   const config = loadConfig();
   const pool = createPool(config);
+  const runs = new RunRepository(pool);
   if (config.NODE_ENV !== "production") {
     const synced = await synchronizeKasiAi(new AgentRepository(pool), config);
     operationalLogger.info({ event: "kasiai.synchronized", version_number: synced.version.version_number, rolled_out: synced.rolledOut }, "KasiAi synchronized");
@@ -21,7 +23,15 @@ async function main(): Promise<void> {
     config,
     pool,
     startWorkflow: temporalConnection
-      ? (runId) => startDurableRun(temporalConnection!.client, config, { runId })
+      ? async (runId) => {
+        const run = await runs.getRunById(runId);
+        if (!run) throw new Error("Cannot start workflow for a missing run");
+        return startDurableRun(temporalConnection!.client, config, {
+          runId,
+          organizationId: run.organization_id,
+          actorId: run.created_by,
+        });
+      }
       : undefined,
     signalApproval: temporalConnection
       ? (runId, signal) => signalRunApproval(temporalConnection!.client, runId, signal)

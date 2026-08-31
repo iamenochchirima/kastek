@@ -58,6 +58,7 @@ import { recordBudgetExhaustion, recordRetrievalResult, recordTemporalActivityAt
 import { AGENT_MEDIA_HARNESS_TOOLS, agentResponseSchema, agentResponseToolInputSchema, parseAgentResponse } from "../media/contracts";
 import { materializeResponseLinks, type ResolvedAgentMedia } from "../media/delivery";
 import { channelMediaProfile } from "../media/profiles";
+import { runWithDatabaseContext } from "../db/context";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -2168,7 +2169,13 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         // Direct activity tests do not have a Temporal context.
       }
       recordTemporalActivityAttempt(name, attempt);
-      return withSpan(`temporal.activity.${name}`, { "temporal.activity.name": name, "temporal.activity.attempt": attempt }, () => handler(input as never));
+      const scope = input && typeof input === "object" ? input as { organizationId?: unknown; actorId?: unknown } : {};
+      const organizationId = typeof scope.organizationId === "string" && scope.organizationId.trim() ? scope.organizationId : undefined;
+      const actorId = typeof scope.actorId === "string" && scope.actorId.trim() ? scope.actorId : undefined;
+      return runWithDatabaseContext(
+        organizationId || actorId ? { organizationId, actorId } : undefined,
+        () => withSpan(`temporal.activity.${name}`, { "temporal.activity.name": name, "temporal.activity.attempt": attempt }, () => handler(input as never)),
+      );
     },
   ])) as unknown as AgentRunActivities;
 }

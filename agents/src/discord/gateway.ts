@@ -4,6 +4,7 @@ import type { ChannelConnectionRecord, ChannelRepository } from "../db/repositor
 import { DiscordBotClient } from "../channels/discord-client";
 import { operationalLogger } from "../telemetry/logger";
 import { readDiscordAccessPolicy, shouldDiscordAnswer, shouldDiscordAnswerComponent, stripDiscordMention } from "./policy";
+import { runWithDatabaseContext } from "../db/context";
 
 interface GatewayPayload {
   op: number;
@@ -200,6 +201,13 @@ export class DiscordGatewaySupervisor {
   }
 
   private async refresh(): Promise<void> {
+    return runWithDatabaseContext(
+      { organizationId: "platform", actorId: "system:discord-gateway", operator: true },
+      () => this.refreshScoped(),
+    );
+  }
+
+  private async refreshScoped(): Promise<void> {
     if (this.stopping) return;
     const connections = await this.repository.listActiveDiscordConnections();
     const active = new Set(connections.map((connection) => connection.id));
@@ -223,11 +231,14 @@ export class DiscordGatewaySupervisor {
         platformUrl: this.config.DISCORD_GATEWAY_PLATFORM_URL ?? `http://127.0.0.1:${this.config.PORT}`,
         forwardSecret: this.config.INTERNAL_AUTH_SECRET ?? "",
         onStatus: async (status) => {
-          await this.repository.updateConnection({
-            organizationId: connection.organization_id,
-            connectionId: connection.id,
-            metadata: { ...connection.metadata, gateway: { status } },
-          }).catch((error) => operationalLogger.warn({ err: error, event: "discord.status.update.failed", connection_id: connection.id }, "Could not update Discord connection status"));
+          await runWithDatabaseContext(
+            { organizationId: connection.organization_id, actorId: "system:discord-gateway" },
+            () => this.repository.updateConnection({
+              organizationId: connection.organization_id,
+              connectionId: connection.id,
+              metadata: { ...connection.metadata, gateway: { status } },
+            }),
+          ).catch((error) => operationalLogger.warn({ err: error, event: "discord.status.update.failed", connection_id: connection.id }, "Could not update Discord connection status"));
         },
       });
       this.sessions.set(connection.id, session);

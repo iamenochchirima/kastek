@@ -10,6 +10,7 @@ import {
 } from "./index";
 import { operationalLogger } from "../telemetry/logger";
 import { recordQueueAge, recordRetry, withSpan } from "../telemetry/spans";
+import { runWithDatabaseContext } from "../db/context";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -41,7 +42,10 @@ async function main(): Promise<void> {
     if (publishing) return;
     publishing = true;
     try {
-      const stats = await withSpan("analytics.outbox.publish", {}, () => publishOutboxOnce(pool, client, settings));
+      const stats = await runWithDatabaseContext(
+        { organizationId: "platform", actorId: "system:analytics-publisher", operator: true },
+        () => withSpan("analytics.outbox.publish", {}, () => publishOutboxOnce(pool, client, settings)),
+      );
       if (stats.oldestQueuedAgeSeconds !== null) recordQueueAge("analytics.outbox", stats.oldestQueuedAgeSeconds);
       if (stats.retryable > 0) recordRetry("analytics.outbox", stats.retryable);
       if (stats.claimed > 0 || stats.leasesReleased > 0) {

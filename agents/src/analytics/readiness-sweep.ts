@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ReadinessEvaluationCandidate, ReadinessRepository } from "../db/repositories/readiness-repository";
+import { runWithDatabaseContext } from "../db/context";
 
 export interface ReadinessSweepSettings {
   intervalMs: number;
@@ -52,12 +53,15 @@ export class ReadinessSweep {
     if (this.running || this.stopped) return;
     this.running = true;
     try {
-      const candidates = await this.repository.claimDueEvaluations({
-        owner: this.owner,
-        limit: this.settings.batchSize,
-        leaseDurationMs: this.settings.leaseDurationMs,
-        now,
-      });
+      const candidates = await runWithDatabaseContext(
+        { organizationId: "platform", actorId: "system:readiness-sweep", operator: true },
+        () => this.repository.claimDueEvaluations({
+          owner: this.owner,
+          limit: this.settings.batchSize,
+          leaseDurationMs: this.settings.leaseDurationMs,
+          now,
+        }),
+      );
       await Promise.all(candidates.map((candidate) => this.evaluate(candidate, now)));
     } catch (error) {
       this.settings.onError?.(error);
@@ -67,21 +71,23 @@ export class ReadinessSweep {
   }
 
   private async evaluate(candidate: ReadinessEvaluationCandidate, now: Date): Promise<void> {
-    try {
-      await this.settings.evaluate(candidate);
-      await this.repository.completeEvaluation({
-        installationId: candidate.installationId,
-        owner: this.owner,
-        evaluatedAt: now,
-        nextEvaluationAt: new Date(now.getTime() + this.settings.intervalMs),
-      });
-    } catch (error) {
-      this.settings.onError?.(error, candidate);
-      await this.repository.releaseEvaluation({
-        installationId: candidate.installationId,
-        owner: this.owner,
-        retryAt: new Date(now.getTime() + this.retryDelayMs),
-      }).catch((releaseError) => this.settings.onError?.(releaseError, candidate));
-    }
+    return runWithDatabaseContext({ organizationId: candidate.organizationId, actorId: candidate.actorId }, async () => {
+      try {
+        await this.settings.evaluate(candidate);
+        await this.repository.completeEvaluation({
+          installationId: candidate.installationId,
+          owner: this.owner,
+          evaluatedAt: now,
+          nextEvaluationAt: new Date(now.getTime() + this.settings.intervalMs),
+        });
+      } catch (error) {
+        this.settings.onError?.(error, candidate);
+        await this.repository.releaseEvaluation({
+          installationId: candidate.installationId,
+          owner: this.owner,
+          retryAt: new Date(now.getTime() + this.retryDelayMs),
+        }).catch((releaseError) => this.settings.onError?.(releaseError, candidate));
+      }
+    });
   }
 }

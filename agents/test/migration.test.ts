@@ -241,6 +241,16 @@ describe("foundation migration", () => {
     expect(auditExecutionModeSql).toContain("executionMode");
   });
 
+  it("enables the first restricted-role RLS tranche for context records", async () => {
+    const sql = await readFile(new URL("../migrations/091_memory_knowledge_rls.sql", import.meta.url), "utf8");
+    expect(sql).toContain("kasitek_agents_operator_scope");
+    expect(sql).toContain("memory_records_agents_scope");
+    expect(sql).toContain("knowledge_sources_agents_scope");
+    expect(sql).toContain("knowledge_chunks_agents_scope");
+    expect(sql).toContain("ENABLE ROW LEVEL SECURITY");
+    expect(sql).toContain("FORCE ROW LEVEL SECURITY");
+  });
+
   it("defines hosted-agent creation profiles", async () => {
     const profileSql = await readFile(new URL("../migrations/054_agent_creation_profiles.sql", import.meta.url), "utf8");
     expect(profileSql).toContain("creation_profile");

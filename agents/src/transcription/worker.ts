@@ -21,6 +21,7 @@ import { TelegramBotClient } from "../channels/telegram-client";
 import { DiscordBotClient } from "../channels/discord-client";
 import { OperatorControlRepository } from "../db/repositories/operator-control-repository";
 import { withTransaction } from "../db/pool";
+import { runWithDatabaseContext } from "../db/context";
 import { enqueueAudioLifecycleEvent, type AudioAnalyticsEventInput } from "../analytics";
 
 type DispatchInput = Record<string, unknown>;
@@ -125,10 +126,13 @@ export class AudioTranscriptionWorker {
   }
 
   public async runOnce(): Promise<number> {
-    const claimed = await this.jobs.claimDue(
-      this.workerId,
-      this.options.config.AUDIO_TRANSCRIPTION_WORKER_BATCH_SIZE,
-      this.options.config.AUDIO_TRANSCRIPTION_WORKER_LEASE_MS,
+    const claimed = await runWithDatabaseContext(
+      { organizationId: "platform", actorId: "system:audio-transcription", operator: true },
+      () => this.jobs.claimDue(
+        this.workerId,
+        this.options.config.AUDIO_TRANSCRIPTION_WORKER_BATCH_SIZE,
+        this.options.config.AUDIO_TRANSCRIPTION_WORKER_LEASE_MS,
+      ),
     );
     claimed.forEach((job) => recordQueueAge("audio_transcription", Math.max(0, (Date.now() - new Date(job.created_at).getTime()) / 1000)));
     await Promise.all(claimed.map((job) => withSpan(
@@ -152,6 +156,13 @@ export class AudioTranscriptionWorker {
   }
 
   private async process(job: AudioTranscriptionJobRecord): Promise<void> {
+    return runWithDatabaseContext(
+      { organizationId: job.organization_id, actorId: job.actor_id },
+      () => this.processScoped(job),
+    );
+  }
+
+  private async processScoped(job: AudioTranscriptionJobRecord): Promise<void> {
     try {
       const input = job.dispatch_input;
       if (job.status === "processing") {

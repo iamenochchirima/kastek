@@ -31,13 +31,20 @@ export interface ExternalEventSignal {
   payload: Record<string, unknown>;
 }
 
-export interface DurableRunInput {
+export interface ActivityScope {
+  /** Tenant scope copied into the activity for transaction-local RLS context. */
+  organizationId?: string;
+  /** Originating actor used for audit context; it is not an authorization grant. */
+  actorId?: string;
+}
+
+export interface DurableRunInput extends ActivityScope {
   runId: string;
   resumeApprovedToolCall?: ResumeApprovedToolCall;
   resumeExternalEvent?: ExternalEventSignal;
 }
 
-export interface TransitionRunActivityInput {
+export interface TransitionRunActivityInput extends ActivityScope {
   runId: string;
   expectedStatus: RunStatus;
   nextStatus: RunStatus;
@@ -46,12 +53,12 @@ export interface TransitionRunActivityInput {
 export interface AgentRunActivities {
   transitionRun(input: TransitionRunActivityInput): Promise<void>;
   executeLoop(input: DurableRunInput): Promise<AgentLoopResult>;
-  pauseRun(input: { runId: string; status: "awaiting_approval" | "awaiting_human" | "awaiting_external_event"; output: Record<string, unknown> }): Promise<void>;
-  deliverApprovalPrompt(input: { runId: string }): Promise<void>;
-  cancelPendingApproval(input: { runId: string; providerToolCallId: string; reason?: string; outcome?: "cancelled" | "expired" }): Promise<void>;
-  cancelHandoff(input: { runId: string; reason?: string }): Promise<void>;
-  completeRun(input: { runId: string; output: Record<string, unknown> }): Promise<void>;
-  generateConversationTitle(input: { runId: string }): Promise<void>;
-  deliverRunReply(input: { runId: string }): Promise<void>;
-  failRun(input: { runId: string; error: Record<string, unknown> }): Promise<void>;
+  pauseRun(input: ActivityScope & { runId: string; status: "awaiting_approval" | "awaiting_human" | "awaiting_external_event"; output: Record<string, unknown> }): Promise<void>;
+  deliverApprovalPrompt(input: ActivityScope & { runId: string }): Promise<void>;
+  cancelPendingApproval(input: ActivityScope & { runId: string; providerToolCallId: string; reason?: string; outcome?: "cancelled" | "expired" }): Promise<void>;
+  cancelHandoff(input: ActivityScope & { runId: string; reason?: string }): Promise<void>;
+  completeRun(input: ActivityScope & { runId: string; output: Record<string, unknown> }): Promise<void>;
+  generateConversationTitle(input: ActivityScope & { runId: string }): Promise<void>;
+  deliverRunReply(input: ActivityScope & { runId: string }): Promise<void>;
+  failRun(input: ActivityScope & { runId: string; error: Record<string, unknown> }): Promise<void>;
 }
