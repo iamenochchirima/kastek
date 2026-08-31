@@ -1,6 +1,11 @@
 # Agent Conversations and Human Handoff Plan
 
-Status: implementation complete; client publication pending
+Status: superseded by the consent-gated handoff correction; retained as historical implementation context
+
+The current governing behavior is documented in
+[`AGENT_HANDOFF_CONSENT_PLAN.md`](./AGENT_HANDOFF_CONSENT_PLAN.md). In particular, a model or
+workflow may offer a handoff but cannot create a customer handoff request without trusted customer
+consent. A clear direct customer request remains sufficient consent.
 
 This plan covers the split between personal and customer-service agents, customer conversation ownership, human handoff, and the live Agent Conversations surface. Analytics reporting remains in `ANALYTICS_PLAN.md` and `ANALYTICS_EXECUTION_PLAN.md`; this plan emits the lifecycle data those documents require.
 

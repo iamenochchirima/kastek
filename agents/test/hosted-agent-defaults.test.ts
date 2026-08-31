@@ -15,10 +15,11 @@ describe("hosted agent default capability policy", () => {
   });
 
   it("adds the human handoff capability only to customer-service agents", () => {
-    expect(resolveHostedAgentAllowedTools("custom", [], "customer_service")).toEqual(["conversation.request_human"]);
+    expect(resolveHostedAgentAllowedTools("custom", [], "customer_service")).toEqual(["conversation.offer_handoff"]);
     expect(resolveHostedAgentAllowedTools("custom", ["platform.current_time", "conversation.request_human"], "customer_service")).toEqual([
       "platform.current_time",
       "conversation.request_human",
+      "conversation.offer_handoff",
     ]);
     expect(resolveHostedAgentAllowedTools("custom", [], "personal")).toEqual([]);
     expect(() => resolveHostedAgentAllowedTools("custom", ["conversation.request_human"], "personal")).toThrow("customer-service agent");

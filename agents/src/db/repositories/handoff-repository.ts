@@ -4,6 +4,7 @@ import type { ConversationProjection, ConversationRecord, MessageRecord } from "
 import { createAgentEvent } from "../../events/envelope";
 import { buildEvent, enqueueOutbox } from "../../analytics/producer";
 import { enqueueAgentConversationMessage, loadAgentConversationAnalyticsContext } from "../../analytics";
+import { ConversationHandoffService, type HandoffOfferRecord, type OfferHandoffInput } from "../../handoff/service";
 
 export type HandoffReason = "customer_requested" | "agent_uncertain" | "policy_required" | "high_value" | "configured_workflow" | "other";
 export type HandoffPriority = "normal" | "high" | "urgent";
@@ -22,6 +23,11 @@ export interface HandoffRequestRecord {
   priority: HandoffPriority;
   summary: string;
   customer_message: string | null;
+  request_source: "customer_direct" | "customer_confirmed" | "operator" | "legacy_unverified";
+  source_message_id: string | null;
+  offer_id: string | null;
+  consented_at: string | null;
+  classifier_version: string | null;
   status: HandoffStatus;
   requested_by: string;
   claimed_by: string | null;
@@ -152,7 +158,13 @@ function decodeCursor(value: string): HandoffCursor {
 }
 
 export class HandoffRepository {
+  private readonly handoffService = new ConversationHandoffService();
+
   public constructor(private readonly pool: Pool) {}
+
+  public async offerHandoff(input: OfferHandoffInput): Promise<{ offer: HandoffOfferRecord; conversation: ConversationRecord; created: boolean }> {
+    return withTransaction(this.pool, (client) => this.handoffService.offer(client, input));
+  }
 
   public async listQueue(organizationId: string, filters: HandoffQueueFilters = {}): Promise<HandoffQueuePage> {
     await this.expirePending(organizationId, 100);
@@ -234,6 +246,7 @@ export class HandoffRepository {
          AND payload ->> 'handoffId' = $2
          AND event_type IN (
            'conversation.handoff.requested',
+           'conversation.handoff.offer_accepted',
            'conversation.handoff.claimed',
            'conversation.handoff.released',
            'conversation.handoff.continued',
@@ -443,123 +456,13 @@ export class HandoffRepository {
     return result.rows as Array<Record<string, unknown>>;
   }
 
-  public async requestHuman(input: RequestHumanInput): Promise<RequestedHandoff> {
-    const summary = input.summary.trim();
-    const customerMessage = input.customerMessage?.trim() || null;
-    const metadata = input.metadata ?? {};
-    const idempotencyKey = input.idempotencyKey?.trim() || `handoff:${input.runId ?? "manual"}:${input.conversationId}`;
-    if (!summary) throw handoffError("A handoff summary is required", "handoff_summary_required", 400);
-    if (summary.length > 2_000) throw handoffError("The handoff summary is too long", "handoff_summary_too_long", 400);
-    if (customerMessage && customerMessage.length > 4_000) throw handoffError("The handoff customer message is too long", "handoff_customer_message_too_long", 400);
-
-    return withTransaction(this.pool, async (client) => {
-      const existing = await client.query<HandoffRequestRecord>(
-        `SELECT * FROM agent_handoff_requests
-         WHERE organization_id = $1 AND installation_id = $2 AND idempotency_key = $3
-         LIMIT 1`,
-        [input.organizationId, input.installationId, idempotencyKey],
-      );
-      if (existing.rows[0]) {
-        const conversation = await client.query<ConversationRecord>(
-          `SELECT * FROM conversations WHERE organization_id = $1 AND id = $2`,
-          [input.organizationId, existing.rows[0].conversation_id],
-        );
-        if (!conversation.rows[0]) throw new Error("Handoff conversation is missing");
-        return { handoff: existing.rows[0], conversation: conversation.rows[0], created: false };
-      }
-
-      const installation = await client.query<{
-        id: string;
-        status: string;
-        execution_mode: "system_hosted" | "kasitek_hosted" | "external_connected";
-        agent_audience: "personal" | "customer_service";
-        agent_definition_id: string;
-        agent_version_id: string;
-      }>(
-        `SELECT ai.id, ai.status, ai.execution_mode, ad.agent_audience,
-                ai.agent_definition_id, ai.agent_version_id
-         FROM agent_installations ai
-         JOIN agent_definitions ad ON ad.id = ai.agent_definition_id
-         WHERE ai.id = $2 AND ai.organization_id = $1
-         LIMIT 1`,
-        [input.organizationId, input.installationId],
-      );
-      const installationRow = installation.rows[0];
-      if (!installationRow) throw handoffError("Installation not found", "installation_not_found", 404);
-      if (installationRow.status !== "active") throw handoffError("Installation is not active", "installation_not_active", 409);
-      if (installationRow.agent_audience !== "customer_service") {
-        throw handoffError("Personal agents cannot request customer handoff", "personal_agent_handoff_not_allowed");
-      }
-      if (installationRow.agent_definition_id !== input.agentId || installationRow.agent_version_id !== input.agentVersionId) {
-        throw handoffError("The handoff context does not match the installation", "handoff_context_mismatch", 409);
-      }
-
-      const conversationResult = await client.query<ConversationRecord>(
-        `SELECT * FROM conversations
-         WHERE organization_id = $1 AND installation_id = $2 AND id = $3 AND status <> 'deleted'
-         FOR UPDATE`,
-        [input.organizationId, input.installationId, input.conversationId],
-      );
-      const conversation = conversationResult.rows[0];
-      if (!conversation) throw handoffError("Conversation not found", "conversation_not_found", 404);
-      if (conversation.conversation_kind !== "customer") {
-        throw handoffError("Only customer conversations support handoff", "conversation_not_customer", 409);
-      }
-      if (conversation.handoff_state !== "agent_active") {
-        throw handoffError("Conversation already has an active handoff state", "conversation_handoff_active", 409);
-      }
-
-      const requestResult = await client.query<HandoffRequestRecord>(
-        `INSERT INTO agent_handoff_requests
-          (organization_id, installation_id, conversation_id, agent_definition_id,
-           agent_version_id, run_id, channel_type, reason, priority, summary,
-           customer_message, requested_by, metadata, idempotency_key)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14)
-         RETURNING *`,
-        [
-          input.organizationId,
-          input.installationId,
-          input.conversationId,
-          input.agentId,
-          input.agentVersionId,
-          input.runId ?? null,
-          conversation.channel_type,
-          input.reason,
-          input.priority,
-          summary,
-          customerMessage,
-          input.actorId ?? `agent:${input.agentId}`,
-          JSON.stringify(metadata),
-          idempotencyKey,
-        ],
-      );
-      const updatedConversation = await client.query<ConversationRecord>(
-        `UPDATE conversations
-         SET handoff_state = 'handoff_requested',
-             handoff_revision = handoff_revision + 1,
-             handoff_requested_at = now(),
-             handoff_resolved_at = NULL,
-             updated_at = now()
-         WHERE organization_id = $1 AND id = $2
-         RETURNING *`,
-        [input.organizationId, input.conversationId],
-      );
-      if (!updatedConversation.rows[0]) throw new Error("Conversation handoff update failed");
-      await this.appendLifecycleEvent(client, {
-        eventType: "conversation.handoff.requested",
-        handoff: requestResult.rows[0]!,
-        conversation: updatedConversation.rows[0],
-        actorType: "agent",
-        actorId: input.actorId ?? `agent:${input.agentId}`,
-        payload: {
-          status: "pending",
-          reason: input.reason,
-          priority: input.priority,
-          runId: input.runId ?? null,
-        },
-      });
-      return { handoff: requestResult.rows[0]!, conversation: updatedConversation.rows[0], created: true };
-    });
+  /**
+   * @deprecated Direct request creation is intentionally disabled. Customer
+   * handoff must go through ConversationHandoffService and trusted inbound
+   * consent, while operator actions use the lifecycle methods below.
+   */
+  public async requestHuman(_input: RequestHumanInput): Promise<never> {
+    throw handoffError("Customer consent is required before creating a handoff request", "handoff_consent_required", 409);
   }
 
   public async claim(input: { organizationId: string; handoffId: string; actorId: string }): Promise<HandoffMutationResult> {
@@ -681,6 +584,7 @@ export class HandoffRepository {
         await this.expireLocked(client, current, "system:handoff-expiry");
         count += 1;
       }
+      await this.handoffService.expirePendingOffers(client, organizationId, limit);
       return count;
     });
   }

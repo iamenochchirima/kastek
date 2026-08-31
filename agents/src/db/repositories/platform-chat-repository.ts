@@ -8,6 +8,7 @@ import {
 } from "../../analytics";
 import type { ConversationRecord, MessageRecord, ParticipantRecord } from "./conversation-repository";
 import type { RunRecord } from "./run-repository";
+import { ConversationHandoffService } from "../../handoff/service";
 
 export interface PlatformConversation {
   conversation: ConversationRecord;
@@ -17,8 +18,9 @@ export interface PlatformConversation {
 
 export interface AcceptedPlatformMessage extends PlatformConversation {
   message: MessageRecord;
-  run: RunRecord;
+  run: RunRecord | null;
   created: boolean;
+  handoffRequestId?: string;
 }
 
 export interface AcceptedExternalMessage extends AcceptedPlatformMessage {
@@ -41,7 +43,12 @@ function fallbackConversationTitle(message: string): string {
 }
 
 export class PlatformChatRepository {
-  public constructor(private readonly pool: Pool) {}
+  private readonly handoffService = new ConversationHandoffService();
+
+  public constructor(
+    private readonly pool: Pool,
+    private readonly options: { isHandoffEnabled?: (organizationId: string, installationId: string) => Promise<boolean> } = {},
+  ) {}
 
   public async resolveConversation(input: {
     organizationId: string;
@@ -316,7 +323,7 @@ export class PlatformChatRepository {
     runId: string;
     actorId: string;
     correlationId?: string;
-  }): Promise<AcceptedPlatformMessage> {
+  }): Promise<AcceptedPlatformMessage & { run: RunRecord }> {
     return withTransaction(this.pool, async (client) => {
       const sourceResult = await client.query<RunRecord>(
         "SELECT * FROM agent_runs WHERE id = $1 AND organization_id = $2 LIMIT 1",
@@ -553,9 +560,24 @@ export class PlatformChatRepository {
         [input.organizationId, input.provider, input.providerMessageId],
       );
       if (duplicate.rows[0]) {
-        const existingRun = await client.query<RunRecord>("SELECT * FROM agent_runs WHERE id = $1", [duplicate.rows[0].run_id]);
-        if (!existingRun.rows[0]) throw new Error("Idempotent external message is incomplete");
-        return { ...resolved, sourceParticipant, message: duplicate.rows[0], run: existingRun.rows[0], created: false };
+        const existingRun = duplicate.rows[0].run_id
+          ? await client.query<RunRecord>("SELECT * FROM agent_runs WHERE id = $1", [duplicate.rows[0].run_id])
+          : null;
+        if (duplicate.rows[0].run_id && !existingRun?.rows[0]) throw new Error("Idempotent external message is incomplete");
+        const existingHandoff = await client.query<{ id: string }>(
+          `SELECT id FROM agent_handoff_requests
+           WHERE organization_id = $1 AND source_message_id = $2
+           LIMIT 1`,
+          [input.organizationId, duplicate.rows[0].id],
+        );
+        return {
+          ...resolved,
+          sourceParticipant,
+          message: duplicate.rows[0],
+          run: existingRun?.rows[0] ?? null,
+          handoffRequestId: existingHandoff.rows[0]?.id,
+          created: false,
+        };
       }
 
       if (resolved.conversation.conversation_kind === "customer" && resolved.conversation.handoff_state !== "agent_active") {
@@ -563,6 +585,78 @@ export class PlatformChatRepository {
           statusCode: 409,
           code: "conversation_handoff_active",
         });
+      }
+
+      const idempotencyKey = `channel:${input.provider}:${input.providerEventId}`;
+      const nextSequence = await this.nextSequence(client, resolved.conversation.id);
+      const messageResult = await client.query<MessageRecord>(
+        `INSERT INTO messages
+          (conversation_id, organization_id, participant_id, direction, message_type, content,
+           provider, provider_message_id, sequence_number, run_id, source_channel,
+           source_connection_id, source_binding_id, external_conversation_id, occurred_at,
+           delivery_status)
+         VALUES ($1, $2, $3, 'inbound', $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13,
+                 COALESCE($14::timestamptz, now()), 'delivered')
+         RETURNING *`,
+        [
+          resolved.conversation.id,
+          input.organizationId,
+          sourceParticipant.id,
+          input.messageType,
+          JSON.stringify(input.content),
+          input.provider,
+          input.providerMessageId,
+          nextSequence,
+          null,
+          input.channelType,
+          route.channel_connection_id,
+          route.id,
+          input.externalConversationId,
+          input.occurredAt ?? null,
+        ],
+      );
+      const message = messageResult.rows[0]!;
+      await client.query(
+        `UPDATE conversations
+         SET updated_at = now(),
+             last_message_at = COALESCE($2::timestamptz, now()),
+             last_message_direction = 'inbound',
+             last_message_preview = LEFT(COALESCE($3, $4), 500),
+             message_count = message_count + 1
+         WHERE id = $1`,
+        [
+          resolved.conversation.id,
+          input.occurredAt ?? null,
+          typeof input.content.text === "string" ? input.content.text : null,
+          input.messageType,
+        ],
+      );
+      const customerMessage = typeof input.content.text === "string" ? input.content.text : "";
+      const handoffDecision = this.options.isHandoffEnabled && !await this.options.isHandoffEnabled(input.organizationId, route.installation_id)
+        ? { kind: "none" as const, intent: { kind: "other" as const, classifierVersion: "v1-en" as const, matchedRule: "handoff_feature_disabled" } }
+        : await this.handoffService.decideInbound(client, {
+          organizationId: input.organizationId,
+          installationId: route.installation_id,
+          agentId: installation.agent_definition_id,
+          agentVersionId: installation.agent_version_id,
+          conversationId: resolved.conversation.id,
+          messageId: message.id,
+          channelType: input.channelType,
+        content: input.content,
+          customerMessage,
+        });
+      if (handoffDecision.kind === "requested") {
+        const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, resolved.conversation.id);
+        await enqueueAgentConversationMessage(client, context, message, "created");
+        return {
+          ...resolved,
+          conversation: handoffDecision.conversation,
+          sourceParticipant,
+          message,
+          run: null,
+          handoffRequestId: handoffDecision.handoff.id,
+          created: true,
+        };
       }
 
       const openRun = await client.query<{ id: string }>(
@@ -579,7 +673,6 @@ export class PlatformChatRepository {
         });
       }
 
-      const idempotencyKey = `channel:${input.provider}:${input.providerEventId}`;
       const runResult = await client.query<RunRecord>(
         `INSERT INTO agent_runs
           (organization_id, agent_definition_id, agent_version_id, installation_id,
@@ -612,33 +705,11 @@ export class PlatformChatRepository {
       );
       const run = runResult.rows[0];
       if (!run) throw new Error("External message run could not be created");
-      const nextSequence = await this.nextSequence(client, resolved.conversation.id);
-      const messageResult = await client.query<MessageRecord>(
-        `INSERT INTO messages
-          (conversation_id, organization_id, participant_id, direction, message_type, content,
-           provider, provider_message_id, sequence_number, run_id, source_channel,
-           source_connection_id, source_binding_id, external_conversation_id, occurred_at,
-           delivery_status)
-         VALUES ($1, $2, $3, 'inbound', $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13,
-                 COALESCE($14::timestamptz, now()), 'delivered')
-         RETURNING *`,
-        [
-          resolved.conversation.id,
-          input.organizationId,
-          sourceParticipant.id,
-          input.messageType,
-          JSON.stringify(input.content),
-          input.provider,
-          input.providerMessageId,
-          nextSequence,
-          run.id,
-          input.channelType,
-          route.channel_connection_id,
-          route.id,
-          input.externalConversationId,
-          input.occurredAt ?? null,
-        ],
+      const linkedMessage = await client.query<MessageRecord>(
+        `UPDATE messages SET run_id = $2 WHERE id = $1 RETURNING *`,
+        [message.id, run.id],
       );
+      if (!linkedMessage.rows[0]) throw new Error("External message run link could not be created");
       await client.query(
         `INSERT INTO run_attempts (run_id, organization_id, attempt_number, status, trigger)
          VALUES ($1, $2, 1, 'started', 'workflow')`,
@@ -662,24 +733,9 @@ export class PlatformChatRepository {
           run.correlation_id,
         ],
       );
-      await client.query(
-        `UPDATE conversations
-         SET updated_at = now(),
-             last_message_at = COALESCE($2::timestamptz, now()),
-             last_message_direction = 'inbound',
-             last_message_preview = LEFT(COALESCE($3, $4), 500),
-             message_count = message_count + 1
-         WHERE id = $1`,
-        [
-          resolved.conversation.id,
-          input.occurredAt ?? null,
-          typeof input.content.text === "string" ? input.content.text : null,
-          input.messageType,
-        ],
-      );
       const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, resolved.conversation.id);
-      await enqueueAgentConversationMessage(client, context, messageResult.rows[0]!, "created");
-      return { ...resolved, sourceParticipant, message: messageResult.rows[0]!, run, created: true };
+      await enqueueAgentConversationMessage(client, context, linkedMessage.rows[0], "created");
+      return { ...resolved, sourceParticipant, message: linkedMessage.rows[0], run, created: true };
     });
   }
 

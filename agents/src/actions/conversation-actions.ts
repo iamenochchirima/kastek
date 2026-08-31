@@ -1,25 +1,29 @@
-import type { HandoffPriority, HandoffReason, HandoffRepository } from "../db/repositories/handoff-repository";
+import type { HandoffPriority, HandoffRepository } from "../db/repositories/handoff-repository";
+import type { HandoffOfferReason } from "../handoff/service";
 import type { OperatorControlRepository } from "../db/repositories/operator-control-repository";
 import type { ToolInvocationContext } from "../tools/types";
 
-export interface RequestHumanArguments {
+export interface OfferHandoffArguments {
   conversationId?: string;
-  reason: HandoffReason;
+  reason: HandoffOfferReason;
   priority?: HandoffPriority;
   summary: string;
-  customerMessage?: string;
   metadata?: Record<string, unknown>;
   idempotencyKey?: string;
 }
 
-export interface RequestHumanResult {
-  status: "handoff_requested";
-  handoffRequestId: string;
+export interface OfferHandoffResult {
+  status: "handoff_offered";
+  handoffOfferId: string;
   conversationId: string;
-  agentPaused: true;
   created: boolean;
-  control: "awaiting_human";
+  control: "continue";
 }
+
+/** @deprecated Kept as a source-compatible alias for older workflow imports. */
+export type RequestHumanArguments = OfferHandoffArguments;
+/** @deprecated The model-facing action now creates an offer, never a request. */
+export type RequestHumanResult = OfferHandoffResult;
 
 /**
  * Protocol-neutral conversation actions. Browser operators, workflow nodes,
@@ -32,10 +36,10 @@ export class ConversationActionService {
     private readonly controls?: Pick<OperatorControlRepository, "isFeatureEnabled">,
   ) {}
 
-  public async requestHuman(context: ToolInvocationContext, input: RequestHumanArguments): Promise<RequestHumanResult> {
+  public async offerHandoff(context: ToolInvocationContext, input: OfferHandoffArguments): Promise<OfferHandoffResult> {
     const conversationId = input.conversationId?.trim() || context.conversationId;
     if (!conversationId) {
-      throw Object.assign(new Error("A conversation is required for human handoff"), {
+      throw Object.assign(new Error("A conversation is required for a handoff offer"), {
         statusCode: 400,
         code: "conversation_target_required",
       });
@@ -46,7 +50,7 @@ export class ConversationActionService {
         code: "CUSTOMER_HANDOFF_FEATURE_DISABLED",
       });
     }
-    const result = await this.handoffs.requestHuman({
+    const result = await this.handoffs.offerHandoff({
       organizationId: context.organizationId,
       installationId: context.installationId,
       agentId: context.agentId,
@@ -57,17 +61,23 @@ export class ConversationActionService {
       reason: input.reason,
       priority: input.priority ?? "normal",
       summary: input.summary,
-      customerMessage: input.customerMessage,
       metadata: input.metadata,
       idempotencyKey: input.idempotencyKey,
     });
     return {
-      status: "handoff_requested",
-      handoffRequestId: result.handoff.id,
+      status: "handoff_offered",
+      handoffOfferId: result.offer.id,
       conversationId: result.conversation.id,
-      agentPaused: true,
       created: result.created,
-      control: "awaiting_human",
+      control: "continue",
     };
+  }
+
+  /**
+   * Compatibility alias for older installed agent versions. It is deliberately
+   * offer-only so stale prompts cannot bypass customer consent.
+   */
+  public async requestHuman(context: ToolInvocationContext, input: RequestHumanArguments): Promise<RequestHumanResult> {
+    return this.offerHandoff(context, input);
   }
 }

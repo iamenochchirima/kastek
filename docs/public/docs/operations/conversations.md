@@ -42,3 +42,15 @@ So today, conversation visibility is strongest in:
 
 - dashboard activity
 - client portal views
+
+## Customer handoff
+
+Customer-service agents use a two-step handoff flow:
+
+- A customer’s clear request for a person creates a handoff request immediately.
+- When an agent cannot help, it records an offer and asks the customer. Only an explicit yes or a structured confirmation creates the request.
+- A no, ambiguous reply, or expired offer does not change conversation ownership.
+
+Until a request is created, the conversation remains agent-owned. Once created, it appears in the handoff queue and automated replies stop until an operator resolves or continues the conversation.
+
+An inbound API response for a confirmed handoff includes `status: "handoff_requested"`, the durable `handoffRequestId`, and no agent `runId`. Ordinary messages continue to return a run ID.

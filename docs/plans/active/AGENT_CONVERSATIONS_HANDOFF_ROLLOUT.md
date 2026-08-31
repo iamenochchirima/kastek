@@ -1,5 +1,9 @@
 # Agent Conversations handoff rollout
 
+> Superseded for new handoff creation by [AGENT_HANDOFF_CONSENT_PLAN.md](./AGENT_HANDOFF_CONSENT_PLAN.md).
+> The existing operator lifecycle and rollout controls remain applicable; new ownership-changing
+> requests now require a direct customer request or explicit confirmation of a durable offer.
+
 This document covers the non-analytics rollout for customer-service agent conversations. Analytics rollups, dimensions, and dashboards remain in the analytics plan and are intentionally not part of this rollout.
 
 ## Deployment order

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ConversationActionService, type RequestHumanResult } from "../src/actions/conversation-actions";
+import { ConversationActionService, type OfferHandoffResult } from "../src/actions/conversation-actions";
 import { ConversationControlService } from "../src/actions/conversation-controls";
 import { createDefaultTools } from "../src/temporal/activities";
 import type { HandoffRepository } from "../src/db/repositories/handoff-repository";
@@ -16,27 +16,26 @@ const context = {
 };
 
 describe("conversation action contract", () => {
-  it("normalizes a model action into the shared handoff service", async () => {
-    const requestHuman = vi.fn(async () => ({
-      handoff: { id: "handoff-1" },
+  it("normalizes a model action into a non-committing handoff offer", async () => {
+    const offerHandoff = vi.fn(async () => ({
+      offer: { id: "offer-1" },
       conversation: { id: "conversation-1" },
       created: true,
     }));
-    const service = new ConversationActionService({ requestHuman } as unknown as HandoffRepository);
+    const service = new ConversationActionService({ offerHandoff } as unknown as HandoffRepository);
 
     await expect(service.requestHuman(context, {
-      reason: "customer_requested",
-      summary: "Customer asked for a person.",
+      reason: "agent_uncertain",
+      summary: "The agent cannot answer this request.",
       priority: "high",
     })).resolves.toEqual({
-      status: "handoff_requested",
-      handoffRequestId: "handoff-1",
+      status: "handoff_offered",
+      handoffOfferId: "offer-1",
       conversationId: "conversation-1",
-      agentPaused: true,
       created: true,
-      control: "awaiting_human",
-    } satisfies RequestHumanResult);
-    expect(requestHuman).toHaveBeenCalledWith(expect.objectContaining({
+      control: "continue",
+    } satisfies OfferHandoffResult);
+    expect(offerHandoff).toHaveBeenCalledWith(expect.objectContaining({
       organizationId: "org-1",
       installationId: "installation-1",
       conversationId: "conversation-1",
@@ -44,10 +43,10 @@ describe("conversation action contract", () => {
     }));
   });
 
-  it("publishes request_human through the hosted registry and marks it as a runtime control", async () => {
+  it("keeps the legacy request_human capability offer-only", async () => {
     const service = new ConversationActionService({
-      requestHuman: vi.fn(async () => ({
-        handoff: { id: "handoff-1" },
+      offerHandoff: vi.fn(async () => ({
+        offer: { id: "offer-1" },
         conversation: { id: "conversation-1" },
         created: true,
       })),
@@ -62,16 +61,16 @@ describe("conversation action contract", () => {
 
     const result = await registry.invoke({
       name: "conversation.request_human",
-      arguments: { reason: "customer_requested", summary: "Please connect me to a person." },
+      arguments: { reason: "agent_uncertain", summary: "The agent cannot answer this request." },
       grantedTools: new Set(["conversation.request_human"]),
       context,
     });
-    expect(result.control).toBe("awaiting_human");
-    expect(result.output).toMatchObject({ handoffRequestId: "handoff-1", agentPaused: true });
+    expect(result.control).toBeUndefined();
+    expect(result.output).toMatchObject({ handoffOfferId: "offer-1", status: "handoff_offered" });
   });
 
   it("requires a conversation target instead of creating an unscoped request", async () => {
-    const service = new ConversationActionService({ requestHuman: vi.fn() } as unknown as HandoffRepository);
+    const service = new ConversationActionService({ offerHandoff: vi.fn() } as unknown as HandoffRepository);
     await expect(service.requestHuman({ ...context, conversationId: undefined }, {
       reason: "agent_uncertain",
       summary: "No conversation context.",
@@ -79,10 +78,10 @@ describe("conversation action contract", () => {
   });
 
   it("fails closed when the customer handoff rollout flag is disabled", async () => {
-    const requestHuman = vi.fn();
+    const offerHandoff = vi.fn();
     const controls = { isFeatureEnabled: vi.fn(async () => false) };
     const service = new ConversationActionService(
-      { requestHuman } as unknown as HandoffRepository,
+      { offerHandoff } as unknown as HandoffRepository,
       controls,
     );
 
@@ -94,7 +93,7 @@ describe("conversation action contract", () => {
       statusCode: 403,
     });
     expect(controls.isFeatureEnabled).toHaveBeenCalledWith("org-1", "customer_handoff_enabled", "installation-1");
-    expect(requestHuman).not.toHaveBeenCalled();
+    expect(offerHandoff).not.toHaveBeenCalled();
   });
 
   it("keeps operator controls on the same handoff repository boundary", async () => {

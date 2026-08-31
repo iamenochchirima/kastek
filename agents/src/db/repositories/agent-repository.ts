@@ -14,7 +14,7 @@ import { query, withTransaction } from "../pool";
 import { validateVersionWorkflow } from "../../workflows/graph";
 import { normalizeModelPolicy } from "../../model/policy";
 import { getAgentTemplate, templateVersionInput } from "../../system/templates";
-import { CUSTOMER_SERVICE_HANDOFF_TOOL, resolveHostedAgentAllowedTools } from "../../system/hosted-agent-defaults";
+import { CUSTOMER_SERVICE_HANDOFF_TOOL, LEGACY_CUSTOMER_SERVICE_HANDOFF_TOOL, resolveHostedAgentAllowedTools } from "../../system/hosted-agent-defaults";
 import { KASIAI_KNOWLEDGE_CHUNKS, KASIAI_KNOWLEDGE_SOURCE_NAME, KASIAI_KNOWLEDGE_VERSION } from "../../system/kasiai-knowledge";
 import { KASIAI_EVALUATION_SCENARIOS, KASIAI_EVALUATION_VERSION } from "../../system/kasiai-evaluations";
 import { createInstallationCredentialInTransaction, type CreatedInstallationCredential } from "./installation-credential-repository";
@@ -259,7 +259,7 @@ export class AgentRepository {
     input: CreateExternalAgentInput,
   ): Promise<ExternalAgentConnectionRecord> {
     const agentAudience = input.agentAudience ?? "personal";
-    if (agentAudience === "personal" && input.capabilities.includes(CUSTOMER_SERVICE_HANDOFF_TOOL)) {
+    if (agentAudience === "personal" && input.capabilities.some((capability) => [CUSTOMER_SERVICE_HANDOFF_TOOL, LEGACY_CUSTOMER_SERVICE_HANDOFF_TOOL].includes(capability))) {
       throw new Error("Customer handoff capability requires a customer-service agent");
     }
     const capabilities = [...new Set([
@@ -413,7 +413,7 @@ export class AgentRepository {
     apiKeyId: string;
     toolNames: readonly string[];
   }): Promise<ExternalAgentConnectionRecord> {
-    if (input.toolNames.includes(CUSTOMER_SERVICE_HANDOFF_TOOL)) {
+    if (input.toolNames.some((toolName) => [CUSTOMER_SERVICE_HANDOFF_TOOL, LEGACY_CUSTOMER_SERVICE_HANDOFF_TOOL].includes(toolName))) {
       throw new Error("Customer handoff capability requires a customer-service agent");
     }
     const developerApiKeyId = input.apiKeyId.trim();

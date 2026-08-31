@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import { query, withTransaction } from "../pool";
-import { CUSTOMER_SERVICE_HANDOFF_TOOL } from "../../system/hosted-agent-defaults";
+import { CUSTOMER_SERVICE_HANDOFF_TOOL, LEGACY_CUSTOMER_SERVICE_HANDOFF_TOOL } from "../../system/hosted-agent-defaults";
 
 export interface ToolGrantRecord {
   id: string;
@@ -79,7 +79,7 @@ export class ToolGrantRepository {
       [input.versionId, input.agentId, input.organizationId],
     );
     if (!version.rows[0]) throw new Error("Agent version not found");
-    if (input.toolName.trim() === CUSTOMER_SERVICE_HANDOFF_TOOL && version.rows[0].agent_audience !== "customer_service") {
+    if ([CUSTOMER_SERVICE_HANDOFF_TOOL, LEGACY_CUSTOMER_SERVICE_HANDOFF_TOOL].includes(input.toolName.trim()) && version.rows[0].agent_audience !== "customer_service") {
       throw new Error("Customer handoff capability requires a customer-service agent");
     }
     const result = await executor.query<ToolGrantRecord>(

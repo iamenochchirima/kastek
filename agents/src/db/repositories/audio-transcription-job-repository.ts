@@ -321,7 +321,7 @@ export class AudioTranscriptionJobRepository {
     workerId: string;
     conversationId?: string;
     messageId?: string;
-    runId: string;
+    runId: string | null;
   }): Promise<boolean> {
     const result = await query(
       this.pool,

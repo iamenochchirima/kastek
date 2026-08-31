@@ -19,6 +19,7 @@ import { ChannelCredentialRepository } from "../db/repositories/channel-credenti
 import { ChannelRepository } from "../db/repositories/channel-repository";
 import { TelegramBotClient } from "../channels/telegram-client";
 import { DiscordBotClient } from "../channels/discord-client";
+import { OperatorControlRepository } from "../db/repositories/operator-control-repository";
 import { withTransaction } from "../db/pool";
 import { enqueueAudioLifecycleEvent, type AudioAnalyticsEventInput } from "../analytics";
 
@@ -108,7 +109,10 @@ export class AudioTranscriptionWorker {
     this.jobs = options.jobs ?? new AudioTranscriptionJobRepository(options.pool);
     this.provider = options.provider ?? ElevenLabsTranscriptionProvider.fromConfig(options.config);
     this.coreClient = options.coreClient ?? new KasitekCoreReadClient(options.config);
-    this.platformChat = options.platformChat ?? new PlatformChatRepository(options.pool);
+    const controls = new OperatorControlRepository(options.pool);
+    this.platformChat = options.platformChat ?? new PlatformChatRepository(options.pool, {
+      isHandoffEnabled: (organizationId, installationId) => controls.isFeatureEnabled(organizationId, "customer_handoff_enabled", installationId),
+    });
     this.channels = options.channels ?? new ChannelRepository(options.pool);
     this.channelCredentials = options.channelCredentials ?? new ChannelCredentialRepository(options.pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
     this.telegramClient = options.telegramClient ?? new TelegramBotClient({ apiBaseUrl: options.config.TELEGRAM_API_BASE_URL, timeoutMs: options.config.TELEGRAM_API_TIMEOUT_MS });
@@ -201,7 +205,7 @@ export class AudioTranscriptionWorker {
 
       if (job.status !== "dispatching" || !job.transcript) throw Object.assign(new Error("Audio job has no transcript to dispatch"), { code: "AUDIO_JOB_INVALID" });
       const content = completedContent(recordObject(input, "content"), job.transcript, job.language_code ?? undefined);
-      let acceptedRunId: string;
+      let acceptedRunId: string | null = null;
       let acceptedConversationId: string;
       let acceptedMessageId: string;
       if (job.dispatch_kind === "platform") {
@@ -220,8 +224,8 @@ export class AudioTranscriptionWorker {
           modelProvider: recordString(input, "modelProvider"),
           model: recordString(input, "model"),
         });
-        if (accepted.run.status === "received" && this.options.startWorkflow) await this.options.startWorkflow(accepted.run.id);
-        acceptedRunId = accepted.run.id;
+        if (accepted.run?.status === "received" && this.options.startWorkflow) await this.options.startWorkflow(accepted.run.id);
+        acceptedRunId = accepted.run?.id ?? null;
         acceptedConversationId = accepted.conversation.id;
         acceptedMessageId = accepted.message.id;
       } else {
@@ -241,8 +245,8 @@ export class AudioTranscriptionWorker {
           displayName: recordString(input, "displayName"),
           correlationId: job.correlation_id,
         });
-        if (accepted.run.status === "received" && this.options.startWorkflow) await this.options.startWorkflow(accepted.run.id);
-        acceptedRunId = accepted.run.id;
+        if (accepted.run?.status === "received" && this.options.startWorkflow) await this.options.startWorkflow(accepted.run.id);
+        acceptedRunId = accepted.run?.id ?? null;
         acceptedConversationId = accepted.conversation.id;
         acceptedMessageId = accepted.message.id;
       }
@@ -260,7 +264,7 @@ export class AudioTranscriptionWorker {
           organizationId: job.organization_id,
           dispatchKind: job.dispatch_kind,
           dispatchInput: input,
-          runId: acceptedRunId,
+          runId: acceptedRunId ?? undefined,
           occurredAt: new Date(),
           createdAt: job.created_at,
         });

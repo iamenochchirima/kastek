@@ -10,6 +10,15 @@ describe("foundation migration", () => {
     expect(versions).toEqual([...versions].sort());
   });
 
+  it("adds a durable offer layer without widening ownership", async () => {
+    const sql = await readFile(new URL("../migrations/077_consent_gated_handoff.sql", import.meta.url), "utf8");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_handoff_offers");
+    expect(sql).toContain("agent_handoff_offers_pending_conversation_idx");
+    expect(sql).toContain("request_source");
+    expect(sql).toContain("customer_confirmed");
+    expect(sql).toContain("source_message_id");
+  });
+
   it("contains the durable scope and run tables", async () => {
     const sql = await readFile(new URL("../migrations/001_agent_platform_foundation.sql", import.meta.url), "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_definitions");

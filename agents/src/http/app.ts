@@ -450,7 +450,6 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const agents = dependencies.agents ?? new AgentRepository(dependencies.pool);
   const runs = dependencies.runs ?? new RunRepository(dependencies.pool);
   const conversations = dependencies.conversations ?? new ConversationRepository(dependencies.pool);
-  const platformChat = dependencies.platformChat ?? new PlatformChatRepository(dependencies.pool);
   const runSteps = dependencies.runSteps ?? new RunStepRepository(dependencies.pool);
   const toolInvocations = dependencies.toolInvocations ?? new ToolInvocationRepository(dependencies.pool);
   const toolGrants = dependencies.toolGrants ?? new ToolGrantRepository(dependencies.pool);
@@ -467,6 +466,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const developerApiKeyResolver = dependencies.developerApiKeyResolver ?? new KasitekCoreDeveloperApiKeyResolver(dependencies.config);
   const installationGrants = dependencies.installationGrants ?? new InstallationGrantRepository(dependencies.pool);
   const controls = dependencies.controls ?? new OperatorControlRepository(dependencies.pool);
+  const platformChat = dependencies.platformChat ?? new PlatformChatRepository(dependencies.pool, {
+    isHandoffEnabled: (organizationId, installationId) => controls.isFeatureEnabled(organizationId, "customer_handoff_enabled", installationId),
+  });
   const handoffs = new HandoffRepository(dependencies.pool);
   const conversationActions = dependencies.conversationActions ?? new ConversationActionService(handoffs, controls);
   const conversationControls = dependencies.conversationControls ?? new ConversationControlService(handoffs);
@@ -1103,7 +1105,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         correlationId,
       });
       const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
-      if (workflowEnabled && dependencies.startWorkflow && accepted.created && accepted.run.status === "received") {
+      if (workflowEnabled && dependencies.startWorkflow && accepted.created && accepted.run?.status === "received") {
         await dependencies.startWorkflow(accepted.run.id);
       }
     } catch (error) {
@@ -1292,7 +1294,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         correlationId,
       });
       const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
-      if (workflowEnabled && dependencies.startWorkflow && accepted.created && accepted.run.status === "received") await dependencies.startWorkflow(accepted.run.id);
+      if (workflowEnabled && dependencies.startWorkflow && accepted.created && accepted.run?.status === "received") await dependencies.startWorkflow(accepted.run.id);
     } catch (error) {
       if ((error as { code?: string }).code === "channel_identity_not_paired") {
         if (credential) await discordClient.sendMessage(credential, event.externalConversationId, "This bot is not paired yet.").catch(() => undefined);
@@ -3039,7 +3041,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         ...input,
       });
       const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
-      if (workflowEnabled && dependencies.startWorkflow && accepted.created && accepted.run.status === "received") {
+      if (workflowEnabled && dependencies.startWorkflow && accepted.created && accepted.run?.status === "received") {
         try {
           await dependencies.startWorkflow(accepted.run.id);
         } catch (error) {
@@ -3059,8 +3061,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       return reply.code(accepted.created ? 202 : 200).send({
         conversation: accepted.conversation,
         message: accepted.message,
-        runId: accepted.run.id,
-        status: accepted.run.status,
+        runId: accepted.run?.id ?? null,
+        status: accepted.run?.status ?? (accepted.handoffRequestId ? "handoff_requested" : "received"),
+        handoffRequestId: accepted.handoffRequestId ?? null,
         created: accepted.created,
         durable: workflowEnabled,
       });
@@ -3501,7 +3504,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         ...input,
       });
       const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
-      if (workflowEnabled && dependencies.startWorkflow && accepted.run.status === "received") {
+      if (workflowEnabled && dependencies.startWorkflow && accepted.run?.status === "received") {
         try {
           await dependencies.startWorkflow(accepted.run.id);
         } catch (error) {
@@ -3521,8 +3524,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       return reply.code(202).send({
         conversation: accepted.conversation,
         message: accepted.message,
-        runId: accepted.run.id,
-        status: accepted.run.status,
+        runId: accepted.run?.id ?? null,
+        status: accepted.run?.status ?? (accepted.handoffRequestId ? "handoff_requested" : "received"),
+        handoffRequestId: accepted.handoffRequestId ?? null,
         created: accepted.created,
         durable: workflowEnabled,
       });
@@ -3558,7 +3562,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         ...input,
       });
       const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
-      if (workflowEnabled && dependencies.startWorkflow && accepted.created && accepted.run.status === "received") {
+      if (workflowEnabled && dependencies.startWorkflow && accepted.created && accepted.run?.status === "received") {
         try {
           await dependencies.startWorkflow(accepted.run.id);
         } catch (error) {
@@ -3575,8 +3579,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       return reply.code(accepted.created ? 202 : 200).send({
         conversation: accepted.conversation,
         message: accepted.message,
-        runId: accepted.run.id,
-        status: accepted.run.status,
+        runId: accepted.run?.id ?? null,
+        status: accepted.run?.status ?? (accepted.handoffRequestId ? "handoff_requested" : "received"),
+        handoffRequestId: accepted.handoffRequestId ?? null,
         created: accepted.created,
         durable: workflowEnabled,
       });

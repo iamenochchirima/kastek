@@ -111,6 +111,11 @@ export type AgentHandoffRequest = {
   priority: AgentHandoffPriority;
   summary: string;
   customer_message?: string | null;
+  request_source?: "customer_direct" | "customer_confirmed" | "operator" | "legacy_unverified";
+  source_message_id?: string | null;
+  offer_id?: string | null;
+  consented_at?: string | null;
+  classifier_version?: string | null;
   status: AgentHandoffStatus;
   requested_by: string;
   claimed_by?: string | null;

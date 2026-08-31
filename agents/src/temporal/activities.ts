@@ -43,7 +43,7 @@ import type { ToolInvocationContext } from "../tools/types";
 import type { CoreContentPost, CoreContentPosts, CoreWorkspaceConnections } from "../core/client";
 import { buildDomainApprovalSnapshot, projectBookingApprovalResource, projectCampaignApprovalResource } from "../approval/domain-preview";
 import { ConversationActionService } from "../actions/conversation-actions";
-import type { RequestHumanArguments } from "../actions/conversation-actions";
+import type { OfferHandoffArguments } from "../actions/conversation-actions";
 import { HandoffRepository } from "../db/repositories/handoff-repository";
 import { createChannelApprovalActionToken } from "../approval/channel-action";
 import { buildChannelApprovalPrompt } from "../approval/channel-prompt";
@@ -1150,43 +1150,57 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     },
   });
   if (conversationActions) {
-    tools.register({
-      name: "conversation.request_human",
-      version: "1.0.0",
-      description: "Request a human to take over a customer conversation and pause agent automation.",
-      riskClass: "controlled-write",
-      requiresApproval: false,
-      timeoutMs: 12_000,
-      inputSchema: {
-        type: "object",
-        properties: {
-          conversationId: { type: "string", minLength: 1, maxLength: 160 },
-          reason: { type: "string", enum: ["customer_requested", "agent_uncertain", "policy_required", "high_value", "configured_workflow", "other"] },
-          priority: { type: "string", enum: ["normal", "high", "urgent"] },
-          summary: { type: "string", minLength: 1, maxLength: 2_000 },
-          customerMessage: { type: "string", maxLength: 4_000 },
-          metadata: { type: "object", additionalProperties: true },
-          idempotencyKey: { type: "string", minLength: 1, maxLength: 240 },
+    const registerHandoffOfferTool = (name: "conversation.offer_handoff" | "conversation.request_human"): void => {
+      const legacyName = name === "conversation.request_human";
+      tools.register({
+        name,
+        version: "2.0.0",
+        description: "Offer to connect the customer with a human. This records an offer only; the customer must agree before a handoff is created.",
+        riskClass: "controlled-write",
+        requiresApproval: false,
+        timeoutMs: 12_000,
+        inputSchema: {
+          type: "object",
+          properties: {
+            conversationId: { type: "string", minLength: 1, maxLength: 160 },
+            reason: { type: "string", enum: legacyName ? ["customer_requested", "agent_uncertain", "policy_required", "high_value", "configured_workflow", "other"] : ["agent_uncertain", "policy_required", "high_value", "configured_workflow", "other"] },
+            priority: { type: "string", enum: ["normal", "high", "urgent"] },
+            summary: { type: "string", minLength: 1, maxLength: 2_000 },
+            metadata: { type: "object", additionalProperties: true },
+            idempotencyKey: { type: "string", minLength: 1, maxLength: 240 },
+          },
+          required: ["reason", "summary"],
+          additionalProperties: false,
         },
-        required: ["reason", "summary"],
-        additionalProperties: false,
-      },
-      outputSchema: {
-        type: "object",
-        properties: {
-          status: { type: "string", const: "handoff_requested" },
-          handoffRequestId: { type: "string" },
-          conversationId: { type: "string" },
-          agentPaused: { type: "boolean", const: true },
-          created: { type: "boolean" },
-          control: { type: "string", const: "awaiting_human" },
+        outputSchema: {
+          type: "object",
+          properties: {
+            status: { type: "string", const: "handoff_offered" },
+            handoffOfferId: { type: "string" },
+            conversationId: { type: "string" },
+            created: { type: "boolean" },
+            control: { type: "string", const: "continue" },
+          },
+          required: ["status", "handoffOfferId", "conversationId", "created", "control"],
+          additionalProperties: false,
         },
-        required: ["status", "handoffRequestId", "conversationId", "agentPaused", "created", "control"],
-        additionalProperties: false,
-      },
-      manifest: { ownerService: "agents", requiredScope: "conversations.handoff", execution: "durable", idempotency: "required", approval: "none", auditClassification: "full", redaction: ["customerMessage", "metadata"] },
-      handler: async (context, args) => conversationActions.requestHuman(context, args as unknown as RequestHumanArguments),
-    });
+        manifest: { ownerService: "agents", requiredScope: "conversations.handoff", execution: "durable", idempotency: "required", approval: "none", auditClassification: "full", redaction: ["metadata"] },
+        handler: async (context, args) => {
+          const normalized = args as unknown as OfferHandoffArguments;
+          const legacyReason = (args as Record<string, unknown>).reason;
+          return conversationActions.offerHandoff(context, {
+            ...normalized,
+            // Old prompts used customer_requested for this model action. Keep
+            // them operational, but never let that stale label commit a request.
+            reason: legacyReason === "customer_requested" ? "other" : normalized.reason,
+          });
+        },
+      });
+    };
+    registerHandoffOfferTool("conversation.offer_handoff");
+    // Older customer-service versions may still request the legacy capability.
+    // Keep the name registered, but route it through the consent-gated offer.
+    registerHandoffOfferTool("conversation.request_human");
   }
   if (integrationTools) registerIntegrationTools(tools, integrationTools);
   return tools;
@@ -2826,8 +2840,8 @@ async function executeConfiguredWorkflow(input: {
     return { status: "awaiting_external_event", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value, waitingFor: result.waitingFor, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
   }
   if (result.status === "awaiting_human") {
-    const handoff = input.run.conversation_id
-      ? await input.conversationActions.requestHuman({
+    const offer = input.run.conversation_id
+      ? await input.conversationActions.offerHandoff({
         organizationId: input.run.organization_id,
         agentId: input.run.agent_definition_id,
         agentVersionId: input.run.agent_version_id,
@@ -2843,9 +2857,18 @@ async function executeConfiguredWorkflow(input: {
         idempotencyKey: `workflow-handoff:${input.run.id}:${result.waitingFor ?? result.pausedAt ?? "handoff"}`,
       })
       : null;
-    await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: result.pausedAt, __workflowState: result.state } });
-    await input.runRepository.appendEvent({ organizationId: input.run.organization_id, runId: input.run.id, installationId: input.run.installation_id, eventType: "agent.workflow.handoff.pending", payload: { nodeId: result.pausedAt, waitingFor: result.waitingFor, handoffRequestId: handoff?.handoffRequestId } });
-    return { status: "awaiting_human", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value, waitingFor: result.waitingFor, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
+    await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: null, __workflowState: result.state } });
+    await input.runRepository.appendEvent({ organizationId: input.run.organization_id, runId: input.run.id, installationId: input.run.installation_id, eventType: "agent.workflow.handoff.offer", payload: { nodeId: result.pausedAt, waitingFor: result.waitingFor, handoffOfferId: offer?.handoffOfferId } });
+    const response = lastModelResponse ?? {
+      provider: input.modelProvider,
+      model: input.model,
+      message: { role: "assistant" as const, content: "Would you like me to connect you with a human?" },
+      toolCalls: [],
+      finishReason: "handoff_offer",
+      usage: emptyWorkflowUsage(),
+      latencyMs: 0,
+    };
+    return { status: "completed", messages: [response.message], response, usage: { ...response.usage, estimatedCostUsd: response.usage.estimatedCostUsd ?? 0 }, iterations: result.trace.length, toolCalls: toolSequence.value, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
   }
   if (result.status === "failed") return { status: "failed", messages: [], usage: emptyWorkflowUsage(), iterations: result.trace.length, toolCalls: toolSequence.value, error: { code: "WORKFLOW_FAILED", message: result.error ?? "Workflow execution failed" }, provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }) };
   await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: null, __workflowState: result.state } });
