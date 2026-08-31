@@ -1294,12 +1294,14 @@ KasiTek should retain its stronger platform features around that anatomy:
   both rows only under explicit platform-operator scope.
 - Identity/credential/channel/effect isolation migration `093` is recorded in production. Its 23
   tables report both RLS and FORCE RLS; the local restricted-role suite passed four tests, and the
-  production ownership audit returned zero mismatches for the covered parent paths.
+  production ownership audit returned zero mismatches for the covered parent paths. The compatible
+  Agents API, worker, and Gateway deployments from commit `41c8fc97` reached `SUCCESS`.
 - Lifecycle/control-plane isolation migration `094` is recorded in production. Production reports
   64 public base tables, 63 with both RLS and FORCE RLS, and only `schema_migrations` outside RLS
   because runtime and application roles cannot access it. The local lifecycle suite passed three
   restricted-role tests; the production probe showed tenant-specific sidecars/outbox visibility
-  and operator-only control-plane visibility.
+  and operator-only control-plane visibility. The API live/ready and Gateway ready checks returned
+  `200`; the worker reached `RUNNING` after the same successful deployments.
 
 Passing tests do not invalidate the verified findings. The current suite does not cover those
 contracts.

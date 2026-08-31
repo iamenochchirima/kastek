@@ -170,8 +170,7 @@ Affected services and user surfaces: agents-api, agents-worker, MCP Gateway, cha
 credential resolution, integration connections, schedules, effect reconciliation, approvals, and
 Agents PostgreSQL.
 
-Platform release version or release ID: migration `093`; the implementation commit is recorded
-with the deployment evidence below.
+Platform release version or release ID: migration `093`, implementation commit `41c8fc97`.
 
 API/schema/migration changes: migration 093 adds parent-validated policies and `FORCE ROW LEVEL
 SECURITY` for 23 identity, credential, channel, integration, effect, approval, schedule, and
@@ -198,7 +197,10 @@ the migration suite passed its 093 policy assertions. Production ownership audit
 mismatches for the covered parent paths. Migration 093 is recorded in production, all 23 tables
 report both RLS and FORCE RLS, the runtime role remains `rolsuper = false` and `rolbypassrls =
 false`, and the production restricted-role probe hid cross-tenant rows while explicit operator
-scope retained visibility.
+scope retained visibility. The compatible API, worker, and Gateway deployments from commit
+`41c8fc97` reached `SUCCESS`: `b21843e1-66fe-4e8c-a684-e4718021fa79`,
+`d190fd68-2bcc-4be6-8d04-c595ca1d16d3`, and
+`d5092568-8f7e-48a5-ae42-cb6b271b090b`.
 
 Rollback or disable plan: stop further policy migrations, restore the prior compatible application
 deployment if needed, and use a reviewed administrative migration to disable only the affected
@@ -221,8 +223,7 @@ Affected services and user surfaces: agents-api, agents-worker, analytics publis
 recovery paths, memory/transcription workers, operator projections, retention/export workflows, and
 Agents PostgreSQL.
 
-Platform release version or release ID: migration `094`; the implementation commit is recorded
-with the deployment evidence below.
+Platform release version or release ID: migration `094`, implementation commit `41c8fc97`.
 
 API/schema/migration changes: migration 094 adds parent-validated policies and `FORCE ROW LEVEL
 SECURITY` for 15 remaining runtime tables. Tenant reads/writes are limited to the owning
@@ -251,7 +252,10 @@ Production inspection reports 64 public base tables, 63 with both RLS and FORCE 
 `schema_migrations` unprotected because both runtime and application roles lack table privilege.
 The production restricted-role probe returned tenant-specific definitions/channels/effects/outbox,
 no cross-tenant rows for an empty second organization, and full cross-tenant visibility only under
-explicit operator scope. API and worker services were online during verification.
+explicit operator scope. API and worker services were online during verification. The compatible
+API, worker, and Gateway deployments from commit `41c8fc97` reached `SUCCESS`:
+`b21843e1-66fe-4e8c-a684-e4718021fa79`, `d190fd68-2bcc-4be6-8d04-c595ca1d16d3`, and
+`d5092568-8f7e-48a5-ae42-cb6b271b090b`.
 
 Rollback or disable plan: stop new policy migrations, restore the prior compatible service
 deployment if needed, and use a reviewed administrative migration to disable only the affected
