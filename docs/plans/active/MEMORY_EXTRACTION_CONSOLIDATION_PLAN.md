@@ -1,6 +1,6 @@
 # Conversation memory extraction and consolidation plan
 
-**Status:** Active
+**Status:** Released; monitoring
 
 **Owner:** Agent Platform
 
@@ -57,7 +57,7 @@ queue; inferred records remain review-pending and are never used as policy.
 Affected services and user surfaces: agents-worker, Agents PostgreSQL, hosted conversation runs,
 memory review, retention, and operator recovery.
 
-Platform release version or release ID: pending implementation release.
+Platform release version or release ID: commit `52b0fc8e`.
 
 API/schema/migration changes: additive migration 089 adds consolidation jobs and an inbound-message
 enqueue trigger. No public API contract changes.
@@ -76,10 +76,16 @@ User, API, internal, and operational documentation: update the memory lifecycle 
 memory safety runbook, and audit checklist.
 
 Validation evidence: focused unit, migration, worker, and guarded PostgreSQL integration tests
-passed (37/37); TypeScript compilation passed. Production migration and deployment evidence are
-pending.
+passed (37/37); full Agents verification passed with 87 test files and 539 tests passing, with 19
+database-integration files skipped when the full suite ran without the integration flag; the
+TypeScript build passed. Migration 089 applied in production through `node dist/db/migrate.js`.
+Agents API deployment `be45b7f6-1855-4cf3-831b-1775eaa26877`, Agents Worker deployment
+`81656054-450b-4985-b81d-19814e061a4f`, and MCP Gateway deployment
+`5bdc4e31-5888-49b7-9852-550386aae7f2` reached `SUCCESS`. API live/ready and gateway health
+smoke checks returned HTTP 200; worker logs showed the Temporal worker `RUNNING` with the memory
+bundle loaded.
 
 Rollback or disable plan: disable the consolidation worker or set memory policy to `explicit`;
 retain review-pending records for review or deletion. Migration 089 is additive.
 
-Post-release review date: pending staged rollout evidence.
+Post-release review date: 2026-09-07.
