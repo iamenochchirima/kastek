@@ -441,13 +441,14 @@ server-side OpenTelemetry requirements apply.
 customer handoff architecture reference, and public conversation operations documentation. A
 separate API page was not applicable because the existing response contract remains additive.
 
-**Validation evidence:** Post-merge focused Agent coverage has 66 passing tests and 9 database
-integration tests skipped without a database. The client TypeScript check, client webpack
-production build, client lint, Agent build, and Core checks pass. The client is responding HTTP
-200 at `https://app.kasitek.co.za`; direct Vercel deployment inspection is unavailable because
-this environment is logged out of Vercel. Railway migration `077_consent_gated_handoff.sql`
-logged `migration.applied`. `https://api.kasitek.co.za/health` and
-`https://agents.kasitek.co.za/health/ready` both returned HTTP 200.
+**Validation evidence:** The final full Agent suite has 82 passing files, 18 database-backed files
+skipped without a database, 483 passing tests, and 45 skipped tests. The post-merge focused suite
+also passed. The client TypeScript check, client webpack production build, client lint, Agent build,
+and Core checks pass. The client is responding HTTP 200 at `https://app.kasitek.co.za`; direct
+Vercel deployment inspection is unavailable because this environment is logged out of Vercel.
+Railway migration `077_consent_gated_handoff.sql` logged `migration.applied`.
+`https://api.kasitek.co.za/health` and `https://agents.kasitek.co.za/health/ready` both returned
+HTTP 200.
 
 **Rollback or disable plan:** Disable the consent-protocol feature for new offers while preserving
 confirmed requests and historical evidence. Do not roll back to an unguarded model-to-queue path.
