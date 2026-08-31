@@ -90,6 +90,40 @@ describe("foundation migration", () => {
     expect(sql).toContain("status IN ('received', 'queued', 'running'");
   });
 
+  it("protects identity, credentials, channels, schedules, effects, and approvals", async () => {
+    const sql = await readFile(new URL("../migrations/093_identity_credentials_effects_rls.sql", import.meta.url), "utf8");
+    for (const table of [
+      "agent_definitions",
+      "agent_versions",
+      "agent_installations",
+      "agent_principals",
+      "agent_tool_grants",
+      "agent_installation_deployments",
+      "credential_vault",
+      "channel_credentials",
+      "channel_connections",
+      "channel_bindings",
+      "channel_pairing_tokens",
+      "agent_installation_credentials",
+      "agent_installation_resource_grants",
+      "agent_installation_connector_grants",
+      "agent_usage_records",
+      "integration_credentials",
+      "integration_connections",
+      "integration_oauth_states",
+      "agent_effect_receipts",
+      "agent_approval_records",
+      "agent_schedules",
+      "agent_kill_switches",
+      "agent_client_assertion_replays",
+    ]) {
+      expect(sql).toContain(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);
+      expect(sql).toContain(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`);
+    }
+    expect(sql).toContain("kasitek_agents_visible_definition");
+    expect(sql).toContain("kasitek_agents_tenant_definition");
+  });
+
   it("contains the durable scope and run tables", async () => {
     const sql = await readFile(new URL("../migrations/001_agent_platform_foundation.sql", import.meta.url), "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_definitions");
@@ -288,6 +322,33 @@ describe("foundation migration", () => {
     expect(sql).toContain("kasitek_agents_current_org_scope");
     expect(sql).toContain("conversation.organization_id = messages.organization_id");
     expect(sql).toContain("installation.organization_id = agent_runs.organization_id");
+  });
+
+  it("protects lifecycle sidecars and administrative control-plane tables", async () => {
+    const sql = await readFile(new URL("../migrations/094_control_plane_and_lifecycle_rls.sql", import.meta.url), "utf8");
+    for (const table of [
+      "agent_readiness_evaluation_state",
+      "memory_consolidation_jobs",
+      "audio_transcription_jobs",
+      "internal_calendar_events",
+      "kasiai_user_preferences",
+      "audit_records",
+      "analytics_outbox",
+      "agent_retention_policies",
+      "agent_legal_holds",
+      "agent_operator_feature_flags",
+      "agent_operator_holds",
+      "agent_export_requests",
+      "agent_operator_commands",
+      "agent_operator_notifications",
+      "agent_operator_projections",
+    ]) {
+      expect(sql).toContain(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);
+      expect(sql).toContain(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`);
+    }
+    expect(sql).toContain("REVOKE ALL ON TABLE schema_migrations FROM kasitek_agents_runtime");
+    expect(sql).toContain("analytics_outbox_agents_read");
+    expect(sql).toContain("agent_operator_commands_agents_scope");
   });
 
   it("defines hosted-agent creation profiles", async () => {

@@ -8,9 +8,11 @@ last_reviewed: 2026-09-01
 
 This inventory covers the public schema of the Agents PostgreSQL database. It was checked against
 the local migrated database on 2026-08-31 and the production database through the Agents API
-container. The schema contains 64 base tables. Migrations 091 and 092 now enable `FORCE ROW LEVEL
-SECURITY` on 25 tenant-owned tables covering memory, knowledge, conversations, messages, runs, and
-their direct projections; the remaining 39 tables are still outside the RLS rollout.
+container. The schema contains 64 base tables. Migrations 091 through 094 now enable `FORCE ROW
+LEVEL SECURITY` on 63 runtime tables covering memory, knowledge, conversations, messages, runs,
+credentials, channels, effects, approvals, lifecycle sidecars, analytics, and control-plane data.
+`schema_migrations` is the only table without RLS because runtime and application roles have no
+privilege to read or write it; migrations use a separate administrative database connection.
 
 ## Ownership roots
 
@@ -29,8 +31,8 @@ their direct projections; the remaining 39 tables are still outside the RLS roll
 
 ### Direct organization-owned tables
 
-These tables carry `organization_id` and should receive a direct organization policy after the
-runtime context mechanism exists:
+These tables carry `organization_id` and are covered by direct or parent-validated organization
+policies:
 
 `agent_definitions`, `agent_approval_records`, `agent_attachment_references`, `agent_effect_receipts`,
 `agent_events`, `agent_export_requests`, `agent_handoff_offers`, `agent_handoff_requests`,
@@ -58,8 +60,8 @@ agent-, and source-owned tables.
 | --- | --- | --- |
 | `agent_versions` | `agent_versions.agent_definition_id -> agent_definitions` | Agent definition owns versions. |
 | `agent_client_assertion_replays` | `credential_id -> agent_installation_credentials -> agent_installations` | Replay protection is installation-scoped. |
-| `agent_operator_notifications` | Platform operator projection | No tenant column; keep outside tenant RLS or add an explicit projection scope. |
-| `agent_operator_projections` | Platform operator projection | Global projection; cross-tenant by design and operator-only. |
+| `agent_operator_notifications` | Platform operator projection | No tenant column; `FORCE ROW LEVEL SECURITY` makes it operator-only. |
+| `agent_operator_projections` | Platform operator projection | Global projection; cross-tenant by design and operator-only under `FORCE ROW LEVEL SECURITY`. |
 | `knowledge_chunks` | `source_id -> knowledge_sources` plus copied agent/install scope | It carries organization data, but both source and copied scope must agree. |
 | `participants` | `conversation_id -> conversations` plus copied organization | It carries organization data; conversation is authoritative. |
 | `conversation_summaries` | `conversation_id -> conversations` plus copied organization | It carries organization data; conversation is authoritative. |
@@ -87,8 +89,10 @@ RLS policies.
   described above.
 - Existing ownership constraints for memory and knowledge are `NOT VALID`, so they protect new
   writes but do not prove all legacy rows are clean.
-- Production migrations 091 and 092 are recorded in `schema_migrations`; all 25 released tables
-  report both `relrowsecurity = true` and `relforcerowsecurity = true`.
+- Production migrations 091, 092, 093, and 094 are recorded in `schema_migrations`; all 63
+  runtime tables report both `relrowsecurity = true` and `relforcerowsecurity = true`.
+  `schema_migrations` reports neither because its privileges are revoked from runtime and
+  application roles.
 - The transaction context integration test proves organization and actor settings are local to a
   transaction and do not leak across concurrent pool users. The restricted-role RLS suite proves
   cross-organization reads are hidden, cross-organization writes are denied, and explicit
@@ -107,7 +111,7 @@ RLS policies.
 3. Repair or explicitly exempt legacy rows, validate ownership constraints, and add negative tests
    using the restricted role.
 4. Enable RLS in small migrations, beginning with memory and knowledge, then conversations, runs,
-   credentials, effects, approvals, and control-plane tables. The memory/knowledge and
-   conversation/run tranches are complete; the remaining table groups are not yet enabled.
+   credentials, effects, approvals, and control-plane tables. Migrations 091 through 094 cover all
+   runtime tables; only the administrative migration ledger is intentionally privilege-revoked.
 5. Keep migrations and deliberate operator projections on a separately controlled role, with audit
    records for every cross-tenant operation.

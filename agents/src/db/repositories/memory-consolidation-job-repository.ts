@@ -27,7 +27,7 @@ export interface MemoryConsolidationJobRecord {
 export class MemoryConsolidationJobRepository {
   public constructor(private readonly pool: Pool) {}
 
-  public async claimDue(workerId: string, limit: number, leaseMs: number): Promise<MemoryConsolidationJobRecord[]> {
+  public async claimDue(workerId: string, limit: number, leaseMs: number, organizationId?: string): Promise<MemoryConsolidationJobRecord[]> {
     const boundedLimit = Math.max(1, Math.min(Math.trunc(limit), 100));
     const boundedLease = Math.max(30_000, Math.min(Math.trunc(leaseMs), 900_000));
     return withTransaction(this.pool, async (client) => {
@@ -38,6 +38,7 @@ export class MemoryConsolidationJobRepository {
            FROM memory_consolidation_jobs candidate
            WHERE (candidate.status = 'queued'
               OR (candidate.status = 'running' AND candidate.lease_expires_at IS NOT NULL AND candidate.lease_expires_at <= now()))
+             AND ($4::text IS NULL OR candidate.organization_id = $4)
              AND NOT EXISTS (
                SELECT 1 FROM memory_consolidation_jobs running
                WHERE running.conversation_id = candidate.conversation_id
@@ -63,7 +64,7 @@ export class MemoryConsolidationJobRepository {
          FROM due
          WHERE jobs.id = due.id
          RETURNING jobs.*`,
-        [workerId, boundedLimit, boundedLease],
+        [workerId, boundedLimit, boundedLease, organizationId?.trim() || null],
       );
       return result.rows;
     });

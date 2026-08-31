@@ -199,6 +199,7 @@ describe.skipIf(!runIntegration)("audio transcription durability (integration)",
 
   afterAll(async () => {
     await pool.query("DELETE FROM audio_transcription_jobs WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM memory_consolidation_jobs WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM messages WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM participants WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM run_workflow_state WHERE organization_id = $1", [organizationId]);

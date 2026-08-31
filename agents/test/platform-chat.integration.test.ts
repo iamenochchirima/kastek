@@ -563,6 +563,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
 
   afterAll(async () => {
     await pool.query("DELETE FROM kasiai_user_preferences WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM memory_consolidation_jobs WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM conversation_summaries WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM delivery_attempts WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM channel_pairing_tokens WHERE organization_id = $1", [organizationId]);

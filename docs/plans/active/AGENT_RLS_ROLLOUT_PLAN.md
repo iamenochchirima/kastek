@@ -1,6 +1,6 @@
 # Agents PostgreSQL RLS rollout plan
 
-**Status:** Active; second RLS tranche released
+**Status:** Active; fourth RLS tranche released
 
 **Owner:** Agent Platform
 
@@ -46,9 +46,12 @@ protected system-agent or operator workflows.
       migration with parent ownership checks and restricted-role coverage
       ([092_conversation_run_rls.sql](../../../agents/migrations/092_conversation_run_rls.sql)).
 - [x] Document the released protected-system and explicit platform-operator query scope;
-      the remaining control-plane exceptions are still open.
-- [ ] Extend RLS to credentials, approvals, effects, channels, and remaining worker/control-plane
-      tables in separate migrations.
+      migrations 093 and 094 now cover the remaining runtime table groups; `schema_migrations` is
+      deliberately administrative and privilege-revoked from runtime roles.
+- [x] Extend RLS to credentials, approvals, effects, channels, lifecycle sidecars, analytics, and
+      remaining worker/control-plane tables in separate migrations
+      ([093_identity_credentials_effects_rls.sql](../../../agents/migrations/093_identity_credentials_effects_rls.sql),
+      [094_control_plane_and_lifecycle_rls.sql](../../../agents/migrations/094_control_plane_and_lifecycle_rls.sql)).
 - [ ] Add isolation alerts, staged rollout, disable procedure, migration rollback, and post-release
       review evidence.
 
@@ -150,6 +153,109 @@ Rollback or disable plan: stop new policy migrations, restore the prior applicat
 needed, and disable only the affected table policies through a reviewed administrative migration.
 Do not grant `BYPASSRLS` to the runtime role. A full rollback drill remains open before broader
 table groups are enabled.
+
+Post-release review date: 2026-09-08.
+
+## Release record: identity, credentials, channels, effects, and approvals tranche
+
+Change: Extend tenant isolation to agent identity, version, installation, credential, channel,
+usage, integration, effect, approval, schedule, kill-switch, and client-assertion replay records.
+
+Owner: Agent Platform.
+
+Risk: high. These tables contain credentials, external-channel bindings, and effect state. A
+policy mistake could deny valid agent operation or expose a tenant's integration state.
+
+Affected services and user surfaces: agents-api, agents-worker, MCP Gateway, channel adapters,
+credential resolution, integration connections, schedules, effect reconciliation, approvals, and
+Agents PostgreSQL.
+
+Platform release version or release ID: migration `093`; the implementation commit is recorded
+with the deployment evidence below.
+
+API/schema/migration changes: migration 093 adds parent-validated policies and `FORCE ROW LEVEL
+SECURITY` for 23 identity, credential, channel, integration, effect, approval, schedule, and
+replay tables. Protected system definitions and system tool grants remain readable where required;
+mutations remain operator-only. No application service receives migration privileges.
+
+Feature flag or rollout method: ownership audit first; apply the additive policy migration through
+the Railway Agents database administrative container; verify restricted tenant and operator scopes
+before allowing the application deployment to use the new boundary.
+
+Analytics events and success metrics: not applicable for user analytics. Operational success is
+zero production ownership mismatches, tenant read/write denials for cross-scope rows, and successful
+credential/channel/effect smoke paths.
+
+Logs, metrics, dashboards, and alerts: existing structured database authorization and runtime
+error logs; restricted-role policy denials are expected in negative tests and must remain free of
+credential values. Dedicated RLS-denial alerting remains open.
+
+User, API, internal, and operational documentation: updated the tenant isolation inventory,
+architecture audit, and this rollout plan. Public API behavior is unchanged.
+
+Validation evidence: local restricted-role identity/credential/effect suite passed (`4 tests`);
+the migration suite passed its 093 policy assertions. Production ownership audit returned zero
+mismatches for the covered parent paths. Migration 093 is recorded in production, all 23 tables
+report both RLS and FORCE RLS, the runtime role remains `rolsuper = false` and `rolbypassrls =
+false`, and the production restricted-role probe hid cross-tenant rows while explicit operator
+scope retained visibility.
+
+Rollback or disable plan: stop further policy migrations, restore the prior compatible application
+deployment if needed, and use a reviewed administrative migration to disable only the affected
+policy set. Never grant `BYPASSRLS` to the runtime role.
+
+Post-release review date: 2026-09-08.
+
+## Release record: lifecycle and control-plane tranche
+
+Change: Extend tenant isolation to readiness, memory-consolidation, transcription, calendar,
+preferences, audit, analytics outbox, retention, legal holds, feature flags, holds, and operator
+control-plane records; revoke runtime access to `schema_migrations`.
+
+Owner: Agent Platform.
+
+Risk: high. These tables are used by background workers and operators. Incorrect lifecycle scope
+could stall recovery; incorrect operator scope could expose cross-tenant operational data.
+
+Affected services and user surfaces: agents-api, agents-worker, analytics publisher, Temporal and
+recovery paths, memory/transcription workers, operator projections, retention/export workflows, and
+Agents PostgreSQL.
+
+Platform release version or release ID: migration `094`; the implementation commit is recorded
+with the deployment evidence below.
+
+API/schema/migration changes: migration 094 adds parent-validated policies and `FORCE ROW LEVEL
+SECURITY` for 15 remaining runtime tables. Tenant reads/writes are limited to the owning
+organization or actor namespace; operator commands, exports, notifications, and projections are
+operator-only. `schema_migrations` is not runtime data and has all privileges revoked from the
+runtime group.
+
+Feature flag or rollout method: apply after production ownership and role preflight; verify tenant,
+second-tenant, and explicit operator transactions before service rollout. The migration is
+additive and does not change public API contracts.
+
+Analytics events and success metrics: no new user analytics event. Success is 63 of 64 public base
+tables reporting RLS and FORCE RLS, no runtime access to `schema_migrations`, tenant filtering of
+sidecars/outbox rows, and operator-only visibility for control-plane projections.
+
+Logs, metrics, dashboards, and alerts: production health/readiness checks, database authorization
+logs, worker state, outbox scope checks, and migration status. Dedicated RLS-denial dashboards and
+alerts remain open; no tenant payloads are logged.
+
+User, API, internal, and operational documentation: updated the tenant isolation inventory,
+architecture audit, and this rollout plan. Public API behavior is unchanged.
+
+Validation evidence: local lifecycle/control-plane restricted-role suite passed (`3 tests`), and
+the migration suite includes 094 table/policy assertions. Production migration 094 is recorded.
+Production inspection reports 64 public base tables, 63 with both RLS and FORCE RLS, and only
+`schema_migrations` unprotected because both runtime and application roles lack table privilege.
+The production restricted-role probe returned tenant-specific definitions/channels/effects/outbox,
+no cross-tenant rows for an empty second organization, and full cross-tenant visibility only under
+explicit operator scope. API and worker services were online during verification.
+
+Rollback or disable plan: stop new policy migrations, restore the prior compatible service
+deployment if needed, and use a reviewed administrative migration to disable only the affected
+policies or restore the prior privilege boundary. Do not grant `BYPASSRLS` to the runtime role.
 
 Post-release review date: 2026-09-08.
 

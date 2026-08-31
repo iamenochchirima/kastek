@@ -52,10 +52,10 @@ export class MemoryConsolidationWorker {
     this.stopping = true;
   }
 
-  public async runOnce(): Promise<number> {
+  public async runOnce(organizationId?: string): Promise<number> {
     const claimed = await runWithDatabaseContext(
       { organizationId: "platform", actorId: "system:memory-consolidation", operator: true },
-      () => this.jobs.claimDue(this.workerId, this.settings.batchSize, this.settings.leaseMs),
+      () => this.jobs.claimDue(this.workerId, this.settings.batchSize, this.settings.leaseMs, organizationId),
     );
     claimed.forEach((job) => recordQueueAge("memory_consolidation", Math.max(0, (Date.now() - new Date(job.created_at).getTime()) / 1000)));
     await Promise.all(claimed.map((job) => withSpan(

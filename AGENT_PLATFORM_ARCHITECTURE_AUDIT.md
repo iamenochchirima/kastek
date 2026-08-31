@@ -1,7 +1,7 @@
 # Agent platform architecture audit
 
 Status: engineering assessment
-Date: 2026-08-31
+Date: 2026-09-01
 Scope: hosted agents, external-connected agents, agent runtime, workflow execution, tools, memory, knowledge, data isolation, customization, operations, and scaling
 Reference implementation: `/home/enoch/aworkspace/agents/waku-agent`
 
@@ -38,9 +38,10 @@ problems need immediate attention:
 
 Agent data is logically isolated by organization, definition, installation, conversation, and
 user scope. That is the intended meaning of agent isolation in this document. It does not mean one
-Docker container per agent. The current implementation provides good application-level isolation,
-but PostgreSQL row-level security and broader negative isolation tests are still needed before the
-platform can describe this as a database-backed guarantee.
+Docker container per agent. The platform now has a database-backed defense-in-depth boundary for
+all 63 runtime tables: each reports `FORCE ROW LEVEL SECURITY`, while the administrative
+`schema_migrations` table is inaccessible to runtime and application roles. Full background-process
+matrix coverage, legacy constraint validation, and untrusted-code sandboxing remain open.
 
 The recommended direction is to keep the existing control plane and bounded loop, repair the
 deployment and workflow contracts, complete memory as a real module, and add stronger database and
@@ -144,7 +145,7 @@ sandboxed execution module.
 | Agent observability | Implemented baseline | Runs, steps, model calls, tool calls, events, traces, and analytics outbox exist. |
 | Evaluations | Partial | Deterministic assertions exist; broad quality and adversarial gates do not. |
 | User customization | Substantial | Identity, model, limits, knowledge, graph, integrations, and channels are exposed. |
-| Multi-agent data isolation | Defense-in-depth partial | Scoped queries, triggers, restricted runtime roles, and two RLS tranches exist; 39 tenant-owned tables and full background-process coverage remain. |
+| Multi-agent data isolation | Defense-in-depth implemented; operational hardening open | Scoped queries, ownership triggers, a restricted runtime role, and `FORCE ROW LEVEL SECURITY` cover 63 of 64 public base tables; migration-ledger privilege separation and broader process-matrix/legacy validation remain. |
 | Untrusted extension isolation | Missing | No sandboxed custom-code or arbitrary plugin execution plane exists. |
 
 ## What should remain
@@ -586,14 +587,15 @@ cross-agent access.
 Repositories usually include organization and agent predicates. Migration 057 adds ownership
 triggers for memory, knowledge, installations, and runs. This is a strong application-level base.
 
-PostgreSQL row-level security is now enabled for two tranches: `memory_records`,
-`knowledge_sources`, `knowledge_chunks`, `memory_deletion_jobs`, conversations, messages, runs,
-and their direct projections use `FORCE ROW LEVEL SECURITY`. Some new constraints are still `NOT
-VALID`, so legacy rows have not been proven to satisfy all ownership rules. A missed predicate in a
-future query could still bypass isolation on the 39 tables outside these tranches. The production
-Agents runtime previously connected as the `postgres` superuser; it now uses a restricted login
-without `SUPERUSER` or `BYPASSRLS`, and API,
-worker, publisher, webhook, and Temporal paths set transaction-local tenant context.
+PostgreSQL row-level security is now enabled across four tranches. Migrations 091 through 094
+cover 63 of the 64 public base tables, including memory, knowledge, conversations, runs,
+credentials, channels, effects, approvals, lifecycle sidecars, analytics, and operator control
+data. All 63 runtime tables use `FORCE ROW LEVEL SECURITY`; `schema_migrations` is deliberately
+not runtime data and has no privileges for the runtime or application roles. Some ownership
+constraints remain `NOT VALID`, so legacy rows have not been proven to satisfy every invariant.
+The production Agents runtime previously connected as the `postgres` superuser; it now uses a
+restricted login without `SUPERUSER` or `BYPASSRLS`, and API, worker, publisher, webhook, and
+Temporal paths set transaction-local tenant context.
 
 The table and parent-path inventory is recorded in
 [`agents-tenant-isolation-inventory.md`](docs/internal/architecture/agents-tenant-isolation-inventory.md).
@@ -607,9 +609,8 @@ system-installation design.
    conversation, and user ownership.
 2. Migrate or quarantine legacy rows that do not satisfy current ownership invariants.
 3. Validate all ownership constraints.
-4. Enable RLS first on memory and knowledge, then conversations, messages, runs, grants,
-   credentials, approvals, effects, and channel bindings. The memory/knowledge and
-   conversation/run tranches are live; the remaining groups are still pending.
+4. Enable RLS in staged migrations. Migrations 091 through 094 now cover all runtime tables;
+   retain the administrative privilege boundary for `schema_migrations`.
 5. Set trusted organization and actor context on every transaction.
 6. Use a distinct migration and operator role that can bypass RLS deliberately.
 7. Prevent application roles from silently bypassing RLS.
@@ -636,21 +637,25 @@ system-installation design.
       database adapters, including legacy Temporal activity scope recovery
       ([context.ts](agents/src/db/context.ts), [pool.ts](agents/src/db/pool.ts)).
 - [x] Add the first RLS policy tranche for memory and knowledge with restricted-role negative
-      coverage ([091_memory_knowledge_rls.sql](agents/migrations/091_memory_knowledge_rls.sql));
-      credential and control-plane table policies remain open.
+      coverage ([091_memory_knowledge_rls.sql](agents/migrations/091_memory_knowledge_rls.sql)).
 - [x] Add the conversation/run RLS tranche with parent-scope checks and restricted-role coverage
-      ([092_conversation_run_rls.sql](agents/migrations/092_conversation_run_rls.sql)); credentials,
-      effects, approvals, channels, and control-plane table policies remain open.
+      ([092_conversation_run_rls.sql](agents/migrations/092_conversation_run_rls.sql)).
+- [x] Add parent-validated RLS for identity, credentials, channels, integrations, effects,
+      approvals, schedules, kill switches, and replay state
+      ([093_identity_credentials_effects_rls.sql](agents/migrations/093_identity_credentials_effects_rls.sql)).
+- [x] Add RLS for lifecycle sidecars, preferences, analytics, retention, legal holds, feature
+      flags, and operator control-plane tables; revoke runtime access to `schema_migrations`
+      ([094_control_plane_and_lifecycle_rls.sql](agents/migrations/094_control_plane_and_lifecycle_rls.sql)).
 - [x] Remove RLS bypass from the application runtime role and document the restricted runtime and
       one-shot migration boundary ([deployment-topology.md](docs/internal/operations/deployment-topology.md));
       a dedicated long-lived migration role remains open.
-- [x] Run repository and integration suites with a production-equivalent restricted role for both
-      released RLS tranches; the complete production process matrix remains open.
+- [x] Run focused repository and integration suites with a production-equivalent restricted role
+      for all four released RLS tranches; the complete production process matrix remains open.
 - [ ] Add negative isolation tests for every protected table and every background process type.
 - [ ] Add a staged rollout, policy-disable procedure, migration rollback plan, and isolation alerting.
-- [x] Record the first policy inventory and approved platform-operator query scope in internal
-      documentation ([agents-tenant-isolation-inventory.md](docs/internal/architecture/agents-tenant-isolation-inventory.md));
-      the final inventory remains open until all table groups are covered.
+- [x] Record the complete runtime policy inventory and approved platform-operator query scope in
+      internal documentation ([agents-tenant-isolation-inventory.md](docs/internal/architecture/agents-tenant-isolation-inventory.md));
+      legacy constraint validation, alerting, and the full process matrix remain open.
 
 ### P1.3 Replace the retrieval gate and add hybrid ranking
 
@@ -1226,10 +1231,14 @@ KasiTek should retain its stronger platform features around that anatomy:
 - [ ] Replace the regex retrieval gate.
 - [ ] Enable hybrid keyword and vector retrieval.
 - [ ] Validate legacy ownership constraints.
-- [x] Add the first memory/knowledge RLS tranche and restricted-role negative isolation tests;
-      remaining tenant-owned table groups are open.
-- [x] Add conversation/run RLS and parent ownership checks with restricted-role tests;
-      credentials, effects, approvals, channels, and control-plane groups remain open.
+- [x] Add the four staged RLS tranches and restricted-role negative isolation tests for runtime
+      table groups; `schema_migrations` remains administrative and privilege-revoked
+      ([091_memory_knowledge_rls.sql](agents/migrations/091_memory_knowledge_rls.sql),
+      [092_conversation_run_rls.sql](agents/migrations/092_conversation_run_rls.sql),
+      [093_identity_credentials_effects_rls.sql](agents/migrations/093_identity_credentials_effects_rls.sql),
+      [094_control_plane_and_lifecycle_rls.sql](agents/migrations/094_control_plane_and_lifecycle_rls.sql)).
+- [ ] Validate legacy ownership constraints and complete negative coverage for every background
+      process type.
 
 - [ ] Exit evidence recorded: agents learn only under declared policy, retrieve relevant evidence,
       and cannot access another agent's private data if an application query omits a tenant
@@ -1283,6 +1292,14 @@ KasiTek should retain its stronger platform features around that anatomy:
   RLS and FORCE RLS, production ownership audits returned zero mismatches, and the restricted-role
   production probe hid tenant A from tenant B, rejected a valid wrong-context write, and allowed
   both rows only under explicit platform-operator scope.
+- Identity/credential/channel/effect isolation migration `093` is recorded in production. Its 23
+  tables report both RLS and FORCE RLS; the local restricted-role suite passed four tests, and the
+  production ownership audit returned zero mismatches for the covered parent paths.
+- Lifecycle/control-plane isolation migration `094` is recorded in production. Production reports
+  64 public base tables, 63 with both RLS and FORCE RLS, and only `schema_migrations` outside RLS
+  because runtime and application roles cannot access it. The local lifecycle suite passed three
+  restricted-role tests; the production probe showed tenant-specific sidecars/outbox visibility
+  and operator-only control-plane visibility.
 
 Passing tests do not invalidate the verified findings. The current suite does not cover those
 contracts.

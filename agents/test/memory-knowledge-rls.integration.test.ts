@@ -58,12 +58,17 @@ describe.skipIf(!runIntegration)("memory and knowledge RLS (integration)", () =>
   });
 
   it("rejects writes that claim another organization", async () => {
-    await expect(runWithDatabaseContext({ organizationId: organizationA, actorId: "rls-test" }, () => query(
-      restrictedPool,
-      `INSERT INTO memory_records (organization_id, agent_definition_id, namespace, memory_type, canonical_text, source_type, created_by)
-       VALUES ($1, $2, 'agent_private', 'semantic', 'cross tenant write', 'explicit', 'rls-test')`,
-      [organizationB, definitionB],
-    ))).rejects.toMatchObject({ code: "42501" });
+    try {
+      await runWithDatabaseContext({ organizationId: organizationA, actorId: "rls-test" }, () => query(
+        restrictedPool,
+        `INSERT INTO memory_records (organization_id, agent_definition_id, namespace, memory_type, canonical_text, source_type, created_by)
+         VALUES ($1, $2, 'agent_private', 'semantic', 'cross tenant write', 'explicit', 'rls-test')`,
+        [organizationB, definitionB],
+      ));
+      throw new Error("cross-organization memory write unexpectedly succeeded");
+    } catch (error) {
+      expect(["42501", "P0001"]).toContain((error as { code?: string }).code);
+    }
   });
 
   it("allows only an explicit platform operator scope to inspect both test tenants", async () => {

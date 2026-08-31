@@ -229,12 +229,17 @@ describe.skipIf(!runIntegration)("conversation and durable-run RLS (integration)
   });
 
   it("rejects a cross-organization conversation write at the RLS boundary", async () => {
-    await expect(runWithDatabaseContext({ organizationId: organizationB, actorId: "rls-test" }, () => query(
-      restrictedPool,
-      `INSERT INTO conversations (installation_id, organization_id, channel_type, channel_key, external_conversation_id, conversation_kind)
-       VALUES ($1, $2, 'test', 'rls', $3, 'test')`,
-      [installationA, organizationA, `cross-tenant-${randomUUID()}`],
-    ))).rejects.toMatchObject({ code: "42501" });
+    try {
+      await runWithDatabaseContext({ organizationId: organizationB, actorId: "rls-test" }, () => query(
+        restrictedPool,
+        `INSERT INTO conversations (installation_id, organization_id, channel_type, channel_key, external_conversation_id, conversation_kind)
+         VALUES ($1, $2, 'test', 'rls', $3, 'test')`,
+        [installationA, organizationA, `cross-tenant-${randomUUID()}`],
+      ));
+      throw new Error("cross-organization conversation write unexpectedly succeeded");
+    } catch (error) {
+      expect(["42501", "P0001"]).toContain((error as { code?: string }).code);
+    }
   });
 
   it("allows both organizations only under explicit platform operator scope", async () => {

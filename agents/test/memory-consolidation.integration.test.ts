@@ -47,8 +47,8 @@ describe.skipIf(!runIntegration)("memory consolidation (integration)", () => {
     expect(jobs.rows.every((job) => job.status === "queued")).toBe(true);
 
     const [firstClaims, secondClaims] = await Promise.all([
-      jobsRepository.claimDue("consolidation-a", 4, 120_000),
-      jobsRepository.claimDue("consolidation-b", 4, 120_000),
+      jobsRepository.claimDue("consolidation-a", 4, 120_000, organizationId),
+      jobsRepository.claimDue("consolidation-b", 4, 120_000, organizationId),
     ]);
     expect(firstClaims.length + secondClaims.length).toBe(1);
     const claimed = firstClaims[0] ?? secondClaims[0];
@@ -67,7 +67,7 @@ describe.skipIf(!runIntegration)("memory consolidation (integration)", () => {
       maxAttempts: 3,
       minInboundMessages: 4,
     }, { workerId: "consolidation-test" });
-    for (let index = 0; index < 4; index += 1) await worker.runOnce();
+    for (let index = 0; index < 4; index += 1) await worker.runOnce(organizationId);
 
     const memories = await pool.query<{ status: string; provenance: Record<string, unknown> }>(
       "SELECT status, provenance FROM memory_records WHERE organization_id = $1 AND agent_definition_id = $2",
