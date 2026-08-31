@@ -90,12 +90,13 @@ Logs, metrics, dashboards, and alerts: existing message lifecycle and provider d
 is extended with media count/kinds and bounded outcome fields; no new dashboard or alert is added in
 this implementation, so hosted rollout must verify the existing delivery views and alert thresholds.
 
-Platform release version or release ID: pending the release owner’s platform tag; this change keeps
-the API contract version (`AgentResponse@1`) and migration version separate.
-Implementation commit: `67b43429` (local tested artifact; no deployment performed).
-Validation: local evidence is recorded below. Before closing this plan, record the commit SHA,
-migration version, service artifact IDs, gateway smoke results, and provider failure/fallback rates
-here.
+Platform release version or release ID: no SemVer platform tag exists in this repository yet; the
+production Railway deployment IDs are recorded below. The API contract version (`AgentResponse@1`)
+and migration version remain separate.
+Implementation commit: `c24dfdff59a8bfd9f4ac6009be539eb78d6a1a4c` (integrated with the current `main`
+live-chat base and pushed to `main`).
+Validation: local and production evidence is recorded below. Provider-specific smoke and
+compatibility-window evidence remain open before closing this plan.
 Rollback: disable native media per gateway and continue text delivery; roll back artifacts only
 after confirming the additive column and stable references remain readable.
 Post-release review: pending deployment; schedule one business day after each gateway enablement
@@ -108,6 +109,22 @@ Local validation evidence (2026-08-31):
   `pnpm --filter client build` passed.
 - `server`: `cargo fmt --all -- --check`, `cargo check -p kasitek-core`, and `cargo test -p
   kasitek-core` passed (214 passed, 3 database-dependent tests skipped).
-- `database`: Prisma generation and schema validation passed. Apply migration
-  `20260831120000_add_agent_website_delivery_content` before enabling website typed deliveries.
-- Staged provider smoke, artifact IDs, release tag, and fallback-rate evidence: pending deployment.
+- `database`: Prisma generation and schema validation passed. Migration
+  `20260831120000_add_agent_website_delivery_content` was applied successfully to the production
+  Core database through the documented Railway SSH tunnel on 2026-08-31.
+- Production Railway deployments from this commit: Core
+  `619dc31f-19dd-4486-9f63-7989d1d3fa7e`, Agents API
+  `e1c8e6da-24d0-4b3c-86fc-35c26b3db74a`, Agents worker
+  `50435708-1e17-46eb-a761-a5d6fe1ebc32`, and MCP Gateway
+  `7906a81f-a2e8-4b32-b967-d22543c5c49b`; all report `SUCCESS` and `RUNNING`.
+- Production health smoke: `https://api.kasitek.co.za/health` and
+  `https://agents.kasitek.co.za/health/ready` returned HTTP 200; Core reported `status: ok`, the
+  gateway reported `status: ready`, and the Agents worker logged `state: RUNNING` for
+  `kasitek-agents-production`. No error-level logs were returned for the four services during the
+  post-deploy sweep.
+- The pushed `main` commit triggered the connected Vercel frontend automation; both
+  `https://kasitek.co.za` and `https://app.kasitek.co.za` returned HTTP 200. Vercel CLI deployment
+  inspection was unavailable because this environment is not authenticated to Vercel.
+- Provider-specific media send/retry smoke and fallback-rate evidence: pending a safe, non-customer
+  test message on each configured gateway; do not close the compatibility window until that smoke
+  is recorded.
