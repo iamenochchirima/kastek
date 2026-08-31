@@ -1222,6 +1222,10 @@ KasiTek should retain its stronger platform features around that anatomy:
 - Source tracing confirmed no production conversation-to-memory creation call.
 - Source tracing confirmed user-version publication does not roll existing installations forward.
 - Source tracing confirmed production graph execution does not inject an `agentLoop` adapter.
+- Retrieval evidence tranche `6215196e` passed targeted retrieval/policy tests (`11/11`), the full
+  non-database Agents suite (`85 passed, 18 skipped`; `533 passed, 52 skipped`), typecheck, and
+  build. Its three Railway service deployments reached `SUCCESS` and health/readiness smoke checks
+  returned `200`.
 
 Passing tests do not invalidate the verified findings. The current suite does not cover those
 contracts.

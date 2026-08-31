@@ -54,7 +54,10 @@ data store or widen ownership scope.
 Affected services and user surfaces: agents-api, agents-worker, hosted agent context, memory and
 knowledge retrieval, run evidence, and agent operations diagnostics.
 
-Platform release version or release ID: pending implementation release.
+Platform release version or release ID: `6215196e`; Railway deployments
+`34590ad9-f75c-4545-a984-648f6a8ea7ec` (agents-worker),
+`e52624a1-11b8-4f27-a75b-a5bec994032a` (agents-api), and
+`c97f83d4-e0e7-419b-8e16-b4e4302f16f9` (MCP-Gateway).
 
 API/schema/migration changes: additive relevance aliases in repository projections only; no
 database migration and no public API contract change.
@@ -73,9 +76,12 @@ User, API, internal, and operational documentation: update the memory architectu
 the audit checklist in the same change.
 
 Validation evidence: targeted retrieval and memory-policy tests passed (`11/11`); Agents
-typecheck passed. Full suite and worker deployment evidence remain part of the release closeout.
+typecheck and build passed; full non-database suite passed (`85 passed, 18 skipped`; `533 passed,
+52 skipped`). All three watched services reached `SUCCESS`. Agents-api live/readiness and
+MCP-Gateway health smoke checks returned `200`.
 
 Rollback or disable plan: revert the retrieval service/context wiring; repository search remains
 backward-compatible.
 
-Post-release review date: pending staged rollout evidence.
+Post-release review date: 2026-09-07; monitor evidence size, context-limit failures, retrieval
+empty-result rate, and model latency before changing the default token budget.
