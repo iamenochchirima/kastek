@@ -8,9 +8,9 @@ last_reviewed: 2026-09-01
 
 This inventory covers the public schema of the Agents PostgreSQL database. It was checked against
 the local migrated database on 2026-08-31 and the production database through the Agents API
-container. The schema contains 64 base tables. Migration 091 now enables `FORCE ROW LEVEL
-SECURITY` on `memory_records`, `knowledge_sources`, `knowledge_chunks`, and
-`memory_deletion_jobs`; the remaining 60 tables are still outside the RLS rollout.
+container. The schema contains 64 base tables. Migrations 091 and 092 now enable `FORCE ROW LEVEL
+SECURITY` on 25 tenant-owned tables covering memory, knowledge, conversations, messages, runs, and
+their direct projections; the remaining 39 tables are still outside the RLS rollout.
 
 ## Ownership roots
 
@@ -87,8 +87,8 @@ RLS policies.
   described above.
 - Existing ownership constraints for memory and knowledge are `NOT VALID`, so they protect new
   writes but do not prove all legacy rows are clean.
-- Production migration 091 is recorded in `schema_migrations` as `091`; all four first-tranche
-  tables report both `relrowsecurity = true` and `relforcerowsecurity = true`.
+- Production migrations 091 and 092 are recorded in `schema_migrations`; all 25 released tables
+  report both `relrowsecurity = true` and `relforcerowsecurity = true`.
 - The transaction context integration test proves organization and actor settings are local to a
   transaction and do not leak across concurrent pool users. The restricted-role RLS suite proves
   cross-organization reads are hidden, cross-organization writes are denied, and explicit
@@ -107,7 +107,7 @@ RLS policies.
 3. Repair or explicitly exempt legacy rows, validate ownership constraints, and add negative tests
    using the restricted role.
 4. Enable RLS in small migrations, beginning with memory and knowledge, then conversations, runs,
-   credentials, effects, approvals, and control-plane tables. The memory/knowledge tranche is
-   complete; the remaining table groups are not yet enabled.
+   credentials, effects, approvals, and control-plane tables. The memory/knowledge and
+   conversation/run tranches are complete; the remaining table groups are not yet enabled.
 5. Keep migrations and deliberate operator projections on a separately controlled role, with audit
    records for every cross-tenant operation.

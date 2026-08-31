@@ -257,6 +257,39 @@ describe("foundation migration", () => {
     expect(sql).toContain("FORCE ROW LEVEL SECURITY");
   });
 
+  it("enables conversation and durable-run RLS with parent ownership checks", async () => {
+    const sql = await readFile(new URL("../migrations/092_conversation_run_rls.sql", import.meta.url), "utf8");
+    for (const table of [
+      "conversations",
+      "participants",
+      "messages",
+      "conversation_summaries",
+      "agent_runs",
+      "run_steps",
+      "run_attempts",
+      "run_workflow_state",
+      "run_workflow_checkpoints",
+      "run_budgets",
+      "run_budget_reservations",
+      "model_calls",
+      "tool_invocations",
+      "agent_events",
+      "delivery_attempts",
+      "agent_attachment_references",
+      "agent_handoff_requests",
+      "agent_handoff_offers",
+      "agent_operator_run_assignments",
+      "evaluation_scenarios",
+      "evaluation_runs",
+    ]) {
+      expect(sql).toContain(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);
+      expect(sql).toContain(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`);
+    }
+    expect(sql).toContain("kasitek_agents_current_org_scope");
+    expect(sql).toContain("conversation.organization_id = messages.organization_id");
+    expect(sql).toContain("installation.organization_id = agent_runs.organization_id");
+  });
+
   it("defines hosted-agent creation profiles", async () => {
     const profileSql = await readFile(new URL("../migrations/054_agent_creation_profiles.sql", import.meta.url), "utf8");
     expect(profileSql).toContain("creation_profile");

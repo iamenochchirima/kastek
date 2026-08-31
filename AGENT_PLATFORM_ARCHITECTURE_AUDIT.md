@@ -144,7 +144,7 @@ sandboxed execution module.
 | Agent observability | Implemented baseline | Runs, steps, model calls, tool calls, events, traces, and analytics outbox exist. |
 | Evaluations | Partial | Deterministic assertions exist; broad quality and adversarial gates do not. |
 | User customization | Substantial | Identity, model, limits, knowledge, graph, integrations, and channels are exposed. |
-| Multi-agent data isolation | Application-enforced | Scoped queries and triggers exist; RLS and complete negative tests do not. |
+| Multi-agent data isolation | Defense-in-depth partial | Scoped queries, triggers, restricted runtime roles, and two RLS tranches exist; 39 tenant-owned tables and full background-process coverage remain. |
 | Untrusted extension isolation | Missing | No sandboxed custom-code or arbitrary plugin execution plane exists. |
 
 ## What should remain
@@ -586,12 +586,13 @@ cross-agent access.
 Repositories usually include organization and agent predicates. Migration 057 adds ownership
 triggers for memory, knowledge, installations, and runs. This is a strong application-level base.
 
-PostgreSQL row-level security is now enabled for the first tranche: `memory_records`,
-`knowledge_sources`, `knowledge_chunks`, and `memory_deletion_jobs` use `FORCE ROW LEVEL
-SECURITY`. Some new constraints are still `NOT VALID`, so legacy rows have not been proven to
-satisfy all ownership rules. A missed predicate in a future query could still bypass isolation on
-the 60 tables outside this tranche. The production Agents runtime previously connected as the
-`postgres` superuser; it now uses a restricted login without `SUPERUSER` or `BYPASSRLS`, and API,
+PostgreSQL row-level security is now enabled for two tranches: `memory_records`,
+`knowledge_sources`, `knowledge_chunks`, `memory_deletion_jobs`, conversations, messages, runs,
+and their direct projections use `FORCE ROW LEVEL SECURITY`. Some new constraints are still `NOT
+VALID`, so legacy rows have not been proven to satisfy all ownership rules. A missed predicate in a
+future query could still bypass isolation on the 39 tables outside these tranches. The production
+Agents runtime previously connected as the `postgres` superuser; it now uses a restricted login
+without `SUPERUSER` or `BYPASSRLS`, and API,
 worker, publisher, webhook, and Temporal paths set transaction-local tenant context.
 
 The table and parent-path inventory is recorded in
@@ -607,8 +608,8 @@ system-installation design.
 2. Migrate or quarantine legacy rows that do not satisfy current ownership invariants.
 3. Validate all ownership constraints.
 4. Enable RLS first on memory and knowledge, then conversations, messages, runs, grants,
-   credentials, approvals, effects, and channel bindings. The memory/knowledge tranche is live;
-   the remaining groups are still pending.
+   credentials, approvals, effects, and channel bindings. The memory/knowledge and
+   conversation/run tranches are live; the remaining groups are still pending.
 5. Set trusted organization and actor context on every transaction.
 6. Use a distinct migration and operator role that can bypass RLS deliberately.
 7. Prevent application roles from silently bypassing RLS.
@@ -636,11 +637,15 @@ system-installation design.
       ([context.ts](agents/src/db/context.ts), [pool.ts](agents/src/db/pool.ts)).
 - [x] Add the first RLS policy tranche for memory and knowledge with restricted-role negative
       coverage ([091_memory_knowledge_rls.sql](agents/migrations/091_memory_knowledge_rls.sql));
-      runtime, credential, and control-plane table policies remain open.
+      credential and control-plane table policies remain open.
+- [x] Add the conversation/run RLS tranche with parent-scope checks and restricted-role coverage
+      ([092_conversation_run_rls.sql](agents/migrations/092_conversation_run_rls.sql)); credentials,
+      effects, approvals, channels, and control-plane table policies remain open.
 - [x] Remove RLS bypass from the application runtime role and document the restricted runtime and
       one-shot migration boundary ([deployment-topology.md](docs/internal/operations/deployment-topology.md));
       a dedicated long-lived migration role remains open.
-- [ ] Run repository and integration suites with the production-equivalent restricted role.
+- [x] Run repository and integration suites with a production-equivalent restricted role for both
+      released RLS tranches; the complete production process matrix remains open.
 - [ ] Add negative isolation tests for every protected table and every background process type.
 - [ ] Add a staged rollout, policy-disable procedure, migration rollback plan, and isolation alerting.
 - [x] Record the first policy inventory and approved platform-operator query scope in internal
@@ -1223,6 +1228,8 @@ KasiTek should retain its stronger platform features around that anatomy:
 - [ ] Validate legacy ownership constraints.
 - [x] Add the first memory/knowledge RLS tranche and restricted-role negative isolation tests;
       remaining tenant-owned table groups are open.
+- [x] Add conversation/run RLS and parent ownership checks with restricted-role tests;
+      credentials, effects, approvals, channels, and control-plane groups remain open.
 
 - [ ] Exit evidence recorded: agents learn only under declared policy, retrieve relevant evidence,
       and cannot access another agent's private data if an application query omits a tenant
@@ -1272,6 +1279,10 @@ KasiTek should retain its stronger platform features around that anatomy:
   `091` is recorded and all four first-tranche tables report both RLS and FORCE RLS. Compatibility
   follow-up `b831e1c3` adds scope recovery for legacy workflows and is deployed successfully on all
   three Agents services.
+- Conversation/run isolation migration `092` is recorded in production. Its 21 tables report both
+  RLS and FORCE RLS, production ownership audits returned zero mismatches, and the restricted-role
+  production probe hid tenant A from tenant B, rejected a valid wrong-context write, and allowed
+  both rows only under explicit platform-operator scope.
 
 Passing tests do not invalidate the verified findings. The current suite does not cover those
 contracts.

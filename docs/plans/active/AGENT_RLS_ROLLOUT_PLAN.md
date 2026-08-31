@@ -1,6 +1,6 @@
 # Agents PostgreSQL RLS rollout plan
 
-**Status:** Active; first RLS tranche released
+**Status:** Active; second RLS tranche released
 
 **Owner:** Agent Platform
 
@@ -42,9 +42,13 @@ protected system-agent or operator workflows.
 - [ ] Repair or quarantine ordinary legacy ownership violations and validate existing constraints.
 - [x] Add RLS policies for memory and knowledge with a restricted-role integration suite
       ([091_memory_knowledge_rls.sql](../../../agents/migrations/091_memory_knowledge_rls.sql)).
-- [ ] Extend RLS to conversations, messages, runs, credentials, approvals, effects, and worker
+- [x] Extend RLS to conversations, messages, runs, and their direct projections in a separate
+      migration with parent ownership checks and restricted-role coverage
+      ([092_conversation_run_rls.sql](../../../agents/migrations/092_conversation_run_rls.sql)).
+- [x] Document the released protected-system and explicit platform-operator query scope;
+      the remaining control-plane exceptions are still open.
+- [ ] Extend RLS to credentials, approvals, effects, channels, and remaining worker/control-plane
       tables in separate migrations.
-- [ ] Document intentional cross-tenant operator and protected-system queries.
 - [ ] Add isolation alerts, staged rollout, disable procedure, migration rollback, and post-release
       review evidence.
 
@@ -90,7 +94,7 @@ returned 200 and the worker reached `RUNNING`. This role-only release was follow
 `1b25b0c9-5284-40a9-94fb-53907b44ff79`, all successful. Migration 091 is recorded in production
 and enables `FORCE ROW LEVEL SECURITY` on the four first-tranche tables. The scoped context test
 passed; the restricted-role RLS suite passed its cross-tenant read, write-denial, and explicit
-operator-scope cases. The remaining 60 tables are not yet enabled.
+operator-scope cases. The remaining 39 tables are not yet enabled.
 
 Rollback or disable plan: do not enable RLS until a restricted role and context mechanism are
 verified. For a role-only rollout, restore the previous runtime URL while retaining the additive
@@ -145,6 +149,57 @@ Production API live/ready checks returned 200, Gateway ready returned 200, worke
 Rollback or disable plan: stop new policy migrations, restore the prior application deployment if
 needed, and disable only the affected table policies through a reviewed administrative migration.
 Do not grant `BYPASSRLS` to the runtime role. A full rollback drill remains open before broader
+table groups are enabled.
+
+Post-release review date: 2026-09-08.
+
+## Release record: conversation and durable-run tranche
+
+Change: Extend transaction-local tenant enforcement to conversations, messages, durable runs, and
+their direct workflow, model, tool, delivery, attachment, handoff, assignment, and evaluation
+projections.
+
+Owner: Agent Platform.
+
+Risk: high. Parent-scope policy mistakes can hide valid workflow state or permit a child record to
+cross an installation, conversation, or run boundary.
+
+Affected services and user surfaces: agents-api, agents-worker, MCP Gateway, Temporal activities,
+conversation inboxes, model/tool execution, delivery, handoff, evaluation, and Agents PostgreSQL.
+
+Platform release version or release ID: migration `092`; the compatible runtime is deployed from
+`b831e1c3` on API `0b66fd2a-0b73-4de9-ab68-86e0291e9d38`, worker
+`de1d80af-bf6b-45d9-9a85-f6aee2e027bf`, and Gateway
+`e730de6f-6571-4b04-9637-20b6ef034764`.
+
+API/schema/migration changes: migration 092 adds a transaction-local organization-scope helper,
+parent ownership policies, and `FORCE ROW LEVEL SECURITY` for 21 conversation/run tables. It is
+recorded in production as `092`; no migration credential remains on an application service.
+
+Feature flag or rollout method: ownership audits and restricted-role tests ran before the additive
+policy migration. Existing four-table RLS from 091 remained active; the remaining 39 tables stay
+disabled for staged rollout.
+
+Analytics events and success metrics: not applicable for user analytics. Operational success is
+measured by zero ownership mismatches, restricted-role isolation tests, and absence of unexpected
+authorization errors in service logs.
+
+Logs, metrics, dashboards, and alerts: production API live/ready checks returned 200, Gateway
+ready returned 200, worker state was `RUNNING`, and a production restricted-role probe verified
+tenant filtering, wrong-context write denial, and operator scope. Dedicated RLS-denial alerting
+and a database authorization dashboard remain open.
+
+User, API, internal, and operational documentation: updated the architecture audit, tenant
+isolation inventory, and this rollout plan. Public API behavior is unchanged.
+
+Validation evidence: full Agents suite (`543 passed, 61 skipped`), typecheck, build, local
+restricted-role suites (`7 passed` across both RLS suites), production ownership audit with zero
+mismatches, production migration inspection, and the transactional production RLS probe. Probe
+rows were rolled back and no `rls-prod-*` rows remain.
+
+Rollback or disable plan: stop new policy migrations, restore the prior application deployment if
+needed, and disable only the affected policy set through a reviewed administrative migration. Do
+not grant `BYPASSRLS` to the runtime role. A complete rollback drill remains open before broader
 table groups are enabled.
 
 Post-release review date: 2026-09-08.
