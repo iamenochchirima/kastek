@@ -728,8 +728,9 @@ Admission is protected by a conversation-row transaction lock, the database-back
       ([run-repository.ts](agents/src/db/repositories/run-repository.ts), [platform-chat-repository.ts](agents/src/db/repositories/platform-chat-repository.ts), migration 088).
 - [x] Preserve sequence order when retries, channel redelivery, or delayed media completion occurs;
       sequence allocation remains under the conversation row lock.
-- [x] Add tests for simultaneous messages and channel redelivery; worker-death and cancellation
-      recovery coverage remains open ([platform-chat.integration.test.ts](agents/test/platform-chat.integration.test.ts)).
+- [x] Add tests for simultaneous messages and channel redelivery, plus worker replacement and
+      cancellation recovery ([platform-chat.integration.test.ts](agents/test/platform-chat.integration.test.ts),
+      [temporal-recovery.integration.test.ts](agents/test/temporal-recovery.integration.test.ts)).
 - [x] Add bounded admission, busy, retry, and redelivery metrics; durable queue depth, wait-time,
       and stale-ownership metrics remain open until a queued-message mechanism exists.
 - [x] Update channel behavior and conversation recovery runbooks
