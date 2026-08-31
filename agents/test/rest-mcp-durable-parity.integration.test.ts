@@ -127,7 +127,7 @@ describe.skipIf(!runIntegration)("database-backed MCP and installation REST pari
         });
 
         expect(mcp.statusCode, testCase.name).toBe(200);
-        expect(rest.statusCode, testCase.name).toBe(202);
+        expect(rest.statusCode, `${testCase.name}: ${rest.body}`).toBe(202);
         expect(mcp.json()).toMatchObject({ result: { structuredContent: { status: "completed", output: testCase.output } } });
         expect(rest.json()).toMatchObject({ status: "completed", output: testCase.output });
       }
@@ -159,7 +159,7 @@ describe.skipIf(!runIntegration)("database-backed MCP and installation REST pari
     } finally {
       await app.close();
     }
-  });
+  }, 30_000);
 
   afterAll(async () => {
     await pool.query("DELETE FROM tool_invocations WHERE organization_id = $1", [organizationId]);

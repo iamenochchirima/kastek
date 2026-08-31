@@ -1,5 +1,6 @@
 import type { ModelMessage } from "../model/types";
 import type { ToolDefinition } from "../tools/types";
+import type { RetrievalDecision } from "../memory/retrieval";
 
 export interface DurableContextMessage {
   direction: "inbound" | "outbound" | "system";
@@ -30,6 +31,7 @@ export interface ContextBuildInput {
   authorizedTools: Array<Omit<ToolDefinition, "handler">>;
   temporaryContext?: string;
   alwaysRetrieveKnowledge?: boolean;
+  retrievalDecision?: RetrievalDecision;
   dynamicContext?: {
     route?: string;
     entity?: string;
@@ -44,6 +46,7 @@ export interface BuiltAgentContext {
   tools: Array<Omit<ToolDefinition, "handler">>;
   estimatedTokens: number;
   retrievalRequested: boolean;
+  retrievalDecision: RetrievalDecision;
   omittedMessageCount: number;
 }
 
@@ -147,7 +150,12 @@ export function buildAgentContext(input: ContextBuildInput): BuiltAgentContext {
     messages,
     tools: input.authorizedTools,
     estimatedTokens,
-    retrievalRequested: retrievalGate(input.currentMessage, { always: input.alwaysRetrieveKnowledge }),
+    retrievalRequested: input.retrievalDecision?.requested ?? retrievalGate(input.currentMessage, { always: input.alwaysRetrieveKnowledge }),
+    retrievalDecision: input.retrievalDecision ?? {
+      requested: retrievalGate(input.currentMessage, { always: input.alwaysRetrieveKnowledge }),
+      reason: input.alwaysRetrieveKnowledge ? "always" : "not_requested",
+      query: input.currentMessage.slice(0, 4_000),
+    },
     omittedMessageCount: omittedMessageCount + (ordered.length - retained.length),
   };
 }

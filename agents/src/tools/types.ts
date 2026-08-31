@@ -26,6 +26,8 @@ export interface ToolInvocationContext {
   correlationId: string;
   /** Cancellation propagated from the enclosing durable activity when available. */
   signal?: AbortSignal;
+  /** Normalized policy snapshot used by scoped platform capabilities. */
+  memoryPolicy?: Record<string, unknown>;
 }
 
 export interface ToolApproval {

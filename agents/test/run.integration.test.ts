@@ -12,6 +12,7 @@ import { EffectReceiptRepository } from "../src/db/repositories/effect-receipt-r
 import { KillSwitchRepository } from "../src/db/repositories/kill-switch-repository";
 import { createActivities } from "../src/temporal/activities";
 import { ToolRegistry } from "../src/tools/registry";
+import { RunBudgetRepository } from "../src/db/repositories/run-budget-repository";
 
 const databaseUrl = process.env.AGENTS_DATABASE_URL;
 const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRATION_TESTS === "true");
@@ -27,6 +28,7 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
   const approvals = new ApprovalRepository(pool);
   const effectReceipts = new EffectReceiptRepository(pool);
   const killSwitches = new KillSwitchRepository(pool);
+  const runBudgets = new RunBudgetRepository(pool);
   const organizationId = `run-test-${randomUUID()}`;
   const agentId = randomUUID();
   const versionId = randomUUID();
@@ -192,6 +194,13 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
           status: "failed",
         },
       },
+    });
+    expect(await modelCalls.usageForRun(organizationId, completedAnalyticsRun.id)).toEqual({
+      modelCalls: 1,
+      inputTokens: 3,
+      outputTokens: 5,
+      totalTokens: 8,
+      estimatedCostUsd: 0.0025,
     });
     expect(JSON.stringify(modelAnalytics.rows)).not.toContain("credential-should-not-be-exported");
     expect(JSON.stringify(modelAnalytics.rows)).not.toContain("private response");
@@ -436,6 +445,29 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
     expect(effectActions).toEqual(expect.arrayContaining(["reserved", "executing", "unknown", "reconciled", "succeeded", "failed"]));
     expect(JSON.stringify(lifecycleFacts.rows)).not.toContain("provider-success-1");
     expect(JSON.stringify(lifecycleFacts.rows)).not.toContain("PROVIDER_OUTCOME_UNKNOWN");
+  });
+
+  it("reserves, settles, and atomically enforces model and tool budgets", async () => {
+    await runBudgets.ensure({ organizationId, runId }, { maxModelCalls: 2, maxToolCalls: 1, maxTotalTokens: 100, maxEstimatedCostUsd: 1 });
+    const captured = await runBudgets.reserveModelCall({ organizationId, runId, reservationKey: "budget:model:captured", estimatedTokens: 20, estimatedCostUsd: 0.1 });
+    const released = await runBudgets.reserveModelCall({ organizationId, runId, reservationKey: "budget:model:released", estimatedTokens: 20, estimatedCostUsd: 0.1 });
+    await released.release("provider failure");
+    const replacement = await runBudgets.reserveModelCall({ organizationId, runId, reservationKey: "budget:model:replacement", estimatedTokens: 20, estimatedCostUsd: 0.1 });
+    await captured.capture({ inputTokens: 8, outputTokens: 7, totalTokens: 15, estimatedCostUsd: 0.05 });
+    await expect(runBudgets.reserveModelCall({ organizationId, runId, reservationKey: "budget:model:over-limit", estimatedTokens: 20, estimatedCostUsd: 0.1 })).rejects.toThrow("MODEL_REQUEST_BUDGET_EXCEEDED");
+    await replacement.release("test cleanup");
+    await runBudgets.consumeToolCall({ organizationId, runId });
+    await expect(runBudgets.consumeToolCall({ organizationId, runId })).rejects.toThrow("TOOL_CALL_BUDGET_EXCEEDED");
+  });
+
+  it("marks abandoned model reservations unknown and resolves provider outcomes explicitly", async () => {
+    const reservation = await runBudgets.reserveModelCall({ organizationId, runId, reservationKey: "budget:model:unknown", estimatedTokens: 20, estimatedCostUsd: 0.1 });
+    const [unknown] = await runBudgets.markStaleReservationsUnknown({ organizationId, runId, olderThanMs: 1, reason: "test timeout" });
+    expect(unknown).toMatchObject({ reservationKey: "budget:model:unknown", runId, organizationId });
+    await expect(runBudgets.reserveModelCall({ organizationId, runId, reservationKey: "budget:model:unknown", estimatedTokens: 20, estimatedCostUsd: 0.1 })).rejects.toThrow("MODEL_CALL_OUTCOME_UNKNOWN");
+    await runBudgets.reconcileUnknownReservation({ organizationId, reservationId: unknown!.id, outcome: "captured", usage: { inputTokens: 8, outputTokens: 4, totalTokens: 12, estimatedCostUsd: 0.04 } });
+    await expect(runBudgets.reconcileUnknownReservation({ organizationId, reservationId: unknown!.id, outcome: "released" })).rejects.toThrow("NOT_PENDING_RECONCILIATION");
+    await reservation.release("already reconciled");
   });
 
   it("re-authorizes approved external effects and records post-start failures as unknown", async () => {

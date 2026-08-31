@@ -28,14 +28,14 @@ describe.skipIf(!runIntegration)("channel routing contracts (integration)", () =
     await agents.publishVersion(organizationId, "test-user", agent.id, version.id);
     const installation = await agents.createInstallation(organizationId, "test-user", { agentVersionId: version.id, scopeType: "organization", scopeId: organizationId, settings: {} });
     installationId = installation.id;
-    const connection = await channels.createConnection({ organizationId, installationId, channelType: "platform", channelKey: "sidebar", actorId: "test-user" });
+    const connection = await channels.createConnection({ organizationId, installationId, channelType: "platform", channelKey: "channel-test", actorId: "test-user" });
     const pairing = await channels.issuePairingToken({ organizationId, installationId, connectionId: connection.id, actorId: "test-user" });
     expect(pairing.token).toBeTruthy();
     const binding = await channels.consumePairingToken({ organizationId, token: pairing.token!, externalIdentity: "user:test" });
     expect(binding.channel_type).toBe("platform");
     expect(binding.owner_actor_id).toBe("test-user");
     await expect(channels.consumePairingToken({ organizationId, token: pairing.token!, externalIdentity: "user:test" })).rejects.toThrow("invalid");
-    const conversation = await conversations.createConversation({ organizationId, installationId, channelType: "platform", channelKey: "sidebar", externalConversationId: "conversation:test" });
+    const conversation = await conversations.createConversation({ organizationId, installationId, channelType: "platform", channelKey: "channel-test", externalConversationId: "conversation:test" });
     conversationId = conversation.id;
     expect(await conversations.getConversation(otherOrganizationId, conversation.id)).toBeNull();
     expect(await conversations.listMessages(otherOrganizationId, conversation.id)).toEqual([]);

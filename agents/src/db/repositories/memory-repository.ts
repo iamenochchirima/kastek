@@ -32,6 +32,7 @@ export interface MemoryScope {
   installationId?: string;
   conversationId?: string;
   actorId?: string;
+  runId?: string;
 }
 
 export class MemoryRepository {
@@ -96,7 +97,7 @@ export class MemoryRepository {
     return result.rows[0]!;
   }
 
-  public async searchMemory(scope: MemoryScope, searchText: string, limit = 8): Promise<MemoryRecord[]> {
+  public async searchMemory(scope: MemoryScope, searchText: string, limit = 8, namespaces?: readonly MemoryNamespace[]): Promise<MemoryRecord[]> {
     const result = await query<MemoryRecord>(
       this.pool,
       `SELECT * FROM memory_records
@@ -110,12 +111,27 @@ export class MemoryRepository {
            OR (namespace = 'conversation' AND conversation_id = $4)
            OR (namespace = 'user_private' AND owner_user_id = $5)
          )
+         AND ($7::text[] IS NULL OR namespace = ANY($7::text[]))
          AND search_vector @@ plainto_tsquery('simple', $6)
        ORDER BY ts_rank_cd(search_vector, plainto_tsquery('simple', $6)) DESC, created_at DESC
-       LIMIT $7`,
-      [scope.organizationId, scope.agentId, scope.installationId ?? null, scope.conversationId ?? null, scope.actorId ?? null, searchText, limit],
+       LIMIT $8`,
+      [scope.organizationId, scope.agentId, scope.installationId ?? null, scope.conversationId ?? null, scope.actorId ?? null, searchText, namespaces?.length ? [...namespaces] : null, Math.max(1, Math.min(limit, 50))],
     );
     return result.rows;
+  }
+
+  public async countWritesForRun(scope: MemoryScope): Promise<number> {
+    if (!scope.runId) return 0;
+    const result = await query<{ count: string }>(
+      this.pool,
+      `SELECT COUNT(*)::text AS count
+       FROM memory_records
+       WHERE organization_id = $1 AND agent_definition_id = $2
+         AND created_by = $3
+         AND provenance->>'sourceRunId' = $4`,
+      [scope.organizationId, scope.agentId, scope.actorId ?? "system", scope.runId],
+    );
+    return Number(result.rows[0]?.count ?? 0);
   }
 
   public async listMemory(scope: MemoryScope, limit = 100): Promise<MemoryRecord[]> {

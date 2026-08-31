@@ -27,6 +27,27 @@ describe("foundation migration", () => {
     expect(sql).toContain("next_node_id");
   });
 
+  it("indexes active conversation run admission", async () => {
+    const sql = await readFile(new URL("../migrations/081_conversation_run_admission.sql", import.meta.url), "utf8");
+    expect(sql).toContain("agent_runs_active_conversation_idx");
+    expect(sql).toContain("status IN ('received', 'queued', 'running'");
+  });
+
+  it("adds an idempotent durable run budget ledger", async () => {
+    const sql = await readFile(new URL("../migrations/082_run_budget_ledger.sql", import.meta.url), "utf8");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS run_budgets");
+    expect(sql).toContain("run_budget_reservations");
+    expect(sql).toContain("UNIQUE (run_id, reservation_key)");
+    expect(sql).toContain("kasitek_validate_run_child_scope");
+  });
+
+  it("makes abandoned budget reservations explicitly reconcileable", async () => {
+    const sql = await readFile(new URL("../migrations/083_run_budget_reconciliation.sql", import.meta.url), "utf8");
+    expect(sql).toContain("'unknown'");
+    expect(sql).toContain("reconciliation_required");
+    expect(sql).toContain("run_budget_reconciliation_idx");
+  });
+
   it("contains the durable scope and run tables", async () => {
     const sql = await readFile(new URL("../migrations/001_agent_platform_foundation.sql", import.meta.url), "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_definitions");

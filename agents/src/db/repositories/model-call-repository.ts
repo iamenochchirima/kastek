@@ -126,6 +126,40 @@ export class ModelCallRepository {
     };
   }
 
+  public async usageForRun(organizationId: string, runId: string): Promise<{
+    modelCalls: number;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    estimatedCostUsd: number;
+  }> {
+    const result = await query<{
+      model_calls: string;
+      input_tokens: string;
+      output_tokens: string;
+      total_tokens: string;
+      estimated_cost_usd: string;
+    }>(
+      this.pool,
+      `SELECT COUNT(*) FILTER (WHERE status = 'completed')::text AS model_calls,
+              COALESCE(SUM(input_tokens) FILTER (WHERE status = 'completed'), 0)::text AS input_tokens,
+              COALESCE(SUM(output_tokens) FILTER (WHERE status = 'completed'), 0)::text AS output_tokens,
+              COALESCE(SUM(total_tokens) FILTER (WHERE status = 'completed'), 0)::text AS total_tokens,
+              COALESCE(SUM(estimated_cost_usd) FILTER (WHERE status = 'completed'), 0)::text AS estimated_cost_usd
+       FROM model_calls
+       WHERE organization_id = $1 AND run_id = $2`,
+      [organizationId, runId],
+    );
+    const row = result.rows[0]!;
+    return {
+      modelCalls: Number(row.model_calls),
+      inputTokens: Number(row.input_tokens),
+      outputTokens: Number(row.output_tokens),
+      totalTokens: Number(row.total_tokens),
+      estimatedCostUsd: Number(row.estimated_cost_usd),
+    };
+  }
+
   public async assertRunBudget(input: { organizationId: string; runId: string; maxTotalTokens?: number; maxEstimatedCostUsd?: number; maxRequests?: number }): Promise<void> {
     const result = await query<{ requests: string; total_tokens: string; estimated_cost_usd: string }>(
       this.pool,

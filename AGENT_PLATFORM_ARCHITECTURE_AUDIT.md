@@ -246,19 +246,24 @@ Introduce a version deployment module with a small interface that owns:
 - [x] Write the version-deployment domain rules and choose the default for existing installations.
 - [x] Add deployment mode and deployed-version fields with a backward-compatible database
       migration.
-- [ ] Implement one organization-scoped version deployment module with deploy, canary, and rollback
-      operations.
-- [ ] Make run creation snapshot the deployed version in the same transaction that admits the run.
-- [ ] Update publication, rollback, and installation routes to use the deployment module.
+- [x] Implement one organization-scoped version deployment module with deploy, canary, and rollback
+      operations ([agent-deployment-repository.ts](agents/src/db/repositories/agent-deployment-repository.ts)).
+- [x] Make run creation snapshot the deployed version in the same transaction that admits the run
+      ([run-repository.ts](agents/src/db/repositories/run-repository.ts)).
+- [x] Update publication, rollback, and installation routes to use the deployment module
+      ([agent-repository.ts](agents/src/db/repositories/agent-repository.ts)).
 - [x] Separate published and deployed state in the workflow editor and agent detail UI.
-- [ ] Add repository and database tests for organization, definition, installation, and version
-      ownership.
-- [ ] Add integration tests for pinned, follow-published, staged, failed, and rolled-back
-      deployments.
-- [ ] Emit version publication, deployment, failure, and rollback events through the analytics
-      registry and structured logs.
-- [ ] Update internal agent lifecycle documentation, user documentation, migration notes, and the
-      deployment runbook.
+- [x] Add repository and database tests for organization, definition, installation, and version
+      ownership ([agent-lifecycle.integration.test.ts](agents/test/agent-lifecycle.integration.test.ts),
+      [hosted-agent-boundaries.integration.test.ts](agents/test/hosted-agent-boundaries.integration.test.ts)).
+- [x] Add integration tests for pinned, follow-published, staged, failed, and rolled-back
+      deployments ([agent-lifecycle.integration.test.ts](agents/test/agent-lifecycle.integration.test.ts)).
+- [x] Emit version publication, deployment, failure, and rollback events through the analytics
+      registry and structured logs ([agent-deployment-repository.ts](agents/src/db/repositories/agent-deployment-repository.ts),
+      [analytics-producer.test.ts](agents/test/analytics-producer.test.ts)).
+- [x] Update internal agent lifecycle documentation, user documentation, migration notes, and the
+      deployment runbook ([agent-connection-guide.md](docs/public/docs/api/agent-connection-guide.md),
+      [AGENT_VERSION_DEPLOYMENT_PLAN.md](docs/plans/active/AGENT_VERSION_DEPLOYMENT_PLAN.md)).
 - [ ] Release behind an explicit rollout control and record the post-release published-versus-
       deployed mismatch rate.
 
@@ -336,16 +341,23 @@ Add contract tests for:
 #### Implementation checklist
 
 - [ ] Add failing regression tests for every reproduced graph bug before changing the executor.
-- [ ] Add publication-time containment that rejects unsupported fan-out, fan-in, cycle, and
-      `agent_loop` configurations.
-- [ ] Define the graph module interface, durable state format, error model, and compatibility rules.
+- [x] Add publication-time containment that rejects unsupported fan-out, fan-in, cycle, and
+      `agent_loop` configurations ([graph.ts](agents/src/workflows/graph.ts)).
+- [x] Define the graph module interface, durable state format, error model, and compatibility rules
+      ([executor.ts](agents/src/workflows/executor.ts), migration 080).
 - [ ] Compile `stateSchema` once and validate initial, intermediate, resumed, and final state.
-- [ ] Enforce node, edge, graph-step, model-call, token, cost, tool, and wall-clock limits.
-- [ ] Replace whole-snapshot fan-out merges with branch deltas and overlapping-write validation.
+      Runtime validation now covers those boundaries, but schema compilation/caching remains open.
+- [x] Enforce node, edge, graph-step, model-call, token, cost, tool, and wall-clock limits
+      ([executor.ts](agents/src/workflows/executor.ts)).
+- [x] Replace whole-snapshot fan-out merges with branch deltas and overlapping-write validation
+      ([executor.ts](agents/src/workflows/executor.ts)).
 - [ ] Implement one-time fan-in after all required branches complete.
 - [ ] Wire `agent_loop` through the same bounded loop module used by normal hosted runs.
-- [ ] Persist node checkpoints, pause state, branch state, and idempotency keys.
-- [ ] Aggregate model and tool usage across every node and branch.
+- [x] Persist node checkpoints, pause state, branch state, and idempotency keys
+      ([workflow-checkpoint-repository.ts](agents/src/db/repositories/workflow-checkpoint-repository.ts),
+      migration 080).
+- [x] Aggregate model and tool usage across every node and branch
+      ([executor.ts](agents/src/workflows/executor.ts)).
 - [ ] Add crash, replay, cancellation, approval, handoff, and external-event contract tests.
 - [ ] Update workflow schema documentation, preview labels, migration guidance, runbooks, metrics,
       and rollback controls.
@@ -408,9 +420,11 @@ hold product evidence and idempotency records, not act as a replacement workflow
 - [ ] Move loop and graph coordination into Temporal workflow code without placing non-deterministic
       work there.
 - [ ] Give each model and tool operation a stable idempotency key and durable outcome state.
-- [ ] Align activity, provider, tool, heartbeat, schedule-to-close, and workflow timeouts.
-- [ ] Propagate cancellation to provider and tool adapters that support it.
-- [ ] Record `unknown_outcome` and schedule reconciliation when cancellation cannot prove the
+- [x] Align activity, provider, tool, heartbeat, schedule-to-close, and workflow timeouts
+      ([workflows.ts](agents/src/temporal/workflows.ts), [activities.ts](agents/src/temporal/activities.ts)).
+- [x] Propagate cancellation to provider and tool adapters that support it
+      ([loop.ts](agents/src/runtime/loop.ts), [types.ts](agents/src/tools/types.ts)).
+- [x] Record `unknown_outcome` and schedule reconciliation when cancellation cannot prove the
       remote outcome.
 - [ ] Add worker-kill tests around every model, tool, approval, effect, and completion checkpoint.
 - [ ] Add retry, timeout, cancellation, and reconciliation metrics with bounded structured logs.
@@ -436,12 +450,18 @@ Completion criteria:
 
 #### Implementation checklist
 
-- [ ] Define one run-budget interface and canonical usage record for every execution mode.
-- [ ] Implement atomic reserve, capture, release, and reconcile operations.
-- [ ] Pass the remaining budget into graph model, tool, and nested loop nodes.
+- [x] Define one run-budget interface and canonical usage record for every execution mode
+      ([run-budget-repository.ts](agents/src/db/repositories/run-budget-repository.ts), migration 082).
+- [x] Implement atomic reserve, capture, release, and reconcile operations. Stale reservations are
+      marked `unknown` and can be resolved only through an explicit provider-outcome decision
+      ([run-budget-repository.ts](agents/src/db/repositories/run-budget-repository.ts), migration 083).
+- [x] Pass the remaining budget into graph model, tool, and nested loop nodes
+      ([activities.ts](agents/src/temporal/activities.ts), [loop.ts](agents/src/runtime/loop.ts)).
 - [ ] Reserve parallel branch capacity before launching work.
-- [ ] Replace last-response usage reporting with aggregation from durable model-call records.
-- [ ] Add concurrency, retry, partial-failure, over-budget, and reconciliation tests.
+- [x] Replace last-response usage reporting with aggregation from durable model-call records
+      ([model-call-repository.ts](agents/src/db/repositories/model-call-repository.ts), [activities.ts](agents/src/temporal/activities.ts)).
+- [x] Add over-budget and reconciliation tests ([run.integration.test.ts](agents/test/run.integration.test.ts));
+      parallel reservation, worker-retry, and provider-side reconciliation tests remain open.
 - [ ] Add budget exhaustion metrics, customer-safe errors, operator diagnostics, and a reconciliation
       runbook.
 - [ ] Compare billed, reserved, captured, and provider-reported usage during staged rollout.
@@ -510,22 +530,27 @@ cross-agent access.
 
 #### Implementation checklist
 
-- [ ] Add a typed installation memory policy with disabled, explicit, reviewed, and automatic
-      modes.
-- [ ] Define the memory module interface for extraction, review, storage, retrieval, correction,
-      expiry, and deletion.
+- [x] Add a typed installation memory policy with disabled, explicit, reviewed, and automatic
+      modes ([policy.ts](agents/src/memory/policy.ts)).
+- [x] Define the memory module interface for extraction, review, storage, retrieval, correction,
+      expiry, and deletion ([lifecycle.ts](agents/src/memory/lifecycle.ts)); extraction, review,
+      and correction adapters remain open.
 - [ ] Implement conversation evidence selection and candidate fact or episode extraction.
-- [ ] Store provenance, confidence, sensitivity, expiry, source run, source message, model, and
-      extraction version.
+- [x] Store provenance, confidence, sensitivity, expiry, and source run for explicit runtime writes
+      ([lifecycle.ts](agents/src/memory/lifecycle.ts)); source message, model, and extraction
+      version remain open for inferred-memory work.
 - [ ] Add automatic write, review queue, quarantine, rejection, correction, and revalidation paths.
 - [ ] Run consolidation after explicit evidence thresholds instead of after every message.
-- [ ] Apply organization, agent, installation, user, conversation, and namespace scope to every
-      memory operation.
+- [x] Apply organization, agent, installation, user, conversation, and namespace scope to every
+      runtime memory search and explicit write ([memory-repository.ts](agents/src/db/repositories/memory-repository.ts),
+      [lifecycle.ts](agents/src/memory/lifecycle.ts)).
 - [ ] Make deletion remove keyword, vector, summary, cache, and other derived representations.
-- [ ] Add lifecycle, policy-mode, contradiction, poisoning, correction, expiry, and deletion tests.
+- [x] Add lifecycle and policy-mode tests ([memory-policy.test.ts](agents/test/memory-policy.test.ts));
+      contradiction, correction, poisoning, expiry, and deletion coverage remains open.
 - [ ] Add memory extraction, acceptance, retrieval, quarantine, correction, and deletion metrics.
-- [ ] Update memory architecture, privacy, retention, user controls, migration, and operations
-      documentation.
+- [x] Update memory architecture and runtime policy documentation
+      ([agent-memory-lifecycle.md](docs/internal/architecture/agent-memory-lifecycle.md)); privacy,
+      user controls, migration, and operations documentation remain open.
 
 ### P1.2 Add PostgreSQL row-level security
 
@@ -651,7 +676,8 @@ process-local lock.
 - [ ] Record one-active-run-per-conversation as the default ordering invariant.
 - [ ] Define queued, interrupted, superseded, cancelled, and completed message behavior.
 - [ ] Choose the durable ownership mechanism and document its lease or workflow identity rules.
-- [ ] Implement atomic admission so two API replicas cannot start competing runs.
+- [x] Implement atomic admission so two API replicas cannot start competing runs
+      ([run-repository.ts](agents/src/db/repositories/run-repository.ts), migration 081).
 - [ ] Preserve sequence order when retries, channel redelivery, or delayed media completion occurs.
 - [ ] Add tests for simultaneous messages, interruption, cancellation, worker death, and redelivery.
 - [ ] Add queue depth, wait time, stale ownership, interruption, and duplicate-admission metrics.

@@ -1,8 +1,11 @@
 import type { Pool } from "pg";
 import { RunRepository } from "../db/repositories/run-repository";
 import { ModelCallRepository } from "../db/repositories/model-call-repository";
+import { RunBudgetRepository } from "../db/repositories/run-budget-repository";
 import { ConversationRepository } from "../db/repositories/conversation-repository";
 import { MemoryRepository } from "../db/repositories/memory-repository";
+import { MemoryLifecycle } from "../memory/lifecycle";
+import { decideMemoryRetrieval } from "../memory/retrieval";
 import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
 import type { AgentRunActivities } from "./contracts";
 import { ModelGateway } from "../model/gateway";
@@ -10,9 +13,8 @@ import { EnvironmentCredentialResolver, VaultCredentialResolver, type Credential
 import type { ModelPricing, ModelProvider } from "../model/types";
 import { runBoundedAgentLoop, type AgentLoopResult, type ModelCreditReservation } from "../runtime/loop";
 import type { ModelCreditPricing } from "../model/credit-pricing";
-import { actualModelCallCredits, estimateModelCallCredits, shouldChargeModelCredits } from "../model/credit-pricing";
+import { actualModelCallCredits, estimateModelCallCredits, estimatePromptTokens, shouldChargeModelCredits } from "../model/credit-pricing";
 import { buildAgentContext } from "../runtime/context";
-import { retrievalGate } from "../runtime/context";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
 import { KasitekCoreReadClient } from "../core/client";
 import type { AppConfig } from "../config";
@@ -185,8 +187,106 @@ export async function reserveModelCredits(input: {
   };
 }
 
-export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversationActions?: ConversationActionService, integrationTools?: IntegrationToolService): ToolRegistry {
+async function reserveRunModelBudget(input: {
+  repository: RunBudgetRepository;
+  organizationId: string;
+  runId: string;
+  reservationKey: string;
+  gateway: ModelGateway;
+  request: ModelRequest;
+}): Promise<ModelCreditReservation> {
+  const estimatedInputTokens = estimatePromptTokens(input.request);
+  const estimatedOutputTokens = Math.max(1, input.request.maxTokens ?? 4_096);
+  const reservation = await input.repository.reserveModelCall({
+    organizationId: input.organizationId,
+    runId: input.runId,
+    reservationKey: input.reservationKey,
+    estimatedTokens: estimatedInputTokens + estimatedOutputTokens,
+    estimatedCostUsd: input.gateway.estimateCost(input.request.provider, input.request.model, estimatedInputTokens, estimatedOutputTokens),
+  });
+  return {
+    capture: async (response) => reservation.capture(response.usage),
+    release: async (reason) => reservation.release(reason),
+  };
+}
+
+export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversationActions?: ConversationActionService, integrationTools?: IntegrationToolService, memoryRepository?: MemoryRepository): ToolRegistry {
   const tools = new ToolRegistry();
+  if (memoryRepository) {
+    const memoryLifecycle = new MemoryLifecycle(memoryRepository);
+    tools.register({
+      name: "kasitek.agent.memory_search",
+      version: "1.0.0",
+      description: "Search the current agent's permitted memory for relevant prior evidence.",
+      riskClass: "read",
+      requiresApproval: false,
+      timeoutMs: 8_000,
+      inputSchema: {
+        type: "object",
+        properties: { query: { type: "string", minLength: 1, maxLength: 4_000 }, limit: { type: "integer", minimum: 1, maximum: 20 } },
+        required: ["query"],
+        additionalProperties: false,
+      },
+      outputSchema: { type: "object", properties: { memories: { type: "array" } }, required: ["memories"], additionalProperties: false },
+      manifest: { ownerService: "agents", requiredScope: "agent.memory.read", execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: ["memories.content", "memories.provenance"] },
+      handler: async (context, args) => {
+        const records = await memoryLifecycle.search(
+          { organizationId: context.organizationId, agentId: context.agentId, installationId: context.installationId, conversationId: context.conversationId, actorId: context.actorId },
+          String(args.query),
+          context.memoryPolicy,
+          typeof args.limit === "number" ? args.limit : undefined,
+        );
+        return {
+          memories: records.map((record) => ({
+            id: record.id,
+            namespace: record.namespace,
+            memoryType: record.memory_type,
+            text: record.canonical_text,
+            sensitivity: record.sensitivity,
+            confidence: record.confidence,
+            expiresAt: record.expires_at,
+          })),
+        };
+      },
+    });
+    tools.register({
+      name: "kasitek.agent.memory_remember",
+      version: "1.0.0",
+      description: "Save an explicit user-requested memory for this agent after approval.",
+      riskClass: "controlled-write",
+      requiresApproval: true,
+      timeoutMs: 8_000,
+      inputSchema: {
+        type: "object",
+        properties: {
+          namespace: { type: "string", enum: ["conversation", "user_private", "organization_shared", "agent_private"] },
+          memoryType: { type: "string", enum: ["working", "semantic", "episodic", "procedural"] },
+          text: { type: "string", minLength: 1, maxLength: 8_000 },
+          sensitivity: { type: "string", enum: ["normal", "sensitive", "restricted"] },
+          expiresAt: { type: ["string", "null"] },
+        },
+        required: ["namespace", "memoryType", "text"],
+        additionalProperties: false,
+      },
+      outputSchema: { type: "object", properties: { memory: { type: "object" } }, required: ["memory"], additionalProperties: false },
+      manifest: { ownerService: "agents", requiredScope: "agent.memory.write", execution: "durable", idempotency: "required", approval: "always", auditClassification: "restricted", redaction: ["memory.content", "memory.provenance"] },
+      handler: async (context, args) => {
+        const memory = await memoryLifecycle.rememberExplicit(
+          { organizationId: context.organizationId, agentId: context.agentId, installationId: context.installationId, conversationId: context.conversationId, actorId: context.actorId, runId: context.runId },
+          {
+            namespace: String(args.namespace) as Parameters<MemoryLifecycle["rememberExplicit"]>[1]["namespace"],
+            memoryType: String(args.memoryType) as Parameters<MemoryLifecycle["rememberExplicit"]>[1]["memoryType"],
+            canonicalText: String(args.text),
+            sensitivity: typeof args.sensitivity === "string" ? args.sensitivity as "normal" | "sensitive" | "restricted" : undefined,
+            expiresAt: args.expiresAt === null || typeof args.expiresAt === "string" ? args.expiresAt : undefined,
+            ...(String(args.namespace) === "user_private" && context.actorId ? { ownerUserId: context.actorId } : {}),
+          },
+          context.memoryPolicy,
+        );
+        return { memory: { id: memory.id, namespace: memory.namespace, memoryType: memory.memory_type, text: memory.canonical_text, expiresAt: memory.expires_at } };
+      },
+    });
+  }
   tools.register({
     name: "kasitek.agent.respond",
     version: "1.0.0",
@@ -1660,6 +1760,7 @@ async function assertCurrentCapabilityPolicy(input: {
 export function createActivities(pool: Pool, options: ActivityOptions = {}): AgentRunActivities {
   const runs = new RunRepository(pool);
   const modelCalls = new ModelCallRepository(pool);
+  const runBudgets = new RunBudgetRepository(pool);
   const conversations = new ConversationRepository(pool);
   const memory = new MemoryRepository(pool);
   const knowledge = new KnowledgeRepository(pool);
@@ -1691,7 +1792,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const handoffs = new HandoffRepository(pool);
   const integrationRepository = options.config ? new IntegrationRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY) : undefined;
   const integrationTools = options.integrationTools ?? (integrationRepository ? new IntegrationToolService(integrationRepository, options.config) : undefined);
-  const tools = options.tools ?? createDefaultTools(coreClient, conversationActions, integrationTools);
+  const tools = options.tools ?? createDefaultTools(coreClient, conversationActions, integrationTools, memory);
   const activities: AgentRunActivities = {
     async transitionRun(input) {
       await runs.transitionRun(input.runId, input.expectedStatus, input.nextStatus);
@@ -1704,6 +1805,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           run,
           input.resumeApprovedToolCall,
           runs,
+          runBudgets,
           toolInvocations,
           approvals,
           effectReceipts,
@@ -1716,7 +1818,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           coreClient,
         );
       }
-      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, runs, modelCalls, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, runs, modelCalls, runBudgets, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions);
     },
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
@@ -2057,6 +2159,7 @@ async function executeMcpToolRun(
   run: Awaited<ReturnType<RunRepository["getRuntimeRun"]>> & object,
   resumeApprovedToolCall: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeApprovedToolCall"],
   runs: RunRepository,
+  runBudgets: RunBudgetRepository,
   toolInvocations: ToolInvocationRepository,
   approvals: ApprovalRepository,
   effectReceipts: EffectReceiptRepository,
@@ -2074,6 +2177,12 @@ async function executeMcpToolRun(
     name: run.input.mcpTool.name,
     arguments: run.input.mcpTool.arguments,
   };
+  const configuration = run.configuration ?? {};
+  const installationSettings = run.installation_settings ?? {};
+  await runBudgets.ensure(
+    { organizationId: run.organization_id, runId: run.id },
+    { maxToolCalls: restrictiveLimit(configuration.maxToolCalls, installationSettings.maxToolCalls) ?? 16 },
+  );
   const manifest = tools.get(invocation.name);
   if (!manifest) throw new Error(`Tool is not registered: ${invocation.name}`);
   const argumentsHash = hashToolArguments(invocation.arguments);
@@ -2197,6 +2306,7 @@ async function executeMcpToolRun(
         permittedEffectKey: `${run.id}:${invocation.id}`,
       });
     }
+    await runBudgets.consumeToolCall({ organizationId: run.organization_id, runId: run.id });
     const result = await tools.invoke({
       name: invocation.name,
       arguments: invocation.arguments,
@@ -2289,6 +2399,7 @@ async function executeLoopForRun(
   resumeExternalEvent: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeExternalEvent"],
   runs: RunRepository,
   modelCalls: ModelCallRepository,
+  runBudgets: RunBudgetRepository,
   conversations: ConversationRepository,
   memory: MemoryRepository,
   knowledge: KnowledgeRepository,
@@ -2318,6 +2429,13 @@ async function executeLoopForRun(
   const installationSettings = run.installation_settings ?? {};
   const activitySignal = currentActivitySignal();
   const modelTarget = resolveModelTarget(configuration, run.policy);
+  const runBudgetLimits = {
+    maxModelCalls: restrictiveLimit(configuration.maxModelCalls, installationSettings.maxModelCalls) ?? 8,
+    maxToolCalls: restrictiveLimit(configuration.maxToolCalls, installationSettings.maxToolCalls) ?? 16,
+    maxTotalTokens: restrictiveLimit(modelTarget.maxTokensPerRun, configuration.maxTotalTokens, installationSettings.maxTotalTokens) ?? 32_000,
+    maxEstimatedCostUsd: restrictiveLimit(modelTarget.maxEstimatedCostUsd, configuration.maxEstimatedCostUsd, installationSettings.maxEstimatedCostUsd),
+  };
+  await runBudgets.ensure({ organizationId: run.organization_id, runId: run.id }, runBudgetLimits);
   const isKasiAiInstallation = run.execution_mode === "system_hosted"
     && run.agent_owner_type === "system"
     && run.agent_protected === true
@@ -2430,7 +2548,12 @@ async function executeLoopForRun(
       })
     : [];
   const conversationSummary = run.conversation_id ? await summaries.getSummary(run.organization_id, run.conversation_id) : null;
-  const retrievalRequested = retrievalGate(currentMessage, { always: run.installation_settings?.profile === "general" });
+  const memoryLifecycle = new MemoryLifecycle(memory);
+  const retrievalDecision = decideMemoryRetrieval(currentMessage, {
+    always: run.installation_settings?.profile === "general",
+    policy: run.policy,
+  });
+  const retrievalRequested = retrievalDecision.requested;
   const retrievalScope = {
     organizationId: run.organization_id,
     agentId: run.agent_definition_id,
@@ -2438,7 +2561,7 @@ async function executeLoopForRun(
     conversationId: run.conversation_id ?? undefined,
     actorId: run.created_by,
   };
-  const memoryMatches = retrievalRequested ? await memory.searchMemory(retrievalScope, currentMessage) : [];
+  const memoryMatches = retrievalRequested ? await memoryLifecycle.search(retrievalScope, retrievalDecision.query, run.policy) : [];
   const knowledgeMatches = retrievalRequested ? await knowledge.search(retrievalScope, currentMessage) : [];
   const retrievalStep = await runSteps.startStep({
     runId: run.id,
@@ -2473,6 +2596,7 @@ async function executeLoopForRun(
     channelType: conversation?.channel_type,
     currentMessage,
     alwaysRetrieveKnowledge: run.installation_settings?.profile === "general",
+    retrievalDecision,
     summary: conversationSummary?.summary,
     longTermMemory: longTermMemory || undefined,
     recentMessages: durableMessages.map((message) => ({
@@ -2500,6 +2624,7 @@ async function executeLoopForRun(
     conversationId: run.conversation_id ?? undefined,
     actorId: run.created_by,
     correlationId: run.correlation_id,
+    memoryPolicy: run.policy && typeof run.policy.memory === "object" && !Array.isArray(run.policy.memory) ? run.policy.memory as Record<string, unknown> : undefined,
   };
   const contextStep = await runSteps.startStep({
     runId: run.id,
@@ -2521,13 +2646,14 @@ async function executeLoopForRun(
       estimatedTokens: context.estimatedTokens,
       omittedMessageCount: context.omittedMessageCount,
       retrievalRequested: context.retrievalRequested,
+      retrievalReason: context.retrievalDecision.reason,
       messageCount: context.messages.length,
       memoryMatchCount: memoryMatches.length,
       knowledgeMatchCount: knowledgeMatches.length,
     },
   });
   if (configuration.workflow && typeof configuration.workflow === "object" && !Array.isArray(configuration.workflow)) {
-    return executeConfiguredWorkflow({
+    const workflowResult = await executeConfiguredWorkflow({
       run,
       graphInput: configuration.workflow,
       inputState: { input: currentMessage, context: dynamicContext ?? {}, output: {} },
@@ -2552,6 +2678,7 @@ async function executeLoopForRun(
       controls,
       workflowState,
       workflowCheckpoints,
+      runBudget: runBudgets,
       resumeApprovedToolCall,
       resumeExternalEvent,
       coreClient,
@@ -2559,13 +2686,14 @@ async function executeLoopForRun(
       conversationActions,
       limits: {
         maxSteps: restrictiveLimit(configuration.maxIterations) ?? 8,
-        maxModelCalls: restrictiveLimit(configuration.maxModelCalls, installationSettings.maxModelCalls) ?? 8,
-        maxToolCalls: restrictiveLimit(configuration.maxToolCalls, installationSettings.maxToolCalls) ?? 16,
-        maxTotalTokens: restrictiveLimit(modelTarget.maxTokensPerRun, configuration.maxTotalTokens, installationSettings.maxTotalTokens) ?? 32_000,
-        maxEstimatedCostUsd: restrictiveLimit(modelTarget.maxEstimatedCostUsd, installationSettings.maxEstimatedCostUsd),
+        maxModelCalls: runBudgetLimits.maxModelCalls,
+        maxToolCalls: runBudgetLimits.maxToolCalls,
+        maxTotalTokens: runBudgetLimits.maxTotalTokens,
+        maxEstimatedCostUsd: runBudgetLimits.maxEstimatedCostUsd,
         maxWallTimeMs: restrictiveLimit(configuration.maxWallTimeMs) ?? 60_000,
       },
     });
+    return { ...workflowResult, usage: await modelCalls.usageForRun(run.organization_id, run.id) };
   }
   const approvedResourceSnapshot = resumeApprovedToolCall?.approval.resourceSnapshot
     ?? (resumeApprovedToolCall ? (await approvals.getForRun(run.organization_id, run.id))?.resource_snapshot : undefined);
@@ -2585,18 +2713,13 @@ async function executeLoopForRun(
     signal: activitySignal,
     limits: {
       maxIterations: typeof configuration.maxIterations === "number" ? configuration.maxIterations : undefined,
-      maxToolCalls: typeof configuration.maxToolCalls === "number" ? configuration.maxToolCalls : undefined,
-      maxTotalTokens: restrictiveLimit(modelTarget.maxTokensPerRun, configuration.maxTotalTokens, installationSettings.maxTotalTokens),
-      maxEstimatedCostUsd: restrictiveLimit(modelTarget.maxEstimatedCostUsd, installationSettings.maxEstimatedCostUsd),
+      maxToolCalls: runBudgetLimits.maxToolCalls,
+      maxTotalTokens: runBudgetLimits.maxTotalTokens,
+      maxEstimatedCostUsd: runBudgetLimits.maxEstimatedCostUsd,
       maxWallTimeMs: typeof configuration.maxWallTimeMs === "number" ? configuration.maxWallTimeMs : undefined,
     },
-    beforeModelCall: () => modelCalls.assertRunBudget({
-      organizationId: run.organization_id,
-      runId: run.id,
-      maxTotalTokens: restrictiveLimit(modelTarget.maxTokensPerRun, configuration.maxTotalTokens, installationSettings.maxTotalTokens),
-      maxEstimatedCostUsd: restrictiveLimit(modelTarget.maxEstimatedCostUsd, installationSettings.maxEstimatedCostUsd),
-      maxRequests: restrictiveLimit(configuration.maxModelCalls, installationSettings.maxModelCalls),
-    }),
+    reserveRunBudget: async ({ request, reservationKey }) => reserveRunModelBudget({ repository: runBudgets, organizationId: run.organization_id, runId: run.id, reservationKey, gateway, request }),
+    consumeRunToolCall: () => runBudgets.consumeToolCall({ organizationId: run.organization_id, runId: run.id }),
     reserveModelCall: async ({ request, credentials: attemptCredentials }) => {
       return reserveModelCredits({
         billingMode: creditBillingMode,
@@ -2808,6 +2931,7 @@ async function executeLoopForRun(
     retrievalRequested,
     knowledgeMatchCount: knowledgeMatches.length,
   });
+  loopResult.usage = await modelCalls.usageForRun(run.organization_id, run.id);
   return loopResult;
 }
 
@@ -2838,6 +2962,7 @@ async function executeConfiguredWorkflow(input: {
   controls: OperatorControlRepository;
   workflowState: WorkflowStateRepository;
   workflowCheckpoints: WorkflowCheckpointRepository;
+  runBudget: RunBudgetRepository;
   coreClient?: KasitekCoreReadClient;
   modelToolContext: ToolInvocationContext;
   conversationActions: ConversationActionService;
@@ -2945,6 +3070,7 @@ async function executeConfiguredWorkflow(input: {
           permittedEffectKey: `${input.run.id}:${providerToolCallId}`,
         });
       }
+      await input.runBudget.consumeToolCall({ organizationId: input.run.organization_id, runId: input.run.id });
       const result = await withActivityHeartbeat({ phase: "workflow.tool.running", nodeId: request.nodeId, tool: request.name }, () => input.tools.invoke({
         name: request.name,
         arguments: request.arguments,
@@ -2957,6 +3083,7 @@ async function executeConfiguredWorkflow(input: {
           conversationId: input.run.conversation_id ?? undefined,
           actorId: input.run.created_by,
           correlationId: input.run.correlation_id,
+          memoryPolicy: input.run.policy && typeof input.run.policy.memory === "object" && !Array.isArray(input.run.policy.memory) ? input.run.policy.memory as Record<string, unknown> : undefined,
           signal: currentActivitySignal(),
         },
         signal: currentActivitySignal(),
@@ -3009,6 +3136,7 @@ async function executeConfiguredWorkflow(input: {
         signal: currentActivitySignal(),
       };
       activityHeartbeat({ phase: "workflow.model.started", nodeId });
+      const runBudgetReservation = await reserveRunModelBudget({ repository: input.runBudget, organizationId: input.run.organization_id, runId: input.run.id, reservationKey: `workflow:model:${nodeId}`, gateway: input.gateway, request });
       const creditReservation = await reserveModelCredits({
         billingMode: input.creditBillingMode,
         gateway: input.gateway,
@@ -3023,8 +3151,10 @@ async function executeConfiguredWorkflow(input: {
       let response: ModelResponse;
       try {
         response = await withActivityHeartbeat({ phase: "workflow.model.running", nodeId }, () => input.gateway.complete(request, input.modelCredentials));
+        await runBudgetReservation.capture(response);
         await creditReservation?.capture(response);
       } catch (error) {
+        await runBudgetReservation.release(error instanceof Error ? error.message : "workflow model failure").catch(() => undefined);
         if (creditReservation) await creditReservation.release(error instanceof Error ? error.message : "workflow model failure").catch(() => undefined);
         throw error;
       }

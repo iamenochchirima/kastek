@@ -129,6 +129,22 @@ export class RunRepository {
             code: "conversation_handoff_active",
           });
         }
+        const activeConversationRun = await client.query<{ id: string; status: RunStatus }>(
+          `SELECT id, status
+           FROM agent_runs
+           WHERE organization_id = $1 AND conversation_id = $2
+             AND status IN ('received', 'queued', 'running', 'awaiting_approval', 'awaiting_human', 'awaiting_external_event')
+           ORDER BY created_at ASC
+           LIMIT 1`,
+          [organizationId, input.conversationId],
+        );
+        if (activeConversationRun.rows[0]) {
+          throw Object.assign(new Error("This conversation already has an active agent run; retry after it reaches a terminal state"), {
+            statusCode: 409,
+            code: "conversation_run_active",
+            runId: activeConversationRun.rows[0].id,
+          });
+        }
       }
       const maxConcurrentRuns = typeof target.policy.maxConcurrentRuns === "number"
         ? Math.trunc(target.policy.maxConcurrentRuns)
@@ -286,10 +302,10 @@ export class RunRepository {
       if (!run) throw new Error("Run not found");
       if (run.status === "completed") return run;
       assertRunTransition(run.status, "completed");
-      const response = parseAgentResponse(output.response ?? { text: typeof output.message === "string" ? output.message : "" });
-      const responseMessage = response.text;
       let replySuppressed = false;
       if (run.conversation_id) {
+        const response = parseAgentResponse(output.response ?? { text: typeof output.message === "string" ? output.message : "" });
+        const responseMessage = response.text;
         const conversation = await client.query<{
           id: string;
           status: string;

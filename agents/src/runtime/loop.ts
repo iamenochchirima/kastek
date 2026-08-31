@@ -44,6 +44,11 @@ export interface AgentLoopInput {
     request: ModelRequest;
     credentials: ModelCredentials;
   }) => Promise<ModelCreditReservation | undefined>;
+  reserveRunBudget?: (input: {
+    request: ModelRequest;
+    reservationKey: string;
+  }) => Promise<ModelCreditReservation | undefined>;
+  consumeRunToolCall?: () => Promise<void>;
   beforeModelCall?: () => Promise<void> | void;
   beforeToolInvoke?: (input: {
     toolCallId: string;
@@ -147,6 +152,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         arguments: resumed.arguments,
         approved: true,
       });
+      await input.consumeRunToolCall?.();
       const result = await input.tools.invoke({
         name: resumed.name,
         arguments: resumed.arguments,
@@ -210,6 +216,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       for (const attempt of attempts) {
         lastModelAttempt = attempt;
         let creditReservation: ModelCreditReservation | undefined;
+        let runBudgetReservation: ModelCreditReservation | undefined;
         try {
           await input.beforeModelCall?.();
           const request: ModelRequest = {
@@ -219,14 +226,22 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             tools: input.tools.list(input.grantedTools),
             maxTokens: attempt.model.maxTokens === undefined ? remainingTokens : Math.min(attempt.model.maxTokens, remainingTokens),
           };
+          runBudgetReservation = await input.reserveRunBudget?.({ request, reservationKey: `model:${iteration}:${attempts.indexOf(attempt)}` });
           creditReservation = await input.reserveModelCall?.({ request, credentials: attempt.credentials });
           response = await input.gateway.complete(request, attempt.credentials);
+          if (runBudgetReservation) {
+            await runBudgetReservation.capture(response);
+            runBudgetReservation = undefined;
+          }
           if (creditReservation) {
             await creditReservation.capture(response);
             creditReservation = undefined;
           }
           break;
         } catch (error) {
+          if (runBudgetReservation) {
+            await runBudgetReservation.release(error instanceof Error ? error.message : "model provider failure").catch(() => undefined);
+          }
           if (creditReservation) {
             await creditReservation.release(error instanceof Error ? error.message : "model provider failure").catch(() => undefined);
           }
@@ -294,6 +309,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             arguments: toolCall.arguments,
             approved: false,
           });
+          await input.consumeRunToolCall?.();
           const result = await input.tools.invoke({
             name: toolCall.name,
             arguments: toolCall.arguments,

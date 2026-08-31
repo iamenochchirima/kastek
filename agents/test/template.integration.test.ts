@@ -25,7 +25,9 @@ describe.skipIf(!runIntegration)("agent template installation (integration)", ()
       "SELECT channel_type, channel_key FROM channel_connections WHERE organization_id = $1 AND installation_id = $2",
       [organizationId, first.installation.id],
     );
-    expect(channels.rows).toEqual([{ channel_type: "platform", channel_key: "sidebar" }]);
+    // The platform sidebar belongs only to the protected KasiAi installation.
+    // User-owned template installations connect channels explicitly.
+    expect(channels.rows).toEqual([]);
   });
 
   beforeAll(async () => { await pool.query("SELECT 1"); });

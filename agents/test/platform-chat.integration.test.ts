@@ -328,6 +328,8 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       messageType: "text",
       content: { text: "Please connect me to a person." },
     });
+    expect(handoffThread.run).toBeNull();
+    expect(handoffThread.handoffRequestId).toBeTruthy();
     await pool.query(
       `UPDATE conversations
        SET handoff_state = 'handoff_requested', handoff_revision = handoff_revision + 1
@@ -341,10 +343,6 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       content: { text: "This agent reply must be blocked." },
       provider: "platform",
     })).rejects.toMatchObject({ code: "conversation_handoff_active", statusCode: 409 });
-    await runs.transitionRun(handoffThread.run.id, "received", "queued");
-    await runs.transitionRun(handoffThread.run.id, "queued", "running");
-    const suppressed = await runs.completeRun(handoffThread.run.id, { message: "This response must not be sent." });
-    expect(suppressed.output).toMatchObject({ replySuppressed: true, replySuppressionReason: "conversation_handoff_active" });
     expect((await conversations.listMessages(organizationId, handoffThread.conversation.id))
       .filter((message) => message.direction === "outbound")).toHaveLength(0);
     await expect(platformChat.acceptExternalMessage({
@@ -458,6 +456,8 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     await pool.query("DELETE FROM conversation_summaries WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM delivery_attempts WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM channel_pairing_tokens WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_handoff_requests WHERE organization_id = $1", [organizationId]);
+    await pool.query("DELETE FROM agent_handoff_offers WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM messages WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM participants WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM run_workflow_state WHERE organization_id = $1", [organizationId]);
