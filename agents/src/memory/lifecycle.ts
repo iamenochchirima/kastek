@@ -13,6 +13,17 @@ export interface RememberInput {
   supersedesMemoryId?: string;
 }
 
+export interface InferredMemoryInput {
+  namespace: MemoryNamespace;
+  memoryType: Exclude<MemoryType, "procedural">;
+  canonicalText: string;
+  content?: Record<string, unknown>;
+  confidence?: number;
+  factKey?: string;
+  provenance: Record<string, unknown>;
+  expiresAt?: string | null;
+}
+
 export class MemoryLifecycle {
   public constructor(private readonly repository: MemoryRepository) {}
 
@@ -53,6 +64,41 @@ export class MemoryLifecycle {
       ...(input.factKey ? { factKey: input.factKey } : {}),
       ...(input.supersedesMemoryId ? { supersedesMemoryId: input.supersedesMemoryId } : {}),
       allowInferred: false,
+      allowProceduralInference: false,
+    });
+  }
+
+  public async rememberInferred(scope: MemoryScope, input: InferredMemoryInput, policyValue: unknown): Promise<MemoryRecord> {
+    const policy = this.policy(policyValue);
+    if (policy.mode !== "reviewed" && policy.mode !== "automatic") throw new Error("MEMORY_INFERENCE_DISABLED");
+    if (!policy.writableNamespaces.includes(input.namespace)) throw new Error("MEMORY_NAMESPACE_NOT_ALLOWED");
+    if (!policy.writableTypes.includes(input.memoryType)) throw new Error("MEMORY_TYPE_NOT_ALLOWED");
+    const canonicalText = input.canonicalText.trim();
+    if (!canonicalText || canonicalText.length > 8_000) throw new Error("MEMORY_TEXT_INVALID");
+    if (scope.runId && await this.repository.countWritesForRun(scope) >= policy.maxWritesPerRun) {
+      throw new Error("MEMORY_WRITE_LIMIT_EXCEEDED");
+    }
+    const requestedExpiresAt = input.expiresAt;
+    const expiresAt = requestedExpiresAt === undefined
+      ? policy.retentionDays === undefined ? undefined : new Date(Date.now() + policy.retentionDays * 86_400_000).toISOString()
+      : requestedExpiresAt;
+    return this.repository.createMemory({
+      ...scope,
+      namespace: input.namespace,
+      memoryType: input.memoryType,
+      canonicalText,
+      content: input.content,
+      confidence: input.confidence,
+      factKey: input.factKey,
+      sourceType: "inferred",
+      provenance: {
+        ...input.provenance,
+        ...(scope.runId ? { sourceRunId: scope.runId } : {}),
+      },
+      ...(expiresAt === undefined || expiresAt === null ? {} : { expiresAt }),
+      sourceTrust: "model_inferred",
+      reviewRequired: true,
+      allowInferred: true,
       allowProceduralInference: false,
     });
   }

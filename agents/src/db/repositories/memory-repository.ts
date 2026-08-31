@@ -324,6 +324,36 @@ export class MemoryRepository {
     return Number(result.rows[0]?.count ?? 0);
   }
 
+  public async hasConsolidationCandidate(input: {
+    scope: MemoryScope;
+    sourceMessageIds: readonly string[];
+    extractionVersion: string;
+  }): Promise<boolean> {
+    if (!input.sourceMessageIds.length) return false;
+    const result = await query<{ exists: boolean }>(
+      this.pool,
+      `SELECT EXISTS (
+         SELECT 1 FROM memory_records
+         WHERE organization_id = $1
+           AND agent_definition_id = $2
+           AND installation_id IS NOT DISTINCT FROM $3
+           AND conversation_id IS NOT DISTINCT FROM $4
+           AND status <> 'deleted'
+           AND provenance->>'extractionVersion' = $5
+           AND (provenance->'sourceMessageIds') ?| $6::text[]
+       ) AS exists`,
+      [
+        input.scope.organizationId,
+        input.scope.agentId,
+        input.scope.installationId ?? null,
+        input.scope.conversationId ?? null,
+        input.extractionVersion,
+        [...input.sourceMessageIds].slice(0, 50),
+      ],
+    );
+    return result.rows[0]?.exists === true;
+  }
+
   public async listMemory(scope: MemoryScope, limit = 100, includeReviewable = false): Promise<MemoryRecord[]> {
     const statusPredicate = includeReviewable ? "status IN ('active', 'review_pending', 'quarantined')" : "status = 'active'";
     const result = await query<MemoryRecord>(

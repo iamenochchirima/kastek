@@ -325,4 +325,11 @@ describe("foundation migration", () => {
     expect(systemRunSql).toContain("ad.protected = TRUE");
     expect(systemRunSql).toContain("agent_runs_ownership_trigger");
   });
+
+  it("contains the durable memory consolidation job trigger", async () => {
+    const migration = await readFile(new URL("../migrations/089_memory_consolidation_jobs.sql", import.meta.url), "utf8");
+    expect(migration).toContain("memory_consolidation_jobs");
+    expect(migration).toContain("messages_memory_consolidation_enqueue_trigger");
+    expect(migration).toContain("deterministic-v1");
+  });
 });

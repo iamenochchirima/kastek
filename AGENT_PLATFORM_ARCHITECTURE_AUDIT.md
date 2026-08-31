@@ -483,8 +483,10 @@ Completion criteria:
 #### Finding
 
 [`MemoryRepository`](agents/src/db/repositories/memory-repository.ts) supports scoped creation,
-search, quarantine, expiry, revalidation, and deletion. No production runtime call was found that
-creates semantic or episodic memory from normal conversations.
+search, quarantine, expiry, revalidation, and deletion. A durable consolidation worker now creates
+review-first semantic and episodic candidates from bounded run-bound conversation evidence for
+`reviewed` and `automatic` installations. Model-backed extraction, automatic activation, and
+derived-store deletion remain open.
 
 The current retrieval gate in [`agents/src/runtime/context.ts`](agents/src/runtime/context.ts) is a
 regular expression for phrases such as `remember`, `previous`, and `last time`. It misses ordinary
@@ -545,22 +547,37 @@ cross-agent access.
 - [x] Define the memory module interface for extraction, review, storage, retrieval, correction,
       expiry, and deletion ([lifecycle.ts](agents/src/memory/lifecycle.ts)); extraction, review,
       and correction adapters remain open.
-- [ ] Implement conversation evidence selection and candidate fact or episode extraction.
-- [x] Store provenance, confidence, sensitivity, expiry, and source run for explicit runtime writes
-      ([lifecycle.ts](agents/src/memory/lifecycle.ts)); source message, model, and extraction
-      version remain open for inferred-memory work.
-- [ ] Add automatic write, review queue, quarantine, rejection, correction, and revalidation paths.
-- [ ] Run consolidation after explicit evidence thresholds instead of after every message.
+- [x] Implement bounded conversation evidence selection and conservative candidate fact or episode
+      extraction ([consolidation.ts](agents/src/memory/consolidation.ts)); model-backed extraction
+      remains open.
+- [x] Store provenance, confidence, sensitivity, expiry, source run, source messages, and
+      extraction version for inferred candidates ([consolidation.ts](agents/src/memory/consolidation.ts),
+      [lifecycle.ts](agents/src/memory/lifecycle.ts)). The first deterministic adapter records
+      `model: null`; model-backed extraction remains open.
+- [x] Add review-first inferred writes, quarantine, rejection, correction, and revalidation paths
+      through the lifecycle and existing review routes ([consolidation-worker.ts](agents/src/memory/consolidation-worker.ts),
+      [memory-repository.ts](agents/src/db/repositories/memory-repository.ts)). Automatic activation
+      remains intentionally disabled.
+- [x] Run consolidation after an explicit inbound-message threshold through an idempotent,
+      leased queue ([089_memory_consolidation_jobs.sql](agents/migrations/089_memory_consolidation_jobs.sql),
+      [memory-consolidation-job-repository.ts](agents/src/db/repositories/memory-consolidation-job-repository.ts)).
 - [x] Apply organization, agent, installation, user, conversation, and namespace scope to every
       runtime memory search and explicit write ([memory-repository.ts](agents/src/db/repositories/memory-repository.ts),
       [lifecycle.ts](agents/src/memory/lifecycle.ts)).
 - [ ] Make deletion remove keyword, vector, summary, cache, and other derived representations.
-- [x] Add lifecycle and policy-mode tests ([memory-policy.test.ts](agents/test/memory-policy.test.ts));
-      contradiction, correction, poisoning, expiry, and deletion coverage remains open.
-- [ ] Add memory extraction, acceptance, retrieval, quarantine, correction, and deletion metrics.
-- [x] Update memory architecture and runtime policy documentation
-      ([agent-memory-lifecycle.md](docs/internal/architecture/agent-memory-lifecycle.md)); privacy,
-      user controls, migration, and operations documentation remain open.
+- [x] Add lifecycle, policy-mode, extraction, threshold, replay, review, and poisoning tests
+      ([memory-policy.test.ts](agents/test/memory-policy.test.ts),
+      [memory-consolidation.test.ts](agents/test/memory-consolidation.test.ts),
+      [memory-consolidation-worker.test.ts](agents/test/memory-consolidation-worker.test.ts),
+      [memory-consolidation.integration.test.ts](agents/test/memory-consolidation.integration.test.ts));
+      multi-turn poisoning, correction, expiry, and deletion coverage remains open.
+- [x] Add consolidation job, candidate, threshold-skip, and failure metrics
+      ([spans.ts](agents/src/telemetry/spans.ts), [consolidation-worker.ts](agents/src/memory/consolidation-worker.ts));
+      acceptance, scope-rejection, and derived-deletion metrics remain open.
+- [x] Update memory architecture, safety runbook, migration, and runtime policy documentation
+      ([agent-memory-lifecycle.md](docs/internal/architecture/agent-memory-lifecycle.md),
+      [agent-memory-safety.md](docs/internal/runbooks/agent-memory-safety.md)); privacy, user
+      controls, model evaluation, and RLS documentation remain open.
 
 ### P1.2 Add PostgreSQL row-level security
 

@@ -18,6 +18,7 @@ import { ChannelRepository } from "../db/repositories/channel-repository";
 import { TelegramBotClient } from "../channels/telegram-client";
 import { DiscordBotClient } from "../channels/discord-client";
 import { recordBudgetReconciliationRequired } from "../telemetry/spans";
+import { MemoryConsolidationWorker } from "../memory/consolidation-worker";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -122,10 +123,22 @@ async function main(): Promise<void> {
     startWorkflow: (runId) => startDurableRun(client, config, { runId }),
   });
   const audioTranscriptionLoop = audioTranscriptionWorker.run();
+  const memoryConsolidationWorker = config.MEMORY_CONSOLIDATION_ENABLED
+    ? new MemoryConsolidationWorker(pool, {
+      batchSize: config.MEMORY_CONSOLIDATION_WORKER_BATCH_SIZE,
+      leaseMs: config.MEMORY_CONSOLIDATION_WORKER_LEASE_MS,
+      pollIntervalMs: config.MEMORY_CONSOLIDATION_WORKER_POLL_INTERVAL_MS,
+      maxAttempts: config.MEMORY_CONSOLIDATION_MAX_ATTEMPTS,
+      minInboundMessages: config.MEMORY_CONSOLIDATION_MIN_INBOUND_MESSAGES,
+    })
+    : undefined;
+  const memoryConsolidationLoop = memoryConsolidationWorker?.run();
   const close = async (): Promise<void> => {
     clearInterval(reconciliationTimer);
     audioTranscriptionWorker.stop();
+    memoryConsolidationWorker?.stop();
     await audioTranscriptionLoop;
+    if (memoryConsolidationLoop) await memoryConsolidationLoop;
     await worker.shutdown();
     await connection.close();
     await pool.end();

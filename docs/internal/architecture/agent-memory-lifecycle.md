@@ -17,10 +17,11 @@ allows that namespace.
 An installation policy can select `disabled`, `explicit`, `reviewed`, or `automatic` memory mode.
 The current runtime slice implements policy normalization, bounded retrieval, namespace and
 sensitivity filtering, explicit writes, source-run provenance, retention, and per-run write caps.
-
-`reviewed` and `automatic` are policy values for the planned extraction and review adapters; they do
-not currently cause inferred writes. Inferred or procedural memory must continue through an explicit
-creation policy and the repository's poisoning controls.
+For `reviewed` and `automatic` installations, the memory worker also consumes run-bound inbound
+evidence after a minimum message threshold. The first extractor is deterministic and conservative:
+it proposes only explicit preference and decision patterns, never procedural memory. Candidates are
+written through the lifecycle as inferred records and remain `review_pending` (or `quarantined`)
+until review; they are not silently activated.
 
 ## Runtime boundary
 
@@ -78,12 +79,16 @@ record then becomes active and the old record becomes `superseded`, with immutab
 in `memory_records.supersedes_memory_id` and provenance. A supersession target must match the
 organization, agent, installation, conversation, user, namespace, and fact key of the candidate.
 
-The current detector is a bounded first-pass classifier, not a complete adversarial defense.
-Multi-turn poisoning analysis and automatic conversation extraction remain open.
+The current detector is a bounded first-pass classifier, not a complete adversarial defense. The
+consolidation worker records source message IDs, source run ID, extraction version, confidence, and
+the extractor identity in bounded provenance. Job claims are leased and idempotent per source run
+and extraction version, so worker replacement can retry a job without creating a second candidate.
+Explicit and disabled policies are safe no-op paths for inferred extraction.
+
+Multi-turn poisoning analysis, model-backed extraction, and automatic activation remain open.
 
 ## Remaining work
 
-Conversation extraction, vector ranking, source-message/model/
-extraction provenance, derived-store deletion, scope-rejection metrics, and organization-level
-row-level security remain separate audit items. They must be implemented behind the same lifecycle
-boundary rather than by adding direct writes to conversation handlers.
+Model-backed extraction quality, vector ranking, derived-store deletion, scope-rejection metrics,
+and organization-level row-level security remain separate audit items. They must be implemented
+behind the same lifecycle boundary rather than by adding direct writes to conversation handlers.

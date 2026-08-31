@@ -34,6 +34,27 @@ When poisoning or credential exposure is suspected:
 5. Record the incident, candidate IDs, scope, decisions, and verification in the incident system;
    do not copy secret values into tickets or logs.
 
+## Consolidation queue recovery
+
+The memory consolidation worker consumes run-bound jobs from `memory_consolidation_jobs`. It uses
+leases and a unique source-run/extraction-version key, so a worker restart should leave work queued
+or eligible for retry rather than require manual replay.
+
+1. Check worker logs and queue counts by `status`, `attempt_count`, and lease expiry. Inspect the
+   oldest queued and running jobs before changing data.
+2. If extraction is producing unsafe candidates, disable `MEMORY_CONSOLIDATION_ENABLED` or change
+   the affected installation policy to `explicit`. Existing review-pending candidates remain
+   unavailable to retrieval until reviewed; do not delete them without a scoped decision.
+3. If leases are stale, restart or replace the worker and allow the lease timeout to elapse. The
+   next worker claims expired jobs. Do not insert duplicate jobs or extend leases by hand unless an
+   incident owner has recorded the reason.
+4. Review repeated failures by bounded error code and job scope. Jobs become permanently failed
+   after the configured attempt limit; repair the cause before a scoped operator retry. Never log
+   message text, memory text, tokens, or credentials while diagnosing a job.
+5. After recovery, verify queue age, completed/failed counts, candidate review states, and the
+   `kasitek.memory.consolidation.count` metric. Record the worker release identity and the scope of
+   any manual action.
+
 ## Bulk quarantine or deletion
 
 Bulk changes require a reviewed query identifying one organization and an explicit scope. Run the
@@ -46,3 +67,8 @@ The safety migration is additive. Application rollback must leave migration 085 
 the additional status values are needed to preserve review decisions; old statuses remain valid.
 Migration 087 is also additive. If its application code is rolled back, retain the columns and
 lineage trigger; old memory records remain valid and the new fields are nullable.
+
+Migration 089 is additive. If the consolidation worker is rolled back, leave the job table and
+enqueue trigger in place, disable the worker, and resume it only after the replacement understands
+the stored extraction version. Do not remove review-pending records as part of an application
+rollback.

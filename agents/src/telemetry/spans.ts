@@ -54,6 +54,9 @@ const memorySafetySignalCounter = meter.createCounter("kasitek.memory.safety.sig
 const memoryReviewCounter = meter.createCounter("kasitek.memory.review.outcome.count", {
   description: "Memory review decisions applied by users or operators",
 });
+const memoryConsolidationCounter = meter.createCounter("kasitek.memory.consolidation.count", {
+  description: "Conversation memory consolidation outcomes and proposed records",
+});
 const conversationAdmissionCounter = meter.createCounter("kasitek.conversation.admission.count", {
   description: "Conversation run admission outcomes, including backpressure and idempotent replay",
 });
@@ -171,6 +174,13 @@ export function recordMemorySafetyAssessment(input: {
 
 export function recordMemoryReviewOutcome(decision: "approve" | "reject"): void {
   memoryReviewCounter.add(1, { decision });
+}
+
+export function recordMemoryConsolidation(outcome: string, candidateCount = 0): void {
+  memoryConsolidationCounter.add(1, { outcome: boundedAttribute(outcome) });
+  if (Number.isSafeInteger(candidateCount) && candidateCount > 0) {
+    memoryConsolidationCounter.add(candidateCount, { outcome: "candidate" });
+  }
 }
 
 export function recordConversationAdmission(input: {

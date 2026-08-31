@@ -63,4 +63,27 @@ describe("memory policy", () => {
     await expect(lifecycle.rememberExplicit({ organizationId: "org", agentId: "agent", installationId: "install", actorId: "user", runId: "run" }, { namespace: "agent_private", memoryType: "semantic", canonicalText: "another" }, { memory: { mode: "explicit", maxWritesPerRun: 3 } })).rejects.toThrow("MEMORY_WRITE_LIMIT_EXCEEDED");
     await expect(lifecycle.rememberExplicit({ organizationId: "org", agentId: "agent", installationId: "install", actorId: "user" }, { namespace: "organization_shared", memoryType: "semantic", canonicalText: "shared" }, { memory: { mode: "explicit" } })).rejects.toThrow("MEMORY_NAMESPACE_NOT_ALLOWED");
   });
+
+  it("routes inferred candidates through reviewed or automatic policy only", async () => {
+    const repository = { createMemory: vi.fn().mockResolvedValue({ id: "memory-inferred" }), countWritesForRun: vi.fn().mockResolvedValue(0) };
+    const lifecycle = new MemoryLifecycle(repository as never);
+    await lifecycle.rememberInferred(
+      { organizationId: "org", agentId: "agent", installationId: "install", conversationId: "conversation", actorId: "user", runId: "run" },
+      {
+        namespace: "agent_private",
+        memoryType: "semantic",
+        canonicalText: "User preference: concise updates",
+        confidence: 0.72,
+        factKey: "preference:concise updates",
+        provenance: { sourceMessageIds: ["message-1"], extractionVersion: "deterministic-v1" },
+      },
+      { memory: { mode: "reviewed" } },
+    );
+    expect(repository.createMemory).toHaveBeenCalledWith(expect.objectContaining({ sourceType: "inferred", sourceTrust: "model_inferred", reviewRequired: true, allowInferred: true, provenance: expect.objectContaining({ sourceRunId: "run" }) }));
+    await expect(lifecycle.rememberInferred(
+      { organizationId: "org", agentId: "agent", installationId: "install" },
+      { namespace: "agent_private", memoryType: "semantic", canonicalText: "fact", provenance: {} },
+      { memory: { mode: "explicit" } },
+    )).rejects.toThrow("MEMORY_INFERENCE_DISABLED");
+  });
 });
