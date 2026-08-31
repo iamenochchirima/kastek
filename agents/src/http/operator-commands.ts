@@ -17,7 +17,7 @@ import { AudioTranscriptionJobRepository } from "../db/repositories/audio-transc
 import { KasitekCoreReadClient } from "../core/client";
 
 export const operatorCommandInputSchema = z.object({
-  commandType: z.enum(["cancel_run", "retry_run", "retry_audio_transcription", "delete_audio_transcription", "replay_delivery", "delete_memory", "assign_run", "reconcile_effect", "reconcile_budget", "request_export", "set_feature_flag", "clear_feature_flag", "create_hold", "release_hold", "set_retention_policy", "apply_retention_policy", "create_legal_hold", "release_legal_hold", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
+  commandType: z.enum(["cancel_run", "retry_run", "retry_audio_transcription", "delete_audio_transcription", "replay_delivery", "delete_memory", "review_memory", "assign_run", "reconcile_effect", "reconcile_budget", "request_export", "set_feature_flag", "clear_feature_flag", "create_hold", "release_hold", "set_retention_policy", "apply_retention_policy", "create_legal_hold", "release_legal_hold", "kill_switch_enable", "kill_switch_disable", "suspend_installation", "resume_installation", "revoke_credential", "pause_schedule", "resume_schedule"]),
   targetId: z.string().trim().min(1).max(240),
   payload: z.record(z.string(), z.unknown()).default({}),
 }).strict();
@@ -515,6 +515,48 @@ async function executeCommand(command: OperatorCommandRecord, actorId: string, d
       metadata: { memoryId: command.target_id },
     });
     return { status: "deleted", memoryId: command.target_id };
+  }
+
+  if (command.command_type === "review_memory") {
+    if (!dependencies.memory) throw Object.assign(new Error("Memory review is unavailable"), { statusCode: 503 });
+    const target = (await query<{
+      organization_id: string;
+      agent_definition_id: string | null;
+      installation_id: string | null;
+      conversation_id: string | null;
+      owner_user_id: string | null;
+      status: string;
+    }>(dependencies.pool, `SELECT organization_id, agent_definition_id, installation_id, conversation_id, owner_user_id, status
+      FROM memory_records WHERE id = $1`, [command.target_id])).rows[0];
+    if (!target) throw Object.assign(new Error("Memory not found"), { statusCode: 404 });
+    if (!target.agent_definition_id) throw Object.assign(new Error("Memory has no agent scope"), { statusCode: 409 });
+    assertExpectedResource(command, "expectedOrganizationId", target.organization_id, "Memory organization");
+    assertExpectedResource(command, "expectedAgentId", target.agent_definition_id, "Memory agent");
+    assertExpectedResource(command, "expectedInstallationId", target.installation_id, "Memory installation");
+    assertExpectedResource(command, "expectedConversationId", target.conversation_id, "Memory conversation");
+    assertExpectedStatus(command, target.status);
+    if (target.status !== "review_pending" && target.status !== "quarantined") {
+      throw Object.assign(new Error("Only review-pending or quarantined memory records can be reviewed"), { statusCode: 409 });
+    }
+    const decision = command.payload.decision;
+    if (decision !== "approve" && decision !== "reject") {
+      throw Object.assign(new Error("Memory review decision must be approve or reject"), { statusCode: 400 });
+    }
+    const reviewed = await dependencies.memory.reviewMemory({
+      organizationId: target.organization_id,
+      agentId: target.agent_definition_id,
+      installationId: target.installation_id ?? undefined,
+      conversationId: target.conversation_id ?? undefined,
+      actorId: target.owner_user_id ?? undefined,
+    }, command.target_id, decision, actorId);
+    await auditCommand(dependencies.pool, {
+      organizationId: target.organization_id,
+      actorId,
+      action: "operator_command.memory_reviewed",
+      commandId: command.id,
+      metadata: { memoryId: command.target_id, decision, status: reviewed.status },
+    });
+    return { status: decision === "approve" ? "approved" : "rejected", memoryId: command.target_id };
   }
 
   if (command.command_type === "suspend_installation" || command.command_type === "resume_installation") {

@@ -666,15 +666,15 @@ Add:
 
 #### Implementation checklist
 
-- [ ] Define source trust, sensitivity, contradiction, review, and quarantine states.
-- [ ] Prevent untrusted content from creating procedural memory or changing agent policy.
-- [ ] Add secret and personal-data classification before memory persistence.
+- [x] Define source trust, sensitivity, review, and quarantine states ([poisoning.ts](agents/src/memory/poisoning.ts), migration 085); contradiction and supersession states remain open.
+- [x] Prevent untrusted content from creating procedural memory or changing agent policy ([memory-repository.ts](agents/src/db/repositories/memory-repository.ts), [agent-memory-lifecycle.md](docs/internal/architecture/agent-memory-lifecycle.md)).
+- [x] Add secret and personal-data classification before memory persistence ([poisoning.ts](agents/src/memory/poisoning.ts), [memory-repository.ts](agents/src/db/repositories/memory-repository.ts)).
 - [ ] Implement contradiction checks and explicit supersession links between facts.
-- [ ] Add user and operator review actions with complete audit records.
-- [ ] Mark retrieved memory and knowledge as untrusted evidence in context assembly.
-- [ ] Build adversarial tests for direct, indirect, encoded, translated, and multi-turn poisoning.
-- [ ] Add quarantine-rate, review-outcome, contradiction, and false-positive monitoring.
-- [ ] Document incident response and bulk quarantine or deletion procedures.
+- [x] Add user and operator review actions with complete audit records ([app.ts](agents/src/http/app.ts), [operator-commands.ts](agents/src/http/operator-commands.ts)).
+- [x] Mark retrieved memory and knowledge as untrusted evidence in context assembly ([activities.ts](agents/src/temporal/activities.ts)).
+- [x] Build adversarial tests for direct, indirect, encoded, and translated poisoning ([memory-poisoning.test.ts](agents/test/memory-poisoning.test.ts)); multi-turn poisoning remains open.
+- [x] Add quarantine-rate and review-outcome monitoring ([spans.ts](agents/src/telemetry/spans.ts)); contradiction and false-positive monitoring remain open.
+- [x] Document incident response and bulk quarantine or deletion procedures ([agent-memory-safety.md](docs/internal/runbooks/agent-memory-safety.md)).
 
 ### P1.5 Define conversation ordering explicitly
 

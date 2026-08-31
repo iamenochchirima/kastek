@@ -91,6 +91,7 @@ import {
   listAgentMemory,
   deleteAgentMemory,
   revalidateAgentMemory,
+  reviewAgentMemory,
   type AgentKnowledgeSource,
   type AgentMemory,
   listKasiAiChannels,
@@ -1763,6 +1764,19 @@ function InstallationKnowledge({ agentId, installationId }: { agentId: string; i
     }
   };
 
+  const review = async (memory: AgentMemory, decision: "approve" | "reject") => {
+    if (busy) return;
+    setBusy(`review:${memory.id}:${decision}`);
+    try {
+      const updated = (await reviewAgentMemory(memory.id, agentId, decision, installationId)).memory;
+      setMemories((current) => current.map((entry) => entry.id === memory.id ? updated : entry));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to review memory");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const openSourceRecord = sources.find((source) => source.id === openSourceId);
 
   return <>
@@ -1781,7 +1795,7 @@ function InstallationKnowledge({ agentId, installationId }: { agentId: string; i
       <div className="rounded-xl border border-border bg-secondary/10 p-4"><div className="flex items-start gap-3"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Globe2 className="h-4 w-4" /></div><div><p className="text-sm font-semibold text-foreground">Website source</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Crawl public pages and add their content and links to knowledge.</p></div></div><div className="mt-3 flex flex-col gap-2 sm:flex-row"><Input type="url" value={websiteUrl} onChange={(event) => setWebsiteUrl(event.target.value)} placeholder="https://example.com" className="h-10" /><Button type="button" size="sm" disabled={busy !== null || !websiteUrl.trim()} onClick={() => void addWebsite()}>{busy === "website" ? "Starting…" : "Crawl website"}</Button></div>{processingWebsite ? <p className="mt-2 text-xs text-primary">Crawling {processingWebsite.source_uri}…</p> : null}</div>
       {loading ? <p className="text-sm text-muted-foreground">Loading knowledge and memory…</p> : <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-2"><p className="text-sm font-semibold text-foreground">Knowledge sources</p>{sources.length ? sources.map((source) => <div key={source.id} className="flex items-start justify-between gap-3 rounded-lg border border-border p-3"><div className="min-w-0"><p className="font-medium text-foreground">{source.name}</p><p className="mt-1 truncate text-xs text-muted-foreground">{source.source_uri || source.source_type} · revision {source.revision} · {source.status}</p></div><div className="flex shrink-0 gap-2">{source.status === "processing" && source.source_type === "url" ? <Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void cancelWebsite(source)}>{busy === `cancel-website:${source.id}` ? "Cancelling…" : "Cancel"}</Button> : <Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void openSource(source)}>{busy === `open-source:${source.id}` ? "Opening…" : source.source_type === "manual" ? "Edit" : "Open"}</Button>}<Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void removeSource(source)}>{busy === `source:${source.id}` ? "Removing…" : "Remove"}</Button></div></div>) : <p className="text-sm text-muted-foreground">No knowledge sources are attached.</p>}</div>
-        <div className="space-y-2"><p className="text-sm font-semibold text-foreground">Durable memories</p>{memories.length ? memories.slice(0, 20).map((memory) => <div key={memory.id} className="rounded-lg border border-border p-3"><p className="line-clamp-2 text-sm text-foreground">{memory.canonical_text}</p><div className="mt-2 flex items-center justify-between gap-2"><p className="text-[11px] text-muted-foreground">{memory.namespace} · {memory.memory_type} · {memory.status}{memory.expires_at ? ` · expires ${new Date(memory.expires_at).toLocaleDateString()}` : ""}</p><div className="flex gap-1"><Button type="button" variant="ghost" size="sm" disabled={busy !== null} onClick={() => void revalidate(memory)}>{busy === `revalidate:${memory.id}` ? "…" : "Revalidate"}</Button><Button type="button" variant="ghost" size="sm" disabled={busy !== null} onClick={() => void removeMemory(memory)}>Delete</Button></div></div></div>) : <p className="text-sm text-muted-foreground">No memories are recorded for this installation.</p>}</div>
+        <div className="space-y-2"><p className="text-sm font-semibold text-foreground">Durable memories</p>{memories.length ? memories.slice(0, 20).map((memory) => <div key={memory.id} className="rounded-lg border border-border p-3"><p className="line-clamp-2 text-sm text-foreground">{memory.canonical_text}</p><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><p className="text-[11px] text-muted-foreground">{memory.namespace} · {memory.memory_type} · {memory.status}{memory.expires_at ? ` · expires ${new Date(memory.expires_at).toLocaleDateString()}` : ""}</p><div className="flex flex-wrap justify-end gap-1">{memory.status === "review_pending" || memory.status === "quarantined" ? <><Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void review(memory, "approve")}>{busy === `review:${memory.id}:approve` ? "…" : "Approve"}</Button><Button type="button" variant="ghost" size="sm" disabled={busy !== null} onClick={() => void review(memory, "reject")}>{busy === `review:${memory.id}:reject` ? "…" : "Reject"}</Button></> : <Button type="button" variant="ghost" size="sm" disabled={busy !== null} onClick={() => void revalidate(memory)}>{busy === `revalidate:${memory.id}` ? "…" : "Revalidate"}</Button>}<Button type="button" variant="ghost" size="sm" disabled={busy !== null} onClick={() => void removeMemory(memory)}>Delete</Button></div></div></div>) : <p className="text-sm text-muted-foreground">No memories are recorded for this installation.</p>}</div>
       </div>}
     </CardContent>
     </Card>

@@ -309,6 +309,27 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     ]));
     expect(JSON.stringify(recoveryAudit)).not.toContain("replay me");
 
+    const reviewMemoryRecord = await memory.createMemory({
+      organizationId,
+      agentId: definitionId,
+      installationId,
+      namespace: "agent_private",
+      memoryType: "semantic",
+      canonicalText: "Imported operator review candidate",
+      sourceType: "imported",
+      actorId: "system",
+    });
+    expect(reviewMemoryRecord.status).toBe("review_pending");
+    const reviewMemoryCommand = await createOperatorCommand({
+      actorId,
+      idempotencyKey: `review-memory-${randomUUID()}`,
+      command: { commandType: "review_memory", targetId: reviewMemoryRecord.id, payload: { decision: "approve", expectedStatus: "review_pending", expectedOrganizationId: organizationId, expectedAgentId: definitionId, expectedInstallationId: installationId } },
+      dependencies,
+    });
+    runCommandIds.push(String(reviewMemoryCommand.command.id));
+    expect(await approveOperatorCommand({ actorId: secondActorId, commandId: String(reviewMemoryCommand.command.id), dependencies })).toMatchObject({ status: "completed", result: { status: "approved", memoryId: reviewMemoryRecord.id } });
+    expect((await pool.query<{ status: string }>("SELECT status FROM memory_records WHERE id = $1", [reviewMemoryRecord.id])).rows[0]?.status).toBe("active");
+
     const memoryRecord = await memory.createMemory({
       organizationId,
       agentId: definitionId,

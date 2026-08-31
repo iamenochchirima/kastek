@@ -55,6 +55,19 @@ describe("foundation migration", () => {
     expect(sql).toContain("model_calls_operation_key_uidx");
   });
 
+  it("adds explicit memory review states", async () => {
+    const sql = await readFile(new URL("../migrations/085_memory_safety_review_states.sql", import.meta.url), "utf8");
+    expect(sql).toContain("review_pending");
+    expect(sql).toContain("rejected");
+    expect(sql).toContain("superseded");
+  });
+
+  it("allows the dual-control operator memory review command", async () => {
+    const sql = await readFile(new URL("../migrations/086_operator_memory_review_command.sql", import.meta.url), "utf8");
+    expect(sql).toContain("agent_operator_commands_command_type_check");
+    expect(sql).toContain("'review_memory'");
+  });
+
   it("contains the durable scope and run tables", async () => {
     const sql = await readFile(new URL("../migrations/001_agent_platform_foundation.sql", import.meta.url), "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_definitions");

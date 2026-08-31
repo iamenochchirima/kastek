@@ -14,6 +14,7 @@ describe("operator command contract", () => {
     expect(requiredApprovals("delete_audio_transcription")).toBe(2);
     expect(requiredApprovals("replay_delivery")).toBe(2);
     expect(requiredApprovals("delete_memory")).toBe(2);
+    expect(requiredApprovals("review_memory")).toBe(2);
     expect(requiredApprovals("assign_run")).toBe(2);
     expect(requiredApprovals("reconcile_effect")).toBe(2);
     expect(requiredApprovals("reconcile_budget")).toBe(2);
@@ -42,6 +43,7 @@ describe("operator command contract", () => {
       "delete_audio_transcription",
       "replay_delivery",
       "delete_memory",
+      "review_memory",
       "assign_run",
       "reconcile_effect",
       "reconcile_budget",

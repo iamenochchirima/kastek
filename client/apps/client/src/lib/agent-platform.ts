@@ -1059,6 +1059,7 @@ export function deleteAgentKnowledgeSource(sourceId: string, agentId: string, in
 export function listAgentMemory(agentId: string, installationId?: string): Promise<{ memories: AgentMemory[] }> {
   const query = new URLSearchParams({ agentId });
   if (installationId) query.set("installationId", installationId);
+  query.set("reviewable", "true");
   return request(`/api/agents/memory?${query.toString()}`);
 }
 
@@ -1068,6 +1069,10 @@ export function deleteAgentMemory(memoryId: string, agentId: string, installatio
 
 export function revalidateAgentMemory(memoryId: string, agentId: string, installationId?: string, expiresAt: string | null = null): Promise<AgentMemory> {
   return request(`/api/agents/memory/${encodeURIComponent(memoryId)}/revalidate`, { method: "POST", body: JSON.stringify({ agentId, ...(installationId ? { installationId } : {}), expiresAt }) });
+}
+
+export function reviewAgentMemory(memoryId: string, agentId: string, decision: "approve" | "reject", installationId?: string): Promise<{ memory: AgentMemory }> {
+  return request(`/api/agents/memory/${encodeURIComponent(memoryId)}/review`, { method: "POST", body: JSON.stringify({ agentId, ...(installationId ? { installationId } : {}), decision }) });
 }
 
 export type AgentInstallationSettings = {

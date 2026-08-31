@@ -4589,7 +4589,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return reply.code(201).send({ sourceId: source.id, revision: source.revision + 1, filename: extracted.filename, format: extracted.format, bytes: extracted.bytes, chunks: stored });
   });
 
-  app.get<{ Querystring: { agentId?: string; installationId?: string; limit?: string } }>("/v1/memory", async (request) => {
+  app.get<{ Querystring: { agentId?: string; installationId?: string; limit?: string; reviewable?: string } }>("/v1/memory", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
     const agentId = z.string().uuid().parse(request.query.agentId);
@@ -4597,7 +4597,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     await requireHostedResourceScope(agents, auth.organizationId, { installationId, agentId });
     const limit = request.query.limit ? Number(request.query.limit) : undefined;
     if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 500)) throw new Error("Invalid memory limit");
-    return { memories: await memory.listMemory({ organizationId: auth.organizationId, agentId, installationId, actorId: auth.actorId }, limit) };
+    const reviewable = request.query.reviewable === "true";
+    return { memories: await memory.listMemory({ organizationId: auth.organizationId, agentId, installationId, actorId: auth.actorId }, limit, reviewable) };
   });
 
   app.delete<{ Params: { memoryId: string } }>("/v1/memory/:memoryId", async (request, reply) => {
@@ -4615,6 +4616,30 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const input = z.object({ agentId: z.string().uuid(), installationId: z.string().uuid().optional(), conversationId: z.string().uuid().optional(), expiresAt: z.string().datetime().nullable() }).parse(request.body);
     await requireHostedResourceScope(agents, auth.organizationId, input);
     return memory.revalidateMemory({ organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId, conversationId: input.conversationId, actorId: auth.actorId }, request.params.memoryId, input.expiresAt);
+  });
+
+  app.post<{ Params: { memoryId: string } }>("/v1/memory/:memoryId/review", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const input = z.object({
+      agentId: z.string().uuid(),
+      installationId: z.string().uuid().optional(),
+      conversationId: z.string().uuid().optional(),
+      decision: z.enum(["approve", "reject"]),
+    }).parse(request.body);
+    await requireHostedResourceScope(agents, auth.organizationId, input);
+    const reviewed = await memory.reviewMemory(
+      { organizationId: auth.organizationId, agentId: input.agentId, installationId: input.installationId, conversationId: input.conversationId, actorId: auth.actorId },
+      request.params.memoryId,
+      input.decision,
+      auth.actorId,
+    );
+    await dependencies.pool.query(
+      `INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, correlation_id, metadata)
+       VALUES ($1, 'user', $2, 'memory.reviewed', 'memory', $3, $4, $5::jsonb)`,
+      [auth.organizationId, auth.actorId, request.params.memoryId, auth.correlationId ?? null, JSON.stringify({ decision: input.decision, status: reviewed.status })],
+    );
+    return { memory: reviewed };
   });
 
   app.get<{ Querystring: { agentId?: string; installationId?: string; limit?: string } }>("/v1/knowledge/sources", async (request) => {

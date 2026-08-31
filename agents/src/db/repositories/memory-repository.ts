@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
-import { detectMemoryPoisoning } from "../../memory/poisoning";
+import { assessMemorySafety, type MemorySourceTrust, type MemorySafetyStatus } from "../../memory/poisoning";
+import { recordMemoryReviewOutcome, recordMemorySafetyAssessment } from "../../telemetry/spans";
 
 export type MemoryNamespace = "conversation" | "user_private" | "organization_shared" | "agent_private";
 export type MemoryType = "working" | "semantic" | "episodic" | "procedural";
@@ -52,12 +53,14 @@ export class MemoryRepository {
     expiresAt?: string;
     allowInferred?: boolean;
     allowProceduralInference?: boolean;
+    sourceTrust?: MemorySourceTrust;
+    reviewRequired?: boolean;
   }): Promise<MemoryRecord> {
     if (input.sourceType === "inferred" && !input.allowInferred) {
       throw new Error("Inferred memory requires an explicit creation policy");
     }
-    if (input.memoryType === "procedural" && input.sourceType === "inferred" && !input.allowProceduralInference) {
-      throw new Error("Procedural memory cannot be inferred without an explicit workflow policy");
+    if (input.memoryType === "procedural" && input.sourceType !== "explicit") {
+      throw new Error("Procedural memory requires an explicit user or platform policy");
     }
     if (input.namespace === "conversation" && !input.conversationId) throw new Error("Conversation memory requires conversation scope");
     if (input.namespace === "agent_private" && !input.installationId) throw new Error("Agent-private memory requires installation scope");
@@ -65,9 +68,43 @@ export class MemoryRepository {
     if (input.namespace === "user_private" && input.actorId && input.ownerUserId !== input.actorId) {
       throw new Error("User-private memory owner must match the acting user");
     }
-    const poisoningSignals = input.sourceType === "explicit" ? [] : detectMemoryPoisoning(input.canonicalText);
-    const status = poisoningSignals.length ? "quarantined" : "active";
-    const provenance = { ...(input.provenance ?? {}), ...(poisoningSignals.length ? { poisoningSignals, quarantinedAt: new Date().toISOString() } : {}) };
+    const safety = assessMemorySafety({
+      text: input.canonicalText,
+      sourceType: input.sourceType,
+      memoryType: input.memoryType,
+      sourceTrust: input.sourceTrust,
+      reviewRequired: input.reviewRequired,
+    });
+    const detectedSensitivity = safety.sensitiveSignals.some((signal) => signal === "credential_value" || signal === "credential_assignment")
+      ? "restricted"
+      : safety.sensitiveSignals.length ? "sensitive" : undefined;
+    const sensitivity = input.sensitivity === "restricted" || detectedSensitivity === "restricted"
+      ? "restricted"
+      : input.sensitivity === "sensitive" || detectedSensitivity === "sensitive"
+        ? "sensitive"
+        : "normal";
+    const status: MemorySafetyStatus = safety.recommendedStatus;
+    recordMemorySafetyAssessment({
+      status,
+      sourceTrust: safety.sourceTrust,
+      poisoningCount: safety.poisoningSignals.length,
+      sensitiveCount: safety.sensitiveSignals.length,
+    });
+    const provenance = {
+      ...(input.provenance ?? {}),
+      sourceTrust: safety.sourceTrust,
+      ...(safety.poisoningSignals.length ? { poisoningSignals: safety.poisoningSignals } : {}),
+      ...(safety.sensitiveSignals.length ? { sensitiveSignals: safety.sensitiveSignals } : {}),
+      safety: {
+        status,
+        poisoningSignals: safety.poisoningSignals,
+        sensitiveSignals: safety.sensitiveSignals,
+        reviewRequired: safety.reviewRequired,
+        reviewed: false,
+      },
+      ...(status === "quarantined" ? { quarantinedAt: new Date().toISOString() } : {}),
+      ...(status === "review_pending" ? { reviewPendingAt: new Date().toISOString() } : {}),
+    };
     const result = await query<MemoryRecord>(
       this.pool,
       `INSERT INTO memory_records
@@ -88,7 +125,7 @@ export class MemoryRepository {
         JSON.stringify(input.content ?? {}),
         input.sourceType,
         JSON.stringify(provenance),
-        input.sensitivity ?? "normal",
+        sensitivity,
         input.confidence ?? null,
         input.expiresAt ?? null,
         status,
@@ -96,6 +133,44 @@ export class MemoryRepository {
       ],
     );
     return result.rows[0]!;
+  }
+
+  public async reviewMemory(
+    scope: MemoryScope,
+    memoryId: string,
+    decision: "approve" | "reject",
+    reviewedBy: string,
+  ): Promise<MemoryRecord> {
+    const status = decision === "approve" ? "active" : "rejected";
+    const result = await query<MemoryRecord>(
+      this.pool,
+      `UPDATE memory_records
+       SET status = $4,
+           provenance = COALESCE(provenance, '{}'::jsonb) || $5::jsonb,
+           updated_at = now()
+       WHERE id = $1 AND organization_id = $2 AND agent_definition_id = $3
+         AND status IN ('review_pending', 'quarantined')
+         AND (
+           namespace = 'organization_shared'
+           OR (namespace = 'agent_private' AND installation_id = $6)
+           OR (namespace = 'conversation' AND conversation_id = $7)
+           OR (namespace = 'user_private' AND owner_user_id = $8)
+         )
+       RETURNING *`,
+      [
+        memoryId,
+        scope.organizationId,
+        scope.agentId,
+        status,
+        JSON.stringify({ review: { decision, reviewedBy, reviewedAt: new Date().toISOString() }, safety: { reviewed: true } }),
+        scope.installationId ?? null,
+        scope.conversationId ?? null,
+        scope.actorId ?? null,
+      ],
+    );
+    if (!result.rows[0]) throw new Error("Memory is not reviewable in this scope");
+    recordMemoryReviewOutcome(decision);
+    return result.rows[0];
   }
 
   public async searchMemory(scope: MemoryScope, searchText: string, limit = 8, namespaces?: readonly MemoryNamespace[]): Promise<MemoryRecord[]> {
@@ -135,11 +210,12 @@ export class MemoryRepository {
     return Number(result.rows[0]?.count ?? 0);
   }
 
-  public async listMemory(scope: MemoryScope, limit = 100): Promise<MemoryRecord[]> {
+  public async listMemory(scope: MemoryScope, limit = 100, includeReviewable = false): Promise<MemoryRecord[]> {
+    const statusPredicate = includeReviewable ? "status IN ('active', 'review_pending', 'quarantined')" : "status = 'active'";
     const result = await query<MemoryRecord>(
       this.pool,
       `SELECT * FROM memory_records
-       WHERE organization_id = $1 AND status = 'active'
+       WHERE organization_id = $1 AND ${statusPredicate}
          AND (expires_at IS NULL OR expires_at > now())
          AND agent_definition_id = $2
          AND (namespace <> 'agent_private' OR installation_id = $3)

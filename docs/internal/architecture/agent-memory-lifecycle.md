@@ -47,9 +47,34 @@ The worker exposes two installation-scoped capabilities:
 Neither capability can widen repository scope. Memory tools are registered in the hosted worker,
 not treated as unrestricted external business tools.
 
+## Safety and review
+
+Memory writes are classified at the repository boundary. Explicit user-authored content is trusted
+for authorship, while imported content is `external_untrusted` and inferred content is
+`model_inferred`. Platform and organization curation can be represented as separate trust values
+when those ingestion adapters are added.
+
+The boundary detects instruction-injection and secret/personal-data signals before persistence. A
+poisoning or sensitive signal produces `quarantined`; clean imported or inferred content produces
+`review_pending`; explicit clean content remains `active`. Review metadata and bounded signal names
+are stored in provenance, never the secret value itself. Sensitive content is classified as
+`sensitive` or `restricted` and remains excluded from retrieval unless the installation policy
+allows it.
+
+Procedural memory is rejected unless its source is explicit. Memory content cannot update agent
+instructions or policy: retrieved records are passed to the model only as untrusted evidence.
+Users can review scoped candidates with `POST /v1/memory/{memoryId}/review`; platform operators
+can use the dual-approval `review_memory` command. Both paths enforce organization, agent,
+installation, conversation, and user scope and append an audit record. Rejection moves the record
+to `rejected`, which is never searchable.
+
+The current detector is a bounded first-pass classifier, not a complete adversarial defense.
+Contradiction detection, supersession links, multi-turn poisoning analysis, and automatic
+conversation extraction remain open.
+
 ## Remaining work
 
-Conversation extraction, review queues, contradiction and correction links, vector ranking,
-source-message/model/extraction provenance, derived-store deletion, scope-rejection metrics, and
-organization-level row-level security remain separate audit items. They must be implemented behind
-the same lifecycle boundary rather than by adding direct writes to conversation handlers.
+Conversation extraction, contradiction and correction links, vector ranking, source-message/model/
+extraction provenance, derived-store deletion, scope-rejection metrics, and organization-level
+row-level security remain separate audit items. They must be implemented behind the same lifecycle
+boundary rather than by adding direct writes to conversation handlers.

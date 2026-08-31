@@ -2304,7 +2304,7 @@ describe("Agent Platform HTTP foundation", () => {
     const app = buildApp({
       config,
       pool: fakePool,
-      memory: { listMemory: async () => [{ id: "memory-1" }], deleteMemory: async () => undefined, revalidateMemory: async () => ({ id: "memory-1" }) } as never,
+      memory: { listMemory: async () => [{ id: "memory-1" }], deleteMemory: async () => undefined, revalidateMemory: async () => ({ id: "memory-1" }), reviewMemory: async () => ({ id: "memory-1", status: "active" }) } as never,
       knowledge: {
         listSources: async () => [{ id: "source-1" }],
         getSourceDocument: async () => ({ source: { id: "source-1" }, text: "Saved support information" }),
@@ -2314,9 +2314,11 @@ describe("Agent Platform HTTP foundation", () => {
     const memories = await app.inject({ method: "GET", url: `/v1/memory?agentId=${agentId}`, headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
     const sources = await app.inject({ method: "GET", url: "/v1/knowledge/sources", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
     const source = await app.inject({ method: "GET", url: "/v1/knowledge/sources/source-1", headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" } });
+    const reviewed = await app.inject({ method: "POST", url: `/v1/memory/memory-1/review`, headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" }, payload: { agentId, decision: "approve" } });
     expect(memories.json()).toMatchObject({ memories: [{ id: "memory-1" }] });
     expect(sources.json()).toMatchObject({ sources: [{ id: "source-1" }] });
     expect(source.json()).toMatchObject({ source: { id: "source-1" }, text: "Saved support information" });
+    expect(reviewed.json()).toMatchObject({ memory: { id: "memory-1", status: "active" } });
     await app.close();
   });
 

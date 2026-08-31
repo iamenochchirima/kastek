@@ -126,5 +126,29 @@ Content-Type: application/json
 Cancellation is a durable workflow signal. It does not mutate an in-memory queue and is safe to
 repeat for terminal operations.
 
+## Review memory
+
+Organization users can review an imported or inferred memory candidate after inspecting its
+content and provenance:
+
+```http
+POST /v1/memory/{memoryId}/review
+Authorization: Bearer <organization-session>
+Content-Type: application/json
+```
+
+```json
+{
+  "agentId": "agent-uuid",
+  "installationId": "installation-uuid",
+  "decision": "approve"
+}
+```
+
+`decision` is `approve` or `reject`. Candidates are not returned by runtime retrieval while they
+are `review_pending` or `quarantined`. Approval changes the status to `active`; rejection changes
+it to `rejected`. Scope fields are required to prevent reviewing a record belonging to another
+agent or installation. Review actions are audited.
+
 MCP clients use the equivalent `/mcp` JSON-RPC methods. Both transports intentionally converge on the
 same `agent_runs`, approval, tool invocation, receipt, and event records.

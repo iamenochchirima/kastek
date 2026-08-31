@@ -48,6 +48,12 @@ const retrievalDecisionCounter = meter.createCounter("kasitek.memory.retrieval.d
 const retrievalEvidenceCounter = meter.createCounter("kasitek.memory.retrieval.evidence.count", {
   description: "Structured memory and knowledge evidence returned to an agent run",
 });
+const memorySafetySignalCounter = meter.createCounter("kasitek.memory.safety.signal.count", {
+  description: "Memory safety classifications recorded before persistence",
+});
+const memoryReviewCounter = meter.createCounter("kasitek.memory.review.outcome.count", {
+  description: "Memory review decisions applied by users or operators",
+});
 
 export function boundedAttribute(value: unknown, maxLength = 128): string {
   return String(value ?? "unknown").slice(0, maxLength);
@@ -143,4 +149,23 @@ export function recordRetrievalResult(input: {
   if (Number.isSafeInteger(input.memoryCount) && input.memoryCount > 0) retrievalEvidenceCounter.add(input.memoryCount, { source: "memory" });
   if (Number.isSafeInteger(input.knowledgeCount) && input.knowledgeCount > 0) retrievalEvidenceCounter.add(input.knowledgeCount, { source: "knowledge" });
   if (Number.isSafeInteger(input.evidenceCount) && input.evidenceCount > 0) retrievalEvidenceCounter.add(input.evidenceCount, { source: "ranked" });
+}
+
+export function recordMemorySafetyAssessment(input: {
+  status: string;
+  sourceTrust: string;
+  poisoningCount: number;
+  sensitiveCount: number;
+}): void {
+  const attributes = {
+    status: boundedAttribute(input.status),
+    sourceTrust: boundedAttribute(input.sourceTrust),
+  };
+  if (Number.isSafeInteger(input.poisoningCount) && input.poisoningCount > 0) memorySafetySignalCounter.add(input.poisoningCount, { ...attributes, signal: "poisoning" });
+  if (Number.isSafeInteger(input.sensitiveCount) && input.sensitiveCount > 0) memorySafetySignalCounter.add(input.sensitiveCount, { ...attributes, signal: "sensitive" });
+  if (input.poisoningCount === 0 && input.sensitiveCount === 0) memorySafetySignalCounter.add(1, { ...attributes, signal: "clean" });
+}
+
+export function recordMemoryReviewOutcome(decision: "approve" | "reject"): void {
+  memoryReviewCounter.add(1, { decision });
 }
