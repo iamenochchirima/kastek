@@ -97,6 +97,7 @@ production Railway deployment IDs are recorded below. The API contract version (
 and migration version remain separate.
 Implementation commit: `c24dfdff59a8bfd9f4ac6009be539eb78d6a1a4c` (integrated with the current `main`
 live-chat base and pushed to `main`).
+Follow-up incident-fix commit: `1a23d3a4c1effd55e5f28570dd15e10e9e2c4099`.
 Validation: local and production evidence is recorded below. Provider-specific smoke and
 compatibility-window evidence remain open before closing this plan.
 Rollback: disable native media per gateway and continue text delivery; roll back artifacts only
@@ -116,11 +117,11 @@ Local validation evidence (2026-08-31):
 - `database`: Prisma generation and schema validation passed. Migration
   `20260831120000_add_agent_website_delivery_content` was applied successfully to the production
   Core database through the documented Railway SSH tunnel on 2026-08-31.
-- Production Railway deployments from this commit: Core
-  `619dc31f-19dd-4486-9f63-7989d1d3fa7e`, Agents API
-  `e1c8e6da-24d0-4b3c-86fc-35c26b3db74a`, Agents worker
-  `50435708-1e17-46eb-a761-a5d6fe1ebc32`, and MCP Gateway
-  `7906a81f-a2e8-4b32-b967-d22543c5c49b`; all report `SUCCESS` and `RUNNING`.
+- Follow-up production Railway deployments from the incident-fix commit: Core
+  `27d7da03-20e9-4c96-b2fc-5a1f2b303a9f`, Agents API
+  `6606be97-1e85-48e1-b329-8cf106c73c59`, and Agents worker
+  `06bf1109-9c69-4646-adf1-b95052047d1c`; all report `SUCCESS` and use commit
+  `1a23d3a4c1effd55e5f28570dd15e10e9e2c4099`.
 - Production health smoke: `https://api.kasitek.co.za/health` and
   `https://agents.kasitek.co.za/health/ready` returned HTTP 200; Core reported `status: ok`, the
   gateway reported `status: ready`, and the Agents worker logged `state: RUNNING` for
@@ -129,6 +130,9 @@ Local validation evidence (2026-08-31):
 - The pushed `main` commit triggered the connected Vercel frontend automation; both
   `https://kasitek.co.za` and `https://app.kasitek.co.za` returned HTTP 200. Vercel CLI deployment
   inspection was unavailable because this environment is not authenticated to Vercel.
+- Follow-up production smoke: Core health and Agents readiness returned HTTP 200. The previously
+  failing signed media URL returned HTTP 200 and 81,554 bytes after the volume repair and Core
+  deployment. No new media-related error logs were returned during the post-deploy sweep.
 - Provider-specific media send/retry smoke and fallback-rate evidence: pending a safe, non-customer
   test message on each configured gateway; do not close the compatibility window until that smoke
   is recorded.
