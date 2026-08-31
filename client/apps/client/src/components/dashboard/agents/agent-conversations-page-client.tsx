@@ -370,13 +370,6 @@ export function AgentConversationsPageClient({ initialQueue, initialCustomerConv
     }
   }
 
-  const counts = {
-    handoff: queue.items.filter((item) => item.handoff.status === "pending").length,
-    human: queue.items.filter((item) => item.handoff.status === "claimed").length,
-    live: liveQueue.length,
-    all: customerQueue.length,
-  };
-
   return (
     <div className="min-h-[100dvh] p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1440px]">
@@ -393,17 +386,6 @@ export function AgentConversationsPageClient({ initialQueue, initialCustomerConv
         </PageHeader>
 
         {error ? <div className="mt-6 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"><CircleAlert className="h-4 w-4 shrink-0" />{error}</div> : null}
-
-        <MotionReveal delay={0.08}>
-          <div className="mt-8 grid gap-3 sm:grid-cols-3">
-            {(["handoff", "human", "live", "all"] as QueueView[]).map((key) => (
-              <button key={key} type="button" onClick={() => changeView(key)} className={`rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary/40 ${view === key ? "border-primary/60 ring-1 ring-primary/20" : "border-border"}`}>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{key === "handoff" ? "Handoff requests" : key === "human" ? "Assigned" : key === "live" ? "Agent live" : "All activity"}</p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{key === "handoff" ? counts.handoff : key === "human" ? counts.human : key === "live" ? counts.live : counts.all}</p>
-              </button>
-            ))}
-          </div>
-        </MotionReveal>
 
         <MotionReveal delay={0.14}>
           <section className="mt-6 rounded-xl border border-border bg-card/80 p-3 sm:p-4">
