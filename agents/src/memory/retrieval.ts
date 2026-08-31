@@ -14,6 +14,7 @@ export interface RetrievalDecision {
   query: string;
   sourceTypes: RetrievalSourceType[];
   maxResults: number;
+  maxTokens: number;
 }
 
 export interface RetrievalEvidence {
@@ -67,9 +68,7 @@ function sourceTypesFor(policy: MemoryPolicy): RetrievalSourceType[] {
 }
 
 function policyFor(value: MemoryPolicy | unknown): MemoryPolicy {
-  return value && typeof value === "object" && "mode" in value
-    ? value as MemoryPolicy
-    : memoryPolicyFromAgentPolicy(value);
+  return memoryPolicyFromAgentPolicy(value);
 }
 
 /**
@@ -85,7 +84,7 @@ export function decideMemoryRetrieval(
   const policy = policyFor(options.policy);
   const query = message.trim().replace(/\s+/gu, " ").slice(0, 4_000);
   const sourceTypes = sourceTypesFor(policy);
-  const base = { query, sourceTypes, maxResults: 8 };
+  const base = { query, sourceTypes, maxResults: 8, maxTokens: policy.maxRetrievedTokens };
   if (options.always) return { requested: true, reason: "always", reasonCode: "always", ...base };
   if (policy.mode === "disabled") return { requested: false, reason: "policy_disabled", reasonCode: "policy_disabled", ...base };
 
@@ -130,7 +129,12 @@ function boundedScore(value: unknown): number {
   return Math.min(1, score);
 }
 
-function rankEvidence(memoryMatches: MemoryRecord[], knowledgeMatches: KnowledgeChunkRecord[], maxResults: number): RetrievalEvidence[] {
+function rankEvidence(
+  memoryMatches: MemoryRecord[],
+  knowledgeMatches: KnowledgeChunkRecord[],
+  maxResults: number,
+  maxTokens: number,
+): RetrievalEvidence[] {
   const candidates: RetrievalEvidence[] = [
     ...memoryMatches.map((record) => ({
       sourceType: "memory" as const,
@@ -160,13 +164,22 @@ function rankEvidence(memoryMatches: MemoryRecord[], knowledgeMatches: Knowledge
   }
   const sorted = [...unique.values()].sort((left, right) => right.score - left.score || left.sourceType.localeCompare(right.sourceType) || left.id.localeCompare(right.id));
   const selected: RetrievalEvidence[] = [];
+  let selectedTokens = 0;
   const sourceCount = new Map<RetrievalSourceType, number>();
   for (const candidate of sorted) {
     if (selected.length >= maxResults) break;
     const count = sourceCount.get(candidate.sourceType) ?? 0;
     if (sorted.some((entry) => entry.sourceType !== candidate.sourceType) && count >= Math.ceil(maxResults / 2)) continue;
+    const remainingTokens = maxTokens - selectedTokens;
+    if (remainingTokens <= 0) break;
+    const candidateTokens = Math.ceil(candidate.text.length / 4);
+    if (candidateTokens > remainingTokens && selected.length > 0) continue;
+    const text = candidateTokens > remainingTokens
+      ? candidate.text.slice(0, Math.max(1, remainingTokens * 4)).trimEnd()
+      : candidate.text;
     sourceCount.set(candidate.sourceType, count + 1);
-    selected.push({ ...candidate, rank: selected.length + 1 });
+    selected.push({ ...candidate, text, rank: selected.length + 1 });
+    selectedTokens += Math.ceil(text.length / 4);
   }
   return selected;
 }
@@ -187,7 +200,7 @@ export class RetrievalService {
     ]);
     return {
       decision,
-      evidence: rankEvidence(memoryMatches, knowledgeMatches, decision.maxResults),
+      evidence: rankEvidence(memoryMatches, knowledgeMatches, decision.maxResults, decision.maxTokens),
       memoryMatches,
       knowledgeMatches,
     };

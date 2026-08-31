@@ -639,8 +639,9 @@ bounded candidate set, and return structured evidence instead of one concatenate
 - [ ] Enable pgvector storage and index migrations with measured dimension and index settings.
 - [x] Apply existing organization, agent, installation, conversation, user, namespace, expiry,
       and sensitivity filtering before ranking.
-- [ ] Implement bounded hybrid ranking, deduplication, source diversity, and token budgeting;
-      lexical multi-source ranking is implemented, while vector hybrid ranking remains open.
+- [x] Implement bounded lexical multi-source ranking, deduplication, source diversity, and policy
+      token budgeting; vector hybrid ranking remains open ([retrieval.ts](agents/src/memory/retrieval.ts),
+      [policy.ts](agents/src/memory/policy.ts)).
 - [x] Return provenance and score evidence separately from prompt rendering
       ([retrieval.ts](agents/src/memory/retrieval.ts), [activities.ts](agents/src/temporal/activities.ts)).
 - [x] Add retrieval rate, source-count, relevance, and empty-result metrics; latency and explicit

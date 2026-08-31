@@ -19,8 +19,9 @@ retrieval behavior explainable and testable.
   codes.
 - One retrieval service that queries memory and knowledge concurrently, deduplicates results, and
   returns source, rank, score, and provenance evidence separately from prompt rendering.
-- Full-text relevance metadata and bounded candidate limits. Vector storage remains deferred until
-  the embedding model, dimension, index, and migration policy are selected.
+- Full-text relevance metadata, bounded candidate limits, source diversity, and a policy-controlled
+  evidence token budget. Vector storage remains deferred until the embedding model, dimension,
+  index, and migration policy are selected.
 - Retrieval metrics and run-step evidence that do not record prompt or document contents.
 - Evaluation fixtures for direct references, paraphrases, unrelated requests, and restricted
   policies.
@@ -35,7 +36,8 @@ retrieval behavior explainable and testable.
 
 - [x] Define the retrieval decision and structured evidence interfaces.
 - [x] Replace the duplicate regex gates with one deterministic classifier.
-- [x] Add bounded full-text candidate scoring, deduplication, source diversity, and token limits.
+- [x] Add bounded full-text candidate scoring, deduplication, source diversity, and policy token
+      limits.
 - [x] Apply repository ownership and policy filtering before ranking.
 - [x] Record retrieval reason, source counts, empty results, and scope-safe evidence metadata.
 - [x] Add paraphrase and restricted-scope evaluation fixtures.
@@ -70,7 +72,8 @@ destination and alert policy remain governed by the observability plan.
 User, API, internal, and operational documentation: update the memory architecture document and
 the audit checklist in the same change.
 
-Validation evidence: pending implementation.
+Validation evidence: targeted retrieval and memory-policy tests passed (`11/11`); Agents
+typecheck passed. Full suite and worker deployment evidence remain part of the release closeout.
 
 Rollback or disable plan: revert the retrieval service/context wiring; repository search remains
 backward-compatible.

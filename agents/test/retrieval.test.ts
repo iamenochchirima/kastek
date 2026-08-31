@@ -50,4 +50,25 @@ describe("structured retrieval", () => {
     expect(result.evidence[1]).toMatchObject({ id: "knowledge-2", sourceType: "knowledge", score: 0.5, rank: 2, sourceId: "source-1", chunkIndex: 3 });
     expect(result.evidence.every((entry) => entry.provenance && typeof entry.provenance === "object")).toBe(true);
   });
+
+  it("never exceeds the policy token budget when candidates are large", async () => {
+    const memory = {
+      search: vi.fn().mockResolvedValue([
+        { id: "memory-large", canonical_text: "memory ".repeat(400), relevance_score: 1, namespace: "agent_private", provenance: {} },
+      ]),
+    };
+    const knowledge = {
+      search: vi.fn().mockResolvedValue([
+        { id: "knowledge-large", source_id: "source-1", chunk_index: 0, canonical_text: "knowledge ".repeat(400), relevance_score: 0.9, provenance: {} },
+      ]),
+    };
+    const result = await new RetrievalService(memory as never, knowledge as never).retrieve(
+      { organizationId: "org-1", agentId: "agent-1", installationId: "installation-1", actorId: "user-1" },
+      "What did we discuss?",
+      { memory: { mode: "explicit", maxRetrieved: 8, maxRetrievedTokens: 1000 } },
+    );
+
+    expect(result.evidence.length).toBeGreaterThan(0);
+    expect(result.evidence.reduce((total, entry) => total + Math.ceil(entry.text.length / 4), 0)).toBeLessThanOrEqual(1000);
+  });
 });

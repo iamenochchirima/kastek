@@ -8,10 +8,16 @@ describe("memory policy", () => {
     expect(normalizeMemoryPolicy({ mode: "not-a-mode", maxRetrieved: 999, maxWritesPerRun: -4, readableNamespaces: ["agent_private", "bad"], allowSensitive: true })).toMatchObject({
       mode: "explicit",
       maxRetrieved: 50,
+      maxRetrievedTokens: 1600,
       maxWritesPerRun: 0,
       readableNamespaces: ["agent_private"],
       allowSensitive: true,
     });
+  });
+
+  it("bounds the retrieval token budget independently from result count", () => {
+    expect(normalizeMemoryPolicy({ maxRetrievedTokens: 99_999 })).toMatchObject({ maxRetrievedTokens: 8_000 });
+    expect(normalizeMemoryPolicy({ maxRetrievedTokens: 12 })).toMatchObject({ maxRetrievedTokens: 256 });
   });
 
   it("allows a policy to disable retrieval and writes", async () => {

@@ -8,6 +8,7 @@ export interface MemoryPolicy {
   writableNamespaces: MemoryNamespace[];
   writableTypes: MemoryType[];
   maxRetrieved: number;
+  maxRetrievedTokens: number;
   maxWritesPerRun: number;
   retentionDays?: number;
   allowSensitive: boolean;
@@ -49,6 +50,7 @@ export function normalizeMemoryPolicy(value: unknown): MemoryPolicy {
     writableNamespaces: enumList(raw.writableNamespaces, allNamespaces, ["conversation", "user_private", "agent_private"]),
     writableTypes: enumList(raw.writableTypes, allTypes, ["working", "semantic", "episodic"]),
     maxRetrieved: boundedInteger(raw.maxRetrieved, 8, 0, 50),
+    maxRetrievedTokens: boundedInteger(raw.maxRetrievedTokens, 1_600, 256, 8_000),
     maxWritesPerRun: boundedInteger(raw.maxWritesPerRun, 3, 0, 20),
     ...(retentionDays === undefined ? {} : { retentionDays }),
     allowSensitive: raw.allowSensitive === true,

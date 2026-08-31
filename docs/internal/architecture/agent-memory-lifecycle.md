@@ -35,8 +35,11 @@ before prompt rendering.
 `RetrievalService` runs the policy-bounded memory and knowledge searches concurrently, then returns
 structured evidence with source type, stable record identity, lexical score, rank, and provenance.
 It deduplicates identical text, limits the candidate set, keeps source diversity when both sources
-are available, and passes only the selected evidence text into the untrusted context section.
-Run-step evidence records counts and ranked IDs/scores without recording the retrieved text there.
+are available, and applies the installation's bounded `maxRetrievedTokens` budget before passing
+selected evidence into the untrusted context section. Oversized candidates are truncated only when
+needed to fit an otherwise empty budget; later candidates are skipped when they would exceed the
+remaining budget. Run-step evidence records counts and ranked IDs/scores without recording the
+retrieved text there.
 
 The worker exposes two installation-scoped capabilities:
 
