@@ -196,7 +196,7 @@ function defaultNode(type: WorkflowNodeType, id: string): NodeDraft {
     model: { configText: '{\n  "instruction": "Use the agent instructions and current context."\n}', readsText: "input", writesText: "output" },
     agent_loop: { configText: '{\n  "instruction": "Continue until the task is complete."\n}', readsText: "input", writesText: "output", maxIterationsText: "3" },
     tool: { configText: '{\n  "toolName": "",\n  "arguments": {}\n}', readsText: "input", writesText: "tool.output" },
-    route: { configText: "{}" }, fan_out: { configText: "{}", parallelGroup: "branch-1" }, fan_in: { configText: "{}" }, approval: { configText: "{}" },
+    route: { configText: "{}" }, fan_out: { configText: '{\n  "fanInNodeId": "join"\n}', parallelGroup: "branch-1" }, fan_in: { configText: "{}" }, approval: { configText: "{}" },
     wait: { configText: `{\n  "eventKey": "${id}"\n}`, writesText: "event.payload" }, handoff: { configText: `{\n  "handoffKey": "${id}"\n}`, writesText: "handoff.payload" },
   };
   return { ...base, ...configs[type] };

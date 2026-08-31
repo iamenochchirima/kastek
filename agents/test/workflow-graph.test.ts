@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateWorkflowGraph } from "../src/workflows/graph";
+import { compileWorkflowStateSchema, validateWorkflowGraph } from "../src/workflows/graph";
 import { executeWorkflowGraph } from "../src/workflows/executor";
 
 describe("workflow graph validation", () => {
@@ -104,7 +104,7 @@ describe("workflow graph validation", () => {
     })).toThrow(/cycles are not supported/);
   });
 
-  it("rejects cycles and still requires fan-out grouping before feature support", () => {
+  it("rejects cycles and still requires fan-out grouping", () => {
     expect(() => validateWorkflowGraph({
       version: 1,
       entryNodeId: "loop",
@@ -124,9 +124,9 @@ describe("workflow graph validation", () => {
     expect(() => validateWorkflowGraph({
       version: 1,
       entryNodeId: "fan",
-      nodes: [{ id: "fan", type: "fan_out", parallelGroup: "work" }],
-      edges: [],
-    })).toThrow(/not supported/);
+      nodes: [{ id: "fan", type: "fan_out", parallelGroup: "work", config: { fanInNodeId: "join" } }, { id: "join", type: "fan_in" }],
+      edges: [{ from: "fan", to: "join" }],
+    })).toThrow(/at least two branches/);
     expect(() => validateWorkflowGraph({
       version: 1,
       entryNodeId: "loop",
@@ -148,6 +148,23 @@ describe("workflow graph validation", () => {
     expect(result.error).toMatch(/state.*count.*number/i);
   });
 
+  it("compiles nested state validation once and reuses the resulting contract", () => {
+    const validate = compileWorkflowStateSchema({
+      version: 1,
+      entryNodeId: "start",
+      nodes: [{ id: "start", type: "route" }],
+      edges: [],
+      stateSchema: {
+        properties: { profile: { type: "object", properties: { name: { type: "string" } }, required: ["name"] } },
+        required: ["profile"],
+        additionalProperties: false,
+      },
+    });
+    expect(() => validate({ profile: { name: "Ada" } })).not.toThrow();
+    expect(() => validate({ profile: { name: 42 } })).toThrow("must be string");
+    expect(() => validate({ other: true })).toThrow("undeclared field");
+  });
+
   it("enforces edge iteration limits for a directly supplied bounded graph", async () => {
     const graph = {
       version: 1 as const,
@@ -166,11 +183,12 @@ describe("workflow graph validation", () => {
       version: 1 as const,
       entryNodeId: "fan",
       nodes: [
-        { id: "fan", type: "fan_out" as const, parallelGroup: "work" },
+        { id: "fan", type: "fan_out" as const, parallelGroup: "work", config: { fanInNodeId: "join" } },
         { id: "left", type: "deterministic" as const, config: { operation: "set", path: "left", value: true } },
         { id: "right", type: "deterministic" as const, config: { operation: "set", path: "right", value: true } },
+        { id: "join", type: "fan_in" as const },
       ],
-      edges: [{ from: "fan", to: "left" }, { from: "fan", to: "right" }],
+      edges: [{ from: "fan", to: "left" }, { from: "fan", to: "right" }, { from: "left", to: "join" }, { from: "right", to: "join" }],
       stateSchema: {},
     };
     const result = await executeWorkflowGraph(graph, {});
@@ -182,11 +200,12 @@ describe("workflow graph validation", () => {
       version: 1 as const,
       entryNodeId: "fan",
       nodes: [
-        { id: "fan", type: "fan_out" as const, parallelGroup: "work" },
+        { id: "fan", type: "fan_out" as const, parallelGroup: "work", config: { fanInNodeId: "join" } },
         { id: "left", type: "deterministic" as const, config: { operation: "set", path: "answer", value: "left" } },
         { id: "right", type: "deterministic" as const, config: { operation: "set", path: "answer", value: "right" } },
+        { id: "join", type: "fan_in" as const },
       ],
-      edges: [{ from: "fan", to: "left" }, { from: "fan", to: "right" }],
+      edges: [{ from: "fan", to: "left" }, { from: "fan", to: "right" }, { from: "left", to: "join" }, { from: "right", to: "join" }],
       stateSchema: {},
     };
     const result = await executeWorkflowGraph(graph, {});

@@ -13,10 +13,10 @@ budgets, and workflow node checkpoints.
 ## Supported graph contract
 
 The graph validator accepts version 1 graphs, validates node and edge references, rejects cycles,
-and rejects `fan_out`, `fan_in`, and `agent_loop` until their durable semantics are complete. This
-is an intentional publication-time containment rule. The direct executor still contains bounded
-fan-out and loop test seams so those semantics can be developed without making them available to
-production agent versions.
+and rejects `agent_loop` until its durable semantics are complete. Fan-out graphs must name a
+fan-in node, have at least two branches, and route every branch to that join. The executor runs
+those branches against a shared run budget, merges only changed state paths, rejects overlapping
+writes, and executes the fan-in node once after all branches reach it.
 
 Supported execution records validate state at the initial, intermediate, resumed, and final
 boundaries. Node completion and pause checkpoints include state, trace, usage, next-node identity,

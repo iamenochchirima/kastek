@@ -345,13 +345,14 @@ Add contract tests for:
       `agent_loop` configurations ([graph.ts](agents/src/workflows/graph.ts)).
 - [x] Define the graph module interface, durable state format, error model, and compatibility rules
       ([executor.ts](agents/src/workflows/executor.ts), migration 080).
-- [ ] Compile `stateSchema` once and validate initial, intermediate, resumed, and final state.
-      Runtime validation now covers those boundaries, but schema compilation/caching remains open.
+- [x] Compile `stateSchema` once and validate initial, intermediate, resumed, and final state
+      ([graph.ts](agents/src/workflows/graph.ts), [executor.ts](agents/src/workflows/executor.ts)).
 - [x] Enforce node, edge, graph-step, model-call, token, cost, tool, and wall-clock limits
       ([executor.ts](agents/src/workflows/executor.ts)).
 - [x] Replace whole-snapshot fan-out merges with branch deltas and overlapping-write validation
       ([executor.ts](agents/src/workflows/executor.ts)).
-- [ ] Implement one-time fan-in after all required branches complete.
+- [x] Implement one-time fan-in after all required branches complete
+      ([executor.ts](agents/src/workflows/executor.ts), [workflow-graph.test.ts](agents/test/workflow-graph.test.ts)).
 - [ ] Wire `agent_loop` through the same bounded loop module used by normal hosted runs.
 - [x] Persist node checkpoints, pause state, branch state, and idempotency keys
       ([workflow-checkpoint-repository.ts](agents/src/db/repositories/workflow-checkpoint-repository.ts),

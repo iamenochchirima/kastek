@@ -1,4 +1,4 @@
-import { validateWorkflowState, type WorkflowGraph } from "./graph";
+import { compileWorkflowStateSchema, type WorkflowGraph, type WorkflowStateValidator } from "./graph";
 import { hashToolArguments } from "../tools/registry";
 
 export interface GraphToolRequest {
@@ -54,6 +54,7 @@ export interface GraphExecutionResult {
   waitingFor?: string;
   error?: string;
   usage: GraphExecutionUsage;
+  boundaryReached?: boolean;
 }
 
 interface GraphExecutionContext {
@@ -63,6 +64,8 @@ interface GraphExecutionContext {
   nodeIterations: Map<string, number>;
   steps: number;
   maxSteps: number;
+  stopAtNodeId?: string;
+  validateState: WorkflowStateValidator;
 }
 
 function getPath(state: Record<string, unknown>, path: string): unknown {
@@ -118,11 +121,12 @@ export async function executeWorkflowGraph(
     nodeIterations: new Map<string, number>(),
     steps: 0,
     maxSteps: boundedLimit(dependencies.limits?.maxSteps, 2_000),
+    validateState: compileWorkflowStateSchema(graph),
   } satisfies GraphExecutionContext;
   const { usage } = execution;
   let current = graph.entryNodeId;
   try {
-    validateWorkflowState(graph, state);
+    execution.validateState(state);
   } catch (error) {
     return { status: "failed", state, trace, usage, error: error instanceof Error ? error.message : "Workflow initial state is invalid" };
   }
@@ -132,6 +136,9 @@ export async function executeWorkflowGraph(
     if (limitError) return { status: "failed", state, trace, usage, error: limitError };
     const node = graph.nodes.find((candidate) => candidate.id === current);
     if (!node) return { status: "failed", state, trace, usage, error: `Unknown node: ${current}` };
+    if (execution.stopAtNodeId === current) {
+      return { status: "completed", state, trace, usage, boundaryReached: true };
+    }
     const count = (execution.nodeIterations.get(node.id) ?? 0) + 1;
     execution.nodeIterations.set(node.id, count);
     if (node.maxIterations !== undefined && count > node.maxIterations) return { status: "failed", state, trace, usage, error: `Node iteration limit exceeded: ${node.id}` };
@@ -227,7 +234,7 @@ export async function executeWorkflowGraph(
       } else if (node.type === "fan_out" || node.type === "fan_in" || node.type === "route") {
         // Control-only nodes select edges below; fan-out branches are executed in later steps.
       }
-      validateWorkflowState(graph, state);
+      execution.validateState(state);
       const postNodeLimitError = executionLimitError(usage, dependencies.limits, execution.startedAt);
       if (postNodeLimitError) return { status: "failed", state, trace, usage, error: postNodeLimitError };
       trace.push({ nodeId: node.id, type: node.type, status: "completed" });
@@ -238,14 +245,23 @@ export async function executeWorkflowGraph(
       await checkpointNode(dependencies, node.id, nextNodeId, "completed", state, result, trace, usage, count);
       if (!outgoing.length) return { status: "completed", state, trace, usage };
       if (node.type === "fan_out") {
-        const branches = await Promise.all(outgoing.map(({ edge, index }) => {
-          consumeEdgeIteration(edge, index, execution.edgeIterations);
-          return executeWorkflowGraph({ ...graph, entryNodeId: edge.to }, state, dependencies, execution);
-        }));
+        const fanInNodeId = typeof node.config.fanInNodeId === "string" ? node.config.fanInNodeId : undefined;
+        const previousBoundary = execution.stopAtNodeId;
+        if (fanInNodeId) execution.stopAtNodeId = fanInNodeId;
+        let branches: GraphExecutionResult[];
+        try {
+          branches = await Promise.all(outgoing.map(({ edge, index }) => {
+            consumeEdgeIteration(edge, index, execution.edgeIterations);
+            return executeWorkflowGraph({ ...graph, entryNodeId: edge.to }, state, dependencies, execution);
+          }));
+        } finally {
+          execution.stopAtNodeId = previousBoundary;
+        }
         const mergedState = structuredClone(state);
         const mergedPaths: Array<{ path: string; value: unknown }> = [];
         for (const branch of branches) {
           if (branch.status !== "completed") return { ...branch, trace: [...trace, ...branch.trace], usage };
+          if (fanInNodeId && !branch.boundaryReached) throw new Error(`Fan-out branch did not reach its fan-in node: ${fanInNodeId}`);
           for (const path of changedStatePaths(state, branch.state)) {
             const value = getPath(branch.state, path);
             const conflict = mergedPaths.find((existing) => pathsOverlap(existing.path, path));
@@ -256,10 +272,14 @@ export async function executeWorkflowGraph(
             mergedPaths.push({ path, value });
             setPath(mergedState, path, value);
           }
-          validateWorkflowState(graph, mergedState);
+          execution.validateState(mergedState);
           trace.push(...branch.trace);
         }
         Object.assign(state, mergedState);
+        if (fanInNodeId) {
+          current = fanInNodeId;
+          continue;
+        }
         return { status: "completed", state, trace, usage };
       }
       const next = outgoing[0]!;
