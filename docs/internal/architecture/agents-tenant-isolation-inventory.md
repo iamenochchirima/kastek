@@ -74,8 +74,9 @@ RLS policies.
 ## Evidence and findings
 
 - Local database role: `enoch`, superuser; this is unsuitable for an RLS test.
-- Production Agents runtime role: `postgres`, superuser with `rolbypassrls = true`; RLS would be
-  bypassed until the service connection is moved to a restricted login role.
+- Before the role-separation release, the production Agents runtime used `postgres`, a superuser
+  with `rolbypassrls = true`. It now uses `kasitek_agents_app`, verified with `rolsuper = false`
+  and `rolbypassrls = false`; RLS remains disabled until context plumbing and policies are ready.
 - Local database: one memory row and related legacy test rows failed the simple parent-organization
   query; they are not a safe basis for validation without scoped repair or quarantine.
 - Production database: zero missing-agent rows and zero ordinary agent/organization mismatches.
@@ -87,7 +88,8 @@ RLS policies.
 ## Required sequence
 
 1. Provision `kasitek_agents_runtime` and a separate login role without `SUPERUSER`, `BYPASSRLS`,
-   `CREATEROLE`, or `CREATEDB`; move Agents API and worker connections off `postgres`.
+   `CREATEROLE`, or `CREATEDB`; move Agents API and worker connections off `postgres`. This role
+   separation is complete; the remaining steps are required before RLS is enabled.
 2. Add transaction-scoped organization and actor context to every API, worker, publisher, and
    operator database adapter. Connection-pool session state must never leak between tenants.
 3. Repair or explicitly exempt legacy rows, validate ownership constraints, and add negative tests

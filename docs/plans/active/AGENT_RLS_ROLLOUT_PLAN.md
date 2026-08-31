@@ -1,6 +1,6 @@
 # Agents PostgreSQL RLS rollout plan
 
-**Status:** Active
+**Status:** Active; runtime role separated
 
 **Owner:** Agent Platform
 
@@ -33,7 +33,7 @@ protected system-agent or operator workflows.
 - [x] Audit production legacy ownership results and classify protected system-agent exceptions.
 - [x] Add the non-login runtime group role and default grants
       ([090_agents_runtime_role.sql](../../../agents/migrations/090_agents_runtime_role.sql)).
-- [ ] Provision a restricted login role, update API/worker database URLs, and verify no
+- [x] Provision a restricted login role, update API/worker database URLs, and verify no
       application process uses `SUPERUSER` or `BYPASSRLS`.
 - [ ] Add transaction-scoped organization and actor context without pool leakage.
 - [ ] Repair or quarantine ordinary legacy ownership violations and validate existing constraints.
@@ -57,7 +57,9 @@ Affected services and user surfaces: agents-api, agents-worker, Agents PostgreSQ
 knowledge, conversations, model/tool execution, credentials, effects, approvals, and operator
 recovery.
 
-Platform release version or release ID: pending implementation release.
+Platform release version or release ID: commit `ae97c7e5`; role-switch rollout completed in
+Railway redeployments `5c41fb52-396f-449a-b77f-f09d42701c78` (API) and
+`d4bcbb4a-5923-498b-9488-e700e55e8472` (worker).
 
 API/schema/migration changes: additive migration 090 creates the `kasitek_agents_runtime` NOLOGIN
 group role, grants current-table access, and sets default privileges. Login credentials are
@@ -75,9 +77,11 @@ cross-tenant test results, and migration status. Add alerts before enabling prod
 User, API, internal, and operational documentation: update the tenant isolation inventory,
 deployment topology, database recovery runbook, and audit checklist.
 
-Validation evidence: inventory queries completed locally and in production; production role is
-currently confirmed as `postgres` superuser, and all tables currently report RLS disabled. Migration
-090 and restricted-role tests are pending.
+Validation evidence: inventory queries completed locally and in production; migration 090 applied
+in production; API and worker were redeployed with the restricted login; the API connection reports
+`kasitek_agents_app` with `rolsuper = false` and `rolbypassrls = false`; API live/ready checks
+returned 200 and the worker reached `RUNNING`. All tables still report RLS disabled, as intended
+until transaction context and policies are released.
 
 Rollback or disable plan: do not enable RLS until a restricted role and context mechanism are
 verified. For a role-only rollout, restore the previous runtime URL while retaining the additive

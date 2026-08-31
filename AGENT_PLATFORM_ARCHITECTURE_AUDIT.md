@@ -588,8 +588,9 @@ triggers for memory, knowledge, installations, and runs. This is a strong applic
 
 PostgreSQL row-level security is not enabled. Some new constraints are `NOT VALID`, so legacy rows
 have not been proven to satisfy them. A missed predicate in a future query could bypass the
-intended isolation rules. The production Agents runtime also connects as the `postgres` superuser,
-which would bypass RLS even if policies were added today.
+intended isolation rules. The production Agents runtime previously connected as the `postgres`
+superuser; it now uses a restricted login without `SUPERUSER` or `BYPASSRLS`, but RLS remains off
+until transaction context and policies are implemented.
 
 The table and parent-path inventory is recorded in
 [`agents-tenant-isolation-inventory.md`](docs/internal/architecture/agents-tenant-isolation-inventory.md).
@@ -623,6 +624,9 @@ system-installation design.
 - [x] Audit existing rows and write a report for orphaned or inconsistent ownership; production
       exceptions are protected system-agent rows, while local legacy test data remains outside
       production validation ([agents-tenant-isolation-inventory.md](docs/internal/architecture/agents-tenant-isolation-inventory.md)).
+- [x] Provision a restricted runtime group/login and move API and worker connections off the
+      PostgreSQL superuser ([090_agents_runtime_role.sql](agents/migrations/090_agents_runtime_role.sql),
+      [AGENT_RLS_ROLLOUT_PLAN.md](docs/plans/active/AGENT_RLS_ROLLOUT_PLAN.md)).
 - [ ] Repair or quarantine invalid legacy rows before validating constraints.
 - [ ] Add transaction-scoped organization and actor context to API, worker, publisher, and operator
       database adapters.
