@@ -329,7 +329,40 @@ pub async fn get_content_media_preview(
     if asset.processing_status != "READY" || asset.scan_status != "CLEAN" {
         return Err(AppError::Conflict("Media asset is not ready".to_string()));
     }
+    ensure_media_object_available(pool, config, org_id, asset_id).await?;
     Ok((asset, public_media_url(config, asset_id)))
+}
+
+/// A metadata row is not enough to render a preview: the backing object may
+/// have been lost by an old non-persistent deployment or a storage failure.
+/// Fail the preview boundary here so the Agent harness never completes a
+/// response that will later render as a blank attachment.
+async fn ensure_media_object_available(
+    pool: &PgPool,
+    config: &AppConfig,
+    org_id: &str,
+    asset_id: &str,
+) -> Result<(), AppError> {
+    let storage_key = sqlx::query_scalar::<_, String>(
+        r#"SELECT "storageKey"
+           FROM "ContentMediaAsset"
+           WHERE id = $1 AND "orgId" = $2"#,
+    )
+    .bind(asset_id)
+    .bind(org_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Media asset not found".to_string()))?;
+    let path = storage_path(config, &storage_key)?;
+    let metadata = tokio::fs::metadata(path)
+        .await
+        .map_err(|_| AppError::NotFound("Media file is no longer available".to_string()))?;
+    if !metadata.is_file() || metadata.len() == 0 {
+        return Err(AppError::NotFound(
+            "Media file is no longer available".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Debug, sqlx::FromRow)]

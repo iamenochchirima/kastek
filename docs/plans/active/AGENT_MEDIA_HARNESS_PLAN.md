@@ -56,6 +56,8 @@ adapter for older text-only runs; new hosted runs use the typed response capabil
 - [x] Add gateway profiles and native/fallback delivery for supported channels.
 - [x] Normalize inbound attachments to stable `media[]` references while retaining legacy fields.
 - [x] Render typed media in platform chat and website widget; add Telegram/Discord/WhatsApp tests.
+- [x] Reject missing backing media objects before a typed agent response can complete, and keep the
+  media capability output schema aligned with the Core asset contract.
 - [x] Update internal architecture, REST/MCP documentation, and generated capability docs.
 - [ ] Run staged production smoke tests and complete the compatibility-window review.
 
@@ -105,6 +107,8 @@ and after the compatibility window.
 Local validation evidence (2026-08-31):
 
 - `agents`: 60 targeted Vitest tests passed and `pnpm run build` passed.
+- Follow-up regression coverage: the full Agents suite passes with 80 files passed, 18 skipped, 471
+  tests passed, and 45 skipped. The Agents build passes.
 - `client`: `pnpm --filter client lint` passed with two pre-existing/non-blocking warnings and
   `pnpm --filter client build` passed.
 - `server`: `cargo fmt --all -- --check`, `cargo check -p kasitek-core`, and `cargo test -p
@@ -128,3 +132,11 @@ Local validation evidence (2026-08-31):
 - Provider-specific media send/retry smoke and fallback-rate evidence: pending a safe, non-customer
   test message on each configured gateway; do not close the compatibility window until that smoke
   is recorded.
+
+Latest incident evidence (2026-08-31): an older Instagram response referenced an asset whose Core
+metadata row remained present after its local media object was lost. The public preview request
+returned HTTP 404, which left the gateway with a valid-looking attachment that could not render.
+The production Core volume was restored byte-for-byte from a checksum-matching copy. The preview
+boundary now checks the scoped storage key and requires a non-empty regular file before minting a
+preview URL, so future missing objects fail during the agent run instead of after delivery starts.
+No database migration is required for this fix.

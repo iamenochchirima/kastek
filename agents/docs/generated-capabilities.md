@@ -74,6 +74,80 @@ Read safe metadata for one workspace media asset. Use it to verify an asset befo
 ```json
 {
   "type": "object",
+  "properties": {
+    "asset": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "IMAGE",
+            "VIDEO",
+            "AUDIO"
+          ]
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "fileName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "byteSize": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "checksum": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "width": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "height": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "durationMs": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "processingStatus": {
+          "type": "string"
+        },
+        "scanStatus": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "mimeType",
+        "byteSize",
+        "processingStatus",
+        "scanStatus",
+        "createdAt"
+      ],
+      "additionalProperties": false
+    }
+  },
   "required": [
     "asset"
   ],
@@ -115,6 +189,84 @@ Resolve one authorized workspace media asset to safe metadata and a short-lived 
 ```json
 {
   "type": "object",
+  "properties": {
+    "asset": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "IMAGE",
+            "VIDEO",
+            "AUDIO"
+          ]
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "fileName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "byteSize": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "checksum": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "width": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "height": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "durationMs": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "processingStatus": {
+          "type": "string"
+        },
+        "scanStatus": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "mimeType",
+        "byteSize",
+        "processingStatus",
+        "scanStatus",
+        "createdAt"
+      ],
+      "additionalProperties": false
+    },
+    "previewUrl": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
   "required": [
     "asset",
     "previewUrl"

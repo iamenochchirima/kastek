@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+/** The final-response control is built into every hosted run. */
+export const AGENT_MEDIA_HARNESS_TOOLS = ["kasitek.agent.respond"] as const;
+
 /** Stable, workspace-owned media identity. Never persist provider URLs or bytes here. */
 export const agentMediaReferenceSchema = z.object({
   assetId: z.string().trim().min(1).max(160),

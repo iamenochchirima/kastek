@@ -51,7 +51,7 @@ import { IntegrationRepository } from "../integrations/repository";
 import { IntegrationToolService } from "../integrations/service";
 import { registerIntegrationTools } from "../integrations/tools";
 import { withSpan } from "../telemetry/spans";
-import { agentResponseSchema, agentResponseToolInputSchema, parseAgentResponse } from "../media/contracts";
+import { AGENT_MEDIA_HARNESS_TOOLS, agentResponseSchema, agentResponseToolInputSchema, parseAgentResponse } from "../media/contracts";
 import { materializeResponseLinks, type ResolvedAgentMedia } from "../media/delivery";
 import { channelMediaProfile } from "../media/profiles";
 
@@ -122,6 +122,26 @@ function creditPricingFromConfig(config?: AppConfig): ModelCreditPricing {
   };
 }
 
+const contentMediaAssetOutputSchema: Record<string, unknown> = {
+  type: "object",
+  properties: {
+    id: { type: "string" },
+    kind: { type: "string", enum: ["IMAGE", "VIDEO", "AUDIO"] },
+    mimeType: { type: "string" },
+    fileName: { type: ["string", "null"] },
+    byteSize: { type: "integer", minimum: 0 },
+    checksum: { type: ["string", "null"] },
+    width: { type: ["integer", "null"] },
+    height: { type: ["integer", "null"] },
+    durationMs: { type: ["integer", "null"] },
+    processingStatus: { type: "string" },
+    scanStatus: { type: "string" },
+    createdAt: { type: "string" },
+  },
+  required: ["id", "kind", "mimeType", "byteSize", "processingStatus", "scanStatus", "createdAt"],
+  additionalProperties: false,
+};
+
 export async function reserveModelCredits(input: {
   billingMode: AppConfig["CREDIT_BILLING_MODE"];
   gateway: ModelGateway;
@@ -184,7 +204,10 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
       if (!response.media.length) return { control: "final_response", response };
       if (!coreClient) throw new Error("kasitek-core media boundary is not configured");
       const media = await Promise.all(response.media.map(async (item) => {
-        const { asset } = await coreClient.getContentMediaMetadata(context, item.assetId);
+        // Preview resolution verifies both the database record and the backing
+        // object before a response can complete. Metadata alone can outlive a
+        // lost local object and would otherwise produce a blank attachment.
+        const { asset } = await coreClient.getContentMediaPreview(context, item.assetId);
         const kind = asset.kind.toLowerCase();
         if (kind !== item.kind) throw new Error(`Media kind does not match asset: ${item.assetId}`);
         if (asset.processingStatus !== "READY" || asset.scanStatus !== "CLEAN") throw new Error(`Media asset is not ready: ${item.assetId}`);
@@ -227,7 +250,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
       required: ["assetId"],
       additionalProperties: false,
     },
-    outputSchema: { type: "object", required: ["asset"], additionalProperties: false },
+    outputSchema: { type: "object", properties: { asset: contentMediaAssetOutputSchema }, required: ["asset"], additionalProperties: false },
     manifest: { ownerService: "kasitek-core", requiredScope: "content.read", resourceSelector: { type: "content_media", argument: "assetId" }, execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: [] },
     handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core media boundary is not configured");
@@ -247,7 +270,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
       required: ["assetId"],
       additionalProperties: false,
     },
-    outputSchema: { type: "object", required: ["asset", "previewUrl"], additionalProperties: false },
+    outputSchema: { type: "object", properties: { asset: contentMediaAssetOutputSchema, previewUrl: { type: "string", minLength: 1 } }, required: ["asset", "previewUrl"], additionalProperties: false },
     manifest: { ownerService: "kasitek-core", requiredScope: "content.read", resourceSelector: { type: "content_media", argument: "assetId" }, execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: ["previewUrl"] },
     handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core media boundary is not configured");
@@ -1267,6 +1290,11 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
   return tools;
 }
 
+/** Add the media harness surface to every hosted run after installation policy is resolved. */
+export function addAgentMediaHarnessTools(allowedTools: Set<string>): void {
+  for (const toolName of AGENT_MEDIA_HARNESS_TOOLS) allowedTools.add(toolName);
+}
+
 const approvalPreviewKeys = new Set([
   "postId",
   "platform",
@@ -2271,7 +2299,7 @@ async function executeLoopForRun(
   }
   // Harness controls are available to every hosted run. They are not an
   // installation grant and are never exposed as external business actions.
-  allowedTools.add("kasitek.agent.respond");
+  addAgentMediaHarnessTools(allowedTools);
   if (!(await controls.isFeatureEnabled(run.organization_id, "agent_execution_enabled", run.installation_id))) throw new Error("AGENT_EXECUTION_FLAG_DISABLED");
   if (await controls.isHeld({ organizationId: run.organization_id, installationId: run.installation_id, runId: run.id, holdType: "execution" })) throw new Error("AGENT_EXECUTION_HOLD_ACTIVE");
   const credentialReference = isKasiAiInstallation && typeof preference?.default_credential_reference === "string"

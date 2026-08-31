@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createDefaultTools, normalizeConnectionFilter } from "../src/temporal/activities";
+import { addAgentMediaHarnessTools, createDefaultTools, normalizeConnectionFilter } from "../src/temporal/activities";
 import { KASIAI_ALLOWED_TOOLS } from "../src/system/kasiai";
 
 const context = {
@@ -145,6 +145,8 @@ describe("content capability contract", () => {
   it("keeps every content capability owned, scoped, redacted, and classified", () => {
     const manifests = registry.manifests().filter((manifest) => manifest.name.startsWith("kasitek.core.content_"));
     expect(manifests.map((manifest) => manifest.name)).toEqual([
+      "kasitek.core.content_media_get",
+      "kasitek.core.content_media_preview",
       "kasitek.core.content_posts_list",
       "kasitek.core.content_post_get",
       "kasitek.core.content_posts_insights_report",
@@ -163,7 +165,7 @@ describe("content capability contract", () => {
       expect(manifest.manifest.requiredScope).toMatch(/^content\.(read|write|publish)$/);
       expect(manifest.manifest.auditClassification).toMatch(/^(restricted|full)$/);
       expect(manifest.manifest.redaction.every((entry) => entry.length > 0)).toBe(true);
-      if (manifest.name !== "kasitek.core.content_post_delete") expect(manifest.manifest.redaction.length).toBeGreaterThan(0);
+      if (manifest.name !== "kasitek.core.content_post_delete" && manifest.name !== "kasitek.core.content_media_get") expect(manifest.manifest.redaction.length).toBeGreaterThan(0);
       if (manifest.name.endsWith("_publish") || manifest.name.endsWith("_schedule") || manifest.name.endsWith("_unschedule") || manifest.name.includes("_delete")) {
         expect(manifest.manifest).toMatchObject({ execution: "durable", idempotency: "required", approval: "always" });
         expect(manifest.requiresApproval).toBe(true);
@@ -192,6 +194,38 @@ describe("content capability contract", () => {
       "kasitek.core.content_post_delete_published",
     ]);
     for (const name of kasiaiContentTools) expect(registered.has(name)).toBe(true);
+  });
+
+  it("checks that attached media is physically available before completing a response", async () => {
+    const getContentMediaPreview = vi.fn(async () => ({
+      asset: {
+        id: "asset-1",
+        kind: "IMAGE",
+        mimeType: "image/jpeg",
+        fileName: "launch.jpg",
+        byteSize: 4,
+        processingStatus: "READY",
+        scanStatus: "CLEAN",
+        createdAt: "2026-08-31T00:00:00Z",
+      },
+      previewUrl: "https://api.example.test/media/asset-1",
+    }));
+    const tools = createDefaultTools({ getContentMediaPreview } as never);
+
+    await tools.invoke({
+      name: "kasitek.agent.respond",
+      arguments: { text: "Here it is", media: [{ assetId: "asset-1", kind: "image" }] },
+      context,
+      grantedTools: new Set(["kasitek.agent.respond"]),
+    });
+
+    expect(getContentMediaPreview).toHaveBeenCalledWith(context, "asset-1");
+  });
+
+  it("makes the media harness available to every hosted run", () => {
+    const allowedTools = new Set<string>();
+    addAgentMediaHarnessTools(allowedTools);
+    expect([...allowedTools]).toEqual(["kasitek.agent.respond"]);
   });
 
   it("validates the public content argument contract before handlers run", () => {
@@ -275,7 +309,7 @@ describe("content capability contract", () => {
         content: "Updated",
         status: "DRAFT",
         channels: ["INSTAGRAM"],
-        media: [{ assetId: "asset-1", kind: "IMAGE", fileName: "post.jpg", processingStatus: "READY", scanStatus: "CLEAN" }],
+        media: [{ assetId: "asset-1", kind: "image", fileName: "post.jpg", processingStatus: "READY", scanStatus: "CLEAN" }],
       },
     });
   });
