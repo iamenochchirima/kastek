@@ -42,6 +42,12 @@ const budgetReconciliationCounter = meter.createCounter("kasitek.run_budget.reco
 const temporalActivityAttemptCounter = meter.createCounter("kasitek.temporal.activity.attempt.count", {
   description: "Temporal activity attempts, including retries",
 });
+const retrievalDecisionCounter = meter.createCounter("kasitek.memory.retrieval.decision.count", {
+  description: "Bounded retrieval decisions by reason and outcome",
+});
+const retrievalEvidenceCounter = meter.createCounter("kasitek.memory.retrieval.evidence.count", {
+  description: "Structured memory and knowledge evidence returned to an agent run",
+});
 
 export function boundedAttribute(value: unknown, maxLength = 128): string {
   return String(value ?? "unknown").slice(0, maxLength);
@@ -120,4 +126,21 @@ export function recordTemporalActivityAttempt(activity: string, attempt: number)
     activity: boundedAttribute(activity),
     attempt: String(attempt),
   });
+}
+
+export function recordRetrievalResult(input: {
+  requested: boolean;
+  reason: string;
+  memoryCount: number;
+  knowledgeCount: number;
+  evidenceCount: number;
+}): void {
+  retrievalDecisionCounter.add(1, {
+    requested: String(input.requested),
+    reason: boundedAttribute(input.reason),
+    outcome: input.requested ? input.evidenceCount > 0 ? "hit" : "empty" : "skipped",
+  });
+  if (Number.isSafeInteger(input.memoryCount) && input.memoryCount > 0) retrievalEvidenceCounter.add(input.memoryCount, { source: "memory" });
+  if (Number.isSafeInteger(input.knowledgeCount) && input.knowledgeCount > 0) retrievalEvidenceCounter.add(input.knowledgeCount, { source: "knowledge" });
+  if (Number.isSafeInteger(input.evidenceCount) && input.evidenceCount > 0) retrievalEvidenceCounter.add(input.evidenceCount, { source: "ranked" });
 }

@@ -1,6 +1,6 @@
 import type { ModelMessage } from "../model/types";
 import type { ToolDefinition } from "../tools/types";
-import type { RetrievalDecision } from "../memory/retrieval";
+import { decideMemoryRetrieval, type RetrievalDecision } from "../memory/retrieval";
 
 export interface DurableContextMessage {
   direction: "inbound" | "outbound" | "system";
@@ -57,7 +57,7 @@ export function estimateTokens(value: string): number {
 }
 
 export function retrievalGate(message: string, options: { always?: boolean } = {}): boolean {
-  return options.always === true || /\b(remember|previous|earlier|last time|my preference|you know about me|history|context)\b/i.test(message);
+  return decideMemoryRetrieval(message, options).requested;
 }
 
 function contentText(content: Record<string, unknown>): string {
@@ -104,6 +104,7 @@ export function sanitizeAssistantResponse(value: string): string {
 
 export function buildAgentContext(input: ContextBuildInput): BuiltAgentContext {
   const budget = { ...defaultBudget, ...input.budget };
+  const fallbackRetrievalDecision = decideMemoryRetrieval(input.currentMessage, { always: input.alwaysRetrieveKnowledge });
   const systemSections = [
     input.instructions,
     "Execution identity: the current conversation belongs to this configured agent and its active installation. Internal platform identifiers are kept in runtime metadata and are not model-facing context.",
@@ -150,12 +151,8 @@ export function buildAgentContext(input: ContextBuildInput): BuiltAgentContext {
     messages,
     tools: input.authorizedTools,
     estimatedTokens,
-    retrievalRequested: input.retrievalDecision?.requested ?? retrievalGate(input.currentMessage, { always: input.alwaysRetrieveKnowledge }),
-    retrievalDecision: input.retrievalDecision ?? {
-      requested: retrievalGate(input.currentMessage, { always: input.alwaysRetrieveKnowledge }),
-      reason: input.alwaysRetrieveKnowledge ? "always" : "not_requested",
-      query: input.currentMessage.slice(0, 4_000),
-    },
+    retrievalRequested: input.retrievalDecision?.requested ?? fallbackRetrievalDecision.requested,
+    retrievalDecision: input.retrievalDecision ?? fallbackRetrievalDecision,
     omittedMessageCount: omittedMessageCount + (ordered.length - retained.length),
   };
 }

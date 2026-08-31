@@ -29,6 +29,7 @@ export interface KnowledgeChunkRecord {
   metadata: Record<string, unknown>;
   provenance: Record<string, unknown>;
   created_at: string;
+  relevance_score?: number;
 }
 
 export interface KnowledgeSourceDocument {
@@ -153,7 +154,7 @@ export class KnowledgeRepository {
   public async search(scope: MemoryScope, searchText: string, limit = 8): Promise<KnowledgeChunkRecord[]> {
     const result = await query<KnowledgeChunkRecord>(
       this.pool,
-      `SELECT kc.* FROM knowledge_chunks kc
+      `SELECT kc.*, ts_rank_cd(kc.search_vector, plainto_tsquery('simple', $4)) AS relevance_score FROM knowledge_chunks kc
        JOIN knowledge_sources ks ON ks.id = kc.source_id AND ks.status = 'active'
        WHERE kc.organization_id = $1
          AND kc.agent_definition_id = $2
@@ -162,7 +163,7 @@ export class KnowledgeRepository {
          AND kc.search_vector @@ plainto_tsquery('simple', $4)
        ORDER BY ts_rank_cd(kc.search_vector, plainto_tsquery('simple', $4)) DESC, kc.created_at DESC
        LIMIT $5`,
-      [scope.organizationId, scope.agentId, scope.installationId ?? null, searchText, limit],
+      [scope.organizationId, scope.agentId, scope.installationId ?? null, searchText, Math.max(1, Math.min(limit, 50))],
     );
     return result.rows;
   }

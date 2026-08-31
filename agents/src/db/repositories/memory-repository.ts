@@ -24,6 +24,7 @@ export interface MemoryRecord {
   expires_at: string | null;
   created_at: string;
   updated_at: string;
+  relevance_score?: number;
 }
 
 export interface MemoryScope {
@@ -100,7 +101,7 @@ export class MemoryRepository {
   public async searchMemory(scope: MemoryScope, searchText: string, limit = 8, namespaces?: readonly MemoryNamespace[]): Promise<MemoryRecord[]> {
     const result = await query<MemoryRecord>(
       this.pool,
-      `SELECT * FROM memory_records
+      `SELECT memory_records.*, ts_rank_cd(search_vector, plainto_tsquery('simple', $6)) AS relevance_score FROM memory_records
        WHERE organization_id = $1
          AND status = 'active'
          AND (expires_at IS NULL OR expires_at > now())

@@ -629,16 +629,24 @@ bounded candidate set, and return structured evidence instead of one concatenate
 
 #### Implementation checklist
 
-- [ ] Define the retrieval decision and structured evidence interfaces.
-- [ ] Build an evaluation set containing direct references, paraphrases, unrelated requests, and
-      restricted-scope cases.
-- [ ] Replace the regex gate with the cheapest approach that meets the evaluation threshold.
+- [x] Define the retrieval decision and structured evidence interfaces
+      ([retrieval.ts](agents/src/memory/retrieval.ts)).
+- [x] Build an evaluation set containing direct references, paraphrases, unrelated requests, and
+      restricted-scope cases ([retrieval.test.ts](agents/test/retrieval.test.ts)).
+- [x] Replace the duplicate regex gates with a bounded deterministic classifier; model-based
+      semantic classification remains unnecessary until the evaluation set shows this threshold
+      is insufficient.
 - [ ] Enable pgvector storage and index migrations with measured dimension and index settings.
-- [ ] Apply ownership filtering before keyword and vector candidate ranking.
-- [ ] Implement bounded hybrid ranking, deduplication, source diversity, and token budgeting.
-- [ ] Return provenance and score evidence separately from prompt rendering.
-- [ ] Add latency, retrieval rate, relevance, empty-result, and scope-rejection metrics.
-- [ ] Document retrieval failure behavior for each memory policy and agent type.
+- [x] Apply existing organization, agent, installation, conversation, user, namespace, expiry,
+      and sensitivity filtering before ranking.
+- [ ] Implement bounded hybrid ranking, deduplication, source diversity, and token budgeting;
+      lexical multi-source ranking is implemented, while vector hybrid ranking remains open.
+- [x] Return provenance and score evidence separately from prompt rendering
+      ([retrieval.ts](agents/src/memory/retrieval.ts), [activities.ts](agents/src/temporal/activities.ts)).
+- [x] Add retrieval rate, source-count, relevance, and empty-result metrics; latency and explicit
+      scope-rejection metrics remain open ([spans.ts](agents/src/telemetry/spans.ts)).
+- [x] Document retrieval failure behavior for each current memory policy mode
+      ([agent-memory-lifecycle.md](docs/internal/architecture/agent-memory-lifecycle.md)).
 
 ### P1.4 Strengthen memory poisoning controls
 

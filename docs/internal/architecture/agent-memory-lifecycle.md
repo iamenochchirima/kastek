@@ -24,11 +24,19 @@ creation policy and the repository's poisoning controls.
 
 ## Runtime boundary
 
-The worker constructs `MemoryLifecycle` for hosted runs. Retrieval is decided before context
-assembly and records an explainable reason (`always`, direct reference, preference reference,
-contextual question, policy disabled, or not requested). A memory search is never issued when the
-policy is disabled or its readable namespace allowlist is empty. Returned records are filtered for
-sensitivity before prompt rendering.
+The worker constructs `MemoryLifecycle` and `RetrievalService` for hosted runs. Retrieval is
+decided before context assembly by one deterministic, bounded classifier and records an
+explainable reason (`always`, direct reference, preference reference, contextual question,
+semantic reference, knowledge reference, policy disabled, or not requested). The general profile
+may retrieve knowledge even when memory is disabled; memory searches still require an enabled mode,
+readable namespaces, and a positive memory limit. Returned records are filtered for sensitivity
+before prompt rendering.
+
+`RetrievalService` runs the policy-bounded memory and knowledge searches concurrently, then returns
+structured evidence with source type, stable record identity, lexical score, rank, and provenance.
+It deduplicates identical text, limits the candidate set, keeps source diversity when both sources
+are available, and passes only the selected evidence text into the untrusted context section.
+Run-step evidence records counts and ranked IDs/scores without recording the retrieved text there.
 
 The worker exposes two installation-scoped capabilities:
 
@@ -41,7 +49,7 @@ not treated as unrestricted external business tools.
 
 ## Remaining work
 
-Conversation extraction, review queues, contradiction and correction links, hybrid/vector ranking,
-source-message/model/extraction provenance, derived-store deletion, lifecycle metrics, and
+Conversation extraction, review queues, contradiction and correction links, vector ranking,
+source-message/model/extraction provenance, derived-store deletion, scope-rejection metrics, and
 organization-level row-level security remain separate audit items. They must be implemented behind
 the same lifecycle boundary rather than by adding direct writes to conversation handlers.

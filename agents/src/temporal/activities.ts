@@ -5,7 +5,7 @@ import { RunBudgetRepository } from "../db/repositories/run-budget-repository";
 import { ConversationRepository } from "../db/repositories/conversation-repository";
 import { MemoryRepository } from "../db/repositories/memory-repository";
 import { MemoryLifecycle } from "../memory/lifecycle";
-import { decideMemoryRetrieval } from "../memory/retrieval";
+import { RetrievalService } from "../memory/retrieval";
 import { KnowledgeRepository } from "../db/repositories/knowledge-repository";
 import type { AgentRunActivities } from "./contracts";
 import { ModelGateway } from "../model/gateway";
@@ -54,7 +54,7 @@ import { buildChannelApprovalPrompt } from "../approval/channel-prompt";
 import { IntegrationRepository } from "../integrations/repository";
 import { IntegrationToolService } from "../integrations/service";
 import { registerIntegrationTools } from "../integrations/tools";
-import { recordBudgetExhaustion, recordTemporalActivityAttempt, withSpan } from "../telemetry/spans";
+import { recordBudgetExhaustion, recordRetrievalResult, recordTemporalActivityAttempt, withSpan } from "../telemetry/spans";
 import { AGENT_MEDIA_HARNESS_TOOLS, agentResponseSchema, agentResponseToolInputSchema, parseAgentResponse } from "../media/contracts";
 import { materializeResponseLinks, type ResolvedAgentMedia } from "../media/delivery";
 import { channelMediaProfile } from "../media/profiles";
@@ -2576,11 +2576,6 @@ async function executeLoopForRun(
     : [];
   const conversationSummary = run.conversation_id ? await summaries.getSummary(run.organization_id, run.conversation_id) : null;
   const memoryLifecycle = new MemoryLifecycle(memory);
-  const retrievalDecision = decideMemoryRetrieval(currentMessage, {
-    always: run.installation_settings?.profile === "general",
-    policy: run.policy,
-  });
-  const retrievalRequested = retrievalDecision.requested;
   const retrievalScope = {
     organizationId: run.organization_id,
     agentId: run.agent_definition_id,
@@ -2588,23 +2583,45 @@ async function executeLoopForRun(
     conversationId: run.conversation_id ?? undefined,
     actorId: run.created_by,
   };
-  const memoryMatches = retrievalRequested ? await memoryLifecycle.search(retrievalScope, retrievalDecision.query, run.policy) : [];
-  const knowledgeMatches = retrievalRequested ? await knowledge.search(retrievalScope, currentMessage) : [];
+  const retrievalResult = await new RetrievalService(memoryLifecycle, knowledge).retrieve(retrievalScope, currentMessage, run.policy, {
+    always: run.installation_settings?.profile === "general",
+  });
+  const retrievalDecision = retrievalResult.decision;
+  const retrievalRequested = retrievalDecision.requested;
+  const memoryMatches = retrievalResult.memoryMatches;
+  const knowledgeMatches = retrievalResult.knowledgeMatches;
+  recordRetrievalResult({
+    requested: retrievalRequested,
+    reason: retrievalDecision.reasonCode,
+    memoryCount: memoryMatches.length,
+    knowledgeCount: knowledgeMatches.length,
+    evidenceCount: retrievalResult.evidence.length,
+  });
   const retrievalStep = await runSteps.startStep({
     runId: run.id,
     organizationId: run.organization_id,
     stepType: "retrieval",
-    input: { requested: retrievalRequested, query: retrievalRequested ? currentMessage : undefined },
+    input: {
+      requested: retrievalRequested,
+      reasonCode: retrievalDecision.reasonCode,
+      sourceTypes: retrievalDecision.sourceTypes,
+      query: retrievalRequested ? retrievalDecision.query : undefined,
+    },
   });
   await runSteps.finishStep({
     stepId: retrievalStep.id,
     status: "completed",
-    output: { memoryMatchCount: memoryMatches.length, knowledgeMatchCount: knowledgeMatches.length },
+    output: {
+      memoryMatchCount: memoryMatches.length,
+      knowledgeMatchCount: knowledgeMatches.length,
+      evidence: retrievalResult.evidence.map((entry) => ({ sourceType: entry.sourceType, id: entry.id, rank: entry.rank, score: entry.score })),
+    },
   });
-  const longTermMemory = [
-    ...memoryMatches.map((entry) => `[memory:${entry.memory_type}] ${entry.canonical_text}`),
-    ...knowledgeMatches.map((entry) => `[knowledge:${entry.source_id}:${entry.chunk_index}] ${entry.canonical_text}`),
-  ].join("\n");
+  const longTermMemory = retrievalResult.evidence
+    .map((entry) => entry.sourceType === "memory"
+      ? `[memory:${entry.namespace ?? "unknown"}:${entry.rank}] ${entry.text}`
+      : `[knowledge:${entry.sourceId ?? "unknown"}:${entry.chunkIndex ?? 0}:${entry.rank}] ${entry.text}`)
+    .join("\n");
   const context = buildAgentContext({
     instructions: [
       isKasiAiInstallation
