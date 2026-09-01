@@ -41,6 +41,21 @@ tool registration. Probe an existing provider without creating a new revision wi
 Inbound MCP OAuth is not part of this release; existing API-key and installation-credential flows
 remain the supported provider authentication paths.
 
+## Effective configuration and version diff
+
+Read the sanitized configuration that will be used for a version with:
+
+```http
+GET /v1/agent-versions/{agentVersionId}/effective-config
+```
+
+Pass `installationId` to include installation-scoped tool grants and connectors. Pass
+`compareVersionId` to return a bounded diff against another version of the same agent, normally
+the deployed version. The response includes model, effective tools, connectors, memory, knowledge,
+runtime limits, workflow validity, pinned skills, and healthy pinned MCP revisions. It reports
+instruction length only; prompts, credentials, provider endpoints, and workflow internals are not
+returned.
+
 ## Draft evaluation
 
 Create a scenario with `POST /v1/evaluations/scenarios`, then call

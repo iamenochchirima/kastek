@@ -16,7 +16,7 @@ import {
 } from "../domain/types";
 import { requireExternalConnected, requireHostedInstallation, requireKasiAiInstallation } from "../domain/execution-mode";
 import { dependencyProjection, UnknownCapabilityAccessSource, type CapabilityAccessSource } from "../domain/capability-access";
-import { AgentRepository } from "../db/repositories/agent-repository";
+import { AgentRepository, type AgentVersionRecord, type InstallationRecord } from "../db/repositories/agent-repository";
 import { RunRepository } from "../db/repositories/run-repository";
 import { RunBudgetRepository } from "../db/repositories/run-budget-repository";
 import { ConversationRepository } from "../db/repositories/conversation-repository";
@@ -59,6 +59,9 @@ import { installationTokenJwks, issueInstallationToken, readClientAssertionSubje
 import { createHash, createPublicKey } from "node:crypto";
 import { createDefaultTools } from "../temporal/activities";
 import { validateVersionWorkflow } from "../workflows/graph";
+import { agentSpecSchema } from "../domain/agent-spec";
+import { resolveModelTarget } from "../model/policy";
+import { diffEffectiveAgentConfig, projectEffectiveAgentConfig } from "../domain/effective-agent-config";
 import { buildAgentReadiness } from "../domain/agent-readiness";
 import { KasitekCoreReadClient } from "../core/client";
 import { KasitekCoreDeveloperApiKeyResolver, type DeveloperApiKeyResolver } from "../core/developer-api-key";
@@ -722,6 +725,101 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       };
     });
     return { installation, grants, capabilities, integrationAvailability: Object.fromEntries(integrationAvailability) };
+  };
+
+  const projectAgentVersionConfig = async (input: {
+    organizationId: string;
+    version: AgentVersionRecord;
+    installation?: InstallationRecord;
+  }) => {
+    const configuration = input.version.configuration ?? {};
+    const policy = input.version.policy ?? {};
+    const typed = agentSpecSchema.safeParse(configuration.agentSpec);
+    const spec = typed.success ? typed.data : undefined;
+    const asRecord = (value: unknown): Record<string, unknown> => (
+      value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}
+    );
+    const asStringArray = (value: unknown): string[] => Array.isArray(value)
+      ? value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+      : [];
+    const policyMemory = asRecord(policy.memory);
+    const configurationMemory = asRecord(configuration.memory);
+    const configurationKnowledge = asRecord(configuration.knowledge);
+    const blueprint = asRecord(configuration.blueprint);
+    const memory = spec?.memory ?? (Object.keys(policyMemory).length ? policyMemory : configurationMemory);
+    const knowledge = spec?.knowledge ?? {
+      sourceIds: asStringArray(configurationKnowledge.sourceIds ?? configuration.knowledgeSourceIds),
+      requiredConnections: asStringArray(configurationKnowledge.requiredConnections ?? blueprint.requiredConnections),
+    };
+    const channels = spec?.channels.allowed ?? asStringArray(policy.allowedChannels ?? configuration.allowedChannels);
+    const configuredRuntime = spec?.runtime ?? {};
+    const legacyRuntimeKeys = [
+      "maxContextMessages",
+      "maxContextTokens",
+      "maxIterations",
+      "maxModelCalls",
+      "maxToolCalls",
+      "maxTotalTokens",
+      "maxWallTimeMs",
+      "temperature",
+    ];
+    const limits = Object.keys(configuredRuntime).length
+      ? configuredRuntime
+      : Object.fromEntries(legacyRuntimeKeys.filter((key) => configuration[key] !== undefined).map((key) => [key, configuration[key]]));
+    const workflowValue = configuration.workflow;
+    let workflow: { configured: boolean; valid: boolean; nodeCount?: number; error?: string } = {
+      configured: workflowValue !== undefined,
+      valid: true,
+    };
+    if (workflowValue !== undefined) {
+      try {
+        validateVersionWorkflow(configuration);
+        const graph = asRecord(workflowValue);
+        workflow = {
+          configured: true,
+          valid: true,
+          ...(Array.isArray(graph.nodes) ? { nodeCount: graph.nodes.length } : {}),
+        };
+      } catch {
+        workflow = { configured: true, valid: false, error: "invalid_workflow" };
+      }
+    }
+    let model: ReturnType<typeof resolveModelTarget> | null = null;
+    let modelError: string | undefined;
+    try {
+      model = resolveModelTarget(configuration, spec && !policy.modelPolicy ? { ...policy, modelPolicy: spec.model } : policy);
+    } catch {
+      modelError = "invalid_model_configuration";
+    }
+    const tools = input.installation
+      ? [...await toolGrants.effectiveTools(input.organizationId, input.version.id, input.installation.id)]
+      : (await toolGrants.listForVersion(input.organizationId, input.version.id))
+        .filter((grant) => grant.installation_id === null && grant.revoked_at === null)
+        .map((grant) => grant.tool_name);
+    const [effectiveInstallationGrants, pinnedSkills, pinnedProviders] = await Promise.all([
+      input.installation ? installationGrants.effective(input.organizationId, input.installation.id) : Promise.resolve(undefined),
+      skills.loadPinnedVersions(input.organizationId, input.version.id),
+      remoteMcpProviders.listPinned(input.organizationId, input.version.id),
+    ]);
+    return projectEffectiveAgentConfig({
+      version: input.version,
+      source: spec ? "typed" : "legacy",
+      model,
+      modelError,
+      tools,
+      connectors: effectiveInstallationGrants?.connectors ?? [],
+      knowledge: {
+        sourceIds: knowledge.sourceIds,
+        requiredConnections: knowledge.requiredConnections,
+      },
+      memory,
+      limits,
+      workflow,
+      channels,
+      skills: pinnedSkills,
+      remoteMcpProviders: pinnedProviders,
+      installation: input.installation,
+    });
   };
 
   const evaluateInstallationReadiness = async (input: {
@@ -2551,6 +2649,50 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");
     return { providers: await remoteMcpProviders.listPinned(auth.organizationId, request.params.agentVersionId) };
+  });
+
+  app.get<{
+    Params: { agentVersionId: string };
+    Querystring: { installationId?: string; compareVersionId?: string };
+  }>("/v1/agent-versions/:agentVersionId/effective-config", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    const version = await agents.getVersion(auth.organizationId, request.params.agentVersionId);
+    if (!version) return reply.code(404).send({ error: "agent_version_not_found" });
+
+    const installationId = request.query.installationId?.trim() || undefined;
+    const installation = installationId
+      ? (await agents.getInstallation(auth.organizationId, installationId) ?? undefined)
+      : undefined;
+    if (installationId && !installation) return reply.code(404).send({ error: "installation_not_found" });
+    if (installation && installation.agent_definition_id !== version.agent_definition_id) {
+      return reply.code(409).send({ error: "installation_agent_mismatch" });
+    }
+
+    const effective = await projectAgentVersionConfig({
+      organizationId: auth.organizationId,
+      version,
+      installation,
+    });
+    const compareVersionId = request.query.compareVersionId?.trim() || undefined;
+    if (!compareVersionId) return { effective };
+    const deployed = await agents.getVersion(auth.organizationId, compareVersionId);
+    if (!deployed) return reply.code(404).send({ error: "comparison_version_not_found" });
+    if (deployed.agent_definition_id !== version.agent_definition_id) {
+      return reply.code(400).send({ error: "comparison_agent_mismatch" });
+    }
+    const deployedEffective = await projectAgentVersionConfig({
+      organizationId: auth.organizationId,
+      version: deployed,
+      installation,
+    });
+    return {
+      effective,
+      comparison: {
+        deployed: deployedEffective,
+        diff: diffEffectiveAgentConfig(effective, deployedEffective),
+      },
+    };
   });
 
   app.post<{ Params: { templateKey: string } }>("/v1/templates/:templateKey/install", async (request, reply) => {

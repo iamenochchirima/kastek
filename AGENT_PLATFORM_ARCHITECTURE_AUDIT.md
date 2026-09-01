@@ -1045,12 +1045,15 @@ The creation and workflow UI should provide:
 
 - [x] Define an isolated draft-run mode that cannot deliver to live channels or mutate live memory
       ([draft evaluation route](docs/public/docs/api/agent-composition.md)).
-- [ ] Add an effective configuration view for model, tools, connectors, memory, knowledge, limits,
-      workflow, and skills.
+- [x] Add a sanitized effective configuration projection for model, tools, connectors, memory,
+      knowledge, limits, workflow, skills, and healthy pinned MCP revisions
+      ([effective-config API](docs/public/docs/api/agent-composition.md)); the editor UI remains.
 - [x] Add deterministic workflow validation before model execution; dependency health checks and
-      effective-configuration projection remain UI work.
+      the effective configuration projection are exposed to release tooling; dependency health
+      indicators and editor rendering remain UI work.
 - [ ] Record retrieval, tool-selection, budget, trace, and evaluation evidence for draft runs.
-- [ ] Add a candidate-versus-deployed specification and capability diff.
+- [x] Add a bounded candidate-versus-deployed effective configuration diff to the effective-config
+      API; publication and deployment gating still need editor integration.
 - [ ] Separate save draft, validate, evaluate, publish, canary deploy, and deploy actions.
 - [ ] Add loading, error, accessibility, and responsive behavior for the complete flow.
 - [ ] Add end-to-end tests proving draft runs cannot affect production state.

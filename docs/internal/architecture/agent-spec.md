@@ -44,6 +44,16 @@ The repository still applies hosted-tool grants and platform safety checks after
 requested tool list in the spec is therefore not an authorization bypass: the effective list in
 the persisted policy and grants is the result after those checks.
 
+## Effective configuration
+
+`GET /v1/agent-versions/{agentVersionId}/effective-config` provides the sanitized runtime view
+used by editors and release tooling. An optional `installationId` adds installation-scoped grants
+and connectors. An optional `compareVersionId` returns a bounded diff against another version of
+the same agent. The projection includes model, effective tools, connectors, memory, knowledge,
+limits, workflow validity, pinned skill metadata, and healthy pinned remote MCP revisions. It
+returns instruction length rather than prompt content and excludes credential references, provider
+endpoints, and workflow node configuration.
+
 ## Example
 
 ```json
