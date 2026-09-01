@@ -279,8 +279,11 @@ coverage and implementation evidence. The remaining graph risk is:
 1. The complete graph executes inside one activity instead of checkpointing completed node work
    durably between independently retry-safe Temporal activities.
 
-The graph contract tests now exercise these repaired behaviors. The activity boundary and full
-worker-kill matrix remain open under P0.3.
+The graph contract tests now exercise these repaired behaviors. The graph activity boundary remains
+open under P0.3. The Temporal activity-boundary worker-loss matrix now covers model, tool,
+approval, effect, and completion checkpoints before and after the boundary; provider/database
+fault injection inside the still-large `executeLoop` activity remains a separate decomposition
+concern.
 
 #### Immediate containment
 
@@ -365,23 +368,24 @@ Add contract tests for:
 
 #### Finding
 
-[`agents/src/temporal/workflows.ts`](agents/src/temporal/workflows.ts) gives activities a one-minute
-`startToCloseTimeout` and up to five attempts. `executeLoop` can run a complete multi-model,
+[`agents/src/temporal/workflows.ts`](agents/src/temporal/workflows.ts) gives activities a five-minute
+`startToCloseTimeout`, a twenty-second heartbeat timeout, and up to five attempts. `executeLoop` can run a complete multi-model,
 multi-tool loop or complete graph inside that activity.
 
-The loop itself can consume one minute by default. Registered tools may allow up to 120 seconds.
-Model calls perform their own retries. Activities do not heartbeat, and Temporal cancellation does
-not abort an in-flight model or tool request.
+The loop itself can still consume the full activity window. Registered tools may allow up to 120
+seconds and model calls perform their own retries. Activities heartbeat and propagate cancellation
+where adapters support it, but the complete inner loop is still one retryable activity.
 
 #### Impact
 
-- Temporal can retry the entire loop after an activity timeout.
+- Temporal can retry the entire loop after an activity timeout or unknown activity outcome.
 - Model calls, reads, drafts, and completed graph nodes can repeat.
 - External-effect receipts reduce some duplication risk but do not make the whole activity
   replay-safe.
-- Cancellation prevents later workflow steps but does not promptly stop current provider spend or
-  tool execution.
-- A configured tool timeout may exceed the enclosing activity timeout.
+- Cancellation prevents later workflow steps and is forwarded to supported provider/tool adapters;
+  unsupported adapters still require unknown-outcome reconciliation.
+- A configured tool timeout must remain below the enclosing activity timeout; the independent
+  activity decomposition still needs to make that relationship explicit per operation.
 
 #### Required design
 
@@ -448,7 +452,11 @@ hold product evidence and idempotency records, not act as a replacement workflow
       handler, or consuming approval; fail closed on scope mismatch
       ([tool-invocation-repository.ts](agents/src/db/repositories/tool-invocation-repository.ts),
       [loop.ts](agents/src/runtime/loop.ts), [activities.ts](agents/src/temporal/activities.ts)).
-- [ ] Add worker-kill tests around every model, tool, approval, effect, and completion checkpoint.
+- [x] Add worker-kill tests around every model, tool, approval, effect, and completion checkpoint
+      before and after the Temporal activity boundary
+      ([temporal-worker-loss-matrix.integration.test.ts](agents/test/temporal-worker-loss-matrix.integration.test.ts));
+      the matrix validates workflow replacement and terminal idempotency, while provider/database
+      fault injection inside `executeLoop` remains part of the decomposition work.
 - [x] Add retry, timeout, cancellation, and reconciliation metrics with bounded structured logs
       ([spans.ts](agents/src/telemetry/spans.ts), [worker.ts](agents/src/temporal/worker.ts)).
 - [x] Update the Temporal operations runbook ([agent-temporal-recovery.md](docs/internal/runbooks/agent-temporal-recovery.md)).

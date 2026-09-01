@@ -47,7 +47,10 @@ Reduce duplicate provider work and make worker-loss recovery explicit while the 
       multi-tool slices when the remaining tool budget cannot admit the provider response
       ([activities.ts](../../../agents/src/temporal/activities.ts),
       [loop-checkpoint.ts](../../../agents/src/runtime/loop-checkpoint.ts)).
-- [ ] Add worker-kill tests around every model, tool, approval, effect, and completion checkpoint.
+- [x] Add a real Temporal worker-loss matrix around model, tool, approval, effect, and completion
+      checkpoints before and after the activity boundary
+      ([temporal-worker-loss-matrix.integration.test.ts](../../../agents/test/temporal-worker-loss-matrix.integration.test.ts));
+      provider/database fault injection inside the still-large activity remains open.
 - [ ] Split context, model, tool, checkpoint, and completion work into independently retry-safe
   activities behind a controlled rollout.
 - [ ] Compare provider billing with reserved, captured, released, and reconciled usage during
@@ -465,3 +468,44 @@ or `agent_loop` graphs until their independent activity contracts and worker-kil
 Post-release review date: 2026-09-08; review graph continuation adoption, checkpoint/runtime
 metadata replay, duplicate execution, budget reconciliation, and worker-loss recovery before
 advancing P0.3.
+
+## Follow-up release record: Temporal activity worker-loss matrix
+
+Change: Add integration coverage for worker replacement before and after model, tool, approval,
+effect, and completion checkpoints. The matrix verifies that workflow state resumes, approval
+signals remain usable, and terminal completion is persisted once across worker replacement.
+
+Owner: Agent Platform.
+
+Risk: low.
+
+Affected services and user surfaces: Agents Temporal workflow tests, recovery runbook, and audit
+evidence. No production runtime behavior or customer-facing API changed.
+
+Platform release version or release ID: test/documentation commit
+`615abf51`; no production service artifact was changed or deployed.
+
+API/schema/migration changes: not applicable; no API, schema, or migration changes.
+
+Feature flag or rollout method: not applicable; the test requires an explicit local
+`RUN_TEMPORAL_INTEGRATION_TESTS=true` opt-in and does not enable the production continuation flag.
+
+Analytics events and success metrics: not applicable; the test emits no customer analytics. The
+success metric is nine of nine matrix cases passing against a real Temporal Server.
+
+Logs, metrics, dashboards, and alerts: not applicable to production. The local run intentionally
+logs synthetic activity failures for the before-checkpoint cases; those failures are the injected
+worker-loss condition, not application failures.
+
+User, API, internal, and operational documentation: updated the architecture audit and
+`docs/internal/runbooks/agent-temporal-recovery.md` with the matrix scope and command.
+
+Validation evidence: the real Temporal integration matrix passed `9/9` cases against Temporal
+Server `1.31.2`; the test passed without the integration opt-in as `9` skipped; Agents TypeScript
+check passed; and the staged diff passed `git diff --check`.
+
+Rollback or disable plan: revert the test/documentation commit if necessary. No production
+rollback is required because no service artifact, flag, database, or runtime behavior changed.
+
+Post-release review date: 2026-09-08; use the matrix as a gate for the remaining inner
+`executeLoop` activity decomposition and provider/database fault-injection tests.

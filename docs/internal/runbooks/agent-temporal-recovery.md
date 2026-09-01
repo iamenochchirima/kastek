@@ -40,6 +40,22 @@ checkpoint includes edge/node iteration counters and the cumulative step/usage m
 continuation mode does not apply to fan-out or `agent_loop` graphs, which remain on the existing
 whole-graph boundary until the independent activity decomposition is released.
 
+The activity-boundary recovery matrix is in
+`agents/test/temporal-worker-loss-matrix.integration.test.ts`. It runs nine real Temporal cases:
+model, tool, and effect loss before and after the checkpoint; approval loss after its pause
+checkpoint; and completion loss before and after terminal persistence. Run it against a local
+Temporal Server with:
+
+```text
+RUN_TEMPORAL_INTEGRATION_TESTS=true \
+TEMPORAL_TEST_ADDRESS=127.0.0.1:7233 \
+pnpm --dir agents exec vitest run test/temporal-worker-loss-matrix.integration.test.ts
+```
+
+This matrix proves workflow replacement, pause/resume, and terminal activity idempotency. It does
+not replace provider/database fault injection for the still-large `executeLoop` activity; those
+checks remain required before enabling the decomposed rollout path.
+
 ## Timeout and retry contract
 
 The workflow proxy currently uses:
