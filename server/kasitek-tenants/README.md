@@ -56,6 +56,18 @@ process.
 
 Tenant workspaces are provisioned through the admin application, not through local bootstrap scripts.
 
+For tenant-only local development, start both tenant processes with:
+
+```bash
+./scripts/run_local_stack.sh tenants
+```
+
+This starts the Tenant API on `8090` and the tenant portal on `3010`. The tenant database must
+be available on local PostgreSQL. The launcher uses `KASITEK_LOCAL_TENANT_DATABASE_URL` when set;
+otherwise it derives the local `kasitek_tenants` database from the loopback `AGENTS_DATABASE_URL`
+and creates that database if it is absent. It never falls back to the generic `DATABASE_URL` or
+starts the separate Analytics service.
+
 Expected flow:
 
 1. Start `kasitek-core`, `kasitek-tenants`, the admin app, and the tenant portal app.

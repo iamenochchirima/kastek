@@ -585,7 +585,7 @@ pub async fn send_client_invite_email(
     workspace_slug: &str,
     workspace_name: &str,
     to: &str,
-    tenant_client_name: &str,
+    _tenant_client_name: &str,
     activation_url: &str,
     portal_url: Option<&str>,
     expires_at: DateTime<Utc>,

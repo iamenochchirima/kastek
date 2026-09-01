@@ -64,10 +64,21 @@ Analytics and can start a local Temporal Server when `TEMPORAL_MODE=local` is se
 
 ```bash
 ./scripts/run_local_stack.sh core client
+./scripts/run_local_stack.sh tenants       # Tenant API + tenant portal only
 ./scripts/run_local_stack.sh agents-api agents-worker agent-gateway
 ./scripts/run_local_stack.sh analytics-api analytics-worker
 ./scripts/run_local_stack.sh --help
 ```
+
+The `tenants` group starts `tenant-api` on port `8090` and `tenant-portal` on port `3010`. It
+does not start Core, Agents, Analytics, the direct client, Admin, Labs, or Temporal. Use
+`tenant-api` or `tenant-portal` when only one tenant process is needed. The launcher loads the
+Tenant API environment from `server/kasitek-tenants/.env` and the portal environment from
+`client/apps/tenant-portal/.env` and `.env.local`; the portal defaults its server-side proxy to
+`http://127.0.0.1:8090`. When `tenant-api` is selected, the launcher requires a loopback Tenant
+PostgreSQL URL. It uses `KASITEK_LOCAL_TENANT_DATABASE_URL` when set; otherwise it derives
+`kasitek_tenants` from the local `AGENTS_DATABASE_URL` and creates that database if it is absent.
+The generic `DATABASE_URL` is never used as the Tenant database fallback.
 
 The default no-argument invocation starts the core, tenant, Analytics API, Agent API and worker,
 Agent gateway, client apps, and local Temporal when local mode is enabled. Start migrations as a
