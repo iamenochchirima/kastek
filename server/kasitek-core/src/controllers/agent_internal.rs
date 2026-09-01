@@ -38,6 +38,15 @@ pub struct AgentContentInsightsQuery {
     pub limit: Option<i64>,
 }
 
+#[derive(Debug, Default, Deserialize)]
+pub struct AgentCreditUsageReconciliationQuery {
+    #[serde(rename = "sourceType", alias = "source_type")]
+    pub source_type: Option<String>,
+    #[serde(rename = "sourceId", alias = "source_id")]
+    pub source_id: Option<String>,
+    pub limit: Option<i64>,
+}
+
 fn parse_agent_insights_filters(
     query: &AgentContentInsightsQuery,
 ) -> Result<crate::services::social::SocialPostInsightsFilters, AppError> {
@@ -345,6 +354,62 @@ pub async fn release_credits(
         "agent credit release completed"
     );
     Ok(HttpResponse::Ok().json(result))
+}
+
+pub async fn get_credit_usage_reconciliation(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    query: web::Query<AgentCreditUsageReconciliationQuery>,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.credits_usage_read",
+    )
+    .await?;
+    let source_type = query
+        .source_type
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("sourceType is required".to_string()))?;
+    let source_id = query
+        .source_id
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("sourceId is required".to_string()))?;
+    let limit = query.limit.unwrap_or(100).clamp(1, 500);
+    let reservations = credits::get_credit_reservations_for_source(
+        pool.get_ref(),
+        &context.organization_id,
+        source_type,
+        source_id,
+        limit,
+    )
+    .await?;
+    let usage_events = credits::get_credit_usage_reconciliation_for_source(
+        pool.get_ref(),
+        &context.organization_id,
+        source_type,
+        source_id,
+        limit,
+    )
+    .await?;
+    observability::tracing::info!(
+        event = "http.request.completed",
+        operation = "credits.usage_reconciliation",
+        organization_id = %context.organization_id,
+        actor_id = %context.principal.id,
+        source_type = %source_type,
+        source_id = %source_id,
+        reservation_count = reservations.len(),
+        usage_event_count = usage_events.len(),
+        "agent credit usage reconciliation read completed"
+    );
+    Ok(HttpResponse::Ok().json(json!({
+        "sourceType": source_type,
+        "sourceId": source_id,
+        "reservations": reservations,
+        "usageEvents": usage_events,
+    })))
 }
 
 /// Read a customer and its scoped identities, conversations, bookings, and

@@ -317,6 +317,42 @@ export interface CoreCreditReservationResult {
   idempotent: boolean;
 }
 
+export interface CoreCreditReservationReconciliation {
+  id: string;
+  actionKey: string;
+  estimatedCredits: number;
+  capturedCredits: number;
+  releasedCredits: number;
+  status: string;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  pricingVersion?: string | null;
+  expiresAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CoreCreditUsageReconciliationEvent {
+  id: string;
+  reservationId: string;
+  actionKey: string;
+  creditsCharged: number;
+  status: string;
+  provider?: string | null;
+  model?: string | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  pricingVersion?: string | null;
+  createdAt: string;
+}
+
+export interface CoreCreditUsageReconciliation {
+  sourceType: string;
+  sourceId: string;
+  reservations: CoreCreditReservationReconciliation[];
+  usageEvents: CoreCreditUsageReconciliationEvent[];
+}
+
 type CoreRequestContext = Pick<ToolInvocationContext, "organizationId" | "actorId" | "installationId" | "runId" | "correlationId">;
 
 export class CoreToolError extends Error {
@@ -864,7 +900,21 @@ export class KasitekCoreReadClient {
     );
   }
 
-  private async getJson<T>(context: ToolInvocationContext, path: string, label: string): Promise<T> {
+  public async getCreditUsageReconciliation(
+    context: CoreRequestContext,
+    sourceType: string,
+    sourceId: string,
+    limit = 100,
+  ): Promise<CoreCreditUsageReconciliation> {
+    const params = new URLSearchParams({ sourceType, sourceId, limit: String(limit) });
+    return this.getJson<CoreCreditUsageReconciliation>(
+      context,
+      `/api/internal/agents/v1/credits/usage?${params.toString()}`,
+      "Credit usage reconciliation",
+    );
+  }
+
+  private async getJson<T>(context: CoreRequestContext, path: string, label: string): Promise<T> {
     return this.requestJson<T>(context, path, label, { method: "GET" });
   }
 
@@ -959,6 +1009,7 @@ export class KasitekCoreReadClient {
     if (routePath.includes("channels/deliver")) return "kasitek.core.channel_deliver";
     if (routePath.endsWith("/credits/reservations")) return "kasitek.core.credits_reserve";
     if (routePath.includes("/credits/reservations/") && (routePath.endsWith("/capture") || routePath.endsWith("/release"))) return "kasitek.core.credits_settle";
+    if (routePath.endsWith("/credits/usage")) return "kasitek.core.credits_usage_read";
     throw new CoreToolError("CORE_INVALID_REQUEST", "Unknown kasitek-core capability route");
   }
 

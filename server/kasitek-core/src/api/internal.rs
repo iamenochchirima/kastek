@@ -152,6 +152,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route(
                 "/credits/reservations/{reservationId}/release",
                 web::post().to(agent_internal::release_credits),
+            )
+            .route(
+                "/credits/usage",
+                web::get().to(agent_internal::get_credit_usage_reconciliation),
             ),
     );
     cfg.service(

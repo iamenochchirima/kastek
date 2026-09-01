@@ -46,6 +46,7 @@ mod tests {
             (Method::GET, "/api/internal/agents/v1/bookings/services"),
             (Method::GET, "/api/internal/agents/v1/bookings"),
             (Method::GET, "/api/internal/agents/v1/bookings/booking-1"),
+            (Method::GET, "/api/internal/agents/v1/credits/usage"),
             (Method::GET, "/api/internal/agents/v1/campaigns"),
             (Method::GET, "/api/internal/agents/v1/campaigns/campaign-1"),
             (Method::GET, "/api/internal/agents/v1/templates"),

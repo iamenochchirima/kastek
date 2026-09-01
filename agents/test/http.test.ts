@@ -189,6 +189,61 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("reconciles a run's local usage and budget against the Core credit ledger", async () => {
+    const query = vi.fn(async (text: string) => text.includes("SELECT id, organization_id, installation_id, correlation_id")
+      ? { rows: [{ id: "run-1", organization_id: "org-1", installation_id: "install-1", correlation_id: "correlation-1" }] }
+      : { rows: [{ ok: 1 }] });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      sourceType: "AGENT_RUN",
+      sourceId: "run-1",
+      reservations: [{
+        id: "reservation-1",
+        actionKey: "ai.model_call",
+        estimatedCredits: 30,
+        capturedCredits: 20,
+        releasedCredits: 10,
+        status: "CAPTURED",
+        sourceType: "AGENT_RUN",
+        sourceId: "run-1",
+        pricingVersion: "v1",
+        expiresAt: null,
+        createdAt: "2026-09-01T00:00:00.000Z",
+        updatedAt: "2026-09-01T00:00:01.000Z",
+      }],
+      usageEvents: [{
+        id: "usage-1",
+        reservationId: "reservation-1",
+        actionKey: "ai.model_call",
+        creditsCharged: 20,
+        status: "COMPLETED",
+        provider: "openrouter",
+        model: "openai/gpt-4o-mini",
+        inputTokens: 10,
+        outputTokens: 5,
+        pricingVersion: "v1",
+        createdAt: "2026-09-01T00:00:01.000Z",
+      }],
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const app = buildApp({
+      config: { ...config, KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" },
+      pool: { query } as never,
+      modelCalls: { usageForRun: vi.fn(async () => ({ modelCalls: 1, inputTokens: 10, outputTokens: 5, totalTokens: 15, estimatedCostUsd: 0.02 })) } as never,
+      runBudgets: { summaryForRun: vi.fn(async () => ({ reservations: 1, reserved: 0, captured: 1, released: 0, unknown: 0, reconciliationRequired: 0, estimatedTokens: 20, estimatedCostUsd: 0.03, capturedTokens: 15, capturedCostUsd: 0.02 })) } as never,
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/operator/runs/run-1/usage-reconciliation?limit=25",
+      headers: { "x-organization-id": "platform", "x-actor-id": "admin-1", "x-kasitek-operator": "true" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ runId: "run-1", organizationId: "org-1", status: "matched", comparisons: { uncoveredLocalModelCalls: 0 } });
+    expect(fetchMock).toHaveBeenCalledWith("https://core.example.test/api/internal/agents/v1/credits/usage?sourceType=AGENT_RUN&sourceId=run-1&limit=25", expect.any(Object));
+    await app.close();
+  });
+
   it("keeps feature-flag and incident-hold projections behind operator:read", async () => {
     const app = buildApp({
       config,

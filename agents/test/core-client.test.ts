@@ -173,6 +173,22 @@ describe("kasitek-core read boundary", () => {
     }
   });
 
+  it("reads run credit reservations and usage events through the reconciliation capability", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      sourceType: "AGENT_RUN",
+      sourceId: "run-1",
+      reservations: [],
+      usageEvents: [],
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+    await expect(new KasitekCoreReadClient(config).getCreditUsageReconciliation(context, "AGENT_RUN", "run-1", 25)).resolves.toMatchObject({ sourceType: "AGENT_RUN", sourceId: "run-1" });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://core.example.test/api/internal/agents/v1/credits/usage?sourceType=AGENT_RUN&sourceId=run-1&limit=25");
+    expect(init.method).toBe("GET");
+    expect(init.headers).toMatchObject({ authorization: "Bearer internal-token", "x-organization-id": "org-1", "x-agent-run-id": "run-1" });
+  });
+
   it("preserves an explicit credit idempotency key across retries", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       orgId: "org-1",

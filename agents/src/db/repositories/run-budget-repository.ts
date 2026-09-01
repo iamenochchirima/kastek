@@ -662,6 +662,60 @@ export class RunBudgetRepository {
     };
   }
 
+  public async summaryForRun(organizationId: string, runId: string): Promise<{
+    reservations: number;
+    reserved: number;
+    captured: number;
+    released: number;
+    unknown: number;
+    reconciliationRequired: number;
+    estimatedTokens: number;
+    estimatedCostUsd: number;
+    capturedTokens: number;
+    capturedCostUsd: number;
+  }> {
+    const result = await query<{
+      reservations: string;
+      reserved: string;
+      captured: string;
+      released: string;
+      unknown: string;
+      reconciliation_required: string;
+      estimated_tokens: string;
+      estimated_cost_usd: string;
+      captured_tokens: string;
+      captured_cost_usd: string;
+    }>(
+      this.pool,
+      `SELECT COUNT(*)::text AS reservations,
+              COUNT(*) FILTER (WHERE reservation.status = 'reserved')::text AS reserved,
+              COUNT(*) FILTER (WHERE reservation.status = 'captured')::text AS captured,
+              COUNT(*) FILTER (WHERE reservation.status = 'released')::text AS released,
+              COUNT(*) FILTER (WHERE reservation.status = 'unknown')::text AS unknown,
+              COUNT(*) FILTER (WHERE reservation.reconciliation_required)::text AS reconciliation_required,
+              COALESCE(SUM(reservation.estimated_tokens), 0)::text AS estimated_tokens,
+              COALESCE(SUM(reservation.estimated_cost_usd), 0)::text AS estimated_cost_usd,
+              COALESCE(SUM(reservation.actual_total_tokens) FILTER (WHERE reservation.status = 'captured'), 0)::text AS captured_tokens,
+              COALESCE(SUM(reservation.actual_cost_usd) FILTER (WHERE reservation.status = 'captured'), 0)::text AS captured_cost_usd
+       FROM run_budget_reservations reservation
+       WHERE reservation.organization_id = $1 AND reservation.run_id = $2`,
+      [organizationId, runId],
+    );
+    const row = result.rows[0]!;
+    return {
+      reservations: Number(row.reservations),
+      reserved: Number(row.reserved),
+      captured: Number(row.captured),
+      released: Number(row.released),
+      unknown: Number(row.unknown),
+      reconciliationRequired: Number(row.reconciliation_required),
+      estimatedTokens: Number(row.estimated_tokens),
+      estimatedCostUsd: Number(row.estimated_cost_usd),
+      capturedTokens: Number(row.captured_tokens),
+      capturedCostUsd: Number(row.captured_cost_usd),
+    };
+  }
+
   public static limitsFrom(values: Record<string, unknown>): RunBudgetLimits {
     return {
       ...(positiveInteger(values.maxModelCalls) === undefined ? {} : { maxModelCalls: positiveInteger(values.maxModelCalls) }),

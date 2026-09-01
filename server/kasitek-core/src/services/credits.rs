@@ -120,6 +120,71 @@ pub struct CreditUsageEventView {
     pub created_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Serialize, FromRow)]
+pub struct CreditReservationReconciliationView {
+    pub id: String,
+    #[serde(rename = "actionKey")]
+    #[sqlx(rename = "action_key")]
+    pub action_key: String,
+    #[serde(rename = "estimatedCredits")]
+    #[sqlx(rename = "estimated_credits")]
+    pub estimated_credits: i64,
+    #[serde(rename = "capturedCredits")]
+    #[sqlx(rename = "captured_credits")]
+    pub captured_credits: i64,
+    #[serde(rename = "releasedCredits")]
+    #[sqlx(rename = "released_credits")]
+    pub released_credits: i64,
+    pub status: String,
+    #[serde(rename = "sourceType")]
+    #[sqlx(rename = "source_type")]
+    pub source_type: Option<String>,
+    #[serde(rename = "sourceId")]
+    #[sqlx(rename = "source_id")]
+    pub source_id: Option<String>,
+    #[serde(rename = "pricingVersion")]
+    #[sqlx(rename = "pricing_version")]
+    pub pricing_version: Option<String>,
+    #[serde(rename = "expiresAt")]
+    #[sqlx(rename = "expires_at")]
+    pub expires_at: Option<DateTime<Utc>>,
+    #[serde(rename = "createdAt")]
+    #[sqlx(rename = "created_at")]
+    pub created_at: DateTime<Utc>,
+    #[serde(rename = "updatedAt")]
+    #[sqlx(rename = "updated_at")]
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct CreditUsageReconciliationEventView {
+    pub id: String,
+    #[serde(rename = "reservationId")]
+    #[sqlx(rename = "reservation_id")]
+    pub reservation_id: String,
+    #[serde(rename = "actionKey")]
+    #[sqlx(rename = "action_key")]
+    pub action_key: String,
+    #[serde(rename = "creditsCharged")]
+    #[sqlx(rename = "credits_charged")]
+    pub credits_charged: i64,
+    pub status: String,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    #[serde(rename = "inputTokens")]
+    #[sqlx(rename = "input_tokens")]
+    pub input_tokens: Option<i64>,
+    #[serde(rename = "outputTokens")]
+    #[sqlx(rename = "output_tokens")]
+    pub output_tokens: Option<i64>,
+    #[serde(rename = "pricingVersion")]
+    #[sqlx(rename = "pricing_version")]
+    pub pricing_version: Option<String>,
+    #[serde(rename = "createdAt")]
+    #[sqlx(rename = "created_at")]
+    pub created_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct CreditMutationResult {
     #[serde(rename = "orgId")]
@@ -713,6 +778,88 @@ pub async fn get_credit_usage(
         "#,
     )
     .bind(org_id)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::from)
+}
+
+pub async fn get_credit_reservations_for_source(
+    pool: &PgPool,
+    org_id: &str,
+    source_type: &str,
+    source_id: &str,
+    limit: i64,
+) -> Result<Vec<CreditReservationReconciliationView>, AppError> {
+    let org_id = required_text(org_id, "Organization id", 160)?;
+    let source_type = required_text(source_type, "Source type", 160)?;
+    let source_id = required_text(source_id, "Source id", 240)?;
+    let limit = limit.clamp(1, 500);
+    sqlx::query_as::<_, CreditReservationReconciliationView>(
+        r#"
+        SELECT id, "actionKey" AS action_key,
+               "estimatedCredits" AS estimated_credits,
+               "capturedCredits" AS captured_credits,
+               "releasedCredits" AS released_credits,
+               status, "sourceType" AS source_type, "sourceId" AS source_id,
+               "pricingVersion" AS pricing_version,
+               "expiresAt" AT TIME ZONE 'UTC' AS expires_at,
+               "createdAt" AT TIME ZONE 'UTC' AS created_at,
+               "updatedAt" AT TIME ZONE 'UTC' AS updated_at
+        FROM "CreditReservation"
+        WHERE "orgId" = $1 AND "sourceType" = $2 AND "sourceId" = $3
+        ORDER BY "createdAt" ASC, id ASC
+        LIMIT $4
+        "#,
+    )
+    .bind(org_id)
+    .bind(source_type)
+    .bind(source_id)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::from)
+}
+
+pub async fn get_credit_usage_reconciliation_for_source(
+    pool: &PgPool,
+    org_id: &str,
+    source_type: &str,
+    source_id: &str,
+    limit: i64,
+) -> Result<Vec<CreditUsageReconciliationEventView>, AppError> {
+    let org_id = required_text(org_id, "Organization id", 160)?;
+    let source_type = required_text(source_type, "Source type", 160)?;
+    let source_id = required_text(source_id, "Source id", 240)?;
+    let limit = limit.clamp(1, 500);
+    sqlx::query_as::<_, CreditUsageReconciliationEventView>(
+        r#"
+        SELECT usage.id, reservation.id AS reservation_id,
+               usage."actionKey" AS action_key,
+               usage."creditsCharged" AS credits_charged,
+               usage.status, usage.provider, usage.model,
+               usage."inputTokens" AS input_tokens,
+               usage."outputTokens" AS output_tokens,
+               usage."pricingVersion" AS pricing_version,
+               usage."createdAt" AT TIME ZONE 'UTC' AS created_at
+        FROM "CreditUsageEvent" usage
+        INNER JOIN "CreditLedgerEntry" ledger
+          ON ledger.id = usage."ledgerEntryId"
+         AND ledger."orgId" = usage."orgId"
+         AND ledger."sourceType" = 'RESERVATION'
+        INNER JOIN "CreditReservation" reservation
+          ON reservation.id = ledger."sourceId"
+         AND reservation."orgId" = usage."orgId"
+        WHERE usage."orgId" = $1
+          AND reservation."sourceType" = $2
+          AND reservation."sourceId" = $3
+        ORDER BY usage."createdAt" ASC, usage.id ASC
+        LIMIT $4
+        "#,
+    )
+    .bind(org_id)
+    .bind(source_type)
+    .bind(source_id)
     .bind(limit)
     .fetch_all(pool)
     .await

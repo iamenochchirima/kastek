@@ -122,6 +122,7 @@ import { operationalLogFields, operationalLogRedaction, operationalLogSerializer
 import { AudioTranscriptionError, ElevenLabsTranscriptionProvider, hasAudioFileSignature, isSupportedAudioMimeType, MAX_AUDIO_FILE_BYTES, normalizeAudioMimeType, type AudioTranscriptionProvider } from "../transcription";
 import { AudioTranscriptionJobRepository } from "../db/repositories/audio-transcription-job-repository";
 import { enterDatabaseContext, runWithDatabaseContext } from "../db/context";
+import { reconcileRunUsage } from "../operations/usage-reconciliation";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -1503,6 +1504,74 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid operator budget reconciliation limit");
     return { reservations: await runBudgets.pendingReconciliation(undefined, limit) };
+  });
+
+  app.get<{ Params: { runId: string }; Querystring: { limit?: string } }>("/v1/operator/runs/:runId/usage-reconciliation", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireOperatorScope(auth, dependencies.config, "operator:read");
+    const limit = request.query.limit === undefined ? 100 : Number(request.query.limit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid operator usage reconciliation limit");
+
+    const result = await dependencies.pool.query<{
+      id: string;
+      organization_id: string;
+      installation_id: string;
+      correlation_id: string;
+    }>(
+      `SELECT id, organization_id, installation_id, correlation_id
+       FROM agent_runs
+       WHERE id = $1
+       LIMIT 1`,
+      [request.params.runId],
+    );
+    const run = result.rows[0];
+    if (!run) return reply.code(404).send({ error: "run_not_found" });
+
+    const [localUsage, localBudget] = await Promise.all([
+      modelCalls.usageForRun(run.organization_id, run.id),
+      runBudgets.summaryForRun(run.organization_id, run.id),
+    ]);
+
+    let billed: Awaited<ReturnType<KasitekCoreReadClient["getCreditUsageReconciliation"]>>;
+    try {
+      billed = await coreClient.getCreditUsageReconciliation(
+        {
+          organizationId: run.organization_id,
+          actorId: auth.actorId,
+          installationId: run.installation_id,
+          runId: run.id,
+          correlationId: run.correlation_id,
+        },
+        "AGENT_RUN",
+        run.id,
+        limit,
+      );
+    } catch (error) {
+      request.log.warn({
+        code: (error as { code?: string }).code,
+        runId: run.id,
+        organizationId: run.organization_id,
+      }, "Core usage reconciliation unavailable");
+      return reply.code(502).send({
+        error: "Core usage reconciliation unavailable",
+        code: "CORE_USAGE_RECONCILIATION_UNAVAILABLE",
+        runId: run.id,
+        organizationId: run.organization_id,
+        local: { usage: localUsage, budget: localBudget },
+      });
+    }
+
+    return {
+      runId: run.id,
+      organizationId: run.organization_id,
+      generatedAt: new Date().toISOString(),
+      ...reconcileRunUsage({
+        localUsage,
+        localBudget,
+        reservations: billed.reservations,
+        usageEvents: billed.usageEvents,
+      }),
+    };
   });
 
   app.get<{ Querystring: { action?: string; resourceType?: string; limit?: string } }>("/v1/operator/audit", async (request) => {
