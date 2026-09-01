@@ -110,6 +110,49 @@ Post-release review date: set at release time.
 | Conversation contention | Reject with an explicit retryable conflict until a durable queue and wake-up path exist. | Agent Platform | Decided |
 | RLS | Defer until every transaction sets organization and actor context and restricted-role tests exist. | Platform security | Open |
 
+## Release record: scoped derived-data deletion
+
+Change: Make memory, knowledge-source, and conversation deletion purge canonical and row-owned
+derived data, invalidate affected summaries, and honor legal holds.
+
+Owner: Agent Platform.
+
+Risk: Standard. The behavior changes memory and knowledge deletion from a soft-delete marker to a
+permanent scoped purge. Active legal holds now return a conflict. No independent vector or cache
+store is active, so no external deletion adapter is required in this release.
+
+Affected services and user surfaces: agents-api, agents-worker runtime repositories, memory and
+knowledge REST management routes, conversation deletion, and Agents PostgreSQL.
+
+Platform release version or release ID: the implementation commit and Railway deployment ID will
+be recorded in the completed audit release record after verification.
+
+API/schema/migration changes: no schema migration; existing `memory_deletion_jobs` records remain as
+completion evidence. The public deletion behavior is documented above.
+
+Feature flag or rollout method: not applicable. The purge is guarded by existing organization,
+agent, installation, conversation, and user scope checks and the active legal-hold check.
+
+Analytics events and success metrics: `kasitek.memory.deletion.count` records bounded target and
+outcome labels plus derived-row removal counts. No memory text, embeddings, or identifiers are
+included in metric attributes.
+
+Logs, metrics, dashboards, and alerts: deletion outcomes use the existing OpenTelemetry metrics
+pipeline. Dedicated alert thresholds for failed deletion operations remain an operational follow-up.
+Collector configuration: existing production configuration; no new exporter or signal is required.
+
+User, API, internal, and operational documentation: update `agent-rest.md`, the memory lifecycle
+architecture, memory safety runbook, and the architecture audit.
+
+Validation evidence: targeted memory, retention, platform-chat, operator-command, type-check, build,
+and serialized full-suite checks will be recorded after the release is deployed.
+
+Rollback or disable plan: restore the previous application artifact if needed. Do not reintroduce
+soft-delete behavior for records already purged; pause new deletion requests and retain the ledger
+while investigating. An additive compatibility migration is not required.
+
+Post-release review date: set after production monitoring.
+
 ## Notes and blockers
 
 The current repository remains responsible for ownership predicates. RLS is not enabled by this

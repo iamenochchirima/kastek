@@ -10,6 +10,7 @@ import type { ConversationRecord, MessageRecord, ParticipantRecord } from "./con
 import type { RunRecord } from "./run-repository";
 import { ConversationHandoffService } from "../../handoff/service";
 import { recordConversationAdmission } from "../../telemetry/spans";
+import { purgeMemoryRecords } from "./memory-repository";
 
 export interface PlatformConversation {
   conversation: ConversationRecord;
@@ -147,12 +148,7 @@ export class PlatformChatRepository {
              AND conversation_kind = $4 AND status <> 'deleted'`,
           [input.organizationId, input.installationId, input.actorId, conversationKind],
         );
-        await client.query(
-          `UPDATE memory_records
-           SET status = 'deleted', deleted_at = COALESCE(deleted_at, now()), updated_at = now()
-           WHERE organization_id = $1 AND conversation_id = ANY($2::uuid[]) AND status <> 'deleted'`,
-          [input.organizationId, conversationIds],
-        );
+        await purgeMemoryRecords(client, { organizationId: input.organizationId, conversationIds });
         for (const conversationId of conversationIds) {
           const context = await loadAgentConversationAnalyticsContext(client, input.organizationId, conversationId);
           await enqueueAgentConversationLifecycle(client, context, {

@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
-import type { MemoryScope } from "./memory-repository";
+import { assertNoActiveLegalHold, type MemoryScope } from "./memory-repository";
+import { recordMemoryDeletion } from "../../telemetry/spans";
 
 export interface KnowledgeSourceRecord {
   id: string;
@@ -175,20 +176,34 @@ export class KnowledgeRepository {
 
   public async deleteSource(scope: MemoryScope, sourceId: string, requestedBy: string): Promise<void> {
     await withTransaction(this.pool, async (client) => {
-      const result = await client.query<KnowledgeSourceRecord>(
-        `UPDATE knowledge_sources SET status = 'deleted', deleted_at = now(), updated_at = now()
+      const result = await client.query<Pick<KnowledgeSourceRecord, "id" | "installation_id">>(
+        `SELECT id, installation_id
+         FROM knowledge_sources
          WHERE id = $1 AND organization_id = $2
            AND agent_definition_id = $3
            AND (installation_id IS NULL OR installation_id = $4)
-         RETURNING *`,
+         FOR UPDATE`,
         [sourceId, scope.organizationId, scope.agentId, scope.installationId ?? null],
       );
       if (!result.rows[0]) throw new Error("Knowledge source not found");
+      await assertNoActiveLegalHold(client, {
+        organizationId: scope.organizationId,
+        installationIds: result.rows[0].installation_id ? [result.rows[0].installation_id] : [],
+      });
+      const chunks = await client.query<{ id: string }>(
+        "DELETE FROM knowledge_chunks WHERE source_id = $1 AND organization_id = $2 RETURNING id",
+        [sourceId, scope.organizationId],
+      );
+      await client.query(
+        "DELETE FROM knowledge_sources WHERE id = $1 AND organization_id = $2",
+        [sourceId, scope.organizationId],
+      );
       await client.query(
         `INSERT INTO memory_deletion_jobs (organization_id, requested_by, target_type, target_id, status)
          VALUES ($1, $2, 'knowledge_source', $3, 'completed')`,
         [scope.organizationId, requestedBy, sourceId],
       );
+      recordMemoryDeletion({ outcome: "completed", target: "knowledge_source", count: chunks.rowCount ?? 0 });
     });
   }
 }

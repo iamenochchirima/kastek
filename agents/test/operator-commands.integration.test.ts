@@ -348,7 +348,7 @@ describe.skipIf(!runIntegration)("operator command lifecycle (integration)", () 
     });
     runCommandIds.push(String(deleteMemoryCommand.command.id));
     expect(await approveOperatorCommand({ actorId: secondActorId, commandId: String(deleteMemoryCommand.command.id), dependencies })).toMatchObject({ status: "completed", result: { status: "deleted", memoryId: memoryRecord.id } });
-    expect((await pool.query<{ status: string }>("SELECT status FROM memory_records WHERE id = $1", [memoryRecord.id])).rows[0]?.status).toBe("deleted");
+    expect((await pool.query<{ status: string }>("SELECT status FROM memory_records WHERE id = $1", [memoryRecord.id])).rows).toHaveLength(0);
     expect((await pool.query<{ status: string }>("SELECT status FROM memory_deletion_jobs WHERE target_type = 'memory' AND target_id = $1 ORDER BY created_at DESC LIMIT 1", [memoryRecord.id])).rows[0]?.status).toBe("completed");
 
     const exportCommand = await createOperatorCommand({

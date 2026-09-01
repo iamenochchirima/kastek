@@ -1,7 +1,7 @@
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { query, withTransaction } from "../pool";
 import { assessMemorySafety, type MemorySourceTrust, type MemorySafetyStatus } from "../../memory/poisoning";
-import { recordMemoryReviewOutcome, recordMemorySafetyAssessment } from "../../telemetry/spans";
+import { recordMemoryDeletion, recordMemoryReviewOutcome, recordMemorySafetyAssessment } from "../../telemetry/spans";
 
 export type MemoryNamespace = "conversation" | "user_private" | "organization_shared" | "agent_private";
 export type MemoryType = "working" | "semantic" | "episodic" | "procedural";
@@ -38,6 +38,127 @@ export interface MemoryScope {
   conversationId?: string;
   actorId?: string;
   runId?: string;
+}
+
+export interface MemoryPurgeResult {
+  memoryIds: string[];
+  conversationIds: string[];
+}
+
+export async function assertNoActiveLegalHold(
+  client: PoolClient,
+  input: {
+    organizationId: string;
+    installationIds?: readonly string[];
+    conversationIds?: readonly string[];
+  },
+): Promise<void> {
+  const installationIds = [...new Set(input.installationIds ?? [])];
+  const conversationIds = [...new Set(input.conversationIds ?? [])];
+  const predicates = ["h.organization_id = $1", "h.status = 'active'", "(h.expires_at IS NULL OR h.expires_at > now())", "h.scope_type = 'organization'"];
+  const values: unknown[] = [input.organizationId];
+  const scopedPredicates: string[] = [];
+  if (installationIds.length) {
+    values.push(installationIds);
+    scopedPredicates.push(`(h.scope_type = 'installation' AND h.scope_id = ANY($${values.length}::text[]))`);
+  }
+  if (conversationIds.length) {
+    values.push(conversationIds);
+    scopedPredicates.push(`(h.scope_type = 'conversation' AND h.scope_id = ANY($${values.length}::text[]))`);
+  }
+  if (scopedPredicates.length) predicates[predicates.length - 1] = `(${predicates[predicates.length - 1]} OR ${scopedPredicates.join(" OR ")})`;
+  const hold = await client.query("SELECT 1 FROM agent_legal_holds h WHERE " + predicates.join(" AND ") + " LIMIT 1", values);
+  if (hold.rows[0]) {
+    throw Object.assign(new Error("The requested data is protected by an active legal hold"), {
+      statusCode: 409,
+      code: "MEMORY_LEGAL_HOLD_ACTIVE",
+    });
+  }
+}
+
+/**
+ * Permanently removes memory rows and conversation summaries that could
+ * contain their derived text. Embeddings and PostgreSQL search vectors live on
+ * the rows themselves, so deleting the rows removes those representations too.
+ * The caller owns the transaction and must already have established the
+ * organization/operator database context.
+ */
+export async function purgeMemoryRecords(
+  client: PoolClient,
+  input: {
+    organizationId: string;
+    memoryIds?: readonly string[];
+    conversationIds?: readonly string[];
+    agentDefinitionId?: string;
+  },
+): Promise<MemoryPurgeResult> {
+  const memoryIds = [...new Set(input.memoryIds ?? [])];
+  const conversationIds = [...new Set(input.conversationIds ?? [])];
+  const predicates = ["organization_id = $1"];
+  const values: unknown[] = [input.organizationId];
+  if (memoryIds.length) {
+    values.push(memoryIds);
+    predicates.push(`id = ANY($${values.length}::uuid[])`);
+  }
+  if (conversationIds.length) {
+    values.push(conversationIds);
+    predicates.push(`conversation_id = ANY($${values.length}::uuid[])`);
+  }
+  if (input.agentDefinitionId) {
+    values.push(input.agentDefinitionId);
+    predicates.push(`agent_definition_id = $${values.length}`);
+  }
+  if (!memoryIds.length && !conversationIds.length && !input.agentDefinitionId) return { memoryIds: [], conversationIds: [] };
+
+  const selected = await client.query<{ id: string; installation_id: string | null; conversation_id: string | null }>(
+    `SELECT id::text, conversation_id::text
+            , installation_id::text
+     FROM memory_records
+     WHERE ${predicates.join(" AND ")}`,
+    values,
+  );
+  await assertNoActiveLegalHold(client, {
+    organizationId: input.organizationId,
+    installationIds: selected.rows.flatMap((row) => row.installation_id ? [row.installation_id] : []),
+    conversationIds: [...conversationIds, ...selected.rows.flatMap((row) => row.conversation_id ? [row.conversation_id] : [])],
+  });
+  if (!selected.rows.length) {
+    if (conversationIds.length) {
+      await client.query(
+        `DELETE FROM conversation_summaries
+         WHERE organization_id = $1 AND conversation_id = ANY($2::uuid[])`,
+        [input.organizationId, conversationIds],
+      );
+    }
+    return { memoryIds: [], conversationIds };
+  }
+
+  const selectedMemoryIds = selected.rows.map((row) => row.id);
+  const selectedConversationIds = [...new Set([
+    ...conversationIds,
+    ...selected.rows.flatMap((row) => row.conversation_id ? [row.conversation_id] : []),
+  ])];
+  await client.query(
+    `UPDATE memory_records
+     SET supersedes_memory_id = NULL,
+         provenance = COALESCE(provenance, '{}'::jsonb) - 'supersedesMemoryId' - 'supersededByMemoryId',
+         updated_at = now()
+     WHERE organization_id = $1 AND supersedes_memory_id = ANY($2::uuid[])`,
+    [input.organizationId, selectedMemoryIds],
+  );
+  await client.query(
+    `DELETE FROM memory_records
+     WHERE organization_id = $1 AND id = ANY($2::uuid[])`,
+    [input.organizationId, selectedMemoryIds],
+  );
+  if (selectedConversationIds.length) {
+    await client.query(
+      `DELETE FROM conversation_summaries
+       WHERE organization_id = $1 AND conversation_id = ANY($2::uuid[])`,
+      [input.organizationId, selectedConversationIds],
+    );
+  }
+  return { memoryIds: selectedMemoryIds, conversationIds: selectedConversationIds };
 }
 
 function normalizeMemoryText(value: string): string {
@@ -373,8 +494,9 @@ export class MemoryRepository {
 
   public async deleteMemory(scope: MemoryScope, memoryId: string, requestedBy: string): Promise<void> {
     await withTransaction(this.pool, async (client) => {
-      const result = await client.query<MemoryRecord>(
-        `UPDATE memory_records SET status = 'deleted', deleted_at = now(), updated_at = now()
+      const result = await client.query<Pick<MemoryRecord, "id" | "installation_id" | "conversation_id">>(
+        `SELECT id, installation_id, conversation_id
+         FROM memory_records
          WHERE id = $1 AND organization_id = $2 AND agent_definition_id = $3
            AND (
              namespace = 'organization_shared'
@@ -382,15 +504,17 @@ export class MemoryRepository {
              OR (namespace = 'conversation' AND conversation_id = $5)
              OR (namespace = 'user_private' AND owner_user_id = $6)
            )
-         RETURNING *`,
+         FOR UPDATE`,
         [memoryId, scope.organizationId, scope.agentId, scope.installationId ?? null, scope.conversationId ?? null, scope.actorId ?? null],
       );
       if (!result.rows[0]) throw new Error("Memory not found");
+      const purged = await purgeMemoryRecords(client, { organizationId: scope.organizationId, memoryIds: [memoryId] });
       await client.query(
         `INSERT INTO memory_deletion_jobs (organization_id, requested_by, target_type, target_id, status)
          VALUES ($1, $2, 'memory', $3, 'completed')`,
         [scope.organizationId, requestedBy, memoryId],
       );
+      recordMemoryDeletion({ outcome: "completed", target: "memory", count: purged.memoryIds.length + purged.conversationIds.length });
     });
   }
 

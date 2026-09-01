@@ -5,6 +5,7 @@ import {
   enqueueAgentConversationMessage,
   loadAgentConversationAnalyticsContext,
 } from "../../analytics";
+import { purgeMemoryRecords } from "./memory-repository";
 
 export interface ConversationRecord {
   id: string;
@@ -282,16 +283,7 @@ export class ConversationRepository {
         });
       }
       if (status === "deleted") {
-        await client.query(
-          `UPDATE memory_records
-           SET status = 'deleted', deleted_at = COALESCE(deleted_at, now()), updated_at = now()
-           WHERE organization_id = $1 AND conversation_id = $2 AND status <> 'deleted'`,
-          [organizationId, conversationId],
-        );
-        await client.query(
-          "DELETE FROM conversation_summaries WHERE organization_id = $1 AND conversation_id = $2",
-          [organizationId, conversationId],
-        );
+        await purgeMemoryRecords(client, { organizationId, conversationIds: [conversationId] });
       }
       return result.rows[0];
     });

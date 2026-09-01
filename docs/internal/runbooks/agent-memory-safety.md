@@ -63,6 +63,14 @@ active retrieval returns no affected records. Use the existing deletion path for
 deletion so deletion jobs and audit records are created. Do not issue an unscoped delete against
 `memory_records`.
 
+The memory and knowledge deletion paths are permanent. A memory delete removes the canonical row,
+its embedding and full-text search vector, and any conversation summary associated with the row.
+Deleting a knowledge source removes its source row and all chunks. Conversation deletion uses the
+same memory purge helper. An active organization, installation, or conversation legal hold blocks
+the purge with `MEMORY_LEGAL_HOLD_ACTIVE`; release the hold through the approved operator flow
+before retrying. The deletion ledger retains bounded target and completion metadata only, not the
+deleted content.
+
 The safety migration is additive. Application rollback must leave migration 085 applied because
 the additional status values are needed to preserve review decisions; old statuses remain valid.
 Migration 087 is also additive. If its application code is rolled back, retain the columns and

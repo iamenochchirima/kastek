@@ -53,11 +53,38 @@ describe.skipIf(!runIntegration)("memory and knowledge isolation (integration)",
     expect(otherAgent.map((entry) => entry.id)).not.toContain(memoryId);
   });
 
-  it("deletes canonical memory and records a deletion job", async () => {
+  it("purges canonical memory and derived summary data while recording a deletion job", async () => {
     await memory.deleteMemory({ organizationId, agentId, installationId, actorId: "user-1" }, memoryId, "user-1");
     const found = await memory.searchMemory({ organizationId, agentId, installationId, actorId: "user-1" }, "prefers short replies");
     expect(found.map((entry) => entry.id)).not.toContain(memoryId);
     expect((await memory.listMemory({ organizationId, agentId, installationId, actorId: "user-1" })).map((entry) => entry.id)).not.toContain(memoryId);
+    expect((await pool.query("SELECT id, embedding, search_vector FROM memory_records WHERE id = $1", [memoryId])).rows).toHaveLength(0);
+
+    const conversation = await conversations.createConversation({ organizationId, installationId, title: "Memory deletion summary" });
+    conversationId = conversation.id;
+    const conversationMemory = await memory.createMemory({
+      organizationId,
+      agentId,
+      installationId,
+      conversationId,
+      namespace: "conversation",
+      memoryType: "semantic",
+      canonicalText: "The customer requested a deletion test summary",
+      content: { source: "derived-summary-test" },
+      sourceType: "explicit",
+      actorId: "user-1",
+    });
+    await pool.query("UPDATE memory_records SET embedding = $2::jsonb WHERE id = $1", [conversationMemory.id, JSON.stringify([0.1, 0.2, 0.3])]);
+    await summaries.upsertSummary({
+      organizationId,
+      conversationId,
+      summary: "The customer requested a deletion test summary",
+      lastMessageSequence: 0,
+      generatedBy: "test",
+    });
+    await memory.deleteMemory({ organizationId, agentId, installationId, conversationId, actorId: "user-1" }, conversationMemory.id, "user-1");
+    expect((await pool.query("SELECT id, canonical_text, embedding, search_vector FROM memory_records WHERE id = $1", [conversationMemory.id])).rows).toHaveLength(0);
+    expect(await summaries.getSummary(organizationId, conversationId)).toBeNull();
   });
 
   it("quarantines suspicious imported memory instead of making it retrievable", async () => {
@@ -206,6 +233,8 @@ describe.skipIf(!runIntegration)("memory and knowledge isolation (integration)",
     expect((await knowledge.search({ organizationId, agentId, installationId }, "encyclopedia revisions"))[0]?.canonical_text).toContain("encyclopedia revisions");
     await knowledge.deleteSource({ organizationId, agentId, installationId }, sourceId, "user-1");
     expect(await knowledge.search({ organizationId, agentId, installationId }, "scoped knowledge retrieval")).toHaveLength(0);
+    expect((await pool.query("SELECT id FROM knowledge_sources WHERE id = $1", [sourceId])).rows).toHaveLength(0);
+    expect((await pool.query("SELECT id FROM knowledge_chunks WHERE source_id = $1", [sourceId])).rows).toHaveLength(0);
   });
 
   it("rebuilds a scoped rolling conversation summary", async () => {

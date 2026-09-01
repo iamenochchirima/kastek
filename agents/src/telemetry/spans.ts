@@ -57,6 +57,9 @@ const memoryReviewCounter = meter.createCounter("kasitek.memory.review.outcome.c
 const memoryConsolidationCounter = meter.createCounter("kasitek.memory.consolidation.count", {
   description: "Conversation memory consolidation outcomes and proposed records",
 });
+const memoryDeletionCounter = meter.createCounter("kasitek.memory.deletion.count", {
+  description: "Memory and derived-data deletion outcomes",
+});
 const conversationAdmissionCounter = meter.createCounter("kasitek.conversation.admission.count", {
   description: "Conversation run admission outcomes, including backpressure and idempotent replay",
 });
@@ -180,6 +183,23 @@ export function recordMemoryConsolidation(outcome: string, candidateCount = 0): 
   memoryConsolidationCounter.add(1, { outcome: boundedAttribute(outcome) });
   if (Number.isSafeInteger(candidateCount) && candidateCount > 0) {
     memoryConsolidationCounter.add(candidateCount, { outcome: "candidate" });
+  }
+}
+
+export function recordMemoryDeletion(input: {
+  outcome: "completed" | "scope_rejected" | "failed";
+  target: "memory" | "knowledge_source" | "conversation" | "organization";
+  count?: number;
+}): void {
+  memoryDeletionCounter.add(1, {
+    outcome: input.outcome,
+    target: boundedAttribute(input.target),
+  });
+  if (input.outcome === "completed" && Number.isSafeInteger(input.count) && input.count! > 0) {
+    memoryDeletionCounter.add(input.count!, {
+      outcome: "derived_rows_removed",
+      target: boundedAttribute(input.target),
+    });
   }
 }
 

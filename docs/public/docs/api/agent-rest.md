@@ -126,6 +126,15 @@ Content-Type: application/json
 Cancellation is a durable workflow signal. It does not mutate an in-memory queue and is safe to
 repeat for terminal operations.
 
+## Delete memory or knowledge
+
+`DELETE /v1/memory/{memoryId}` and `DELETE /v1/knowledge/sources/{sourceId}` are permanent within
+the authenticated organization and requested scope. Memory deletion removes the stored memory,
+its embedding and search representation, and any conversation summary derived from that memory.
+Knowledge-source deletion removes the source and all of its chunks. The deletion is rejected while
+an applicable legal hold is active. The deletion ledger keeps only the target type, target ID,
+organization, requester, and completion state; it does not preserve the deleted content.
+
 ## Review memory
 
 Organization users can review an imported or inferred memory candidate after inspecting its

@@ -85,10 +85,19 @@ the extractor identity in bounded provenance. Job claims are leased and idempote
 and extraction version, so worker replacement can retry a job without creating a second candidate.
 Explicit and disabled policies are safe no-op paths for inferred extraction.
 
+Deletion is a permanent, scoped purge. Memory deletion removes the canonical row, its embedded
+vector and PostgreSQL full-text search vector, then invalidates any conversation summary associated
+with the deleted record. Knowledge-source deletion removes the source and all revision chunks.
+Conversation deletion uses the same purge helper. An active organization, installation, or
+conversation legal hold blocks these paths with a conflict. Deletion records remain in
+`memory_deletion_jobs` without retaining the deleted content. There is no independent vector or
+cache store in the current deployment; adding one requires an adapter behind this boundary and a
+deletion test for that adapter.
+
 Multi-turn poisoning analysis, model-backed extraction, and automatic activation remain open.
 
 ## Remaining work
 
-Model-backed extraction quality, vector ranking, derived-store deletion, scope-rejection metrics,
-and organization-level row-level security remain separate audit items. They must be implemented
+Model-backed extraction quality, vector ranking, scope-rejection metrics, and organization-level
+row-level security remain separate audit items. They must be implemented
 behind the same lifecycle boundary rather than by adding direct writes to conversation handlers.

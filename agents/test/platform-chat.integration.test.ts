@@ -557,8 +557,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     const summary = await pool.query("SELECT 1 FROM conversation_summaries WHERE conversation_id = $1", [current.conversation.id]);
     expect(summary.rows).toHaveLength(0);
     const memory = await pool.query("SELECT status, deleted_at FROM memory_records WHERE conversation_id = $1", [current.conversation.id]);
-    expect(memory.rows[0].status).toBe("deleted");
-    expect(memory.rows[0].deleted_at).toBeTruthy();
+    expect(memory.rows).toHaveLength(0);
   });
 
   afterAll(async () => {

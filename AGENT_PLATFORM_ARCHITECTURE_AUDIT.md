@@ -486,8 +486,10 @@ Completion criteria:
 [`MemoryRepository`](agents/src/db/repositories/memory-repository.ts) supports scoped creation,
 search, quarantine, expiry, revalidation, and deletion. A durable consolidation worker now creates
 review-first semantic and episodic candidates from bounded run-bound conversation evidence for
-`reviewed` and `automatic` installations. Model-backed extraction, automatic activation, and
-derived-store deletion remain open.
+`reviewed` and `automatic` installations. Model-backed extraction and automatic activation remain
+open. Explicit memory and knowledge deletion now physically removes the canonical rows, embedded
+vectors, PostgreSQL search vectors, source chunks, and affected conversation summaries in the same
+transaction; there is no separate vector or cache store active in this deployment.
 
 The current retrieval gate in [`agents/src/runtime/context.ts`](agents/src/runtime/context.ts) is a
 regular expression for phrases such as `remember`, `previous`, and `last time`. It misses ordinary
@@ -565,16 +567,22 @@ cross-agent access.
 - [x] Apply organization, agent, installation, user, conversation, and namespace scope to every
       runtime memory search and explicit write ([memory-repository.ts](agents/src/db/repositories/memory-repository.ts),
       [lifecycle.ts](agents/src/memory/lifecycle.ts)).
-- [ ] Make deletion remove keyword, vector, summary, cache, and other derived representations.
+- [x] Make deletion remove keyword, vector, summary, cache, and other derived representations.
+      Memory and knowledge deletion now purges row-owned embedding and full-text index data,
+      knowledge chunks, and affected conversation summaries through scoped repository paths;
+      active legal holds block the purge. No independent vector or cache store is deployed yet,
+      so those adapters are not applicable until such stores are introduced.
 - [x] Add lifecycle, policy-mode, extraction, threshold, replay, review, and poisoning tests
       ([memory-policy.test.ts](agents/test/memory-policy.test.ts),
       [memory-consolidation.test.ts](agents/test/memory-consolidation.test.ts),
       [memory-consolidation-worker.test.ts](agents/test/memory-consolidation-worker.test.ts),
       [memory-consolidation.integration.test.ts](agents/test/memory-consolidation.integration.test.ts));
-      multi-turn poisoning, correction, expiry, and deletion coverage remains open.
+      deletion and legal-hold coverage is included in the memory, retention, platform-chat, and
+      operator-command integration tests; multi-turn poisoning remains open.
 - [x] Add consolidation job, candidate, threshold-skip, and failure metrics
       ([spans.ts](agents/src/telemetry/spans.ts), [consolidation-worker.ts](agents/src/memory/consolidation-worker.ts));
-      acceptance, scope-rejection, and derived-deletion metrics remain open.
+      acceptance and scope-rejection metrics remain open; derived-deletion outcomes are recorded by
+      `kasitek.memory.deletion.count`.
 - [x] Update memory architecture, safety runbook, migration, and runtime policy documentation
       ([agent-memory-lifecycle.md](docs/internal/architecture/agent-memory-lifecycle.md),
       [agent-memory-safety.md](docs/internal/runbooks/agent-memory-safety.md)); privacy, user

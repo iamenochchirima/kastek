@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 import { RetentionRepository } from "../src/db/repositories/retention-repository";
+import { MemoryRepository } from "../src/db/repositories/memory-repository";
 import { createOperatorCommand, approveOperatorCommand } from "../src/http/operator-commands";
 import { KillSwitchRepository } from "../src/db/repositories/kill-switch-repository";
 
@@ -11,6 +12,7 @@ const runIntegration = Boolean(databaseUrl && process.env.RUN_AGENTS_DB_INTEGRAT
 describe.skipIf(!runIntegration)("retention and legal-hold controls (integration)", () => {
   const pool = new Pool({ connectionString: databaseUrl });
   const retention = new RetentionRepository(pool);
+  const memory = new MemoryRepository(pool);
   const killSwitches = new KillSwitchRepository(pool);
   const organizationId = `retention-${randomUUID()}`;
   const actorId = `retention-operator-${randomUUID()}`;
@@ -29,12 +31,12 @@ describe.skipIf(!runIntegration)("retention and legal-hold controls (integration
        VALUES ($1, $2, 'Retention test agent', $3, $4)`,
       [agentId, organizationId, `retention-${agentId}`, actorId],
     );
-    const memory = await pool.query<{ id: string }>(
+    const memoryRow = await pool.query<{ id: string }>(
       `INSERT INTO memory_records (organization_id, agent_definition_id, namespace, memory_type, canonical_text, source_type, created_by, status)
        VALUES ($1, $2, 'organization_shared', 'semantic', 'old retention record', 'explicit', $3, 'active') RETURNING id`,
       [organizationId, agentId, actorId],
     );
-    memoryId = memory.rows[0]!.id;
+    memoryId = memoryRow.rows[0]!.id;
     await pool.query("UPDATE memory_records SET created_at = now() - interval '60 days' WHERE id = $1", [memoryId]);
 
     const holdCommand = await createOperatorCommand({
@@ -47,6 +49,7 @@ describe.skipIf(!runIntegration)("retention and legal-hold controls (integration
     const createdHold = await approveOperatorCommand({ actorId: secondActorId, commandId: String(holdCommand.command.id), dependencies: commandDependencies });
     holdId = String((createdHold.result as { legalHoldId: string }).legalHoldId);
     expect(createdHold).toMatchObject({ status: "completed", result: { status: "active", legalHoldId: holdId } });
+    await expect(memory.deleteMemory({ organizationId, agentId, actorId }, memoryId, actorId)).rejects.toMatchObject({ code: "MEMORY_LEGAL_HOLD_ACTIVE", statusCode: 409 });
     expect((await retention.preview(organizationId)).eligible).toMatchObject({ memory: 0 });
     expect(await retention.applyMemoryRetention(organizationId, actorId)).toEqual({ expired: 0, skippedByHold: 1 });
 
