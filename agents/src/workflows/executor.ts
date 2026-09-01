@@ -1,6 +1,41 @@
 import { compileWorkflowStateSchema, type WorkflowGraph, type WorkflowStateValidator } from "./graph";
 import { hashToolArguments } from "../tools/registry";
-import { findAuthorizationRequirement, type AgentAuthorizationRequirement } from "../media/contracts";
+
+interface GraphAuthorizationRequirement {
+  code: string;
+  provider: string;
+  connectionId?: string;
+  requiredCapabilities: string[];
+  requestable: boolean;
+  authMode?: string | null;
+  reasonCode: string;
+  remediation: string;
+}
+
+function findAuthorizationRequirement(value: unknown): GraphAuthorizationRequirement | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  for (const candidate of [record.authorizationRequired, record.authorization]) {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) continue;
+    const requirement = candidate as Record<string, unknown>;
+    if (
+      typeof requirement.code === "string"
+      && typeof requirement.provider === "string"
+      && Array.isArray(requirement.requiredCapabilities)
+      && requirement.requiredCapabilities.every((item) => typeof item === "string")
+      && typeof requirement.requestable === "boolean"
+      && typeof requirement.reasonCode === "string"
+      && typeof requirement.remediation === "string"
+    ) return requirement as unknown as GraphAuthorizationRequirement;
+  }
+  if (Array.isArray(record.providerResults)) {
+    for (const providerResult of record.providerResults) {
+      const nested = findAuthorizationRequirement(providerResult);
+      if (nested) return nested;
+    }
+  }
+  return undefined;
+}
 
 export interface GraphToolRequest {
   name: string;
@@ -25,7 +60,7 @@ export interface GraphAgentLoopResult {
   waitingFor?: string;
   error?: string | { message?: string };
   usage?: Partial<GraphExecutionUsage>;
-  authorizationRequired?: AgentAuthorizationRequirement;
+  authorizationRequired?: GraphAuthorizationRequirement;
 }
 
 export interface GraphExecutorDependencies {
@@ -77,7 +112,7 @@ export interface GraphExecutionResult {
   error?: string;
   usage: GraphExecutionUsage;
   boundaryReached?: boolean;
-  authorizationRequired?: AgentAuthorizationRequirement;
+  authorizationRequired?: GraphAuthorizationRequirement;
 }
 
 interface GraphExecutionContext {
@@ -147,7 +182,7 @@ export async function executeWorkflowGraph(
     validateState: compileWorkflowStateSchema(graph),
   } satisfies GraphExecutionContext;
   const { usage } = execution;
-  let authorizationRequired: AgentAuthorizationRequirement | undefined;
+  let authorizationRequired: GraphAuthorizationRequirement | undefined;
   let current = graph.entryNodeId;
   try {
     execution.validateState(state);
