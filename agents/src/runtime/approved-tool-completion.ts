@@ -53,13 +53,34 @@ export function buildApprovedToolCompletionMessage(
   }
 }
 
-export function buildApprovedToolFailureMessage(toolName: string, error: unknown): string {
+export function buildApprovedToolFailureMessage(
+  toolName: string,
+  error: unknown,
+  argumentsValue: Record<string, unknown> = {},
+): string {
   const message = error instanceof Error ? error.message : String(error ?? "");
   if (toolName === "kasitek.core.content_post_publish" && /bluesky.*(?:invalid_grant|refresh token|token was not issued)/i.test(message)) {
     return "I couldn’t publish the post because the Bluesky connection has expired. Reconnect Bluesky, then try again.";
   }
   if (toolName === "kasitek.core.content_post_publish") {
-    return "I couldn’t publish the post. Check the channel connection, then try again.";
+    const platform = platformLabel(argumentsValue.platform) ?? "selected channel";
+    const lowerMessage = message.toLowerCase();
+    if (/media container did not become ready|media id is not available|media container.*(?:processing|publish timeout)|still processing/i.test(message)) {
+      return `I couldn’t publish the ${platform} post because Instagram did not finish processing the image in time. The post was not confirmed as published; you can retry this draft.`;
+    }
+    if (/(permission|scope|not authorized|authorization|forbidden).*(publish|content)|(?:publish|content).*(permission|scope|not authorized|authorization|forbidden)/i.test(message)) {
+      return `I couldn’t publish the ${platform} post because this connection is missing publishing access. Open Connections → ${platform} → Access and grant Publish content, then try again.`;
+    }
+    if (/(?:image|media|photo|video).*(?:invalid|access|fetch|unavailable|public https|attach|accepted)|(?:invalid|access|fetch|unavailable|public https|attach|accepted).*(?:image|media|photo|video)/i.test(message)) {
+      return `I couldn’t publish the ${platform} post because the provider could not use the attached media. The post was not confirmed as published; you can retry this draft.`;
+    }
+    if (/(?:reconnect|connection|credential|oauth|token).*(?:expired|invalid|missing|needs|before publishing)|(?:connect|reconnect) .*account/i.test(lowerMessage)) {
+      return `I couldn’t publish the ${platform} post because the ${platform} connection needs attention. Open Connections → ${platform} → Access, then reconnect or update access before trying again.`;
+    }
+    if (/timed out|temporarily unavailable|rate limit|returned 5\d\d|service unavailable/i.test(lowerMessage)) {
+      return `I couldn’t publish the ${platform} post because the provider is temporarily unavailable. The post was not confirmed as published; try again shortly.`;
+    }
+    return `I couldn’t publish the ${platform} post. The provider did not confirm that it was published; please try again.`;
   }
   return "I couldn’t complete the approved action. Please try again.";
 }

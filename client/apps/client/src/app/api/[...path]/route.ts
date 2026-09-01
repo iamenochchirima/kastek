@@ -20,13 +20,21 @@ async function proxy(request: NextRequest, context: RouteContext) {
 
   const hasBody = !["GET", "HEAD"].includes(request.method);
   const body = hasBody ? await request.arrayBuffer() : undefined;
-  const upstream = await fetch(target, {
-    method: request.method,
-    headers,
-    body,
-    cache: "no-store",
-    redirect: "manual",
-  });
+  let upstream: Response;
+  try {
+    upstream = await fetch(target, {
+      method: request.method,
+      headers,
+      body,
+      cache: "no-store",
+      redirect: "manual",
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "API service is temporarily unavailable", code: "api_proxy_unavailable" },
+      { status: 503 },
+    );
+  }
 
   const responseHeaders = new Headers(upstream.headers);
   const response = new NextResponse(upstream.body, {

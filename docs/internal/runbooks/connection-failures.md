@@ -47,6 +47,10 @@ Use this when a provider account shows `NEEDS_ATTENTION`, messages stop arriving
     when publishing was attempted. The adapter now polls the container status for a bounded period
     before calling `media_publish`; a terminal timeout or provider error is a real failed publish,
     so retry the same idempotent action after checking the connection rather than claiming success.
+13. An approved-publish reply that says only “check the channel connection” is not a reliable
+    diagnosis. Current Agent responses distinguish media processing, missing publish access,
+    unusable media, connection credentials, and temporary provider failures. Use the specific
+    remediation in the reply and inspect the Core error code if the message is still generic.
 
 ## Production Meta approval gate
 

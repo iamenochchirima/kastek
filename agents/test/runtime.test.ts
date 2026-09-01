@@ -442,6 +442,74 @@ describe("Tool Gateway and bounded runtime", () => {
     expect(result.error?.userMessage).toBe("I couldn’t publish the post because the Bluesky connection has expired. Reconnect Bluesky, then try again.");
   });
 
+  it("does not describe an Instagram media timeout as a connection failure", async () => {
+    const registry = new ToolRegistry();
+    registry.register({
+      name: "kasitek.core.content_post_publish",
+      version: "1.0.0",
+      description: "Publish content",
+      riskClass: "external-effect",
+      requiresApproval: true,
+      timeoutMs: 1000,
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object" },
+      handler: async () => { throw new Error("kasitek-core returned 400: Instagram media container did not become ready before the publish timeout"); },
+    });
+    const argumentsValue = { postId: "post-1", platform: "INSTAGRAM" };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "publish" }],
+      credentials,
+      gateway: new ModelGateway([]),
+      tools: registry,
+      grantedTools: new Set(["kasitek.core.content_post_publish"]),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      resumeApprovedToolCall: {
+        id: "call-1",
+        name: "kasitek.core.content_post_publish",
+        arguments: argumentsValue,
+        approval: { approvedBy: "user", argumentsHash: hashToolArguments(argumentsValue), expiresAt: new Date(Date.now() + 60_000).toISOString() },
+      },
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.error?.userMessage).toBe("I couldn’t publish the Instagram post because Instagram did not finish processing the image in time. The post was not confirmed as published; you can retry this draft.");
+  });
+
+  it("explains missing Instagram access without implying that the image is unavailable", async () => {
+    const registry = new ToolRegistry();
+    registry.register({
+      name: "kasitek.core.content_post_publish",
+      version: "1.0.0",
+      description: "Publish content",
+      riskClass: "external-effect",
+      requiresApproval: true,
+      timeoutMs: 1000,
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object" },
+      handler: async () => { throw new Error("kasitek-core returned 400: Instagram permission instagram_content_publish is required"); },
+    });
+    const argumentsValue = { postId: "post-1", platform: "INSTAGRAM" };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "publish" }],
+      credentials,
+      gateway: new ModelGateway([]),
+      tools: registry,
+      grantedTools: new Set(["kasitek.core.content_post_publish"]),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      resumeApprovedToolCall: {
+        id: "call-1",
+        name: "kasitek.core.content_post_publish",
+        arguments: argumentsValue,
+        approval: { approvedBy: "user", argumentsHash: hashToolArguments(argumentsValue), expiresAt: new Date(Date.now() + 60_000).toISOString() },
+      },
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.error?.userMessage).toBe("I couldn’t publish the Instagram post because this connection is missing publishing access. Open Connections → Instagram → Access and grant Publish content, then try again.");
+  });
+
   it("runs the durable pre-effect boundary immediately before the provider handler", async () => {
     const registry = new ToolRegistry();
     const order: string[] = [];

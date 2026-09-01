@@ -1,7 +1,10 @@
 const DEFAULT_API_BASE_URL = "http://localhost:4000";
 
 export function getApiBaseUrl() {
-  if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_USE_API_PROXY === "true") {
+  // Browser requests stay same-origin by default. This keeps authenticated calls, including
+  // analytics, on the Next proxy and avoids production CORS/base-URL drift. Set the public flag
+  // to "false" only for an explicitly direct-browser API deployment.
+  if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_USE_API_PROXY !== "false") {
     return "";
   }
 

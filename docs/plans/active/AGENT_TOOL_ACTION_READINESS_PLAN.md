@@ -104,6 +104,18 @@ human approval, and provider execution remain separate checks.
 - [x] Deploy the affected Core and Agent Platform artifacts.
 - [ ] Run a controlled WhatsApp image publish smoke test after release.
 
+### Current regression slice: publish failure truthfulness and Connections analytics
+
+- [x] Add provider-aware approved-publish failure messages so provider/media/readiness failures
+      are not incorrectly described as connection failures.
+- [x] Make the client analytics gateway use the same-origin proxy by default in browser sessions,
+      preventing production CORS/base-URL configuration from becoming a browser network failure.
+- [x] Add regression coverage for provider failure classification.
+- [ ] Add regression coverage for the browser API-base choice.
+- [ ] Verify the analytics request contract against the production reporting service and record the
+      actual remaining 400 cause if one persists.
+- [ ] Update the release record with validation, deployment artifacts, telemetry, and rollback.
+
 ## Proposed contract
 
 Use one normalized result for the provider-backed action seam:

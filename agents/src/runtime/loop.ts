@@ -259,7 +259,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         : { code: "APPROVED_TOOL_FAILED", message: error instanceof Error ? error.message : "Approved tool failed", failureClass: "terminal" as const };
       const failure = {
         ...normalized,
-        userMessage: buildApprovedToolFailureMessage(input.resumeApprovedToolCall.name, error),
+        userMessage: buildApprovedToolFailureMessage(input.resumeApprovedToolCall.name, error, input.resumeApprovedToolCall.arguments),
       };
       await emit(input, { type: "loop.failed", iteration: 0, payload: failure });
       await input.onToolFailed?.({ toolCallId: input.resumeApprovedToolCall.id, name: input.resumeApprovedToolCall.name, argumentsHash: hashToolArguments(input.resumeApprovedToolCall.arguments), error: normalized });
