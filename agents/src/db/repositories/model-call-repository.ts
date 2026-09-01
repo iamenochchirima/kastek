@@ -230,7 +230,7 @@ export class ModelCallRepository {
     };
   }
 
-  public async usageForRun(organizationId: string, runId: string): Promise<{
+  public async usageForRun(organizationId: string, runId: string, fundingSource?: "kasitek" | "user"): Promise<{
     modelCalls: number;
     inputTokens: number;
     outputTokens: number;
@@ -251,8 +251,9 @@ export class ModelCallRepository {
               COALESCE(SUM(total_tokens) FILTER (WHERE status = 'completed'), 0)::text AS total_tokens,
               COALESCE(SUM(estimated_cost_usd) FILTER (WHERE status = 'completed'), 0)::text AS estimated_cost_usd
        FROM model_calls
-       WHERE organization_id = $1 AND run_id = $2`,
-      [organizationId, runId],
+       WHERE organization_id = $1 AND run_id = $2
+         AND ($3::text IS NULL OR funding_source = $3)`,
+      [organizationId, runId, fundingSource ?? null],
     );
     const row = result.rows[0]!;
     return {

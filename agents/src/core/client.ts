@@ -340,6 +340,7 @@ export interface CoreCreditUsageReconciliationEvent {
   status: string;
   provider?: string | null;
   model?: string | null;
+  providerCostUsd?: number | string | null;
   inputTokens?: number | null;
   outputTokens?: number | null;
   pricingVersion?: string | null;

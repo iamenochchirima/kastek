@@ -48,6 +48,7 @@ const usageEvents = [{
   inputTokens: 10,
   outputTokens: 5,
   pricingVersion: "v1",
+  providerCostUsd: 0.02,
   createdAt: "2026-09-01T00:00:01.000Z",
 }];
 
@@ -57,8 +58,8 @@ describe("run usage reconciliation", () => {
 
     expect(report.status).toBe("matched");
     expect(report.billed.reservations).toMatchObject({ count: 1, estimatedCredits: 30, capturedCredits: 20, releasedCredits: 10, byStatus: { CAPTURED: 1 } });
-    expect(report.billed.usage).toMatchObject({ eventCount: 1, creditsCharged: 20, inputTokens: 10, outputTokens: 5, missingTokenEvents: 0 });
-    expect(report.comparisons).toEqual({ uncoveredLocalModelCalls: 0, providerTokenUsageMatches: true, usageEventReservationMatches: true });
+    expect(report.billed.usage).toMatchObject({ eventCount: 1, creditsCharged: 20, inputTokens: 10, outputTokens: 5, missingTokenEvents: 0, providerCostUsd: 0.02, missingProviderCostEvents: 0 });
+    expect(report.comparisons).toEqual({ uncoveredLocalModelCalls: 0, providerTokenUsageMatches: true, providerCostUsageMatches: true, usageEventReservationMatches: true });
   });
 
   it("reports pending while a local reservation is unknown", () => {
@@ -84,11 +85,24 @@ describe("run usage reconciliation", () => {
     expect(report.comparisons.providerTokenUsageMatches).toBe(false);
   });
 
+  it("reports a mismatch when Core provider cost does not match the local billable ledger", () => {
+    const report = reconcileRunUsage({
+      localUsage,
+      localBudget,
+      reservations,
+      usageEvents: [{ ...usageEvents[0]!, providerCostUsd: 0.03 }],
+    });
+
+    expect(report.status).toBe("mismatch");
+    expect(report.comparisons.providerCostUsageMatches).toBe(false);
+  });
+
   it("distinguishes an intentionally unbilled run from a matched billed run", () => {
     const report = reconcileRunUsage({ localUsage, localBudget: { ...localBudget, captured: 0, capturedTokens: 0, capturedCostUsd: 0 }, reservations: [], usageEvents: [] });
 
     expect(report.status).toBe("no_billed_usage");
     expect(report.comparisons.uncoveredLocalModelCalls).toBe(1);
     expect(report.comparisons.providerTokenUsageMatches).toBeNull();
+    expect(report.comparisons.providerCostUsageMatches).toBeNull();
   });
 });

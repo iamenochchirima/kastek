@@ -49,6 +49,7 @@ export interface UsageReconciliationReport {
   comparisons: {
     uncoveredLocalModelCalls: number;
     providerTokenUsageMatches: boolean | null;
+    providerCostUsageMatches: boolean | null;
     usageEventReservationMatches: boolean | null;
   };
 }
@@ -59,6 +60,16 @@ function sum(values: number[]): number {
 
 function sumOptional(values: Array<number | null | undefined>): number {
   return sum(values.filter((value): value is number => typeof value === "number"));
+}
+
+function numericCost(value: number | string | null | undefined): number | undefined {
+  const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+function approximatelyEqual(left: number, right: number): boolean {
+  const tolerance = Math.max(1e-9, Math.max(Math.abs(left), Math.abs(right)) * 1e-6);
+  return Math.abs(left - right) <= tolerance;
 }
 
 function reservationSummary(reservations: CoreCreditReservationReconciliation[]) {
@@ -76,12 +87,15 @@ function reservationSummary(reservations: CoreCreditReservationReconciliation[])
 }
 
 function usageSummary(events: CoreCreditUsageReconciliationEvent[]) {
+  const providerCosts = events.map((event) => numericCost(event.providerCostUsd));
   return {
     eventCount: events.length,
     creditsCharged: sum(events.map((event) => event.creditsCharged)),
     inputTokens: sumOptional(events.map((event) => event.inputTokens)),
     outputTokens: sumOptional(events.map((event) => event.outputTokens)),
     missingTokenEvents: events.filter((event) => event.inputTokens === null || event.inputTokens === undefined || event.outputTokens === null || event.outputTokens === undefined).length,
+    providerCostUsd: providerCosts.every((value) => value !== undefined) && providerCosts.length > 0 ? sum(providerCosts as number[]) : null,
+    missingProviderCostEvents: providerCosts.filter((value) => value === undefined).length,
   };
 }
 
@@ -108,11 +122,14 @@ export function reconcileRunUsage(input: {
         && reservation.status === "CAPTURED"
         && reservation.capturedCredits === event.creditsCharged;
     });
+  const providerCostUsageMatches = billedUsage.providerCostUsd === null
+    ? null
+    : approximatelyEqual(input.localUsage.estimatedCostUsd, billedUsage.providerCostUsd);
   const uncoveredLocalModelCalls = Math.max(0, input.localUsage.modelCalls - billedUsage.eventCount);
   const pending = input.localBudget.unknown > 0
     || input.localBudget.reconciliationRequired > 0
     || Object.entries(billedReservations.byStatus).some(([status, count]) => count > 0 && status !== "CAPTURED" && status !== "RELEASED");
-  const hasMismatch = providerTokenUsageMatches === false || usageEventReservationMatches === false;
+  const hasMismatch = providerTokenUsageMatches === false || providerCostUsageMatches === false || usageEventReservationMatches === false;
 
   return {
     status: hasMismatch
@@ -127,6 +144,7 @@ export function reconcileRunUsage(input: {
     comparisons: {
       uncoveredLocalModelCalls,
       providerTokenUsageMatches,
+      providerCostUsageMatches,
       usageEventReservationMatches,
     },
   };

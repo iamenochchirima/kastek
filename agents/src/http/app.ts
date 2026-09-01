@@ -1528,7 +1528,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     if (!run) return reply.code(404).send({ error: "run_not_found" });
 
     const [localUsage, localBudget] = await Promise.all([
-      modelCalls.usageForRun(run.organization_id, run.id),
+      modelCalls.usageForRun(run.organization_id, run.id, "kasitek"),
       runBudgets.summaryForRun(run.organization_id, run.id),
     ]);
 

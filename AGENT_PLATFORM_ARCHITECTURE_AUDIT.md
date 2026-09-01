@@ -517,9 +517,15 @@ Completion criteria:
       Core reservation and usage-event records, classifying matched, pending, mismatch, and
       intentionally unbilled runs ([usage-reconciliation.ts](agents/src/operations/usage-reconciliation.ts),
       [`GET /v1/operator/runs/:runId/usage-reconciliation`](agents/src/http/app.ts)).
+- [x] Preserve provider-reported cost when an OpenAI-compatible provider returns it, expose it from
+      Core usage reconciliation, and compare it with billable local model-call totals
+      ([openai-compatible.ts](agents/src/model/openai-compatible.ts), [credits.rs](server/kasitek-core/src/services/credits.rs)).
+- [x] Reconcile Core credit events against platform-funded local calls only; BYOK calls remain in
+      the run budget but are not expected to produce Core credit events
+      ([model-call-repository.ts](agents/src/db/repositories/model-call-repository.ts)).
 - [ ] Compare billed, reserved, captured, and provider-reported usage during staged rollout.
-      The bounded comparison path is now available; staged evidence and provider-side billing
-      verification remain required before marking this complete.
+      The bounded comparison path now includes provider-reported cost when available; staged
+      evidence and provider-side billing verification remain required before marking this complete.
 
 ## Priority 1: memory, isolation, and reliable agent behavior
 

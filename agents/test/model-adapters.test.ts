@@ -101,6 +101,18 @@ describe("provider adapters", () => {
     vi.unstubAllGlobals();
   });
 
+  it("preserves a provider-reported cost separately from the local estimate", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5, cost: 0.0123 },
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const adapter = new OpenAICompatibleAdapter({ provider: "openrouter", baseUrl: "https://example.test/v1" });
+    const result = await new ModelGateway([adapter]).complete({ provider: "openrouter", model: "test", messages: [{ role: "user", content: "hi" }] }, credentials);
+    expect(result.usage).toMatchObject({ inputTokens: 2, outputTokens: 3, totalTokens: 5, providerCostUsd: 0.0123, estimatedCostUsd: 0.0123 });
+    vi.unstubAllGlobals();
+  });
+
   it("uses provider-safe aliases for dotted canonical tool names and restores them", async () => {
     let requestBody: Record<string, unknown> | undefined;
     const fetchMock = vi.fn().mockImplementation(async (_url: string, options: RequestInit) => {
@@ -154,7 +166,7 @@ describe("provider adapters", () => {
   it("streams OpenAI-compatible text deltas and returns a normalized response", async () => {
     const body = [
       'data: {"choices":[{"delta":{"content":"hel"}}]}\n\n',
-      'data: {"choices":[{"delta":{"content":"lo"},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":2}}\n\n',
+      'data: {"choices":[{"delta":{"content":"lo"},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":2,"cost":0.004}}\n\n',
       "data: [DONE]\n\n",
     ].join("");
     const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode(body)); controller.close(); } });
@@ -163,7 +175,7 @@ describe("provider adapters", () => {
     const deltas: string[] = [];
     const result = await new ModelGateway([adapter]).stream({ provider: "openai", model: "test", messages: [{ role: "user", content: "hi" }] }, credentials, (delta) => { if (delta.type === "text_delta") deltas.push(delta.text); });
     expect(deltas).toEqual(["hel", "lo"]);
-    expect(result).toMatchObject({ deltas: 2, response: { message: { content: "hello" }, finishReason: "stop", usage: { totalTokens: 4 } } });
+    expect(result).toMatchObject({ deltas: 2, response: { message: { content: "hello" }, finishReason: "stop", usage: { totalTokens: 4, providerCostUsd: 0.004 } } });
     vi.unstubAllGlobals();
   });
 

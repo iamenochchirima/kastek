@@ -73,6 +73,8 @@ export interface ModelUsage {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  /** Cost reported by the provider, when the provider returns one. */
+  providerCostUsd?: number;
   estimatedCostUsd?: number;
 }
 

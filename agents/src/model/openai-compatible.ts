@@ -19,7 +19,7 @@ interface OpenAICompatibleResponse {
     };
     finish_reason?: string | null;
   }>;
-  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; cost?: number | string };
   error?: { message?: string; code?: string };
 }
 
@@ -30,6 +30,11 @@ export interface OpenAICompatibleAdapterOptions {
 }
 
 const PROVIDER_FUNCTION_NAME = /^[a-zA-Z0-9_-]{1,64}$/;
+
+function finiteNonNegativeCost(value: unknown): number | undefined {
+  const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
 
 /**
  * OpenAI-compatible providers commonly reject dots in function names, while
@@ -136,10 +141,12 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
         arguments: args,
       };
     });
+    const providerCostUsd = finiteNonNegativeCost(body.usage?.cost);
     const usage: ModelUsage = {
       inputTokens: body.usage?.prompt_tokens ?? 0,
       outputTokens: body.usage?.completion_tokens ?? 0,
       totalTokens: body.usage?.total_tokens ?? (body.usage?.prompt_tokens ?? 0) + (body.usage?.completion_tokens ?? 0),
+      ...(providerCostUsd === undefined ? {} : { providerCostUsd }),
     };
     return {
       provider: this.provider,
@@ -189,6 +196,7 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
     let finishReason: string | null = null;
     let inputTokens = 0;
     let outputTokens = 0;
+    let providerCostUsd: number | undefined;
     let deltaCount = 0;
     const toolCalls: ModelToolCall[] = [];
     const toolArgumentBuffers = new Map<number, string>();
@@ -196,7 +204,7 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
       if (!line.startsWith("data:")) return;
       const payload = line.slice(5).trim();
       if (!payload || payload === "[DONE]") return;
-      let chunk: { choices?: Array<{ delta?: { content?: string | null; tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }> }; finish_reason?: string | null }>; usage?: { prompt_tokens?: number; completion_tokens?: number } };
+      let chunk: { choices?: Array<{ delta?: { content?: string | null; tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }> }; finish_reason?: string | null }>; usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number | string } };
       try { chunk = JSON.parse(payload) as typeof chunk; } catch { return; }
       const choice = chunk.choices?.[0];
       const text = choice?.delta?.content ?? "";
@@ -219,6 +227,8 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
       if (choice?.finish_reason) finishReason = choice.finish_reason;
       inputTokens = chunk.usage?.prompt_tokens ?? inputTokens;
       outputTokens = chunk.usage?.completion_tokens ?? outputTokens;
+      const cost = finiteNonNegativeCost(chunk.usage?.cost);
+      if (cost !== undefined) providerCostUsd = cost;
     };
     for (;;) {
       const next = await reader.read();
@@ -229,7 +239,7 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
       if (next.done) break;
     }
     if (buffer) await emitLine(buffer);
-    return { provider: this.provider, model: request.model, message: { role: "assistant", content, ...(toolCalls.length ? { toolCalls } : {}) }, toolCalls, finishReason, usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens }, latencyMs: Date.now() - startedAt };
+    return { provider: this.provider, model: request.model, message: { role: "assistant", content, ...(toolCalls.length ? { toolCalls } : {}) }, toolCalls, finishReason, usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, ...(providerCostUsd === undefined ? {} : { providerCostUsd }) }, latencyMs: Date.now() - startedAt };
   }
 }
 

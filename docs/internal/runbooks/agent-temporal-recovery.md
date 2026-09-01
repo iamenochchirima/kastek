@@ -104,11 +104,16 @@ ledger estimate, emits `agent.model.reconciliation_required`, and exposes the re
 
 The run-level report is platform-operator-only and requires `operator:read`. It uses the run's
 organization and installation scope when calling Core, so operators do not need direct access to
-the Core database. A `matched` result means the returned Core usage events cover the completed
-local model calls, their provider token totals match, and each event agrees with a captured Core
-reservation. `pending` means an unknown or unresolved local/Core reservation remains; `mismatch`
-means the returned token or reservation amounts disagree; `no_billed_usage` means local model
-calls exist without Core usage events and must be explained before treating the run as settled.
+the Core database. It compares Core events with platform-funded (`kasitek`) local model calls;
+BYOK calls remain in the run budget but are not expected to create Core credit events. A `matched`
+result means the returned Core usage events cover the billable local model calls, their provider
+token totals match, and each event agrees with a captured Core reservation. When the provider
+returns a cost, the report also compares the aggregate provider cost with the local billable
+ledger. A missing provider cost is reported as unavailable rather than treated as invoice
+evidence. `pending` means an unknown or unresolved local/Core reservation remains; `mismatch`
+means the returned token, cost, or reservation amounts disagree; `no_billed_usage` means billable
+local model calls exist without Core usage events and must be explained before treating the run as
+settled.
 
 Example:
 

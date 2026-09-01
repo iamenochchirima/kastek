@@ -104,7 +104,8 @@ export class ModelGateway {
           response.structuredOutput = structured;
         }
         if (response.usage.estimatedCostUsd === undefined) {
-          response.usage.estimatedCostUsd = this.estimateCost(response.provider, response.model, response.usage.inputTokens, response.usage.outputTokens);
+          response.usage.estimatedCostUsd = response.usage.providerCostUsd
+            ?? this.estimateCost(response.provider, response.model, response.usage.inputTokens, response.usage.outputTokens);
         }
         this.recordCircuitSuccess(request, credentials);
         return response;
@@ -146,7 +147,8 @@ export class ModelGateway {
     }
     this.recordCircuitSuccess(request, credentials);
     if (response.usage.estimatedCostUsd === undefined) {
-      response.usage.estimatedCostUsd = this.estimateCost(response.provider, response.model, response.usage.inputTokens, response.usage.outputTokens);
+      response.usage.estimatedCostUsd = response.usage.providerCostUsd
+        ?? this.estimateCost(response.provider, response.model, response.usage.inputTokens, response.usage.outputTokens);
     }
     return { response, deltas };
   }

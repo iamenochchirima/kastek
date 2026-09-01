@@ -112,6 +112,9 @@ pub struct CreditUsageEventView {
     #[serde(rename = "outputTokens")]
     #[sqlx(rename = "output_tokens")]
     pub output_tokens: Option<i64>,
+    #[serde(rename = "providerCostUsd")]
+    #[sqlx(rename = "provider_cost_usd")]
+    pub provider_cost_usd: Option<String>,
     #[serde(rename = "pricingVersion")]
     #[sqlx(rename = "pricing_version")]
     pub pricing_version: Option<String>,
@@ -177,6 +180,9 @@ pub struct CreditUsageReconciliationEventView {
     #[serde(rename = "outputTokens")]
     #[sqlx(rename = "output_tokens")]
     pub output_tokens: Option<i64>,
+    #[serde(rename = "providerCostUsd")]
+    #[sqlx(rename = "provider_cost_usd")]
+    pub provider_cost_usd: Option<String>,
     #[serde(rename = "pricingVersion")]
     #[sqlx(rename = "pricing_version")]
     pub pricing_version: Option<String>,
@@ -769,6 +775,7 @@ pub async fn get_credit_usage(
         SELECT id, "actionKey" AS action_key, quantity, "creditsCharged" AS credits_charged,
                status, provider, model, "fundingSource" AS funding_source,
                "inputTokens" AS input_tokens, "outputTokens" AS output_tokens,
+               "providerCostUsd" AS provider_cost_usd,
                "pricingVersion" AS pricing_version,
                "createdAt" AT TIME ZONE 'UTC' AS created_at
         FROM "CreditUsageEvent"
@@ -840,6 +847,7 @@ pub async fn get_credit_usage_reconciliation_for_source(
                usage.status, usage.provider, usage.model,
                usage."inputTokens" AS input_tokens,
                usage."outputTokens" AS output_tokens,
+               usage."providerCostUsd" AS provider_cost_usd,
                usage."pricingVersion" AS pricing_version,
                usage."createdAt" AT TIME ZONE 'UTC' AS created_at
         FROM "CreditUsageEvent" usage
