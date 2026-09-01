@@ -198,9 +198,11 @@ Affected services and user surfaces: agents-worker, configured hosted runs, mode
 ledgers, continuation/recovery behavior, and operator recovery diagnostics. Agents API and
 MCP-Gateway carry the shared artifact but have no direct execution-path change.
 
-Platform release version or release ID: record the exact commit and Railway deployment IDs after
-the opt-in production artifact is promoted. The flag remains disabled until the worker-loss
-matrix is complete.
+Platform release version or release ID: commit `aa09c39b`; Railway production deployments
+`agents-worker` `e0aa8afd-554a-4832-a92d-193a3bf84c79`, `agents-api`
+`f9918d5e-1869-4e32-979b-d64656ee87c8`, and `MCP-Gateway`
+`17493231-8190-4b4a-9253-29681c2cd170`; all reported `SUCCESS` for commit
+`aa09c39bea1e82ed7ae09e7b5126cc044e2654ff`. The feature flag remains disabled in production.
 
 API/schema/migration changes: no API or migration changes; the existing run workflow-state JSON
 record stores a versioned `__agentLoop` continuation with bounded message count and size.
@@ -220,10 +222,13 @@ User, API, internal, and operational documentation: updated the platform audit a
 execution architecture reference. The Temporal recovery runbook needs the canary/disable steps
 before this flag is enabled.
 
-Validation evidence: loop continuation and checkpoint validation tests pass (3/3 across the new
-tests), the workflow graph agent-loop tests pass (3/3), Agents TypeScript check passes, and the
-full Agents suite passes (92 files, 561 passed, 24 integration files skipped; 68 tests skipped).
-Production deployment evidence is pending until the flag is deliberately enabled in a canary.
+Validation evidence: loop continuation and checkpoint validation tests pass (6/6 across the
+continuation, checkpoint, and graph suites), Agents TypeScript check and build pass, and the full
+Agents suite passes (94 files, 564 passed, 24 integration files skipped; 68 tests skipped).
+The exact commit is deployed to all three production services; agents-api live/ready checks
+returned 200 from inside the service, the worker shell check passed, and public
+`https://agents.kasitek.co.za/health/ready` returned ready. Canary evidence is intentionally
+pending because the flag remains disabled.
 
 Rollback or disable plan: leave `TEMPORAL_STEP_ACTIVITIES_ENABLED=false` or redeploy the prior
 known-good artifact. Existing runs with a persisted continuation are still readable by the
