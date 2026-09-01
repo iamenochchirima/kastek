@@ -847,7 +847,10 @@ injection, decomposed activity, and model-credit tests pass (40 tests); Agents T
 `git diff --check` pass; full suite passes (110 files, 654 tests, 27 files and 84 tests skipped).
 Both production deployments reported `SUCCESS`, the deployed commit is `6a117bb8`, the API has no
 matching budget errors in the deployment log sample, and `https://agents.kasitek.co.za/health/ready`
-returned HTTP 200. A fresh customer chat is still needed for end-to-end provider success evidence.
+returned HTTP 200. Two fresh production chats then completed through OpenRouter: runs
+`2710f12a-6c8a-461b-aee4-1e33b0d6dc7f` and `7eb82137-b276-4034-8e52-98c3b0238747` recorded
+`agent.model.completed` and `run.completed` events with 5,617 and 5,898 total tokens; neither
+recorded `MODEL_TOKEN_BUDGET_EXCEEDED`.
 
 Rollback or disable plan: redeploy the previous successful Agents API/Worker artifact. No
 migration rollback or data repair is required.
