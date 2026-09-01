@@ -4,7 +4,7 @@ import type { ChannelConnectionRecord, ChannelRepository } from "../db/repositor
 import { DiscordBotClient } from "../channels/discord-client";
 import { operationalLogger } from "../telemetry/logger";
 import { readDiscordAccessPolicy, shouldDiscordAnswer, shouldDiscordAnswerComponent, stripDiscordMention } from "./policy";
-import { runWithDatabaseContext } from "../db/context";
+import { runWithRequiredDatabaseContext } from "../db/context";
 
 interface GatewayPayload {
   op: number;
@@ -201,7 +201,8 @@ export class DiscordGatewaySupervisor {
   }
 
   private async refresh(): Promise<void> {
-    return runWithDatabaseContext(
+    return runWithRequiredDatabaseContext(
+      "discord-gateway-refresh",
       { organizationId: "platform", actorId: "system:discord-gateway", operator: true },
       () => this.refreshScoped(),
     );
@@ -231,7 +232,8 @@ export class DiscordGatewaySupervisor {
         platformUrl: this.config.DISCORD_GATEWAY_PLATFORM_URL ?? `http://127.0.0.1:${this.config.PORT}`,
         forwardSecret: this.config.INTERNAL_AUTH_SECRET ?? "",
         onStatus: async (status) => {
-          await runWithDatabaseContext(
+          await runWithRequiredDatabaseContext(
+            "discord-gateway-status",
             { organizationId: connection.organization_id, actorId: "system:discord-gateway" },
             () => this.repository.updateConnection({
               organizationId: connection.organization_id,

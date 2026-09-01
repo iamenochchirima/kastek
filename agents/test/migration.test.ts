@@ -384,6 +384,26 @@ describe("foundation migration", () => {
     expect(sql).toContain("agent_operator_commands_agents_scope");
   });
 
+  it("keeps the complete released RLS policy inventory covered", async () => {
+    const files = [
+      "091_memory_knowledge_rls.sql",
+      "092_conversation_run_rls.sql",
+      "093_identity_credentials_effects_rls.sql",
+      "094_control_plane_and_lifecycle_rls.sql",
+      "097_parallel_branch_budget_leases.sql",
+    ];
+    const sql = (await Promise.all(files.map((file) => readFile(new URL(`../migrations/${file}`, import.meta.url), "utf8")))).join("\n");
+    const policyTables = [...sql.matchAll(/CREATE POLICY\s+\S+\s+ON\s+([a-z_]+)/gi)].map((match) => match[1]);
+    const enabledTables = new Set([...sql.matchAll(/ALTER TABLE\s+([a-z_]+)\s+ENABLE ROW LEVEL SECURITY/gi)].map((match) => match[1]));
+    const forcedTables = new Set([...sql.matchAll(/ALTER TABLE\s+([a-z_]+)\s+FORCE ROW LEVEL SECURITY/gi)].map((match) => match[1]));
+    const uniquePolicyTables = new Set(policyTables);
+
+    expect(uniquePolicyTables).toHaveLength(64);
+    expect(enabledTables).toEqual(uniquePolicyTables);
+    expect(forcedTables).toEqual(uniquePolicyTables);
+    expect(uniquePolicyTables).not.toContain("schema_migrations");
+  });
+
   it("defines hosted-agent creation profiles", async () => {
     const profileSql = await readFile(new URL("../migrations/054_agent_creation_profiles.sql", import.meta.url), "utf8");
     expect(profileSql).toContain("creation_profile");

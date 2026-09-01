@@ -55,6 +55,11 @@ protected system-agent or operator workflows.
       remaining worker/control-plane tables in separate migrations
       ([093_identity_credentials_effects_rls.sql](../../../agents/migrations/093_identity_credentials_effects_rls.sql),
       [094_control_plane_and_lifecycle_rls.sql](../../../agents/migrations/094_control_plane_and_lifecycle_rls.sql)).
+- [x] Make background database scope failures fail closed and add a source-level process matrix
+      covering every long-running and one-shot Agents entrypoint
+      ([background-database-context.test.ts](../../../agents/test/background-database-context.test.ts)).
+- [x] Emit bounded database authorization and missing-context metrics, with an operator response
+      documented in the database-isolation runbook.
 - [ ] Add isolation alerts, staged rollout, disable procedure, migration rollback, and post-release
       review evidence.
 

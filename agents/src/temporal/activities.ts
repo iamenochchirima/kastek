@@ -58,7 +58,7 @@ import { recordBudgetExhaustion, recordRetrievalResult, recordTemporalActivityAt
 import { AGENT_MEDIA_HARNESS_TOOLS, agentResponseSchema, agentResponseToolInputSchema, parseAgentResponse } from "../media/contracts";
 import { materializeResponseLinks, type ResolvedAgentMedia } from "../media/delivery";
 import { channelMediaProfile } from "../media/profiles";
-import { runWithDatabaseContext, type DatabaseContext } from "../db/context";
+import { runWithRequiredDatabaseContext, type DatabaseContext } from "../db/context";
 import { durableAgentLoopCheckpoint, readDurableAgentLoopCheckpoint } from "../runtime/loop-checkpoint";
 import { createDecomposedActivities } from "./decomposed-activities";
 import type { DecomposedAgentRunActivities } from "./decomposed-contracts";
@@ -184,7 +184,7 @@ export async function reserveModelCredits(input: {
         fundingSource: input.credentials.fundingSource,
         inputTokens: response.usage.inputTokens,
         outputTokens: response.usage.outputTokens,
-        providerCostUsd: response.usage.estimatedCostUsd,
+        ...(response.usage.providerCostUsd === undefined ? {} : { providerCostUsd: response.usage.providerCostUsd }),
       });
     },
     release: async (reason: string) => {
@@ -2242,13 +2242,15 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
         ? (input as { runId: string }).runId
         : undefined;
       if (!databaseContext && runId) {
-        const run = await runWithDatabaseContext(
+        const run = await runWithRequiredDatabaseContext(
+          "temporal-scope-recovery",
           { organizationId: "platform", actorId: "system:temporal-scope-recovery", operator: true },
           () => runs.getRunById(runId),
         );
         if (run) databaseContext = { organizationId: run.organization_id, actorId: run.created_by };
       }
-      return runWithDatabaseContext(
+      return runWithRequiredDatabaseContext(
+        `temporal.activity.${name}`,
         databaseContext,
         () => withSpan(`temporal.activity.${name}`, { "temporal.activity.name": name, "temporal.activity.attempt": attempt }, () => handler(input as never)),
       );

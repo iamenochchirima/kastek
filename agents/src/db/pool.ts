@@ -1,6 +1,13 @@
 import { Pool, PoolClient, QueryResult, QueryResultRow } from "pg";
 import type { AppConfig } from "../config";
 import { currentDatabaseContext } from "./context";
+import { recordDatabaseAuthorizationFailure } from "../telemetry/spans";
+
+function observeDatabaseError(error: unknown, contextPresent: boolean): void {
+  if ((error as { code?: unknown })?.code === "42501") {
+    recordDatabaseAuthorizationFailure(contextPresent);
+  }
+}
 
 async function setTransactionDatabaseContext(client: PoolClient): Promise<void> {
   const context = currentDatabaseContext();
@@ -28,7 +35,14 @@ export function createPool(config: AppConfig): Pool {
   const rawQuery = pool.query.bind(pool) as (...args: any[]) => Promise<any>;
   pool.query = ((...args: any[]) => {
     const context = currentDatabaseContext();
-    if (!context || typeof args.at(-1) === "function") return rawQuery(...args);
+    if (!context || typeof args.at(-1) === "function") {
+      const result = rawQuery(...args);
+      if (typeof args.at(-1) !== "function") return result.catch((error: unknown) => {
+        observeDatabaseError(error, false);
+        throw error;
+      });
+      return result;
+    }
     return withTransaction(pool, (client) => executeQuery(client, args));
   }) as Pool["query"];
   return pool;
@@ -46,6 +60,7 @@ export async function withTransaction<T>(
     await client.query("COMMIT");
     return result;
   } catch (error) {
+    observeDatabaseError(error, Boolean(currentDatabaseContext()));
     await client.query("ROLLBACK");
     throw error;
   } finally {

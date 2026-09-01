@@ -8,13 +8,18 @@ import { buildApp } from "./app";
 import { synchronizeKasiAi } from "../system/kasiai";
 import { connectTemporal, signalRunApproval, signalRunCancellation, signalRunExternalEvent, startDurableRun } from "../temporal/client";
 import { operationalLogger } from "../telemetry/logger";
+import { runWithRequiredDatabaseContext } from "../db/context";
 
 async function main(): Promise<void> {
   const config = loadConfig();
   const pool = createPool(config);
   const runs = new RunRepository(pool);
   if (config.NODE_ENV !== "production") {
-    const synced = await synchronizeKasiAi(new AgentRepository(pool), config);
+    const synced = await runWithRequiredDatabaseContext(
+      "kasiai-development-sync",
+      { organizationId: "platform", actorId: "system:kasiai-development-sync", operator: true },
+      () => synchronizeKasiAi(new AgentRepository(pool), config),
+    );
     operationalLogger.info({ event: "kasiai.synchronized", version_number: synced.version.version_number, rolled_out: synced.rolledOut }, "KasiAi synchronized");
   }
   let temporalConnection: Awaited<ReturnType<typeof connectTemporal>> | undefined;

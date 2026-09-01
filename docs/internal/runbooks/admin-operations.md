@@ -21,6 +21,19 @@ tokens, provider credentials, or raw customer payloads into tickets or chat.
 3. Record the incident correlation ID and acknowledge the generated notification.
 4. Rebuild projections after the worker recovers and verify the run reaches a terminal state.
 
+## Database authorization or tenant-isolation alert
+
+1. Check `kasitek.database.authorization_failure.count` and
+   `kasitek.database.context_missing.count` for the affected service, release, and time window.
+2. Treat any `context_missing` event as a fail-closed background-process defect. Pause the
+   affected worker or maintenance job before retrying it; do not weaken RLS or grant `BYPASSRLS`.
+3. For repeated authorization failures, inspect the migration version, runtime database role,
+   and process scope. Expected restricted-role negative tests are not production incidents.
+4. If a production path is denied unexpectedly, roll back the compatible application artifact or
+   disable only the affected policy set through the reviewed administrative migration procedure.
+5. Record the release ID, migration version, bounded process name, and outcome. Do not copy tenant
+   payloads, credentials, or SQL parameter values into the incident record.
+
 ## Duplicate or ambiguous effect
 
 1. Open the effect identifier and confirm it is `unknown` and `reconciliation_required`.

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ReadinessEvaluationCandidate, ReadinessRepository } from "../db/repositories/readiness-repository";
-import { runWithDatabaseContext } from "../db/context";
+import { runWithRequiredDatabaseContext } from "../db/context";
 
 export interface ReadinessSweepSettings {
   intervalMs: number;
@@ -53,7 +53,8 @@ export class ReadinessSweep {
     if (this.running || this.stopped) return;
     this.running = true;
     try {
-      const candidates = await runWithDatabaseContext(
+      const candidates = await runWithRequiredDatabaseContext(
+        "analytics-readiness-sweep",
         { organizationId: "platform", actorId: "system:readiness-sweep", operator: true },
         () => this.repository.claimDueEvaluations({
           owner: this.owner,
@@ -71,7 +72,7 @@ export class ReadinessSweep {
   }
 
   private async evaluate(candidate: ReadinessEvaluationCandidate, now: Date): Promise<void> {
-    return runWithDatabaseContext({ organizationId: candidate.organizationId, actorId: candidate.actorId }, async () => {
+    return runWithRequiredDatabaseContext("analytics-readiness-evaluation", { organizationId: candidate.organizationId, actorId: candidate.actorId }, async () => {
       try {
         await this.settings.evaluate(candidate);
         await this.repository.completeEvaluation({

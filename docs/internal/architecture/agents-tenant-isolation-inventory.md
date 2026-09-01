@@ -100,6 +100,12 @@ RLS policies.
   transaction and do not leak across concurrent pool users. The restricted-role RLS suite proves
   cross-organization reads are hidden, cross-organization writes are denied, and explicit
   platform-operator scope can inspect both test tenants.
+- Every long-running or one-shot Agents background entrypoint uses the fail-closed
+  `runWithRequiredDatabaseContext` boundary. The source-level process matrix test covers Temporal
+  activities/recovery, transcription, memory consolidation, Analytics publishing/readiness,
+  Discord refresh, and KasiAi maintenance jobs. Missing scopes emit
+  `kasitek.database.context_missing.count`; PostgreSQL `42501` denials emit
+  `kasitek.database.authorization_failure.count` without SQL text or tenant payloads.
 
 ## Required sequence
 
@@ -118,3 +124,18 @@ RLS policies.
    runtime tables; only the administrative migration ledger is intentionally privilege-revoked.
 5. Keep migrations and deliberate operator projections on a separately controlled role, with audit
    records for every cross-tenant operation.
+
+## Operational verification and rollback
+
+The RLS migration test asserts that the five released policy migrations cover exactly 64 runtime
+tables and that every policy table has both `ENABLE ROW LEVEL SECURITY` and `FORCE ROW LEVEL
+SECURITY`. This is a source-control guard; it does not replace restricted-role data tests. The
+integration suites remain the production-equivalent negative test for seeded cross-tenant rows.
+
+Alert on a non-zero `kasitek.database.context_missing.count` in production and investigate any
+unexpected `kasitek.database.authorization_failure.count` after grouping by service, release, and
+deployment window. To disable a policy tranche, stop the rollout, deploy the last compatible
+artifact, and apply a reviewed administrative migration that disables only that tranche. Do not
+grant `BYPASSRLS` or migration privileges to `kasitek_agents_app`. Keep applied migrations and
+unresolved rows in place during application rollback so the authorization boundary is not silently
+weakened.

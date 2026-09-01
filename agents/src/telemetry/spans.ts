@@ -76,6 +76,12 @@ const agentVersionDeploymentCounter = meter.createCounter("kasitek.agent.version
 const conversationAdmissionCounter = meter.createCounter("kasitek.conversation.admission.count", {
   description: "Conversation run admission outcomes, including backpressure and idempotent replay",
 });
+const databaseAuthorizationFailureCounter = meter.createCounter("kasitek.database.authorization_failure.count", {
+  description: "PostgreSQL authorization failures, including row-level security denials",
+});
+const databaseContextMissingCounter = meter.createCounter("kasitek.database.context_missing.count", {
+  description: "Background operations rejected because tenant database context was missing",
+});
 
 export function boundedAttribute(value: unknown, maxLength = 128): string {
   return String(value ?? "unknown").slice(0, maxLength);
@@ -146,6 +152,17 @@ export function recordBudgetExhaustion(code: string): void {
 export function recordBudgetReconciliationRequired(count: number): void {
   if (!Number.isSafeInteger(count) || count <= 0) return;
   budgetReconciliationCounter.add(count);
+}
+
+export function recordDatabaseAuthorizationFailure(contextPresent: boolean): void {
+  databaseAuthorizationFailureCounter.add(1, {
+    sqlstate: "42501",
+    context: contextPresent ? "present" : "missing",
+  });
+}
+
+export function recordDatabaseContextMissing(processName: string): void {
+  databaseContextMissingCounter.add(1, { process: boundedAttribute(processName) });
 }
 
 export function recordTemporalActivityAttempt(activity: string, attempt: number): void {

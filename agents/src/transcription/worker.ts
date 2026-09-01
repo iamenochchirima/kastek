@@ -21,7 +21,7 @@ import { TelegramBotClient } from "../channels/telegram-client";
 import { DiscordBotClient } from "../channels/discord-client";
 import { OperatorControlRepository } from "../db/repositories/operator-control-repository";
 import { withTransaction } from "../db/pool";
-import { runWithDatabaseContext } from "../db/context";
+import { runWithRequiredDatabaseContext } from "../db/context";
 import { enqueueAudioLifecycleEvent, type AudioAnalyticsEventInput } from "../analytics";
 
 type DispatchInput = Record<string, unknown>;
@@ -126,7 +126,8 @@ export class AudioTranscriptionWorker {
   }
 
   public async runOnce(): Promise<number> {
-    const claimed = await runWithDatabaseContext(
+    const claimed = await runWithRequiredDatabaseContext(
+      "audio-transcription-claim",
       { organizationId: "platform", actorId: "system:audio-transcription", operator: true },
       () => this.jobs.claimDue(
         this.workerId,
@@ -156,7 +157,8 @@ export class AudioTranscriptionWorker {
   }
 
   private async process(job: AudioTranscriptionJobRecord): Promise<void> {
-    return runWithDatabaseContext(
+    return runWithRequiredDatabaseContext(
+      "audio-transcription-job",
       { organizationId: job.organization_id, actorId: job.actor_id },
       () => this.processScoped(job),
     );

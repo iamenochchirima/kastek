@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { recordDatabaseContextMissing } from "../telemetry/spans";
 
 const MAX_CONTEXT_VALUE_LENGTH = 240;
 
@@ -32,6 +33,27 @@ export function currentDatabaseContext(): DatabaseContext | undefined {
 
 export function runWithDatabaseContext<T>(context: DatabaseContext | undefined, operation: () => T): T {
   return databaseContextStorage.run(normalizeDatabaseContext(context), operation);
+}
+
+/**
+ * Establishes a scope that is safe for background work against tenant-owned
+ * tables. Background jobs must never silently continue with an unscoped pool
+ * query: a missing scope is an operational failure and must be visible.
+ */
+export function runWithRequiredDatabaseContext<T>(
+  processName: string,
+  context: DatabaseContext | undefined,
+  operation: () => T,
+): T {
+  const normalized = normalizeDatabaseContext(context);
+  if (!normalized?.organizationId || !normalized.actorId) {
+    recordDatabaseContextMissing(processName);
+    throw Object.assign(new Error(`Database context required for ${processName}`), {
+      code: "DATABASE_CONTEXT_REQUIRED",
+      process: processName,
+    });
+  }
+  return databaseContextStorage.run(normalized, operation);
 }
 
 /** Use only after authentication or a trusted background scope has been established. */

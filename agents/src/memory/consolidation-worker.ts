@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { ConversationRepository } from "../db/repositories/conversation-repository";
-import { runWithDatabaseContext } from "../db/context";
+import { runWithRequiredDatabaseContext } from "../db/context";
 import { MemoryConsolidationJobRepository, type MemoryConsolidationJobRecord } from "../db/repositories/memory-consolidation-job-repository";
 import { MemoryRepository } from "../db/repositories/memory-repository";
 import { RunRepository } from "../db/repositories/run-repository";
@@ -53,7 +53,8 @@ export class MemoryConsolidationWorker {
   }
 
   public async runOnce(organizationId?: string): Promise<number> {
-    const claimed = await runWithDatabaseContext(
+    const claimed = await runWithRequiredDatabaseContext(
+      "memory-consolidation-claim",
       { organizationId: "platform", actorId: "system:memory-consolidation", operator: true },
       () => this.jobs.claimDue(this.workerId, this.settings.batchSize, this.settings.leaseMs, organizationId),
     );
@@ -78,7 +79,7 @@ export class MemoryConsolidationWorker {
   }
 
   private async process(job: MemoryConsolidationJobRecord): Promise<void> {
-    return runWithDatabaseContext({ organizationId: job.organization_id, actorId: "system:memory-consolidation" }, () => this.processScoped(job));
+    return runWithRequiredDatabaseContext("memory-consolidation-job", { organizationId: job.organization_id, actorId: "system:memory-consolidation" }, () => this.processScoped(job));
   }
 
   private async processScoped(job: MemoryConsolidationJobRecord): Promise<void> {

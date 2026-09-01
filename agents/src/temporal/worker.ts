@@ -19,7 +19,7 @@ import { TelegramBotClient } from "../channels/telegram-client";
 import { DiscordBotClient } from "../channels/discord-client";
 import { recordBudgetReconciliationRequired } from "../telemetry/spans";
 import { MemoryConsolidationWorker } from "../memory/consolidation-worker";
-import { runWithDatabaseContext } from "../db/context";
+import { runWithRequiredDatabaseContext } from "../db/context";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -45,7 +45,8 @@ async function main(): Promise<void> {
   const reconcileStaleEffects = async (): Promise<void> => {
     if (reconciling) return;
     reconciling = true;
-    return runWithDatabaseContext(
+    return runWithRequiredDatabaseContext(
+      "temporal-reconciliation",
       { organizationId: "platform", actorId: "system:reconciliation", operator: true },
       async () => {
         try {

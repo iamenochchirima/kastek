@@ -663,6 +663,14 @@ The production ownership audit found no ordinary agent/organization mismatches; 
 installation and knowledge-source mismatches are protected system-agent rows required by the
 system-installation design.
 
+All long-running and one-shot Agents background entrypoints now use a fail-closed database scope
+wrapper. A missing organization or actor scope throws `DATABASE_CONTEXT_REQUIRED` and emits
+`kasitek.database.context_missing.count`; PostgreSQL `42501` permission and RLS failures emit
+`kasitek.database.authorization_failure.count` without SQL text or tenant payloads. A source-level
+process matrix test protects the boundary list, and a migration contract test checks all 64
+released policy tables for both RLS and FORCE RLS. These checks improve regression detection but do
+not replace the remaining restricted-role negative data tests for every table.
+
 #### Required design
 
 1. Inventory every tenant-owned table and classify its organization, agent, installation,
@@ -713,11 +721,18 @@ system-installation design.
       a dedicated long-lived migration role remains open.
 - [x] Run focused repository and integration suites with a production-equivalent restricted role
       for all four released RLS tranches; the complete production process matrix remains open.
+- [x] Make background database scopes fail closed and add process-matrix regression coverage for
+      Temporal, transcription, memory, Analytics, Discord, and KasiAi maintenance entrypoints
+      ([context.ts](agents/src/db/context.ts), [background-database-context.test.ts](agents/test/background-database-context.test.ts)).
+- [x] Emit low-cardinality database authorization and missing-context metrics and document the
+      operator response ([spans.ts](agents/src/telemetry/spans.ts),
+      [admin-operations.md](docs/internal/runbooks/admin-operations.md)).
 - [ ] Add negative isolation tests for every protected table and every background process type.
 - [ ] Add a staged rollout, policy-disable procedure, migration rollback plan, and isolation alerting.
 - [x] Record the complete runtime policy inventory and approved platform-operator query scope in
       internal documentation ([agents-tenant-isolation-inventory.md](docs/internal/architecture/agents-tenant-isolation-inventory.md));
-      legacy constraint validation, alerting, and the full process matrix remain open.
+      data-level all-table negative coverage, production alert routing, and the full process matrix
+      remain open.
 
 ### P1.3 Replace the retrieval gate and add hybrid ranking
 

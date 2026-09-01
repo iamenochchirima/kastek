@@ -159,7 +159,9 @@ The current shared instrumentation provides `http.server.request.count`,
 `kasitek.operation.count`, `kasitek.operation.error.count`,
 `kasitek.operation.duration`, `kasitek.operation.in_flight`,
 `kasitek.operation.retry.count`, `kasitek.dependency.failure.count`, and
-`kasitek.queue.age` for instrumented application, provider, worker, and outbox boundaries. Core
+`kasitek.queue.age` for instrumented application, provider, worker, and outbox boundaries. Agents
+also emits `kasitek.database.authorization_failure.count` for PostgreSQL permission/RLS denials
+and `kasitek.database.context_missing.count` when a required background scope is absent. Core
 worker batch loops, Core/Tenant source backfill processing, Analytics outbox publication, and
 Analytics projection processing use the shared operation boundary; source queues that do not
 return an enqueue timestamp cannot emit a meaningful queue-age measurement yet.
@@ -178,6 +180,8 @@ The minimum metric contract is therefore:
 | Queue age | Queue owner only | `kasitek.queue.age` in seconds |
 | Retries | Retry owner only | `kasitek.operation.retry.count` |
 | Dependency failures | Provider/dependency boundary | `kasitek.dependency.failure.count` |
+| Database authorization failures | Agents PostgreSQL pool boundary | `kasitek.database.authorization_failure.count` |
+| Missing background database context | Agents background-process boundary | `kasitek.database.context_missing.count` |
 | Resource saturation | Collector/host platform | Collector internal and platform resource metrics |
 
 Identifiers such as request IDs, run IDs, and customer IDs must not become metric attributes.
