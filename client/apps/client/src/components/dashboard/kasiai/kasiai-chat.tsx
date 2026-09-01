@@ -1677,7 +1677,14 @@ export function KasiAiChat({
                                   : "justify-end",
                               )}
                             >
-                              <div className="max-w-[88%]">
+                              <div
+                                className={cn(
+                                  "min-w-0 break-words",
+                                  message.direction === "outbound"
+                                    ? "w-full"
+                                    : "max-w-[88%]",
+                                )}
+                              >
                                 {source !== "platform" ? (
                                   <div
                                     className={cn(
@@ -1693,10 +1700,10 @@ export function KasiAiChat({
                                 ) : null}
                                 <div
                                   className={cn(
-                                    "rounded-2xl px-3.5 py-2.5 text-sm leading-6",
+                                    "text-sm leading-6",
                                     message.direction === "outbound"
-                                      ? "rounded-bl-sm border border-border bg-card"
-                                      : "rounded-br-sm bg-primary text-primary-foreground",
+                                      ? "w-full px-0 py-1 text-foreground"
+                                      : "rounded-2xl rounded-br-sm bg-primary px-3.5 py-2.5 text-primary-foreground",
                                     retryable && "ring-1 ring-destructive/60",
                                   )}
                                 >
