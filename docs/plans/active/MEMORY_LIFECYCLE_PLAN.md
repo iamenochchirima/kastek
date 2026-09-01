@@ -72,12 +72,12 @@ conflict until queue admission is implemented.
 Affected services and user surfaces: agents-api, agents-worker, Agent Platform PostgreSQL, hosted
 agent execution, memory management, and conversation APIs.
 
-Platform release version or release ID: assign at release time; current implementation commits are
-recorded in the completed plan and audit document.
+Platform release version or release ID: commits `127ed67b` and `0d8d99ac`; production deployment
+evidence is recorded below.
 
 API/schema/migration changes: memory capabilities are internal runtime tools; conversation admission
-adds an explicit `conversation_run_active` conflict. No destructive migration is required in this
-tranche.
+adds an explicit `conversation_run_active` conflict. Run-budget accounting adds migrations 082 and
+083. All migrations are additive.
 
 Feature flag or rollout method: existing memory policy defaults remain compatible. The memory tools
 are available only when granted by the agent version policy and installation scope.
@@ -92,10 +92,12 @@ policy rejection, memory writes, and admission conflicts. Collector configuratio
 User, API, internal, and operational documentation: update memory architecture and API capability
 documentation; document the retryable conversation conflict and future queue behavior.
 
-Validation evidence: `pnpm exec tsc --noEmit`, `pnpm build`, migration tests (18 passed), targeted
-run integration tests (5 passed), and the full database-backed Agents suite (100 files passed, 549
-tests passed, 2 intentional Temporal recovery skips). Migrations 081, 082, and 083 applied to the
-isolated PostgreSQL test database.
+Validation evidence: `pnpm exec tsc --noEmit`, `pnpm build`, client type-check, workflow tests (17
+passed), migration tests (18 passed), targeted run integration tests (6 passed), and the full
+database-backed Agents suite (100 files passed, 552 tests passed, 2 intentional Temporal recovery
+skips). Migrations 081, 082, 083, and 084 applied to the isolated PostgreSQL test database and
+Production. Railway deployments `9c2a7da1-a35c-4636-a0ec-5e03eb0c1815` (agents-api) and
+`74a4762c-0386-44bc-9cc3-30390aeea74f` (agents-worker) reached `SUCCESS` after approval.
 
 Rollback or disable plan: remove the memory capability grants from new versions; the repository
 scope checks remain active. Roll back the application release without removing existing memory rows.
@@ -146,14 +148,17 @@ Collector configuration: existing production configuration; no new exporter or s
 User, API, internal, and operational documentation: update `agent-rest.md`, the memory lifecycle
 architecture, memory safety runbook, and the architecture audit.
 
-Validation evidence: targeted memory, retention, platform-chat, operator-command, type-check, build,
-and serialized full-suite checks will be recorded after the release is deployed.
+Validation evidence: targeted memory and retention tests passed (10 tests), platform-chat and
+operator-command tests passed (19 tests), `pnpm --dir agents exec tsc --noEmit` passed, the Agents
+build passed, and the serialized database-backed suite passed (106 files, 597 tests, 16 skips).
+Production Agents API live/readiness checks returned 200, MCP Gateway readiness returned 200, and
+the worker log reported `RUNNING`.
 
 Rollback or disable plan: restore the previous application artifact if needed. Do not reintroduce
 soft-delete behavior for records already purged; pause new deletion requests and retain the ledger
 while investigating. An additive compatibility migration is not required.
 
-Post-release review date: set after production monitoring.
+Post-release review date: 2026-09-08.
 
 ## Notes and blockers
 

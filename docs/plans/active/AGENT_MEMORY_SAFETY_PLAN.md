@@ -23,8 +23,6 @@ memory remains evidence, never platform policy.
 ## Non-goals
 
 - Automatic extraction and consolidation from conversations; that remains a separate P1.1 tranche.
-- Automatic extraction and consolidation; this tranche only provides the durable fact-lineage seam
-  that an extractor can use.
 - Database RLS; that remains P1.2.
 
 ## Implementation checklist
@@ -47,7 +45,7 @@ explicit user-requested memory remains subject to the same secret and poisoning 
 Affected services and user surfaces: agents-api, agents-worker, Agents PostgreSQL, memory tools,
 memory inspection, and operator controls.
 
-Platform release version or release ID: `20526aff` (agents-api, agents-worker, and MCP-Gateway).
+Platform release version or release ID: `5a243313` (agents-api, agents-worker, and MCP-Gateway).
 
 API/schema/migration changes: additive migrations 085, 086, and 087 extend memory status values,
 the operator command constraint, and memory fact lineage. Review routes
@@ -65,13 +63,16 @@ remains governed by the observability plan.
 User, API, internal, and operational documentation: update memory lifecycle and review behavior
 documentation in the same change.
 
-Validation evidence: agents full suite `85 passed, 18 skipped`; `525 passed, 49 skipped`; agents
-typecheck and build passed; frontend lint passed with two pre-existing warnings; frontend Webpack
-build passed; local PostgreSQL migrations through 086 and 11 integration tests passed. Production
-migrations 085 and 086 were applied through the agents-db tunnel. The deployed agents-api returned
-live/readiness 200 on its internal 4100 port and the public MCP-Gateway `/health` and
-`/health/ready` endpoints returned 200. Migration 087 and its integration test remain to be run
-before this plan is closed.
+Validation evidence: agents full suite `85 passed, 18 skipped`, `530 passed, 50 skipped`; targeted
+memory, HTTP, operator, migration, and poisoning tests passed (`122/122`); local PostgreSQL
+migration 087 and the memory integration suite passed (`9/9`); agents typecheck passed after the
+existing Discord media normalization change was made type-safe; frontend lint and Webpack build
+passed with two pre-existing lint warnings. Production migration 087 was applied through the
+agents-db tunnel and recorded in `schema_migrations`. Commit `5a243313` was approved and deployed
+to agents-api, agents-worker, and MCP-Gateway. The deployed agents-api returned live/readiness 200
+on its internal 4100 port and the public MCP-Gateway `/health` and `/health/ready` endpoints
+returned 200. Runtime release identity still reports `unknown` in service logs and remains a
+follow-up under the release-identity checklist.
 
 Rollback or disable plan: roll back application code only after reviewing pending records; retain
 migrations 085-087 because their status and lineage changes are additive and old records remain
