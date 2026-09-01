@@ -2,6 +2,7 @@ import type { KnowledgeChunkRecord, KnowledgeRepository } from "../db/repositori
 import type { MemoryNamespace, MemoryRecord, MemoryScope } from "../db/repositories/memory-repository";
 import { MemoryLifecycle } from "./lifecycle";
 import { memoryPolicyFromAgentPolicy, type MemoryPolicy } from "./policy";
+import { recordRetrievalDuration } from "../telemetry/spans";
 
 export type RetrievalSourceType = "memory" | "knowledge";
 export type RetrievalReason = "always" | "direct_reference" | "preference_reference" | "contextual_question" | "semantic_reference" | "knowledge_reference" | "policy_disabled" | "not_requested";
@@ -193,17 +194,22 @@ export class RetrievalService {
   public async retrieve(scope: MemoryScope, message: string, policyValue: MemoryPolicy | unknown, options: { always?: boolean } = {}): Promise<RetrievalResult> {
     const decision = decideMemoryRetrieval(message, { ...options, policy: policyValue });
     if (!decision.requested) return { decision, evidence: [], memoryMatches: [], knowledgeMatches: [] };
-    const candidateLimit = Math.min(50, Math.max(decision.maxResults, decision.maxResults * 2));
-    const [memoryMatches, knowledgeMatches] = await Promise.all([
-      decision.sourceTypes.includes("memory") ? this.memory.search(scope, decision.query, policyValue, candidateLimit) : Promise.resolve([]),
-      decision.sourceTypes.includes("knowledge") ? this.knowledge.search(scope, decision.query, candidateLimit) : Promise.resolve([]),
-    ]);
-    return {
-      decision,
-      evidence: rankEvidence(memoryMatches, knowledgeMatches, decision.maxResults, decision.maxTokens),
-      memoryMatches,
-      knowledgeMatches,
-    };
+    const started = performance.now();
+    try {
+      const candidateLimit = Math.min(50, Math.max(decision.maxResults, decision.maxResults * 2));
+      const [memoryMatches, knowledgeMatches] = await Promise.all([
+        decision.sourceTypes.includes("memory") ? this.memory.search(scope, decision.query, policyValue, candidateLimit) : Promise.resolve([]),
+        decision.sourceTypes.includes("knowledge") ? this.knowledge.search(scope, decision.query, candidateLimit) : Promise.resolve([]),
+      ]);
+      return {
+        decision,
+        evidence: rankEvidence(memoryMatches, knowledgeMatches, decision.maxResults, decision.maxTokens),
+        memoryMatches,
+        knowledgeMatches,
+      };
+    } finally {
+      recordRetrievalDuration(performance.now() - started);
+    }
   }
 }
 

@@ -581,7 +581,9 @@ cross-agent access.
       operator-command integration tests; multi-turn poisoning remains open.
 - [x] Add consolidation job, candidate, threshold-skip, and failure metrics
       ([spans.ts](agents/src/telemetry/spans.ts), [consolidation-worker.ts](agents/src/memory/consolidation-worker.ts));
-      acceptance and scope-rejection metrics remain open; derived-deletion outcomes are recorded by
+      memory acceptance/review/quarantine outcomes and missing retrieval-scope outcomes are recorded
+      by `kasitek.memory.lifecycle.decision.count` and
+      `kasitek.memory.retrieval.scope_rejection.count`; derived-deletion outcomes are recorded by
       `kasitek.memory.deletion.count`.
 - [x] Update memory architecture, safety runbook, migration, and runtime policy documentation
       ([agent-memory-lifecycle.md](docs/internal/architecture/agent-memory-lifecycle.md),
@@ -701,8 +703,9 @@ bounded candidate set, and return structured evidence instead of one concatenate
       [policy.ts](agents/src/memory/policy.ts)).
 - [x] Return provenance and score evidence separately from prompt rendering
       ([retrieval.ts](agents/src/memory/retrieval.ts), [activities.ts](agents/src/temporal/activities.ts)).
-- [x] Add retrieval rate, source-count, relevance, and empty-result metrics; latency and explicit
-      scope-rejection metrics remain open ([spans.ts](agents/src/telemetry/spans.ts)).
+- [x] Add retrieval rate, source-count, relevance, empty-result, latency, and missing
+      retrieval-scope metrics ([spans.ts](agents/src/telemetry/spans.ts)); repository filtering
+      still fails closed when required scope is absent.
 - [x] Document retrieval failure behavior for each current memory policy mode
       ([agent-memory-lifecycle.md](docs/internal/architecture/agent-memory-lifecycle.md)).
 

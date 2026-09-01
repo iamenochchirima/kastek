@@ -98,6 +98,8 @@ Multi-turn poisoning analysis, model-backed extraction, and automatic activation
 
 ## Remaining work
 
-Model-backed extraction quality, vector ranking, scope-rejection metrics, and organization-level
-row-level security remain separate audit items. They must be implemented
-behind the same lifecycle boundary rather than by adding direct writes to conversation handlers.
+Model-backed extraction quality, vector ranking, and organization-level privacy controls remain
+open. Runtime metrics now record accepted, review-pending, and quarantined memory outcomes,
+missing retrieval-scope requirements, and retrieval latency without recording memory text or
+identifiers. These capabilities must remain behind the same lifecycle boundary rather than adding
+direct writes to conversation handlers.

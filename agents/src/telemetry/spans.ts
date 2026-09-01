@@ -60,6 +60,16 @@ const memoryConsolidationCounter = meter.createCounter("kasitek.memory.consolida
 const memoryDeletionCounter = meter.createCounter("kasitek.memory.deletion.count", {
   description: "Memory and derived-data deletion outcomes",
 });
+const memoryLifecycleCounter = meter.createCounter("kasitek.memory.lifecycle.decision.count", {
+  description: "Memory acceptance, review, quarantine, rejection, and scope outcomes",
+});
+const retrievalScopeRejectionCounter = meter.createCounter("kasitek.memory.retrieval.scope_rejection.count", {
+  description: "Retrieval attempts that lacked a required memory scope value",
+});
+const retrievalDuration = meter.createHistogram("kasitek.memory.retrieval.duration", {
+  description: "Memory and knowledge retrieval duration in milliseconds",
+  unit: "ms",
+});
 const agentVersionDeploymentCounter = meter.createCounter("kasitek.agent.version.deployment.count", {
   description: "Published-versus-deployed installation rollout outcomes",
 });
@@ -204,6 +214,25 @@ export function recordMemoryDeletion(input: {
       target: boundedAttribute(input.target),
     });
   }
+}
+
+export function recordMemoryLifecycleDecision(input: {
+  outcome: "accepted" | "review_pending" | "quarantined" | "rejected" | "scope_rejected";
+  sourceType: "explicit" | "imported" | "inferred";
+}): void {
+  memoryLifecycleCounter.add(1, {
+    outcome: input.outcome,
+    source_type: input.sourceType,
+  });
+}
+
+export function recordRetrievalScopeRejection(reason: "missing_installation" | "missing_conversation" | "missing_actor"): void {
+  retrievalScopeRejectionCounter.add(1, { reason });
+}
+
+export function recordRetrievalDuration(durationMs: number): void {
+  if (!Number.isFinite(durationMs) || durationMs < 0) return;
+  retrievalDuration.record(durationMs);
 }
 
 export function recordAgentVersionDeployment(input: {

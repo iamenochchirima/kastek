@@ -1,7 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import { query, withTransaction } from "../pool";
 import { assessMemorySafety, type MemorySourceTrust, type MemorySafetyStatus } from "../../memory/poisoning";
-import { recordMemoryDeletion, recordMemoryReviewOutcome, recordMemorySafetyAssessment } from "../../telemetry/spans";
+import { recordMemoryDeletion, recordMemoryLifecycleDecision, recordMemoryReviewOutcome, recordMemorySafetyAssessment } from "../../telemetry/spans";
 
 export type MemoryNamespace = "conversation" | "user_private" | "organization_shared" | "agent_private";
 export type MemoryType = "working" | "semantic" | "episodic" | "procedural";
@@ -307,6 +307,10 @@ export class MemoryRepository {
           input.supersedesMemoryId ?? null,
         ],
       );
+      recordMemoryLifecycleDecision({
+        outcome: persistedStatus === "active" ? "accepted" : persistedStatus === "review_pending" ? "review_pending" : "quarantined",
+        sourceType: input.sourceType,
+      });
       if (input.supersedesMemoryId) {
         await client.query(
           `UPDATE memory_records

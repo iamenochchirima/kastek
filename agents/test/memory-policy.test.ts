@@ -1,9 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { MemoryLifecycle } from "../src/memory/lifecycle";
+import { MemoryLifecycle, missingMemoryScopeRequirements } from "../src/memory/lifecycle";
 import { normalizeMemoryPolicy } from "../src/memory/policy";
 import { decideMemoryRetrieval, retrievalGate } from "../src/memory/retrieval";
 
 describe("memory policy", () => {
+  it("identifies missing namespace scope without broadening retrieval", () => {
+    expect(missingMemoryScopeRequirements({ organizationId: "org", agentId: "agent" }, ["organization_shared", "agent_private", "conversation", "user_private"])).toEqual(["missing_installation", "missing_conversation", "missing_actor"]);
+    expect(missingMemoryScopeRequirements({ organizationId: "org", agentId: "agent", installationId: "install", conversationId: "conversation", actorId: "actor" }, ["agent_private", "conversation", "user_private"])).toEqual([]);
+  });
   it("normalizes unknown and excessive user policy values to bounded defaults", () => {
     expect(normalizeMemoryPolicy({ mode: "not-a-mode", maxRetrieved: 999, maxWritesPerRun: -4, readableNamespaces: ["agent_private", "bad"], allowSensitive: true })).toMatchObject({
       mode: "explicit",

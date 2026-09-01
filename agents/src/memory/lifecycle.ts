@@ -1,5 +1,6 @@
 import { MemoryRepository, type MemoryNamespace, type MemoryRecord, type MemoryScope, type MemoryType } from "../db/repositories/memory-repository";
 import { memoryPolicyFromAgentPolicy, type MemoryPolicy } from "./policy";
+import { recordRetrievalScopeRejection } from "../telemetry/spans";
 
 export interface RememberInput {
   namespace: MemoryNamespace;
@@ -24,6 +25,16 @@ export interface InferredMemoryInput {
   expiresAt?: string | null;
 }
 
+export function missingMemoryScopeRequirements(scope: MemoryScope, namespaces: readonly MemoryNamespace[]): Array<"missing_installation" | "missing_conversation" | "missing_actor"> {
+  const reasons = new Set<"missing_installation" | "missing_conversation" | "missing_actor">();
+  for (const namespace of namespaces) {
+    if (namespace === "agent_private" && !scope.installationId) reasons.add("missing_installation");
+    if (namespace === "conversation" && !scope.conversationId) reasons.add("missing_conversation");
+    if (namespace === "user_private" && !scope.actorId) reasons.add("missing_actor");
+  }
+  return [...reasons];
+}
+
 export class MemoryLifecycle {
   public constructor(private readonly repository: MemoryRepository) {}
 
@@ -35,6 +46,7 @@ export class MemoryLifecycle {
     const policy = this.policy(policyValue);
     if (policy.mode === "disabled" || policy.maxRetrieved === 0 || !query.trim()) return [];
     if (policy.readableNamespaces.length === 0) return [];
+    for (const reason of missingMemoryScopeRequirements(scope, policy.readableNamespaces)) recordRetrievalScopeRejection(reason);
     const limit = requestedLimit === undefined ? policy.maxRetrieved : Math.min(policy.maxRetrieved, Math.max(1, Math.min(50, Math.trunc(requestedLimit))));
     const records = await this.repository.searchMemory(scope, query.slice(0, 4_000), limit, policy.readableNamespaces);
     return policy.allowSensitive ? records : records.filter((record) => record.sensitivity === "normal");

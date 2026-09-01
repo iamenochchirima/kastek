@@ -65,9 +65,10 @@ database migration and no public API contract change.
 Feature flag or rollout method: pending implementation; default behavior remains policy-disabled
 or no-retrieval when the classifier does not request retrieval.
 
-Analytics events and success metrics: retrieval decision reason, retrieval rate, source counts, and
-empty-result rate; no prompt or document content. Scope-rejection and latency-specific metrics
-remain open because repository filtering currently fails closed without a separate rejection signal.
+Analytics events and success metrics: retrieval decision reason, retrieval rate, source counts,
+empty-result rate, missing-scope outcomes, and retrieval latency; no prompt or document content.
+Repository filtering still fails closed when required scope is absent. Vector ranking remains
+deferred until an embedding provider and dimension are selected.
 
 Logs, metrics, dashboards, and alerts: bounded retrieval counters and operation spans; a durable
 destination and alert policy remain governed by the observability plan.
