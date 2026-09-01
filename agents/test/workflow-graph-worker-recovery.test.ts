@@ -17,23 +17,30 @@ describe("workflow graph worker-loss recovery contracts", () => {
       edges: [{ from: "model", to: "done" }],
       stateSchema: {},
     };
-    const checkpoints: Array<{ nodeId: string; nextNodeId?: string; state: Record<string, unknown> }> = [];
+    const checkpoints: Array<{ nodeId: string; nextNodeId?: string; state: Record<string, unknown>; steps: number; usage: { modelCalls: number } }> = [];
     const crashed = await executeWorkflowGraph(graph, {}, {
       model,
       checkpoint: async (checkpoint) => {
-        checkpoints.push({ nodeId: checkpoint.nodeId, nextNodeId: checkpoint.nextNodeId, state: checkpoint.state });
+        checkpoints.push({ nodeId: checkpoint.nodeId, nextNodeId: checkpoint.nextNodeId, state: checkpoint.state, steps: checkpoint.steps, usage: { modelCalls: checkpoint.usage.modelCalls } });
         if (checkpoint.nodeId === "model") throw new Error("worker crashed after model checkpoint");
       },
     });
 
     expect(crashed.status).toBe("failed");
-    expect(checkpoints[0]).toMatchObject({ nodeId: "model", nextNodeId: "done", state: { answer: { output: "persisted" } } });
+    expect(checkpoints[0]).toMatchObject({ nodeId: "model", nextNodeId: "done", state: { answer: { output: "persisted" } }, steps: 1, usage: { modelCalls: 1 } });
 
     const checkpoint = checkpoints[0]!;
-    const resumed = await executeWorkflowGraph({ ...graph, entryNodeId: checkpoint.nextNodeId! }, checkpoint.state);
+    const resumed = await executeWorkflowGraph({ ...graph, entryNodeId: checkpoint.nextNodeId! }, checkpoint.state, {
+      resume: {
+        steps: checkpoint.steps,
+        usage: { modelCalls: checkpoint.usage.modelCalls, toolCalls: 0, inputTokens: 3, outputTokens: 2, totalTokens: 5, estimatedCostUsd: 0.01 },
+        trace: [{ nodeId: checkpoint.nodeId, type: "model", status: "completed" }],
+      },
+    });
 
     expect(resumed).toMatchObject({ status: "completed", state: { answer: { output: "persisted" }, done: true } });
     expect(model).toHaveBeenCalledTimes(1);
+    expect(resumed.usage.modelCalls).toBe(1);
   });
 
   it("preserves an approval pause when the worker dies after its pause checkpoint", async () => {

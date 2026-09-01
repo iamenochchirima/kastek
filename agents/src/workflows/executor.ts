@@ -78,6 +78,13 @@ export interface GraphExecutorDependencies {
   signal?: AbortSignal;
   resumeApprovedToolCall?: { id: string; name: string; arguments: Record<string, unknown>; approval: unknown };
   resumeExternalEvent?: { key: string; payload: Record<string, unknown> };
+  resume?: {
+    edgeIterations?: Record<string, number>;
+    nodeIterations?: Record<string, number>;
+    steps?: number;
+    trace?: GraphExecutionResult["trace"];
+    usage?: GraphExecutionUsage;
+  };
   limits?: GraphExecutionLimits;
   checkpoint?: (input: {
     nodeId: string;
@@ -87,6 +94,9 @@ export interface GraphExecutorDependencies {
     output?: unknown;
     trace: GraphExecutionResult["trace"];
     usage: GraphExecutionUsage;
+    edgeIterations: Record<string, number>;
+    nodeIterations: Record<string, number>;
+    steps: number;
     idempotencyKey: string;
   }) => Promise<void>;
 }
@@ -178,13 +188,14 @@ export async function executeWorkflowGraph(
   context?: GraphExecutionContext,
 ): Promise<GraphExecutionResult> {
   const state = structuredClone(initialState);
-  const trace: GraphExecutionResult["trace"] = [];
+  const trace: GraphExecutionResult["trace"] = structuredClone(dependencies.resume?.trace ?? []);
   const execution = context ?? {
-    usage: emptyGraphUsage(),
+    usage: dependencies.resume?.usage ? { ...emptyGraphUsage(), ...dependencies.resume.usage } : emptyGraphUsage(),
     startedAt: Date.now(),
-    edgeIterations: new Map<number, number>(),
-    nodeIterations: new Map<string, number>(),
-    steps: 0,
+    edgeIterations: new Map<number, number>(Object.entries(dependencies.resume?.edgeIterations ?? {})
+      .map(([index, count]) => [Number(index), count])),
+    nodeIterations: new Map<string, number>(Object.entries(dependencies.resume?.nodeIterations ?? {})),
+    steps: boundedLimit(dependencies.resume?.steps, 0),
     maxSteps: boundedLimit(dependencies.limits?.maxSteps, 2_000),
     validateState: compileWorkflowStateSchema(graph),
   } satisfies GraphExecutionContext;
@@ -255,7 +266,7 @@ export async function executeWorkflowGraph(
         authorizationRequired = loopResult.authorizationRequired ?? findAuthorizationRequirement(loopResult) ?? authorizationRequired;
         if (loopResult.status === "awaiting_approval" || loopResult.status === "awaiting_human" || loopResult.status === "awaiting_external_event") {
           trace.push({ nodeId: node.id, type: node.type, status: loopResult.status });
-          await checkpointNode(dependencies, node.id, node.id, "paused", state, undefined, trace, usage, count);
+          await checkpointNode(dependencies, execution, node.id, node.id, "paused", state, undefined, trace, usage, count);
           return {
             status: loopResult.status,
             state,
@@ -292,7 +303,7 @@ export async function executeWorkflowGraph(
           } else {
             const argumentsHash = createWorkflowArgumentsHash(toolArguments);
             trace.push({ nodeId: node.id, type: node.type, status: "awaiting_approval" });
-            await checkpointNode(dependencies, node.id, node.id, "paused", state, undefined, trace, usage, count);
+            await checkpointNode(dependencies, execution, node.id, node.id, "paused", state, undefined, trace, usage, count);
             return { status: "awaiting_approval", state, trace, usage, pausedAt: node.id, pendingToolCalls: [{ id: toolCallId, name: toolName, arguments: toolArguments, argumentsHash }] };
           }
         } else if (toolName) {
@@ -300,14 +311,14 @@ export async function executeWorkflowGraph(
         }
         if (!toolName) {
           trace.push({ nodeId: node.id, type: node.type, status: "awaiting_approval" });
-          await checkpointNode(dependencies, node.id, node.id, "paused", state, undefined, trace, usage, count);
+          await checkpointNode(dependencies, execution, node.id, node.id, "paused", state, undefined, trace, usage, count);
           return { status: "awaiting_approval", state, trace, usage, pausedAt: node.id };
         }
       } else if (node.type === "wait") {
         const eventKey = typeof node.config.eventKey === "string" && node.config.eventKey.trim() ? node.config.eventKey : node.id;
         if (!dependencies.resumeExternalEvent || dependencies.resumeExternalEvent.key !== eventKey) {
           trace.push({ nodeId: node.id, type: node.type, status: "awaiting_external_event" });
-          await checkpointNode(dependencies, node.id, node.id, "paused", state, undefined, trace, usage, count);
+          await checkpointNode(dependencies, execution, node.id, node.id, "paused", state, undefined, trace, usage, count);
           return { status: "awaiting_external_event", state, trace, usage, pausedAt: node.id, waitingFor: eventKey };
         }
         result = dependencies.resumeExternalEvent.payload;
@@ -319,7 +330,7 @@ export async function executeWorkflowGraph(
           : node.id;
         if (!dependencies.resumeExternalEvent || dependencies.resumeExternalEvent.key !== handoffKey) {
           trace.push({ nodeId: node.id, type: node.type, status: "awaiting_human" });
-          await checkpointNode(dependencies, node.id, node.id, "paused", state, undefined, trace, usage, count);
+          await checkpointNode(dependencies, execution, node.id, node.id, "paused", state, undefined, trace, usage, count);
           return { status: "awaiting_human", state, trace, usage, pausedAt: node.id, waitingFor: handoffKey };
         }
         result = dependencies.resumeExternalEvent.payload;
@@ -335,7 +346,7 @@ export async function executeWorkflowGraph(
         .map((edge, index) => ({ edge, index }))
         .filter(({ edge }) => edge.from === node.id && edgeMatches(edge, state));
       const nextNodeId = node.type === "fan_out" ? undefined : outgoing[0]?.edge.to;
-      await checkpointNode(dependencies, node.id, nextNodeId, "completed", state, result, trace, usage, count);
+      await checkpointNode(dependencies, execution, node.id, nextNodeId, "completed", state, result, trace, usage, count);
       if (!outgoing.length) return { status: "completed", state, trace, usage };
       if (node.type === "fan_out") {
         const fanInNodeId = typeof node.config.fanInNodeId === "string" ? node.config.fanInNodeId : undefined;
@@ -440,6 +451,7 @@ function initialBranchWorkload(graph: WorkflowGraph, entryNodeId: string, stopAt
 
 async function checkpointNode(
   dependencies: GraphExecutorDependencies,
+  execution: GraphExecutionContext,
   nodeId: string,
   nextNodeId: string | undefined,
   status: "completed" | "paused" | "failed",
@@ -457,6 +469,9 @@ async function checkpointNode(
     ...(output === undefined ? {} : { output: structuredClone(output) }),
     trace: structuredClone(trace),
     usage: { ...usage },
+    edgeIterations: Object.fromEntries(execution.edgeIterations),
+    nodeIterations: Object.fromEntries(execution.nodeIterations),
+    steps: execution.steps,
     idempotencyKey: `workflow:${nodeId}:${iteration}:${status}`,
   });
 }

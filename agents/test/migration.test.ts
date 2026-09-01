@@ -150,6 +150,13 @@ describe("foundation migration", () => {
     expect(sql).toContain("FORCE ROW LEVEL SECURITY");
   });
 
+  it("preserves graph executor counters across workflow checkpoint retries", async () => {
+    const sql = await readFile(new URL("../migrations/098_workflow_checkpoint_runtime_metadata.sql", import.meta.url), "utf8");
+    expect(sql).toContain("edge_iterations JSONB");
+    expect(sql).toContain("node_iterations JSONB");
+    expect(sql).toContain("steps INTEGER");
+  });
+
   it("contains the durable scope and run tables", async () => {
     const sql = await readFile(new URL("../migrations/001_agent_platform_foundation.sql", import.meta.url), "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_definitions");

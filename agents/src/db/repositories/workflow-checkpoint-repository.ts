@@ -14,6 +14,9 @@ export interface WorkflowCheckpointRecord {
   state: Record<string, unknown>;
   output: unknown;
   trace: Array<{ nodeId: string; type: string; status: string }>;
+  edge_iterations: Record<string, number>;
+  node_iterations: Record<string, number>;
+  steps: number;
   usage: {
     modelCalls: number;
     toolCalls: number;
@@ -51,6 +54,9 @@ export class WorkflowCheckpointRepository {
     state: Record<string, unknown>;
     output?: unknown;
     trace: Array<{ nodeId: string; type: string; status: string }>;
+    edgeIterations?: Record<string, number>;
+    nodeIterations?: Record<string, number>;
+    steps?: number;
     usage: WorkflowCheckpointRecord["usage"];
     idempotencyKey: string;
   }): Promise<WorkflowCheckpointRecord> {
@@ -73,8 +79,9 @@ export class WorkflowCheckpointRepository {
       );
       const result = await client.query<WorkflowCheckpointRecord>(
         `INSERT INTO run_workflow_checkpoints
-          (run_id, organization_id, sequence_number, node_id, next_node_id, status, state, output, trace, usage, idempotency_key)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11)
+          (run_id, organization_id, sequence_number, node_id, next_node_id, status, state, output, trace,
+           edge_iterations, node_iterations, steps, usage, idempotency_key)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13::jsonb, $14)
          RETURNING *`,
         [
           input.runId,
@@ -86,6 +93,9 @@ export class WorkflowCheckpointRepository {
           JSON.stringify(input.state),
           input.output === undefined ? null : JSON.stringify(input.output),
           JSON.stringify(input.trace),
+          JSON.stringify(input.edgeIterations ?? {}),
+          JSON.stringify(input.nodeIterations ?? {}),
+          input.steps ?? 0,
           JSON.stringify(input.usage),
           input.idempotencyKey,
         ],
@@ -102,6 +112,9 @@ function normalizeCheckpoint(row: WorkflowCheckpointRecord): WorkflowCheckpointR
     state: row.state ?? {},
     output: row.output ?? null,
     trace: Array.isArray(row.trace) ? row.trace : [],
+    edge_iterations: normalizeCounters(row.edge_iterations),
+    node_iterations: normalizeCounters(row.node_iterations),
+    steps: Number(row.steps ?? 0),
     usage: {
       modelCalls: Number(row.usage?.modelCalls ?? 0),
       toolCalls: Number(row.usage?.toolCalls ?? 0),
@@ -111,4 +124,11 @@ function normalizeCheckpoint(row: WorkflowCheckpointRecord): WorkflowCheckpointR
       estimatedCostUsd: Number(row.usage?.estimatedCostUsd ?? 0),
     },
   };
+}
+
+function normalizeCounters(value: unknown): Record<string, number> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value)
+    .filter(([, count]) => typeof count === "number" && Number.isFinite(count) && count >= 0)
+    .map(([key, count]) => [key, Math.floor(count as number)]));
 }

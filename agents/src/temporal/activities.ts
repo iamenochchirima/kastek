@@ -3646,6 +3646,13 @@ async function executeConfiguredWorkflow(input: {
   const result = await executeWorkflowGraph(executionGraph, workflowStateValue, {
     limits: input.limits,
     signal: currentActivitySignal(),
+    resume: latestCheckpoint ? {
+      edgeIterations: latestCheckpoint.edge_iterations,
+      nodeIterations: latestCheckpoint.node_iterations,
+      steps: latestCheckpoint.steps,
+      trace: latestCheckpoint.trace,
+      usage: latestCheckpoint.usage,
+    } : undefined,
     reserveParallelBranchCapacity: async ({ branches }) => input.runBudget.reserveParallelBranchCapacity({
       organizationId: input.run.organization_id,
       runId: input.run.id,
@@ -3756,6 +3763,9 @@ async function executeConfiguredWorkflow(input: {
         state: checkpoint.state,
         output: checkpoint.output,
         trace: checkpoint.trace,
+        edgeIterations: checkpoint.edgeIterations,
+        nodeIterations: checkpoint.nodeIterations,
+        steps: checkpoint.steps,
         usage: checkpoint.usage,
         idempotencyKey: checkpoint.idempotencyKey,
       });
