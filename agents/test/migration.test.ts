@@ -142,6 +142,14 @@ describe("foundation migration", () => {
     expect(sql).toContain("follow-published installation movement");
   });
 
+  it("adds durable fan-out branch capacity leases with tenant protection", async () => {
+    const sql = await readFile(new URL("../migrations/097_parallel_branch_budget_leases.sql", import.meta.url), "utf8");
+    expect(sql).toContain("run_budget_parallel_leases");
+    expect(sql).toContain("UNIQUE (run_id, branch_key)");
+    expect(sql).toContain("kasitek_validate_run_child_scope");
+    expect(sql).toContain("FORCE ROW LEVEL SECURITY");
+  });
+
   it("contains the durable scope and run tables", async () => {
     const sql = await readFile(new URL("../migrations/001_agent_platform_foundation.sql", import.meta.url), "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_definitions");

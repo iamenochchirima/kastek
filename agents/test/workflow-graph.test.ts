@@ -214,6 +214,42 @@ describe("workflow graph validation", () => {
     expect(result.error).toContain("overlapping");
   });
 
+  it("admits all billable fan-out branches before starting model work and releases their leases", async () => {
+    const graph = {
+      version: 1 as const,
+      entryNodeId: "fan",
+      nodes: [
+        { id: "fan", type: "fan_out" as const, parallelGroup: "work", config: { fanInNodeId: "join" } },
+        { id: "left", type: "model" as const, writes: ["left"] },
+        { id: "right", type: "model" as const, writes: ["right"] },
+        { id: "join", type: "fan_in" as const },
+      ],
+      edges: [{ from: "fan", to: "left" }, { from: "fan", to: "right" }, { from: "left", to: "join" }, { from: "right", to: "join" }],
+      stateSchema: {},
+    };
+    const events: string[] = [];
+    const leases = new Map<string, { id: string; release: () => Promise<void> }>();
+    const result = await executeWorkflowGraph(graph, {}, {
+      reserveParallelBranchCapacity: async ({ branches }) => {
+        events.push(`reserve:${branches.map((branch) => `${branch.nodeId}:${branch.modelSlot}`).join(",")}`);
+        return branches.map((branch, index) => {
+          const lease = { id: `lease-${index}`, release: async () => { events.push(`release:${index}`); } };
+          leases.set(branch.nodeId, lease);
+          return lease;
+        });
+      },
+      model: async ({ nodeId, parallelLeaseId }) => {
+        events.push(`model:${nodeId}:${parallelLeaseId}`);
+        return { output: `${nodeId}-ok` };
+      },
+    });
+    expect(result.status).toBe("completed");
+    expect(events[0]).toBe("reserve:left:true,right:true");
+    expect(events.filter((event) => event.startsWith("model:"))).toEqual(expect.arrayContaining(["model:left:lease-0", "model:right:lease-1"]));
+    expect(events.slice(-2).sort()).toEqual(["release:0", "release:1"]);
+    expect(leases.size).toBe(2);
+  });
+
   it("aggregates model usage and stops before exceeding a graph model-call limit", async () => {
     const graph = {
       version: 1 as const,

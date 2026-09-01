@@ -8,8 +8,8 @@ last_reviewed: 2026-09-01
 
 This inventory covers the public schema of the Agents PostgreSQL database. It was checked against
 the local migrated database on 2026-08-31 and the production database through the Agents API
-container. The schema contains 64 base tables. Migrations 091 through 094 now enable `FORCE ROW
-LEVEL SECURITY` on 63 runtime tables covering memory, knowledge, conversations, messages, runs,
+container. The schema contains 65 base tables. Migrations 091 through 094 and 097 now enable `FORCE ROW
+LEVEL SECURITY` on 64 runtime tables covering memory, knowledge, conversations, messages, runs,
 credentials, channels, effects, approvals, lifecycle sidecars, analytics, and control-plane data.
 `schema_migrations` is the only table without RLS because runtime and application roles have no
 privilege to read or write it; migrations use a separate administrative database connection.
@@ -49,7 +49,7 @@ policies:
 `integration_connections`, `integration_credentials`, `integration_oauth_states`,
 `internal_calendar_events`, `kasiai_user_preferences`, `knowledge_chunks`, `knowledge_sources`,
 `memory_consolidation_jobs`, `memory_deletion_jobs`, `memory_records`, `messages`, `model_calls`,
-`participants`, `run_attempts`, `run_budget_reservations`, `run_budgets`, `run_steps`,
+`participants`, `run_attempts`, `run_budget_parallel_leases`, `run_budget_reservations`, `run_budgets`, `run_steps`,
 `run_workflow_checkpoints`, `run_workflow_state`, and `tool_invocations`.
 
 The direct organization column must agree with the parent relationship. A policy should not trust a
@@ -92,7 +92,7 @@ RLS policies.
 - Before migration 095, the memory and knowledge ownership-presence constraints were `NOT VALID`.
   The production audit found zero invalid rows, and migration 095 now records all three as
   validated. Local legacy fixture data is not production evidence and must not be promoted.
-- Production migrations 091, 092, 093, and 094 are recorded in `schema_migrations`; all 63
+- Production migrations 091, 092, 093, 094, and 097 are recorded in `schema_migrations`; all 64
   runtime tables report both `relrowsecurity = true` and `relforcerowsecurity = true`.
   `schema_migrations` reports neither because its privileges are revoked from runtime and
   application roles.

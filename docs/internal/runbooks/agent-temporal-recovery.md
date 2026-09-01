@@ -112,6 +112,15 @@ If the stored tool name or argument hash differs, recovery fails closed with
 external effects whose provider outcome is unknown remain under effect reconciliation and must not
 be replayed as if the provider had not received them.
 
+For a configured fan-out, inspect `run_budget_parallel_leases` when a run reports a capacity
+failure. The executor admits the first possible model/tool operation for every branch under the
+run budget row lock before starting branch work. A lease is released after branch completion,
+pause, failure, cancellation, or retry cleanup. `PARALLEL_MODEL_CAPACITY_EXCEEDED` and
+`PARALLEL_TOOL_CAPACITY_EXCEEDED` mean the configured run limit cannot admit all branches at once;
+do not bypass them by increasing worker concurrency. A lease that remains `active` after a worker
+loss is safe to release only through the repository/recovery path after checking the corresponding
+model or tool operation state.
+
 ## Incident procedure
 
 1. Check `GET /v1/operator/health` and the Temporal namespace/task queue in the deployment
@@ -149,10 +158,11 @@ Watch these metrics and structured events:
 - `kasitek.run_budget.reconciliation_required.count`;
 - `agent.model.reconciliation_required`;
 - completed-tool replay and `TOOL_REPLAY_SCOPE_CONFLICT` failures;
+- parallel branch capacity admissions, lease releases, and capacity failures;
 - `agent.reply.delivery_failed` and effect reconciliation events.
 - conversation admission outcomes, `conversation_busy` backpressure, and channel redelivery.
 
-Migration 084 is additive. If the application release must be rolled back, deploy the previous
+Migrations 084 and 097 are additive. If the application release must be rolled back, deploy the previous
 application artifact while retaining the migration and unresolved rows. Do not drop `operation_key`
 or `response`; doing so would remove the evidence needed to prevent unsafe provider replay.
 

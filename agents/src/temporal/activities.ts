@@ -196,6 +196,7 @@ async function reserveRunModelBudget(input: {
   organizationId: string;
   runId: string;
   reservationKey: string;
+  parallelLeaseId?: string;
   gateway: ModelGateway;
   request: ModelRequest;
 }): Promise<ModelCreditReservation> {
@@ -209,6 +210,7 @@ async function reserveRunModelBudget(input: {
       reservationKey: input.reservationKey,
       estimatedTokens: estimatedInputTokens + estimatedOutputTokens,
       estimatedCostUsd: input.gateway.estimateCost(input.request.provider, input.request.model, estimatedInputTokens, estimatedOutputTokens),
+      ...(input.parallelLeaseId ? { parallelLeaseId: input.parallelLeaseId } : {}),
     });
   } catch (error) {
     if (error instanceof Error && /BUDGET_EXCEEDED$/.test(error.message)) recordBudgetExhaustion(error.message);
@@ -221,9 +223,9 @@ async function reserveRunModelBudget(input: {
   };
 }
 
-async function consumeRunToolBudget(repository: RunBudgetRepository, input: { organizationId: string; runId: string }): Promise<void> {
+async function consumeRunToolBudget(repository: RunBudgetRepository, input: { organizationId: string; runId: string; parallelLeaseId?: string }): Promise<void> {
   try {
-    await repository.consumeToolCall(input);
+    await repository.consumeToolCallWithParallelLease(input);
   } catch (error) {
     if (error instanceof Error && error.message === "TOOL_CALL_BUDGET_EXCEEDED") recordBudgetExhaustion(error.message);
     throw error;
@@ -2773,6 +2775,7 @@ async function executeLoopForRun(
   const runHostedAgentLoop = async (options: {
     messages: ModelMessage[];
     operationKeyPrefix?: string;
+    parallelLeaseId?: string;
     model?: { temperature?: number; maxTokens?: number };
     limits?: Partial<AgentLoopLimits>;
   }): Promise<AgentLoopResult> => withActivityHeartbeat(
@@ -2793,6 +2796,7 @@ async function executeLoopForRun(
       toolContext: modelToolContext,
       signal: activitySignal,
       operationKeyPrefix: options.operationKeyPrefix,
+      parallelLeaseId: options.parallelLeaseId,
       limits: {
         maxIterations: typeof configuration.maxIterations === "number" ? configuration.maxIterations : undefined,
         maxToolCalls: runBudgetLimits.maxToolCalls,
@@ -2801,8 +2805,8 @@ async function executeLoopForRun(
         maxWallTimeMs: typeof configuration.maxWallTimeMs === "number" ? configuration.maxWallTimeMs : undefined,
         ...options.limits,
       },
-      reserveRunBudget: async ({ request, reservationKey }) => reserveRunModelBudget({ repository: runBudgets, organizationId: run.organization_id, runId: run.id, reservationKey, gateway, request }),
-      consumeRunToolCall: () => consumeRunToolBudget(runBudgets, { organizationId: run.organization_id, runId: run.id }),
+      reserveRunBudget: async ({ request, reservationKey, parallelLeaseId }) => reserveRunModelBudget({ repository: runBudgets, organizationId: run.organization_id, runId: run.id, reservationKey, parallelLeaseId, gateway, request }),
+      consumeRunToolCall: ({ parallelLeaseId } = {}) => consumeRunToolBudget(runBudgets, { organizationId: run.organization_id, runId: run.id, parallelLeaseId }),
       replayToolInvocation: async ({ toolCallId, name, argumentsHash }) => (await toolInvocations.getCompleted({
         organizationId: run.organization_id,
         runId: run.id,
@@ -3078,7 +3082,7 @@ async function executeLoopForRun(
       coreClient,
       modelToolContext,
       conversationActions,
-      runAgentLoop: async ({ nodeId, config, state, maxIterations, usage, limits }) => {
+      runAgentLoop: async ({ nodeId, config, state, maxIterations, usage, limits, parallelLeaseId }) => {
         const instruction = typeof config.instruction === "string" && config.instruction.trim()
           ? config.instruction
           : "Continue the workflow.";
@@ -3091,6 +3095,7 @@ async function executeLoopForRun(
         const loopResult = await runHostedAgentLoop({
           messages: [...context.messages, { role: "user", content: JSON.stringify({ nodeId, instruction, state }) }],
           operationKeyPrefix: `workflow:agent-loop:${nodeId}`,
+          parallelLeaseId,
           model: {
             maxTokens: typeof config.maxTokens === "number" ? Math.max(1, Math.min(8_000, Math.floor(config.maxTokens))) : undefined,
             temperature: typeof config.temperature === "number" ? config.temperature : undefined,
@@ -3155,8 +3160,8 @@ async function executeLoopForRun(
       maxEstimatedCostUsd: runBudgetLimits.maxEstimatedCostUsd,
       maxWallTimeMs: typeof configuration.maxWallTimeMs === "number" ? configuration.maxWallTimeMs : undefined,
     },
-    reserveRunBudget: async ({ request, reservationKey }) => reserveRunModelBudget({ repository: runBudgets, organizationId: run.organization_id, runId: run.id, reservationKey, gateway, request }),
-    consumeRunToolCall: () => consumeRunToolBudget(runBudgets, { organizationId: run.organization_id, runId: run.id }),
+    reserveRunBudget: async ({ request, reservationKey, parallelLeaseId }) => reserveRunModelBudget({ repository: runBudgets, organizationId: run.organization_id, runId: run.id, reservationKey, parallelLeaseId, gateway, request }),
+    consumeRunToolCall: ({ parallelLeaseId } = {}) => consumeRunToolBudget(runBudgets, { organizationId: run.organization_id, runId: run.id, parallelLeaseId }),
     prepareModelCall: async ({ operationKey, model: attemptModel, credentials: attemptCredentials }) => modelCalls.prepare({
       organizationId: run.organization_id,
       runId: run.id,
@@ -3641,7 +3646,12 @@ async function executeConfiguredWorkflow(input: {
   const result = await executeWorkflowGraph(executionGraph, workflowStateValue, {
     limits: input.limits,
     signal: currentActivitySignal(),
-    model: async ({ nodeId, config, state }) => {
+    reserveParallelBranchCapacity: async ({ branches }) => input.runBudget.reserveParallelBranchCapacity({
+      organizationId: input.run.organization_id,
+      runId: input.run.id,
+      branches,
+    }),
+    model: async ({ nodeId, config, state, parallelLeaseId }) => {
       const instruction = typeof config.instruction === "string" ? config.instruction : "Continue the workflow.";
       const request: ModelRequest = {
         provider: input.modelProvider,
@@ -3668,7 +3678,7 @@ async function executeConfiguredWorkflow(input: {
       let providerResponsePersisted = false;
       try {
         try {
-          runBudgetReservation = await reserveRunModelBudget({ repository: input.runBudget, organizationId: input.run.organization_id, runId: input.run.id, reservationKey: operationKey, gateway: input.gateway, request });
+          runBudgetReservation = await reserveRunModelBudget({ repository: input.runBudget, organizationId: input.run.organization_id, runId: input.run.id, reservationKey: operationKey, parallelLeaseId, gateway: input.gateway, request });
         } catch (error) {
           if (!(prepared.status === "completed" && error instanceof Error && error.message === "MODEL_CALL_ALREADY_SETTLED")) throw error;
         }

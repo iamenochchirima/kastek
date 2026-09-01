@@ -42,6 +42,7 @@ export interface GraphToolRequest {
   arguments: Record<string, unknown>;
   nodeId: string;
   approved?: unknown;
+  parallelLeaseId?: string;
 }
 
 export interface GraphAgentLoopRequest {
@@ -51,6 +52,7 @@ export interface GraphAgentLoopRequest {
   maxIterations?: number;
   usage: GraphExecutionUsage;
   limits?: GraphExecutionLimits;
+  parallelLeaseId?: string;
 }
 
 export interface GraphAgentLoopResult {
@@ -64,9 +66,14 @@ export interface GraphAgentLoopResult {
 }
 
 export interface GraphExecutorDependencies {
-  model?: (input: { nodeId: string; config: Record<string, unknown>; state: Record<string, unknown> }) => Promise<unknown>;
+  model?: (input: { nodeId: string; config: Record<string, unknown>; state: Record<string, unknown>; parallelLeaseId?: string }) => Promise<unknown>;
   agentLoop?: (input: GraphAgentLoopRequest) => Promise<GraphAgentLoopResult>;
   tool?: (input: GraphToolRequest) => Promise<unknown>;
+  reserveParallelBranchCapacity?: (input: {
+    nodeId: string;
+    branches: Array<{ branchKey: string; nodeId: string; modelSlot: boolean; toolSlot: boolean }>;
+  }) => Promise<Array<{ id: string; release: () => Promise<void> } | undefined>>;
+  parallelBranchLease?: { id: string };
   /** Abort signal from the enclosing Temporal activity, when graph execution is durable. */
   signal?: AbortSignal;
   resumeApprovedToolCall?: { id: string; name: string; arguments: Record<string, unknown>; approval: unknown };
@@ -229,20 +236,20 @@ export async function executeWorkflowGraph(
       } else if (node.type === "tool") {
         if (!dependencies.tool || typeof node.config.toolName !== "string") throw new Error(`Tool node is not configured: ${node.id}`);
         consumeToolCall(usage, dependencies.limits);
-        result = await dependencies.tool({ name: node.config.toolName, arguments: (node.config.arguments ?? {}) as Record<string, unknown>, nodeId: node.id });
+        result = await dependencies.tool({ name: node.config.toolName, arguments: (node.config.arguments ?? {}) as Record<string, unknown>, nodeId: node.id, ...(dependencies.parallelBranchLease ? { parallelLeaseId: dependencies.parallelBranchLease.id } : {}) });
         throwIfGraphCancelled(dependencies.signal);
         addReportedUsage(usage, result);
         applyConfiguredWrites(state, node, result);
       } else if (node.type === "model") {
         if (!dependencies.model) throw new Error(`Model node is not configured: ${node.id}`);
         consumeModelCall(usage, dependencies.limits);
-        result = await dependencies.model({ nodeId: node.id, config: node.config, state });
+        result = await dependencies.model({ nodeId: node.id, config: node.config, state, ...(dependencies.parallelBranchLease ? { parallelLeaseId: dependencies.parallelBranchLease.id } : {}) });
         throwIfGraphCancelled(dependencies.signal);
         addReportedUsage(usage, result);
         applyConfiguredWrites(state, node, result);
       } else if (node.type === "agent_loop") {
         if (!dependencies.agentLoop) throw new Error(`Agent-loop node is not configured: ${node.id}`);
-        const loopResult = await dependencies.agentLoop({ nodeId: node.id, config: node.config, state, maxIterations: node.maxIterations, usage: { ...usage }, limits: dependencies.limits });
+        const loopResult = await dependencies.agentLoop({ nodeId: node.id, config: node.config, state, maxIterations: node.maxIterations, usage: { ...usage }, limits: dependencies.limits, ...(dependencies.parallelBranchLease ? { parallelLeaseId: dependencies.parallelBranchLease.id } : {}) });
         throwIfGraphCancelled(dependencies.signal);
         addReportedUsage(usage, loopResult);
         authorizationRequired = loopResult.authorizationRequired ?? findAuthorizationRequirement(loopResult) ?? authorizationRequired;
@@ -278,7 +285,7 @@ export async function executeWorkflowGraph(
           const resumed = dependencies.resumeApprovedToolCall;
           if (resumed && resumed.id === toolCallId && resumed.name === toolName) {
             consumeToolCall(usage, dependencies.limits);
-            result = await dependencies.tool({ name: toolName, arguments: toolArguments, nodeId: node.id, approved: resumed.approval });
+            result = await dependencies.tool({ name: toolName, arguments: toolArguments, nodeId: node.id, approved: resumed.approval, ...(dependencies.parallelBranchLease ? { parallelLeaseId: dependencies.parallelBranchLease.id } : {}) });
             throwIfGraphCancelled(dependencies.signal);
             addReportedUsage(usage, result);
             applyConfiguredWrites(state, node, result);
@@ -334,13 +341,33 @@ export async function executeWorkflowGraph(
         const fanInNodeId = typeof node.config.fanInNodeId === "string" ? node.config.fanInNodeId : undefined;
         const previousBoundary = execution.stopAtNodeId;
         if (fanInNodeId) execution.stopAtNodeId = fanInNodeId;
+        const branchEntries = outgoing.map(({ edge, index }) => {
+          const iteration = consumeEdgeIteration(edge, index, execution.edgeIterations);
+          return {
+            edge,
+            index,
+            iteration,
+            branchKey: `workflow:${node.id}:branch:${index}:${iteration}`,
+            nodeId: edge.to,
+            ...initialBranchWorkload(graph, edge.to, fanInNodeId),
+          };
+        });
+        const leases = dependencies.reserveParallelBranchCapacity
+          ? await dependencies.reserveParallelBranchCapacity({
+            nodeId: node.id,
+            branches: branchEntries.map(({ branchKey, nodeId, modelSlot, toolSlot }) => ({ branchKey, nodeId, modelSlot, toolSlot })),
+          })
+          : branchEntries.map(() => undefined);
+        if (leases.length !== branchEntries.length) throw new Error("PARALLEL_BRANCH_CAPACITY_RESPONSE_MISMATCH");
         let branches: GraphExecutionResult[];
         try {
-          branches = await Promise.all(outgoing.map(({ edge, index }) => {
-            consumeEdgeIteration(edge, index, execution.edgeIterations);
-            return executeWorkflowGraph({ ...graph, entryNodeId: edge.to }, state, dependencies, execution);
+          branches = await Promise.all(branchEntries.map(({ edge }, branchIndex) => {
+            const lease = leases[branchIndex];
+            const branchDependencies = lease ? { ...dependencies, parallelBranchLease: lease } : { ...dependencies, parallelBranchLease: undefined };
+            return executeWorkflowGraph({ ...graph, entryNodeId: edge.to }, state, branchDependencies, execution);
           }));
         } finally {
+          await Promise.all(leases.filter((lease): lease is { id: string; release: () => Promise<void> } => Boolean(lease)).map((lease) => lease.release()));
           execution.stopAtNodeId = previousBoundary;
         }
         const mergedState = structuredClone(state);
@@ -383,12 +410,32 @@ function createWorkflowArgumentsHash(argumentsValue: Record<string, unknown>): s
   return hashToolArguments(argumentsValue);
 }
 
-function consumeEdgeIteration(edge: WorkflowGraph["edges"][number], index: number, iterations: Map<number, number>): void {
+function consumeEdgeIteration(edge: WorkflowGraph["edges"][number], index: number, iterations: Map<number, number>): number {
   const count = (iterations.get(index) ?? 0) + 1;
   iterations.set(index, count);
   if (edge.maxIterations !== undefined && count > edge.maxIterations) {
     throw new Error(`Edge iteration limit exceeded: ${edge.from} -> ${edge.to}`);
   }
+  return count;
+}
+
+function initialBranchWorkload(graph: WorkflowGraph, entryNodeId: string, stopAtNodeId: string | undefined): { modelSlot: boolean; toolSlot: boolean } {
+  const visited = new Set<string>();
+  const workload = { modelSlot: false, toolSlot: false };
+  const visit = (nodeId: string): void => {
+    if (nodeId === stopAtNodeId || visited.has(nodeId) || workload.modelSlot && workload.toolSlot) return;
+    visited.add(nodeId);
+    const node = graph.nodes.find((candidate) => candidate.id === nodeId);
+    if (!node) return;
+    if (node.type === "model" || node.type === "agent_loop") workload.modelSlot = true;
+    if (node.type === "tool" || node.type === "approval" || node.type === "agent_loop") workload.toolSlot = true;
+    // A nested fan-out admits its own branches. The current branch must not
+    // hold a parent lease while those children are being admitted.
+    if (node.type === "fan_out") return;
+    for (const edge of graph.edges.filter((candidate) => candidate.from === nodeId)) visit(edge.to);
+  };
+  visit(entryNodeId);
+  return workload;
 }
 
 async function checkpointNode(

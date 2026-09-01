@@ -351,3 +351,50 @@ rollback so a retry cannot lose the evidence needed to avoid duplicate execution
 Post-release review date: 2026-09-08; review replay rate, scope conflicts, duplicate run-step
 creation, effect reconciliation, and handler failure metrics before closing the remaining
 worker-kill matrix and activity-decomposition items.
+
+## Follow-up release record: parallel graph-branch budget admission
+
+Change: Admit configured fan-out branches through a durable, tenant-scoped capacity lease before
+launching branch work. The lease reserves the first possible model and tool operation for each
+branch and is consumed atomically with the ordinary model reservation or tool allowance. Later
+sequential operations continue through the canonical run budget ledger.
+
+Owner: Agent Platform.
+
+Risk: high.
+
+Affected services and user surfaces: agents-worker, configured graph execution, run-budget and
+workflow checkpoint records, operator budget diagnostics, and PostgreSQL tenant isolation.
+Agents API and MCP-Gateway carry the shared artifact but have no direct graph execution path.
+
+Platform release version or release ID: pending commit and exact Railway deployment IDs.
+
+API/schema/migration changes: additive migration `097_parallel_branch_budget_leases.sql` creates
+`run_budget_parallel_leases`, applies the existing child-scope ownership trigger, and enables
+`FORCE ROW LEVEL SECURITY` for the restricted runtime role. No public API contract changes.
+
+Feature flag or rollout method: no new flag. Graph branch admission is fail-closed and applies
+only when the graph executor reaches a fan-out. Existing graph publication and execution controls
+remain authoritative.
+
+Analytics events and success metrics: no new customer analytics event. Review branch admission,
+capacity rejection, lease release, model/tool reservation, retry, and reconciliation outcomes;
+compare branch admission failures with configured graph limits.
+
+Logs, metrics, dashboards, and alerts: existing budget exhaustion and activity heartbeat telemetry
+is reused; `workflow.tool.replayed` remains available for retry diagnostics. Add operational query
+coverage for active leases and capacity failures before closing the follow-up review.
+
+User, API, internal, and operational documentation: updated the architecture audit, workflow
+execution architecture, Temporal recovery runbook, and tenant-isolation inventory. Public API
+documentation is not applicable.
+
+Validation evidence: pending typecheck, targeted graph/migration tests, full Agents suite, build,
+database migration, and production smoke verification.
+
+Rollback or disable plan: redeploy the previous application artifact only after confirming no active
+branch lease is protecting an in-flight model or tool operation. Retain migration 097 and its rows;
+it is additive and should not be dropped during an application rollback.
+
+Post-release review date: 2026-09-08; inspect active lease age, capacity rejections, branch retry
+replay, model/tool budget totals, and provider billing reconciliation.

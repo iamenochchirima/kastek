@@ -472,11 +472,14 @@ Completion criteria:
       ([run-budget-repository.ts](agents/src/db/repositories/run-budget-repository.ts), migration 083).
 - [x] Pass the remaining budget into graph model, tool, and nested loop nodes
       ([activities.ts](agents/src/temporal/activities.ts), [loop.ts](agents/src/runtime/loop.ts)).
-- [ ] Reserve parallel branch capacity before launching work.
+- [x] Reserve the first possible model and tool operation for every fan-out branch before
+      launching work through a tenant-scoped durable capacity lease; later sequential operations
+      continue through the ordinary run budget ledger ([097_parallel_branch_budget_leases.sql](agents/migrations/097_parallel_branch_budget_leases.sql), [run-budget-repository.ts](agents/src/db/repositories/run-budget-repository.ts), [executor.ts](agents/src/workflows/executor.ts), [workflow-graph.test.ts](agents/test/workflow-graph.test.ts)).
 - [x] Replace last-response usage reporting with aggregation from durable model-call records
       ([model-call-repository.ts](agents/src/db/repositories/model-call-repository.ts), [activities.ts](agents/src/temporal/activities.ts)).
 - [x] Add over-budget and reconciliation tests ([run.integration.test.ts](agents/test/run.integration.test.ts));
-      parallel reservation, worker-retry, and provider-side reconciliation tests remain open.
+      parallel branch admission is covered by the database integration test, while worker-retry and
+      provider-side reconciliation tests remain open.
 - [x] Add budget exhaustion metrics, customer-safe errors, operator diagnostics, and a reconciliation
       runbook ([spans.ts](agents/src/telemetry/spans.ts), [app.ts](agents/src/http/app.ts),
       [agent-temporal-recovery.md](docs/internal/runbooks/agent-temporal-recovery.md)).

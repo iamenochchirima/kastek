@@ -38,6 +38,8 @@ export interface AgentLoopInput {
   signal?: AbortSignal;
   /** Prefix used to keep durable operation keys unique across hosted loop contexts. */
   operationKeyPrefix?: string;
+  /** Durable fan-out admission lease used by the first model/tool operation in a branch. */
+  parallelLeaseId?: string;
   limits?: Partial<AgentLoopLimits>;
   onEvent?: (event: AgentLoopEvent) => Promise<void> | void;
   /** Claims the operation before a provider call and prevents unsafe replay after worker loss. */
@@ -68,8 +70,9 @@ export interface AgentLoopInput {
   reserveRunBudget?: (input: {
     request: ModelRequest;
     reservationKey: string;
+    parallelLeaseId?: string;
   }) => Promise<ModelCreditReservation | undefined>;
-  consumeRunToolCall?: () => Promise<void>;
+  consumeRunToolCall?: (input?: { parallelLeaseId?: string }) => Promise<void>;
   /** Replays a completed tool outcome after a worker retry without invoking the handler again. */
   replayToolInvocation?: (input: {
     toolCallId: string;
@@ -186,7 +189,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         requiresApproval: resumedManifest?.requiresApproval ?? true,
         sequenceNumber: 1,
       });
-      if (!replayed) await input.consumeRunToolCall?.();
+      if (!replayed) await input.consumeRunToolCall?.({ parallelLeaseId: input.parallelLeaseId });
       const result = replayed ?? await input.tools.invoke({
           name: resumed.name,
           arguments: resumed.arguments,
@@ -265,7 +268,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           };
           const prepared = await input.prepareModelCall?.({ operationKey, model: attempt.model, credentials: attempt.credentials });
           try {
-            runBudgetReservation = await input.reserveRunBudget?.({ request, reservationKey: operationKey });
+            runBudgetReservation = await input.reserveRunBudget?.({ request, reservationKey: operationKey, parallelLeaseId: input.parallelLeaseId });
           } catch (error) {
             // The provider response may already be durable while the worker
             // was lost after run-budget settlement. Replay the remaining
@@ -395,7 +398,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
               sequenceNumber: toolCalls,
             });
           }
-          if (!replayed) await input.consumeRunToolCall?.();
+          if (!replayed) await input.consumeRunToolCall?.({ parallelLeaseId: input.parallelLeaseId });
           const result = replayed ?? await input.tools.invoke({
             name: toolCall.name,
             arguments: toolCall.arguments,

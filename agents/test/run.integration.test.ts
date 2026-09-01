@@ -469,6 +469,21 @@ describe.skipIf(!runIntegration)("durable run invariants (integration)", () => {
 
   it("reserves, settles, and atomically enforces model and tool budgets", async () => {
     await runBudgets.ensure({ organizationId, runId }, { maxModelCalls: 2, maxToolCalls: 1, maxTotalTokens: 100, maxEstimatedCostUsd: 1 });
+    const branchLeases = await runBudgets.reserveParallelBranchCapacity({
+      organizationId,
+      runId,
+      branches: [
+        { branchKey: "workflow:fan:branch:0:1", modelSlot: true, toolSlot: false },
+        { branchKey: "workflow:fan:branch:1:1", modelSlot: true, toolSlot: false },
+      ],
+    });
+    expect(branchLeases).toHaveLength(2);
+    await expect(runBudgets.reserveParallelBranchCapacity({
+      organizationId,
+      runId,
+      branches: [{ branchKey: "workflow:fan:branch:2:1", modelSlot: true, toolSlot: false }],
+    })).rejects.toThrow("PARALLEL_MODEL_CAPACITY_EXCEEDED");
+    await Promise.all(branchLeases.map((lease) => lease?.release()));
     const captured = await runBudgets.reserveModelCall({ organizationId, runId, reservationKey: "budget:model:captured", estimatedTokens: 20, estimatedCostUsd: 0.1 });
     const released = await runBudgets.reserveModelCall({ organizationId, runId, reservationKey: "budget:model:released", estimatedTokens: 20, estimatedCostUsd: 0.1 });
     await released.release("provider failure");

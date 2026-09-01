@@ -76,3 +76,11 @@ The step mode groups the tool calls returned by one model response and refuses t
 multi-tool response when the remaining run budget cannot admit all of them. It does not yet make
 context, model, individual tool, checkpoint, and completion work separate Temporal activities.
 The worker-kill matrix and controlled production rollout therefore remain P0.3 work.
+
+Fan-out admission uses `run_budget_parallel_leases`. Before branch promises are launched, the
+executor identifies the first possible model and tool operation in each branch and atomically
+leases those capacities under the run budget row lock. The first operation consumes its matching
+lease slot in the same transaction as its normal model reservation or tool allowance. Additional
+sequential operations use the ordinary ledger and limits. Leases are released in a `finally`
+block, including pause, failure, cancellation, and worker-retry paths. A capacity mismatch or
+missing lease fails closed before provider or tool work begins.
