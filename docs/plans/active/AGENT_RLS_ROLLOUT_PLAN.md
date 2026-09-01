@@ -179,16 +179,21 @@ Affected services and user surfaces: agents-api, agents-worker, Temporal activit
 publisher and readiness sweep, memory consolidation, transcription, Discord refresh, KasiAi
 maintenance, Agents PostgreSQL, and operator observability.
 
-Platform release version or release ID: commit `d7ec1eb9`; Railway production deployments API
-`f2a56040-dc2b-4258-bdf8-ee8a6ee7169b` and worker `41f10ca2-0d46-43f1-9da0-6eed79d4cf96` both
-reached `SUCCESS` on 2026-09-01.
+Platform release version or release ID: commit `d7ec1eb9`; Railway production redeployments API
+`9fd17db5-3b3f-481d-b7d4-6c4b3e811650` and worker `acd88818-b92b-4a02-9aec-7720aef3df9f` both
+reached `SUCCESS` on 2026-09-01. The immutable Railway artifact digests are API
+`sha256:e9377a7e18ea9f60222f3d0104e647e13eb03ce797e372a80de8638661de5960` and worker
+`sha256:f0f6c0d0b71d906130b6c18e3ee71334a0b3c528c0cb0a7001287365cfb3755a`.
 
 API/schema/migration changes: no API or database schema changes. Runtime behavior and two
 OpenTelemetry metric contracts changed; migrations 091-095 remain unchanged.
 
-Feature flag or rollout method: deployed through the existing Railway production approval gate.
-The guard is active at the listed background boundaries; no RLS bypass or runtime privilege was
-added. Rollout is limited to the API and worker artifacts in this release.
+Feature flag or rollout method: deployed through the existing Railway production approval gate,
+then redeployed after setting non-secret release metadata. `KASITEK_VERSION=0.1.0`,
+`KASITEK_RELEASE_ID=d7ec1eb9`, `KASITEK_COMMIT_SHA=d7ec1eb9`, explicit production environment,
+and distinct API/worker service names are now set on both services. The guard is active at the
+listed background boundaries; no RLS bypass or runtime privilege was added. Rollout is limited
+to the API and worker artifacts in this release.
 
 Analytics events and success metrics: not applicable for user analytics. Operational success is
 API and worker readiness, worker `RUNNING` state, zero unexpected context-missing failures, and
@@ -207,10 +212,11 @@ API behavior is unchanged.
 Validation evidence: the targeted boundary and migration tests passed (`38/38`), affected worker
 tests passed (`46/46`), the full Agents suite passed (`607 passed, 78 skipped`), typecheck and
 build passed, and the migration matrix covers 64 protected runtime tables with
-`schema_migrations` excluded. Both Railway deployments report `SUCCESS` with one running replica;
-the Gateway readiness endpoint returned `200`. The new API logs show the process listening, and
-worker logs show `state: 'RUNNING'`. The API public health path is not exposed on the Core domain,
-so its `404` there is not used as Agents API readiness evidence.
+`schema_migrations` excluded. Both Railway redeployments report `SUCCESS` with one running
+replica; worker logs show `state: 'RUNNING'`; the Gateway readiness endpoint returned `200`; and
+the new API startup logs identify `kasitek-agents-api`, version `0.1.0`, release `d7ec1eb9`, and
+commit `d7ec1eb9` instead of `unknown`. The API public health path is not exposed on the Core
+domain, so its `404` there is not used as Agents API readiness evidence.
 
 Rollback or disable plan: restore the previous compatible API and worker deployments if a valid
 background path is rejected unexpectedly. Investigate and repair the missing scope at its caller;
