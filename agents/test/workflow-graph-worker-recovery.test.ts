@@ -2,6 +2,41 @@ import { describe, expect, it, vi } from "vitest";
 import { executeWorkflowGraph } from "../src/workflows/executor";
 
 describe("workflow graph worker-loss recovery contracts", () => {
+  it("returns a durable continuation marker after one linear node", async () => {
+    const model = vi.fn(async () => ({
+      output: "persisted",
+      usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5, estimatedCostUsd: 0.01 },
+    }));
+    const checkpoints: Array<{ nodeId: string; nextNodeId?: string }> = [];
+    const graph = {
+      version: 1 as const,
+      entryNodeId: "model",
+      nodes: [
+        { id: "model", type: "model" as const, writes: ["answer"] },
+        { id: "done", type: "deterministic" as const, config: { operation: "set", path: "done", value: true } },
+      ],
+      edges: [{ from: "model", to: "done" }],
+      stateSchema: {},
+    };
+
+    const first = await executeWorkflowGraph(graph, {}, {
+      model,
+      stopAfterCheckpoint: true,
+      checkpoint: async (checkpoint) => {
+        checkpoints.push({ nodeId: checkpoint.nodeId, nextNodeId: checkpoint.nextNodeId });
+      },
+    });
+
+    expect(first).toMatchObject({ status: "completed", checkpointed: true, state: { answer: { output: "persisted" } } });
+    expect(checkpoints).toEqual([{ nodeId: "model", nextNodeId: "done" }]);
+
+    const resumed = await executeWorkflowGraph({ ...graph, entryNodeId: "done" }, first.state, {
+      resume: { steps: first.trace.length, trace: first.trace, usage: first.usage },
+    });
+    expect(resumed).toMatchObject({ status: "completed", state: { answer: { output: "persisted" }, done: true } });
+    expect(model).toHaveBeenCalledTimes(1);
+  });
+
   it("replays after a model checkpoint without calling the model again", async () => {
     const model = vi.fn(async () => ({
       output: "persisted",

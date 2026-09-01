@@ -27,8 +27,10 @@ external-event results become graph checkpoints and resume at the same node.
 
 Supported execution records validate state at the initial, intermediate, resumed, and final
 boundaries. Node completion and pause checkpoints include state, trace, usage, next-node identity,
-and an idempotency key. Fan-out test execution merges branch deltas and rejects conflicting
-overlapping writes.
+runtime iteration counters, graph step count, and an idempotency key. Graph retries restore those
+counters before selecting the next node, so a worker replacement cannot reset a node, edge, or
+graph-step limit. Fan-out test execution merges branch deltas and rejects conflicting overlapping
+writes.
 
 ## Budgets and cancellation
 
@@ -75,7 +77,10 @@ to reconciliation rather than being treated as a successful replay.
 The step mode groups the tool calls returned by one model response and refuses to execute a partial
 multi-tool response when the remaining run budget cannot admit all of them. It does not yet make
 context, model, individual tool, checkpoint, and completion work separate Temporal activities.
-The worker-kill matrix and controlled production rollout therefore remain P0.3 work.
+For controlled rollout, the same flag can also stop eligible linear configured graphs after one
+completed node; graphs containing fan-out or `agent_loop` nodes continue through the existing
+whole-graph activity boundary. The worker-kill matrix and the fully independent context/model/tool
+activity decomposition therefore remain P0.3 work.
 
 Fan-out admission uses `run_budget_parallel_leases`. Before branch promises are launched, the
 executor identifies the first possible model and tool operation in each branch and atomically

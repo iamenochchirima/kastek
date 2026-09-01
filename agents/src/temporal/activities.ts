@@ -3128,6 +3128,7 @@ async function executeLoopForRun(
         maxEstimatedCostUsd: runBudgetLimits.maxEstimatedCostUsd,
         maxWallTimeMs: restrictiveLimit(configuration.maxWallTimeMs) ?? 60_000,
       },
+      graphStepActivitiesEnabled: stepActivitiesEnabled,
     });
     return { ...workflowResult, usage: await modelCalls.usageForRun(run.organization_id, run.id) };
   }
@@ -3475,9 +3476,11 @@ async function executeConfiguredWorkflow(input: {
   conversationActions: ConversationActionService;
   runAgentLoop: (input: GraphAgentLoopRequest) => Promise<GraphAgentLoopResult>;
   limits: GraphExecutionLimits;
+  /** Enables one-node Temporal continuation for linear graphs during controlled rollout. */
+  graphStepActivitiesEnabled: boolean;
   resumeApprovedToolCall?: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeApprovedToolCall"];
   resumeExternalEvent?: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeExternalEvent"];
-}): Promise<AgentLoopResult> {
+}): Promise<AgentLoopResult & { checkpointed?: boolean }> {
   let graph: WorkflowGraph;
   try {
     graph = validateWorkflowGraph(input.graphInput).graph;
@@ -3514,6 +3517,8 @@ async function executeConfiguredWorkflow(input: {
   const pausedNodeId = latestCheckpoint?.next_node_id
     ?? (typeof persistedState?.__workflowNodeId === "string" ? persistedState.__workflowNodeId : undefined);
   const executionGraph = pausedNodeId && graph.nodes.some((node) => node.id === pausedNodeId) ? { ...graph, entryNodeId: pausedNodeId } : graph;
+  const supportsLinearStepContinuation = !executionGraph.nodes.some((node) => node.type === "fan_out" || node.type === "agent_loop");
+  const graphStepActivitiesEnabled = input.graphStepActivitiesEnabled && supportsLinearStepContinuation;
   const toolSequence = { value: 0 };
   const usedTools = new Set<string>();
   let lastModelResponse: ModelResponse | undefined;
@@ -3653,6 +3658,7 @@ async function executeConfiguredWorkflow(input: {
       trace: latestCheckpoint.trace,
       usage: latestCheckpoint.usage,
     } : undefined,
+    stopAfterCheckpoint: graphStepActivitiesEnabled,
     reserveParallelBranchCapacity: async ({ branches }) => input.runBudget.reserveParallelBranchCapacity({
       organizationId: input.run.organization_id,
       runId: input.run.id,
@@ -3771,6 +3777,18 @@ async function executeConfiguredWorkflow(input: {
       });
     },
   });
+
+  if (result.checkpointed) {
+    return {
+      status: "limited",
+      messages: [],
+      usage: workflowUsage(result.usage),
+      iterations: result.trace.length,
+      toolCalls: result.usage.toolCalls,
+      checkpointed: true,
+      provenance: buildGroundingProvenance({ authorizedTools: input.allowedTools, usedTools, retrievalRequested: input.context.retrievalRequested, knowledgeMatchCount: 0 }),
+    };
+  }
 
   if (result.status === "awaiting_approval") {
     const pending = result.pendingToolCalls?.[0];

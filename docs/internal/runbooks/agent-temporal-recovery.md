@@ -16,7 +16,7 @@ reconciliation. It applies to the Agents API and Agents Worker in every environm
 | Activity | Work enclosed | Remote or durable boundary | Retry posture |
 | --- | --- | --- | --- |
 | `transitionRun` | Run status transition | Agents PostgreSQL | Idempotent state transition |
-| `executeLoop` | Context, retrieval, model calls, tools, checkpoints, and completion decision | PostgreSQL, model providers, Core, channel/tool adapters | Still a large activity; completed model and tool outcomes plus opt-in loop-slice results are replayable when recorded |
+| `executeLoop` | Context, retrieval, model calls, tools, checkpoints, and completion decision | PostgreSQL, model providers, Core, channel/tool adapters | Still a large activity; completed model and tool outcomes plus opt-in loop-slice and eligible linear graph results are replayable when recorded |
 | `pauseRun` | Persist waiting state and output | Agents PostgreSQL | Idempotent run transition |
 | `deliverApprovalPrompt` | Resolve credentials and send the approval prompt | Telegram, Discord, or Core | Delivery failures are recorded; external sends require provider-safe handling |
 | `cancelPendingApproval` | Cancel approval and mark its effect not executed | PostgreSQL | Idempotent by approval/effect state |
@@ -34,7 +34,11 @@ deterministic step index. A checkpoint records the bounded message history, cumu
 and the result status required by the workflow. If the same activity is retried with that step
 index, the worker returns the recorded result for `limited` or a pause instead of rerunning the
 model/tool slice. Approval and external-event resumes intentionally include their resume input and
-continue from the checkpointed messages.
+continue from the checkpointed messages. For a configured graph, the same flag stops a linear graph
+after one completed node and schedules the next node from its durable checkpoint. The graph
+checkpoint includes edge/node iteration counters and the cumulative step/usage metadata. This
+continuation mode does not apply to fan-out or `agent_loop` graphs, which remain on the existing
+whole-graph boundary until the independent activity decomposition is released.
 
 ## Timeout and retry contract
 
@@ -162,9 +166,11 @@ Watch these metrics and structured events:
 - `agent.reply.delivery_failed` and effect reconciliation events.
 - conversation admission outcomes, `conversation_busy` backpressure, and channel redelivery.
 
-Migrations 084 and 097 are additive. If the application release must be rolled back, deploy the previous
+Migrations 084, 097, and 098 are additive. If the application release must be rolled back, deploy the previous
 application artifact while retaining the migration and unresolved rows. Do not drop `operation_key`
-or `response`; doing so would remove the evidence needed to prevent unsafe provider replay.
+or `response`; doing so would remove the evidence needed to prevent unsafe provider replay. Do not
+drop the graph checkpoint runtime metadata from migration 098; older application artifacts ignore
+the additive columns safely.
 
 Migration 088 is additive. Do not remove its unique index during routine rollback. If migration
 preflight finds duplicate active runs, stop the rollout and resolve the competing runs with the

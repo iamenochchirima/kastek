@@ -347,6 +347,9 @@ Add contract tests for:
 - [x] Persist node checkpoints, pause state, branch state, and idempotency keys
       ([workflow-checkpoint-repository.ts](agents/src/db/repositories/workflow-checkpoint-repository.ts),
       migration 080).
+- [x] Persist and restore graph edge/node iteration counters, step count, trace, and cumulative
+      usage across activity retries ([workflow-checkpoint-repository.ts](agents/src/db/repositories/workflow-checkpoint-repository.ts),
+      migration 098, [workflow-graph-worker-recovery.test.ts](agents/test/workflow-graph-worker-recovery.test.ts)).
 - [x] Aggregate model and tool usage across every node and branch
       ([executor.ts](agents/src/workflows/executor.ts)).
 - [x] Add crash-after-checkpoint replay, branch-failure, graph-cancellation, and graph-boundary
@@ -354,8 +357,9 @@ Add contract tests for:
       [workflow-graph-cancellation.test.ts](agents/test/workflow-graph-cancellation.test.ts),
       [workflow-graph-worker-recovery.test.ts](agents/test/workflow-graph-worker-recovery.test.ts));
       handoff and full activity worker-kill coverage remain open.
-- [ ] Update workflow schema documentation, preview labels, migration guidance, runbooks, metrics,
-      and rollback controls.
+- [x] Update workflow schema documentation, preview labels, migration guidance, runbooks, metrics,
+      and rollback controls ([agent-workflow-execution.md](docs/internal/architecture/agent-workflow-execution.md),
+      [agent-temporal-recovery.md](docs/internal/runbooks/agent-temporal-recovery.md), migration 098).
 
 ### P0.3 Split Temporal work into retry-safe activities
 
@@ -434,6 +438,11 @@ hold product evidence and idempotency records, not act as a replacement workflow
       following the checkpoint write, carry a deterministic step index, and reject partial
       multi-tool responses when the remaining budget is too small
       ([activities.ts](agents/src/temporal/activities.ts), [loop-checkpoint.ts](agents/src/runtime/loop-checkpoint.ts)).
+- [x] Add a controlled one-node continuation for eligible linear configured graphs, restoring graph
+      runtime metadata before the next activity; fan-out and `agent_loop` graphs remain on the
+      existing boundary until their activity contracts are decomposed
+      ([executor.ts](agents/src/workflows/executor.ts), [activities.ts](agents/src/temporal/activities.ts),
+      [workflow-graph-worker-recovery.test.ts](agents/test/workflow-graph-worker-recovery.test.ts)).
 - [x] Replay completed ordinary and configured-graph tool outcomes by run and provider tool-call
       identity plus argument hash before creating a new proposal/step, consuming budget, invoking a
       handler, or consuming approval; fail closed on scope mismatch

@@ -76,6 +76,8 @@ export interface GraphExecutorDependencies {
   parallelBranchLease?: { id: string };
   /** Abort signal from the enclosing Temporal activity, when graph execution is durable. */
   signal?: AbortSignal;
+  /** Stop after one completed linear node once its checkpoint has been persisted. */
+  stopAfterCheckpoint?: boolean;
   resumeApprovedToolCall?: { id: string; name: string; arguments: Record<string, unknown>; approval: unknown };
   resumeExternalEvent?: { key: string; payload: Record<string, unknown> };
   resume?: {
@@ -121,6 +123,8 @@ export interface GraphExecutionUsage {
 
 export interface GraphExecutionResult {
   status: "completed" | "awaiting_approval" | "awaiting_human" | "awaiting_external_event" | "failed";
+  /** The node was durably checkpointed and the caller should schedule the next activity. */
+  checkpointed?: boolean;
   state: Record<string, unknown>;
   trace: Array<{ nodeId: string; type: string; status: string }>;
   pausedAt?: string;
@@ -347,6 +351,9 @@ export async function executeWorkflowGraph(
         .filter(({ edge }) => edge.from === node.id && edgeMatches(edge, state));
       const nextNodeId = node.type === "fan_out" ? undefined : outgoing[0]?.edge.to;
       await checkpointNode(dependencies, execution, node.id, nextNodeId, "completed", state, result, trace, usage, count);
+      if (dependencies.stopAfterCheckpoint && node.type !== "fan_out" && outgoing.length > 0) {
+        return { status: "completed", checkpointed: true, state, trace, usage };
+      }
       if (!outgoing.length) return { status: "completed", state, trace, usage };
       if (node.type === "fan_out") {
         const fanInNodeId = typeof node.config.fanInNodeId === "string" ? node.config.fanInNodeId : undefined;
