@@ -115,6 +115,8 @@ import { approveOperatorCommand, createOperatorCommand, getOperatorCommand, oper
 import { acknowledgeOperatorNotification, getOperatorProjection, listOperatorNotifications, rebuildOperatorProjections } from "./operator-projections";
 import { ConversationActionService } from "../actions/conversation-actions";
 import { ConversationControlService } from "../actions/conversation-controls";
+import { AgentUiInteractionCoordinator } from "../actions/ui-interaction-coordinator";
+import { UiInteractionRepository } from "../db/repositories/ui-interaction-repository";
 import { HandoffRepository } from "../db/repositories/handoff-repository";
 import { verifyChannelApprovalActionToken, type ChannelApprovalDecision } from "../approval/channel-action";
 import { IntegrationRepository } from "../integrations/repository";
@@ -160,6 +162,8 @@ export interface AppDependencies {
   toolRegistry?: ToolRegistry;
   conversationActions?: ConversationActionService;
   conversationControls?: ConversationControlService;
+  uiInteractionCoordinator?: AgentUiInteractionCoordinator;
+  uiInteractions?: UiInteractionRepository;
   /** Product-owned entitlement/provider readiness projection for capabilities. */
   capabilityAccess?: CapabilityAccessSource;
   connectorRegistry?: ConnectorRegistry;
@@ -491,6 +495,18 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const controls = dependencies.controls ?? new OperatorControlRepository(dependencies.pool);
   const platformChat = dependencies.platformChat ?? new PlatformChatRepository(dependencies.pool, {
     isHandoffEnabled: (organizationId, installationId) => controls.isFeatureEnabled(organizationId, "customer_handoff_enabled", installationId),
+  });
+  const uiInteractions = dependencies.uiInteractions ?? new UiInteractionRepository(dependencies.pool);
+  const uiInteractionCoordinator = dependencies.uiInteractionCoordinator ?? new AgentUiInteractionCoordinator({
+    conversations,
+    runs,
+    platformChat,
+    startWorkflow: dependencies.startWorkflow,
+    appendEvent: (input) => runs.appendEvent(input),
+    signalExternalEvent: dependencies.signalExternalEvent,
+    uiInteractions,
+    isDynamicUiEnabled: (organizationId, installationId) => controls.isFeatureEnabled(organizationId, "dynamic_ui_enabled", installationId),
+    temporalEnabled: dependencies.config.TEMPORAL_ENABLED,
   });
   const handoffs = new HandoffRepository(dependencies.pool);
   const conversationActions = dependencies.conversationActions ?? new ConversationActionService(handoffs, controls);
@@ -3858,6 +3874,65 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         ? await conversations.listMessagesPage(auth.organizationId, resolved.conversation.id)
         : { messages: await conversations.listMessages(auth.organizationId, resolved.conversation.id), hasMore: false, nextBefore: null };
       return reply.code(201).send({ ...resolved, ...messages });
+    },
+  );
+
+  app.post<{ Params: { installationId: string } }>(
+    "/v1/installations/:installationId/platform/ui-interactions",
+    async (request, reply) => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "chat:write");
+      const installation = await agents.getInstallation(auth.organizationId, request.params.installationId);
+      if (!installation) return reply.code(404).send({ error: "installation_not_found" });
+      requireHostedInstallation(installation);
+      const input = z.object({
+        conversationId: z.string().uuid(),
+        messageId: z.string().uuid(),
+        blockId: z.string().trim().min(1).max(80),
+        actionId: z.string().trim().min(1).max(80),
+        idempotencyKey: z.string().trim().min(8).max(240),
+        values: z.record(z.string(), z.unknown()).optional(),
+        context: z.object({
+          route: z.string().trim().max(500).optional(),
+          pageTitle: z.string().trim().max(240).optional(),
+          resourceType: z.string().trim().max(80).optional(),
+          resourceId: z.string().trim().max(240).optional(),
+        }).strict().optional(),
+      }).strict().parse(request.body ?? {});
+      const result = await uiInteractionCoordinator.resolveAndExecute({
+        organizationId: auth.organizationId,
+        installationId: request.params.installationId,
+        actorId: auth.actorId,
+        correlationId: auth.correlationId,
+        ...input,
+      });
+      if (result.kind === "navigate") return reply.code(200).send(result);
+      if (result.kind === "resumed") {
+        return reply.code(202).send({
+          kind: "run",
+          actionId: result.actionId,
+          blockId: result.blockId,
+          conversation: result.conversation,
+          message: result.message,
+          runId: result.run.id,
+          status: result.run.status === "awaiting_human" ? "handoff_signalled" : "external_event_signalled",
+          created: false,
+          durable: result.durable,
+        });
+      }
+      const accepted = result.accepted;
+      return reply.code(202).send({
+        kind: result.kind,
+        actionId: result.actionId,
+        blockId: result.blockId,
+        conversation: accepted.conversation,
+        message: accepted.message,
+        runId: accepted.run?.id ?? null,
+        status: accepted.run?.status ?? (accepted.handoffRequestId ? "handoff_requested" : "received"),
+        handoffRequestId: accepted.handoffRequestId ?? null,
+        created: accepted.created,
+        durable: result.durable,
+      });
     },
   );
 

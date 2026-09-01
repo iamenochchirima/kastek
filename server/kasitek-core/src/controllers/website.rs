@@ -179,6 +179,35 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     .bot table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
     .bot th,.bot td{padding:7px 8px;border:1px solid #cbd5e1;text-align:left;vertical-align:top;overflow-wrap:anywhere;word-break:break-word}
     .bot th{background:#dce2ee;font-weight:700}
+    .ui-stack{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+    .ui-card{padding:10px;border:1px solid #dedede;border-radius:12px;background:#fff;box-shadow:0 2px 8px #1118270b}
+    .ui-title{margin:0 0 8px;color:#171717;font-size:12px;font-weight:700;line-height:1.3}
+    .ui-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+    .ui-summary-item{min-width:0;padding:7px 8px;border:1px solid #e7e7e7;border-radius:8px;background:#fafafa}
+    .ui-summary-label{display:block;overflow:hidden;color:#777;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+    .ui-summary-value{display:flex;align-items:center;gap:5px;margin-top:3px;overflow:hidden;color:#222;font-size:12px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+    .ui-list{display:flex;flex-direction:column;overflow:hidden;border:1px solid #e7e7e7;border-radius:9px;background:#fafafa}
+    .ui-row{display:flex;min-width:0;align-items:center;gap:7px;padding:8px;border-bottom:1px solid #e7e7e7}
+    .ui-row:last-child{border-bottom:0}
+    .ui-row-copy{min-width:0;flex:1}
+    .ui-row-title{overflow:hidden;color:#222;font-size:12px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+    .ui-row-description{margin-top:2px;overflow:hidden;color:#777;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+    .ui-row-meta{flex:0 0 auto;max-width:42%;overflow:hidden;color:#777;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+    .ui-empty{padding:9px;border:1px dashed #d7d7d7;border-radius:9px;color:#777;font-size:11px}
+    .ui-dot{width:7px;height:7px;flex:0 0 auto;border-radius:50%;background:#9ca3af}
+    .ui-dot.success{background:#16a34a}.ui-dot.warning{background:#d97706}.ui-dot.danger{background:#dc2626}
+    .ui-progress{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
+    .ui-progress-item{display:flex;align-items:flex-start;gap:7px;color:#222;font-size:12px}
+    .ui-progress-icon{width:7px;height:7px;flex:0 0 auto;margin-top:4px;border:1.5px solid #9ca3af;border-radius:50%}
+    .ui-progress-icon.complete{border-color:#16a34a;background:#16a34a}.ui-progress-icon.active{border-color:var(--chat-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--chat-primary) 14%,transparent)}.ui-progress-icon.error{border-color:#dc2626;background:#dc2626}
+    .ui-progress-detail{display:block;margin-top:2px;color:#777;font-size:10px}
+    .ui-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+    .ui-action{padding:6px 9px;border:1px solid #cfcfcf;border-radius:8px;background:#fff;color:var(--chat-primary);font-size:11px;font-weight:600;line-height:1.2;text-decoration:none;transition:background 140ms ease,border-color 140ms ease}
+    .ui-action:hover{border-color:var(--chat-primary);background:#f6f5ff}
+    .ui-workspace{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid color-mix(in srgb,var(--chat-primary) 22%,#dedede);border-radius:10px;background:color-mix(in srgb,var(--chat-primary) 4%,#fff)}
+    .ui-workspace-copy{min-width:0;flex:1}.ui-workspace-title{color:#222;font-size:12px;font-weight:700}.ui-workspace-description{margin-top:3px;color:#777;font-size:10px;line-height:1.35}.ui-workspace-link{flex:0 0 auto;color:var(--chat-primary);font-size:11px;font-weight:700;text-decoration:none}.ui-workspace-link:hover{text-decoration:underline}
+    .ui-form{display:flex;flex-direction:column;gap:9px}.ui-field{display:flex;flex-direction:column;gap:4px}.ui-field-label{color:#333;font-size:11px;font-weight:600}.ui-field-description{color:#777;font-size:10px;line-height:1.3}.ui-field input,.ui-field textarea,.ui-field select{width:100%;min-height:32px;padding:7px 8px;border:1px solid #d4d4d4;border-radius:7px;background:#fff;color:#222;font:inherit;font-size:12px;outline:0}.ui-field textarea{min-height:66px;resize:vertical}.ui-field input:focus,.ui-field textarea:focus,.ui-field select:focus{border-color:var(--chat-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--chat-primary) 13%,transparent)}.ui-checkbox{display:flex;align-items:flex-start;gap:7px;color:#333;font-size:11px}.ui-checkbox input{width:15px;height:15px;min-height:15px;margin:0;accent-color:var(--chat-primary)}.ui-field-error{color:#b91c1c;font-size:10px}.ui-form button:disabled{cursor:wait;opacity:.65}
+    .ui-choice-list{display:flex;flex-direction:column;gap:6px}.ui-choice{display:flex;align-items:flex-start;gap:8px;width:100%;padding:8px 9px;border:1px solid #d7d7d7;border-radius:9px;background:#fff;color:#222;text-align:left;font:inherit;font-size:12px;cursor:pointer;transition:background 140ms ease,border-color 140ms ease}.ui-choice:hover{border-color:var(--chat-primary);background:#f6f5ff}.ui-choice-index{display:grid;place-items:center;width:19px;height:19px;flex:0 0 auto;border-radius:50%;background:color-mix(in srgb,var(--chat-primary) 11%,#fff);color:var(--chat-primary);font-size:10px;font-weight:700}.ui-choice-copy{min-width:0}.ui-choice-title{font-weight:600}.ui-choice-description{margin-top:2px;color:#777;font-size:10px;line-height:1.3}
     form{display:flex;padding:10px 12px 9px;border-top:1px solid #eeeeee;background:#fff;flex:0 0 auto}
     .composer{display:flex;align-items:center;gap:2px;width:100%;min-height:46px;padding:4px 5px 4px 11px;border:1px solid #bdbdbd;border-radius:24px;background:#fff;transition:border-color 140ms ease,box-shadow 140ms ease}
     .composer:focus-within{border-color:#777;box-shadow:0 0 0 3px color-mix(in srgb,var(--chat-primary) 13%,transparent)}
@@ -376,11 +405,137 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
         if(item.caption){const caption=document.createElement('div');caption.className='media-caption';appendInline(caption,item.caption);parent.append(caption)}
       });
     };
+    const uiText=(value,max)=>typeof value==='string'&&value.trim()?value.trim().slice(0,max):'';
+    const uiTone=(value)=>['success','warning','danger','neutral'].includes(value)?value:'neutral';
+    const appendInternalLink=(parent,label,href)=>{
+      if(typeof href!=='string'||!href.startsWith('/')||href.startsWith('//'))return false;
+      const link=document.createElement('a');link.className='ui-action';link.href=href;link.target='_top';link.textContent=label;parent.append(link);return true;
+    };
+    const appendUiAction=(parent,action)=>{
+      const label=uiText(action?.label,80);
+      if(!label)return;
+      if(action?.kind==='navigate'&&appendInternalLink(parent,label,action.href))return;
+      const prompt=uiText(action?.prompt,500);
+      if(action?.kind==='follow_up'&&prompt){
+        const button=document.createElement('button');button.type='button';button.className='ui-action';button.textContent=label;button.addEventListener('click',()=>sendText(prompt));parent.append(button);
+      }
+      if(action?.kind==='refresh'||action?.kind==='resume'){
+        const button=document.createElement('button');button.type='button';button.className='ui-action';button.textContent=label;button.addEventListener('click',()=>sendText(action.kind==='refresh'?'Refresh the information shown above.':'Continue with the waiting task.'));parent.append(button);
+      }
+    };
+    const appendWorkspace=(card,block)=>{
+      const workspace=document.createElement('div');workspace.className='ui-workspace';
+      const copy=document.createElement('div');copy.className='ui-workspace-copy';
+      const title=document.createElement('div');title.className='ui-workspace-title';title.textContent=uiText(block.title,500);copy.append(title);
+      const description=uiText(block.description,320);if(description){const detail=document.createElement('div');detail.className='ui-workspace-description';detail.textContent=description;copy.append(detail)}
+      workspace.append(copy);
+      const linkLabel='Open';
+      if(!appendInternalLink(workspace,linkLabel,block.href)){return}
+      const link=workspace.lastElementChild;if(link)link.className='ui-workspace-link';
+      card.append(workspace);
+      if(Array.isArray(block.actions)&&block.actions.length){const actions=document.createElement('div');actions.className='ui-actions';block.actions.filter((action)=>!(action?.kind==='navigate'&&action.href===block.href)).slice(0,2).forEach((action)=>appendUiAction(actions,action));if(actions.children.length)card.append(actions)}
+    };
+    const appendForm=(card,block)=>{
+      const form=document.createElement('div');form.className='ui-form';
+      const controls=[];
+      (Array.isArray(block.fields)?block.fields:[]).slice(0,8).forEach((field)=>{
+        const wrapper=document.createElement('label');wrapper.className='ui-field';
+        const label=document.createElement('span');label.className='ui-field-label';label.textContent=uiText(field.label,500)+(field.required?' *':'');wrapper.append(label);
+        if(field.description){const description=document.createElement('span');description.className='ui-field-description';description.textContent=uiText(field.description,240);wrapper.append(description)}
+        let control;
+        if(field.type==='select'){
+          control=document.createElement('select');
+          const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Select an option';control.append(placeholder);
+          (Array.isArray(field.options)?field.options:[]).slice(0,20).forEach((option)=>{const item=document.createElement('option');item.value=uiText(option.id,80);item.textContent=uiText(option.label,500);control.append(item)});
+        }else if(field.type==='checkbox'){
+          wrapper.className='ui-checkbox';control=document.createElement('input');control.type='checkbox';wrapper.replaceChildren(control,label);if(field.description){const description=document.createElement('span');description.className='ui-field-description';description.textContent=uiText(field.description,240);wrapper.append(description)}
+        }else{
+          control=document.createElement(field.type==='textarea'?'textarea':'input');if(field.type!=='textarea')control.type='text';if(field.placeholder)control.placeholder=uiText(field.placeholder,160);if(Number.isFinite(Number(field.maxLength)))control.maxLength=Number(field.maxLength);
+          wrapper.append(control);
+        }
+        control.dataset.fieldId=uiText(field.id,80);control.dataset.fieldType=field.type;control.dataset.fieldLabel=uiText(field.label,500);control.dataset.required=field.required?'true':'false';controls.push(control);form.append(wrapper);
+      });
+      const actions=document.createElement('div');actions.className='ui-actions';
+      const submit=document.createElement('button');submit.type='button';submit.className='ui-action';submit.textContent='Submit';
+      submit.addEventListener('click',()=>{
+        const values=[];let invalid=false;
+        controls.forEach((control)=>{
+          const wrapper=control.parentElement;wrapper?.querySelector('.ui-field-error')?.remove();
+          const value=control.type==='checkbox'?String(control.checked):(control.value||'').trim();
+          if(control.dataset.required==='true'&&(!value||control.type==='checkbox'&&value!=='true')){const message=document.createElement('span');message.className='ui-field-error';message.textContent='Required';wrapper?.append(message);invalid=true;return}
+          if(value&&control.dataset.fieldLabel)values.push(`${control.dataset.fieldLabel}: ${value==='true'?'Yes':value}`);
+        });
+        if(invalid)return;
+        if(!values.length){const message=document.createElement('span');message.className='ui-field-error';message.textContent='Complete at least one field';form.append(message);return}
+        submit.disabled=true;submit.textContent='Submitting…';sendText(`${uiText(block.title,120)||'Form'}\n${values.join('\n')}`);
+      });
+      actions.append(submit);form.append(actions);card.append(form);
+    };
+    const appendChoice=(card,block)=>{
+      const list=document.createElement('div');list.className='ui-choice-list';
+      (Array.isArray(block.options)?block.options:[]).slice(0,8).forEach((option,index)=>{
+        const button=document.createElement('button');button.type='button';button.className='ui-choice';
+        const number=document.createElement('span');number.className='ui-choice-index';number.textContent=String(index+1);button.append(number);
+        const copy=document.createElement('span');copy.className='ui-choice-copy';const title=document.createElement('span');title.className='ui-choice-title';title.textContent=uiText(option.label,500);copy.append(title);if(option.description){const description=document.createElement('span');description.className='ui-choice-description';description.textContent=uiText(option.description,240);copy.append(description)}button.append(copy);
+        button.addEventListener('click',()=>sendText(uiText(option.label,240)));list.append(button);
+      });
+      card.append(list);
+    };
+    const appendUi=(parent,ui)=>{
+      if(!ui||ui.version!=='1'||!Array.isArray(ui.blocks))return;
+      const stack=document.createElement('div');stack.className='ui-stack';
+      ui.blocks.slice(0,4).forEach((block)=>{
+        if(!block||!['summary','list','progress','workspace','form','choice'].includes(block.type))return;
+        const card=document.createElement('section');card.className='ui-card';card.setAttribute('aria-label',uiText(block.title,120)||'Interactive result');
+        const title=uiText(block.title,500);
+        if(title){const heading=document.createElement('h3');heading.className='ui-title';heading.textContent=title;card.append(heading)}
+        if(block.type==='summary'&&Array.isArray(block.items)){
+          const summary=document.createElement('div');summary.className='ui-summary';
+          block.items.slice(0,8).forEach((item)=>{
+            const label=uiText(item?.label,500);const value=uiText(item?.value,240);if(!label||!value)return;
+            const cell=document.createElement('div');cell.className='ui-summary-item';
+            const labelElement=document.createElement('span');labelElement.className='ui-summary-label';labelElement.textContent=label;cell.append(labelElement);
+            const valueElement=document.createElement('span');valueElement.className='ui-summary-value';
+            if(item.status){const dot=document.createElement('span');dot.className=`ui-dot ${uiTone(item.status)}`;dot.setAttribute('aria-hidden','true');valueElement.append(dot)}
+            valueElement.append(document.createTextNode(value));cell.append(valueElement);summary.append(cell);
+          });
+          card.append(summary);
+        }
+        if(block.type==='list'){
+          if(Array.isArray(block.items)&&block.items.length){
+            const list=document.createElement('div');list.className='ui-list';
+            block.items.slice(0,24).forEach((item)=>{
+              const itemTitle=uiText(item?.title,500);if(!itemTitle)return;
+              const row=document.createElement('div');row.className='ui-row';
+              if(item.status){const dot=document.createElement('span');dot.className=`ui-dot ${uiTone(item.status)}`;dot.setAttribute('aria-hidden','true');row.append(dot)}
+              const copy=document.createElement('div');copy.className='ui-row-copy';const heading=document.createElement('div');heading.className='ui-row-title';heading.textContent=itemTitle;copy.append(heading);
+              const description=uiText(item?.description,320);if(description){const detail=document.createElement('div');detail.className='ui-row-description';detail.textContent=description;copy.append(detail)}
+              row.append(copy);const meta=uiText(item?.meta,240);if(meta){const metaElement=document.createElement('span');metaElement.className='ui-row-meta';metaElement.textContent=meta;row.append(metaElement)}list.append(row);
+            });
+            card.append(list);
+          }else{const empty=document.createElement('div');empty.className='ui-empty';empty.textContent=uiText(block.emptyText,160)||'Nothing to show';card.append(empty)}
+          if(Array.isArray(block.actions)&&block.actions.length){const actions=document.createElement('div');actions.className='ui-actions';block.actions.slice(0,2).forEach((action)=>appendUiAction(actions,action));if(actions.children.length)card.append(actions)}
+        }
+        if(block.type==='progress'&&Array.isArray(block.steps)){
+          const progress=document.createElement('ol');progress.className='ui-progress';
+          block.steps.slice(0,12).forEach((step)=>{
+            const label=uiText(step?.label,500);if(!label)return;
+            const row=document.createElement('li');row.className='ui-progress-item';const icon=document.createElement('span');icon.className=`ui-progress-icon ${step.status==='complete'?'complete':step.status==='active'?'active':step.status==='error'?'error':''}`;icon.setAttribute('aria-hidden','true');row.append(icon);const copy=document.createElement('span');copy.textContent=label;const detail=uiText(step?.detail,240);if(detail){const detailElement=document.createElement('span');detailElement.className='ui-progress-detail';detailElement.textContent=detail;copy.append(detailElement)}row.append(copy);progress.append(row);
+          });
+          card.append(progress);
+        }
+        if(block.type==='workspace')appendWorkspace(card,block);
+        if(block.type==='form')appendForm(card,block);
+        if(block.type==='choice')appendChoice(card,block);
+        if(card.children.length)stack.append(card);
+      });
+      if(stack.children.length)parent.append(stack);
+    };
     const add=(text,kind,content)=>{
       const element=document.createElement('div');
       element.className='m '+kind;
       if(kind==='bot')appendFormatted(element,text);else appendInline(element,text);
-      if(kind==='bot')appendMedia(element,content);
+      if(kind==='bot'){appendUi(element,content?.ui);appendMedia(element,content)}
       messages.append(element);
       scrollToBottom();
       return element;
@@ -1175,6 +1330,11 @@ mod tests {
         assert!(WEBSITE_CHAT_FRAME.contains("AI-generated content may be inaccurate."));
         assert!(WEBSITE_CHAT_FRAME.contains("#powered-by a{color:var(--chat-primary)"));
         assert!(WEBSITE_CHAT_FRAME.contains("quick-replies"));
+        assert!(WEBSITE_CHAT_FRAME.contains("appendUi"));
+        assert!(WEBSITE_CHAT_FRAME.contains("ui-card"));
+        assert!(WEBSITE_CHAT_FRAME.contains("ui-workspace"));
+        assert!(WEBSITE_CHAT_FRAME.contains("ui-form"));
+        assert!(WEBSITE_CHAT_FRAME.contains("ui-choice"));
         assert!(WEBSITE_CHAT_FRAME.contains("id=\"audio-button\""));
         assert!(WEBSITE_CHAT_FRAME.contains("id=\"file-button\""));
         assert!(WEBSITE_CHAT_FRAME.contains("id=\"send-button\""));

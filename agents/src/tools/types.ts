@@ -3,6 +3,20 @@ export type ToolRiskClass = "read" | "draft" | "controlled-write" | "external-ef
 export type CapabilityExecution = "immediate" | "durable";
 export type CapabilityAvailability = "available" | "not_granted" | "not_configured" | "unhealthy";
 
+export type CapabilityPresentationMetadata = {
+  projection: "workspace_connections" | "content_posts" | "workspace_report" | "content_insights";
+  mode: "inline" | "expanded";
+  channels: Array<"platform" | "website">;
+  fallback: string;
+  workspace?: "connections" | "content" | "report" | "agent_creation";
+  actions?: Array<{
+    id: string;
+    label: string;
+    kind: "navigate";
+    href: string;
+  }>;
+};
+
 export interface CapabilityManifestMetadata {
   ownerService: string;
   requiredScope: string;
@@ -13,6 +27,7 @@ export interface CapabilityManifestMetadata {
   auditClassification: "access" | "full" | "restricted";
   redaction: string[];
   availability?: CapabilityAvailability;
+  presentation?: CapabilityPresentationMetadata;
 }
 
 export interface ToolInvocationContext {

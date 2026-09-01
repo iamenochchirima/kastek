@@ -39,6 +39,7 @@ const envSchema = z.object({
   KASITEK_CORE_URL: z.string().url().optional(),
   KASITEK_CORE_INTERNAL_TOKEN: z.string().optional(),
   KASITEK_CORE_TIMEOUT_MS: z.coerce.number().int().min(100).max(120_000).default(10_000),
+  KASITEK_APP_URL: z.string().url().optional(),
   TELEGRAM_WEBHOOK_BASE_URL: z.string().url().optional(),
   TELEGRAM_API_BASE_URL: z.string().url().default("https://api.telegram.org"),
   TELEGRAM_API_TIMEOUT_MS: z.coerce.number().int().min(500).max(120_000).default(10_000),

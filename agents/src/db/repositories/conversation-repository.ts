@@ -159,6 +159,21 @@ export class ConversationRepository {
     return result.rows[0] ?? null;
   }
 
+  public async getMessage(organizationId: string, conversationId: string, messageId: string): Promise<MessageRecord | null> {
+    const result = await query<MessageRecord>(
+      this.pool,
+      `SELECT m.*, p.participant_type, p.display_name AS participant_display_name
+       FROM messages m
+       LEFT JOIN participants p ON p.id = m.participant_id
+         AND p.organization_id = m.organization_id
+         AND p.conversation_id = m.conversation_id
+       WHERE m.organization_id = $1 AND m.conversation_id = $2 AND m.id = $3
+       LIMIT 1`,
+      [organizationId, conversationId, messageId],
+    );
+    return result.rows[0] ?? null;
+  }
+
   public async listOwnerConversations(
     organizationId: string,
     installationId: string,

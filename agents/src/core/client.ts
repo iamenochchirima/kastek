@@ -1,5 +1,5 @@
 import type { AppConfig } from "../config";
-import type { AgentMediaReference } from "../media/contracts";
+import type { AgentMediaReference, AgentResponse } from "../media/contracts";
 import type { ToolInvocationContext } from "../tools/types";
 import { issueCoreDelegation } from "./delegation";
 import { createHash } from "node:crypto";
@@ -821,6 +821,7 @@ export class KasitekCoreReadClient {
     text: string;
     media?: AgentMediaReference[];
     buttons?: CoreChannelReplyButton[];
+    ui?: AgentResponse["ui"];
   }): Promise<CoreChannelDeliveryResult> {
     return this.requestJson<CoreChannelDeliveryResult>(
       {
@@ -840,6 +841,7 @@ export class KasitekCoreReadClient {
           text: input.text,
           ...(input.media?.length ? { media: input.media } : {}),
           ...(input.buttons?.length ? { buttons: input.buttons } : {}),
+          ...(input.ui ? { ui: input.ui } : {}),
         }),
       },
     );

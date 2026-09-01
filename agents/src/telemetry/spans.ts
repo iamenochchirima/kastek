@@ -76,6 +76,9 @@ const agentVersionDeploymentCounter = meter.createCounter("kasitek.agent.version
 const conversationAdmissionCounter = meter.createCounter("kasitek.conversation.admission.count", {
   description: "Conversation run admission outcomes, including backpressure and idempotent replay",
 });
+const dynamicUiInteractionCounter = meter.createCounter("kasitek.ui.interaction.count", {
+  description: "Dynamic UI interaction outcomes by reviewed action kind",
+});
 const databaseAuthorizationFailureCounter = meter.createCounter("kasitek.database.authorization_failure.count", {
   description: "PostgreSQL authorization failures, including row-level security denials",
 });
@@ -316,5 +319,15 @@ export function recordConversationAdmission(input: {
   conversationAdmissionCounter.add(1, {
     outcome: input.outcome,
     channel: boundedAttribute(input.channel),
+  });
+}
+
+export function recordDynamicUiInteraction(input: {
+  outcome: "accepted" | "idempotent" | "navigated" | "resumed" | "rejected";
+  action: string;
+}): void {
+  dynamicUiInteractionCounter.add(1, {
+    outcome: input.outcome,
+    action: boundedAttribute(input.action, 40),
   });
 }

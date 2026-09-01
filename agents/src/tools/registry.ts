@@ -10,6 +10,7 @@ import type {
 } from "./types";
 import { ToolPolicyError } from "./types";
 import { generateCapabilitySurfaces, type GeneratedCapabilitySurface } from "../capabilities/surfaces";
+import { capabilityPresentationMetadataSchema } from "../media/dynamic-ui";
 
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue);
@@ -45,6 +46,9 @@ export class ToolRegistry {
     if (this.tools.has(definition.name)) throw new Error(`Duplicate tool: ${definition.name}`);
     if (!/^\d+\.\d+\.\d+$/.test(definition.version)) throw new Error(`Invalid tool version: ${definition.name}`);
     if (definition.timeoutMs < 1 || definition.timeoutMs > 120_000) throw new Error(`Invalid timeout for tool: ${definition.name}`);
+    if (definition.manifest?.presentation && !capabilityPresentationMetadataSchema.safeParse(definition.manifest.presentation).success) {
+      throw new Error(`Invalid presentation metadata: ${definition.name}`);
+    }
     const validateInput = this.ajv.compile(definition.inputSchema);
     const validateOutput = this.ajv.compile(definition.outputSchema);
     this.tools.set(definition.name, { ...definition, validateInput, validateOutput });

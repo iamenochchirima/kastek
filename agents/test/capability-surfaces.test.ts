@@ -15,6 +15,10 @@ describe("generated capability surfaces", () => {
       expect(surface.audit.description).toContain(surface.name === "platform.current_time" ? "trusted platform runtime" : surface.description);
       expect(surface.documentation.summary).toBe(surface.description);
     }
+    expect(surfaces.find((surface) => surface.name === "kasitek.core.connections_list")?.presentation).toMatchObject({
+      projection: "workspace_connections",
+      mode: "inline",
+    });
     const generated = await readFile(new URL("../docs/generated-capabilities.md", import.meta.url), "utf8");
     expect(generated).toBe(generateCapabilityDocumentation(manifests));
   });

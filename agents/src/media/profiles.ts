@@ -1,11 +1,19 @@
 import type { AgentMediaReference } from "./contracts";
 
 export type AgentMediaFallback = "link" | "text";
+export type ChannelUiMode = "rich" | "native" | "numbered" | "text";
 
 export interface ChannelMediaProfile {
   channelType: string;
   nativeKinds: ReadonlySet<AgentMediaReference["kind"]>;
   fallback: AgentMediaFallback;
+}
+
+export interface ChannelUiProfile {
+  channelType: string;
+  mode: ChannelUiMode;
+  supportsLinks: boolean;
+  supportsButtons: boolean;
 }
 
 const allKinds = new Set<AgentMediaReference["kind"]>(["image", "video", "audio", "document", "file"]);
@@ -27,5 +35,25 @@ export function channelMediaProfile(channelType: string): ChannelMediaProfile {
     channelType: channelType.trim().toLowerCase() || "unknown",
     nativeKinds: textOnlyKinds,
     fallback: "text",
+  };
+}
+
+const uiProfiles: Record<string, ChannelUiProfile> = {
+  platform: { channelType: "platform", mode: "rich", supportsLinks: true, supportsButtons: true },
+  website: { channelType: "website", mode: "rich", supportsLinks: true, supportsButtons: true },
+  telegram: { channelType: "telegram", mode: "native", supportsLinks: true, supportsButtons: true },
+  discord: { channelType: "discord", mode: "native", supportsLinks: true, supportsButtons: true },
+  whatsapp: { channelType: "whatsapp", mode: "numbered", supportsLinks: true, supportsButtons: false },
+  facebook: { channelType: "facebook", mode: "text", supportsLinks: true, supportsButtons: false },
+  instagram: { channelType: "instagram", mode: "text", supportsLinks: true, supportsButtons: false },
+};
+
+export function channelUiProfile(channelType: string): ChannelUiProfile {
+  const normalized = channelType.trim().toLowerCase() || "unknown";
+  return uiProfiles[normalized] ?? {
+    channelType: normalized,
+    mode: "text",
+    supportsLinks: true,
+    supportsButtons: false,
   };
 }

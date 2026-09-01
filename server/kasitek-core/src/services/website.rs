@@ -560,6 +560,7 @@ pub async fn record_agent_website_delivery(
     event_key: &str,
     text: &str,
     media: &[crate::services::whatsapp_inbox::AgentMediaAttachment],
+    ui: Option<&Value>,
 ) -> Result<Option<AgentWebsiteDeliveryEventRow>, AppError> {
     let session_id = sqlx::query_scalar::<_, String>(
         r#"SELECT session.id
@@ -575,6 +576,20 @@ pub async fn record_agent_website_delivery(
     let Some(session_id) = session_id else {
         return Ok(None);
     };
+    let mut message_content = json!({ "version": "1", "text": text, "media": media });
+    if let Some(ui) = ui {
+        if ui.get("version").and_then(Value::as_str) == Some("1")
+            && ui
+                .get("blocks")
+                .and_then(Value::as_array)
+                .is_some_and(|blocks| blocks.len() <= 4)
+            && serde_json::to_vec(ui)
+                .map(|bytes| bytes.len() <= 32_000)
+                .unwrap_or(false)
+        {
+            message_content["ui"] = ui.clone();
+        }
+    }
     let event = sqlx::query_as::<_, AgentWebsiteDeliveryEventRow>(
         r#"INSERT INTO "AgentWebsiteDeliveryEvent" (id, "sessionId", "eventKey", "messageText", "messageContent", "createdAt")
            VALUES ($1, $2, $3, $4, $5, NOW())
@@ -586,7 +601,7 @@ pub async fn record_agent_website_delivery(
     .bind(session_id)
     .bind(event_key)
     .bind(text)
-    .bind(serde_json::json!({ "version": "1", "text": text, "media": media }))
+    .bind(message_content)
     .fetch_one(pool)
     .await?;
     Ok(Some(event))

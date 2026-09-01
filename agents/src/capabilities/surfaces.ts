@@ -10,6 +10,7 @@ export interface GeneratedCapabilitySurface {
   inputSchema: Record<string, unknown>;
   outputSchema: Record<string, unknown>;
   manifest: CapabilityManifestMetadata;
+  presentation?: CapabilityManifestMetadata["presentation"];
   mcp: {
     name: string;
     description: string;
@@ -56,6 +57,7 @@ function surfaceFor(manifest: CapabilityManifest): GeneratedCapabilitySurface {
       redaction: [...metadata.redaction],
       ...(metadata.resourceSelector ? { resourceSelector: { ...metadata.resourceSelector } } : {}),
     },
+    ...(metadata.presentation ? { presentation: { ...metadata.presentation, ...(metadata.presentation.actions ? { actions: metadata.presentation.actions.map((action) => ({ ...action })) } : {}) } } : {}),
     mcp: {
       name: manifest.name,
       description: manifest.description,
@@ -96,6 +98,7 @@ export function generateCapabilityDocumentation(manifests: readonly CapabilityMa
     `- Idempotency: \`${surface.manifest.idempotency}\`; timeout: ${surface.timeoutMs}ms`,
     ...(surface.permission.resourceType ? [`- Resource scope: \`${surface.permission.resourceType}\``] : []),
     `- Audit: \`${surface.audit.classification}\`; redacts: ${surface.audit.redaction.length ? surface.audit.redaction.map((entry) => `\`${entry}\``).join(", ") : "none"}`,
+    ...(surface.presentation ? [`- Presentation: \`${surface.presentation.projection}\`; mode: \`${surface.presentation.mode}\`; channels: ${surface.presentation.channels.map((channel) => `\`${channel}\``).join(", ")}`] : []),
     "",
     "### Input schema",
     "",
