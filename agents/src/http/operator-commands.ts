@@ -170,7 +170,7 @@ function retentionDays(command: OperatorCommandRecord, key: string, minimum: num
 
 function operatorFlagKey(command: OperatorCommandRecord): OperatorFlagKey {
   const value = command.payload.flagKey;
-  if (value !== "agent_execution_enabled" && value !== "agent_version_deployment_enabled" && value !== "effect_execution_enabled" && value !== "mcp_enabled" && value !== "rest_enabled" && value !== "customer_handoff_enabled" && value !== "audio_transcription_enabled") {
+  if (value !== "agent_execution_enabled" && value !== "agent_version_deployment_enabled" && value !== "effect_execution_enabled" && value !== "mcp_enabled" && value !== "rest_enabled" && value !== "customer_handoff_enabled" && value !== "audio_transcription_enabled" && value !== "dynamic_ui_enabled") {
     throw Object.assign(new Error("Unsupported feature flag"), { statusCode: 400 });
   }
   return value;

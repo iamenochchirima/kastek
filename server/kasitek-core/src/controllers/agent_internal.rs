@@ -489,6 +489,7 @@ fn agent_connection_summary(
         "webhookStatus": connection.webhook_status,
         "lastCheckedAt": connection.last_checked_at,
         "capabilities": connection.capabilities,
+        "permissions": connection.permissions,
         "consumers": connection.consumers,
     })
 }
@@ -1491,6 +1492,8 @@ pub struct AgentChannelDeliveryRequest {
     pub media: Vec<whatsapp_inbox::AgentMediaAttachment>,
     #[serde(default)]
     pub buttons: Vec<WhatsappReplyButton>,
+    #[serde(default)]
+    pub ui: Option<Value>,
 }
 
 /// Write-capable transport boundary for a reply that has already been
@@ -1544,6 +1547,7 @@ pub async fn deliver_channel_message(
                 idempotency_key,
                 text,
                 &body.media,
+                body.ui.as_ref(),
             )
             .await?
             .ok_or_else(|| AppError::NotFound("Website Chat session not found".to_string()))?;
@@ -1653,6 +1657,7 @@ mod tests {
             last_error: None,
             metadata: Some(json!({ "secret": "never expose" })),
             capabilities: json!([]),
+            permissions: json!([]),
             consumers: json!([]),
             created_at: now,
             updated_at: now,
