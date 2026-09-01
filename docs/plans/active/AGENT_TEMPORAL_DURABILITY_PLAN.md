@@ -857,3 +857,44 @@ migration rollback or data repair is required.
 
 Post-release review date: 2026-09-08; review first-turn success, token-budget rejection rates,
 actual usage capture, and any remaining provider or model errors.
+
+## Configuration release record: Agents database service references
+
+Change: Restore Railway service-reference metadata for `AGENTS_DATABASE_URL` on `agents-api` and
+`agents-worker`. The URL keeps the existing restricted `kasitek_agents_app` credentials and now
+references only `agents-db.RAILWAY_PRIVATE_DOMAIN` for the private hostname.
+
+Owner: Agent Platform.
+
+Risk: low; the rendered connection target, port, database, and database role were preserved. The
+change restores dependency visibility and keeps future hostname changes synchronized.
+
+Affected services and user surfaces: agents-api, agents-worker, and the Railway service graph.
+
+Platform release version or release ID: API deployment `c90b94ce-c2d0-4b28-bf40-bc6975fcfbc8`;
+Worker deployment `b2caeb53-ac13-4881-b000-75429e7efdb3`; both used the successful Agents artifact
+from commit `6a117bb83bccad400ead8fad94e2b6417f34ead6`.
+
+API/schema/migration changes: not applicable; no application schema or API contract changed.
+
+Feature flag or rollout method: variables were updated with deploys suppressed, then API and Worker
+were redeployed together and approved through Railway’s deployment gate.
+
+Analytics events and success metrics: not applicable; no customer behavior changed. Success is the
+same rendered Postgres URL with restored reference metadata and healthy service startup.
+
+Logs, metrics, dashboards, and alerts: no new telemetry; deployment log samples contained no
+database or model-budget errors, and `https://agents.kasitek.co.za/health/ready` returned HTTP 200.
+
+User, API, internal, and operational documentation: this release record documents the configuration
+change; public API documentation is not applicable.
+
+Validation evidence: Railway unrendered variables contain
+`${{agents-db.RAILWAY_PRIVATE_DOMAIN}}` for both consumers; the resolved host remains
+`postgres-ndhc.railway.internal`; both deployments reported `SUCCESS`.
+
+Rollback or disable plan: restore the previous literal `AGENTS_DATABASE_URL` values and redeploy
+the API and Worker. No migration rollback or data repair is required.
+
+Post-release review date: 2026-09-08; confirm the graph relationship remains visible after any
+database credential or service maintenance event.
