@@ -101,8 +101,8 @@ human approval, and provider execution remain separate checks.
 - [x] Render configured list empty states in the shared channel fallback without an orphan title.
 - [x] Add Agent Platform regression coverage for the empty `Content posts` projection.
 - [x] Update the media harness and connection-failure runbook with the provider readiness rule.
-- [ ] Deploy the affected Core and Agent Platform artifacts and run a controlled WhatsApp image
-      publish smoke test.
+- [x] Deploy the affected Core and Agent Platform artifacts.
+- [ ] Run a controlled WhatsApp image publish smoke test after release.
 
 ## Proposed contract
 
@@ -340,3 +340,40 @@ artifact after any additive migration is confirmed safe. Do not delete connectio
 content history.
 
 Post-release review date: set seven days after controlled production enablement.
+
+## Release record: Instagram publish readiness and channel empty states
+
+Change: Wait for Instagram media containers to reach `FINISHED` before calling `media_publish`, and
+render configured empty states in the shared channel UI fallback without an orphan list heading.
+
+Owner: Core provider integrations and Agent Platform.
+
+Risk: medium; bounded provider polling and presentation-only fallback behavior. Existing failed
+publishes remain failed and are not converted into successes.
+
+Affected services and user surfaces: kasitek-core Instagram publishing, Agents Worker channel
+delivery, WhatsApp agent replies, and any gateway using the shared UI fallback.
+
+Platform release version or release ID: commit `a6a7259f` (`fix: wait for Instagram media readiness`).
+Railway production deployments: Core `07035858-68f0-4ef9-ab3d-75b80355cb69` and Agents Worker
+`9305a967-6114-4e3e-97e4-dec52a4e30bc`; both reached `SUCCESS`.
+
+API/schema/migration changes: no API, database schema, or migration change.
+
+Feature flag or rollout method: manual Railway deploy from the pushed `main` commit; no flag.
+Rollback is redeploying the previous successful Core and Agents Worker artifacts.
+
+Analytics, logging, and monitoring: no new event or sensitive logging; existing provider publish,
+run, and channel-delivery lifecycle evidence remains in use. No new metrics are required for this
+bounded fix.
+
+Documentation: updated the Agent Media Harness architecture, Connection Failure Runbook, and this
+active checklist.
+
+Validation evidence: full Agent tests passed, Agent TypeScript build passed, full Core tests passed,
+focused Core container-state tests passed, focused Agent UI fallback tests passed, Rust formatting
+and diff checks passed, and the Core `/health` plus Agent Gateway `/health/ready` endpoints returned
+healthy responses. A real WhatsApp-to-Instagram provider smoke test remains pending.
+
+Post-release monitoring: inspect the next WhatsApp image publish for a confirmed Instagram result;
+if it fails, use the Core provider response and container status path rather than claiming success.
