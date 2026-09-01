@@ -771,7 +771,9 @@ Affected services and user surfaces: agents-worker, ordinary hosted runs, config
 model-call and run-budget ledgers, and customer-facing agent replies. Agents API and MCP-Gateway
 carry the shared artifact but have no direct model execution path.
 
-Platform release version or release ID: pending deployment from the current fix commit.
+Platform release version or release ID: commit `e99278ddcafb2f68934773ef3c03bf7752b6c057`; Railway
+production deployments `agents-api` `07d1c22a-b236-49e6-a9c7-f56c9c7d0e96` and `agents-worker`
+`045974c0-1206-4601-b69d-8d915a183f46` both reported `SUCCESS` for this commit.
 
 API/schema/migration changes: not applicable; no API, schema, or migration changes.
 
@@ -792,8 +794,10 @@ applicable.
 Validation evidence: operation-key regression tests passed; targeted runtime, loop-step, and
 Temporal fault-injection tests passed; the full Agents suite passed with 653 tests and 84
 integration tests skipped because no integration database or Temporal test address was configured;
-the Agents TypeScript build and `git diff --check` passed. Production deployment and fresh-chat
-verification remain open until the artifact is promoted.
+the Agents TypeScript build and `git diff --check` passed. Both production deployments reported
+`SUCCESS`, and `https://agents.kasitek.co.za/health/ready` returned HTTP 200. No new production
+run was created after deployment during verification, so fresh-chat completion remains an
+operator-visible follow-up rather than claimed evidence.
 
 Rollback or disable plan: redeploy the previous successful Agents API/Worker artifact. No
 migration rollback or data repair is required; do not delete the conflicting historical
