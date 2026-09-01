@@ -77,7 +77,9 @@ human approval, and provider execution remain separate checks.
       delivery, including empty responses, approval mismatches, missing events, and activity errors.
 - [x] Add bounded validation-path logging for future `/v1/channels/inbound` contract failures and
       update the media-harness and connection-guide documentation.
-- [ ] Deploy the bounded fix and verify a controlled WhatsApp image-to-agent smoke test.
+- [x] Deploy the bounded fix and verify the affected production service deployments and health
+      endpoints.
+- [ ] Run a controlled WhatsApp image-to-agent smoke test with a non-sensitive test message.
 
 ## Proposed contract
 
@@ -240,8 +242,11 @@ Affected services and user surfaces: kasitek-core provider adapters and internal
 Agents API/worker/runtime/workflows, Connections and agent transcripts, web, Telegram, WhatsApp,
 and other configured gateway adapters.
 
-Platform release version or release ID: to be recorded at release; include exact Core, Agents, and
-client artifact commit SHAs plus configuration revisions.
+Platform release version or release ID: `9db0b222` (`fix: prevent WhatsApp media agent hangs`).
+Railway production deployments: Core `52a7b9fa-72a8-4210-adfd-8c388be9ce33`, Agents API
+`6cb9c46f-1498-425f-8c2e-5f602bfeeebe`, Agents Worker `6540e815-6443-4195-8b78-648f738f6504`,
+and MCP Gateway `57ce3537-907d-4bb6-8171-f4b57733c925`; all reached `SUCCESS` with running
+instances. No configuration revision changed.
 
 API/schema/migration changes: expected additive internal contract changes; no destructive migration
 is planned. Confirm after Phase 1 inventory whether readiness snapshots or action-attempt records
@@ -264,9 +269,9 @@ User, API, internal, and operational documentation: update `docs/public/docs/ope
 the Agent Media/Tool harness architecture documentation, the connection failure runbook, and the
 agent-facing contract documentation. Mark provider-specific unsupported states explicitly.
 
-Validation evidence: pending implementation; the release must include negative no-provider-call
-tests, all execution-path tests, gateway contract tests, builds, and controlled provider smoke
-tests.
+Validation evidence: this incremental slice passed 655 Agent tests, the Agent build and type check,
+14 Core WhatsApp tests, Rust formatting, and diff checks. Public Core and Agent Gateway health
+checks returned ready. The controlled WhatsApp provider smoke test remains pending.
 
 Rollback or disable plan: disable universal preflight enforcement behind the rollout control,
 retain Core provider-specific guards and existing access routes, and roll back only the application
