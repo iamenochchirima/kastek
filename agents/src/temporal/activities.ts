@@ -2803,6 +2803,13 @@ async function executeLoopForRun(
       },
       reserveRunBudget: async ({ request, reservationKey }) => reserveRunModelBudget({ repository: runBudgets, organizationId: run.organization_id, runId: run.id, reservationKey, gateway, request }),
       consumeRunToolCall: () => consumeRunToolBudget(runBudgets, { organizationId: run.organization_id, runId: run.id }),
+      replayToolInvocation: async ({ toolCallId, name, argumentsHash }) => (await toolInvocations.getCompleted({
+        organizationId: run.organization_id,
+        runId: run.id,
+        providerToolCallId: toolCallId,
+        toolName: name,
+        argumentsHash,
+      })) ?? undefined,
       prepareModelCall: async ({ operationKey, model: attemptModel, credentials: attemptCredentials }) => modelCalls.prepare({
         organizationId: run.organization_id,
         runId: run.id,
@@ -3525,6 +3532,18 @@ async function executeConfiguredWorkflow(input: {
     });
     const argumentsHash = hashToolArguments(request.arguments);
     const providerToolCallId = `workflow:${request.nodeId}`;
+    const replayed = await input.toolInvocations.getCompleted({
+      organizationId: input.run.organization_id,
+      runId: input.run.id,
+      providerToolCallId,
+      toolName: request.name,
+      argumentsHash,
+    });
+    if (replayed) {
+      const safeOutput = redactSensitiveValue(replayed.output);
+      activityHeartbeat({ phase: "workflow.tool.replayed", nodeId: request.nodeId, tool: request.name });
+      return safeOutput;
+    }
     const persistedApproval = manifest.requiresApproval ? await input.approvals.getForRun(input.run.organization_id, input.run.id) : null;
     const resourceSnapshot = request.approved && persistedApproval?.provider_tool_call_id === providerToolCallId
       ? persistedApproval.resource_snapshot

@@ -70,6 +70,12 @@ export interface AgentLoopInput {
     reservationKey: string;
   }) => Promise<ModelCreditReservation | undefined>;
   consumeRunToolCall?: () => Promise<void>;
+  /** Replays a completed tool outcome after a worker retry without invoking the handler again. */
+  replayToolInvocation?: (input: {
+    toolCallId: string;
+    name: string;
+    argumentsHash: string;
+  }) => Promise<ToolInvocationResult | undefined>;
   beforeModelCall?: () => Promise<void> | void;
   beforeToolInvoke?: (input: {
     toolCallId: string;
@@ -159,47 +165,52 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
     try {
       const resumed = input.resumeApprovedToolCall;
       const resumedManifest = input.tools.get(resumed.name);
-      await input.onToolProposed?.({
-        toolCallId: resumed.id,
-        name: resumed.name,
-        version: resumedManifest?.version ?? "unknown",
-        riskClass: resumedManifest?.riskClass ?? "privileged",
-        arguments: resumed.arguments,
-        argumentsHash: hashToolArguments(resumed.arguments),
-        requiresApproval: resumedManifest?.requiresApproval ?? true,
-        sequenceNumber: 1,
-      });
       await input.beforeToolInvoke?.({
         toolCallId: resumed.id,
         name: resumed.name,
         arguments: resumed.arguments,
         approved: true,
       });
-      await input.consumeRunToolCall?.();
-      const result = await input.tools.invoke({
+      const resumedArgumentsHash = hashToolArguments(resumed.arguments);
+      const replayed = await input.replayToolInvocation?.({ toolCallId: resumed.id, name: resumed.name, argumentsHash: resumedArgumentsHash });
+      if (replayed && (replayed.name !== resumed.name || replayed.argumentsHash !== resumedArgumentsHash)) {
+        throw new ToolPolicyError("TOOL_REPLAY_SCOPE_CONFLICT", "A durable tool outcome did not match the approved tool call");
+      }
+      if (!replayed) await input.onToolProposed?.({
+        toolCallId: resumed.id,
         name: resumed.name,
+        version: resumedManifest?.version ?? "unknown",
+        riskClass: resumedManifest?.riskClass ?? "privileged",
         arguments: resumed.arguments,
-        context: input.signal ? { ...input.toolContext, signal: input.signal } : input.toolContext,
-        signal: input.signal,
-        grantedTools: input.grantedTools,
-        approval: resumed.approval,
-        beforeEffect: resumedManifest?.riskClass === "external-effect" ? async () => {
-          await input.onToolExecuting?.({
-            toolCallId: resumed.id,
-            name: resumed.name,
-            version: resumedManifest.version,
-            arguments: resumed.arguments,
-            argumentsHash: hashToolArguments(resumed.arguments),
-            requiresApproval: resumedManifest.requiresApproval,
-          });
-        } : undefined,
+        argumentsHash: resumedArgumentsHash,
+        requiresApproval: resumedManifest?.requiresApproval ?? true,
+        sequenceNumber: 1,
       });
+      if (!replayed) await input.consumeRunToolCall?.();
+      const result = replayed ?? await input.tools.invoke({
+          name: resumed.name,
+          arguments: resumed.arguments,
+          context: input.signal ? { ...input.toolContext, signal: input.signal } : input.toolContext,
+          signal: input.signal,
+          grantedTools: input.grantedTools,
+          approval: resumed.approval,
+          beforeEffect: resumedManifest?.riskClass === "external-effect" ? async () => {
+            await input.onToolExecuting?.({
+              toolCallId: resumed.id,
+              name: resumed.name,
+              version: resumedManifest.version,
+              arguments: resumed.arguments,
+              argumentsHash: resumedArgumentsHash,
+              requiresApproval: resumedManifest.requiresApproval,
+            });
+          } : undefined,
+        });
       messages.push({ role: "assistant", content: "", toolCalls: [{ id: resumed.id, name: resumed.name, arguments: resumed.arguments }] });
       const safeOutput = redactSensitiveValue(result.output);
       const durableOutput = redactToolOutput(result.output, resumedManifest?.manifest?.redaction ?? []);
       messages.push({ role: "tool", name: resumed.name, toolCallId: resumed.id, content: JSON.stringify(safeOutput) });
       toolCalls += 1;
-      await input.onToolCompleted?.({ toolCallId: resumed.id, name: resumed.name, argumentsHash: hashToolArguments(resumed.arguments), output: durableOutput, latencyMs: result.latencyMs, effectId: result.effectId, approval: resumed.approval });
+      if (!replayed) await input.onToolCompleted?.({ toolCallId: resumed.id, name: resumed.name, argumentsHash: resumedArgumentsHash, output: durableOutput, latencyMs: result.latencyMs, effectId: result.effectId, approval: resumed.approval });
       await emit(input, { type: "tool.completed", iteration: 0, payload: { name: resumed.name, resumed: true, latencyMs: result.latencyMs } });
       const completionMessage = buildApprovedToolCompletionMessage(resumed.name, resumed.arguments, safeOutput);
       messages.push({ role: "assistant", content: completionMessage });
@@ -360,17 +371,6 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         }
         const argumentsHash = hashToolArguments(toolCall.arguments);
         const manifest = input.tools.get(toolCall.name);
-        await emit(input, { type: "tool.proposed", iteration, payload: { name: toolCall.name, argumentsHash } });
-        await input.onToolProposed?.({
-          toolCallId: toolCall.id,
-          name: toolCall.name,
-          version: manifest?.version ?? "unknown",
-          riskClass: manifest?.riskClass ?? "privileged",
-          arguments: toolCall.arguments,
-          argumentsHash,
-          requiresApproval: manifest?.requiresApproval ?? false,
-          sequenceNumber: toolCalls,
-        });
         try {
           await input.beforeToolInvoke?.({
             toolCallId: toolCall.id,
@@ -378,8 +378,25 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             arguments: toolCall.arguments,
             approved: false,
           });
-          await input.consumeRunToolCall?.();
-          const result = await input.tools.invoke({
+          const replayed = await input.replayToolInvocation?.({ toolCallId: toolCall.id, name: toolCall.name, argumentsHash });
+          if (replayed && (replayed.name !== toolCall.name || replayed.argumentsHash !== argumentsHash)) {
+            throw new ToolPolicyError("TOOL_REPLAY_SCOPE_CONFLICT", "A durable tool outcome did not match the provider tool call");
+          }
+          if (!replayed) {
+            await emit(input, { type: "tool.proposed", iteration, payload: { name: toolCall.name, argumentsHash } });
+            await input.onToolProposed?.({
+              toolCallId: toolCall.id,
+              name: toolCall.name,
+              version: manifest?.version ?? "unknown",
+              riskClass: manifest?.riskClass ?? "privileged",
+              arguments: toolCall.arguments,
+              argumentsHash,
+              requiresApproval: manifest?.requiresApproval ?? false,
+              sequenceNumber: toolCalls,
+            });
+          }
+          if (!replayed) await input.consumeRunToolCall?.();
+          const result = replayed ?? await input.tools.invoke({
             name: toolCall.name,
             arguments: toolCall.arguments,
             context: input.signal ? { ...input.toolContext, signal: input.signal } : input.toolContext,

@@ -5,6 +5,7 @@ import {
   enqueueOutbox,
   type ToolInvocationAnalyticsInput,
 } from "../../analytics";
+import { ToolPolicyError, type ToolInvocationResult } from "../../tools/types";
 import { query, withTransaction } from "../pool";
 
 export interface ToolProposalRecord {
@@ -113,6 +114,52 @@ export class ToolInvocationRepository {
       const row = await this.getPersisted(client, undefined, input.runId, input.providerToolCallId);
       await enqueueOutbox(client, buildToolInvocationLifecycleEvent(this.analyticsInput(row, "failed", classifyAgentFailure(input.error))));
     });
+  }
+
+  public async getCompleted(input: {
+    organizationId: string;
+    runId: string;
+    providerToolCallId: string;
+    toolName: string;
+    argumentsHash: string;
+  }): Promise<ToolInvocationResult | null> {
+    const result = await query<{
+      tool_name: string;
+      tool_version: string;
+      arguments_hash: string;
+      status: ToolInvocationStatus;
+      output: unknown;
+      latency_ms: number | string | null;
+      effect_id: string | null;
+    }>(
+      this.pool,
+      `SELECT tool_name, tool_version, arguments_hash, status, output, latency_ms, effect_id
+       FROM tool_invocations
+       WHERE organization_id = $1 AND run_id = $2 AND provider_tool_call_id = $3
+       LIMIT 1`,
+      [input.organizationId, input.runId, input.providerToolCallId],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    if (row.tool_name !== input.toolName || row.arguments_hash !== input.argumentsHash) {
+      throw new ToolPolicyError("TOOL_REPLAY_SCOPE_CONFLICT", "A durable tool outcome did not match the requested tool call");
+    }
+    if (row.status !== "completed") return null;
+    const outputRecord = row.output && typeof row.output === "object" && !Array.isArray(row.output)
+      ? row.output as Record<string, unknown>
+      : undefined;
+    const control = outputRecord && (outputRecord.control === "awaiting_human" || outputRecord.control === "final_response")
+      ? outputRecord.control
+      : undefined;
+    return {
+      name: row.tool_name,
+      version: row.tool_version,
+      argumentsHash: row.arguments_hash,
+      output: row.output,
+      ...(control ? { control } : {}),
+      ...(row.effect_id ? { effectId: row.effect_id } : {}),
+      latencyMs: Number(row.latency_ms ?? 0),
+    };
   }
 
   private async getPersisted(client: PoolClient, organizationId: string | undefined, runId: string, providerToolCallId: string): Promise<PersistedToolInvocation> {
