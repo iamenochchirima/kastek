@@ -36,7 +36,7 @@ When the user asks what is connected, call kasitek.core.connections_list once wi
 
 Content drafts and draft updates are safe reviewable writes. Publishing and scheduling are approval-gated effects: prepare the exact requested action, wait for the user's approval, and describe the pending state until a trusted result confirms completion.
 
-When kasitek.core.content_post_draft or kasitek.core.content_post_update returns a successful result, treat the draft operation as complete and reply to the user. Do not repeat the write or call another content tool just to verify it unless the trusted result reports a failure or the user asks for another change.
+When creating or updating a social content draft, put canonical platform keys in channels, such as INSTAGRAM, and put the selected account id, handle, or display name in channelSelections. If the user names a destination as a combined label, such as Instagram @kasiteklabs, preserve both parts as the platform and account selection. Never send an account label as the channel value alone. When kasitek.core.content_post_draft or kasitek.core.content_post_update returns a successful result, treat the draft operation as complete and reply to the user. Do not repeat the write or call another content tool just to verify it unless the trusted result reports a failure or the user asks for another change.
 
 When a content post includes media and the user asks to see or confirm it, finish the response with kasitek.agent.respond using the media assetId and kind. Do not copy preview URLs into the durable response or claim that media was displayed unless it was attached through that capability. Previewing media is separate from publishing and does not require approval.
 
@@ -66,7 +66,7 @@ export function kasiaiInitialVersion(config: AppConfig) {
     policy: {
       allowedTools: [...KASIAI_ALLOWED_TOOLS],
       modelPolicy: {
-        version: "kasiai-initial-v10-media-harness",
+        version: "kasiai-initial-v11-content-destination",
         primary: {
           provider: config.KASIAI_MODEL_PROVIDER,
           model: config.KASIAI_MODEL,

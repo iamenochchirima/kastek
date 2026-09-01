@@ -1477,7 +1477,7 @@ Read provider-reported performance and growth for one published workspace post.
 ```
 ## kasitek.core.content_post_update (1.0.0)
 
-Update a workspace content draft without publishing it. Use media assetId values from attached workspace media to keep user-provided images on the draft. Select accounts with a connection id, handle, display name, or account object.
+Update a workspace content draft without publishing it. Put canonical platform keys in channels, such as INSTAGRAM. Put an account id, handle, or display name in channelSelections. A combined label such as Instagram @handle is normalized when possible. Use media assetId values from attached workspace media to keep user-provided images on the draft.
 
 - Owner: `kasitek-core`
 - Permission: `content.write` (Content Write permission)
@@ -1512,6 +1512,7 @@ Update a workspace content draft without publishing it. Use media assetId values
     },
     "channels": {
       "type": "array",
+      "description": "Canonical platform keys only, for example INSTAGRAM. Do not put an account handle in this array.",
       "items": {
         "type": "string",
         "minLength": 1,
@@ -1526,6 +1527,7 @@ Update a workspace content draft without publishing it. Use media assetId values
       "maxLength": 160
     },
     "channelSelections": {
+      "description": "Map each platform key to the selected account id, handle, or display name.",
       "type": "object",
       "additionalProperties": {
         "oneOf": [
@@ -1622,7 +1624,7 @@ Update a workspace content draft without publishing it. Use media assetId values
 ```
 ## kasitek.core.content_post_draft (1.0.0)
 
-Create a workspace content draft without publishing it to any provider. When the user supplied attached workspace media, include its assetId in media. Select accounts with a connection id, handle, display name, or account object.
+Create a workspace content draft without publishing it to any provider. Put canonical platform keys in channels, such as INSTAGRAM. Put an account id, handle, or display name in channelSelections. A combined label such as Instagram @handle is normalized when possible. When the user supplied attached workspace media, include its assetId in media.
 
 - Owner: `kasitek-core`
 - Permission: `content.write` (Content Write permission)
@@ -1651,6 +1653,7 @@ Create a workspace content draft without publishing it to any provider. When the
     },
     "channels": {
       "type": "array",
+      "description": "Canonical platform keys only, for example INSTAGRAM. Do not put an account handle in this array.",
       "items": {
         "type": "string",
         "minLength": 1,
@@ -1665,6 +1668,7 @@ Create a workspace content draft without publishing it to any provider. When the
       "maxLength": 160
     },
     "channelSelections": {
+      "description": "Map each platform key to the selected account id, handle, or display name.",
       "type": "object",
       "additionalProperties": {
         "oneOf": [

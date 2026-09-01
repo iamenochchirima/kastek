@@ -25,12 +25,51 @@ fn normalize_platform(value: &str) -> String {
     value.trim().to_ascii_uppercase()
 }
 
+fn split_agent_channel_target(value: &str) -> (String, Option<String>) {
+    let trimmed = value.trim();
+    let normalized = normalize_platform(trimmed);
+    if SUPPORTED_PLATFORMS.contains(&normalized.as_str()) {
+        return (normalized, None);
+    }
+
+    for platform in SUPPORTED_PLATFORMS {
+        if trimmed.len() < platform.len() || !trimmed.is_char_boundary(platform.len()) {
+            continue;
+        }
+        let Some(remainder) = trimmed.get(platform.len()..) else {
+            continue;
+        };
+        if !trimmed[..platform.len()].eq_ignore_ascii_case(platform) {
+            continue;
+        }
+        let first = remainder.chars().next();
+        if !first.is_some_and(|character| {
+            character.is_whitespace() || matches!(character, ':' | '/' | '-')
+        }) {
+            continue;
+        }
+        let selector = remainder
+            .trim()
+            .trim_matches(|character| matches!(character, ':' | '/' | '-'))
+            .trim()
+            .trim_start_matches('(')
+            .trim_end_matches(')')
+            .trim();
+        return (
+            platform.to_string(),
+            (!selector.is_empty()).then(|| selector.to_string()),
+        );
+    }
+
+    (normalized, None)
+}
+
 fn prepare_agent_channels(request: &SocialPostUpsertRequest) -> Option<Vec<String>> {
     let requested = request
         .channels
         .as_ref()?
         .iter()
-        .map(|channel| normalize_platform(channel))
+        .map(|channel| split_agent_channel_target(channel).0)
         .collect::<Vec<_>>();
     if requested
         .iter()
@@ -158,6 +197,17 @@ async fn prepare_agent_content_request(
             (!platform.is_empty() && !channel_id.is_empty()).then_some((platform, channel_id))
         })
         .collect::<HashMap<_, _>>();
+
+    if let Some(channels) = request.channels.as_ref() {
+        for (platform, selector) in channels
+            .iter()
+            .map(|channel| split_agent_channel_target(channel))
+        {
+            if let Some(selector) = selector {
+                selections.entry(platform).or_insert(selector);
+            }
+        }
+    }
 
     if let Some(channels) = prepared.channels.as_ref() {
         for platform in channels {
@@ -674,7 +724,8 @@ mod tests {
     };
 
     use super::{
-        delete_post, normalize_platform, prepare_agent_channels, publish, schedule, unschedule,
+        delete_post, normalize_platform, prepare_agent_channels, publish, schedule,
+        split_agent_channel_target, unschedule,
     };
 
     fn context(idempotency_key: Option<&str>) -> RequestContext {
@@ -701,6 +752,40 @@ mod tests {
     fn normalizes_platform_names_from_agent_requests() {
         assert_eq!(normalize_platform(" bluesky "), "BLUESKY");
         assert_eq!(normalize_platform("Bluesky"), "BLUESKY");
+    }
+
+    #[test]
+    fn separates_a_combined_platform_and_account_target() {
+        assert_eq!(
+            split_agent_channel_target("Instagram @kasiteklabs"),
+            ("INSTAGRAM".to_string(), Some("@kasiteklabs".to_string()))
+        );
+        assert_eq!(
+            split_agent_channel_target("Instagram: (@kasiteklabs)"),
+            ("INSTAGRAM".to_string(), Some("@kasiteklabs".to_string()))
+        );
+    }
+
+    #[test]
+    fn derives_platform_from_a_combined_account_target() {
+        let request = crate::db::models::SocialPostUpsertRequest {
+            title: None,
+            prompt: None,
+            content: Some("Post".to_string()),
+            channels: Some(vec!["Instagram @kasiteklabs".to_string()]),
+            status: None,
+            scheduled_for: None,
+            primary_channel_id: Some("Instagram @kasiteklabs".to_string()),
+            channel_selections: None,
+            variants: None,
+            media: None,
+            metadata: None,
+        };
+
+        assert_eq!(
+            prepare_agent_channels(&request),
+            Some(vec!["INSTAGRAM".to_string()])
+        );
     }
 
     #[test]

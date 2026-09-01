@@ -274,6 +274,33 @@ describe("content capability contract", () => {
     }));
   });
 
+  it("keeps a combined provider and account destination usable for media drafts", async () => {
+    const createContentDraft = vi.fn(async () => ({ post: { id: "post-1", content: " " } }));
+    const tools = createDefaultTools({ createContentDraft } as never);
+    const toolName = "kasitek.core.content_post_draft";
+
+    await tools.invoke({
+      name: toolName,
+      arguments: {
+        content: " ",
+        channels: ["Instagram @kasiteklabs"],
+        primaryChannelId: "Instagram @kasiteklabs",
+        media: [{ assetId: "asset-image-1", altText: "Attached image" }],
+        metadata: { caption: "none" },
+      },
+      context,
+      grantedTools: new Set([toolName]),
+    });
+
+    expect(createContentDraft).toHaveBeenCalledWith(context, expect.objectContaining({
+      content: " ",
+      channels: ["INSTAGRAM"],
+      primaryChannelId: "@kasiteklabs",
+      channelSelections: { INSTAGRAM: "@kasiteklabs" },
+      media: [{ assetId: "asset-image-1", altText: "Attached image" }],
+    }));
+  });
+
   it("returns a compact completion marker after a content write", async () => {
     const updateContentDraft = vi.fn(async () => ({
       post: {

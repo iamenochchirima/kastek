@@ -89,6 +89,11 @@ renders the formatting supported by text messages, including bold, italic, strik
 lists, links, and readable table rows. Image references remain links in a text reply; sending an
 actual image requires a media delivery path.
 
+For social content drafts, `channels` contains platform keys such as `INSTAGRAM`. Use
+`channelSelections` to identify the account by its handle, display name, or connection reference.
+The Agent Platform also normalizes combined labels such as `Instagram @kasiteklabs` so an account
+selection is not lost between a channel conversation and the content service.
+
 ## Create a hosted user agent
 
 Use **Agents → Create hosted agent** when KasiTek should run the agent. Define its instructions,

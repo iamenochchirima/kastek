@@ -81,6 +81,16 @@ human approval, and provider execution remain separate checks.
       endpoints.
 - [ ] Run a controlled WhatsApp image-to-agent smoke test with a non-sensitive test message.
 
+### Implemented regression slice: social draft destination normalization
+
+- [x] Confirm the failed WhatsApp media draft payload used `Instagram @kasiteklabs` as a channel
+      value, which Core correctly rejected because it was not a platform key.
+- [x] Normalize combined provider/account labels at the shared Agent Platform content-tool
+      boundary into a platform key plus `channelSelections` account selector.
+- [x] Add the same normalization defense at Core's internal agent content adapter.
+- [x] Add Agent Platform and Core regression tests for the exact failed payload shape.
+- [ ] Run a controlled WhatsApp image-to-agent draft smoke test after release.
+
 ## Proposed contract
 
 Use one normalized result for the provider-backed action seam:

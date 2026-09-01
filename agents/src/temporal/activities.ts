@@ -95,6 +95,31 @@ type ChannelSelectionObject = {
   displayName?: unknown;
 };
 
+const CONTENT_CHANNEL_PLATFORMS = new Set([
+  "FACEBOOK",
+  "INSTAGRAM",
+  "THREADS",
+  "TIKTOK",
+  "BLUESKY",
+  "LINKEDIN",
+  "X",
+]);
+
+function splitContentChannelTarget(value: unknown): { platform: string; selector?: string } | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const normalized = trimmed.toUpperCase();
+  if (CONTENT_CHANNEL_PLATFORMS.has(normalized)) return { platform: normalized };
+
+  const combined = /^(facebook|instagram|threads|tiktok|bluesky|linkedin|x)(?:\s+|\s*[:\/-]\s*)(.+)$/i.exec(trimmed);
+  if (!combined) return { platform: trimmed };
+  const selector = combined[2]?.trim().replace(/^\((.*)\)$/, "$1").trim();
+  return selector
+    ? { platform: combined[1]!.toUpperCase(), selector }
+    : { platform: combined[1]!.toUpperCase() };
+}
+
 function normalizeChannelSelection(value: unknown): string | undefined {
   if (typeof value === "string") {
     const normalized = value.trim();
@@ -118,6 +143,32 @@ function normalizeChannelSelections(value: unknown): Record<string, string> | un
       .filter((entry): entry is readonly [string, string] => Boolean(entry[1])),
   );
   return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function normalizeContentWriteDestination(args: Record<string, unknown>): {
+  channels?: string[];
+  primaryChannelId?: string;
+  channelSelections?: Record<string, string>;
+} {
+  const selections = normalizeChannelSelections(args.channelSelections) ?? {};
+  const channelsProvided = Array.isArray(args.channels);
+  const channels: string[] = [];
+
+  if (channelsProvided) {
+    for (const value of args.channels as unknown[]) {
+      const target = splitContentChannelTarget(value);
+      if (!target || channels.includes(target.platform)) continue;
+      channels.push(target.platform);
+      if (target.selector && !selections[target.platform]) selections[target.platform] = target.selector;
+    }
+  }
+
+  const primary = typeof args.primaryChannelId === "string" ? splitContentChannelTarget(args.primaryChannelId) : undefined;
+  return {
+    ...(channelsProvided ? { channels } : {}),
+    ...(primary ? { primaryChannelId: primary.selector ?? args.primaryChannelId as string } : {}),
+    ...(Object.keys(selections).length ? { channelSelections: selections } : {}),
+  };
 }
 
 function pricingFromConfig(config?: AppConfig): Record<string, ModelPricing> {
@@ -1169,7 +1220,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
   tools.register({
     name: "kasitek.core.content_post_update",
     version: "1.0.0",
-    description: "Update a workspace content draft without publishing it. Use media assetId values from attached workspace media to keep user-provided images on the draft. Select accounts with a connection id, handle, display name, or account object.",
+    description: "Update a workspace content draft without publishing it. Put canonical platform keys in channels, such as INSTAGRAM. Put an account id, handle, or display name in channelSelections. A combined label such as Instagram @handle is normalized when possible. Use media assetId values from attached workspace media to keep user-provided images on the draft.",
     riskClass: "draft",
     requiresApproval: false,
     timeoutMs: 15_000,
@@ -1180,9 +1231,10 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
         title: { type: "string", maxLength: 240 },
         prompt: { type: "string", maxLength: 4_000 },
         content: { type: "string", minLength: 1, maxLength: 100_000 },
-        channels: { type: "array", items: { type: "string", minLength: 1, maxLength: 80 }, minItems: 1, maxItems: 20 },
+        channels: { type: "array", description: "Canonical platform keys only, for example INSTAGRAM. Do not put an account handle in this array.", items: { type: "string", minLength: 1, maxLength: 80 }, minItems: 1, maxItems: 20 },
         primaryChannelId: { type: "string", minLength: 1, maxLength: 160 },
         channelSelections: {
+          description: "Map each platform key to the selected account id, handle, or display name.",
           type: "object",
           additionalProperties: {
             oneOf: [
@@ -1225,13 +1277,14 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     manifest: { ownerService: "kasitek-core", requiredScope: "content.write", resourceSelector: { type: "content_post", argument: "postId" }, execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "full", redaction: ["post.publishJobs.providerReceipt", "post.media.previewUrl"] },
     handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
+      const destination = normalizeContentWriteDestination(args);
       const input = {
         title: typeof args.title === "string" ? args.title : undefined,
         prompt: typeof args.prompt === "string" ? args.prompt : undefined,
         content: typeof args.content === "string" ? args.content : undefined,
-        channels: Array.isArray(args.channels) ? args.channels.map(String) : undefined,
-        primaryChannelId: typeof args.primaryChannelId === "string" ? args.primaryChannelId : undefined,
-        channelSelections: normalizeChannelSelections(args.channelSelections),
+        channels: destination.channels,
+        primaryChannelId: destination.primaryChannelId,
+        channelSelections: destination.channelSelections,
         variants: Array.isArray(args.variants) ? args.variants as Array<{ platform: string; content: string; status?: string; aiGenerated?: boolean; metadata?: Record<string, unknown> }> : undefined,
         media: Array.isArray(args.media) ? args.media as Array<{ assetId: string; sortOrder?: number; altText?: string }> : undefined,
         metadata: args.metadata && typeof args.metadata === "object" ? args.metadata as Record<string, unknown> : undefined,
@@ -1243,7 +1296,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
   tools.register({
     name: "kasitek.core.content_post_draft",
     version: "1.0.0",
-    description: "Create a workspace content draft without publishing it to any provider. When the user supplied attached workspace media, include its assetId in media. Select accounts with a connection id, handle, display name, or account object.",
+    description: "Create a workspace content draft without publishing it to any provider. Put canonical platform keys in channels, such as INSTAGRAM. Put an account id, handle, or display name in channelSelections. A combined label such as Instagram @handle is normalized when possible. When the user supplied attached workspace media, include its assetId in media.",
     riskClass: "draft",
     requiresApproval: false,
     timeoutMs: 15_000,
@@ -1253,9 +1306,10 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
         title: { type: "string", maxLength: 240 },
         prompt: { type: "string", maxLength: 4_000 },
         content: { type: "string", minLength: 1, maxLength: 100_000 },
-        channels: { type: "array", items: { type: "string", minLength: 1, maxLength: 80 }, minItems: 1, maxItems: 20 },
+        channels: { type: "array", description: "Canonical platform keys only, for example INSTAGRAM. Do not put an account handle in this array.", items: { type: "string", minLength: 1, maxLength: 80 }, minItems: 1, maxItems: 20 },
         primaryChannelId: { type: "string", minLength: 1, maxLength: 160 },
         channelSelections: {
+          description: "Map each platform key to the selected account id, handle, or display name.",
           type: "object",
           additionalProperties: {
             oneOf: [
@@ -1298,13 +1352,14 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     manifest: { ownerService: "kasitek-core", requiredScope: "content.write", execution: "immediate", idempotency: "required", approval: "none", auditClassification: "full", redaction: ["post.publishJobs.providerReceipt", "post.media.previewUrl"] },
     handler: async (context, args) => {
       if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
+      const destination = normalizeContentWriteDestination(args);
       const input = {
         title: typeof args.title === "string" ? args.title : undefined,
         prompt: typeof args.prompt === "string" ? args.prompt : undefined,
         content: String(args.content),
-        channels: Array.isArray(args.channels) ? args.channels.map(String) : [],
-        primaryChannelId: typeof args.primaryChannelId === "string" ? args.primaryChannelId : undefined,
-        channelSelections: normalizeChannelSelections(args.channelSelections),
+        channels: destination.channels ?? [],
+        primaryChannelId: destination.primaryChannelId,
+        channelSelections: destination.channelSelections,
         variants: Array.isArray(args.variants) ? args.variants as Array<{ platform: string; content: string; status?: string; aiGenerated?: boolean; metadata?: Record<string, unknown> }> : undefined,
         media: Array.isArray(args.media) ? args.media as Array<{ assetId: string; sortOrder?: number; altText?: string }> : undefined,
         metadata: args.metadata && typeof args.metadata === "object" ? args.metadata as Record<string, unknown> : undefined,
