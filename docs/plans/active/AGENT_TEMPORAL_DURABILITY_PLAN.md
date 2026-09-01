@@ -4,7 +4,7 @@
 
 **Owner:** Agent Platform
 
-**Last updated:** 2026-08-31
+**Last updated:** 2026-09-01
 
 ## Objective
 
@@ -27,6 +27,9 @@ Reduce duplicate provider work and make worker-loss recovery explicit while the 
   reconciliation projections.
 - [x] Add workflow graph recovery contracts for crash-after-checkpoint replay and branch failure
   ([workflow-graph-recovery.test.ts](../../../agents/test/workflow-graph-recovery.test.ts)).
+- [x] Propagate Temporal activity cancellation into configured graph execution and add pre-node and
+  post-provider-result contracts ([executor.ts](../../../agents/src/workflows/executor.ts),
+  [workflow-graph-cancellation.test.ts](../../../agents/test/workflow-graph-cancellation.test.ts)).
 - [ ] Add worker-kill tests around every model, tool, approval, effect, and completion checkpoint.
 - [ ] Split context, model, tool, checkpoint, and completion work into independently retry-safe
   activities behind a controlled rollout.
@@ -60,3 +63,51 @@ Rollout and rollback: deploy the additive migration before the application relea
 application artifact can be rolled back while retaining migration 084 and unresolved operation
 rows. Do not drop the new columns or indexes until every affected operation is resolved and a later
 migration explicitly retires the ledger.
+
+## Follow-up release record: graph cancellation propagation
+
+Change: Pass the Temporal activity abort signal into configured workflow graph execution. Reject
+late model/tool results after cancellation, prevent a cancelled node from mutating graph state, and
+prevent execution from advancing to a following node.
+
+Owner: Agent Platform.
+
+Risk: standard.
+
+Affected services and user surfaces: agents-api, agents-worker, configured workflow runs, and
+workflow cancellation/recovery behavior. MCP-Gateway has no code-path change but was deployed with
+the exact shared release commit.
+
+Platform release version or release ID: commit `ac81bc97`; Railway production deployments
+`agents-worker` `eb435b96-957b-40da-8280-dff175fe4d58`, `agents-api`
+`ce3f9028-fe62-48f1-8c2c-546a1841c5dd`, and `MCP-Gateway`
+`c404bdb3-7564-48d7-9c1f-bc8ffe7f27bc`; all reported `SUCCESS` for commit
+`ac81bc97d3db3ea196dbc5964a276b9ff97d3d0b`.
+
+API/schema/migration changes: no API, database schema, or migration changes.
+
+Feature flag or rollout method: no flag; the executor dependency is backward-compatible and the
+exact tested commit was approved and deployed to the three production services.
+
+Analytics events and success metrics: not applicable; this release changes cancellation control
+flow only and adds no customer analytics event. Existing activity-attempt, cancellation, and
+reconciliation telemetry remains in use.
+
+Logs, metrics, dashboards, and alerts: existing Temporal cancellation and reconciliation signals;
+no Collector configuration change. No new dashboard or alert was required for this narrow fix.
+
+User, API, internal, and operational documentation: updated the platform audit, workflow execution
+architecture reference, and this Temporal durability plan. The worker-kill matrix and activity
+decomposition remain explicitly open.
+
+Validation evidence: targeted graph, recovery, and cancellation tests passed (22/22); Agents
+TypeScript check and build passed; `git diff --check` passed; production agents-api live/ready
+checks returned 200, public `https://agents.kasitek.co.za/health/ready` returned ready, and the
+agents-worker shell check passed.
+
+Rollback or disable plan: redeploy the previous known-good commit if cancellation behavior causes
+a regression. No migration rollback is needed. Do not claim remote provider reversal solely from a
+cancellation; existing unknown-outcome reconciliation remains authoritative.
+
+Post-release review date: 2026-09-08; review cancellation errors and complete the per-checkpoint
+worker-kill coverage before closing P0.2/P0.3 durability work.

@@ -31,10 +31,12 @@ atomic tool allowance. The same limits are passed to normal loops and configured
 including model calls inside graph nodes. MCP tool runs use the tool allowance as well.
 
 Temporal activities use bounded schedule/start-to-close and heartbeat timeouts. The current loop,
-model, and tool adapters receive an abort signal where supported. External effects retain durable
-approval and receipt records; if a provider outcome cannot be proven, the effect remains eligible
-for reconciliation rather than being treated as reversed. Activity attempt, budget exhaustion, and
-reconciliation signals are emitted as bounded metrics and structured events.
+model, tool, and graph adapters receive an abort signal where supported. Graph execution checks the
+signal before starting a node and after an awaited model or tool result, so a late result is not
+written into state or followed by another node. External effects retain durable approval and receipt
+records; if a provider outcome cannot be proven, the effect remains eligible for reconciliation
+rather than being treated as reversed. Activity attempt, budget exhaustion, and reconciliation
+signals are emitted as bounded metrics and structured events.
 
 The run budget ledger follows the same fail-closed rule. A worker timeout can leave a model
 reservation in `unknown`; reconciliation releases the estimate only as a ledger operation and does

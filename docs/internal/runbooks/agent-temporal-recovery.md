@@ -39,8 +39,10 @@ The workflow proxy currently uses:
 - heartbeat timeout: 20 seconds;
 - maximum activity attempts: 5, with exponential backoff up to 30 seconds.
 
-Provider and tool adapters must receive the activity cancellation signal. A timeout or worker loss
-must not be interpreted as proof that an external provider did not receive a request.
+Provider, tool, and configured graph execution adapters must receive the activity cancellation
+signal. Graph execution checks cancellation before starting a node and after an awaited provider or
+tool result; it must not apply a late result or continue to a following node. A timeout or worker
+loss must not be interpreted as proof that an external provider did not receive a request.
 
 ## Model-operation recovery
 
