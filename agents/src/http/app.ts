@@ -123,6 +123,12 @@ import { AudioTranscriptionError, ElevenLabsTranscriptionProvider, hasAudioFileS
 import { AudioTranscriptionJobRepository } from "../db/repositories/audio-transcription-job-repository";
 import { enterDatabaseContext, runWithDatabaseContext } from "../db/context";
 import { reconcileRunUsage } from "../operations/usage-reconciliation";
+import { SkillRepository } from "../db/repositories/skill-repository";
+import { createSkillInputSchema, createSkillVersionInputSchema } from "../skills/contracts";
+import { RemoteMcpProviderRepository, createRemoteMcpProviderInputSchema } from "../db/repositories/remote-mcp-provider-repository";
+import { executeDraftEvaluation, type DraftEvaluationRunner } from "../evaluations/draft";
+import { ModelGateway } from "../model/gateway";
+import { VaultCredentialResolver } from "../model/credentials";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -175,6 +181,9 @@ export interface AppDependencies {
   controls?: OperatorControlRepository;
   retention?: RetentionRepository;
   kasiaiPreferences?: KasiAiPreferenceRepository;
+  skills?: SkillRepository;
+  remoteMcpProviders?: RemoteMcpProviderRepository;
+  draftEvaluator?: DraftEvaluationRunner;
   startWorkflow?: (runId: string) => Promise<void>;
   signalApproval?: (runId: string, signal: ApprovalSignal) => Promise<void>;
   signalCancellation?: (runId: string, signal: CancellationSignal) => Promise<void>;
@@ -486,6 +495,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const coreClient = new KasitekCoreReadClient(dependencies.config);
   const integrationRepository = dependencies.integrationRepository ?? new IntegrationRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
   const integrationTools = dependencies.integrationTools ?? new IntegrationToolService(integrationRepository, dependencies.config);
+  const remoteMcpProviders = dependencies.remoteMcpProviders ?? new RemoteMcpProviderRepository(
+    dependencies.pool,
+    (organizationId, credentialReference) => integrationRepository.resolveCredential(organizationId, credentialReference),
+  );
   const toolRegistry = dependencies.toolRegistry ?? createDefaultTools(coreClient, conversationActions, integrationTools);
   const capabilityAccess = dependencies.capabilityAccess ?? new UnknownCapabilityAccessSource();
   const connectorRegistry = dependencies.connectorRegistry ?? new ConnectorRegistry();
@@ -520,12 +533,17 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const knowledge = dependencies.knowledge ?? new KnowledgeRepository(dependencies.pool);
   const memory = dependencies.memory ?? new MemoryRepository(dependencies.pool);
   const evaluations = dependencies.evaluations ?? new EvaluationRepository(dependencies.pool);
+  const draftEvaluator = dependencies.draftEvaluator ?? ((input) => executeDraftEvaluation(
+    input,
+    { gateway: new ModelGateway(), credentials: new VaultCredentialResolver(credentials) },
+  ));
   const audits = dependencies.audits ?? new AuditRepository(dependencies.pool);
   const schedules = dependencies.schedules ?? new ScheduleRepository(dependencies.pool);
   const readinessAnalytics = dependencies.readiness ?? new ReadinessRepository(dependencies.pool);
   const killSwitches = dependencies.killSwitches ?? new KillSwitchRepository(dependencies.pool);
   const retention = dependencies.retention ?? new RetentionRepository(dependencies.pool);
   const kasiaiPreferences = dependencies.kasiaiPreferences ?? new KasiAiPreferenceRepository(dependencies.pool);
+  const skills = dependencies.skills ?? new SkillRepository(dependencies.pool);
   const websiteCrawler = dependencies.websiteCrawler ?? new FirecrawlClient({
     apiKey: dependencies.config.FIRECRAWL_API_KEY,
     baseUrl: dependencies.config.FIRECRAWL_API_BASE_URL,
@@ -2407,6 +2425,121 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     requireScope(auth, dependencies.config, "agents:read");
     const audience = request.query.audience ? z.enum(["personal", "customer_service"]).parse(request.query.audience) : undefined;
     return { templates: listAgentTemplates(audience) };
+  });
+
+  app.get("/v1/skills", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    return { skills: await skills.listSkills(auth.organizationId) };
+  });
+
+  app.post("/v1/skills", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const skill = await skills.createSkill(auth.organizationId, auth.actorId, createSkillInputSchema.parse(request.body));
+    return reply.code(201).send(skill);
+  });
+
+  app.get<{ Params: { skillId: string } }>("/v1/skills/:skillId/versions", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    return { versions: await skills.listVersions(auth.organizationId, request.params.skillId) };
+  });
+
+  app.post<{ Params: { skillId: string } }>("/v1/skills/:skillId/versions", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const version = await skills.createVersion(auth.organizationId, auth.actorId, request.params.skillId, createSkillVersionInputSchema.parse(request.body));
+    return reply.code(201).send(version);
+  });
+
+  app.post<{ Params: { skillId: string; versionId: string } }>("/v1/skills/:skillId/versions/:versionId/publish", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    return skills.publishVersion(auth.organizationId, auth.actorId, request.params.skillId, request.params.versionId);
+  });
+
+  app.post<{ Params: { agentVersionId: string; skillVersionId: string } }>("/v1/agent-versions/:agentVersionId/skills/:skillVersionId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    await skills.pinVersion(auth.organizationId, auth.actorId, request.params.agentVersionId, request.params.skillVersionId);
+    return reply.code(204).send();
+  });
+
+  app.delete<{ Params: { agentVersionId: string; skillVersionId: string } }>("/v1/agent-versions/:agentVersionId/skills/:skillVersionId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    await skills.unpinVersion(auth.organizationId, request.params.agentVersionId, request.params.skillVersionId);
+    return reply.code(204).send();
+  });
+
+  app.get<{ Params: { agentVersionId: string } }>("/v1/agent-versions/:agentVersionId/skills", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    return { skills: await skills.loadPinnedVersions(auth.organizationId, request.params.agentVersionId) };
+  });
+
+  app.get("/v1/mcp/providers", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    return { providers: await remoteMcpProviders.list(auth.organizationId) };
+  });
+
+  app.post("/v1/mcp/providers", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const provider = await remoteMcpProviders.create(auth.organizationId, auth.actorId, createRemoteMcpProviderInputSchema.parse(request.body));
+    return reply.code(201).send(provider);
+  });
+
+  app.post<{ Params: { providerId: string } }>("/v1/mcp/providers/:providerId/discover", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    try {
+      return reply.code(201).send(await remoteMcpProviders.discover(auth.organizationId, auth.actorId, request.params.providerId));
+    } catch (error) {
+      request.log.warn({ event: "remote_mcp.discovery_failed", provider_id: request.params.providerId, error_code: error instanceof Error ? error.message : "unknown" }, "Remote MCP discovery failed");
+      return reply.code(502).send({ error: "remote_mcp_discovery_failed" });
+    }
+  });
+
+  app.get<{ Params: { providerId: string } }>("/v1/mcp/providers/:providerId/versions", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    return { versions: await remoteMcpProviders.listVersions(auth.organizationId, request.params.providerId) };
+  });
+
+  app.post<{ Params: { providerId: string; versionId: string } }>("/v1/mcp/providers/:providerId/versions/:versionId/publish", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    return remoteMcpProviders.publish(auth.organizationId, auth.actorId, request.params.providerId, request.params.versionId);
+  });
+
+  app.post<{ Params: { providerId: string } }>("/v1/mcp/providers/:providerId/revoke", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    await remoteMcpProviders.revoke(auth.organizationId, auth.actorId, request.params.providerId);
+    return { revoked: true };
+  });
+
+  app.post<{ Params: { agentVersionId: string; providerVersionId: string } }>("/v1/agent-versions/:agentVersionId/mcp-providers/:providerVersionId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    await remoteMcpProviders.pin(auth.organizationId, auth.actorId, request.params.agentVersionId, request.params.providerVersionId);
+    return reply.code(204).send();
+  });
+
+  app.delete<{ Params: { agentVersionId: string; providerVersionId: string } }>("/v1/agent-versions/:agentVersionId/mcp-providers/:providerVersionId", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    await remoteMcpProviders.unpin(auth.organizationId, request.params.agentVersionId, request.params.providerVersionId);
+    return reply.code(204).send();
+  });
+
+  app.get<{ Params: { agentVersionId: string } }>("/v1/agent-versions/:agentVersionId/mcp-providers", async (request) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:read");
+    return { providers: await remoteMcpProviders.listPinned(auth.organizationId, request.params.agentVersionId) };
   });
 
   app.post<{ Params: { templateKey: string } }>("/v1/templates/:templateKey/install", async (request, reply) => {
@@ -4775,6 +4908,42 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const result = evaluateDeterministicAssertions(input.actualOutput, scenario.assertions);
     const run = await evaluations.recordRun({ organizationId: auth.organizationId, scenarioId: scenario.id, agentVersionId: input.agentVersionId, runId: input.runId, status: result.passed ? "passed" : "failed", evaluatorVersion: input.evaluatorVersion, result: { ...result, actualOutput: input.actualOutput }, actorId: auth.actorId });
     return reply.code(201).send(run);
+  });
+
+  app.post<{ Params: { scenarioId: string } }>("/v1/evaluations/scenarios/:scenarioId/draft-runs", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    const scenario = await evaluations.getScenario(auth.organizationId, request.params.scenarioId);
+    if (!scenario) return reply.code(404).send({ error: "evaluation_scenario_not_found" });
+    const input = z.object({
+      agentVersionId: z.string().uuid(),
+      evaluatorVersion: z.string().trim().min(1).max(80).default("deterministic-v1"),
+    }).strict().parse(request.body);
+    const version = await agents.getVersion(auth.organizationId, input.agentVersionId);
+    if (!version) return reply.code(404).send({ error: "agent_version_not_found" });
+    if (scenario.agent_definition_id && scenario.agent_definition_id !== version.agent_definition_id) {
+      return reply.code(409).send({ error: "evaluation_agent_mismatch" });
+    }
+    try {
+      const output = await draftEvaluator({ organizationId: auth.organizationId, version, scenarioInput: scenario.input });
+      const result = evaluateDeterministicAssertions(output.actualOutput, scenario.assertions);
+      const run = await evaluations.recordRun({
+        organizationId: auth.organizationId,
+        scenarioId: scenario.id,
+        agentVersionId: version.id,
+        executionMode: "draft",
+        status: result.passed ? "passed" : "failed",
+        evaluatorVersion: input.evaluatorVersion,
+        result: { ...result, ...output },
+        actorId: auth.actorId,
+      });
+      return reply.code(201).send(run);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "DRAFT_EVALUATION_FAILED";
+      request.log.warn({ code }, "Draft evaluation failed");
+      const statusCode = code === "DRAFT_INPUT_TOO_LARGE" ? 400 : code === "DRAFT_VERSION_RETIRED" || code === "DRAFT_TOOL_CALL_UNSUPPORTED" || code === "DRAFT_WORKFLOW_INVALID" ? 409 : 502;
+      return reply.code(statusCode).send({ error: code.toLowerCase() });
+    }
   });
 
   app.get<{ Querystring: { scenarioId?: string } }>("/v1/evaluations/runs", async (request) => {

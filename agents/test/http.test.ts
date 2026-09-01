@@ -8,6 +8,7 @@ import { signInternalToken } from "../src/http/auth";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { issueInstallationToken } from "../src/auth/installation-token";
 import { StaticCapabilityAccessSource } from "../src/domain/capability-access";
+import type { DraftEvaluationOutput } from "../src/evaluations/draft";
 
 const installationTokenKeyPair = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
 const clientAssertionKeyPair = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
@@ -2570,6 +2571,45 @@ describe("Agent Platform HTTP foundation", () => {
     expect(response.statusCode).toBe(201);
     expect(response.json()).toMatchObject({ conversation: { id: "fresh-conversation", status: "active" }, messages: [] });
     expect(clearPrivateConversations).toHaveBeenCalledWith({ organizationId: "org-1", installationId: "install-1", actorId: "user-1" });
+    await app.close();
+  });
+
+  it("persists draft evaluation evidence without a live run id", async () => {
+    const agentVersionId = "11111111-1111-4111-8111-111111111111";
+    const evaluator = vi.fn(async (): Promise<DraftEvaluationOutput> => ({
+      actualOutput: { text: "draft answer" },
+      model: { provider: "openrouter", model: "openai/gpt-4.1-mini" },
+      usage: { inputTokens: 5, outputTokens: 3, totalTokens: 8 },
+      isolation: { executionMode: "draft", liveRunId: null, toolCalls: 0, memoryReads: 0, memoryWrites: 0, deliveryAttempts: 0 },
+    }));
+    const recordRun = vi.fn(async (input: { executionMode?: string; runId?: string; result: Record<string, unknown> }) => ({
+      id: "evaluation-run-1",
+      execution_mode: input.executionMode ?? "observed",
+      run_id: input.runId ?? null,
+      result: input.result,
+    }));
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      agents: { getVersion: async () => ({ id: agentVersionId, agent_definition_id: "22222222-2222-4222-8222-222222222222", status: "draft" }) } as never,
+      evaluations: {
+        getScenario: async () => ({ id: "33333333-3333-4333-8333-333333333333", agent_definition_id: null, input: { message: "hello" }, assertions: [{ path: "text", operator: "contains", expected: "draft" }] }),
+        recordRun,
+      } as never,
+      draftEvaluator: evaluator,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/evaluations/scenarios/33333333-3333-4333-8333-333333333333/draft-runs",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: { agentVersionId },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(evaluator).toHaveBeenCalledWith(expect.objectContaining({ organizationId: "org-1", version: expect.objectContaining({ id: agentVersionId }) }));
+    expect(recordRun).toHaveBeenCalledWith(expect.objectContaining({ executionMode: "draft" }));
+    expect(recordRun.mock.calls[0]?.[0].runId).toBeUndefined();
+    expect(response.json()).toMatchObject({ execution_mode: "draft", run_id: null, result: { passed: true } });
     await app.close();
   });
 });

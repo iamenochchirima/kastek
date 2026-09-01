@@ -8,8 +8,9 @@ last_reviewed: 2026-09-01
 
 This inventory covers the public schema of the Agents PostgreSQL database. It was checked against
 the local migrated database on 2026-08-31 and the production database through the Agents API
-container. The schema contains 65 base tables. Migrations 091 through 094 and 097 now enable `FORCE ROW
-LEVEL SECURITY` on 64 runtime tables covering memory, knowledge, conversations, messages, runs,
+container. The schema contains 72 base tables. Migrations 091 through 094, 097, and 100 through 103
+now enable `FORCE ROW LEVEL SECURITY` on 71 runtime tables covering memory, knowledge,
+conversations, messages, runs,
 credentials, channels, effects, approvals, lifecycle sidecars, analytics, and control-plane data.
 `schema_migrations` is the only table without RLS because runtime and application roles have no
 privilege to read or write it; migrations use a separate administrative database connection.
@@ -52,6 +53,10 @@ policies:
 `participants`, `run_attempts`, `run_budget_parallel_leases`, `run_budget_reservations`, `run_budgets`, `run_steps`,
 `run_workflow_checkpoints`, `run_workflow_state`, and `tool_invocations`.
 
+The composition tables are also organization-scoped and parent-validated: `agent_skill_definitions`,
+`agent_skill_versions`, `agent_version_skills`, `agent_mcp_providers`, `agent_mcp_provider_versions`,
+`agent_version_mcp_providers`, and `agent_mcp_provider_rate_windows`.
+
 The direct organization column must agree with the parent relationship. A policy should not trust a
 child row's organization column without checking the parent for installation-, conversation-, run-,
 agent-, and source-owned tables.
@@ -92,8 +97,9 @@ RLS policies.
 - Before migration 095, the memory and knowledge ownership-presence constraints were `NOT VALID`.
   The production audit found zero invalid rows, and migration 095 now records all three as
   validated. Local legacy fixture data is not production evidence and must not be promoted.
-- Production migrations 091, 092, 093, 094, and 097 are recorded in `schema_migrations`; all 64
-  runtime tables report both `relrowsecurity = true` and `relforcerowsecurity = true`.
+- Production migrations 091, 092, 093, 094, 097, and 100 through 103 are recorded in
+  `schema_migrations`; all 71 runtime tables report both `relrowsecurity = true` and
+  `relforcerowsecurity = true`.
   `schema_migrations` reports neither because its privileges are revoked from runtime and
   application roles.
 - The transaction context integration test proves organization and actor settings are local to a
@@ -127,7 +133,7 @@ RLS policies.
 
 ## Operational verification and rollback
 
-The RLS migration test asserts that the five released policy migrations cover exactly 64 runtime
+The RLS migration test asserts that the eight released policy migrations cover exactly 71 runtime
 tables and that every policy table has both `ENABLE ROW LEVEL SECURITY` and `FORCE ROW LEVEL
 SECURITY`. This is a source-control guard; it does not replace restricted-role data tests. The
 integration suites remain the production-equivalent negative test for seeded cross-tenant rows.

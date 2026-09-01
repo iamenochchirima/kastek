@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { agentSpecSchema, compileAgentSpec } from "./agent-spec";
 
 export const agentStatusSchema = z.enum(["active", "paused", "archived"]);
 export type AgentStatus = z.infer<typeof agentStatusSchema>;
@@ -93,12 +94,25 @@ export const updateAgentInputSchema = z.object({
 });
 export type UpdateAgentInput = z.infer<typeof updateAgentInputSchema>;
 
-export const createVersionInputSchema = z.object({
+const legacyCreateVersionInputSchema = z.object({
   instructions: z.string().min(1).max(200_000),
   configuration: z.record(z.string(), z.unknown()).default({}),
   policy: z.record(z.string(), z.unknown()).default({}),
-});
-export type CreateVersionInput = z.infer<typeof createVersionInputSchema>;
+}).strict();
+
+const typedCreateVersionInputSchema = z.object({
+  spec: agentSpecSchema,
+}).strict().transform(({ spec }) => compileAgentSpec(spec));
+
+/**
+ * New API writes use `{ spec: AgentSpec }`; the legacy shape remains accepted
+ * for existing clients, templates, and historical workflows.
+ */
+export const createVersionInputSchema = z.union([
+  legacyCreateVersionInputSchema,
+  typedCreateVersionInputSchema,
+]);
+export type CreateVersionInput = z.output<typeof createVersionInputSchema>;
 
 export const createInstallationInputSchema = z.object({
   agentVersionId: z.string().uuid(),

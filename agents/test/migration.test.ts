@@ -391,6 +391,9 @@ describe("foundation migration", () => {
       "093_identity_credentials_effects_rls.sql",
       "094_control_plane_and_lifecycle_rls.sql",
       "097_parallel_branch_budget_leases.sql",
+      "100_agent_skills.sql",
+      "101_remote_mcp_providers.sql",
+      "103_remote_mcp_rate_limits.sql",
     ];
     const sql = (await Promise.all(files.map((file) => readFile(new URL(`../migrations/${file}`, import.meta.url), "utf8")))).join("\n");
     const policyTables = [...sql.matchAll(/CREATE POLICY\s+\S+\s+ON\s+([a-z_]+)/gi)].map((match) => match[1]);
@@ -398,7 +401,7 @@ describe("foundation migration", () => {
     const forcedTables = new Set([...sql.matchAll(/ALTER TABLE\s+([a-z_]+)\s+FORCE ROW LEVEL SECURITY/gi)].map((match) => match[1]));
     const uniquePolicyTables = new Set(policyTables);
 
-    expect(uniquePolicyTables).toHaveLength(64);
+    expect(uniquePolicyTables).toHaveLength(71);
     expect(enabledTables).toEqual(uniquePolicyTables);
     expect(forcedTables).toEqual(uniquePolicyTables);
     expect(uniquePolicyTables).not.toContain("schema_migrations");
@@ -412,6 +415,45 @@ describe("foundation migration", () => {
     expect(sql).toContain("memory_records_embedding_vector_hnsw_idx");
     expect(sql).toContain("knowledge_chunks_embedding_vector_hnsw_idx");
     expect(sql).toContain("embedding_model");
+  });
+
+  it("stores immutable, scoped skill versions and agent-version pins", async () => {
+    const sql = await readFile(new URL("../migrations/100_agent_skills.sql", import.meta.url), "utf8");
+    for (const table of ["agent_skill_definitions", "agent_skill_versions", "agent_version_skills"]) {
+      expect(sql).toContain(`CREATE TABLE IF NOT EXISTS ${table}`);
+      expect(sql).toContain(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);
+      expect(sql).toContain(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`);
+    }
+    expect(sql).toContain("skill_version_id UUID");
+    expect(sql).toContain("status = 'published'");
+    expect(sql).toContain("kasitek_agents_operator_scope");
+  });
+
+  it("stores reviewed remote MCP revisions and agent-version pins", async () => {
+    const sql = await readFile(new URL("../migrations/101_remote_mcp_providers.sql", import.meta.url), "utf8");
+    for (const table of ["agent_mcp_providers", "agent_mcp_provider_versions", "agent_version_mcp_providers"]) {
+      expect(sql).toContain(`CREATE TABLE IF NOT EXISTS ${table}`);
+      expect(sql).toContain(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);
+      expect(sql).toContain(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`);
+    }
+    expect(sql).toContain("credential_reference UUID");
+    expect(sql).toContain("rate_limit_per_minute");
+    expect(sql).toContain("provider_version.status = 'published'");
+  });
+
+  it("makes draft evaluation records unable to reference live runs", async () => {
+    const sql = await readFile(new URL("../migrations/102_draft_evaluation_mode.sql", import.meta.url), "utf8");
+    expect(sql).toContain("execution_mode");
+    expect(sql).toContain("evaluation_runs_draft_scope_idx");
+    expect(sql).toContain("execution_mode <> 'draft' OR run_id IS NULL");
+  });
+
+  it("uses an RLS-protected atomic rate window for remote MCP calls", async () => {
+    const sql = await readFile(new URL("../migrations/103_remote_mcp_rate_limits.sql", import.meta.url), "utf8");
+    expect(sql).toContain("agent_mcp_provider_rate_windows");
+    expect(sql).toContain("PRIMARY KEY (provider_id, window_started_at)");
+    expect(sql).toContain("ALTER TABLE agent_mcp_provider_rate_windows ENABLE ROW LEVEL SECURITY");
+    expect(sql).toContain("ALTER TABLE agent_mcp_provider_rate_windows FORCE ROW LEVEL SECURITY");
   });
 
   it("defines hosted-agent creation profiles", async () => {

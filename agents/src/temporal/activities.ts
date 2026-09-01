@@ -62,6 +62,9 @@ import { runWithRequiredDatabaseContext, type DatabaseContext } from "../db/cont
 import { durableAgentLoopCheckpoint, readDurableAgentLoopCheckpoint } from "../runtime/loop-checkpoint";
 import { createDecomposedActivities } from "./decomposed-activities";
 import type { DecomposedAgentRunActivities } from "./decomposed-contracts";
+import { SkillRepository } from "../db/repositories/skill-repository";
+import { matchSkills, renderSkillInstructions } from "../skills/contracts";
+import { RemoteMcpProviderRepository } from "../db/repositories/remote-mcp-provider-repository";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -73,6 +76,8 @@ export interface ActivityOptions {
   config?: AppConfig;
   conversationActions?: ConversationActionService;
   integrationTools?: IntegrationToolService;
+  skills?: SkillRepository;
+  remoteMcpProviders?: RemoteMcpProviderRepository;
 }
 
 export function normalizeConnectionFilter(value: unknown): string | undefined {
@@ -1792,6 +1797,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const conversations = new ConversationRepository(pool);
   const memory = new MemoryRepository(pool);
   const knowledge = new KnowledgeRepository(pool);
+  const skills = options.skills ?? new SkillRepository(pool);
   const toolInvocations = new ToolInvocationRepository(pool);
   const runSteps = new RunStepRepository(pool);
   const toolGrants = new ToolGrantRepository(pool);
@@ -1819,6 +1825,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const conversationActions = options.conversationActions ?? new ConversationActionService(new HandoffRepository(pool), controls);
   const handoffs = new HandoffRepository(pool);
   const integrationRepository = options.config ? new IntegrationRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY) : undefined;
+  const remoteMcpProviders = options.remoteMcpProviders ?? new RemoteMcpProviderRepository(pool, integrationRepository ? (organizationId, credentialReference) => integrationRepository.resolveCredential(organizationId, credentialReference) : undefined);
   const integrationTools = options.integrationTools ?? (integrationRepository ? new IntegrationToolService(integrationRepository, options.config) : undefined);
   const tools = options.tools ?? createDefaultTools(coreClient, conversationActions, integrationTools, memory);
   const decomposedActivities = createDecomposedActivities({
@@ -1828,6 +1835,8 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     conversations,
     memory,
     knowledge,
+    skills,
+    remoteMcpProviders,
     toolInvocations,
     runSteps,
     toolGrants,
@@ -1906,7 +1915,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           coreClient,
         );
       }
-      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, runBudgets, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, runBudgets, conversations, memory, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true);
     },
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
@@ -2520,6 +2529,8 @@ async function executeLoopForRun(
   conversations: ConversationRepository,
   memory: MemoryRepository,
   knowledge: KnowledgeRepository,
+  skills: SkillRepository,
+  remoteMcpProviders: RemoteMcpProviderRepository,
   toolInvocations: ToolInvocationRepository,
   approvals: ApprovalRepository,
   effectReceipts: EffectReceiptRepository,
@@ -2619,6 +2630,7 @@ async function executeLoopForRun(
   );
   const grantedTools = await toolGrants.effectiveTools(run.organization_id, run.agent_version_id, run.installation_id);
   const allowedTools = new Set([...policyTools].filter((toolName) => grantedTools.has(toolName)));
+  for (const toolName of await remoteMcpProviders.registerPinnedTools(run.organization_id, run.agent_version_id, tools)) allowedTools.add(toolName);
   if (await killSwitches.isBlocked({ organizationId: run.organization_id, agentId: run.agent_definition_id, installationId: run.installation_id, toolNames: [...allowedTools] })) {
     throw new Error("AGENT_KILL_SWITCH_ACTIVE");
   }
@@ -2682,6 +2694,16 @@ async function executeLoopForRun(
     }
     : undefined;
   const conversation = run.conversation_id ? await conversations.getConversation(run.organization_id, run.conversation_id) : null;
+  const pinnedSkills = await skills.loadPinnedVersions(run.organization_id, run.agent_version_id);
+  const installationConnectors = await installationGrants.effective(run.organization_id, run.installation_id);
+  const selectedSkills = matchSkills(pinnedSkills, {
+    text: currentMessage,
+    channel: conversation?.channel_type,
+    audience: run.agent_audience,
+    grantedCapabilities: allowedTools,
+    grantedConnectors: new Set(installationConnectors.connectors),
+  });
+  const skillInstructions = renderSkillInstructions(selectedSkills);
   const userAgentIdentityInstruction = run.execution_mode === "kasitek_hosted" && !isKasiAiInstallation
     ? [
       `Identity boundary (authoritative): You are the user-created agent "${run.agent_name?.trim() || "this agent"}".`,
@@ -2763,6 +2785,7 @@ async function executeLoopForRun(
         : run.instructions.replace(/You are a general-purpose KasiTek workspace assistant\.\s*/gi, ""),
       preferenceInstruction,
       userAgentIdentityInstruction,
+      skillInstructions,
       "Media delivery is a shared harness capability across every hosted agent and channel. Use kasitek.agent.respond for final responses containing workspace media, passing stable asset IDs and kinds. Keep provider URLs and raw bytes out of durable responses; the channel adapter resolves the appropriate preview, upload, or native attachment at delivery time.",
     ].filter(Boolean).join("\n\n"),
     organizationId: run.organization_id,

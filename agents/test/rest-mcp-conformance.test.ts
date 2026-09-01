@@ -140,8 +140,8 @@ describe("Agent REST and MCP conformance matrices", () => {
   it("guards every mounted /v1 route before parsing input or touching dependencies", async () => {
     const routes = await mountedAgentRoutes();
     const protectedRoutes = routes.filter((route) => route.path.startsWith("/v1/") && route.path !== "/v1/installation-tokens/exchange" && !isPublicOAuthCallback(route));
-    expect(routes).toHaveLength(177);
-    expect(protectedRoutes).toHaveLength(170);
+    expect(routes).toHaveLength(195);
+    expect(protectedRoutes).toHaveLength(188);
 
     const app = buildApp({ config, pool: fakePool });
     try {
@@ -164,7 +164,7 @@ describe("Agent REST and MCP conformance matrices", () => {
       && !isPublicOAuthCallback(route)
       && !isPublicApiTransport(route),
     );
-    expect(directRoutes).toHaveLength(163);
+    expect(directRoutes).toHaveLength(181);
 
     const app = buildApp({ config: hmacConfig, pool: fakePool });
     try {

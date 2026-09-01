@@ -1147,6 +1147,34 @@ export class AgentRepository {
           [organizationId, created.rows[0]!.id, toolName.trim(), actorId],
         );
       }
+      const effectivePolicy = effectiveInput.policy as Record<string, unknown>;
+      const requestedSkillIds = [...new Set(
+        Array.isArray(effectivePolicy.allowedSkillIds)
+          ? effectivePolicy.allowedSkillIds.filter((skillId): skillId is string => typeof skillId === "string")
+          : [],
+      )];
+      if (requestedSkillIds.length) {
+        const pinned = await client.query(
+          `INSERT INTO agent_version_skills (organization_id, agent_version_id, skill_version_id, pinned_by)
+           SELECT $1, $2, latest.id, $3
+           FROM unnest($4::text[]) requested(skill_id)
+           JOIN agent_skill_definitions definition ON definition.id::text = requested.skill_id
+           CROSS JOIN LATERAL (
+             SELECT version.id
+             FROM agent_skill_versions version
+             WHERE version.skill_definition_id = definition.id
+               AND version.status = 'published'
+             ORDER BY version.version_number DESC
+             LIMIT 1
+           ) latest
+           WHERE definition.status = 'published'
+             AND (definition.organization_id = $1 OR definition.owner_type = 'platform')
+           ON CONFLICT (agent_version_id, skill_version_id) DO NOTHING
+           RETURNING skill_version_id`,
+          [organizationId, created.rows[0]!.id, actorId, requestedSkillIds],
+        );
+        if (pinned.rowCount !== requestedSkillIds.length) throw new Error("SKILL_VERSION_UNAVAILABLE");
+      }
       return created.rows[0]!;
     });
   }

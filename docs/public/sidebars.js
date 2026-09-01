@@ -43,6 +43,8 @@ const sidebars = {
       items: [
         "api/public-v1",
         "api/agent-connection-guide",
+        "api/agent-spec",
+        "api/agent-composition",
         "api/agent-rest",
         "api/mcp-integration",
       ],

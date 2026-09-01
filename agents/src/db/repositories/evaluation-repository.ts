@@ -24,6 +24,7 @@ export interface EvaluationRunRecord {
   scenario_id: string;
   agent_version_id: string | null;
   run_id: string | null;
+  execution_mode: "observed" | "draft";
   status: string;
   evaluator_version: string;
   result: Record<string, unknown>;
@@ -72,19 +73,21 @@ export class EvaluationRepository {
     scenarioId: string;
     agentVersionId?: string;
     runId?: string;
+    executionMode?: "observed" | "draft";
     status: "pending" | "running" | "passed" | "failed" | "error";
     evaluatorVersion: string;
     result: Record<string, unknown>;
     actorId: string;
   }): Promise<EvaluationRunRecord> {
+    if (input.executionMode === "draft" && input.runId) throw new Error("DRAFT_EVALUATION_CANNOT_REFERENCE_LIVE_RUN");
     const result = await query<EvaluationRunRecord>(
       this.pool,
       `INSERT INTO evaluation_runs
-        (organization_id, scenario_id, agent_version_id, run_id, status, evaluator_version, result, finished_at, created_by)
-       SELECT $1, es.id, $3, $4, $5, $6, $7::jsonb, now(), $8
+        (organization_id, scenario_id, agent_version_id, run_id, execution_mode, status, evaluator_version, result, finished_at, created_by)
+       SELECT $1, es.id, $3, $4, $5, $6, $7, $8::jsonb, now(), $9
        FROM evaluation_scenarios es WHERE es.id = $2 AND es.organization_id = $1 AND es.status = 'active'
        RETURNING *`,
-      [input.organizationId, input.scenarioId, input.agentVersionId ?? null, input.runId ?? null, input.status, input.evaluatorVersion, JSON.stringify(input.result), input.actorId],
+      [input.organizationId, input.scenarioId, input.agentVersionId ?? null, input.runId ?? null, input.executionMode ?? "observed", input.status, input.evaluatorVersion, JSON.stringify(input.result), input.actorId],
     );
     if (!result.rows[0]) throw new Error("Evaluation scenario not found");
     return result.rows[0];

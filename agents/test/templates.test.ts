@@ -47,11 +47,13 @@ describe("agent templates", () => {
     expect(() => parseTemplateSettings({ tone: "balanced", systemPrompt: "override" })).toThrow();
   });
 
-  it("keeps template policy and configuration server-owned", () => {
+  it("compiles templates into the typed version contract", () => {
     const template = listAgentTemplates()[0]!;
     const version = templateVersionInput(template, { tone: "detailed" });
     expect(version.instructions).toContain("Preferred response tone: detailed.");
-    expect(version.configuration).toEqual(template.configuration);
-    expect(version.policy).toEqual(template.policy);
+    expect(version.configuration).toMatchObject({ specVersion: 1, agentSpec: { identity: { audience: template.audience }, model: { primary: { provider: "openrouter" } } } });
+    expect(version.configuration.workflow).toEqual(template.configuration.workflow);
+    expect(version.configuration.maxIterations).toBe(template.policy.maxIterations);
+    expect(version.policy).toMatchObject({ allowedTools: template.policy.allowedTools, requiredCapabilities: template.requiredCapabilities });
   });
 });

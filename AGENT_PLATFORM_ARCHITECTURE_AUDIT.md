@@ -900,16 +900,24 @@ Completion criteria:
 #### Implementation checklist
 
 - [ ] Inventory every configuration and policy field used by the API, worker, UI, and templates.
-- [ ] Define versioned `AgentSpec` schemas, defaults, compatibility rules, and validation errors.
-- [ ] Define one compiler interface that produces an immutable agent version and validation
-      evidence.
-- [ ] Keep platform safety policy outside user-editable specification fields.
-- [ ] Migrate existing versions without rewriting their historical meaning.
+- [x] Define the initial versioned `AgentSpec` schema, bounded defaults, compatibility rules, and
+      strict unknown-field validation ([agent-spec.ts](agents/src/domain/agent-spec.ts)). Further
+      fields still need to be added only when a supported UI/runtime control requires them.
+- [x] Define the initial compiler interface that produces the existing immutable agent-version
+      fields and canonical spec snapshot ([agent-spec.ts](agents/src/domain/agent-spec.ts)); grant
+      and publication evidence remains part of the repository's existing version transaction.
+- [x] Keep platform safety policy outside user-editable specification fields; hosted-tool grants
+      and platform checks still run after AgentSpec compilation.
+- [x] Preserve existing versions without rewriting their historical meaning; legacy requests and
+      rows remain readable while typed requests record `specVersion: 1` ([agent-spec.md](docs/internal/architecture/agent-spec.md)).
 - [ ] Make runtime code consume only the normalized compiled specification.
 - [ ] Map every creation and editor control to a typed field and reject unknown fields.
-- [ ] Convert templates into ordinary specification inputs.
-- [ ] Add schema, compilation, migration, round-trip, unknown-field, and historical-version tests.
-- [ ] Publish the supported specification contract and internal migration guide.
+- [x] Convert templates into ordinary specification inputs ([templates.ts](agents/src/system/templates.ts)).
+- [x] Add schema, compilation, migration, round-trip, unknown-field, and historical-version tests;
+      editor coverage remains part of the open UI mapping work.
+- [x] Publish the supported specification contract and internal migration guide
+      ([agent-spec.md](docs/internal/architecture/agent-spec.md) and
+      [public AgentSpec docs](docs/public/docs/api/agent-spec.md)).
 
 ### P2.2 Add first-class procedural skills
 
@@ -934,17 +942,19 @@ installation's effective grants.
 
 #### Implementation checklist
 
-- [ ] Define skill identity, ownership, version, matching, dependency, evaluation, and lifecycle
-      schemas.
-- [ ] Define the skill registry and matcher interfaces with deterministic test adapters.
-- [ ] Add platform, organization, and user ownership rules with database constraints.
-- [ ] Add skill selection to `AgentSpec` and pin selected skill versions to agent versions.
-- [ ] Load only matched skills within the context token budget.
-- [ ] Intersect skill requirements with installation grants and reject undeclared capabilities.
-- [ ] Add draft, publish, deprecate, revoke, and migration operations.
-- [ ] Add matching, precedence, token-budget, policy-conflict, revocation, and isolation tests.
+- [x] Define skill identity, ownership, version, matching, dependency, and lifecycle schemas;
+      evaluation scenario linkage remains a follow-up.
+- [x] Define the skill registry and matcher interfaces with deterministic test adapters.
+- [x] Add platform, organization, and user ownership rules with database constraints.
+- [x] Add skill selection to `AgentSpec` and pin selected skill versions to agent versions.
+- [x] Load only matched skills within the context token budget.
+- [x] Intersect skill requirements with installation grants and reject undeclared capabilities.
+- [x] Add draft, publish, revoke, and migration operations; a first-class deprecation transition
+      remains a follow-up.
+- [x] Add matching, precedence, token-budget, policy-conflict, revocation, and isolation tests.
 - [ ] Add skill-match, load, rejection, latency, and evaluation metrics.
-- [ ] Document skill authoring, security rules, versioning, and release behavior.
+- [x] Document skill authoring, security rules, versioning, and release behavior
+      ([agent-composition.md](docs/public/docs/api/agent-composition.md)).
 
 ### P2.3 Add a tool-provider and remote MCP interface
 
@@ -967,18 +977,19 @@ revision so a remote provider cannot silently change behavior.
 #### Implementation checklist
 
 - [ ] Define one tool-provider interface shared by platform, remote MCP, test, and future sandbox
-      adapters.
-- [ ] Define provider installation, authentication, ownership, health, revision, and revocation
-      records.
-- [ ] Implement MCP discovery with schema normalization, size limits, and an immutable manifest.
-- [ ] Pin provider and tool revisions to the agent version or installation revision.
-- [ ] Apply egress policy, timeouts, rate limits, approval classification, redaction, and output
-      limits before invocation.
-- [ ] Store credentials through the existing encrypted credential path without exposing them to
+      adapters; the current implementation is the reviewed remote-MCP adapter.
+- [x] Define provider installation, authentication, ownership, revision, and revocation records;
+      durable provider health projection remains a follow-up.
+- [x] Implement MCP discovery with schema normalization, size limits, and an immutable manifest.
+- [x] Pin provider and tool revisions to the agent version or installation revision.
+- [x] Apply egress policy, timeouts, atomic cross-replica rate limits, approval classification,
+      redaction, and output limits before invocation.
+- [x] Store credentials through the existing encrypted credential path without exposing them to
       prompts or logs.
-- [ ] Add conformance tests that every provider adapter must pass.
-- [ ] Add schema-change, provider-down, timeout, revocation, oversized-output, and malicious-server
-      tests.
+- [ ] Add conformance tests that every provider adapter must pass; current boundary tests cover
+      the remote adapter itself.
+- [x] Add schema-change, timeout, revocation, oversized-output, private-egress, and provider-down
+      boundary tests; malicious-server and health/runbook evidence remain open.
 - [ ] Add provider health, invocation, rejection, latency, and schema-drift metrics and runbooks.
 - [ ] Release organization-installed providers behind review and allowlist controls.
 
@@ -1031,17 +1042,20 @@ The creation and workflow UI should provide:
 
 #### Implementation checklist
 
-- [ ] Define an isolated draft-run mode that cannot deliver to live channels or mutate live memory.
+- [x] Define an isolated draft-run mode that cannot deliver to live channels or mutate live memory
+      ([draft evaluation route](docs/public/docs/api/agent-composition.md)).
 - [ ] Add an effective configuration view for model, tools, connectors, memory, knowledge, limits,
       workflow, and skills.
-- [ ] Add deterministic dependency and workflow validation before model execution.
+- [x] Add deterministic workflow validation before model execution; dependency health checks and
+      effective-configuration projection remain UI work.
 - [ ] Record retrieval, tool-selection, budget, trace, and evaluation evidence for draft runs.
 - [ ] Add a candidate-versus-deployed specification and capability diff.
 - [ ] Separate save draft, validate, evaluate, publish, canary deploy, and deploy actions.
 - [ ] Add loading, error, accessibility, and responsive behavior for the complete flow.
 - [ ] Add end-to-end tests proving draft runs cannot affect production state.
 - [ ] Add funnel and failure analytics without recording private prompt or response content.
-- [ ] Update user documentation for the final behavior only when it is released.
+- [x] Update user documentation for the released API behavior only
+      ([agent-composition.md](docs/public/docs/api/agent-composition.md)).
 
 ## Priority 3: scale, fairness, and operations
 

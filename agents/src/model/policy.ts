@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { isModelProvider, MODEL_PROVIDERS, type ModelProvider } from "./types";
 
-const modelTargetSchema = z.object({ provider: z.enum([...MODEL_PROVIDERS]), model: z.string().trim().min(1).max(240) });
+const modelTargetSchema = z.object({ provider: z.enum([...MODEL_PROVIDERS]), model: z.string().trim().min(1).max(240) }).strict();
 
 export const modelPolicySchema = z.object({
   version: z.string().trim().min(1).max(80),
@@ -56,7 +56,15 @@ export interface ResolvedModelTarget {
 export function resolveModelTarget(configuration: Record<string, unknown>, policy: Record<string, unknown>): ResolvedModelTarget {
   const candidate = normalizeModelPolicy(policy).modelPolicy;
   if (candidate && typeof candidate === "object") {
-    const parsed = modelPolicySchema.parse(candidate);
+    const candidateRecord = candidate as Record<string, unknown>;
+    const primary = candidateRecord.primary;
+    const validationCandidate = primary && typeof primary === "object" && !Array.isArray(primary)
+      ? {
+        ...candidateRecord,
+        primary: Object.fromEntries(Object.entries(primary).filter(([key]) => key !== "name")),
+      }
+      : candidate;
+    const parsed = modelPolicySchema.parse(validationCandidate);
     return {
       provider: parsed.primary.provider,
       model: parsed.primary.model,

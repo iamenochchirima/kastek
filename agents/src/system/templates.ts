@@ -1,6 +1,8 @@
 import { z } from "zod";
+import { compileAgentSpec } from "../domain/agent-spec";
 import type { CreateVersionInput } from "../domain/types";
 import { CUSTOMER_SERVICE_HANDOFF_TOOL } from "./hosted-agent-defaults";
+import { MODEL_PROVIDER_DEFINITIONS } from "../model/providers";
 
 export interface AgentTemplateDefinition {
   key: string;
@@ -166,11 +168,28 @@ export function getAgentTemplate(key: string): AgentTemplateDefinition | undefin
 
 export function templateVersionInput(template: AgentTemplateDefinition, settings: Record<string, unknown>): CreateVersionInput {
   const { tone } = templateSettingsSchema.parse(settings);
-  return {
-    instructions: `${template.instructions}\nPreferred response tone: ${tone}.`,
-    configuration: { ...template.configuration },
-    policy: { ...template.policy },
-  };
+  const compiled = compileAgentSpec({
+    specVersion: 1,
+    identity: { displayName: template.name, purpose: template.description, audience: template.audience },
+    behavior: { instructions: `${template.instructions}\nPreferred response tone: ${tone}.` },
+    model: {
+      version: `template-${template.version}`,
+      primary: { provider: "openrouter", model: MODEL_PROVIDER_DEFINITIONS.openrouter.defaultModel },
+    },
+    runtime: {
+      maxIterations: typeof template.policy.maxIterations === "number" ? template.policy.maxIterations : undefined,
+      maxToolCalls: typeof template.policy.maxToolCalls === "number" ? template.policy.maxToolCalls : undefined,
+      maxContextMessages: typeof template.configuration.maxContextMessages === "number" ? template.configuration.maxContextMessages : undefined,
+      maxContextTokens: typeof template.configuration.maxContextTokens === "number" ? template.configuration.maxContextTokens : undefined,
+      maxModelCalls: typeof template.configuration.maxModelCalls === "number" ? template.configuration.maxModelCalls : undefined,
+      maxTotalTokens: typeof template.configuration.maxTotalTokens === "number" ? template.configuration.maxTotalTokens : undefined,
+    },
+    capabilities: { allowedTools: template.policy.allowedTools, requiredCapabilities: template.requiredCapabilities },
+    knowledge: { requiredConnections: template.requiredConnections },
+    workflow: { graph: template.configuration.workflow },
+    channels: { allowed: template.channelCompatibility },
+  });
+  return compiled;
 }
 
 export function parseTemplateSettings(settings: Record<string, unknown>): Record<string, unknown> {

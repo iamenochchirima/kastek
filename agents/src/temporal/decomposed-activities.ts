@@ -38,6 +38,9 @@ import {
   type DecomposedModelActivityInput,
 } from "./decomposed-contracts";
 import { readDecomposedLoopState, type DecomposedLoopState } from "./decomposed-state";
+import type { SkillRepository } from "../db/repositories/skill-repository";
+import { matchSkills, renderSkillInstructions } from "../skills/contracts";
+import type { RemoteMcpProviderRepository } from "../db/repositories/remote-mcp-provider-repository";
 
 export interface DecomposedActivityDependencies {
   runs: RunRepository;
@@ -46,6 +49,8 @@ export interface DecomposedActivityDependencies {
   conversations: ConversationRepository;
   memory: MemoryRepository;
   knowledge: KnowledgeRepository;
+  skills?: SkillRepository;
+  remoteMcpProviders?: RemoteMcpProviderRepository;
   toolInvocations: ToolInvocationRepository;
   runSteps: RunStepRepository;
   toolGrants: ToolGrantRepository;
@@ -414,8 +419,18 @@ async function buildInitialState(deps: DecomposedActivityDependencies, run: Runt
   const retrieval = await new RetrievalService(new MemoryLifecycle(deps.memory), deps.knowledge).retrieve({ organizationId: run.organization_id, agentId: run.agent_definition_id, installationId: run.installation_id, conversationId: run.conversation_id ?? undefined, actorId: run.created_by }, inputMessage, run.policy, { always: run.installation_settings?.profile === "general" });
   const longTermMemory = retrieval.evidence.map((entry) => entry.sourceType === "memory" ? `[memory:${entry.namespace ?? "unknown"}:${entry.rank}] ${entry.text}` : `[knowledge:${entry.sourceId ?? "unknown"}:${entry.chunkIndex ?? 0}:${entry.rank}] ${entry.text}`).join("\n");
   const allowedTools = runtime.allowedTools;
+  const pinnedSkills = deps.skills ? await deps.skills.loadPinnedVersions(run.organization_id, run.agent_version_id) : [];
+  const installationConnectors = await deps.installationGrants.effective(run.organization_id, run.installation_id);
+  const selectedSkills = matchSkills(pinnedSkills, {
+    text: inputMessage,
+    channel: conversation?.channel_type,
+    audience: run.agent_audience,
+    grantedCapabilities: allowedTools,
+    grantedConnectors: new Set(installationConnectors.connectors),
+  });
+  const skillInstructions = renderSkillInstructions(selectedSkills);
   const context = buildAgentContext({
-    instructions: run.instructions,
+    instructions: [run.instructions, skillInstructions].filter(Boolean).join("\n\n"),
     organizationId: run.organization_id,
     agentId: run.agent_definition_id,
     agentVersionId: run.agent_version_id,
@@ -510,6 +525,7 @@ async function loadRuntime(deps: DecomposedActivityDependencies, run: RuntimeRun
   const policyTools = new Set(Array.isArray(run.policy.allowedTools) ? run.policy.allowedTools.filter((value): value is string => typeof value === "string") : []);
   const grantedTools = await deps.toolGrants.effectiveTools(run.organization_id, run.agent_version_id, run.installation_id);
   const allowedTools = new Set([...policyTools].filter((name) => grantedTools.has(name)));
+  for (const toolName of await deps.remoteMcpProviders?.registerPinnedTools(run.organization_id, run.agent_version_id, deps.tools) ?? []) allowedTools.add(toolName);
   for (const toolName of AGENT_MEDIA_HARNESS_TOOLS) allowedTools.add(toolName);
   if (await deps.killSwitches.isBlocked({ organizationId: run.organization_id, agentId: run.agent_definition_id, installationId: run.installation_id, toolNames: [...allowedTools] })) throw new Error("AGENT_KILL_SWITCH_ACTIVE");
   if (!(await deps.controls.isFeatureEnabled(run.organization_id, "agent_execution_enabled", run.installation_id))) throw new Error("AGENT_EXECUTION_FLAG_DISABLED");
