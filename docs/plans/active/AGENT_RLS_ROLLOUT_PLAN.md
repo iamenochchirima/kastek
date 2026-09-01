@@ -172,8 +172,8 @@ the release if an unclassified legacy row is found.
 Affected services and user surfaces: Agents PostgreSQL, agents-api, agents-worker, memory retrieval,
 knowledge ingestion, and operator database diagnostics.
 
-Platform release version or release ID: pending implementation commit and production migration
-evidence.
+Platform release version or release ID: implementation commit `8fea9fae`; production migration
+`095` is recorded in the Agents database.
 
 API/schema/migration changes: additive migration 095 validates existing constraints from migration
 057; it does not change the ownership rules or delete rows.
@@ -191,8 +191,9 @@ dedicated alert for future ownership-audit failures remains open.
 User, API, internal, and operational documentation: update the tenant isolation inventory and
 architecture audit with the final migration evidence.
 
-Validation evidence: pending local migration test, production migration, and post-deploy smoke
-checks.
+Validation evidence: migration test passed (`31 tests`); production migration 095 applied
+successfully; production reported zero `NOT VALID` constraints and latest migration `095`; Agents
+API live/readiness and MCP Gateway readiness checks returned `200`.
 
 Rollback or disable plan: stop before applying migration 095 if the audit finds invalid rows;
 quarantine or repair those rows through a reviewed administrative procedure. Constraint validation

@@ -1240,15 +1240,17 @@ KasiTek should retain its stronger platform features around that anatomy:
 - [ ] Add conversation extraction and consolidation.
 - [ ] Replace the regex retrieval gate.
 - [ ] Enable hybrid keyword and vector retrieval.
-- [ ] Validate legacy ownership constraints.
+- [x] Validate legacy ownership constraints; migration 095 records the three memory/knowledge
+      ownership-presence constraints as validated after the production audit found zero invalid
+      rows.
 - [x] Add the four staged RLS tranches and restricted-role negative isolation tests for runtime
       table groups; `schema_migrations` remains administrative and privilege-revoked
       ([091_memory_knowledge_rls.sql](agents/migrations/091_memory_knowledge_rls.sql),
       [092_conversation_run_rls.sql](agents/migrations/092_conversation_run_rls.sql),
       [093_identity_credentials_effects_rls.sql](agents/migrations/093_identity_credentials_effects_rls.sql),
       [094_control_plane_and_lifecycle_rls.sql](agents/migrations/094_control_plane_and_lifecycle_rls.sql)).
-- [ ] Validate legacy ownership constraints and complete negative coverage for every background
-      process type.
+- [x] Validate legacy ownership constraints ([095_validate_agent_context_constraints.sql](agents/migrations/095_validate_agent_context_constraints.sql)).
+- [ ] Complete negative coverage for every background process type.
 
 - [ ] Exit evidence recorded: agents learn only under declared policy, retrieve relevant evidence,
       and cannot access another agent's private data if an application query omits a tenant
@@ -1312,6 +1314,9 @@ KasiTek should retain its stronger platform features around that anatomy:
   restricted-role tests; the production probe showed tenant-specific sidecars/outbox visibility
   and operator-only control-plane visibility. The API live/ready and Gateway ready checks returned
   `200`; the worker reached `RUNNING` after the same successful deployments.
+- Ownership validation migration `095` is recorded in production. The production legacy-row audit
+  found zero invalid memory/source/chunk ownership-presence rows; all three previously `NOT VALID`
+  constraints now report validated, and Agents API/Gateway health checks remained `200`.
 
 Passing tests do not invalidate the verified findings. The current suite does not cover those
 contracts.
