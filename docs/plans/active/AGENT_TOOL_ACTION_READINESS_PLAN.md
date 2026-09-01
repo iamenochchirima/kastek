@@ -115,7 +115,7 @@ human approval, and provider execution remain separate checks.
 - [ ] Add regression coverage for the browser API-base choice.
 - [ ] Verify the analytics request contract against the production reporting service from an
       authenticated browser session and record the actual remaining failure cause if one persists.
-- [ ] Update the release record with validation, deployment artifacts, telemetry, and rollback.
+- [x] Update the release record with validation, deployment artifacts, telemetry, and rollback.
 
 ## Proposed contract
 
@@ -390,3 +390,60 @@ healthy responses. A real WhatsApp-to-Instagram provider smoke test remains pend
 
 Post-release monitoring: inspect the next WhatsApp image publish for a confirmed Instagram result;
 if it fails, use the Core provider response and container status path rather than claiming success.
+
+## Release record: provider-aware publish failures and browser API routing
+
+Change: Replace the approved-publish connection catch-all with provider-aware terminal messages,
+and preserve the explicitly configured direct browser-to-Core API path as the default. The Next
+proxy remains available only when `NEXT_PUBLIC_USE_API_PROXY=true` and its server-side Core
+reachability has been verified.
+
+Owner: Agent Platform, Core integrations, and Client Platform.
+
+Risk: standard; the Agent change is response classification only, while the client correction
+prevents an unverified proxy path from becoming the default for dashboard requests.
+
+Affected services and user surfaces: Agents Worker approved-tool responses, WhatsApp agent
+transcripts, Connections analytics, and all browser client requests using the shared API helper.
+
+Platform release version or release ID: commits `4f22d9cc` (`fix: surface provider publish
+failures accurately`) and `b57387d2` (`fix: keep direct browser api path by default`). Railway
+Agents Worker deployment `6f4bb24f-04c8-4707-bf0b-bff8f777a0be` reached `SUCCESS`. Vercel client
+deployment `dpl_7cyvo7UftBWMCepVfUj4SWdT34mf` reached `READY` and is aliased to
+`https://app.kasitek.co.za`.
+
+API/schema/migration changes: no API, database schema, or migration changes. The client proxy
+returns a bounded `503 api_proxy_unavailable` response when explicitly enabled and unreachable.
+
+Feature flag or rollout method: no new flag. Existing `NEXT_PUBLIC_USE_API_PROXY` is opt-in for
+the proxy; production browser traffic uses the configured Core origin. Rollback is a redeploy of
+the previous client artifact and/or Agents Worker artifact.
+
+Analytics events and success metrics: not applicable; no new event contract. Existing tool
+invocation, provider-call, and channel-delivery records remain the evidence. The key failure
+signal is that a provider/media failure is no longer reported as a connection failure.
+
+Logs, metrics, dashboards, and alerts: no sensitive logging added. Core health returned HTTP 200;
+the production Core analytics route returned the expected unauthenticated HTTP 401 and included
+`Access-Control-Allow-Origin: https://app.kasitek.co.za`. A Vercel proxy probe returned the
+bounded 503 and did not create a Core request, so proxy use remains disabled by default pending a
+server-side reachability decision.
+
+User, API, internal, and operational documentation: updated the connection-failure runbook and
+this plan. The user-visible Agent wording now distinguishes media readiness, missing publish
+access, provider media rejection, connection credentials, temporary provider outage, and unknown
+provider confirmation.
+
+Validation evidence: targeted Agent classification tests passed 3/3; the full Agent suite passed
+110 files with 659 passed and 27 skipped; the client production build passed; `git diff --check`
+passed; Agents Worker readiness returned `{"status":"ready","service":"agent-gateway"}`;
+the Vercel deployment reached `READY`. An authenticated Connections analytics smoke test remains
+pending because it requires the signed-in browser session; the direct production CORS boundary
+and unauthenticated route behavior were verified independently.
+
+Rollback or disable plan: keep `NEXT_PUBLIC_USE_API_PROXY` unset or false, redeploy the prior
+client artifact if the direct API path regresses, and redeploy the prior Agents Worker artifact
+if failure wording causes an issue. Do not delete connection, permission, or content records.
+
+Post-release review date: 2026-09-09, after the next controlled WhatsApp-to-Instagram publish
+attempt and an authenticated Connections analytics check.
