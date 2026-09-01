@@ -71,6 +71,24 @@ protected system-agent or operator workflows.
 - [ ] Execute and record the production rollback drill, durable alert notification, and post-release
       review evidence.
 
+## Verification record: restricted-role production probe
+
+Date: 2026-09-01.
+
+The four opt-in RLS integration suites were run through a local Railway database tunnel using the
+production Agents database and the production `kasitek_agents_app` restricted login. The
+administrative setup connection used the Railway database administrator only for ephemeral seeded
+fixtures. The run passed 14 assertions: memory/knowledge `3/3`, conversation/run `4/4`,
+identity/credentials/effects `4/4`, and control-plane/lifecycle `3/3`. Expected cross-tenant
+denials emitted `database.authorization.failed` with SQLSTATE `42501` and no SQL or tenant
+payload. A follow-up query found zero residual `rls-*` organization rows.
+
+The broad conversation/run visibility assertion took 37 seconds through the tunnel, so the
+production-equivalent command used a 120-second per-test timeout. This is test-harness transport
+latency, not an application timeout change. The source matrix still remains the guard for the
+complete 64-table inventory; the full background-process runtime exercise, durable alert
+notification, and rollback drill remain external release gates.
+
 ## Release record
 
 Change: Restricted Agents runtime database role and staged PostgreSQL RLS rollout.

@@ -1427,6 +1427,13 @@ KasiTek should retain its stronger platform features around that anatomy:
   production Agents container and returned `run_not_found` for a valid UUID; production currently
   has no `agent_runs`, so a real billed-run comparison has not yet been observed. The staged
   provider-billing comparison remains open.
+- RLS evidence follow-up `7264a353` passed the production restricted-role probe through a Railway
+  database tunnel: memory/knowledge `3/3`, conversation/run `4/4`, identity/credentials/effects
+  `4/4`, and control-plane/lifecycle `3/3`. The probe used ephemeral two-organization fixtures,
+  emitted expected SQLSTATE `42501` denial events without SQL or tenant payloads, and left zero
+  `rls-*` organization rows. The complete 64-table fixture inventory is guarded by the source
+  matrix; the background-process runtime exercise, durable alert notification, and rollback drill
+  remain external release gates.
 
 Passing tests do not invalidate the verified findings. The current suite does not cover those
 contracts.
