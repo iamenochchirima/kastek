@@ -83,9 +83,12 @@ loss must not be interpreted as proof that an external provider did not receive 
 
 ## Model-operation recovery
 
-Before a hosted model request, the worker claims a stable operation key such as
-`model:<iteration>:<attempt>` or `workflow:model:<node>`. The `model_calls` row is created as
-`started` before provider work:
+Before a hosted model request, the worker claims a stable, run-scoped operation key such as
+`activity:loop:<run-id>:<iteration>:<attempt>`,
+`workflow:agent-loop:<run-id>:<node>:<iteration>:<attempt>`, or
+`workflow:model:<run-id>:<node>`. The `model_calls` row is created as `started` before provider
+work. The run ID is required because `model_calls.operation_key` is globally unique; a key from a
+different run must fail closed rather than be treated as a replay:
 
 - `completed` stores the provider response and is replayed by a retry without another provider
   call;

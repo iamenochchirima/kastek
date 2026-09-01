@@ -63,10 +63,14 @@ continuation is versioned and fail-closed when malformed or oversized. It also r
 index and paused result metadata, so a retry after the worker is lost after the database write can
 replay the activity result without calling the provider or tool again.
 
-Model operations claim a stable operation key in `model_calls` and persist the provider response
-before budget and credit settlement; a completed operation is replayed without another provider
-request. A worker loss after the request starts can still leave the operation `started` with an
-unknown provider outcome, so it is stopped and sent to reconciliation rather than retried blindly.
+Model operations claim a stable, run-scoped operation key in `model_calls` and persist the provider
+response before budget and credit settlement; a completed operation is replayed without another
+provider request. Normal hosted-loop keys use the run ID plus the activity-slice checkpoint when
+present, and configured workflow keys use the run ID plus the node ID. A worker loss after the
+request starts can still leave the operation `started` with an unknown provider outcome, so it is
+stopped and sent to reconciliation rather than retried blindly. The run scope is part of the key
+because `model_calls.operation_key` is globally unique; omitting it would make two independent
+runs at the same iteration or node fail closed as a scope conflict.
 Tool invocations claim a stable `(run_id, provider_tool_call_id)` record. When a retry finds a
 completed record with the same tool name and argument hash, it reuses the persisted, redacted
 outcome before creating a new proposal or step, consuming tool budget, invoking the handler, or

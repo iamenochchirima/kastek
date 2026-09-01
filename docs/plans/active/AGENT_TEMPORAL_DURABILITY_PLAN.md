@@ -755,3 +755,49 @@ while the artifact is rolled back.
 Post-release review date: 2026-09-08; inspect the first platform-funded production run with a
 provider-reported cost, compare the report to the provider account record, and decide whether the
 remaining P0.4 staged billing gate can be closed.
+
+## Follow-up release record: run-scoped model operation keys
+
+Change: Include the durable Agent run ID in normal hosted-loop, workflow agent-loop, and direct
+workflow model operation keys. This prevents independent runs from claiming the same globally
+unique `model_calls.operation_key` while preserving replay for retries within one run.
+
+Owner: Agent Platform.
+
+Risk: standard; the change corrects idempotency scope at the worker boundary and leaves the
+fail-closed database ownership check unchanged.
+
+Affected services and user surfaces: agents-worker, ordinary hosted runs, configured workflows,
+model-call and run-budget ledgers, and customer-facing agent replies. Agents API and MCP-Gateway
+carry the shared artifact but have no direct model execution path.
+
+Platform release version or release ID: pending deployment from the current fix commit.
+
+API/schema/migration changes: not applicable; no API, schema, or migration changes.
+
+Feature flag or rollout method: no new flag. Deploy the exact tested Agents artifact to the worker
+and API; existing workflow and execution controls remain authoritative.
+
+Analytics events and success metrics: no new customer analytics event. Success is no new
+`MODEL_OPERATION_SCOPE_CONFLICT` for independent runs, correct replay for a retry within one run,
+and successful completion of a fresh production chat request.
+
+Logs, metrics, dashboards, and alerts: existing model-call failure, run lifecycle, budget, and
+reconciliation telemetry is sufficient; no Collector configuration change.
+
+User, API, internal, and operational documentation: updated this plan, the workflow execution
+architecture reference, and the Temporal recovery runbook. Public API documentation is not
+applicable.
+
+Validation evidence: operation-key regression tests passed; targeted runtime, loop-step, and
+Temporal fault-injection tests passed; the full Agents suite passed with 653 tests and 84
+integration tests skipped because no integration database or Temporal test address was configured;
+the Agents TypeScript build and `git diff --check` passed. Production deployment and fresh-chat
+verification remain open until the artifact is promoted.
+
+Rollback or disable plan: redeploy the previous successful Agents API/Worker artifact. No
+migration rollback or data repair is required; do not delete the conflicting historical
+`model_calls` row or weaken the ownership check.
+
+Post-release review date: 2026-09-08; review fresh-run completion, replay behavior, and any
+remaining model failure codes after deployment.

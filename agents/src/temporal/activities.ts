@@ -61,6 +61,7 @@ import { buildChannelMediaText, buildChannelUiFallback, channelUiNavigationButto
 import { channelMediaProfile } from "../media/profiles";
 import { runWithRequiredDatabaseContext, type DatabaseContext } from "../db/context";
 import { durableAgentLoopCheckpoint, readDurableAgentLoopCheckpoint } from "../runtime/loop-checkpoint";
+import { agentLoopOperationKeyPrefix, workflowAgentLoopOperationKeyPrefix, workflowModelOperationKey } from "../runtime/operation-keys";
 import { createDecomposedActivities } from "./decomposed-activities";
 import type { DecomposedAgentRunActivities } from "./decomposed-contracts";
 import { SkillRepository } from "../db/repositories/skill-repository";
@@ -3264,7 +3265,7 @@ async function executeLoopForRun(
           : Math.max(0, limits.maxModelCalls - usage.modelCalls);
         const loopResult = await runHostedAgentLoop({
           messages: [...context.messages, { role: "user", content: JSON.stringify({ nodeId, instruction, state }) }],
-          operationKeyPrefix: `workflow:agent-loop:${nodeId}`,
+          operationKeyPrefix: workflowAgentLoopOperationKeyPrefix(run.id, nodeId),
           parallelLeaseId,
           model: {
             maxTokens: typeof config.maxTokens === "number" ? Math.max(1, Math.min(8_000, Math.floor(config.maxTokens))) : undefined,
@@ -3324,7 +3325,7 @@ async function executeLoopForRun(
     dynamicUiEnabled,
     resumeUi: loopCheckpoint?.ui,
     signal: activitySignal,
-    operationKeyPrefix: stepExecutionEnabled ? `activity:loop:${run.id}:${loopCheckpoint?.iterations ?? 0}` : undefined,
+    operationKeyPrefix: agentLoopOperationKeyPrefix(run.id, stepExecutionEnabled ? (loopCheckpoint?.iterations ?? 0) : undefined),
     limits: {
       maxIterations: stepExecutionEnabled ? Math.min(1, remainingIterations) : (typeof configuration.maxIterations === "number" ? configuration.maxIterations : undefined),
       // A slice is bounded by one model iteration. Keep all tool calls returned by that
@@ -3855,7 +3856,7 @@ async function executeConfiguredWorkflow(input: {
         signal: currentActivitySignal(),
       };
       activityHeartbeat({ phase: "workflow.model.started", nodeId });
-      const operationKey = `workflow:model:${nodeId}`;
+      const operationKey = workflowModelOperationKey(input.run.id, nodeId);
       const prepared = await input.modelCalls.prepare({
         organizationId: input.run.organization_id,
         runId: input.run.id,
