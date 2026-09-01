@@ -1,4 +1,5 @@
 import type { ModelMessage } from "../model/types";
+import { agentUiSchema, type AgentUi } from "../media/dynamic-ui";
 import type { AgentLoopResult } from "./loop";
 
 export const AGENT_LOOP_CHECKPOINT_VERSION = 1;
@@ -14,6 +15,7 @@ export interface DurableAgentLoopCheckpoint {
   status?: "limited" | "awaiting_approval" | "awaiting_human" | "awaiting_external_event";
   pendingToolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown>; argumentsHash: string }>;
   waitingFor?: string;
+  ui?: AgentUi;
 }
 
 const MAX_CHECKPOINT_MESSAGES = 128;
@@ -40,6 +42,8 @@ export function readDurableAgentLoopCheckpoint(value: unknown): DurableAgentLoop
   const pendingToolCalls = readPendingToolCalls(record.pendingToolCalls);
   if (record.pendingToolCalls !== undefined && !pendingToolCalls) return undefined;
   if (record.waitingFor !== undefined && typeof record.waitingFor !== "string") return undefined;
+  const ui = record.ui === undefined ? undefined : agentUiSchema.safeParse(record.ui);
+  if (record.ui !== undefined && (!ui || !ui.success)) return undefined;
   return {
     version: AGENT_LOOP_CHECKPOINT_VERSION,
     messages,
@@ -49,12 +53,13 @@ export function readDurableAgentLoopCheckpoint(value: unknown): DurableAgentLoop
     ...(status === undefined ? {} : { status }),
     ...(pendingToolCalls === undefined ? {} : { pendingToolCalls }),
     ...(typeof record.waitingFor === "string" ? { waitingFor: record.waitingFor } : {}),
+    ...(ui?.success ? { ui: ui.data } : {}),
   };
 }
 
 export function durableAgentLoopCheckpoint(
   result: Pick<AgentLoopResult, "messages" | "iterations" | "toolCalls">
-    & Partial<Pick<AgentLoopResult, "status" | "pendingToolCalls" | "waitingFor">>,
+    & Partial<Pick<AgentLoopResult, "status" | "pendingToolCalls" | "waitingFor" | "ui">>,
   previous?: DurableAgentLoopCheckpoint,
   options: { stepIndex?: number } = {},
 ): DurableAgentLoopCheckpoint {
@@ -67,6 +72,7 @@ export function durableAgentLoopCheckpoint(
     ...(result.status === "limited" || result.status === "awaiting_approval" || result.status === "awaiting_human" || result.status === "awaiting_external_event" ? { status: result.status } : {}),
     ...(result.pendingToolCalls ? { pendingToolCalls: result.pendingToolCalls } : {}),
     ...(result.waitingFor ? { waitingFor: result.waitingFor } : {}),
+    ...(result.ui ? { ui: result.ui } : {}),
   } satisfies DurableAgentLoopCheckpoint;
   if (checkpoint.messages.length > MAX_CHECKPOINT_MESSAGES || checkpoint.messages.reduce((total, message) => total + message.content.length, 0) > MAX_CHECKPOINT_CHARACTERS) {
     throw new Error("AGENT_LOOP_CHECKPOINT_TOO_LARGE");

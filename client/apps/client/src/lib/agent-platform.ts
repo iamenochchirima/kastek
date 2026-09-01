@@ -12,6 +12,73 @@ export type AgentInstallation = {
   settings?: Record<string, unknown>;
 };
 
+export type AgentUiAction = {
+  id: string;
+  label: string;
+  kind: "navigate" | "follow_up" | "refresh" | "submit" | "resume";
+  href?: string;
+  prompt?: string;
+  targetId?: string;
+  eventKey?: string;
+  expiresAt?: string;
+};
+
+export type AgentUiBlock =
+  | {
+      type: "summary";
+      id: string;
+      title?: string;
+      items: Array<{ label: string; value: string; status?: "success" | "warning" | "danger" | "neutral" }>;
+    }
+  | {
+      type: "list";
+      id: string;
+      title?: string;
+      items: Array<{ id?: string; title: string; description?: string; meta?: string; status?: "success" | "warning" | "danger" | "neutral" }>;
+      emptyText?: string;
+      actions?: AgentUiAction[];
+    }
+  | {
+      type: "progress";
+      id: string;
+      title?: string;
+      steps: Array<{ label: string; status: "pending" | "active" | "complete" | "error"; detail?: string }>;
+    }
+  | {
+      type: "workspace";
+      id: string;
+      workspace: "connections" | "content" | "report" | "agent_creation";
+      title: string;
+      description: string;
+      href: string;
+      actions?: AgentUiAction[];
+    }
+  | {
+      type: "form";
+      id: string;
+      title?: string;
+      description?: string;
+      fields: Array<
+        | { id: string; label: string; type: "text" | "textarea"; description?: string; placeholder?: string; required?: boolean; maxLength?: number }
+        | { id: string; label: string; type: "select"; description?: string; required?: boolean; options: Array<{ id: string; label: string; value?: string }> }
+        | { id: string; label: string; type: "checkbox"; description?: string; required?: boolean }
+      >;
+      actions: AgentUiAction[];
+    }
+  | {
+      type: "choice";
+      id: string;
+      title?: string;
+      description?: string;
+      options: Array<{ id: string; label: string; description?: string; value?: string }>;
+    };
+
+export type AgentDynamicUi = {
+  version: "1";
+  mode: "inline" | "expanded";
+  blocks: AgentUiBlock[];
+};
+
 export type AgentWebsiteDeployment = {
   id: string;
   publicId: string;
@@ -46,7 +113,12 @@ export type AgentMessage = {
   conversation_id: string;
   direction: "inbound" | "outbound" | "system";
   message_type: string;
-  content: { text?: string; [key: string]: unknown };
+  content: {
+    text?: string;
+    authorizationRequired?: AgentAuthorizationRequirement;
+    ui?: AgentDynamicUi;
+    [key: string]: unknown;
+  };
   sequence_number: string | number;
   created_at: string;
   run_id?: string | null;
@@ -60,6 +132,17 @@ export type AgentMessage = {
   external_conversation_id?: string | null;
   occurred_at?: string;
   delivery_status?: "local" | "queued" | "sending" | "sent" | "delivered" | "read" | "failed" | "unknown" | null;
+};
+
+export type AgentAuthorizationRequirement = {
+  code: string;
+  provider: string;
+  connectionId?: string;
+  requiredCapabilities: string[];
+  requestable: boolean;
+  authMode?: string | null;
+  reasonCode: string;
+  remediation: string;
 };
 
 export type AgentConversation = {
@@ -1357,6 +1440,26 @@ export function sendPlatformMessage(
   body: { message: string; idempotencyKey: string; conversationId?: string; createNew?: boolean; modelProvider?: KasiAiModel["provider"]; model?: string; context?: { route?: string; pageTitle?: string } },
 ): Promise<{ conversation: AgentConversation; message: AgentMessage; runId: string; status: string }> {
   return request(`/api/agents/installations/${encodeURIComponent(installationId)}/platform/messages`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export type AgentUiInteractionInput = {
+  conversationId: string;
+  messageId: string;
+  blockId: string;
+  actionId: string;
+  idempotencyKey: string;
+  values?: Record<string, unknown>;
+  context?: { route?: string; pageTitle?: string };
+};
+
+export function submitAgentUiInteraction(
+  installationId: string,
+  body: AgentUiInteractionInput,
+): Promise<{ kind: "run"; actionId: string; blockId: string; conversation: AgentConversation; message: AgentMessage; runId: string; status: string; created: boolean; durable: boolean }> {
+  return request(`/api/agents/installations/${encodeURIComponent(installationId)}/platform/ui-interactions`, {
     method: "POST",
     body: JSON.stringify(body),
   });

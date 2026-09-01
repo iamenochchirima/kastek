@@ -68,6 +68,21 @@ describe("Telegram bot client", () => {
     expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toMatchObject({ photo: "https://core.test/image", caption: "See these files", parse_mode: "HTML" });
   });
 
+  it("falls back to a text link when Telegram rejects a native media URL", async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: false, description: "Bad Request: wrong file identifier" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { message_id: 461 } }), { status: 200 }));
+    const client = new TelegramBotClient({ apiBaseUrl: "https://telegram.test", fetchImpl });
+
+    await expect(client.sendMediaResponse("token", "42", "The post is ready.", [
+      { assetId: "image-1", kind: "image", previewUrl: "https://core.test/image", fileName: "image.png" },
+    ])).resolves.toEqual({ providerMessageId: "461", status: "sent" });
+    expect(fetchImpl).toHaveBeenNthCalledWith(2, "https://telegram.test/bottoken/sendRichMessage", expect.objectContaining({ method: "POST" }));
+    expect(JSON.parse(String(fetchImpl.mock.calls[1]?.[1]?.body))).toMatchObject({
+      rich_message: { markdown: "The post is ready.\n\n[image.png](https://core.test/image)" },
+    });
+  });
+
   it("sends approval buttons and acknowledges callback clicks", async () => {
     const fetchImpl = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { message_id: 99 } }), { status: 200 }))
@@ -82,6 +97,17 @@ describe("Telegram bot client", () => {
       reply_markup: { inline_keyboard: [[{ text: "Approve", callback_data: "approve-token" }, { text: "Deny", callback_data: "reject-token" }]] },
     });
     expect(JSON.parse(String(fetchImpl.mock.calls[1]?.[1]?.body))).toMatchObject({ callback_query_id: "callback-1", text: "Approval recorded" });
+  });
+
+  it("sends reviewed navigation buttons as Telegram links", async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { message_id: 100 } }), { status: 200 }));
+    const client = new TelegramBotClient({ apiBaseUrl: "https://telegram.test", fetchImpl });
+
+    await client.sendMessage("token", "42", "Open the report", { inlineButtons: [[{ text: "Open workspace", url: "https://app.kasitek.test/workspace" }]] });
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toMatchObject({
+      reply_markup: { inline_keyboard: [[{ text: "Open workspace", url: "https://app.kasitek.test/workspace" }]] },
+    });
   });
 
   it("resolves and downloads an inbound image", async () => {

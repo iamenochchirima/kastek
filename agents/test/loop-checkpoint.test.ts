@@ -37,6 +37,7 @@ describe("durable agent loop checkpoints", () => {
       toolCalls: 0,
       status: "awaiting_approval",
       pendingToolCalls: [{ id: "call-1", name: "records.delete", arguments: { id: "record-1" }, argumentsHash: "hash" }],
+      ui: { version: "1", mode: "inline", blocks: [{ type: "list", id: "records", items: [{ title: "Record", status: "success" }] }] },
     }, undefined, { stepIndex: 3 });
 
     expect(readDurableAgentLoopCheckpoint(checkpoint)).toEqual(checkpoint);

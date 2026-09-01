@@ -253,6 +253,7 @@ export async function executeWorkflowGraph(
         consumeToolCall(usage, dependencies.limits);
         result = await dependencies.tool({ name: node.config.toolName, arguments: (node.config.arguments ?? {}) as Record<string, unknown>, nodeId: node.id, ...(dependencies.parallelBranchLease ? { parallelLeaseId: dependencies.parallelBranchLease.id } : {}) });
         throwIfGraphCancelled(dependencies.signal);
+        authorizationRequired = findAuthorizationRequirement(result) ?? authorizationRequired;
         addReportedUsage(usage, result);
         applyConfiguredWrites(state, node, result);
       } else if (node.type === "model") {
@@ -260,6 +261,7 @@ export async function executeWorkflowGraph(
         consumeModelCall(usage, dependencies.limits);
         result = await dependencies.model({ nodeId: node.id, config: node.config, state, ...(dependencies.parallelBranchLease ? { parallelLeaseId: dependencies.parallelBranchLease.id } : {}) });
         throwIfGraphCancelled(dependencies.signal);
+        authorizationRequired = findAuthorizationRequirement(result) ?? authorizationRequired;
         addReportedUsage(usage, result);
         applyConfiguredWrites(state, node, result);
       } else if (node.type === "agent_loop") {
@@ -302,6 +304,7 @@ export async function executeWorkflowGraph(
             consumeToolCall(usage, dependencies.limits);
             result = await dependencies.tool({ name: toolName, arguments: toolArguments, nodeId: node.id, approved: resumed.approval, ...(dependencies.parallelBranchLease ? { parallelLeaseId: dependencies.parallelBranchLease.id } : {}) });
             throwIfGraphCancelled(dependencies.signal);
+            authorizationRequired = findAuthorizationRequirement(result) ?? authorizationRequired;
             addReportedUsage(usage, result);
             applyConfiguredWrites(state, node, result);
           } else {
@@ -344,7 +347,7 @@ export async function executeWorkflowGraph(
       }
       execution.validateState(state);
       const postNodeLimitError = executionLimitError(usage, dependencies.limits, execution.startedAt);
-      if (postNodeLimitError) return { status: "failed", state, trace, usage, error: postNodeLimitError };
+      if (postNodeLimitError) return { status: "failed", state, trace, usage, error: postNodeLimitError, ...(authorizationRequired ? { authorizationRequired } : {}) };
       trace.push({ nodeId: node.id, type: node.type, status: "completed" });
       const outgoing = graph.edges
         .map((edge, index) => ({ edge, index }))
@@ -354,7 +357,7 @@ export async function executeWorkflowGraph(
       if (dependencies.stopAfterCheckpoint && node.type !== "fan_out" && outgoing.length > 0) {
         return { status: "completed", checkpointed: true, state, trace, usage };
       }
-      if (!outgoing.length) return { status: "completed", state, trace, usage };
+      if (!outgoing.length) return { status: "completed", state, trace, usage, ...(authorizationRequired ? { authorizationRequired } : {}) };
       if (node.type === "fan_out") {
         const fanInNodeId = typeof node.config.fanInNodeId === "string" ? node.config.fanInNodeId : undefined;
         const previousBoundary = execution.stopAtNodeId;
@@ -391,7 +394,8 @@ export async function executeWorkflowGraph(
         const mergedState = structuredClone(state);
         const mergedPaths: Array<{ path: string; value: unknown }> = [];
         for (const branch of branches) {
-          if (branch.status !== "completed") return { ...branch, trace: [...trace, ...branch.trace], usage };
+          authorizationRequired = branch.authorizationRequired ?? authorizationRequired;
+          if (branch.status !== "completed") return { ...branch, trace: [...trace, ...branch.trace], usage, ...(authorizationRequired ? { authorizationRequired } : {}) };
           if (fanInNodeId && !branch.boundaryReached) throw new Error(`Fan-out branch did not reach its fan-in node: ${fanInNodeId}`);
           for (const path of changedStatePaths(state, branch.state)) {
             const value = getPath(branch.state, path);
@@ -411,17 +415,17 @@ export async function executeWorkflowGraph(
           current = fanInNodeId;
           continue;
         }
-        return { status: "completed", state, trace, usage };
+        return { status: "completed", state, trace, usage, ...(authorizationRequired ? { authorizationRequired } : {}) };
       }
       const next = outgoing[0]!;
       consumeEdgeIteration(next.edge, next.index, execution.edgeIterations);
       current = next.edge.to;
     } catch (error) {
       trace.push({ nodeId: node.id, type: node.type, status: "failed" });
-      return { status: "failed", state, trace, usage, error: error instanceof Error ? error.message : "Workflow node failed" };
+      return { status: "failed", state, trace, usage, error: error instanceof Error ? error.message : "Workflow node failed", ...(authorizationRequired ? { authorizationRequired } : {}) };
     }
   }
-  return { status: "failed", state, trace, usage, error: "Workflow step limit exceeded" };
+  return { status: "failed", state, trace, usage, error: "Workflow step limit exceeded", ...(authorizationRequired ? { authorizationRequired } : {}) };
 }
 
 function createWorkflowArgumentsHash(argumentsValue: Record<string, unknown>): string {

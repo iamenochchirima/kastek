@@ -1807,6 +1807,44 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("routes a dynamic UI interaction through the injected coordinator contract", async () => {
+    const resolveAndExecute = vi.fn(async () => ({
+      kind: "run" as const,
+      actionId: "refresh",
+      blockId: "accounts",
+      accepted: {
+        conversation: { id: "11111111-1111-4111-8111-111111111111" },
+        message: { id: "22222222-2222-4222-8222-222222222222" },
+        run: { id: "run-ui-1", status: "received" },
+        created: true,
+      },
+      durable: false,
+    }));
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      agents: { getInstallation: async () => ({ id: "install-1", organization_id: "org-1", status: "active", ...hostedInstallationIdentity }) } as never,
+      uiInteractionCoordinator: { resolveAndExecute } as never,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/installations/install-1/platform/ui-interactions",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1" },
+      payload: {
+        conversationId: "11111111-1111-4111-8111-111111111111",
+        messageId: "22222222-2222-4222-8222-222222222222",
+        blockId: "accounts",
+        actionId: "refresh",
+        idempotencyKey: "ui-route-key-1",
+        context: { route: "/workspace" },
+      },
+    });
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toMatchObject({ kind: "run", actionId: "refresh", blockId: "accounts", runId: "run-ui-1", durable: false });
+    expect(resolveAndExecute).toHaveBeenCalledWith(expect.objectContaining({ organizationId: "org-1", installationId: "install-1", actorId: "user-1", blockId: "accounts", actionId: "refresh" }));
+    await app.close();
+  });
+
   it("retries a failed platform chat run without inserting another inbound message", async () => {
     const started: string[] = [];
     const retryMessage = vi.fn(async () => ({

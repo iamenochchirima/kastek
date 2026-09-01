@@ -150,6 +150,26 @@ describe("kasitek-core read boundary", () => {
     expect(JSON.parse(String(init.body))).toEqual({ channelType: "whatsapp", externalConversationId: "conversation-1", text: "Hello from the approved agent" });
   });
 
+  it("carries a server-owned UI view only when a rich website delivery is requested", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ providerMessageId: "website-event-1", status: "sent" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+    const ui = { version: "1" as const, mode: "inline" as const, blocks: [{ type: "list" as const, id: "connected-accounts", title: "Connected accounts", items: [] }] };
+    await expect(new KasitekCoreReadClient(config).deliverChannelMessage({
+      organizationId: context.organizationId,
+      installationId: context.installationId,
+      actorId: context.actorId,
+      runId: context.runId,
+      correlationId: context.correlationId,
+      channelType: "website",
+      externalConversationId: "website-session-1",
+      text: "Here are your connections.",
+      ui,
+    })).resolves.toEqual({ providerMessageId: "website-event-1", status: "sent" });
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toMatchObject({ channelType: "website", ui });
+  });
+
   it("uses one authenticated reservation contract for reserve, capture, and release", async () => {
     const responses = [
       { orgId: "org-1", reservation: { id: "reservation-1", status: "RESERVED" }, balance: 100, reservedBalance: 40, availableBalance: 60, amount: 40, idempotent: false },

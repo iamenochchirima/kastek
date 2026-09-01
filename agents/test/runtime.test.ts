@@ -21,6 +21,68 @@ function response(toolCalls: ModelResponse["toolCalls"], content = ""): ModelRes
 }
 
 describe("Tool Gateway and bounded runtime", () => {
+  it("carries a tool authorization requirement into the durable final response", async () => {
+    const registry = new ToolRegistry();
+    registry.register({
+      name: "kasitek.core.content_post_delete",
+      version: "1.0.0",
+      description: "Delete a published post",
+      riskClass: "read",
+      requiresApproval: false,
+      timeoutMs: 1_000,
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object", additionalProperties: true },
+      handler: async () => ({
+        success: false,
+        providerResults: [{
+          authorization: {
+            code: "AUTHORIZATION_REQUIRED",
+            provider: "instagram",
+            requiredCapabilities: ["SOCIAL_POST_DELETE"],
+            requestable: true,
+            reasonCode: "MISSING_CONTENT_MANAGEMENT_ACCESS",
+            remediation: "connections_access",
+          },
+        }],
+      }),
+    });
+    const events: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    let modelCall = 0;
+    const adapter: ModelAdapter = {
+      provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+      complete: async () => {
+        modelCall += 1;
+        return modelCall === 1
+          ? response([{ id: "delete-1", name: "kasitek.core.content_post_delete", arguments: { postId: "post-1" } }])
+          : response([], "The post needs access before it can be deleted.");
+      },
+    };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "delete the post" }],
+      credentials,
+      gateway: new ModelGateway([adapter]),
+      tools: registry,
+      grantedTools: new Set(["kasitek.core.content_post_delete"]),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      onEvent: (event) => events.push(event),
+    });
+    expect(result).toMatchObject({
+      status: "completed",
+      completionResponse: {
+        authorizationRequired: {
+          provider: "instagram",
+          requiredCapabilities: ["SOCIAL_POST_DELETE"],
+          remediation: "connections_access",
+        },
+      },
+    });
+    expect(events.find((event) => event.type === "tool.completed")?.payload).toMatchObject({
+      authorizationRequired: { code: "AUTHORIZATION_REQUIRED", provider: "instagram" },
+    });
+  });
+
   it("completes a hosted response through the typed media control", async () => {
     const registry = new ToolRegistry();
     registry.register({
@@ -54,6 +116,60 @@ describe("Tool Gateway and bounded runtime", () => {
       toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
     });
     expect(result).toMatchObject({ status: "completed", completionMessage: "Here it is", completionResponse: { version: "1", media: [{ assetId: "asset-1", kind: "image" }] } });
+  });
+
+  it("attaches a registered projection to the completed response without model-authored UI", async () => {
+    const registry = new ToolRegistry();
+    registry.register({
+      name: "kasitek.core.connections_list",
+      version: "1.0.0",
+      description: "List connected accounts",
+      riskClass: "read",
+      requiresApproval: false,
+      timeoutMs: 1_000,
+      inputSchema: { type: "object", additionalProperties: false },
+      outputSchema: { type: "object", properties: { connections: { type: "array" } }, required: ["connections"], additionalProperties: true },
+      manifest: {
+        ownerService: "kasitek-core",
+        requiredScope: "connections.read",
+        execution: "immediate",
+        idempotency: "not_applicable",
+        approval: "none",
+        auditClassification: "standard",
+        redaction: ["connections.connectionId", "connections.credentials"],
+        presentation: {
+          projection: "workspace_connections",
+          mode: "inline",
+          channels: ["platform"],
+          fallback: "I found the connected accounts.",
+        },
+      },
+      handler: async () => ({ connections: [{ provider: "instagram", displayName: "KasiTek", handle: "@kasitek", status: "connected", healthStatus: "healthy", connectionId: "secret-id" }] }),
+    });
+    let modelCall = 0;
+    const adapter: ModelAdapter = {
+      provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+      complete: async () => {
+        modelCall += 1;
+        return modelCall === 1
+          ? response([{ id: "connections-1", name: "kasitek.core.connections_list", arguments: {} }])
+          : response([], "Here are the connected accounts.");
+      },
+    };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "show connections" }],
+      credentials,
+      gateway: new ModelGateway([adapter]),
+      tools: registry,
+      grantedTools: new Set(["kasitek.core.connections_list"]),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+    });
+    expect(result.completionResponse).toMatchObject({
+      ui: { blocks: [{ type: "list", items: [{ title: "KasiTek", status: "success" }] }] },
+    });
+    expect(JSON.stringify(result.completionResponse)).not.toContain("secret-id");
   });
 
   it("replays a durable model response without calling the provider twice", async () => {

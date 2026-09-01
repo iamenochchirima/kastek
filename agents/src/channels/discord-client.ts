@@ -1,3 +1,5 @@
+import { materializeResolvedMediaLinks, type ResolvedAgentMedia } from "../media/delivery";
+
 export interface DiscordBotProfile {
   id: string;
   username: string;
@@ -14,14 +16,29 @@ export interface DiscordDownloadedAttachment {
 }
 
 export interface DiscordComponentButton {
-  customId: string;
+  customId?: string;
   label: string;
   style?: "success" | "danger";
+  url?: string;
 }
 
 interface DiscordApiError {
   message?: string;
   code?: string | number;
+}
+
+function discordButtonComponents(buttons: readonly DiscordComponentButton[]): Array<Record<string, unknown>> {
+  const components: Array<Record<string, unknown>> = [];
+  for (const button of buttons.slice(0, 5)) {
+    if (button.url) components.push({ type: 2, style: 5, label: button.label.slice(0, 80), url: button.url });
+    else if (button.customId) components.push({ type: 2, style: button.style === "danger" ? 4 : 3, label: button.label.slice(0, 80), custom_id: button.customId });
+  }
+  return components;
+}
+
+function isNativeMediaFallbackError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  return (error as { statusCode?: unknown }).statusCode === 400;
 }
 
 export interface DiscordBotClientOptions {
@@ -62,7 +79,7 @@ export class DiscordBotClient {
 
   public async sendMessage(token: string, channelId: string, text: string, options: { buttons?: DiscordComponentButton[] } = {}): Promise<DiscordSendResult> {
     const components = options.buttons?.length
-      ? [{ type: 1, components: options.buttons.slice(0, 5).map((button) => ({ type: 2, style: button.style === "danger" ? 4 : 3, label: button.label.slice(0, 80), custom_id: button.customId })) }]
+      ? [{ type: 1, components: discordButtonComponents(options.buttons) }]
       : undefined;
     const result = await this.call<{ id?: unknown }>(token, `/channels/${encodeURIComponent(channelId)}/messages`, {
       method: "POST",
@@ -87,13 +104,20 @@ export class DiscordBotClient {
       .map((item) => `[${item.fileName || "Attachment"}](${item.previewUrl})`);
     const content = [text.trim(), ...links].filter(Boolean).join("\n\n");
     const components = options.buttons?.length
-      ? [{ type: 1, components: options.buttons.slice(0, 5).map((button) => ({ type: 2, style: button.style === "danger" ? 4 : 3, label: button.label.slice(0, 80), custom_id: button.customId })) }]
+      ? [{ type: 1, components: discordButtonComponents(options.buttons) }]
       : undefined;
-    const result = await this.call<{ id?: unknown }>(token, `/channels/${encodeURIComponent(channelId)}/messages`, {
-      method: "POST",
-      body: JSON.stringify({ content: content || undefined, ...(imageEmbeds.length ? { embeds: imageEmbeds.slice(0, 10) } : {}), ...(components ? { components } : {}) }),
-    });
-    return { providerMessageId: typeof result.id === "string" ? result.id : undefined, status: "sent" };
+    try {
+      const result = await this.call<{ id?: unknown }>(token, `/channels/${encodeURIComponent(channelId)}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ content: content || undefined, ...(imageEmbeds.length ? { embeds: imageEmbeds.slice(0, 10) } : {}), ...(components ? { components } : {}) }),
+      });
+      return { providerMessageId: typeof result.id === "string" ? result.id : undefined, status: "sent" };
+    } catch (error) {
+      if (!isNativeMediaFallbackError(error)) throw error;
+      // Preserve the response when Discord rejects a remote embed URL. The
+      // text message is the same bounded link fallback used for unsupported media.
+      return this.sendMessage(token, channelId, materializeResolvedMediaLinks(text, media), options);
+    }
   }
 
   public async downloadAttachment(token: string, url: string, maxBytes = 25 * 1024 * 1024): Promise<DiscordDownloadedAttachment> {
@@ -191,4 +215,3 @@ export class DiscordBotClient {
     });
   }
 }
-import type { ResolvedAgentMedia } from "../media/delivery";

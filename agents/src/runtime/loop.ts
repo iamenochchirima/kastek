@@ -1,13 +1,14 @@
 import { ModelGateway } from "../model/gateway";
 import type { ModelCredentials, ModelMessage, ModelRequest, ModelResponse } from "../model/types";
 import { ModelProviderError } from "../model/types";
-import { ToolPolicyError, type ToolApproval, type ToolInvocationContext, type ToolInvocationResult } from "../tools/types";
+import { ToolPolicyError, type CapabilityPresentationMetadata, type ToolApproval, type ToolInvocationContext, type ToolInvocationResult } from "../tools/types";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
 import { classifyFailureCode } from "./failures";
 import { redactSensitiveValue, redactToolOutput } from "../tools/redaction";
 import type { GroundingProvenance } from "./provenance";
 import { buildApprovedToolCompletionMessage, buildApprovedToolFailureMessage } from "./approved-tool-completion";
-import type { AgentResponse } from "../media/contracts";
+import { agentResponseSchema, findAuthorizationRequirement, type AgentAuthorizationRequirement, type AgentResponse } from "../media/contracts";
+import { projectCapabilityResultUi } from "../media/dynamic-ui";
 
 export interface AgentLoopLimits {
   maxIterations: number;
@@ -79,6 +80,12 @@ export interface AgentLoopInput {
     name: string;
     argumentsHash: string;
   }) => Promise<ToolInvocationResult | undefined>;
+  /** Rehydrates the last server-owned view while a stepped loop continues from a checkpoint. */
+  resumeUi?: AgentResponse["ui"];
+  /** Selects a registered presentation channel; unsupported channels retain text fallback only. */
+  uiChannel?: CapabilityPresentationMetadata["channels"][number];
+  /** Allows a scoped rollout to disable rich projections without changing response text. */
+  dynamicUiEnabled?: boolean;
   beforeModelCall?: () => Promise<void> | void;
   beforeToolInvoke?: (input: {
     toolCallId: string;
@@ -140,6 +147,7 @@ export interface AgentLoopResult {
   toolCalls: number;
   error?: { code: string; message: string; failureClass?: "retryable" | "terminal"; userMessage?: string };
   waitingFor?: string;
+  ui?: AgentResponse["ui"];
   provenance?: GroundingProvenance;
 }
 
@@ -159,6 +167,8 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
   const messages = [...input.messages];
   const usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 };
   let toolCalls = 0;
+  let authorizationRequired: AgentAuthorizationRequirement | undefined;
+  let lastToolUi: AgentResponse["ui"] | undefined = input.dynamicUiEnabled === false ? undefined : input.resumeUi;
   let lastModelAttempt: { model: AgentLoopInput["model"]; credentials: ModelCredentials } = { model: input.model, credentials: input.credentials };
   let lastModelOperationKey: string | undefined;
   const startedAt = Date.now();
@@ -209,16 +219,39 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           } : undefined,
         });
       messages.push({ role: "assistant", content: "", toolCalls: [{ id: resumed.id, name: resumed.name, arguments: resumed.arguments }] });
+      const authorization = findAuthorizationRequirement(result.output);
       const safeOutput = redactSensitiveValue(result.output);
       const durableOutput = redactToolOutput(result.output, resumedManifest?.manifest?.redaction ?? []);
+      const resumedUi = input.dynamicUiEnabled === false ? undefined : projectCapabilityResultUi({ presentation: resumedManifest?.manifest?.presentation, output: durableOutput, channel: input.uiChannel ?? "platform" });
+      if (resumedUi || resumedManifest?.manifest?.presentation) lastToolUi = resumedUi;
+      authorizationRequired = authorization;
       messages.push({ role: "tool", name: resumed.name, toolCallId: resumed.id, content: JSON.stringify(safeOutput) });
       toolCalls += 1;
       if (!replayed) await input.onToolCompleted?.({ toolCallId: resumed.id, name: resumed.name, argumentsHash: resumedArgumentsHash, output: durableOutput, latencyMs: result.latencyMs, effectId: result.effectId, approval: resumed.approval });
-      await emit(input, { type: "tool.completed", iteration: 0, payload: { name: resumed.name, resumed: true, latencyMs: result.latencyMs } });
+      await emit(input, {
+        type: "tool.completed",
+        iteration: 0,
+        payload: {
+          name: resumed.name,
+          resumed: true,
+          latencyMs: result.latencyMs,
+          ...(authorizationRequired ? { authorizationRequired } : {}),
+        },
+      });
       const completionMessage = buildApprovedToolCompletionMessage(resumed.name, resumed.arguments, safeOutput);
       messages.push({ role: "assistant", content: completionMessage });
       await emit(input, { type: "loop.completed", iteration: 0, payload: { toolCalls, totalTokens: usage.totalTokens, resumed: true } });
-      return { status: "completed", messages, completionMessage, usage, iterations: 0, toolCalls };
+      return {
+        status: "completed",
+        messages,
+        completionMessage,
+        ...(authorizationRequired || lastToolUi
+          ? { completionResponse: { version: "1" as const, text: completionMessage, media: [], ...(authorizationRequired ? { authorizationRequired } : {}), ...(lastToolUi ? { ui: lastToolUi } : {}) } }
+          : {}),
+        usage,
+        iterations: 0,
+        toolCalls,
+      };
     } catch (error) {
       const normalized = error instanceof ToolPolicyError
         ? { code: error.code, message: error.message, failureClass: classifyFailureCode(error.code) }
@@ -236,11 +269,11 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
   for (let iteration = 1; iteration <= limits.maxIterations; iteration += 1) {
     if (Date.now() - startedAt >= limits.maxWallTimeMs) {
       await emit(input, { type: "loop.limited", iteration, payload: { reason: "wall_clock" } });
-      return { status: "limited", messages, usage, iterations: iteration - 1, toolCalls };
+      return { status: "limited", messages, usage, iterations: iteration - 1, toolCalls, ...(lastToolUi ? { ui: lastToolUi } : {}) };
     }
     if (usage.totalTokens >= limits.maxTotalTokens || (limits.maxEstimatedCostUsd !== undefined && usage.estimatedCostUsd >= limits.maxEstimatedCostUsd)) {
       await emit(input, { type: "loop.limited", iteration, payload: { reason: "budget" } });
-      return { status: "limited", messages, usage, iterations: iteration - 1, toolCalls };
+      return { status: "limited", messages, usage, iterations: iteration - 1, toolCalls, ...(lastToolUi ? { ui: lastToolUi } : {}) };
     }
     const remainingTokens = Math.max(1, limits.maxTotalTokens - usage.totalTokens);
     try {
@@ -356,7 +389,24 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           return { status: "failed", messages, response, usage, iterations: iteration, toolCalls, error };
         }
         await emit(input, { type: "loop.completed", iteration, payload: { toolCalls, totalTokens: usage.totalTokens } });
-        return { status: "completed", messages, response, usage, iterations: iteration, toolCalls };
+        const completionResponse = authorizationRequired || lastToolUi
+          ? agentResponseSchema.parse({
+            version: "1",
+            text: response.message.content,
+            media: [],
+            ...(authorizationRequired ? { authorizationRequired } : {}),
+            ...(lastToolUi ? { ui: lastToolUi } : {}),
+          })
+          : undefined;
+        return {
+          status: "completed",
+          messages,
+          response,
+          ...(completionResponse ? { completionResponse } : {}),
+          usage,
+          iterations: iteration,
+          toolCalls,
+        };
       }
       if (response.toolCalls.length > Math.max(0, limits.maxToolCalls - toolCalls)) {
         // A provider may return several calls in one assistant message. Do not execute a
@@ -364,13 +414,13 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         // assistant/tool sequence would be incomplete and unsafe to checkpoint.
         toolCalls += response.toolCalls.length;
         await emit(input, { type: "loop.limited", iteration, payload: { reason: "tool_calls" } });
-        return { status: "limited", messages, response, usage, iterations: iteration, toolCalls };
+        return { status: "limited", messages, response, usage, iterations: iteration, toolCalls, ...(lastToolUi ? { ui: lastToolUi } : {}) };
       }
       for (const toolCall of response.toolCalls) {
         toolCalls += 1;
         if (toolCalls > limits.maxToolCalls) {
           await emit(input, { type: "loop.limited", iteration, payload: { reason: "tool_calls" } });
-          return { status: "limited", messages, response, usage, iterations: iteration, toolCalls };
+          return { status: "limited", messages, response, usage, iterations: iteration, toolCalls, ...(lastToolUi ? { ui: lastToolUi } : {}) };
         }
         const argumentsHash = hashToolArguments(toolCall.arguments);
         const manifest = input.tools.get(toolCall.name);
@@ -416,18 +466,36 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
               });
             } : undefined,
           });
+          const toolAuthorization = findAuthorizationRequirement(result.output);
           const safeOutput = redactSensitiveValue(result.output);
           const durableOutput = redactToolOutput(result.output, manifest?.manifest?.redaction ?? []);
+          const toolUi = input.dynamicUiEnabled === false ? undefined : projectCapabilityResultUi({ presentation: manifest?.manifest?.presentation, output: durableOutput, channel: input.uiChannel ?? "platform" });
+          if (toolUi || manifest?.manifest?.presentation) lastToolUi = toolUi;
           messages.push({
             role: "tool",
             name: toolCall.name,
             toolCallId: toolCall.id,
             content: JSON.stringify(safeOutput),
           });
-          await emit(input, { type: "tool.completed", iteration, payload: { name: toolCall.name, latencyMs: result.latencyMs } });
-          await input.onToolCompleted?.({ toolCallId: toolCall.id, name: toolCall.name, argumentsHash, output: durableOutput, latencyMs: result.latencyMs, effectId: result.effectId });
+          if (toolAuthorization) authorizationRequired = toolAuthorization;
+          await emit(input, {
+            type: "tool.completed",
+            iteration,
+            payload: {
+              name: toolCall.name,
+              latencyMs: result.latencyMs,
+              ...(replayed ? { replayed: true } : {}),
+              ...(toolAuthorization ? { authorizationRequired: toolAuthorization } : {}),
+            },
+          });
+          if (!replayed) await input.onToolCompleted?.({ toolCallId: toolCall.id, name: toolCall.name, argumentsHash, output: durableOutput, latencyMs: result.latencyMs, effectId: result.effectId });
           if (result.control === "final_response") {
-            const completionResponse = (safeOutput as { response: AgentResponse }).response;
+            const agentResponse = (safeOutput as { response: AgentResponse }).response;
+            const completionResponse = agentResponseSchema.parse({
+              ...agentResponse,
+              ...(authorizationRequired ? { authorizationRequired } : {}),
+              ...(lastToolUi ? { ui: lastToolUi } : {}),
+            });
             await emit(input, { type: "loop.completed", iteration, payload: { toolCalls, totalTokens: usage.totalTokens, responseFormat: "agent-response.v1" } });
             return { status: "completed", messages, response, completionMessage: completionResponse.text, completionResponse, usage, iterations: iteration, toolCalls };
           }
@@ -477,5 +545,5 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
     }
   }
   await emit(input, { type: "loop.limited", iteration: limits.maxIterations, payload: { reason: "iterations" } });
-  return { status: "limited", messages, usage, iterations: limits.maxIterations, toolCalls };
+  return { status: "limited", messages, usage, iterations: limits.maxIterations, toolCalls, ...(lastToolUi ? { ui: lastToolUi } : {}) };
 }

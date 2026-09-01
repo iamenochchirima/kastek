@@ -60,6 +60,7 @@ import {
   retryAudioTranscription,
   sendPlatformAudio,
   sendPlatformMessage,
+  submitAgentUiInteraction,
   setKasiAiChannelDefault,
   setKasiAiConversationStatus,
   streamAgentRun,
@@ -78,7 +79,10 @@ import {
 } from "@/lib/agent-platform";
 import { AgentApprovalPreview } from "@/components/dashboard/agents/agent-approval-preview";
 import { AgentMessageMedia, agentMessageHasMedia } from "@/components/dashboard/agents/agent-message-media";
+import { AgentAuthorizationAction } from "@/components/dashboard/agents/agent-authorization-action";
 import { AudioMessageControl } from "@/components/dashboard/kasiai/audio-message-control";
+import { DynamicUiRenderer } from "@/components/dashboard/kasiai/dynamic-ui-renderer";
+import type { AgentUiInteraction } from "@/components/dashboard/kasiai/dynamic-ui-renderer";
 import { cn } from "@/lib/utils";
 
 type View = "chat" | "library" | "settings";
@@ -91,6 +95,8 @@ const CHAT_URL_KEY = "kasiai-chat";
 const MIN_WIDTH = 360;
 const MAX_WIDTH = 1500;
 const EMPTY_MODELS: KasiAiModel[] = [];
+
+type UiInteractionRequest = AgentUiInteraction & { messageId: string };
 
 const markdownComponents: Components = {
   h1: ({ children }) => (
@@ -884,9 +890,10 @@ export function KasiAiChat({
     suggestion?: string,
     retryRunId?: string,
     audioFile?: File,
+    uiInteraction?: UiInteractionRequest,
   ) => {
     const text = audioFile ? "" : (suggestion ?? draft).trim();
-    if ((!text && !audioFile) || !installation || sending || sendLocked.current)
+    if ((!text && !audioFile && !uiInteraction) || !installation || sending || sendLocked.current)
       return;
     sendLocked.current = true;
     const selection = conversationSelection.current;
@@ -898,7 +905,7 @@ export function KasiAiChat({
     setAudioRetryJobId(null);
     setSending(true);
     let audioJobId: string | null = null;
-    const optimistic: AgentMessage | null = retryRunId
+    const optimistic: AgentMessage | null = retryRunId || uiInteraction
       ? null
       : {
           id: `optimistic-${crypto.randomUUID()}`,
@@ -924,6 +931,19 @@ export function KasiAiChat({
     try {
       const accepted = retryRunId
         ? await retryAgentRun(retryRunId)
+        : uiInteraction
+          ? await submitAgentUiInteraction(installation.id, {
+              conversationId: targetConversation?.id ?? "",
+              messageId: uiInteraction.messageId,
+              blockId: uiInteraction.blockId,
+              actionId: uiInteraction.actionId,
+              idempotencyKey: crypto.randomUUID(),
+              ...(uiInteraction.values ? { values: uiInteraction.values } : {}),
+              context: {
+                route: window.location.pathname,
+                pageTitle: document.title,
+              },
+            })
         : audioFile
           ? await (async () => {
               const audioConversation = targetConversation
@@ -1371,7 +1391,7 @@ export function KasiAiChat({
         "What needs my attention?",
         "Show me around this page",
         "Check my connected accounts",
-        "Help me get started",
+        "Create an AI agent",
       ];
   const beginResize = (event: React.PointerEvent<HTMLDivElement>) => {
     if (window.innerWidth < 640) return;
@@ -1692,6 +1712,13 @@ export function KasiAiChat({
                                   ) : (
                                     messageRenderText(message)
                                   )}
+                                  {message.direction === "outbound" && source === "platform" ? (
+                                    <DynamicUiRenderer
+                                      ui={message.content.ui}
+                                      onInteraction={!isArchivedChat ? (interaction) => void send(undefined, undefined, undefined, { ...interaction, messageId: message.id }) : undefined}
+                                    />
+                                  ) : null}
+                                  <AgentAuthorizationAction message={message} />
                                 </div>
                                 {source === "platform" &&
                                 message.direction === "inbound" &&
@@ -2080,6 +2107,12 @@ function NewChatHome({
   suggestions: string[];
   onSuggestion: (suggestion: string) => void;
 }) {
+  const workspaces = [
+    { label: "Create agent", href: "/agents/new" },
+    { label: "Connect account", href: "/connections" },
+    { label: "Open content", href: "/content" },
+    { label: "View report", href: "/workspace" },
+  ];
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
       <span className="grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary">
@@ -2097,6 +2130,13 @@ function NewChatHome({
             {suggestion}
             <ChevronRight className="mt-2 h-3.5 w-3.5 text-muted-foreground" />
           </button>
+        ))}
+      </div>
+      <div className="mt-5 flex flex-wrap justify-center gap-2" aria-label="Workspaces">
+        {workspaces.map((workspace) => (
+          <Link key={workspace.href} href={workspace.href} className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground">
+            {workspace.label}
+          </Link>
         ))}
       </div>
     </div>
