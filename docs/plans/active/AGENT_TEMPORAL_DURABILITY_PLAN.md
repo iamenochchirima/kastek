@@ -30,6 +30,9 @@ Reduce duplicate provider work and make worker-loss recovery explicit while the 
 - [x] Propagate Temporal activity cancellation into configured graph execution and add pre-node and
   post-provider-result contracts ([executor.ts](../../../agents/src/workflows/executor.ts),
   [workflow-graph-cancellation.test.ts](../../../agents/test/workflow-graph-cancellation.test.ts)).
+- [x] Add graph-boundary worker-loss contracts for model, tool, approval, external-event, and
+  terminal checkpoints ([workflow-graph-worker-recovery.test.ts](../../../agents/test/workflow-graph-worker-recovery.test.ts));
+  activity-level worker-kill coverage remains open.
 - [ ] Add worker-kill tests around every model, tool, approval, effect, and completion checkpoint.
 - [ ] Split context, model, tool, checkpoint, and completion work into independently retry-safe
   activities behind a controlled rollout.
