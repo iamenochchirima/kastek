@@ -55,6 +55,10 @@ Reduce duplicate provider work and make worker-loss recovery explicit while the 
   model-call and budget totals with Core reservations and provider-reported usage events
   ([usage-reconciliation.ts](../../../agents/src/operations/usage-reconciliation.ts),
   [`GET /v1/operator/runs/:runId/usage-reconciliation`](../../../agents/src/http/app.ts)).
+- [x] Preserve provider-reported cost from OpenAI-compatible responses, expose it in Core usage
+      reconciliation, and compare Core only with platform-funded local calls
+      ([openai-compatible.ts](../../../agents/src/model/openai-compatible.ts),
+      [credits.rs](../../../server/kasitek-core/src/services/credits.rs)).
 - [x] Define the versioned non-secret activity protocol for the next decomposition boundary
   ([decomposed-contracts.ts](../../../agents/src/temporal/decomposed-contracts.ts)); prompts,
   provider responses, tool arguments, and tool output remain in durable Agents state rather than
@@ -691,3 +695,63 @@ compatibility activity. No migration rollback or data repair is required.
 
 Post-release review date: 2026-09-08; review canary duplicate rates, activity retries, approvals,
 handoff resumes, budget settlement, provider billing, and compatibility-path fallback counts.
+
+## Follow-up release record: provider usage evidence and billable-run reconciliation
+
+Change: Preserve provider-reported model cost when an OpenAI-compatible response supplies it,
+expose that value in the Core credit usage projections, and compare the Core ledger with only
+platform-funded local model calls in the Agents run report.
+
+Owner: Agent Platform.
+
+Risk: standard. The change is additive, but an incorrect provider-reported cost could affect
+operator reconciliation evidence; it does not alter credit settlement amounts.
+
+Affected services and user surfaces: Agents model adapters and usage records, Agents operator
+usage-reconciliation diagnostics, and the Core credit usage API. No customer-facing UI changed.
+
+Platform release version or release ID: commit `b7a20cbd8f9dc19484e91c132e55f0f8e074c89a`; Railway
+production deployments `agents-api` `2c5fd2bb-8313-4100-825b-a1e7c860ba47` (image
+`sha256:b63bbfce430d344c4d0a5739d45fba3789a51fc95f3745082c68b1d83189d457`), `agents-worker`
+`9c0d7ed2-1276-4373-890e-29e231ff557a` (image
+`sha256:a6a9cdda590f8c12fcb5d27d0d35e895a5c39310c1e81402384d05d77718c9b0`), and `core`
+`34631923-a80b-45ba-bf4d-73ee100ef9f2` (image
+`sha256:1f074c864bb9d0b09c52c1cc62a64ab866a7dfd81121a2742008bc5393a08857`) all reported
+`SUCCESS`.
+
+API/schema/migration changes: additive internal Core response field `providerCostUsd`; Agents
+model-call usage aggregation accepts an optional funding-source filter, and the operator report
+uses `kasitek`. No database migration.
+
+Feature flag or rollout method: no new flag. Provider cost is optional and remains unavailable for
+providers that do not report it. The decomposed Temporal flag remains absent/false in production.
+
+Analytics events and success metrics: no new customer analytics event. Review report status,
+provider-cost availability, token mismatches, cost mismatches, uncovered billable calls, and Core
+reservation mismatches. Provider cost is evidence only when the provider returned it; it is not an
+invoice import.
+
+Logs, metrics, dashboards, and alerts: existing Core credit reconciliation completion logs and
+Agents budget/reconciliation telemetry. No Collector configuration change; `not applicable` for a
+new Collector revision. The operator report remains diagnostic and is not itself an alert.
+
+User, API, internal, and operational documentation: updated
+`AGENT_PLATFORM_ARCHITECTURE_AUDIT.md`, `docs/internal/runbooks/agent-temporal-recovery.md`, and
+this plan. Public API documentation is not applicable because the changed Core route is internal.
+
+Validation evidence: 21 focused provider/reconciliation tests passed; the full Agents suite passed
+603 tests with 78 integration tests skipped because no local integration database or Temporal test
+address was configured; Agents TypeScript compilation passed; Core `cargo check` passed; touched
+Core Rust formatting passed; Agents API readiness returned HTTP 200; Core health returned HTTP 200;
+the worker reported `RUNNING` on `kasitek-agents-production`; and the new provider-cost adapter and
+reconciliation behavior were covered by unit tests. Production has no billed run evidence yet, so
+the staged provider-invoice comparison gate remains open.
+
+Rollback or disable plan: redeploy the previous successful Agents and Core artifacts. The change
+is additive and has no migration. If provider-cost data is incorrect, operators should disregard
+that optional comparison and continue using token, reservation, and usage-event reconciliation
+while the artifact is rolled back.
+
+Post-release review date: 2026-09-08; inspect the first platform-funded production run with a
+provider-reported cost, compare the report to the provider account record, and decide whether the
+remaining P0.4 staged billing gate can be closed.
