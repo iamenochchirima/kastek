@@ -48,7 +48,7 @@ describe("memory policy", () => {
     const lifecycle = new MemoryLifecycle(repository as never);
     const result = await lifecycle.search({ organizationId: "org", agentId: "agent", installationId: "install", actorId: "user" }, "reply style", { memory: { readableNamespaces: ["agent_private"], maxRetrieved: 4 } });
     expect(result).toEqual([records[0]]);
-    expect(repository.searchMemory).toHaveBeenCalledWith(expect.anything(), "reply style", 4, ["agent_private"]);
+    expect(repository.searchMemory).toHaveBeenCalledWith(expect.anything(), "reply style", 4, ["agent_private"], undefined);
   });
 
   it("does not broaden an explicitly empty namespace allowlist", async () => {

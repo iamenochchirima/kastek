@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from "pg";
 import { query, withTransaction } from "../pool";
 import { assessMemorySafety, type MemorySourceTrust, type MemorySafetyStatus } from "../../memory/poisoning";
 import { recordMemoryDeletion, recordMemoryLifecycleDecision, recordMemoryReviewOutcome, recordMemorySafetyAssessment } from "../../telemetry/spans";
+import { createEnvironmentEmbeddingProvider, embedSafely, formatPgVector, type EmbeddingProvider } from "../../memory/embeddings";
 
 export type MemoryNamespace = "conversation" | "user_private" | "organization_shared" | "agent_private";
 export type MemoryType = "working" | "semantic" | "episodic" | "procedural";
@@ -28,7 +29,11 @@ export interface MemoryRecord {
   expires_at: string | null;
   created_at: string;
   updated_at: string;
+  embedding_vector?: number[] | null;
+  embedding_model?: string | null;
   relevance_score?: number;
+  lexical_score?: number;
+  vector_score?: number;
 }
 
 export interface MemoryScope {
@@ -166,7 +171,10 @@ function normalizeMemoryText(value: string): string {
 }
 
 export class MemoryRepository {
-  public constructor(private readonly pool: Pool) {}
+  public constructor(
+    private readonly pool: Pool,
+    private readonly embeddingProvider: EmbeddingProvider | undefined = createEnvironmentEmbeddingProvider(),
+  ) {}
 
   public async createMemory(input: MemoryScope & {
     namespace: MemoryNamespace;
@@ -233,6 +241,8 @@ export class MemoryRepository {
       poisoningCount: safety.poisoningSignals.length,
       sensitiveCount: safety.sensitiveSignals.length,
     });
+    const embedding = await embedSafely(this.embeddingProvider, [input.canonicalText]);
+    const embeddingVector = formatPgVector(embedding?.[0]);
     return withTransaction(this.pool, async (client) => {
       const activeFacts = factKey
         ? await client.query<MemoryRecord>(
@@ -283,8 +293,8 @@ export class MemoryRepository {
         `INSERT INTO memory_records
           (organization_id, agent_definition_id, installation_id, conversation_id, owner_user_id,
            namespace, memory_type, canonical_text, content, source_type, provenance, sensitivity,
-           confidence, expires_at, status, created_by, fact_key, supersedes_memory_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12, $13, $14, $15, $16, $17, $18)
+           confidence, expires_at, status, created_by, fact_key, supersedes_memory_id, embedding_vector, embedding_model)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12, $13, $14, $15, $16, $17, $18, $19::vector, $20)
         RETURNING *`,
         [
           input.organizationId,
@@ -305,6 +315,8 @@ export class MemoryRepository {
           input.actorId ?? "system",
           factKey,
           input.supersedesMemoryId ?? null,
+          embeddingVector,
+          embeddingVector ? this.embeddingProvider?.model ?? null : null,
         ],
       );
       recordMemoryLifecycleDecision({
@@ -412,10 +424,18 @@ export class MemoryRepository {
     });
   }
 
-  public async searchMemory(scope: MemoryScope, searchText: string, limit = 8, namespaces?: readonly MemoryNamespace[]): Promise<MemoryRecord[]> {
-    const result = await query<MemoryRecord>(
+  public async searchMemory(
+    scope: MemoryScope,
+    searchText: string,
+    limit = 8,
+    namespaces?: readonly MemoryNamespace[],
+    queryEmbedding?: readonly number[],
+  ): Promise<MemoryRecord[]> {
+    const boundedLimit = Math.max(1, Math.min(limit, 50));
+    const namespaceFilter = namespaces?.length ? [...namespaces] : null;
+    const lexical = query<MemoryRecord & { lexical_score: number }>(
       this.pool,
-      `SELECT memory_records.*, ts_rank_cd(search_vector, plainto_tsquery('simple', $6)) AS relevance_score FROM memory_records
+      `SELECT memory_records.*, LEAST(1, ts_rank_cd(search_vector, plainto_tsquery('simple', $6))) AS lexical_score FROM memory_records
        WHERE organization_id = $1
          AND status = 'active'
          AND (expires_at IS NULL OR expires_at > now())
@@ -428,11 +448,46 @@ export class MemoryRepository {
          )
          AND ($7::text[] IS NULL OR namespace = ANY($7::text[]))
          AND search_vector @@ plainto_tsquery('simple', $6)
-       ORDER BY ts_rank_cd(search_vector, plainto_tsquery('simple', $6)) DESC, created_at DESC
+       ORDER BY lexical_score DESC, created_at DESC
        LIMIT $8`,
-      [scope.organizationId, scope.agentId, scope.installationId ?? null, scope.conversationId ?? null, scope.actorId ?? null, searchText, namespaces?.length ? [...namespaces] : null, Math.max(1, Math.min(limit, 50))],
+      [scope.organizationId, scope.agentId, scope.installationId ?? null, scope.conversationId ?? null, scope.actorId ?? null, searchText, namespaceFilter, boundedLimit],
     );
-    return result.rows;
+    const vectorText = formatPgVector(queryEmbedding);
+    const vector = query<MemoryRecord & { vector_score: number }>(
+      this.pool,
+      `SELECT memory_records.*, GREATEST(0, 1 - (embedding_vector <=> $6::vector)) AS vector_score FROM memory_records
+       WHERE organization_id = $1
+         AND status = 'active'
+         AND (expires_at IS NULL OR expires_at > now())
+         AND agent_definition_id = $2
+         AND (
+           namespace = 'organization_shared'
+           OR (namespace = 'agent_private' AND installation_id = $3)
+           OR (namespace = 'conversation' AND conversation_id = $4)
+           OR (namespace = 'user_private' AND owner_user_id = $5)
+         )
+         AND ($7::text[] IS NULL OR namespace = ANY($7::text[]))
+         AND embedding_model = $9
+         AND $6::vector IS NOT NULL
+         AND embedding_vector IS NOT NULL
+       ORDER BY embedding_vector <=> $6::vector ASC, created_at DESC
+       LIMIT $8`,
+      [scope.organizationId, scope.agentId, scope.installationId ?? null, scope.conversationId ?? null, scope.actorId ?? null, vectorText, namespaceFilter, boundedLimit, this.embeddingProvider?.model ?? null],
+    );
+    const [lexicalResult, vectorResult] = await Promise.all([lexical, vector]);
+    const merged = new Map<string, MemoryRecord & { lexical_score?: number; vector_score?: number }>();
+    for (const row of lexicalResult.rows) merged.set(row.id, { ...row, lexical_score: Number(row.lexical_score) });
+    for (const row of vectorResult.rows) {
+      const existing = merged.get(row.id);
+      merged.set(row.id, { ...(existing ?? row), vector_score: Number(row.vector_score) });
+    }
+    return [...merged.values()]
+      .map((row) => {
+        const lexicalScore = Number(row.lexical_score ?? 0);
+        const vectorScore = Number(row.vector_score ?? 0);
+        return { ...row, relevance_score: vectorText ? lexicalScore * 0.55 + vectorScore * 0.45 : lexicalScore };
+      })
+      .sort((left, right) => (right.relevance_score ?? 0) - (left.relevance_score ?? 0) || right.created_at.localeCompare(left.created_at));
   }
 
   public async countWritesForRun(scope: MemoryScope): Promise<number> {

@@ -20,8 +20,8 @@ retrieval behavior explainable and testable.
 - One retrieval service that queries memory and knowledge concurrently, deduplicates results, and
   returns source, rank, score, and provenance evidence separately from prompt rendering.
 - Full-text relevance metadata, bounded candidate limits, source diversity, and a policy-controlled
-  evidence token budget. Vector storage remains deferred until the embedding model, dimension,
-  index, and migration policy are selected.
+  evidence token budget. The released semantic path uses one pinned 1536-dimensional embedding
+  model, PostgreSQL pgvector HNSW indexes, and lexical fallback.
 - Retrieval metrics and run-step evidence that do not record prompt or document contents.
 - Evaluation fixtures for direct references, paraphrases, unrelated requests, and restricted
   policies.
@@ -30,7 +30,7 @@ retrieval behavior explainable and testable.
 
 - Automatic memory extraction or consolidation; that remains P1.1.
 - PostgreSQL RLS; that remains P1.2.
-- Enabling pgvector without measured embedding settings.
+- Changing the embedding model, vector dimension, or ranking weights without a separate evaluation.
 
 ## Implementation checklist
 
@@ -44,7 +44,14 @@ retrieval behavior explainable and testable.
 - [x] Record missing-scope outcomes and retrieval latency without emitting memory or document
       contents.
 - [x] Update memory architecture and audit evidence.
-- [ ] Run unit, integration, type, build, and production smoke checks.
+- [x] Select and smoke-test the active embedding provider, model, and dimension.
+- [x] Add additive vector columns, legacy JSON conversion, and partial HNSW indexes.
+- [x] Generate vectors for new memory and knowledge writes with bounded batching and lexical
+      fallback on provider failure.
+- [x] Merge scoped lexical and vector candidates with model matching before ranking.
+- [ ] Measure recall, relevance, latency, provider cost, and backfill completeness before changing
+      the released model or score weights.
+- [ ] Run the final unit, integration, type, build, and deployed-service smoke checks.
 
 ## Release record
 
@@ -88,6 +95,54 @@ backward-compatible.
 
 Post-release review date: 2026-09-07; monitor evidence size, context-limit failures, retrieval
 empty-result rate, and model latency before changing the default token budget.
+
+## Follow-up release record: pgvector hybrid retrieval baseline
+
+Change: Add optional semantic embeddings and bounded hybrid ranking to memory and knowledge
+retrieval while preserving PostgreSQL full-text fallback.
+
+Owner: Agent Platform.
+
+Risk: standard. The database change is additive. Embedding calls add provider latency and cost, so
+the feature remains disabled by default until the deployed code and migration are verified.
+
+Affected services and user surfaces: agents-api, agents-worker, Agent Platform PostgreSQL, memory
+writes, knowledge ingestion, hosted-agent context assembly, and retrieval diagnostics.
+
+Platform release version or release ID: pending commit; migration `099` is applied in production.
+
+API/schema/migration changes: migration `099_pgvector_hybrid_retrieval.sql` enables the available
+pgvector `0.8.6` extension, adds `vector(1536)` columns and `embedding_model`-aware partial HNSW
+indexes, converts valid legacy 1536-value JSON embeddings, and leaves canonical text untouched.
+
+Feature flag or rollout method: `EMBEDDINGS_ENABLED=false` remains the default. The production
+rollout sets it to `true` on agents-api and agents-worker only after the compatible release is
+deployed. `EMBEDDING_PROVIDER=openrouter`, `EMBEDDING_MODEL=openai/text-embedding-3-small`, and
+`EMBEDDING_DIMENSIONS=1536` are the released settings.
+
+Analytics events and success metrics: not applicable for user analytics. Operational success is
+embedding success/fallback count, retrieval latency, empty-result rate, relevance, recall, and
+provider cost. The metric contract is `kasitek.memory.embedding.request.count`.
+
+Logs, metrics, dashboards, and alerts: `memory.embedding.failed` records only provider, model,
+bounded error code, and `fallback=lexical`; the embedding metric has bounded provider and outcome
+attributes. Durable retention, dashboards, and alert routing remain governed by the observability
+plan.
+
+User, API, internal, and operational documentation: updated the memory lifecycle architecture,
+observability guide, root architecture audit, and this plan. No public API contract changed.
+
+Validation evidence: OpenRouter returned 1536-dimensional vectors for the released model. The
+production migration reported pgvector `0.8.6`. A production database smoke path stored a real
+vector, ranked the matching memory, and verified the restricted role saw only its organization.
+Targeted tests, build, deployment, and post-deploy flag verification remain to be recorded.
+
+Rollback or disable plan: set `EMBEDDINGS_ENABLED=false` on agents-api and agents-worker and
+redeploy if provider latency, cost, or errors exceed the release threshold. Lexical retrieval
+continues to work. Do not drop the vector columns or indexes in the rollback release.
+
+Post-release review date: 2026-09-08; review provider spend, fallback rate, latency, result
+quality, and the count of rows still missing vectors.
 
 ## Follow-up release record: memory and retrieval observability
 

@@ -404,6 +404,16 @@ describe("foundation migration", () => {
     expect(uniquePolicyTables).not.toContain("schema_migrations");
   });
 
+  it("adds the pinned pgvector index without replacing canonical text", async () => {
+    const sql = await readFile(new URL("../migrations/099_pgvector_hybrid_retrieval.sql", import.meta.url), "utf8");
+    expect(sql).toContain("CREATE EXTENSION IF NOT EXISTS vector");
+    expect(sql).toContain("embedding_vector vector(1536)");
+    expect(sql).toContain("vector_cosine_ops");
+    expect(sql).toContain("memory_records_embedding_vector_hnsw_idx");
+    expect(sql).toContain("knowledge_chunks_embedding_vector_hnsw_idx");
+    expect(sql).toContain("embedding_model");
+  });
+
   it("defines hosted-agent creation profiles", async () => {
     const profileSql = await readFile(new URL("../migrations/054_agent_creation_profiles.sql", import.meta.url), "utf8");
     expect(profileSql).toContain("creation_profile");

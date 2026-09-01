@@ -124,6 +124,7 @@ The minimum event vocabulary is:
 | Migrations | `migration.started`, `migration.completed`, `migration.failed` |
 | Queues/workers | `queue.item.claimed`, `queue.item.completed`, `queue.item.failed`, `queue.item.ignored`, `queue.claim.failed`, `worker.started`, `worker.disabled`, `worker.failed` |
 | Database isolation | `database.authorization.failed`, `database.context.missing` |
+| Memory embeddings | `memory.embedding.failed` |
 | Terminal failures | `operation.failed`, `operation.terminal.failure` |
 
 Event names are identifiers, not user-facing prose. Production Rust operational `log!` callsites
@@ -170,6 +171,11 @@ Collector internal metrics cover Collector health and processing. Queue age, ret
 dependency metrics are emitted only at boundaries that own those concepts; resource saturation is
 owned by the Collector/host platform rather than application request labels.
 
+The optional semantic retrieval path emits `kasitek.memory.embedding.request.count` with bounded
+`provider`, `outcome`, and `count` attributes. When an embedding provider fails, Agents emits
+`memory.embedding.failed` with the provider, model, bounded error code, and `fallback=lexical`.
+Neither path records memory text, prompts, vectors, credentials, or record IDs.
+
 The minimum metric contract is therefore:
 
 | Signal | Required boundary | Metric |
@@ -183,6 +189,7 @@ The minimum metric contract is therefore:
 | Dependency failures | Provider/dependency boundary | `kasitek.dependency.failure.count` |
 | Database authorization failures | Agents PostgreSQL pool boundary | `kasitek.database.authorization_failure.count` |
 | Missing background database context | Agents background-process boundary | `kasitek.database.context_missing.count` |
+| Memory embedding requests and fallback | Agents memory write/retrieval boundary | `kasitek.memory.embedding.request.count` |
 | Resource saturation | Collector/host platform | Collector internal and platform resource metrics |
 
 Identifiers such as request IDs, run IDs, and customer IDs must not become metric attributes.

@@ -3,6 +3,7 @@ import type { MemoryNamespace, MemoryRecord, MemoryScope } from "../db/repositor
 import { MemoryLifecycle } from "./lifecycle";
 import { memoryPolicyFromAgentPolicy, type MemoryPolicy } from "./policy";
 import { recordRetrievalDuration } from "../telemetry/spans";
+import { createEnvironmentEmbeddingProvider, embedSafely, type EmbeddingProvider } from "./embeddings";
 
 export type RetrievalSourceType = "memory" | "knowledge";
 export type RetrievalReason = "always" | "direct_reference" | "preference_reference" | "contextual_question" | "semantic_reference" | "knowledge_reference" | "policy_disabled" | "not_requested";
@@ -189,6 +190,7 @@ export class RetrievalService {
   public constructor(
     private readonly memory: MemoryLifecycle,
     private readonly knowledge: KnowledgeRepository,
+    private readonly embeddingProvider: EmbeddingProvider | undefined = createEnvironmentEmbeddingProvider(),
   ) {}
 
   public async retrieve(scope: MemoryScope, message: string, policyValue: MemoryPolicy | unknown, options: { always?: boolean } = {}): Promise<RetrievalResult> {
@@ -197,9 +199,10 @@ export class RetrievalService {
     const started = performance.now();
     try {
       const candidateLimit = Math.min(50, Math.max(decision.maxResults, decision.maxResults * 2));
+      const queryEmbedding = (await embedSafely(this.embeddingProvider, [decision.query]))?.[0];
       const [memoryMatches, knowledgeMatches] = await Promise.all([
-        decision.sourceTypes.includes("memory") ? this.memory.search(scope, decision.query, policyValue, candidateLimit) : Promise.resolve([]),
-        decision.sourceTypes.includes("knowledge") ? this.knowledge.search(scope, decision.query, candidateLimit) : Promise.resolve([]),
+        decision.sourceTypes.includes("memory") ? this.memory.search(scope, decision.query, policyValue, candidateLimit, queryEmbedding) : Promise.resolve([]),
+        decision.sourceTypes.includes("knowledge") ? this.knowledge.search(scope, decision.query, candidateLimit, queryEmbedding) : Promise.resolve([]),
       ]);
       return {
         decision,

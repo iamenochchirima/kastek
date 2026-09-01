@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
 import { assertNoActiveLegalHold, type MemoryScope } from "./memory-repository";
 import { recordMemoryDeletion } from "../../telemetry/spans";
+import { createEnvironmentEmbeddingProvider, embedSafely, formatPgVector, type EmbeddingProvider } from "../../memory/embeddings";
 
 export interface KnowledgeSourceRecord {
   id: string;
@@ -30,7 +31,11 @@ export interface KnowledgeChunkRecord {
   metadata: Record<string, unknown>;
   provenance: Record<string, unknown>;
   created_at: string;
+  embedding_vector?: number[] | null;
+  embedding_model?: string | null;
   relevance_score?: number;
+  lexical_score?: number;
+  vector_score?: number;
 }
 
 export interface KnowledgeSourceDocument {
@@ -39,7 +44,10 @@ export interface KnowledgeSourceDocument {
 }
 
 export class KnowledgeRepository {
-  public constructor(private readonly pool: Pool) {}
+  public constructor(
+    private readonly pool: Pool,
+    private readonly embeddingProvider: EmbeddingProvider | undefined = createEnvironmentEmbeddingProvider(),
+  ) {}
 
   public async createSource(input: MemoryScope & {
     name: string;
@@ -124,6 +132,7 @@ export class KnowledgeRepository {
     revision: number;
     chunks: Array<{ text: string; metadata?: Record<string, unknown>; provenance?: Record<string, unknown> }>;
   }): Promise<KnowledgeChunkRecord[]> {
+    const embeddings = await embedSafely(this.embeddingProvider, input.chunks.map((chunk) => chunk.text));
     return withTransaction(this.pool, async (client) => {
       const source = await client.query<KnowledgeSourceRecord>(
         `SELECT * FROM knowledge_sources
@@ -138,12 +147,13 @@ export class KnowledgeRepository {
       for (const [index, chunk] of input.chunks.entries()) {
         const created = await client.query<KnowledgeChunkRecord>(
           `INSERT INTO knowledge_chunks
-            (source_id, organization_id, agent_definition_id, installation_id, revision, chunk_index, canonical_text, metadata, provenance)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb)
+            (source_id, organization_id, agent_definition_id, installation_id, revision, chunk_index, canonical_text, metadata, provenance, embedding_vector, embedding_model)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10::vector, $11)
            ON CONFLICT (source_id, revision, chunk_index) DO UPDATE
-             SET canonical_text = EXCLUDED.canonical_text, metadata = EXCLUDED.metadata, provenance = EXCLUDED.provenance
+             SET canonical_text = EXCLUDED.canonical_text, metadata = EXCLUDED.metadata, provenance = EXCLUDED.provenance,
+                 embedding_vector = EXCLUDED.embedding_vector, embedding_model = EXCLUDED.embedding_model
            RETURNING *`,
-          [input.sourceId, input.scope.organizationId, input.scope.agentId, input.scope.installationId ?? null, input.revision, index, chunk.text, JSON.stringify(chunk.metadata ?? {}), JSON.stringify(chunk.provenance ?? {})],
+          [input.sourceId, input.scope.organizationId, input.scope.agentId, input.scope.installationId ?? null, input.revision, index, chunk.text, JSON.stringify(chunk.metadata ?? {}), JSON.stringify(chunk.provenance ?? {}), formatPgVector(embeddings?.[index]), embeddings?.[index] ? this.embeddingProvider?.model ?? null : null],
         );
         chunks.push(created.rows[0]!);
       }
@@ -152,21 +162,51 @@ export class KnowledgeRepository {
     });
   }
 
-  public async search(scope: MemoryScope, searchText: string, limit = 8): Promise<KnowledgeChunkRecord[]> {
-    const result = await query<KnowledgeChunkRecord>(
+  public async search(scope: MemoryScope, searchText: string, limit = 8, queryEmbedding?: readonly number[]): Promise<KnowledgeChunkRecord[]> {
+    const boundedLimit = Math.max(1, Math.min(limit, 50));
+    const lexical = query<KnowledgeChunkRecord & { lexical_score: number }>(
       this.pool,
-      `SELECT kc.*, ts_rank_cd(kc.search_vector, plainto_tsquery('simple', $4)) AS relevance_score FROM knowledge_chunks kc
+      `SELECT kc.*, LEAST(1, ts_rank_cd(kc.search_vector, plainto_tsquery('simple', $4))) AS lexical_score FROM knowledge_chunks kc
        JOIN knowledge_sources ks ON ks.id = kc.source_id AND ks.status = 'active'
        WHERE kc.organization_id = $1
          AND kc.agent_definition_id = $2
          AND (kc.installation_id IS NULL OR kc.installation_id = $3)
          AND kc.revision = ks.revision
          AND kc.search_vector @@ plainto_tsquery('simple', $4)
-       ORDER BY ts_rank_cd(kc.search_vector, plainto_tsquery('simple', $4)) DESC, kc.created_at DESC
+       ORDER BY lexical_score DESC, kc.created_at DESC
        LIMIT $5`,
-      [scope.organizationId, scope.agentId, scope.installationId ?? null, searchText, Math.max(1, Math.min(limit, 50))],
+      [scope.organizationId, scope.agentId, scope.installationId ?? null, searchText, boundedLimit],
     );
-    return result.rows;
+    const vectorText = formatPgVector(queryEmbedding);
+    const vector = query<KnowledgeChunkRecord & { vector_score: number }>(
+      this.pool,
+      `SELECT kc.*, GREATEST(0, 1 - (kc.embedding_vector <=> $4::vector)) AS vector_score FROM knowledge_chunks kc
+       JOIN knowledge_sources ks ON ks.id = kc.source_id AND ks.status = 'active'
+       WHERE kc.organization_id = $1
+         AND kc.agent_definition_id = $2
+         AND (kc.installation_id IS NULL OR kc.installation_id = $3)
+         AND kc.revision = ks.revision
+         AND kc.embedding_model = $6
+         AND $4::vector IS NOT NULL
+         AND kc.embedding_vector IS NOT NULL
+       ORDER BY kc.embedding_vector <=> $4::vector ASC, kc.created_at DESC
+       LIMIT $5`,
+      [scope.organizationId, scope.agentId, scope.installationId ?? null, vectorText, boundedLimit, this.embeddingProvider?.model ?? null],
+    );
+    const [lexicalResult, vectorResult] = await Promise.all([lexical, vector]);
+    const merged = new Map<string, KnowledgeChunkRecord & { lexical_score?: number; vector_score?: number }>();
+    for (const row of lexicalResult.rows) merged.set(row.id, { ...row, lexical_score: Number(row.lexical_score) });
+    for (const row of vectorResult.rows) {
+      const existing = merged.get(row.id);
+      merged.set(row.id, { ...(existing ?? row), vector_score: Number(row.vector_score) });
+    }
+    return [...merged.values()]
+      .map((row) => {
+        const lexicalScore = Number(row.lexical_score ?? 0);
+        const vectorScore = Number(row.vector_score ?? 0);
+        return { ...row, relevance_score: vectorText ? lexicalScore * 0.55 + vectorScore * 0.45 : lexicalScore };
+      })
+      .sort((left, right) => (right.relevance_score ?? 0) - (left.relevance_score ?? 0) || right.created_at.localeCompare(left.created_at));
   }
 
   public async listSources(scope: { organizationId: string; agentId?: string; installationId?: string }, limit = 100): Promise<KnowledgeSourceRecord[]> {

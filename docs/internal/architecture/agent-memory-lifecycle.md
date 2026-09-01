@@ -42,6 +42,22 @@ needed to fit an otherwise empty budget; later candidates are skipped when they 
 remaining budget. Run-step evidence records counts and ranked IDs/scores without recording the
 retrieved text there.
 
+When `EMBEDDINGS_ENABLED=true`, retrieval also uses the released pgvector path. The application
+calls the configured OpenAI-compatible embedding endpoint once for the query, then runs lexical
+and cosine-vector searches in parallel. The repositories merge results by record ID and rank them
+with `0.55 * lexical_score + 0.45 * vector_score`. Both searches apply the same organization,
+agent, installation, namespace, status, expiry, revision, and sensitivity filters before ranking.
+The active model is `openai/text-embedding-3-small` at 1536 dimensions. `embedding_model` is stored
+with each vector so a later model change cannot mix incomparable vectors in one search. Migration
+099 adds the rebuildable `vector(1536)` columns and partial HNSW indexes to memory and knowledge.
+Canonical text, ownership, lifecycle state, and PostgreSQL full-text search remain authoritative.
+
+Embedding failures do not fail a memory write or make retrieval unavailable. The code records a
+bounded failure event and returns lexical results. Existing rows with valid 1536-value JSON
+embeddings are converted during migration; rows without a valid vector are filled on their next
+write. Backfill completeness, retrieval recall, relevance, latency, and provider cost still need
+measurement before changing the model or score weights.
+
 The worker exposes two installation-scoped capabilities:
 
 - `kasitek.agent.memory_search` — read-only, policy-bounded search;
@@ -98,8 +114,8 @@ Multi-turn poisoning analysis, model-backed extraction, and automatic activation
 
 ## Remaining work
 
-Model-backed extraction quality, vector ranking, and organization-level privacy controls remain
-open. Runtime metrics now record accepted, review-pending, and quarantined memory outcomes,
+Model-backed extraction quality, retrieval quality measurement, and organization-level privacy
+controls remain open. Runtime metrics now record accepted, review-pending, and quarantined memory outcomes,
 missing retrieval-scope requirements, and retrieval latency without recording memory text or
 identifiers. These capabilities must remain behind the same lifecycle boundary rather than adding
 direct writes to conversation handlers.

@@ -82,6 +82,9 @@ const databaseAuthorizationFailureCounter = meter.createCounter("kasitek.databas
 const databaseContextMissingCounter = meter.createCounter("kasitek.database.context_missing.count", {
   description: "Background operations rejected because tenant database context was missing",
 });
+const memoryEmbeddingCounter = meter.createCounter("kasitek.memory.embedding.request.count", {
+  description: "Memory and knowledge embedding requests by bounded provider outcome",
+});
 
 export function boundedAttribute(value: unknown, maxLength = 128): string {
   return String(value ?? "unknown").slice(0, maxLength);
@@ -163,6 +166,11 @@ export function recordDatabaseAuthorizationFailure(contextPresent: boolean): voi
 
 export function recordDatabaseContextMissing(processName: string): void {
   databaseContextMissingCounter.add(1, { process: boundedAttribute(processName) });
+}
+
+export function recordMemoryEmbedding(input: { provider: string; outcome: "success" | "fallback"; count: number }): void {
+  if (!Number.isSafeInteger(input.count) || input.count <= 0) return;
+  memoryEmbeddingCounter.add(input.count, { provider: boundedAttribute(input.provider), outcome: input.outcome });
 }
 
 export function recordTemporalActivityAttempt(activity: string, attempt: number): void {

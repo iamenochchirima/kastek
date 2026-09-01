@@ -42,13 +42,13 @@ export class MemoryLifecycle {
     return memoryPolicyFromAgentPolicy(value);
   }
 
-  public async search(scope: MemoryScope, query: string, policyValue: unknown, requestedLimit?: number): Promise<MemoryRecord[]> {
+  public async search(scope: MemoryScope, query: string, policyValue: unknown, requestedLimit?: number, queryEmbedding?: readonly number[]): Promise<MemoryRecord[]> {
     const policy = this.policy(policyValue);
     if (policy.mode === "disabled" || policy.maxRetrieved === 0 || !query.trim()) return [];
     if (policy.readableNamespaces.length === 0) return [];
     for (const reason of missingMemoryScopeRequirements(scope, policy.readableNamespaces)) recordRetrievalScopeRejection(reason);
     const limit = requestedLimit === undefined ? policy.maxRetrieved : Math.min(policy.maxRetrieved, Math.max(1, Math.min(50, Math.trunc(requestedLimit))));
-    const records = await this.repository.searchMemory(scope, query.slice(0, 4_000), limit, policy.readableNamespaces);
+    const records = await this.repository.searchMemory(scope, query.slice(0, 4_000), limit, policy.readableNamespaces, queryEmbedding);
     return policy.allowSensitive ? records : records.filter((record) => record.sensitivity === "normal");
   }
 

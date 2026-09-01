@@ -81,7 +81,8 @@ administrative setup connection used the Railway database administrator only for
 fixtures. The run passed 14 assertions: memory/knowledge `3/3`, conversation/run `4/4`,
 identity/credentials/effects `4/4`, and control-plane/lifecycle `3/3`. Expected cross-tenant
 denials emitted `database.authorization.failed` with SQLSTATE `42501` and no SQL or tenant
-payload. A follow-up query found zero residual `rls-*` organization rows.
+payload. A follow-up query found zero residual mutable `rls-*` organization rows. The four expected
+denial records in `audit_records` were retained as operational evidence.
 
 The broad conversation/run visibility assertion took 37 seconds through the tunnel, so the
 production-equivalent command used a 120-second per-test timeout. This is test-harness transport

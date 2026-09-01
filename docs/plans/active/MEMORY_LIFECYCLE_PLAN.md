@@ -22,12 +22,13 @@ must be inspectable instead of being an opaque boolean regex gate.
 - Explicit memory search and remember capabilities with scoped tool context.
 - Structured retrieval decisions and regression tests for paraphrased references.
 - Conversation admission protection against competing active runs.
+- Optional 1536-dimensional pgvector embeddings with lexical fallback and scoped hybrid ranking.
 
 ### Excluded
 
 - Model-generated automatic extraction and consolidation.
 - PostgreSQL RLS activation before transaction-scoped database identity exists.
-- Vector index rollout before embedding dimensions and provider ownership are measured.
+- Changing the released embedding model or dimension without a retrieval-quality evaluation.
 
 ## Context and constraints
 

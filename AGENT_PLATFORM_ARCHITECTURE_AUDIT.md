@@ -135,7 +135,7 @@ sandboxed execution module.
 | Episodic memory | Structural only | The type exists; conversation consolidation does not. |
 | Procedural skills | Partial | Instructions and workflows exist; reusable, selectively loaded skills do not. |
 | Knowledge ingestion | Baseline implemented | Text, files, URLs, websites, provenance, and scoped retrieval exist. |
-| Retrieval quality | Partial | Full-text search and a narrow retrieval gate limit relevance. |
+| Retrieval quality | Hybrid baseline | The retrieval gate now combines scoped PostgreSQL full-text and pgvector candidates; relevance and cost evaluation remain open. |
 | Graph workflows | Unsafe | Several advertised contracts fail under direct reproduction. |
 | Durable execution | Implemented with risks | Temporal owns runs and waits, but activity granularity and cancellation need work. |
 | Human approval and handoff | Implemented | Exact argument binding, durable approval, consent, and resumption exist. |
@@ -545,8 +545,10 @@ The current retrieval gate in [`agents/src/runtime/context.ts`](agents/src/runti
 regular expression for phrases such as `remember`, `previous`, and `last time`. It misses ordinary
 queries that need personal or project memory without using those words.
 
-Memory and knowledge retrieval use PostgreSQL full-text search. The accepted memory ADR describes
-hybrid PostgreSQL and pgvector retrieval, but vector ranking is not active.
+Memory and knowledge retrieval use PostgreSQL full-text search plus an optional, fail-open pgvector
+path. Migration 099 adds a rebuildable `vector(1536)` column and HNSW cosine indexes. The active
+embedding model is `openai/text-embedding-3-small` through OpenRouter. Lexical retrieval remains
+available when the provider is disabled or unavailable.
 
 #### Target memory module
 
@@ -768,11 +770,15 @@ bounded candidate set, and return structured evidence instead of one concatenate
 - [x] Replace the duplicate regex gates with a bounded deterministic classifier; model-based
       semantic classification remains unnecessary until the evaluation set shows this threshold
       is insufficient.
-- [ ] Enable pgvector storage and index migrations with measured dimension and index settings.
+- [x] Enable pgvector storage and index migrations with measured dimension and index settings
+      ([099_pgvector_hybrid_retrieval.sql](agents/migrations/099_pgvector_hybrid_retrieval.sql));
+      production reports pgvector `0.8.6`, `vector(1536)`, and both HNSW indexes.
 - [x] Apply existing organization, agent, installation, conversation, user, namespace, expiry,
       and sensitivity filtering before ranking.
-- [x] Implement bounded lexical multi-source ranking, deduplication, source diversity, and policy
-      token budgeting; vector hybrid ranking remains open ([retrieval.ts](agents/src/memory/retrieval.ts),
+- [x] Implement bounded lexical and vector multi-source ranking, deduplication, source diversity,
+      and policy token budgeting ([retrieval.ts](agents/src/memory/retrieval.ts),
+      [memory-repository.ts](agents/src/db/repositories/memory-repository.ts),
+      [knowledge-repository.ts](agents/src/db/repositories/knowledge-repository.ts),
       [policy.ts](agents/src/memory/policy.ts)).
 - [x] Return provenance and score evidence separately from prompt rendering
       ([retrieval.ts](agents/src/memory/retrieval.ts), [activities.ts](agents/src/temporal/activities.ts)).
@@ -781,6 +787,8 @@ bounded candidate set, and return structured evidence instead of one concatenate
       still fails closed when required scope is absent.
 - [x] Document retrieval failure behavior for each current memory policy mode
       ([agent-memory-lifecycle.md](docs/internal/architecture/agent-memory-lifecycle.md)).
+- [x] Verify the production migration, live embedding write, vector ranking, and vector/RLS
+      isolation smoke path; recall, relevance, latency, and provider-cost evaluation remain open.
 
 ### P1.4 Strengthen memory poisoning controls
 

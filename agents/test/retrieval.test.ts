@@ -43,8 +43,8 @@ describe("structured retrieval", () => {
       { memory: { mode: "explicit", maxRetrieved: 4 } },
     );
 
-    expect(memory.search).toHaveBeenCalledWith(expect.anything(), "What do you know about my reply style?", expect.anything(), 16);
-    expect(knowledge.search).toHaveBeenCalledWith(expect.anything(), "What do you know about my reply style?", 16);
+    expect(memory.search).toHaveBeenCalledWith(expect.anything(), "What do you know about my reply style?", expect.anything(), 16, undefined);
+    expect(knowledge.search).toHaveBeenCalledWith(expect.anything(), "What do you know about my reply style?", 16, undefined);
     expect(result.evidence).toHaveLength(2);
     expect(result.evidence[0]).toMatchObject({ id: "memory-2", sourceType: "memory", score: 0.7, rank: 1, namespace: "agent_private" });
     expect(result.evidence[1]).toMatchObject({ id: "knowledge-2", sourceType: "knowledge", score: 0.5, rank: 2, sourceId: "source-1", chunkIndex: 3 });
