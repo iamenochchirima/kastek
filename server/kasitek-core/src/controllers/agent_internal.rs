@@ -362,12 +362,9 @@ pub async fn get_credit_usage_reconciliation(
     req: HttpRequest,
     query: web::Query<AgentCreditUsageReconciliationQuery>,
 ) -> Result<HttpResponse, AppError> {
-    let context = resolve_internal_agent_context(
-        config.get_ref(),
-        &req,
-        "kasitek.core.credits_usage_read",
-    )
-    .await?;
+    let context =
+        resolve_internal_agent_context(config.get_ref(), &req, "kasitek.core.credits_usage_read")
+            .await?;
     let source_type = query
         .source_type
         .as_deref()
