@@ -39,6 +39,7 @@ const envSchema = z.object({
   KASITEK_CORE_URL: z.string().url().optional(),
   KASITEK_CORE_INTERNAL_TOKEN: z.string().optional(),
   KASITEK_CORE_TIMEOUT_MS: z.coerce.number().int().min(100).max(120_000).default(10_000),
+  KASITEK_CORE_PUBLISH_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).optional(),
   KASITEK_APP_URL: z.string().url().optional(),
   TELEGRAM_WEBHOOK_BASE_URL: z.string().url().optional(),
   TELEGRAM_API_BASE_URL: z.string().url().default("https://api.telegram.org"),
@@ -120,6 +121,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = envSchema.parse(env);
   const config = {
     ...parsed,
+    KASITEK_CORE_PUBLISH_TIMEOUT_MS: parsed.KASITEK_CORE_PUBLISH_TIMEOUT_MS ?? 30_000,
     MCP_STATELESS_ENABLED: parsed.MCP_STATELESS_ENABLED ?? parsed.NODE_ENV !== "production",
   };
   if (config.NODE_ENV === "production" && !config.TEMPORAL_ENABLED) {

@@ -808,7 +808,7 @@ export class KasitekCoreReadClient {
     return this.requestJson<{ post: CoreContentPost; result: unknown }>(context, `/api/internal/agents/v1/content/posts/${encodeURIComponent(postId)}/publish`, "Content publish", {
       method: "POST",
       body: JSON.stringify({ platform }),
-    });
+    }, undefined, this.config.KASITEK_CORE_PUBLISH_TIMEOUT_MS ?? 30_000);
   }
 
   public async scheduleContentPost(context: ToolInvocationContext, postId: string, scheduledFor: string): Promise<{ post: CoreContentPost; status: string }> {
@@ -960,12 +960,13 @@ export class KasitekCoreReadClient {
     label: string,
     init: RequestInit,
     explicitIdempotencyKey?: string,
+    timeoutMs = this.config.KASITEK_CORE_TIMEOUT_MS,
   ): Promise<T> {
     const baseUrl = this.config.KASITEK_CORE_URL?.replace(/\/$/, "");
     const staticToken = this.config.KASITEK_CORE_INTERNAL_TOKEN?.trim();
     if (!baseUrl || (!staticToken && !this.config.KASITEK_CORE_DELEGATION_PRIVATE_KEY)) throw new CoreToolError("CORE_UNAVAILABLE", "kasitek-core capability boundary is not configured");
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.config.KASITEK_CORE_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const idempotencyKey = explicitIdempotencyKey ?? this.idempotencyKeyFor(path, init.method, context, init.body);
       const response = await fetch(`${baseUrl}${path}`, {
@@ -1002,7 +1003,7 @@ export class KasitekCoreReadClient {
       return payload as T;
     } catch (error) {
       if (error instanceof CoreToolError) throw error;
-      if (error instanceof DOMException && error.name === "AbortError") throw new CoreToolError("CORE_TIMEOUT", "kasitek-core read timed out");
+      if (error instanceof DOMException && error.name === "AbortError") throw new CoreToolError("CORE_TIMEOUT", `kasitek-core ${label.toLowerCase()} timed out; the result may be pending`);
       throw new CoreToolError("CORE_REQUEST_FAILED", error instanceof Error ? error.message : "kasitek-core request failed");
     } finally {
       clearTimeout(timeout);

@@ -469,6 +469,40 @@ describe("kasitek-core read boundary", () => {
     expect(JSON.parse(String(init.body))).toEqual({ platform: "THREADS" });
   });
 
+  it("keeps a provider-backed publish alive beyond the general Core read timeout", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.fn().mockImplementation((_input: string, init?: RequestInit) => new Promise<Response>((resolve, reject) => {
+        const signal = init?.signal;
+        if (signal?.aborted) {
+          reject(new DOMException("The operation was aborted", "AbortError"));
+          return;
+        }
+        signal?.addEventListener("abort", () => reject(new DOMException("The operation was aborted", "AbortError")), { once: true });
+        setTimeout(() => resolve(new Response(JSON.stringify({
+          post: { id: "post-1", content: "Hello", channels: ["instagram"], status: "PUBLISHED" },
+          result: { status: "PUBLISHED" },
+        }), { status: 202 })), 11_000);
+      }));
+      vi.stubGlobal("fetch", fetchMock);
+      const config = loadConfig({
+        AGENTS_DATABASE_URL: "postgres://localhost/agents",
+        KASITEK_CORE_URL: "https://core.example.test",
+        KASITEK_CORE_INTERNAL_TOKEN: "internal-token",
+        KASITEK_CORE_TIMEOUT_MS: "10000",
+        KASITEK_CORE_PUBLISH_TIMEOUT_MS: "20000",
+      });
+      const outcome = new KasitekCoreReadClient(config).publishContentPost(context, "post-1", "INSTAGRAM")
+        .then((value) => ({ ok: true as const, value }), (error) => ({ ok: false as const, error }));
+
+      await vi.advanceTimersByTimeAsync(11_000);
+
+      await expect(outcome).resolves.toMatchObject({ ok: true, value: { post: { status: "PUBLISHED" } } });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("routes scheduling through the durable content capability", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ post: { id: "post-1", content: "Hello", channels: ["threads"], status: "SCHEDULED" }, status: "SCHEDULED" }), { status: 202 }));
     vi.stubGlobal("fetch", fetchMock);

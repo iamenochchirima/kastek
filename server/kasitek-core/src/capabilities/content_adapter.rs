@@ -25,6 +25,80 @@ fn normalize_platform(value: &str) -> String {
     value.trim().to_ascii_uppercase()
 }
 
+fn fallback_post_after_publish(
+    mut post: SocialPost,
+    result: &social::PublishExecutionResult,
+) -> SocialPost {
+    let now = Utc::now();
+    post.row.status = result.status.clone();
+    post.row.updated_at = now;
+    if result.status == "PUBLISHED" {
+        post.row.published_at = Some(now);
+    }
+    for job in &mut post.publish_jobs {
+        if job.id != result.job_id {
+            continue;
+        }
+        job.status = result.status.clone();
+        job.external_post_id = result.external_post_id.clone();
+        job.error_message = None;
+        job.updated_at = now;
+        if result.status == "PUBLISHED" {
+            job.published_at = Some(now);
+        }
+    }
+    post
+}
+
+async fn publish_response(
+    pool: &PgPool,
+    organization_id: &str,
+    post_id: &str,
+    fallback: SocialPost,
+    result: social::PublishExecutionResult,
+) -> serde_json::Value {
+    match social::get_social_post(pool, organization_id, post_id).await {
+        Ok(Some(post)) => serde_json::json!({
+            "post": post,
+            "result": result,
+            "postReadbackStatus": "AVAILABLE",
+        }),
+        Ok(None) => {
+            observability::tracing::warn!(
+                event = "operation.degraded",
+                operation = "content.publish.readback",
+                org_id = %organization_id,
+                post_id = %post_id,
+                job_id = %result.job_id,
+                platform = %result.platform,
+                "publish completed but the post readback returned no row"
+            );
+            serde_json::json!({
+                "post": fallback_post_after_publish(fallback, &result),
+                "result": result,
+                "postReadbackStatus": "UNAVAILABLE",
+            })
+        }
+        Err(error) => {
+            observability::tracing::warn!(
+                event = "operation.degraded",
+                operation = "content.publish.readback",
+                org_id = %organization_id,
+                post_id = %post_id,
+                job_id = %result.job_id,
+                platform = %result.platform,
+                error_type = %std::any::type_name_of_val(&error),
+                "publish completed but the post readback failed"
+            );
+            serde_json::json!({
+                "post": fallback_post_after_publish(fallback, &result),
+                "result": result,
+                "postReadbackStatus": "UNAVAILABLE",
+            })
+        }
+    }
+}
+
 fn split_agent_channel_target(value: &str) -> (String, Option<String>) {
     let trimmed = value.trim();
     let normalized = normalize_platform(trimmed);
@@ -449,8 +523,7 @@ pub async fn publish(
             ));
         }
         let result = social::execute_social_publish_job(pool, &job_id).await?;
-        let refreshed = social::get_social_post(pool, &context.organization_id, post_id).await?;
-        return Ok(serde_json::json!({ "post": refreshed, "result": result }));
+        return Ok(publish_response(pool, &context.organization_id, post_id, post, result).await);
     }
     if prior_key.is_some() && job.status != "FAILED" {
         return Err(AppError::Conflict(
@@ -490,8 +563,7 @@ pub async fn publish(
         ));
     }
     let result = social::execute_social_publish_job(pool, &job_id).await?;
-    let refreshed = social::get_social_post(pool, &context.organization_id, post_id).await?;
-    Ok(serde_json::json!({ "post": refreshed, "result": result }))
+    Ok(publish_response(pool, &context.organization_id, post_id, post, result).await)
 }
 
 pub async fn schedule(

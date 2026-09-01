@@ -3240,7 +3240,7 @@ pub async fn execute_social_publish_job(
             .await?;
             tx.commit().await?;
 
-            billing::record_meter_usage(
+            if let Err(error) = billing::record_meter_usage(
                 pool,
                 org_id,
                 billing::meters::SOCIAL_PUBLISHES,
@@ -3249,7 +3249,19 @@ pub async fn execute_social_publish_job(
                 &job.id,
                 &format!("social-publish:{}", job.id),
             )
-            .await?;
+            .await
+            {
+                observability::tracing::error!(
+                    event = "operation.failed",
+                    operation = "social_publish.billing_record",
+                    org_id = %org_id,
+                    job_id = %job.id,
+                    post_id = %job.post_id,
+                    platform = %job.platform,
+                    error_type = %std::any::type_name_of_val(&error),
+                    "publish was persisted but its usage event could not be recorded"
+                );
+            }
 
             Ok(PublishExecutionResult {
                 job_id: job.id,

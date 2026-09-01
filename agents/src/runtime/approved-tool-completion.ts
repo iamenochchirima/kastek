@@ -77,6 +77,9 @@ export function buildApprovedToolFailureMessage(
     if (/(?:reconnect|connection|credential|oauth|token).*(?:expired|invalid|missing|needs|before publishing)|(?:connect|reconnect) .*account/i.test(lowerMessage)) {
       return `I couldn’t publish the ${platform} post because the ${platform} connection needs attention. Open Connections → ${platform} → Access, then reconnect or update access before trying again.`;
     }
+    if (/timed out|result may be pending|confirmation/i.test(lowerMessage)) {
+      return `I couldn’t confirm the ${platform} post because the publish request timed out. Check the post status before retrying so it is not duplicated.`;
+    }
     if (/timed out|temporarily unavailable|rate limit|returned 5\d\d|service unavailable/i.test(lowerMessage)) {
       return `I couldn’t publish the ${platform} post because the provider is temporarily unavailable. The post was not confirmed as published; try again shortly.`;
     }

@@ -108,10 +108,17 @@ human approval, and provider execution remain separate checks.
 
 - [x] Add provider-aware approved-publish failure messages so provider/media/readiness failures
       are not incorrectly described as connection failures.
+- [x] Reproduce the intermittent false failure at the Agent/Core boundary with a delayed publish
+      response that exceeds the general read timeout.
+- [x] Give provider-backed publishing its own bounded 30-second Core response timeout so media
+      processing can complete without extending ordinary read operations.
+- [x] Keep a provider-confirmed and locally persisted publish successful when usage recording or
+      post readback degrades after the external effect; emit bounded structured diagnostics.
 - [x] Keep the client browser API origin configured explicitly by default; Core production CORS
       permits the app origin, while the Next proxy remains opt-in until server-side reachability
       is verified for the deployment region.
 - [x] Add regression coverage for provider failure classification.
+- [x] Add regression coverage for the provider-backed publish timeout boundary.
 - [ ] Add regression coverage for the browser API-base choice.
 - [ ] Verify the analytics request contract against the production reporting service from an
       authenticated browser session and record the actual remaining failure cause if one persists.

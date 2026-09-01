@@ -51,6 +51,12 @@ Use this when a provider account shows `NEEDS_ATTENTION`, messages stop arriving
     diagnosis. Current Agent responses distinguish media processing, missing publish access,
     unusable media, connection credentials, and temporary provider failures. Use the specific
     remediation in the reply and inspect the Core error code if the message is still generic.
+14. If the provider post exists but the agent reported a failure, treat the result as an
+    indeterminate confirmation rather than immediately retrying. Inspect the `SocialPublishJob`
+    status and `externalPostId` first. The Agent publish boundary has a longer bounded timeout for
+    provider media processing, and Core preserves a persisted publish when post readback or usage
+    recording degrades after the provider effect. Retry only after confirming that no published
+    provider ID exists; the same idempotency key is safe to replay.
 
 ## Production Meta approval gate
 

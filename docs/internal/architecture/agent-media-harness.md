@@ -57,7 +57,12 @@ ready/clean state before completing the run.
 Provider publishing is also asynchronous at the adapter boundary. Instagram media containers are
 polled until the provider reports `FINISHED` before `media_publish` is called. A bounded timeout or
 terminal provider state completes the action with an error; it must not be converted into a local
-success or an unbounded gateway wait.
+success or an unbounded gateway wait. The Agent/Core client gives publishing a separate bounded
+response deadline because provider media processing can outlast ordinary Core reads. If the
+provider effect and local persistence complete but a readback or usage-recording step degrades,
+Core returns the successful publish result and emits a bounded diagnostic instead of reporting a
+false publish failure. A true response timeout remains an indeterminate result: callers check the
+durable publish job before retrying, and idempotency prevents duplicate execution.
 
 ## Gateway profiles
 
