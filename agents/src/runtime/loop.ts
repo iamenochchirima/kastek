@@ -1,6 +1,7 @@
 import { ModelGateway } from "../model/gateway";
 import type { ModelCredentials, ModelMessage, ModelRequest, ModelResponse } from "../model/types";
 import { ModelProviderError } from "../model/types";
+import { estimatePromptTokens } from "../model/credit-pricing";
 import { ToolPolicyError, type CapabilityPresentationMetadata, type ToolApproval, type ToolInvocationContext, type ToolInvocationResult } from "../tools/types";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
 import { classifyFailureCode } from "./failures";
@@ -290,14 +291,17 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         let operationKey: string | undefined;
         try {
           await input.beforeModelCall?.();
+          const tools = input.tools.list(input.grantedTools);
+          const estimatedInputTokens = estimatePromptTokens({ messages, tools });
+          const availableOutputTokens = Math.max(1, remainingTokens - estimatedInputTokens);
           operationKey = `${input.operationKeyPrefix ?? "model"}:${iteration}:${attemptIndex}`;
           lastModelOperationKey = operationKey;
           const request: ModelRequest = {
             ...attempt.model,
             messages,
             signal: input.signal,
-            tools: input.tools.list(input.grantedTools),
-            maxTokens: attempt.model.maxTokens === undefined ? remainingTokens : Math.min(attempt.model.maxTokens, remainingTokens),
+            tools,
+            maxTokens: attempt.model.maxTokens === undefined ? availableOutputTokens : Math.min(attempt.model.maxTokens, availableOutputTokens),
           };
           const prepared = await input.prepareModelCall?.({ operationKey, model: attempt.model, credentials: attempt.credentials });
           try {

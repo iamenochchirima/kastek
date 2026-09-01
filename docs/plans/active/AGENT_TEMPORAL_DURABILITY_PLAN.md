@@ -805,3 +805,46 @@ migration rollback or data repair is required; do not delete the conflicting his
 
 Post-release review date: 2026-09-08; review fresh-run completion, replay behavior, and any
 remaining model failure codes after deployment.
+
+## Follow-up release record: token-budget admission correction
+
+Change: Make the bounded runtime account for the serialized prompt when deriving an implicit model
+output ceiling. The total-token budget now admits `estimated input + output allowance` before the
+provider call, rather than requesting the full remaining run budget as output and rejecting every
+non-empty prompt during reservation.
+
+Owner: Agent Platform.
+
+Risk: standard; this corrects preflight admission and preserves the existing actual-usage capture,
+run limits, and fail-closed budget ledger.
+
+Affected services and user surfaces: agents-worker, ordinary hosted runs, workflow agent-loop
+calls, run-budget reservations, and customer-facing agent replies. Agents API and MCP-Gateway carry
+the shared artifact but have no direct model execution path.
+
+Platform release version or release ID: pending deployment from the current fix commit.
+
+API/schema/migration changes: not applicable; no API, schema, or migration changes.
+
+Feature flag or rollout method: no new flag. Deploy the exact tested Agents artifact to the worker
+and API; existing per-run model, token, tool, and spend limits remain authoritative.
+
+Analytics events and success metrics: no new customer analytics event. Success is a valid first
+model call with a non-empty prompt, no premature `MODEL_TOKEN_BUDGET_EXCEEDED`, and unchanged
+actual-token capture and budget enforcement.
+
+Logs, metrics, dashboards, and alerts: existing budget-exhaustion, model-call, run lifecycle, and
+reconciliation telemetry is sufficient; no Collector configuration change.
+
+User, API, internal, and operational documentation: updated this plan, the workflow execution
+architecture reference, and the Temporal recovery runbook. Public API documentation is not
+applicable.
+
+Validation evidence: the focused regression test passes, the Agents TypeScript build passes, and
+full-suite verification and production deployment remain open until the artifact is promoted.
+
+Rollback or disable plan: redeploy the previous successful Agents API/Worker artifact. No
+migration rollback or data repair is required.
+
+Post-release review date: 2026-09-08; review first-turn success, token-budget rejection rates,
+actual usage capture, and any remaining provider or model errors.

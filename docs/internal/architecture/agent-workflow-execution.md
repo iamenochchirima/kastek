@@ -70,7 +70,11 @@ present, and configured workflow keys use the run ID plus the node ID. A worker 
 request starts can still leave the operation `started` with an unknown provider outcome, so it is
 stopped and sent to reconciliation rather than retried blindly. The run scope is part of the key
 because `model_calls.operation_key` is globally unique; omitting it would make two independent
-runs at the same iteration or node fail closed as a scope conflict.
+runs at the same iteration or node fail closed as a scope conflict. Before reservation, the bounded
+runtime estimates the serialized prompt, including granted tool schemas, and caps an implicit model
+output allowance to the remaining run-token budget after that estimate. The total-token limit
+therefore covers both input and output without rejecting a first request merely because its output
+ceiling equals the entire run budget.
 Tool invocations claim a stable `(run_id, provider_tool_call_id)` record. When a retry finds a
 completed record with the same tool name and argument hash, it reuses the persisted, redacted
 outcome before creating a new proposal or step, consuming tool budget, invoking the handler, or

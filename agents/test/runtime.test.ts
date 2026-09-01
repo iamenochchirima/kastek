@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ModelGateway } from "../src/model/gateway";
 import { ModelProviderError, type ModelAdapter, type ModelCredentials, type ModelRequest, type ModelResponse } from "../src/model/types";
+import { estimatePromptTokens } from "../src/model/credit-pricing";
 import { ToolRegistry, effectIdForInvocation, hashToolArguments } from "../src/tools/registry";
 import { runBoundedAgentLoop } from "../src/runtime/loop";
 import { redactSensitiveValue } from "../src/tools/redaction";
@@ -236,6 +237,38 @@ describe("Tool Gateway and bounded runtime", () => {
     await expect(run()).resolves.toMatchObject({ status: "completed", response: { message: { content: "settled reply" } } });
     await expect(run()).resolves.toMatchObject({ status: "completed", response: { message: { content: "settled reply" } } });
     expect(providerCalls).toBe(1);
+  });
+
+  it("fits an implicit model output allowance inside the total token budget", async () => {
+    const registry = new ToolRegistry();
+    let reservedRequest: ModelRequest | undefined;
+    let reservedPromptTokens = 0;
+    const adapter: ModelAdapter = {
+      provider: "openai",
+      capabilities: { toolCalling: true, structuredOutput: true, streaming: false, vision: false },
+      complete: async () => response([], "budget-safe reply"),
+    };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "hello" }],
+      credentials,
+      gateway: new ModelGateway([adapter]),
+      tools: registry,
+      grantedTools: new Set(),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      limits: { maxIterations: 1, maxTotalTokens: 100, maxWallTimeMs: 10_000 },
+      reserveRunBudget: async ({ request }) => {
+        reservedRequest = { ...request, messages: [...request.messages], tools: request.tools ? [...request.tools] : undefined };
+        reservedPromptTokens = estimatePromptTokens(request);
+        const estimatedTokens = reservedPromptTokens + (request.maxTokens ?? 0);
+        if (estimatedTokens > 100) throw new Error("MODEL_TOKEN_BUDGET_EXCEEDED");
+        return { capture: async () => undefined, release: async () => undefined };
+      },
+    });
+
+    expect(result.status).toBe("completed");
+    expect(reservedRequest?.maxTokens).toBeDefined();
+    expect(reservedPromptTokens + reservedRequest!.maxTokens!).toBeLessThanOrEqual(100);
   });
 
   it("marks a model operation unknown instead of replaying an unproven provider call", async () => {

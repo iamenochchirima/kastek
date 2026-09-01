@@ -118,6 +118,12 @@ means the returned token, cost, or reservation amounts disagree; `no_billed_usag
 local model calls exist without Core usage events and must be explained before treating the run as
 settled.
 
+The total-token budget includes the serialized prompt and model output. If a model call does not
+specify a per-call output limit, the bounded runtime estimates the current messages and granted
+tool schemas first, then sets the output ceiling to the remaining total-token allowance. A
+`MODEL_TOKEN_BUDGET_EXCEEDED` on a first turn with no captured model tokens indicates a reservation
+calculation or configuration issue; it is not evidence that the user message itself was too long.
+
 Example:
 
 ```text
