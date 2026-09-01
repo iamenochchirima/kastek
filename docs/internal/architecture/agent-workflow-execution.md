@@ -77,6 +77,11 @@ to reconciliation rather than being treated as a successful replay.
 The step mode groups the tool calls returned by one model response and refuses to execute a partial
 multi-tool response when the remaining run budget cannot admit all of them. It does not yet make
 context, model, individual tool, checkpoint, and completion work separate Temporal activities.
+The versioned non-secret protocol for those future activities is defined in
+`agents/src/temporal/decomposed-contracts.ts`; it passes durable state revisions and operation IDs
+through workflow history while keeping prompts, responses, tool arguments, and tool output in the
+Agents database. The protocol is a contract only until worker implementations and workflow wiring
+are released behind a separate flag.
 For controlled rollout, the same flag can also stop eligible linear configured graphs after one
 completed node; graphs containing fan-out or `agent_loop` nodes continue through the existing
 whole-graph activity boundary. The worker-kill matrix and the fully independent context/model/tool

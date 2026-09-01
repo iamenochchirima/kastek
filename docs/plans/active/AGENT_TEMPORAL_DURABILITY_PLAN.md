@@ -55,8 +55,14 @@ Reduce duplicate provider work and make worker-loss recovery explicit while the 
   model-call and budget totals with Core reservations and provider-reported usage events
   ([usage-reconciliation.ts](../../../agents/src/operations/usage-reconciliation.ts),
   [`GET /v1/operator/runs/:runId/usage-reconciliation`](../../../agents/src/http/app.ts)).
+- [x] Define the versioned non-secret activity protocol for the next decomposition boundary
+  ([decomposed-contracts.ts](../../../agents/src/temporal/decomposed-contracts.ts)); prompts,
+  provider responses, tool arguments, and tool output remain in durable Agents state rather than
+  being passed through Temporal history.
+- [x] Add provider/database fault-injection tests for the current inner-loop safety boundary
+  ([temporal-fault-injection.test.ts](../../../agents/test/temporal-fault-injection.test.ts)).
 - [ ] Split context, model, tool, checkpoint, and completion work into independently retry-safe
-  activities behind a controlled rollout.
+      activities behind a controlled rollout.
 - [ ] Compare provider billing with reserved, captured, released, and reconciled usage during
   staged rollout; the diagnostic path exists, but staged production evidence and provider-side
   billing verification are still required.
@@ -578,3 +584,47 @@ retains local usage/budget data for investigation.
 
 Post-release review date: 2026-09-08; review the first real run reports, status distribution,
 provider token coverage, and any pending or mismatch outcomes before closing P0.4.
+
+## Follow-up release record: decomposed activity protocol and fault-injection coverage
+
+Change: Define the versioned non-secret contract for independently retry-safe context, model, tool,
+checkpoint, and completion activities. Add deterministic fault-injection tests for retryable
+provider failure, post-persistence database failure, and post-tool-outcome database failure.
+
+Owner: Agent Platform.
+
+Risk: low.
+
+Affected services and user surfaces: Agents Temporal contracts, runtime safety tests, recovery
+runbook, and architecture evidence. No production runtime path, API, database, or customer-facing
+surface changed.
+
+Platform release version or release ID: test/documentation commit pending; no production service
+artifact is enabled by this change.
+
+API/schema/migration changes: not applicable; no API, schema, or migration changes.
+
+Feature flag or rollout method: not applicable. The protocol is not wired into the production
+workflow and no failure-injection switch exists outside tests. The independent activity rollout
+remains a separate follow-up behind a new controlled flag.
+
+Analytics events and success metrics: not applicable to production. Test success is stable protocol
+key derivation plus provider fallback and exactly-once replay behavior across the injected failures.
+
+Logs, metrics, dashboards, and alerts: no production telemetry change. The test failures are
+synthetic and do not alter Collector configuration, dashboards, or alerts.
+
+User, API, internal, and operational documentation: updated the architecture audit, workflow
+execution reference, Temporal recovery runbook, and this plan. The documents explicitly separate
+the protocol contract from the not-yet-released worker wiring.
+
+Validation evidence: targeted protocol and fault-injection tests passed; full Agents suite,
+TypeScript check, production build, and the real Temporal worker-loss matrix remain required before
+the protocol is wired and enabled.
+
+Rollback or disable plan: revert the test/documentation commit if necessary. No production
+rollback, migration rollback, or data repair is required because the new protocol is not on a
+runtime path.
+
+Post-release review date: 2026-09-08; review the worker implementation design and require an
+activity-level provider/database fault matrix before enabling the decomposed rollout.

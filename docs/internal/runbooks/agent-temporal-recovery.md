@@ -56,6 +56,13 @@ This matrix proves workflow replacement, pause/resume, and terminal activity ide
 not replace provider/database fault injection for the still-large `executeLoop` activity; those
 checks remain required before enabling the decomposed rollout path.
 
+The inner-loop fault boundary is covered without making production failure injection available:
+`agents/test/temporal-fault-injection.test.ts` simulates a retryable provider failure, a database
+failure after model response persistence, and a database failure after a tool outcome is durable.
+The expected outcomes are fallback on a retryable provider error, model replay without a second
+provider request, and tool replay without a second handler invocation. These tests validate the
+current bundled activity's safety net; they do not claim that the activity has already been split.
+
 ## Timeout and retry contract
 
 The workflow proxy currently uses:

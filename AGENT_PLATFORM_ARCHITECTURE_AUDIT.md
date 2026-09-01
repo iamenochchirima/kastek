@@ -419,8 +419,9 @@ hold product evidence and idempotency records, not act as a replacement workflow
 - [x] Inventory every Temporal activity, its enclosed remote calls, retry policy, and maximum
       duration ([agent-temporal-recovery.md](docs/internal/runbooks/agent-temporal-recovery.md));
       `executeLoop` remains the large decomposition boundary.
-- [ ] Define retry-safe activity interfaces for context, model calls, tool calls, checkpoints, and
-      completion.
+- [x] Define the versioned, non-secret retry-safe activity protocol for context, model calls, tool
+      calls, checkpoints, and completion ([decomposed-contracts.ts](agents/src/temporal/decomposed-contracts.ts));
+      the protocol is not enabled until worker implementations and workflow wiring are released.
 - [ ] Move loop and graph coordination into Temporal workflow code without placing non-deterministic
       work there.
 - [x] Give each model and tool operation a stable idempotency key and durable outcome state
@@ -457,6 +458,11 @@ hold product evidence and idempotency records, not act as a replacement workflow
       ([temporal-worker-loss-matrix.integration.test.ts](agents/test/temporal-worker-loss-matrix.integration.test.ts));
       the matrix validates workflow replacement and terminal idempotency, while provider/database
       fault injection inside `executeLoop` remains part of the decomposition work.
+- [x] Add deterministic provider/database fault-injection coverage for the inner loop boundary
+      ([temporal-fault-injection.test.ts](agents/test/temporal-fault-injection.test.ts)); provider
+      fallback, response-persistence failure, and post-tool-outcome database failure all verify
+      the existing replay or fail-closed behavior. This does not replace independently scheduled
+      model and tool activities.
 - [x] Add retry, timeout, cancellation, and reconciliation metrics with bounded structured logs
       ([spans.ts](agents/src/telemetry/spans.ts), [worker.ts](agents/src/temporal/worker.ts)).
 - [x] Update the Temporal operations runbook ([agent-temporal-recovery.md](docs/internal/runbooks/agent-temporal-recovery.md)).
