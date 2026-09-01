@@ -318,8 +318,10 @@ records the first-party support matrix.
 Validation evidence: Core formatting and the full `cargo test -p kasitek-core --lib` suite pass
 (234 passed, 3 database-dependent tests ignored). Prisma validation, client lint/type-check, the
 client Webpack production build, Agents TypeScript build, and the full Agents test suite pass. The
-remaining provider HTTP fixtures, browser checks, database-apply, security review, and production
-OAuth smoke tests are release gates.
+three permission-center production migrations were applied successfully to Core's production
+database on 2026-09-01 after the first deployment exposed the missing-column dependency. The
+remaining provider HTTP fixtures, browser checks, security review, and production OAuth smoke
+tests are release gates.
 
 Rollback or disable plan: stop exposing access-request actions, keep existing provider-specific
 connect routes available, and roll back application code only after the additive migrations are
