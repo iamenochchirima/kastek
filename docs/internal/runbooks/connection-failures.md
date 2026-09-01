@@ -33,9 +33,10 @@ Use this when a provider account shows `NEEDS_ATTENTION`, messages stop arriving
 2. Use **Grant access** for requestable missing access. Reauthorization updates the existing connection and does not remove drafts, history, or agent assignments.
 3. Confirm the expected Page and Instagram professional account were returned by Meta.
 4. Confirm required Page, messaging, publishing, and Instagram permissions are approved for the app and granted by the customer.
-5. Published Instagram media deletion is not supported by the current provider adapter. Direct
-   Instagram Login and Meta Login both report this limitation; local draft deletion remains a
-   separate operation.
+5. Meta Login Instagram published-media deletion requires the provider's
+   `instagram_manage_contents` permission and the appropriate Instagram account access. Use the
+   connection Access section to request it. Direct Instagram Login remains unsupported for
+   published-media deletion; local draft deletion is a separate operation.
 6. Confirm `META_WEBHOOK_VERIFY_TOKEN` or `AUTH_META_WEBHOOK_VERIFY_TOKEN` matches the Meta webhook subscription.
 7. Confirm the Meta app's `page` subscription callback is the production Core URL: `https://api.kasitek.co.za/api/webhooks/meta`. A stale local or ngrok callback means Page messages will never reach Core even when each Page is marked connected.
 8. Confirm each Page is subscribed to the app's messaging fields. Loading the workspace social-channel list re-applies the app-level Page callback and refreshes connected Page subscriptions.

@@ -78,7 +78,12 @@ instagram_content_publish
 instagram_manage_messages
 instagram_manage_comments
 instagram_manage_insights
+instagram_manage_contents
 ```
+
+Meta Login Instagram published-content deletion requires `instagram_manage_contents` and the
+appropriate Instagram account access. Direct Instagram Login does not currently expose an
+equivalent deletion permission.
 
 Configure the corresponding product permissions in the Embedded Signup configuration:
 

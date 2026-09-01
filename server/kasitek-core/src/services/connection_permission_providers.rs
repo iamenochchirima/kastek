@@ -46,6 +46,7 @@ const META_INSTAGRAM_MESSAGING: &[&str] = &["instagram_manage_messages"];
 const META_INSTAGRAM_PUBLISHING: &[&str] = &["instagram_content_publish"];
 const META_INSTAGRAM_ANALYTICS: &[&str] = &["instagram_manage_insights"];
 const META_INSTAGRAM_COMMENTS: &[&str] = &["instagram_manage_comments"];
+const META_INSTAGRAM_CONTENT_MANAGEMENT: &[&str] = &["instagram_manage_contents"];
 const META_FACEBOOK_REQUIRED: &[&str] = &["pages_show_list", "pages_manage_metadata"];
 const META_INSTAGRAM_REQUIRED: &[&str] = &["instagram_basic"];
 
@@ -161,7 +162,12 @@ impl ProviderAdapter {
                     META_INSTAGRAM_COMMENTS,
                     true,
                 ),
-                SOCIAL_POST_DELETE => unsupported(),
+                SOCIAL_POST_DELETE => rule(
+                    "instagram_manage_contents",
+                    META_INSTAGRAM_CONTENT_MANAGEMENT,
+                    META_INSTAGRAM_CONTENT_MANAGEMENT,
+                    true,
+                ),
                 _ => unsupported(),
             },
             Self::InstagramDirect => match key {

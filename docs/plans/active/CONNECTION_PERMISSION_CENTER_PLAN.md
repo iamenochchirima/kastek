@@ -234,6 +234,8 @@ gateway boundary.
 - [x] Implement inspection, request planning, callback reconciliation, and idempotent upsert.
 - [x] Add permission summaries to connection reads and access requests to the existing OAuth routes.
 - [x] Include normalized authorization requirements in published-post deletion results.
+- [x] Map Meta Login Instagram published-content deletion to `instagram_manage_contents`; retain
+      the Direct Instagram Login limitation until Meta exposes an equivalent permission.
 
 ### Phase 2 — shared client experience
 
@@ -282,30 +284,32 @@ gateway boundary.
 
 ## Release record
 
-Change: Shared provider-neutral connection access inspection and guided reauthorization.
+Change: Shared provider-neutral connection access inspection and guided reauthorization, including
+Meta Login Instagram published-content deletion access.
 
 Owner: Platform integrations.
 
 Risk: standard.
 
-Affected services and user surfaces: Core connection API, Meta/WhatsApp/Threads/TikTok/LinkedIn/X/
-Bluesky OAuth boundaries, Connections UI, and agent-facing connection summaries.
+Affected services and user surfaces: Core connection API and Meta Instagram provider deletion
+authorization, Connections UI, and agent-facing connection summaries.
 
 Platform release version or release ID: not applicable until the repository release is cut; record
 the deployed commit SHA and migration versions at release time.
 
-API/schema/migration changes: Added the normalized external-connection permission and authorization
-attempt tables, WhatsApp provider-permission evidence, WhatsApp auth-method provenance, and the
-provider-neutral access routes. Migrations `20260831150000_add_connection_permission_center`,
+API/schema/migration changes: No new schema or route changes in this follow-up. The existing
+provider-neutral access route now maps Meta Login Instagram deletion to
+`instagram_manage_contents`. The original permission-center migrations remain required:
+`20260831150000_add_connection_permission_center`,
 `20260831170000_add_whatsapp_provider_permissions`, and
-`20260831180000_add_whatsapp_auth_method` must be applied before using the new routes.
+`20260831180000_add_whatsapp_auth_method`.
 
 Feature flag or rollout method: not applicable in code; use the existing Connections UI rollout and
 stage provider access by environment.
 
 Analytics events and success metrics: Existing connection lifecycle and health events remain the
 source of truth. Monitor completed/declined/failed authorization attempts, permission inspection
-failures, and healthy WhatsApp webhook checks; no new undocumented event is introduced.
+failures, and provider deletion outcomes; no new undocumented event is introduced.
 
 Logs, metrics, dashboards, and alerts: Structured OAuth/provider failure logs use bounded provider
 and operation fields. No token or raw provider response is logged. Add provider authorization and
@@ -315,13 +319,10 @@ User, API, internal, and operational documentation: Updated the public Social Co
 Core configuration README, connection failure runbook, and this plan. The provider research note
 records the first-party support matrix.
 
-Validation evidence: Core formatting and the full `cargo test -p kasitek-core --lib` suite pass
-(234 passed, 3 database-dependent tests ignored). Prisma validation, client lint/type-check, the
-client Webpack production build, Agents TypeScript build, and the full Agents test suite pass. The
-three permission-center production migrations were applied successfully to Core's production
-database on 2026-09-01 after the first deployment exposed the missing-column dependency. The
-remaining provider HTTP fixtures, browser checks, security review, and production OAuth smoke
-tests are release gates.
+Validation evidence: The focused permission-center regression tests pass, including requestable
+and granted Meta Login Instagram deletion states and the generated
+`instagram_manage_contents` request scope. The full Core suite, provider HTTP fixtures, browser
+checks, security review, and production OAuth/delete smoke test remain release gates.
 
 Rollback or disable plan: stop exposing access-request actions, keep existing provider-specific
 connect routes available, and roll back application code only after the additive migrations are

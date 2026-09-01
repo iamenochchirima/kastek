@@ -214,12 +214,12 @@ them as requestable.
   mode.
 - Instagram messaging and comment moderation have separate permissions. Publishing access does not
   imply Direct access or comment-management access.
-- The current Instagram API publishing and media reference pages do not document a general
-  `DELETE` operation for an Instagram media object. Comment deletion is documented under comment
-  management, but that is not the same as deleting a published post. The adapter should report
-  Instagram published-media deletion as `UNSUPPORTED` unless a versioned first-party reference
-  explicitly adds it. This is an inference from the current reference surface, not a claim that a
-  future Graph version cannot change it.
+- The Meta App Dashboard currently exposes `instagram_manage_contents` for Instagram accounts
+  linked to a Facebook Page and describes it as allowing an app to delete posts on behalf of the
+  account. Meta Login therefore maps published-media deletion to that permission. The permission
+  and endpoint still require production test-account verification; Direct Instagram Login has no
+  documented equivalent in the configured `instagram_business_*` permission set and remains
+  unsupported for this capability.
 
 ### Review and approval constraints
 

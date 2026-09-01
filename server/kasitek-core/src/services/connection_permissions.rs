@@ -761,19 +761,42 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn instagram_meta_delete_access_is_unsupported() {
+    fn instagram_meta_delete_access_is_requestable_when_missing() {
         let permissions = permission_snapshots(
             "INSTAGRAM",
             Some(&json!({
                 "authMethod": "meta_login",
-                "permissions": ["instagram_content_publish"]
+                "permissions": ["instagram_content_publish"],
+                "permissionsInspected": true
             })),
         );
         let delete = permissions
             .iter()
             .find(|item| item.definition.key == SOCIAL_POST_DELETE)
             .unwrap();
-        assert_eq!(delete.definition.state, "UNSUPPORTED");
+        assert_eq!(delete.definition.state, "REQUESTABLE");
+        assert!(delete.definition.requestable);
+        assert_eq!(
+            delete.provider_permission,
+            Some("instagram_manage_contents")
+        );
+    }
+
+    #[test]
+    fn instagram_meta_delete_access_is_granted_when_inspected() {
+        let permissions = permission_snapshots(
+            "INSTAGRAM",
+            Some(&json!({
+                "authMethod": "meta_login",
+                "permissions": ["instagram_manage_contents"],
+                "permissionsInspected": true
+            })),
+        );
+        let delete = permissions
+            .iter()
+            .find(|item| item.definition.key == SOCIAL_POST_DELETE)
+            .unwrap();
+        assert_eq!(delete.definition.state, "GRANTED");
         assert!(!delete.definition.requestable);
     }
 
@@ -800,6 +823,13 @@ mod tests {
         assert!(scopes.contains(&"instagram_content_publish".to_string()));
         assert!(scopes.contains(&"instagram_basic".to_string()));
         assert!(!scopes.contains(&"pages_messaging".to_string()));
+    }
+
+    #[test]
+    fn meta_instagram_delete_request_uses_content_management_permission() {
+        let scopes = meta_scopes_for_request("instagram", &[SOCIAL_POST_DELETE.to_string()]);
+        assert!(scopes.contains(&"instagram_manage_contents".to_string()));
+        assert!(scopes.contains(&"instagram_basic".to_string()));
     }
 
     #[test]

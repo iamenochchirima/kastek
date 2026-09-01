@@ -134,7 +134,7 @@ additional access:
 ```text
 AUTH_META_APP_ID=
 AUTH_META_APP_SECRET=
-AUTH_META_SCOPES=pages_show_list,pages_manage_metadata,pages_read_engagement,pages_manage_posts,pages_messaging,pages_manage_engagement,read_insights,instagram_basic,instagram_content_publish,instagram_manage_messages,instagram_manage_comments,instagram_manage_insights
+AUTH_META_SCOPES=pages_show_list,pages_manage_metadata,pages_read_engagement,pages_manage_posts,pages_messaging,pages_manage_engagement,read_insights,instagram_basic,instagram_content_publish,instagram_manage_messages,instagram_manage_comments,instagram_manage_insights,instagram_manage_contents
 META_WEBHOOK_VERIFY_TOKEN=
 WHATSAPP_WEBHOOK_VERIFY_TOKEN=
 ```
@@ -173,6 +173,7 @@ instagram_content_publish
 instagram_manage_messages
 instagram_manage_comments
 instagram_manage_insights
+instagram_manage_contents
 
 Direct Instagram Login (separate Instagram app configuration):
 instagram_business_basic
