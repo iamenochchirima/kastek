@@ -33,6 +33,7 @@ import {
 } from "@/lib/agent-platform";
 import { AgentModelPicker } from "./agent-model-picker";
 import { AgentMessageMedia, agentMessageHasMedia } from "./agent-message-media";
+import { AgentAuthorizationAction } from "./agent-authorization-action";
 
 const testChatActiveRunStatuses = new Set(["received", "queued", "running", "awaiting_approval", "awaiting_human", "awaiting_external_event"]);
 const testChatTerminalRunStatuses = new Set(["completed", "failed", "cancelled", "expired"]);
@@ -360,6 +361,7 @@ export function AgentChatPanel({ installationId, active, agentName, modal = fals
                   <div className={`mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${isSystem ? "text-muted-foreground" : isUser ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{isSystem ? "System" : isUser ? "You" : "Agent"}</div>
                   <AgentMessageMedia message={message} />
                   {text ? <p className="whitespace-pre-wrap">{text}</p> : !agentMessageHasMedia(message) ? <p className="whitespace-pre-wrap">(No text content)</p> : null}
+                  <AgentAuthorizationAction message={message} />
                   <p className={`mt-1 text-[10px] ${isUser ? "text-primary-foreground/60" : "text-muted-foreground"}`}>{new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
                 </div>
               </div>;
