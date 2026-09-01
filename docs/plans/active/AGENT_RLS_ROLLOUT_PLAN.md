@@ -164,6 +164,61 @@ table groups are enabled.
 
 Post-release review date: 2026-09-08.
 
+## Release record: fail-closed background database scope
+
+Change: Reject long-running and one-shot Agents background work when the organization or actor
+database context is absent, and emit bounded signals for PostgreSQL authorization failures and
+missing context.
+
+Owner: Agent Platform.
+
+Risk: high. A missing scope must stop work rather than run against an ambient or cross-tenant
+connection; an overly strict boundary can interrupt legitimate maintenance or recovery work.
+
+Affected services and user surfaces: agents-api, agents-worker, Temporal activities, analytics
+publisher and readiness sweep, memory consolidation, transcription, Discord refresh, KasiAi
+maintenance, Agents PostgreSQL, and operator observability.
+
+Platform release version or release ID: commit `d7ec1eb9`; Railway production deployments API
+`f2a56040-dc2b-4258-bdf8-ee8a6ee7169b` and worker `41f10ca2-0d46-43f1-9da0-6eed79d4cf96` both
+reached `SUCCESS` on 2026-09-01.
+
+API/schema/migration changes: no API or database schema changes. Runtime behavior and two
+OpenTelemetry metric contracts changed; migrations 091-095 remain unchanged.
+
+Feature flag or rollout method: deployed through the existing Railway production approval gate.
+The guard is active at the listed background boundaries; no RLS bypass or runtime privilege was
+added. Rollout is limited to the API and worker artifacts in this release.
+
+Analytics events and success metrics: not applicable for user analytics. Operational success is
+API and worker readiness, worker `RUNNING` state, zero unexpected context-missing failures, and
+investigable authorization-failure counts partitioned by context presence. A real production
+RLS-denial alert drill remains open and is not inferred from deployment success.
+
+Logs, metrics, dashboards, and alerts: `kasitek.database.authorization_failure.count` and
+`kasitek.database.context_missing.count` are documented in the observability guide and database
+isolation runbook. Production durable dashboards and alert routing remain open; the debug exporter
+is verification-only.
+
+User, API, internal, and operational documentation: updated the tenant-isolation inventory,
+observability guide, database-isolation runbook, architecture audit, and this rollout plan. Public
+API behavior is unchanged.
+
+Validation evidence: the targeted boundary and migration tests passed (`38/38`), affected worker
+tests passed (`46/46`), the full Agents suite passed (`607 passed, 78 skipped`), typecheck and
+build passed, and the migration matrix covers 64 protected runtime tables with
+`schema_migrations` excluded. Both Railway deployments report `SUCCESS` with one running replica;
+the Gateway readiness endpoint returned `200`. The new API logs show the process listening, and
+worker logs show `state: 'RUNNING'`. The API public health path is not exposed on the Core domain,
+so its `404` there is not used as Agents API readiness evidence.
+
+Rollback or disable plan: restore the previous compatible API and worker deployments if a valid
+background path is rejected unexpectedly. Investigate and repair the missing scope at its caller;
+do not grant `BYPASSRLS` or weaken the database role. Disable only the affected guard through a
+reviewed code release, then rerun the restricted-role and worker recovery suites.
+
+Post-release review date: 2026-09-08.
+
 ## Release record: legacy ownership constraint validation
 
 Change: Validate the three memory and knowledge agent-definition ownership-presence constraints
