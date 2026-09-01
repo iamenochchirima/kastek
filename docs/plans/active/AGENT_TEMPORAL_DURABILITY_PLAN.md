@@ -67,9 +67,12 @@ Reduce duplicate provider work and make worker-loss recovery explicit while the 
       decomposed.
 - [x] Move ordinary-loop sequencing into deterministic Temporal workflow code and persist approval
       and human/external-event resume state before the next model operation.
+- [x] Add activity-level provider/database fault-injection coverage for provider failure, post-provider
+      persistence failure and replay, tool failure, context/checkpoint persistence failure, invalid
+      state recovery, and terminal completion failure ([decomposed-activities.test.ts](../../../agents/test/decomposed-activities.test.ts)).
 - [ ] Compare provider billing with reserved, captured, released, and reconciled usage during
-  staged rollout; the diagnostic path exists, but staged production evidence and provider-side
-  billing verification are still required.
+      staged rollout; the diagnostic path exists, but staged production evidence and provider-side
+      billing verification are still required.
 
 ## Release record
 
@@ -589,7 +592,7 @@ retains local usage/budget data for investigation.
 Post-release review date: 2026-09-08; review the first real run reports, status distribution,
 provider token coverage, and any pending or mismatch outcomes before closing P0.4.
 
-## Follow-up release record: decomposed activity protocol and fault-injection coverage
+## Historical release record: decomposed activity protocol and fault-injection coverage
 
 Change: Define the versioned non-secret contract for independently retry-safe context, model, tool,
 checkpoint, and completion activities. Add deterministic fault-injection tests for retryable
@@ -603,8 +606,8 @@ Affected services and user surfaces: Agents Temporal contracts, runtime safety t
 runbook, and architecture evidence. No production runtime path, API, database, or customer-facing
 surface changed.
 
-Platform release version or release ID: test/documentation commit pending; no production service
-artifact is enabled by this change.
+Platform release version or release ID: superseded by the ordinary-run wiring release below; no
+production service artifact was enabled by this protocol-only change.
 
 API/schema/migration changes: not applicable; no API, schema, or migration changes.
 
@@ -622,9 +625,8 @@ User, API, internal, and operational documentation: updated the architecture aud
 execution reference, Temporal recovery runbook, and this plan. The documents explicitly separate
 the protocol contract from the not-yet-released worker wiring.
 
-Validation evidence: targeted protocol and fault-injection tests passed; full Agents suite,
-TypeScript check, production build, and the real Temporal worker-loss matrix remain required before
-the protocol is wired and enabled.
+Validation evidence: targeted protocol and fault-injection tests passed; the protocol was later
+wired and released under the controlled rollout recorded below.
 
 Rollback or disable plan: revert the test/documentation commit if necessary. No production
 rollback, migration rollback, or data repair is required because the new protocol is not on a
@@ -648,7 +650,9 @@ Affected services and user surfaces: agents-api, agents-worker, Agents PostgreSQ
 workflow history, model providers, tool/effect execution, approval prompts, human handoff resume,
 and customer-facing hosted-agent replies. The rollout is disabled by default.
 
-Platform release version or release ID: pending final commit and production artifact identity.
+Platform release version or release ID: commit `66bd9387626135c5b250993066823eead72619ea`;
+Railway production deployments `agents-api` `0da41ad7-1c0a-4551-9e41-4a6d563cb7e4` and
+`agents-worker` `caef11e0-c9ff-45d0-8a82-0df0bfa451a4` both reported `SUCCESS` for this commit.
 
 API/schema/migration changes: no API or database migration. Additive workflow input/configuration
 field only: `decomposed` and `TEMPORAL_DECOMPOSED_ACTIVITIES_ENABLED`.
@@ -671,10 +675,14 @@ User, API, internal, and operational documentation: updated
 `docs/internal/runbooks/agent-temporal-recovery.md`, and this plan. Public API documentation is
 not applicable.
 
-Validation evidence: decomposed contract, coordinator, activity replay, and existing Temporal
-fault-injection tests pass; Agents TypeScript check passes. The full Agents suite, production
-build, real Temporal matrix with the decomposed flag enabled, and provider-side billing comparison
-remain release gates.
+Validation evidence: decomposed contract, coordinator, human-resume, activity replay, and
+provider/database fault-injection tests pass (19 focused tests); the full Agents suite passed
+601 tests with 78 integration tests skipped because no integration database or Temporal test
+address was configured locally; the Agents production build passed; both Railway deployments
+reported `SUCCESS`; the deployed Agents API readiness check returned HTTP 200; the worker reported
+`RUNNING` on task queue `kasitek-agents-production`; and the production flag was absent on both
+services, so it remains false by schema default. The real Temporal matrix with the decomposed flag
+enabled and provider-side billing comparison remain release gates before enabling the flag.
 
 Rollback or disable plan: set `TEMPORAL_DECOMPOSED_ACTIVITIES_ENABLED=false` and restart
 agents-api/agents-worker, then redeploy the previous successful artifact if required. Existing

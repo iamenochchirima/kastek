@@ -466,6 +466,9 @@ hold product evidence and idempotency records, not act as a replacement workflow
       fallback, response-persistence failure, and post-tool-outcome database failure all verify
       the existing replay or fail-closed behavior. This does not replace independently scheduled
       model and tool activities.
+- [x] Add activity-level provider/database fault-injection coverage for provider failure, post-provider
+      persistence replay, tool failure, stale checkpoints, invalid persisted state, context
+      checkpoint failure, and terminal completion failure ([decomposed-activities.test.ts](agents/test/decomposed-activities.test.ts)).
 - [x] Add retry, timeout, cancellation, and reconciliation metrics with bounded structured logs
       ([spans.ts](agents/src/telemetry/spans.ts), [worker.ts](agents/src/temporal/worker.ts)).
 - [x] Update the Temporal operations runbook ([agent-temporal-recovery.md](docs/internal/runbooks/agent-temporal-recovery.md)).
