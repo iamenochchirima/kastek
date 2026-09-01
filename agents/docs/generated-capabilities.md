@@ -370,6 +370,7 @@ List connected workspace accounts with provider names, account labels, health, w
 - Risk: `read`; execution: `immediate`; approval: `none`
 - Idempotency: `not_applicable`; timeout: 15000ms
 - Audit: `restricted`; redacts: `connections.metadata`, `connections.lastError`, `connections.credentials`
+- Presentation: `workspace_connections`; mode: `inline`; channels: `platform`, `website`
 
 ### Input schema
 
@@ -491,6 +492,7 @@ Read organization-scoped workspace reporting aggregates without contact values, 
 - Risk: `read`; execution: `immediate`; approval: `none`
 - Idempotency: `not_applicable`; timeout: 15000ms
 - Audit: `restricted`; redacts: `contacts.phone`, `inbox.messageBody`, `connections.credentials`
+- Presentation: `workspace_report`; mode: `expanded`; channels: `platform`, `website`
 
 ### Input schema
 
@@ -1259,6 +1261,7 @@ List the current workspace's content drafts, schedules, and publication records.
 - Risk: `read`; execution: `immediate`; approval: `none`
 - Idempotency: `not_applicable`; timeout: 12000ms
 - Audit: `restricted`; redacts: `posts.publishJobs.providerReceipt`, `posts.media.previewUrl`
+- Presentation: `content_posts`; mode: `inline`; channels: `platform`, `website`
 
 ### Input schema
 
@@ -1335,6 +1338,7 @@ Report provider-reported performance for published workspace posts.
 - Risk: `read`; execution: `immediate`; approval: `none`
 - Idempotency: `not_applicable`; timeout: 15000ms
 - Audit: `restricted`; redacts: `posts.providerPostId`, `posts.connectionId`, `posts.providerPayload`
+- Presentation: `content_insights`; mode: `expanded`; channels: `platform`, `website`
 
 ### Input schema
 
@@ -1946,7 +1950,7 @@ Delete an unpublished content draft or schedule.
 ```
 ## kasitek.core.content_post_delete_published (1.0.0)
 
-Delete a published post from one connected social platform after user approval.
+Delete a published post from one connected social platform after user approval. If authorizationRequired is returned, explain the missing access, use its remediation intent to direct the user to Connections access, and do not ask them to disconnect by default.
 
 - Owner: `kasitek-core`
 - Permission: `content.publish` (Content Publish permission)
@@ -1994,6 +1998,12 @@ Delete a published post from one connected social platform after user approval.
     },
     "providerResults": {
       "type": "array"
+    },
+    "authorizationRequired": {
+      "type": [
+        "object",
+        "null"
+      ]
     }
   },
   "required": [
