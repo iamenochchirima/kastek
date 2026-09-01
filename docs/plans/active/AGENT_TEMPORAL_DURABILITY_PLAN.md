@@ -42,6 +42,11 @@ Reduce duplicate provider work and make worker-loss recovery explicit while the 
       new operation-key prefix ([loop-checkpoint.ts](../../../agents/src/runtime/loop-checkpoint.ts),
       [loop-step.test.ts](../../../agents/test/loop-step.test.ts)); keep it opt-in until the
       worker-loss matrix is complete.
+- [x] Make continuation retries return the persisted activity result when a worker is lost after
+      the checkpoint write, carry paused-result metadata through recovery, and refuse partial
+      multi-tool slices when the remaining tool budget cannot admit the provider response
+      ([activities.ts](../../../agents/src/temporal/activities.ts),
+      [loop-checkpoint.ts](../../../agents/src/runtime/loop-checkpoint.ts)).
 - [ ] Add worker-kill tests around every model, tool, approval, effect, and completion checkpoint.
 - [ ] Split context, model, tool, checkpoint, and completion work into independently retry-safe
   activities behind a controlled rollout.
@@ -236,3 +241,57 @@ compatibility path; do not delete `__agentLoop` state or model-operation records
 
 Post-release review date: 2026-09-08; review canary continuation/retry/reconciliation metrics and
 complete worker-kill coverage before enabling this mode more broadly.
+
+## Follow-up release record: loop-slice retry replay guard
+
+Change: Make the opt-in ordinary-run continuation seam idempotent across an activity retry after a
+worker replacement. The checkpoint now carries a deterministic step index and the paused or limited
+activity result; retries return that result without rerunning the model/tool slice. Multi-tool model
+responses are treated as one budget unit and are never partially executed.
+
+Owner: Agent Platform.
+
+Risk: standard.
+
+Affected services and user surfaces: agents-worker, ordinary hosted runs using the opt-in
+continuation flag, model-call and run-budget ledgers, pause/resume behavior, and recovery
+diagnostics. Agents API and MCP-Gateway were promoted with the shared artifact but have no direct
+execution-path change.
+
+Platform release version or release ID: commit `ffdae702905e60021b6f2417f324799ec72f0a87`;
+Railway production deployments `agents-worker` `423eef26-c25f-4633-89ef-94f895deb756`,
+`agents-api` `d1b96fab-b21d-4c99-b123-b8c22b0db527`, and `MCP-Gateway`
+`d39ad74e-d09f-465b-bca7-2d8a09dc02ac`; all reported `SUCCESS` for the exact commit.
+
+API/schema/migration changes: no API or database migration changes. Existing
+`run_workflow_state.__agentLoop` JSON is extended additively with optional step and result
+metadata; malformed state remains fail-closed.
+
+Feature flag or rollout method: `TEMPORAL_STEP_ACTIVITIES_ENABLED`, default `false`; existing
+persisted step checkpoints remain readable if the flag is later disabled so rollback does not
+discard an in-flight continuation.
+
+Analytics events and success metrics: no new customer analytics event. Review duplicate model-call
+rate, provider request count, activity retry count, continuation count, budget settlement, pause
+recovery, and multi-tool budget-limit outcomes.
+
+Logs, metrics, dashboards, and alerts: existing activity-attempt, model-call, budget, heartbeat,
+and reconciliation telemetry is reused. No Collector configuration change; debug exporters remain
+verification-only.
+
+User, API, internal, and operational documentation: updated the workflow execution architecture,
+Temporal recovery runbook, and this plan. The full worker-kill matrix and independently retry-safe
+activity decomposition remain open.
+
+Validation evidence: Agents TypeScript check passed; targeted checkpoint, loop-slice, graph, and
+runtime tests passed (24/24); full Agents suite passed (94 files, 566 passed, 24 integration files
+skipped; 69 tests skipped); production build passed; real Temporal recovery integration passed
+(3/3) against Temporal Server 1.31.2; `git diff --check` passed; and production live/ready,
+worker-shell, and public Gateway readiness checks passed after deployment.
+
+Rollback or disable plan: leave `TEMPORAL_STEP_ACTIVITIES_ENABLED=false` or redeploy the previous
+known-good artifact. Existing model-operation records and continuation state must be retained until
+affected runs are resolved; no migration rollback is required.
+
+Post-release review date: 2026-09-08; review retry replay, duplicate-operation, budget
+reconciliation, pause/resume, and multi-tool limit metrics before enabling the flag broadly.

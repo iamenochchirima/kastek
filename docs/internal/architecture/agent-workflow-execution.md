@@ -57,13 +57,16 @@ The default `executeLoop` activity still encloses more than one logical model/to
 opt-in `TEMPORAL_STEP_ACTIVITIES_ENABLED` mode provides an intermediate boundary for ordinary
 hosted runs: each activity slice performs at most one model iteration, persists a bounded message
 continuation in `run_workflow_state`, and the Temporal workflow schedules the next slice. The
-continuation is versioned and fail-closed when malformed or oversized.
+continuation is versioned and fail-closed when malformed or oversized. It also records the step
+index and paused result metadata, so a retry after the worker is lost after the database write can
+replay the activity result without calling the provider or tool again.
 
 Model operations claim a stable operation key in `model_calls` and persist the provider response
 before budget and credit settlement; a completed operation is replayed without another provider
 request. A worker loss after the request starts can still leave the operation `started` with an
 unknown provider outcome, so it is stopped and sent to reconciliation rather than retried blindly.
 Tool invocations and external effects retain their existing durable invocation/receipt boundaries.
-The step mode still groups the tool calls returned by one model response and does not yet make
+The step mode groups the tool calls returned by one model response and refuses to execute a partial
+multi-tool response when the remaining run budget cannot admit all of them. It does not yet make
 context, model, individual tool, checkpoint, and completion work separate Temporal activities.
 The worker-kill matrix and controlled production rollout therefore remain P0.3 work.

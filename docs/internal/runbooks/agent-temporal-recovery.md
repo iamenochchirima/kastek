@@ -16,7 +16,7 @@ reconciliation. It applies to the Agents API and Agents Worker in every environm
 | Activity | Work enclosed | Remote or durable boundary | Retry posture |
 | --- | --- | --- | --- |
 | `transitionRun` | Run status transition | Agents PostgreSQL | Idempotent state transition |
-| `executeLoop` | Context, retrieval, model calls, tools, checkpoints, and completion decision | PostgreSQL, model providers, Core, channel/tool adapters | Still a large activity; model outcomes are operation-keyed and replayable when recorded |
+| `executeLoop` | Context, retrieval, model calls, tools, checkpoints, and completion decision | PostgreSQL, model providers, Core, channel/tool adapters | Still a large activity; model outcomes and opt-in loop-slice results are replayable when recorded |
 | `pauseRun` | Persist waiting state and output | Agents PostgreSQL | Idempotent run transition |
 | `deliverApprovalPrompt` | Resolve credentials and send the approval prompt | Telegram, Discord, or Core | Delivery failures are recorded; external sends require provider-safe handling |
 | `cancelPendingApproval` | Cancel approval and mark its effect not executed | PostgreSQL | Idempotent by approval/effect state |
@@ -29,6 +29,12 @@ reconciliation. It applies to the Agents API and Agents Worker in every environm
 `executeLoop` remains the P0.3 decomposition boundary. It must eventually be split into
 retry-safe activities for context, one model operation, one tool operation, checkpoint, and
 completion. Until then, the operation ledger and checkpoints are the safety boundary for retries.
+When `TEMPORAL_STEP_ACTIVITIES_ENABLED=true`, each ordinary hosted loop slice carries a
+deterministic step index. A checkpoint records the bounded message history, cumulative counters,
+and the result status required by the workflow. If the same activity is retried with that step
+index, the worker returns the recorded result for `limited` or a pause instead of rerunning the
+model/tool slice. Approval and external-event resumes intentionally include their resume input and
+continue from the checkpointed messages.
 
 ## Timeout and retry contract
 

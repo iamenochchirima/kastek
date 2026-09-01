@@ -430,6 +430,10 @@ hold product evidence and idempotency records, not act as a replacement workflow
       ([loop-checkpoint.ts](agents/src/runtime/loop-checkpoint.ts), [loop-step.test.ts](agents/test/loop-step.test.ts),
       `TEMPORAL_STEP_ACTIVITIES_ENABLED`). This is an intermediate rollout seam; tool, effect, and
       completion work are still not separate Temporal activities.
+- [x] Make the continuation seam replay the persisted limited or paused result after a worker loss
+      following the checkpoint write, carry a deterministic step index, and reject partial
+      multi-tool responses when the remaining budget is too small
+      ([activities.ts](agents/src/temporal/activities.ts), [loop-checkpoint.ts](agents/src/runtime/loop-checkpoint.ts)).
 - [ ] Add worker-kill tests around every model, tool, approval, effect, and completion checkpoint.
 - [x] Add retry, timeout, cancellation, and reconciliation metrics with bounded structured logs
       ([spans.ts](agents/src/telemetry/spans.ts), [worker.ts](agents/src/temporal/worker.ts)).
@@ -1322,6 +1326,12 @@ KasiTek should retain its stronger platform features around that anatomy:
   `follow_published` installations in the current audit, with live/readiness health checks at
   `200`. Automatic rollout can be paused through the dual-controlled
   `agent_version_deployment_enabled` flag.
+- Temporal continuation retry-guard release `ffdae702` reached `SUCCESS` on the Agents API, worker,
+  and MCP Gateway. TypeScript, targeted runtime/checkpoint tests (`24/24`), the full Agents suite
+  (`566 passed`, `69 skipped`), production build, and the real Temporal recovery suite (`3/3`)
+  passed. Production live/ready, worker-shell, and public Gateway readiness checks passed. The
+  continuation flag remains disabled; the full per-checkpoint worker-kill matrix and activity
+  decomposition remain open.
 
 Passing tests do not invalidate the verified findings. The current suite does not cover those
 contracts.
