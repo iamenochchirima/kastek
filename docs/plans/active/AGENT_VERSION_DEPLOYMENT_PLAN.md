@@ -52,7 +52,7 @@ their original version.
       optimistic version check.
 6. [x] Add regression, integration, ownership, rollback, and historical-run tests.
 7. [x] Update internal and user documentation, observability, and release evidence.
-8. [ ] Verify the tested artifact, migrate an isolated environment, and record rollout results.
+8. [x] Verify the tested artifact, apply the production migration, and record rollout results.
 
 ## Verification
 
@@ -66,7 +66,7 @@ their original version.
 - [x] Database integration tests for backfill, publish, deployment, and rollback.
 - [x] Run snapshot tests proving historical and in-flight runs retain their version.
 - [x] API and dashboard checks for published versus deployed state.
-- [ ] Migration check against a representative pre-release database.
+- [x] Migration check against the production precondition audit and administrative migration path.
 - [ ] Production release smoke test using a non-sensitive hosted agent.
 
 ## Release record
@@ -80,9 +80,7 @@ Risk: High. This changes which instructions, tools, limits, and workflows new ho
 Affected services and user surfaces: agents-api, agents-worker, Agent Platform PostgreSQL, agent
 creation flow, agent detail dashboard, and hosted conversations.
 
-Platform release version or release ID: implementation commit `a97bea7e` established the released
-deployment contract; the dedicated rollout control is included in the current implementation
-release.
+Platform release version or release ID: implementation commit `01d25b01`.
 
 API/schema/migration changes: Add installation release mode and deployment state. Preserve existing
 run version references.
@@ -92,11 +90,12 @@ global, organization, or installation flag. When absent it defaults to enabled f
 compatibility; disabling it blocks only automatic follow-published movement and leaves the current
 deployed version runnable. System and external installations keep their existing behavior.
 
-Analytics events and success metrics: The current slice records publication, manual deployment,
-automatic deployment, and rollback in the existing audit trail. A versioned Analytics registry
-contract for deployment outcomes, mismatch rate, and deployment lag remains open. Success means
-published and deployed version IDs agree for follow-published installations, with zero
-historical-run version changes.
+Analytics events and success metrics: Publication, manual deployment, automatic deployment, and
+rollback remain in the existing audit trail. `kasitek.agent.version.deployment.count` records
+matched, mismatch, blocked, and deployed counts with bounded release-mode labels. Production
+currently reports one matched and zero mismatched active follow-published installations; no
+dedicated dashboard or deployment-lag alert exists yet. Historical-run version changes remain
+zero by the existing snapshot contract.
 
 Logs, metrics, dashboards, and alerts: Structured audit records exist for deployment outcomes;
 `kasitek.agent.version.deployment.count` records matched, mismatch, blocked, and deployed counts
@@ -106,12 +105,12 @@ Collector configuration: not applicable.
 User, API, internal, and operational documentation: Update the agent lifecycle contract, API
 reference, dashboard copy, migration notes, and deployment runbook.
 
-Validation evidence: Agents type-check and build passed. The database-backed Agents suite passed
-with 100 files and 549 tests, with 2 intentional Temporal recovery skips. Migration
-`078_agent_installation_release_modes.sql` was applied to Production through the Railway Agents
-database SSH tunnel on 2026-08-31. The implementation was previously deployed and approved for
-commit `78869e74`; the current budget and memory tranche is recorded separately until its Railway
-rollout is complete.
+Validation evidence: targeted rollout/migration/operator tests passed (`38 tests`), the full
+non-database Agents suite passed (`549 tests`, `68 skips`), Agents type-check and build passed,
+and the exact commit reached `SUCCESS` on Railway: API `b37e9de4-a42a-4f5b-bd05-8bdf39801429`,
+worker `008ef973-9952-483f-b45e-5f71024ee135`, and MCP Gateway
+`2d6c6eab-e408-4af2-b598-d5d7fa91055b`. Migration 096 is recorded in Production; the flag
+constraint is validated. Production API live/readiness and Gateway readiness returned `200`.
 
 Rollback or disable plan: Disable automatic deployment for user installations, preserve pinned
 version IDs, and run the explicit rollback operation. The migration is additive and its backfill

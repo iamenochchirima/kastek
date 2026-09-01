@@ -1317,6 +1317,11 @@ KasiTek should retain its stronger platform features around that anatomy:
 - Ownership validation migration `095` is recorded in production. The production legacy-row audit
   found zero invalid memory/source/chunk ownership-presence rows; all three previously `NOT VALID`
   constraints now report validated, and Agents API/Gateway health checks remained `200`.
+- Version rollout control release `01d25b01` reached `SUCCESS` on the Agents API, worker, and MCP
+  Gateway. Migration `096` is recorded; production has one matched and zero mismatched active
+  `follow_published` installations in the current audit, with live/readiness health checks at
+  `200`. Automatic rollout can be paused through the dual-controlled
+  `agent_version_deployment_enabled` flag.
 
 Passing tests do not invalidate the verified findings. The current suite does not cover those
 contracts.
