@@ -647,12 +647,13 @@ cross-agent access.
 Repositories usually include organization and agent predicates. Migration 057 adds ownership
 triggers for memory, knowledge, installations, and runs. This is a strong application-level base.
 
-PostgreSQL row-level security is now enabled across four tranches. Migrations 091 through 094
-cover 63 of the 64 public base tables, including memory, knowledge, conversations, runs,
-credentials, channels, effects, approvals, lifecycle sidecars, analytics, and operator control
-data. All 63 runtime tables use `FORCE ROW LEVEL SECURITY`; `schema_migrations` is deliberately
-not runtime data and has no privileges for the runtime or application roles. Some ownership
-constraints remain `NOT VALID`, so legacy rows have not been proven to satisfy every invariant.
+PostgreSQL row-level security is now enabled across the released policy migrations 091 through
+094 and 097. They cover all 64 runtime tables, including memory, knowledge, conversations, runs,
+credentials, channels, effects, approvals, lifecycle sidecars, analytics, operator control data,
+and parallel branch budget leases. All 64 runtime tables use `FORCE ROW LEVEL SECURITY`;
+`schema_migrations` is deliberately not runtime data and has no privileges for the runtime or
+application roles. Some ownership constraints remain `NOT VALID`, so legacy rows have not been
+proven to satisfy every invariant.
 The production Agents runtime previously connected as the `postgres` superuser; it now uses a
 restricted login without `SUPERUSER` or `BYPASSRLS`, and API, worker, publisher, webhook, and
 Temporal paths set transaction-local tenant context.
@@ -667,9 +668,10 @@ All long-running and one-shot Agents background entrypoints now use a fail-close
 wrapper. A missing organization or actor scope throws `DATABASE_CONTEXT_REQUIRED` and emits
 `kasitek.database.context_missing.count`; PostgreSQL `42501` permission and RLS failures emit
 `kasitek.database.authorization_failure.count` without SQL text or tenant payloads. A source-level
-process matrix test protects the boundary list, and a migration contract test checks all 64
-released policy tables for both RLS and FORCE RLS. These checks improve regression detection but do
-not replace the remaining restricted-role negative data tests for every table.
+process matrix test protects the boundary list, a migration contract test checks all 64 released
+policy tables for both RLS and FORCE RLS, and the restricted-role fixture matrix names every
+protected table. These checks improve regression detection but do not replace running the opt-in
+restricted-role negative data suite against an isolated production-equivalent database.
 
 #### Required design
 
@@ -719,19 +721,25 @@ not replace the remaining restricted-role negative data tests for every table.
 - [x] Remove RLS bypass from the application runtime role and document the restricted runtime and
       one-shot migration boundary ([deployment-topology.md](docs/internal/operations/deployment-topology.md));
       a dedicated long-lived migration role remains open.
-- [x] Run focused repository and integration suites with a production-equivalent restricted role
-      for all four released RLS tranches; the complete production process matrix remains open.
+- [x] Keep every protected table represented in the seeded restricted-role fixture matrix
+      ([rls-matrix.test.ts](agents/test/rls-matrix.test.ts)); this protects the four grouped
+      suites plus the parallel-lease policy from silent fixture omission.
+- [ ] Run the complete restricted-role negative data suite in CI or an isolated
+      production-equivalent database, including every protected table and background process
+      type; the suites remain explicitly opt-in because production is not a test database.
 - [x] Make background database scopes fail closed and add process-matrix regression coverage for
       Temporal, transcription, memory, Analytics, Discord, and KasiAi maintenance entrypoints
       ([context.ts](agents/src/db/context.ts), [background-database-context.test.ts](agents/test/background-database-context.test.ts)).
 - [x] Emit low-cardinality database authorization and missing-context metrics and document the
       operator response ([spans.ts](agents/src/telemetry/spans.ts),
       [admin-operations.md](docs/internal/runbooks/admin-operations.md)).
-- [ ] Add negative isolation tests for every protected table and every background process type.
-- [ ] Add a staged rollout, policy-disable procedure, migration rollback plan, and isolation alerting.
+- [x] Check in the staged rollout, policy-disable procedure, migration rollback procedure, stable
+      isolation events, and alert-routing contract ([agent-database-isolation.md](docs/internal/runbooks/agent-database-isolation.md)).
+- [ ] Execute and record the production rollback drill, durable alert notification, and complete
+      background-process isolation run; external telemetry routing remains a release gate.
 - [x] Record the complete runtime policy inventory and approved platform-operator query scope in
       internal documentation ([agents-tenant-isolation-inventory.md](docs/internal/architecture/agents-tenant-isolation-inventory.md));
-      data-level all-table negative coverage, production alert routing, and the full process matrix
+      data-level all-table execution, production alert routing, and the full runtime process drill
       remain open.
 
 ### P1.3 Replace the retrieval gate and add hybrid ranking
@@ -1312,12 +1320,13 @@ KasiTek should retain its stronger platform features around that anatomy:
 - [x] Validate legacy ownership constraints; migration 095 records the three memory/knowledge
       ownership-presence constraints as validated after the production audit found zero invalid
       rows.
-- [x] Add the four staged RLS tranches and restricted-role negative isolation tests for runtime
-      table groups; `schema_migrations` remains administrative and privilege-revoked
+- [x] Add the released RLS tranches and restricted-role fixture coverage for runtime table groups;
+      `schema_migrations` remains administrative and privilege-revoked
       ([091_memory_knowledge_rls.sql](agents/migrations/091_memory_knowledge_rls.sql),
       [092_conversation_run_rls.sql](agents/migrations/092_conversation_run_rls.sql),
       [093_identity_credentials_effects_rls.sql](agents/migrations/093_identity_credentials_effects_rls.sql),
-      [094_control_plane_and_lifecycle_rls.sql](agents/migrations/094_control_plane_and_lifecycle_rls.sql)).
+      [094_control_plane_and_lifecycle_rls.sql](agents/migrations/094_control_plane_and_lifecycle_rls.sql),
+      [097_parallel_branch_budget_leases.sql](agents/migrations/097_parallel_branch_budget_leases.sql)).
 - [x] Validate legacy ownership constraints ([095_validate_agent_context_constraints.sql](agents/migrations/095_validate_agent_context_constraints.sql)).
 - [ ] Complete negative coverage for every background process type.
 

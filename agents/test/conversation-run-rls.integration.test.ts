@@ -26,6 +26,8 @@ describe.skipIf(!runIntegration)("conversation and durable-run RLS (integration)
   const messageB = randomUUID();
   const runA = randomUUID();
   const runB = randomUUID();
+  const parallelLeaseA = randomUUID();
+  const parallelLeaseB = randomUUID();
   const stepA = randomUUID();
   const stepB = randomUUID();
   const attemptA = randomUUID();
@@ -128,6 +130,12 @@ describe.skipIf(!runIntegration)("conversation and durable-run RLS (integration)
       [randomUUID(), runA, organizationA, `reservation-${runA}`, randomUUID(), runB, organizationB, `reservation-${runB}`],
     );
     await adminPool.query(
+      `INSERT INTO run_budget_parallel_leases (id, run_id, organization_id, branch_key, status, model_slot_status, tool_slot_status)
+       VALUES ($1, $2, $3, $4, 'active', 'reserved', 'reserved'),
+              ($5, $6, $7, $8, 'active', 'reserved', 'reserved')`,
+      [parallelLeaseA, runA, organizationA, `branch-${parallelLeaseA}`, parallelLeaseB, runB, organizationB, `branch-${parallelLeaseB}`],
+    );
+    await adminPool.query(
       `INSERT INTO model_calls (id, organization_id, run_id, provider, model, funding_source, status, operation_key)
        VALUES ($1, $2, $3, 'openai', 'test', 'user', 'completed', $4), ($5, $6, $7, 'openai', 'test', 'user', 'completed', $8)`,
       [modelCallA, organizationA, runA, `model-${modelCallA}`, modelCallB, organizationB, runB, `model-${modelCallB}`],
@@ -193,6 +201,7 @@ describe.skipIf(!runIntegration)("conversation and durable-run RLS (integration)
     "run_workflow_checkpoints",
     "run_budgets",
     "run_budget_reservations",
+    "run_budget_parallel_leases",
     "model_calls",
     "tool_invocations",
     "agent_events",
@@ -263,6 +272,7 @@ describe.skipIf(!runIntegration)("conversation and durable-run RLS (integration)
     await adminPool.query("DELETE FROM tool_invocations WHERE id IN ($1, $2)", [toolInvocationA, toolInvocationB]);
     await adminPool.query("DELETE FROM model_calls WHERE id IN ($1, $2)", [modelCallA, modelCallB]);
     await adminPool.query("DELETE FROM run_budget_reservations WHERE run_id IN ($1, $2)", [runA, runB]);
+    await adminPool.query("DELETE FROM run_budget_parallel_leases WHERE id IN ($1, $2)", [parallelLeaseA, parallelLeaseB]);
     await adminPool.query("DELETE FROM run_budgets WHERE run_id IN ($1, $2)", [runA, runB]);
     await adminPool.query("DELETE FROM run_workflow_checkpoints WHERE id IN ($1, $2)", [checkpointA, checkpointB]);
     await adminPool.query("DELETE FROM run_workflow_state WHERE run_id IN ($1, $2)", [runA, runB]);

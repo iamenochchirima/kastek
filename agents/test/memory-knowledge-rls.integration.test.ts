@@ -18,6 +18,8 @@ describe.skipIf(!runIntegration)("memory and knowledge RLS (integration)", () =>
   const sourceB = randomUUID();
   const memoryA = randomUUID();
   const memoryB = randomUUID();
+  const deletionJobA = randomUUID();
+  const deletionJobB = randomUUID();
   const chunkA = randomUUID();
   const chunkB = randomUUID();
 
@@ -45,16 +47,24 @@ describe.skipIf(!runIntegration)("memory and knowledge RLS (integration)", () =>
               ($5, $6, $7, $8, 1, 0, 'Tenant B knowledge')`,
       [chunkA, sourceA, organizationA, definitionA, chunkB, sourceB, organizationB, definitionB],
     );
+    await adminPool.query(
+      `INSERT INTO memory_deletion_jobs (id, organization_id, requested_by, target_type, target_id, status)
+       VALUES ($1, $2, 'rls-test', 'memory', $3, 'queued'),
+              ($4, $5, 'rls-test', 'memory', $6, 'queued')`,
+      [deletionJobA, organizationA, memoryA, deletionJobB, organizationB, memoryB],
+    );
   });
 
   it("keeps memory and knowledge rows inside the current organization", async () => {
     const rows = await runWithDatabaseContext({ organizationId: organizationA, actorId: "rls-test" }, async () => {
       const memories = await query<{ organization_id: string }>(restrictedPool, "SELECT organization_id FROM memory_records WHERE id IN ($1, $2)", [memoryA, memoryB]);
       const chunks = await query<{ organization_id: string }>(restrictedPool, "SELECT organization_id FROM knowledge_chunks WHERE id IN ($1, $2)", [chunkA, chunkB]);
-      return { memories: memories.rows, chunks: chunks.rows };
+      const deletionJobs = await query<{ organization_id: string }>(restrictedPool, "SELECT organization_id FROM memory_deletion_jobs WHERE id IN ($1, $2)", [deletionJobA, deletionJobB]);
+      return { memories: memories.rows, chunks: chunks.rows, deletionJobs: deletionJobs.rows };
     });
     expect(rows.memories).toEqual([{ organization_id: organizationA }]);
     expect(rows.chunks).toEqual([{ organization_id: organizationA }]);
+    expect(rows.deletionJobs).toEqual([{ organization_id: organizationA }]);
   });
 
   it("rejects writes that claim another organization", async () => {
@@ -69,6 +79,12 @@ describe.skipIf(!runIntegration)("memory and knowledge RLS (integration)", () =>
     } catch (error) {
       expect(["42501", "P0001"]).toContain((error as { code?: string }).code);
     }
+    await expect(runWithDatabaseContext({ organizationId: organizationA, actorId: "rls-test" }, () => query(
+      restrictedPool,
+      `INSERT INTO memory_deletion_jobs (organization_id, requested_by, target_type, target_id)
+       VALUES ($1, 'rls-test', 'memory', $2)`,
+      [organizationB, memoryB],
+    ))).rejects.toMatchObject({ code: "42501" });
   });
 
   it("allows only an explicit platform operator scope to inspect both test tenants", async () => {
@@ -80,6 +96,7 @@ describe.skipIf(!runIntegration)("memory and knowledge RLS (integration)", () =>
   });
 
   afterAll(async () => {
+    await adminPool.query("DELETE FROM memory_deletion_jobs WHERE id IN ($1, $2)", [deletionJobA, deletionJobB]);
     await adminPool.query("DELETE FROM knowledge_chunks WHERE id IN ($1, $2)", [chunkA, chunkB]);
     await adminPool.query("DELETE FROM knowledge_sources WHERE id IN ($1, $2)", [sourceA, sourceB]);
     await adminPool.query("DELETE FROM memory_records WHERE id IN ($1, $2)", [memoryA, memoryB]);

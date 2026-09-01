@@ -2,10 +2,16 @@ import { Pool, PoolClient, QueryResult, QueryResultRow } from "pg";
 import type { AppConfig } from "../config";
 import { currentDatabaseContext } from "./context";
 import { recordDatabaseAuthorizationFailure } from "../telemetry/spans";
+import { operationalLogger } from "../telemetry/logger";
 
 function observeDatabaseError(error: unknown, contextPresent: boolean): void {
   if ((error as { code?: unknown })?.code === "42501") {
     recordDatabaseAuthorizationFailure(contextPresent);
+    operationalLogger.error({
+      event: "database.authorization.failed",
+      sqlstate: "42501",
+      context: contextPresent ? "present" : "missing",
+    }, "Database authorization or row-level security check failed");
   }
 }
 

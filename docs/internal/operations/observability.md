@@ -123,6 +123,7 @@ The minimum event vocabulary is:
 | Retries | `operation.retry.scheduled`, `operation.retry.exhausted` |
 | Migrations | `migration.started`, `migration.completed`, `migration.failed` |
 | Queues/workers | `queue.item.claimed`, `queue.item.completed`, `queue.item.failed`, `queue.item.ignored`, `queue.claim.failed`, `worker.started`, `worker.disabled`, `worker.failed` |
+| Database isolation | `database.authorization.failed`, `database.context.missing` |
 | Terminal failures | `operation.failed`, `operation.terminal.failure` |
 
 Event names are identifiers, not user-facing prose. Production Rust operational `log!` callsites

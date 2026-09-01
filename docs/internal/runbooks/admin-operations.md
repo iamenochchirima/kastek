@@ -23,6 +23,9 @@ tokens, provider credentials, or raw customer payloads into tickets or chat.
 
 ## Database authorization or tenant-isolation alert
 
+See the detailed [Agents database isolation runbook](agent-database-isolation.md) for signal
+names, staged rollout, disable, and rollback procedures.
+
 1. Check `kasitek.database.authorization_failure.count` and
    `kasitek.database.context_missing.count` for the affected service, release, and time window.
 2. Treat any `context_missing` event as a fail-closed background-process defect. Pause the

@@ -1,6 +1,6 @@
 # Agents PostgreSQL RLS rollout plan
 
-**Status:** Active; fourth RLS tranche released
+**Status:** Active; all runtime policy tranches released, evidence closure pending
 
 **Owner:** Agent Platform
 
@@ -55,12 +55,20 @@ protected system-agent or operator workflows.
       remaining worker/control-plane tables in separate migrations
       ([093_identity_credentials_effects_rls.sql](../../../agents/migrations/093_identity_credentials_effects_rls.sql),
       [094_control_plane_and_lifecycle_rls.sql](../../../agents/migrations/094_control_plane_and_lifecycle_rls.sql)).
+- [x] Extend RLS to parallel branch budget leases with run-parent validation
+      ([097_parallel_branch_budget_leases.sql](../../../agents/migrations/097_parallel_branch_budget_leases.sql)).
+- [x] Keep every policy table represented in the seeded restricted-role fixture source matrix
+      ([rls-matrix.test.ts](../../../agents/test/rls-matrix.test.ts)).
+- [ ] Execute the complete opt-in restricted-role matrix against an isolated
+      production-equivalent database and exercise every background process type.
 - [x] Make background database scope failures fail closed and add a source-level process matrix
       covering every long-running and one-shot Agents entrypoint
       ([background-database-context.test.ts](../../../agents/test/background-database-context.test.ts)).
 - [x] Emit bounded database authorization and missing-context metrics, with an operator response
       documented in the database-isolation runbook.
-- [ ] Add isolation alerts, staged rollout, disable procedure, migration rollback, and post-release
+- [x] Check in stable database-isolation events and the staged rollout, disable, rollback, and
+      alert-routing contract ([agent-database-isolation.md](../../internal/runbooks/agent-database-isolation.md)).
+- [ ] Execute and record the production rollback drill, durable alert notification, and post-release
       review evidence.
 
 ## Release record

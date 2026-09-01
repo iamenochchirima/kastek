@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { recordDatabaseContextMissing } from "../telemetry/spans";
+import { operationalLogger } from "../telemetry/logger";
 
 const MAX_CONTEXT_VALUE_LENGTH = 240;
 
@@ -48,6 +49,11 @@ export function runWithRequiredDatabaseContext<T>(
   const normalized = normalizeDatabaseContext(context);
   if (!normalized?.organizationId || !normalized.actorId) {
     recordDatabaseContextMissing(processName);
+    operationalLogger.error({
+      event: "database.context.missing",
+      process: processName.slice(0, MAX_CONTEXT_VALUE_LENGTH),
+      error_code: "DATABASE_CONTEXT_REQUIRED",
+    }, "Database context required for background operation");
     throw Object.assign(new Error(`Database context required for ${processName}`), {
       code: "DATABASE_CONTEXT_REQUIRED",
       process: processName,
