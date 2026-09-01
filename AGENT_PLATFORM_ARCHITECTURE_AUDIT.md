@@ -362,7 +362,9 @@ Add contract tests for:
       migration 080).
 - [x] Aggregate model and tool usage across every node and branch
       ([executor.ts](agents/src/workflows/executor.ts)).
-- [ ] Add crash, replay, cancellation, approval, handoff, and external-event contract tests.
+- [x] Add crash-after-checkpoint replay and branch-failure contract tests
+      ([workflow-graph-recovery.test.ts](agents/test/workflow-graph-recovery.test.ts)); cancellation,
+      approval, handoff, and external-event worker-kill coverage remain open.
 - [ ] Update workflow schema documentation, preview labels, migration guidance, runbooks, metrics,
       and rollback controls.
 

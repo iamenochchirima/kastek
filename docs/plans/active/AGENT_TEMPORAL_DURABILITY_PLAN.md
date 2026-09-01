@@ -25,6 +25,8 @@ Reduce duplicate provider work and make worker-loss recovery explicit while the 
   runbook.
 - [x] Add runtime and database-backed tests for replay, unknown operations, migration shape, and
   reconciliation projections.
+- [x] Add workflow graph recovery contracts for crash-after-checkpoint replay and branch failure
+  ([workflow-graph-recovery.test.ts](../../../agents/test/workflow-graph-recovery.test.ts)).
 - [ ] Add worker-kill tests around every model, tool, approval, effect, and completion checkpoint.
 - [ ] Split context, model, tool, checkpoint, and completion work into independently retry-safe
   activities behind a controlled rollout.
