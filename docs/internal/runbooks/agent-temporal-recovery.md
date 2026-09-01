@@ -86,8 +86,27 @@ The worker recovery sweep moves old run-budget reservations to `unknown`, releas
 ledger estimate, emits `agent.model.reconciliation_required`, and exposes the reservation through:
 
 - `GET /v1/operator/budgets/reconciliation` for platform operators;
+- `GET /v1/operator/runs/:runId/usage-reconciliation` for a bounded run-level comparison of the
+  Agents model-call and budget ledgers against Core reservations and usage events;
 - `GET /v1/operations/budgets/reconciliation` for the owning organization;
 - `GET /v1/operations/summary` for aggregate budget state.
+
+The run-level report is platform-operator-only and requires `operator:read`. It uses the run's
+organization and installation scope when calling Core, so operators do not need direct access to
+the Core database. A `matched` result means the returned Core usage events cover the completed
+local model calls, their provider token totals match, and each event agrees with a captured Core
+reservation. `pending` means an unknown or unresolved local/Core reservation remains; `mismatch`
+means the returned token or reservation amounts disagree; `no_billed_usage` means local model
+calls exist without Core usage events and must be explained before treating the run as settled.
+
+Example:
+
+```text
+GET /v1/operator/runs/<run-id>/usage-reconciliation?limit=100
+```
+
+The endpoint is diagnostic and bounded. It does not settle a reservation or resolve an unknown
+provider outcome. Use the dual-controlled reconciliation command below for that action.
 
 Do not resolve an unknown reservation by editing PostgreSQL directly. Use the dual-controlled
 operator command:
@@ -147,13 +166,15 @@ model or tool operation state.
    dashboard.
 2. Check the worker logs for `agent.worker.startup.failed`, `agent.recovery.sweep.failed`,
    `model.reconciliation.required`, and activity retry spans.
-3. Inspect the affected run timeline and the two reconciliation endpoints. Do not retry a run while
+3. Inspect the affected run timeline, the run-level usage report, and the two budget reconciliation
+   endpoints. Do not retry a run while
    its model operation or external effect is unresolved.
 4. Look up the provider request using the stable operation key or provider-side idempotency key.
 5. Resolve the budget through the dual-controlled command, then retry the run only if the product
    outcome is still incomplete.
 6. Confirm that captured usage, durable `model_calls`, run budget totals, provider billing, and
-   customer-visible output agree.
+   customer-visible output agree. Record the run-level report status and investigate any
+   `pending`, `mismatch`, or `no_billed_usage` result before closing the incident.
 
 ## Conversation admission and redelivery
 

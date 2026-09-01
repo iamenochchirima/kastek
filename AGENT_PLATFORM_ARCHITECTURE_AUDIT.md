@@ -500,7 +500,13 @@ Completion criteria:
 - [x] Add budget exhaustion metrics, customer-safe errors, operator diagnostics, and a reconciliation
       runbook ([spans.ts](agents/src/telemetry/spans.ts), [app.ts](agents/src/http/app.ts),
       [agent-temporal-recovery.md](docs/internal/runbooks/agent-temporal-recovery.md)).
+- [x] Add an authenticated operator run report that joins Agents model-call and budget ledgers with
+      Core reservation and usage-event records, classifying matched, pending, mismatch, and
+      intentionally unbilled runs ([usage-reconciliation.ts](agents/src/operations/usage-reconciliation.ts),
+      [`GET /v1/operator/runs/:runId/usage-reconciliation`](agents/src/http/app.ts)).
 - [ ] Compare billed, reserved, captured, and provider-reported usage during staged rollout.
+      The bounded comparison path is now available; staged evidence and provider-side billing
+      verification remain required before marking this complete.
 
 ## Priority 1: memory, isolation, and reliable agent behavior
 
@@ -1370,6 +1376,14 @@ KasiTek should retain its stronger platform features around that anatomy:
   skipped, `69` tests skipped), typecheck, build, targeted graph/migration tests, internal API
   readiness, worker shell, and public Gateway health checks passed. Billed-versus-provider usage
   reconciliation and the full worker-kill matrix remain open.
+- Run usage reconciliation release `b25510e7` reached `SUCCESS` on Agents API, Agents Worker, and
+  MCP Gateway; Core's final formatted artifact from follow-up `768a7ddb` reached `SUCCESS` as
+  deployment `7487836d-4754-458e-b647-1543fee88cf7`. The full Agents suite passed (`95 files`, `579 passed`, `25` integration files
+  skipped, `78` tests skipped), the Agents build and Core route test passed, and public Core and
+  Gateway health checks returned `200`. The authenticated operator route was reached inside the
+  production Agents container and returned `run_not_found` for a valid UUID; production currently
+  has no `agent_runs`, so a real billed-run comparison has not yet been observed. The staged
+  provider-billing comparison remains open.
 
 Passing tests do not invalidate the verified findings. The current suite does not cover those
 contracts.

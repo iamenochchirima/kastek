@@ -51,10 +51,15 @@ Reduce duplicate provider work and make worker-loss recovery explicit while the 
       checkpoints before and after the activity boundary
       ([temporal-worker-loss-matrix.integration.test.ts](../../../agents/test/temporal-worker-loss-matrix.integration.test.ts));
       provider/database fault injection inside the still-large activity remains open.
+- [x] Add an authenticated operator run-level usage reconciliation report that compares local
+  model-call and budget totals with Core reservations and provider-reported usage events
+  ([usage-reconciliation.ts](../../../agents/src/operations/usage-reconciliation.ts),
+  [`GET /v1/operator/runs/:runId/usage-reconciliation`](../../../agents/src/http/app.ts)).
 - [ ] Split context, model, tool, checkpoint, and completion work into independently retry-safe
   activities behind a controlled rollout.
 - [ ] Compare provider billing with reserved, captured, released, and reconciled usage during
-  staged rollout.
+  staged rollout; the diagnostic path exists, but staged production evidence and provider-side
+  billing verification are still required.
 
 ## Release record
 
@@ -509,3 +514,67 @@ rollback is required because no service artifact, flag, database, or runtime beh
 
 Post-release review date: 2026-09-08; use the matrix as a gate for the remaining inner
 `executeLoop` activity decomposition and provider/database fault-injection tests.
+
+## Follow-up release record: run usage reconciliation
+
+Change: Add a bounded, authenticated operator report that compares Agents durable model-call and
+run-budget records with Core credit reservations and provider-reported usage events for one run.
+The report classifies `matched`, `pending`, `mismatch`, and `no_billed_usage` outcomes without
+settling reservations.
+
+Owner: Agent Platform.
+
+Risk: standard.
+
+Affected services and user surfaces: Agents API operator diagnostics, Agents Worker usage records,
+Core credit boundary, and MCP Gateway shared Agents artifact. No customer-facing surface changed.
+
+Platform release version or release ID: Agents application commit `b25510e7`; Core formatting
+follow-up `768a7ddb`. Final production deployments: Core `7487836d-4754-458e-b647-1543fee88cf7`
+(image `sha256:95fbd5d98ae060a2ea2155ebc855e5d4494c3b17eeda114d8e977c59212ff4dc`), Agents API
+`f207f1c9-d8ba-4a1f-b9f2-91ae547a7cdd` (image
+`sha256:23f87335ca21b3b427312b627984dfe140c85c8b21ac1e13730ca2cb30e8a491`), Agents Worker
+`62354d84-9065-44a5-9059-3da86d8de7b5` (image
+`sha256:88ceaaa4d52f9f72270776c76080923d90a160c678edf7349d3a2e5dd22fd3b8`), and MCP Gateway
+`53e7a306-9fec-4274-ad15-99fee846832d` (image
+`sha256:9b2faaa2ee79e1edbc91530552f68719dd97e805ec05105c6dafb33ee774cd6f`). Test-matrix fix
+`8948f262` updated the route-count conformance assertions; it did not change watched runtime
+files or trigger a new production artifact.
+
+API/schema/migration changes: Adds internal `GET /api/internal/agents/v1/credits/usage` in Core,
+scoped by organization, source type, source ID, and a maximum 500-row limit. Adds operator-only
+`GET /v1/operator/runs/:runId/usage-reconciliation` in Agents. No database migration.
+
+Feature flag or rollout method: no new flag. The operator endpoint is available only behind the
+existing platform operator authentication and `operator:read` scope. It is diagnostic; budget
+settlement remains behind the existing dual-controlled command.
+
+Analytics events and success metrics: no new customer analytics event. Success metrics are report
+status distribution, uncovered local model calls, token comparison mismatches, and pending Core or
+Agents reservations during staged observation.
+
+Logs, metrics, dashboards, and alerts: Core emits the existing structured HTTP completion event
+with the reconciliation operation and bounded counts; Agents logs Core-boundary failures with run
+and organization identifiers. No Collector configuration revision changed. Use the Temporal
+recovery runbook and existing budget/reconciliation metrics; do not treat the diagnostic report as
+an alert by itself.
+
+User, API, internal, and operational documentation: updated
+`AGENT_PLATFORM_ARCHITECTURE_AUDIT.md`, `docs/internal/runbooks/agent-temporal-recovery.md`, and
+this plan. Public API documentation is not applicable because both new routes are internal.
+
+Validation evidence: Agents targeted reconciliation, Core-client, and HTTP tests passed (`130`);
+the full Agents suite passed (`95` files, `579` passed, `78` skipped); Agents TypeScript build
+passed; `cargo check --manifest-path server/kasitek-core/Cargo.toml` passed; the Core representative
+route test passed; public `https://agents.kasitek.co.za/health/ready` and
+`https://api.kasitek.co.za/health` returned HTTP `200`; and an authenticated in-container probe
+reached the new Agents route and returned `404 run_not_found` for a valid UUID. Production has no
+run rows yet, so a real billed-run result remains unobserved.
+
+Rollback or disable plan: redeploy the previous successful Core and Agents artifacts. The change
+has no migration and no data mutation; removing the operator route is safe after operators have a
+replacement report. If Core is unavailable, Agents returns a bounded `502` diagnostic response and
+retains local usage/budget data for investigation.
+
+Post-release review date: 2026-09-08; review the first real run reports, status distribution,
+provider token coverage, and any pending or mismatch outcomes before closing P0.4.
