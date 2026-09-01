@@ -100,6 +100,11 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         await transition("running", "expired");
         return;
       }
+      if (result.checkpointed) {
+        // The activity completed one bounded model/tool slice and persisted its continuation.
+        // Schedule the next slice without treating the internal checkpoint as a terminal limit.
+        continue;
+      }
       if (result.status === "awaiting_approval") {
         await activities.pauseRun({
           ...activityScope(),

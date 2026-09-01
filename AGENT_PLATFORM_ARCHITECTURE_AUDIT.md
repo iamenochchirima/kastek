@@ -425,6 +425,11 @@ hold product evidence and idempotency records, not act as a replacement workflow
       ([loop.ts](agents/src/runtime/loop.ts), [types.ts](agents/src/tools/types.ts)).
 - [x] Record `unknown_outcome` and schedule reconciliation when cancellation cannot prove the
       remote outcome.
+- [x] Add an opt-in durable loop continuation boundary that caps each activity slice at one model
+      iteration, persists bounded model messages, and resumes with a new operation-key prefix
+      ([loop-checkpoint.ts](agents/src/runtime/loop-checkpoint.ts), [loop-step.test.ts](agents/test/loop-step.test.ts),
+      `TEMPORAL_STEP_ACTIVITIES_ENABLED`). This is an intermediate rollout seam; tool, effect, and
+      completion work are still not separate Temporal activities.
 - [ ] Add worker-kill tests around every model, tool, approval, effect, and completion checkpoint.
 - [x] Add retry, timeout, cancellation, and reconciliation metrics with bounded structured logs
       ([spans.ts](agents/src/telemetry/spans.ts), [worker.ts](agents/src/temporal/worker.ts)).
@@ -1222,7 +1227,8 @@ KasiTek should retain its stronger platform features around that anatomy:
 - [ ] Implement node-level durable graph execution.
 - [ ] Wire the bounded loop as a real graph node.
 - [ ] Add branch deltas and one-time fan-in.
-- [ ] Add heartbeat and cancellation behavior.
+- [x] Add heartbeat and cancellation behavior for the existing activity and the opt-in loop-slice
+      boundary; provider/tool worker-kill cancellation coverage remains open.
 - [ ] Run crash recovery tests at every non-terminal state.
 
 - [ ] Exit evidence recorded: a worker can die after any node or tool boundary and another worker

@@ -59,6 +59,7 @@ import { AGENT_MEDIA_HARNESS_TOOLS, agentResponseSchema, agentResponseToolInputS
 import { materializeResponseLinks, type ResolvedAgentMedia } from "../media/delivery";
 import { channelMediaProfile } from "../media/profiles";
 import { runWithDatabaseContext, type DatabaseContext } from "../db/context";
+import { durableAgentLoopCheckpoint, readDurableAgentLoopCheckpoint } from "../runtime/loop-checkpoint";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -1841,7 +1842,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           coreClient,
         );
       }
-      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, runs, modelCalls, runBudgets, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, runs, modelCalls, runBudgets, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true);
     },
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
@@ -2472,10 +2473,16 @@ async function executeLoopForRun(
   creditBillingMode: AppConfig["CREDIT_BILLING_MODE"],
   coreClient: KasitekCoreReadClient | undefined,
   conversationActions: ConversationActionService,
+  stepActivitiesEnabled: boolean,
 ) {
   if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
   const configuration = run.configuration;
   const installationSettings = run.installation_settings ?? {};
+  const storedWorkflowState = await workflowState.get(run.organization_id, run.id);
+  const storedLoopState = storedWorkflowState?.state?.__agentLoop;
+  const loopCheckpoint = readDurableAgentLoopCheckpoint(storedLoopState);
+  if (storedLoopState !== undefined && !loopCheckpoint) throw new Error("AGENT_LOOP_CHECKPOINT_INVALID");
+  const stepExecutionEnabled = stepActivitiesEnabled && !(configuration.workflow && typeof configuration.workflow === "object" && !Array.isArray(configuration.workflow));
   const activitySignal = currentActivitySignal();
   const modelTarget = resolveModelTarget(configuration, run.policy);
   const runBudgetLimits = {
@@ -2484,6 +2491,11 @@ async function executeLoopForRun(
     maxTotalTokens: restrictiveLimit(modelTarget.maxTokensPerRun, configuration.maxTotalTokens, installationSettings.maxTotalTokens) ?? 32_000,
     maxEstimatedCostUsd: restrictiveLimit(modelTarget.maxEstimatedCostUsd, configuration.maxEstimatedCostUsd, installationSettings.maxEstimatedCostUsd),
   };
+  const configuredMaxIterations = typeof configuration.maxIterations === "number"
+    ? Math.max(0, Math.floor(configuration.maxIterations))
+    : 8;
+  const remainingIterations = Math.max(0, configuredMaxIterations - (loopCheckpoint?.iterations ?? 0));
+  const remainingToolCalls = Math.max(0, runBudgetLimits.maxToolCalls - (loopCheckpoint?.toolCalls ?? 0));
   await runBudgets.ensure({ organizationId: run.organization_id, runId: run.id }, runBudgetLimits);
   const isKasiAiInstallation = run.execution_mode === "system_hosted"
     && run.agent_owner_type === "system"
@@ -3082,7 +3094,9 @@ async function executeLoopForRun(
   const unavailableTools = new Set<string>();
   const loopResult = await withActivityHeartbeat({ phase: "agent.loop" }, () => runBoundedAgentLoop({
     model: { provider, model, temperature: typeof configuration.temperature === "number" ? configuration.temperature : undefined },
-    messages: context.messages,
+    messages: resumeExternalEvent
+      ? [...(loopCheckpoint?.messages ?? context.messages), { role: "user" as const, content: JSON.stringify({ externalEvent: resumeExternalEvent }) }]
+      : loopCheckpoint?.messages ?? context.messages,
     credentials: modelCredentials,
     fallbackModels,
     gateway,
@@ -3090,9 +3104,12 @@ async function executeLoopForRun(
     grantedTools: allowedTools,
     toolContext: modelToolContext,
     signal: activitySignal,
+    operationKeyPrefix: stepExecutionEnabled ? `activity:loop:${run.id}:${loopCheckpoint?.iterations ?? 0}` : undefined,
     limits: {
-      maxIterations: typeof configuration.maxIterations === "number" ? configuration.maxIterations : undefined,
-      maxToolCalls: runBudgetLimits.maxToolCalls,
+      maxIterations: stepExecutionEnabled ? Math.min(1, remainingIterations) : (typeof configuration.maxIterations === "number" ? configuration.maxIterations : undefined),
+      // A slice is bounded by one model iteration. Keep all tool calls returned by that
+      // response together so the persisted assistant/tool message sequence stays valid.
+      maxToolCalls: stepExecutionEnabled ? remainingToolCalls : runBudgetLimits.maxToolCalls,
       maxTotalTokens: runBudgetLimits.maxTotalTokens,
       maxEstimatedCostUsd: runBudgetLimits.maxEstimatedCostUsd,
       maxWallTimeMs: typeof configuration.maxWallTimeMs === "number" ? configuration.maxWallTimeMs : undefined,
@@ -3344,6 +3361,37 @@ async function executeLoopForRun(
     knowledgeMatchCount: knowledgeMatches.length,
   });
   loopResult.usage = await modelCalls.usageForRun(run.organization_id, run.id);
+  if (stepExecutionEnabled) {
+    const shouldContinue = loopResult.status === "limited"
+      && loopResult.iterations > 0
+      && loopResult.messages.at(-1)?.role === "tool";
+    const shouldPause = loopResult.status === "awaiting_approval"
+      || loopResult.status === "awaiting_human"
+      || loopResult.status === "awaiting_external_event";
+    const nextState = { ...(storedWorkflowState?.state ?? {}) };
+    if (shouldContinue || shouldPause) {
+      nextState.__agentLoop = durableAgentLoopCheckpoint(loopResult, loopCheckpoint);
+    } else if (Object.prototype.hasOwnProperty.call(nextState, "__agentLoop")) {
+      delete nextState.__agentLoop;
+    }
+    if (shouldContinue) {
+      await workflowState.put({
+        organizationId: run.organization_id,
+        runId: run.id,
+        expectedRevision: storedWorkflowState?.revision,
+        state: nextState,
+      });
+      return { ...loopResult, checkpointed: true };
+    }
+    if (shouldPause || loopCheckpoint) {
+      await workflowState.put({
+        organizationId: run.organization_id,
+        runId: run.id,
+        expectedRevision: storedWorkflowState?.revision,
+        state: nextState,
+      });
+    }
+  }
   return loopResult;
   }
 }

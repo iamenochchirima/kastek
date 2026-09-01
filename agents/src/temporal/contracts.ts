@@ -2,6 +2,11 @@ import type { RunStatus } from "../domain/types";
 import type { AgentLoopResult } from "../runtime/loop";
 import type { ToolApproval } from "../tools/types";
 
+export type DurableAgentLoopResult = AgentLoopResult & {
+  /** True when the activity persisted a continuation and the workflow should schedule another step. */
+  checkpointed?: boolean;
+};
+
 export interface ResumeApprovedToolCall {
   id: string;
   name: string;
@@ -52,7 +57,7 @@ export interface TransitionRunActivityInput extends ActivityScope {
 
 export interface AgentRunActivities {
   transitionRun(input: TransitionRunActivityInput): Promise<void>;
-  executeLoop(input: DurableRunInput): Promise<AgentLoopResult>;
+  executeLoop(input: DurableRunInput): Promise<DurableAgentLoopResult>;
   pauseRun(input: ActivityScope & { runId: string; status: "awaiting_approval" | "awaiting_human" | "awaiting_external_event"; output: Record<string, unknown> }): Promise<void>;
   deliverApprovalPrompt(input: ActivityScope & { runId: string }): Promise<void>;
   cancelPendingApproval(input: ActivityScope & { runId: string; providerToolCallId: string; reason?: string; outcome?: "cancelled" | "expired" }): Promise<void>;

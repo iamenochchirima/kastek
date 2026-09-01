@@ -53,11 +53,17 @@ reservation cannot be silently reused by a retry.
 
 ## Known boundary
 
-The current `executeLoop` activity still encloses more than one logical model/tool operation. Model
-operations now claim a stable operation key in `model_calls` and persist the provider response
+The default `executeLoop` activity still encloses more than one logical model/tool operation. An
+opt-in `TEMPORAL_STEP_ACTIVITIES_ENABLED` mode provides an intermediate boundary for ordinary
+hosted runs: each activity slice performs at most one model iteration, persists a bounded message
+continuation in `run_workflow_state`, and the Temporal workflow schedules the next slice. The
+continuation is versioned and fail-closed when malformed or oversized.
+
+Model operations claim a stable operation key in `model_calls` and persist the provider response
 before budget and credit settlement; a completed operation is replayed without another provider
 request. A worker loss after the request starts can still leave the operation `started` with an
 unknown provider outcome, so it is stopped and sent to reconciliation rather than retried blindly.
 Tool invocations and external effects retain their existing durable invocation/receipt boundaries.
-Splitting model, tool, checkpoint, and completion work into independently retry-safe Temporal
-activities remains P0.3 work.
+The step mode still groups the tool calls returned by one model response and does not yet make
+context, model, individual tool, checkpoint, and completion work separate Temporal activities.
+The worker-kill matrix and controlled production rollout therefore remain P0.3 work.

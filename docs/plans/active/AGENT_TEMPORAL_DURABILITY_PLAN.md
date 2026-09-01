@@ -34,9 +34,14 @@ Reduce duplicate provider work and make worker-loss recovery explicit while the 
   terminal checkpoints ([workflow-graph-worker-recovery.test.ts](../../../agents/test/workflow-graph-worker-recovery.test.ts));
   activity-level worker-kill coverage remains open.
 - [x] Route configured `agent_loop` nodes through the hosted bounded loop with scoped durable
-  operation keys, shared capability/approval/effect hooks, residual graph limits, and pause/resume
-  checkpoint mapping ([activities.ts](../../../agents/src/temporal/activities.ts),
-  [workflow-graph-agent-loop.test.ts](../../../agents/test/workflow-graph-agent-loop.test.ts)).
+      operation keys, shared capability/approval/effect hooks, residual graph limits, and pause/resume
+      checkpoint mapping ([activities.ts](../../../agents/src/temporal/activities.ts),
+      [workflow-graph-agent-loop.test.ts](../../../agents/test/workflow-graph-agent-loop.test.ts)).
+- [x] Add a controlled ordinary-run continuation seam that persists a bounded model-message
+      checkpoint after each model/tool slice and schedules the next Temporal activity through a
+      new operation-key prefix ([loop-checkpoint.ts](../../../agents/src/runtime/loop-checkpoint.ts),
+      [loop-step.test.ts](../../../agents/test/loop-step.test.ts)); keep it opt-in until the
+      worker-loss matrix is complete.
 - [ ] Add worker-kill tests around every model, tool, approval, effect, and completion checkpoint.
 - [ ] Split context, model, tool, checkpoint, and completion work into independently retry-safe
   activities behind a controlled rollout.
@@ -177,3 +182,52 @@ is required.
 
 Post-release review date: 2026-09-08; review agent-loop completion, pause/resume, budget, and
 duplicate-operation metrics before closing the remaining graph and activity-decomposition work.
+
+## Follow-up release record: opt-in loop continuation seam
+
+Change: Add a bounded, opt-in continuation mode for ordinary hosted runs. Each activity slice is
+limited to one model iteration, persists a versioned bounded message continuation in the existing
+run workflow-state record, and returns a checkpoint marker so the Temporal workflow schedules the
+next slice with a new operation-key prefix.
+
+Owner: Agent Platform.
+
+Risk: standard.
+
+Affected services and user surfaces: agents-worker, configured hosted runs, model-call and budget
+ledgers, continuation/recovery behavior, and operator recovery diagnostics. Agents API and
+MCP-Gateway carry the shared artifact but have no direct execution-path change.
+
+Platform release version or release ID: record the exact commit and Railway deployment IDs after
+the opt-in production artifact is promoted. The flag remains disabled until the worker-loss
+matrix is complete.
+
+API/schema/migration changes: no API or migration changes; the existing run workflow-state JSON
+record stores a versioned `__agentLoop` continuation with bounded message count and size.
+
+Feature flag or rollout method: `TEMPORAL_STEP_ACTIVITIES_ENABLED`, default `false`; enable only
+for a controlled installation or equivalent canary after recovery evidence is available.
+
+Analytics events and success metrics: no new customer analytics event. Review continuation count,
+activity duration, model duplicate rate, budget reservation reconciliation, completion latency, and
+pause/resume outcomes.
+
+Logs, metrics, dashboards, and alerts: existing activity heartbeat, model-call, budget, and
+reconciliation telemetry is reused. No Collector configuration change; debug exporters remain
+verification-only and are not a production retention path.
+
+User, API, internal, and operational documentation: updated the platform audit and workflow
+execution architecture reference. The Temporal recovery runbook needs the canary/disable steps
+before this flag is enabled.
+
+Validation evidence: loop continuation and checkpoint validation tests pass (3/3 across the new
+tests), the workflow graph agent-loop tests pass (3/3), Agents TypeScript check passes, and the
+full Agents suite passes (92 files, 561 passed, 24 integration files skipped; 68 tests skipped).
+Production deployment evidence is pending until the flag is deliberately enabled in a canary.
+
+Rollback or disable plan: leave `TEMPORAL_STEP_ACTIVITIES_ENABLED=false` or redeploy the prior
+known-good artifact. Existing runs with a persisted continuation are still readable by the
+compatibility path; do not delete `__agentLoop` state or model-operation records during rollback.
+
+Post-release review date: 2026-09-08; review canary continuation/retry/reconciliation metrics and
+complete worker-kill coverage before enabling this mode more broadly.
