@@ -408,3 +408,60 @@ it is additive and should not be dropped during an application rollback.
 
 Post-release review date: 2026-09-08; inspect active lease age, capacity rejections, branch retry
 replay, model/tool budget totals, and provider billing reconciliation.
+
+## Follow-up release record: controlled linear graph continuation
+
+Change: Add a controlled continuation seam for configured graphs that contain only linear model,
+tool, and deterministic nodes. The worker returns only after persisting the completed node
+checkpoint, allowing the next activity attempt to resume from the recorded next node and runtime
+metadata. Fan-out and `agent_loop` graphs remain on the existing whole-graph activity boundary.
+
+Owner: Agent Platform.
+
+Risk: high.
+
+Affected services and user surfaces: agents-api, agents-worker, configured linear workflow
+execution, graph checkpoints, retry recovery, run budgets, and operator recovery diagnostics.
+MCP-Gateway carries the shared artifact but has no direct graph execution path.
+
+Platform release version or release ID: commit `83d067c0da3b7866297aa8ec34800ab40aff4ad6`;
+Railway production deployments `agents-api`
+`1b72f9b1-95c7-42e8-a5b6-6014a6697f9e`, `agents-worker`
+`5ea101ce-8862-4889-b838-ad5e0bbb3574`, and `MCP-Gateway`
+`a68dec80-f102-4f30-b74a-d199e92a9ca5`; all reported `SUCCESS` for the release SHA.
+
+API/schema/migration changes: no new migration. Migration `098_workflow_checkpoint_runtime_metadata.sql`
+was applied and verified before this release; the continuation uses its additive graph runtime
+metadata columns.
+
+Feature flag or rollout method: existing `TEMPORAL_STEP_ACTIVITIES_ENABLED`, default `false` in
+production. When enabled, only eligible linear configured graphs use the one-node continuation;
+fan-out and `agent_loop` graphs are explicitly excluded. Full independent context/model/tool/
+checkpoint/completion activity decomposition remains open P0.3 work.
+
+Analytics events and success metrics: no new customer analytics event. Review continuation rate,
+checkpoint retry rate, duplicate model/tool execution, budget totals, pause/resume outcomes, and
+failure rate by graph shape before widening the rollout.
+
+Logs, metrics, dashboards, and alerts: existing activity-attempt, heartbeat, checkpoint, budget,
+and reconciliation telemetry is reused. No Collector or debug-exporter configuration change was
+made; use the existing Temporal recovery runbook queries and release SHA to inspect failures.
+
+User, API, internal, and operational documentation: updated the platform audit, workflow execution
+architecture reference, Temporal recovery runbook, and this plan. Public API documentation is not
+applicable because the contract is internal and the flag is disabled by default.
+
+Validation evidence: full Agents suite passed (`94` files, `573` passed, `24` integration files
+skipped, `69` tests skipped); Agents TypeScript check and production build passed; staged diff
+checks passed; public Agents API `/health/ready` and `/health` returned HTTP `200`; internal API
+readiness returned `200` with `temporalEnabled: true`; and the worker shell reported Temporal
+enabled on task queue `kasitek-agents-production`.
+
+Rollback or disable plan: keep `TEMPORAL_STEP_ACTIVITIES_ENABLED=false` or redeploy the previous
+known-good artifact. Retain migration 098 and graph checkpoint runtime metadata during rollback;
+older application artifacts ignore the additive columns safely. Do not enable the flag for fan-out
+or `agent_loop` graphs until their independent activity contracts and worker-kill coverage land.
+
+Post-release review date: 2026-09-08; review graph continuation adoption, checkpoint/runtime
+metadata replay, duplicate execution, budget reconciliation, and worker-loss recovery before
+advancing P0.3.
