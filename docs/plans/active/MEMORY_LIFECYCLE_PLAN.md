@@ -124,8 +124,9 @@ store is active, so no external deletion adapter is required in this release.
 Affected services and user surfaces: agents-api, agents-worker runtime repositories, memory and
 knowledge REST management routes, conversation deletion, and Agents PostgreSQL.
 
-Platform release version or release ID: the implementation commit and Railway deployment ID will
-be recorded in the completed audit release record after verification.
+Platform release version or release ID: implementation commit `eb2b3cb3`; Railway deployments
+`3eae6407-4c86-4c25-8ebc-0889fff1297f` (agents-api), `1b97f6b7-d79e-44fb-b36f-3b4cfba622d9`
+(agents-worker), and `352a0f99-3c2e-4a96-a9ca-575ba9c72966` (MCP-Gateway), all `SUCCESS`.
 
 API/schema/migration changes: no schema migration; existing `memory_deletion_jobs` records remain as
 completion evidence. The public deletion behavior is documented above.
