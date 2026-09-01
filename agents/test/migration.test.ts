@@ -135,6 +135,13 @@ describe("foundation migration", () => {
     }
   });
 
+  it("adds a dedicated automatic agent-version deployment rollout flag", async () => {
+    const sql = await readFile(new URL("../migrations/096_agent_version_deployment_flag.sql", import.meta.url), "utf8");
+    expect(sql).toContain("agent_version_deployment_enabled");
+    expect(sql).toContain("global, organization, or");
+    expect(sql).toContain("follow-published installation movement");
+  });
+
   it("contains the durable scope and run tables", async () => {
     const sql = await readFile(new URL("../migrations/001_agent_platform_foundation.sql", import.meta.url), "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_definitions");

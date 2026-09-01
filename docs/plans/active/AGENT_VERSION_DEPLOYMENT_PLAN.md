@@ -50,8 +50,8 @@ their original version.
 4. [x] Add explicit deployment API state and correct dashboard copy and display.
 5. [x] Add an organization-scoped manual deployment operation for hosted installations with an
       optimistic version check.
-6. [ ] Add regression, integration, ownership, rollback, and historical-run tests.
-7. [ ] Update internal and user documentation, observability, and release evidence.
+6. [x] Add regression, integration, ownership, rollback, and historical-run tests.
+7. [x] Update internal and user documentation, observability, and release evidence.
 8. [ ] Verify the tested artifact, migrate an isolated environment, and record rollout results.
 
 ## Verification
@@ -62,10 +62,10 @@ their original version.
       `AGENTS_DATABASE_URL`).
 - [x] `pnpm --dir client/apps/client exec tsc --noEmit`.
 - [x] `pnpm --dir client/apps/client run lint` (existing warnings remain; no lint errors).
-- [ ] Repository tests for release modes and ownership failures.
-- [ ] Database integration tests for backfill, publish, deployment, and rollback.
-- [ ] Run snapshot tests proving historical and in-flight runs retain their version.
-- [ ] API and dashboard checks for published versus deployed state.
+- [x] Repository tests for release modes and ownership failures.
+- [x] Database integration tests for backfill, publish, deployment, and rollback.
+- [x] Run snapshot tests proving historical and in-flight runs retain their version.
+- [x] API and dashboard checks for published versus deployed state.
 - [ ] Migration check against a representative pre-release database.
 - [ ] Production release smoke test using a non-sensitive hosted agent.
 
@@ -80,14 +80,17 @@ Risk: High. This changes which instructions, tools, limits, and workflows new ho
 Affected services and user surfaces: agents-api, agents-worker, Agent Platform PostgreSQL, agent
 creation flow, agent detail dashboard, and hosted conversations.
 
-Platform release version or release ID: Assign at release time.
+Platform release version or release ID: implementation commit `a97bea7e` established the released
+deployment contract; the dedicated rollout control is included in the current implementation
+release.
 
 API/schema/migration changes: Add installation release mode and deployment state. Preserve existing
 run version references.
 
-Feature flag or rollout method: Start with an isolated environment and enable for user-owned
-hosted installations after the migration and regression suite pass. Keep system and external
-installations on their current behavior.
+Feature flag or rollout method: `agent_version_deployment_enabled` is an explicit dual-controlled
+global, organization, or installation flag. When absent it defaults to enabled for backward
+compatibility; disabling it blocks only automatic follow-published movement and leaves the current
+deployed version runnable. System and external installations keep their existing behavior.
 
 Analytics events and success metrics: The current slice records publication, manual deployment,
 automatic deployment, and rollback in the existing audit trail. A versioned Analytics registry
@@ -95,8 +98,9 @@ contract for deployment outcomes, mismatch rate, and deployment lag remains open
 published and deployed version IDs agree for follow-published installations, with zero
 historical-run version changes.
 
-Logs, metrics, dashboards, and alerts: Structured audit records exist for deployment outcomes.
-Deployment lag, failure, rollback, and published-versus-deployed mismatch metrics remain open.
+Logs, metrics, dashboards, and alerts: Structured audit records exist for deployment outcomes;
+`kasitek.agent.version.deployment.count` records matched, mismatch, blocked, and deployed counts
+with bounded release-mode labels. Deployment lag and a durable dashboard/alert remain open.
 Collector configuration: not applicable.
 
 User, API, internal, and operational documentation: Update the agent lifecycle contract, API

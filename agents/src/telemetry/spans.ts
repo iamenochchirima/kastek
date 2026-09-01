@@ -60,6 +60,9 @@ const memoryConsolidationCounter = meter.createCounter("kasitek.memory.consolida
 const memoryDeletionCounter = meter.createCounter("kasitek.memory.deletion.count", {
   description: "Memory and derived-data deletion outcomes",
 });
+const agentVersionDeploymentCounter = meter.createCounter("kasitek.agent.version.deployment.count", {
+  description: "Published-versus-deployed installation rollout outcomes",
+});
 const conversationAdmissionCounter = meter.createCounter("kasitek.conversation.admission.count", {
   description: "Conversation run admission outcomes, including backpressure and idempotent replay",
 });
@@ -201,6 +204,19 @@ export function recordMemoryDeletion(input: {
       target: boundedAttribute(input.target),
     });
   }
+}
+
+export function recordAgentVersionDeployment(input: {
+  outcome: "matched" | "mismatch" | "blocked" | "deployed";
+  releaseMode: "follow_published";
+  count?: number;
+}): void {
+  const count = input.count ?? 1;
+  if (!Number.isSafeInteger(count) || count <= 0) return;
+  agentVersionDeploymentCounter.add(count, {
+    outcome: input.outcome,
+    release_mode: input.releaseMode,
+  });
 }
 
 export function recordConversationAdmission(input: {

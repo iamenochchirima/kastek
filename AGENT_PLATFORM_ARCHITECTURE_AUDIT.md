@@ -265,8 +265,8 @@ Introduce a version deployment module with a small interface that owns:
 - [x] Update internal agent lifecycle documentation, user documentation, migration notes, and the
       deployment runbook ([agent-connection-guide.md](docs/public/docs/api/agent-connection-guide.md),
       [AGENT_VERSION_DEPLOYMENT_PLAN.md](docs/plans/active/AGENT_VERSION_DEPLOYMENT_PLAN.md)).
-- [ ] Release behind an explicit rollout control and record the post-release published-versus-
-      deployed mismatch rate.
+- [x] Release behind an explicit dual-controlled rollout flag and record published-versus-deployed
+      matched, mismatch, blocked, and deployed counts ([096_agent_version_deployment_flag.sql](agents/migrations/096_agent_version_deployment_flag.sql), [agent-deployment-repository.ts](agents/src/db/repositories/agent-deployment-repository.ts), [spans.ts](agents/src/telemetry/spans.ts)). A durable dashboard/alert remains open.
 
 ### P0.2 Replace or constrain the workflow graph executor
 

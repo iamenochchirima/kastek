@@ -6,6 +6,7 @@ import {
   enqueueOutbox,
 } from "../../analytics";
 import { operationalLogger } from "../../telemetry/logger";
+import { recordAgentVersionDeployment } from "../../telemetry/spans";
 
 export type DeploymentTrigger = "version_published" | "version_rolled_back" | "manual" | "canary";
 export type DeploymentAction = "deployed" | "rolled_back" | "failed";
@@ -62,11 +63,46 @@ export class AgentDeploymentModule {
          AND agent_definition_id = $2
          AND release_mode = 'follow_published'
          AND status <> 'disabled'
-         AND agent_version_id <> $3
        FOR UPDATE`,
-      [input.organizationId, input.agentId, input.versionId],
+      [input.organizationId, input.agentId],
     );
-    for (const installation of installations.rows) {
+    const mismatches = installations.rows.filter((installation) => installation.agent_version_id !== input.versionId);
+    const matches = installations.rows.length - mismatches.length;
+    recordAgentVersionDeployment({ outcome: "matched", releaseMode: "follow_published", count: matches });
+    recordAgentVersionDeployment({ outcome: "mismatch", releaseMode: "follow_published", count: mismatches.length });
+    if (!mismatches.length) return 0;
+
+    const rolloutFlags = await client.query<{ scope_type: "global" | "organization" | "installation"; scope_id: string; enabled: boolean }>(
+      `SELECT scope_type, scope_id, enabled
+       FROM agent_operator_feature_flags
+       WHERE flag_key = 'agent_version_deployment_enabled'
+         AND expires_at > now()
+         AND (
+           scope_type = 'global'
+           OR (scope_type = 'organization' AND scope_id = $1)
+           OR (scope_type = 'installation' AND organization_id = $1 AND scope_id = ANY($2::text[]))
+         )`,
+      [input.organizationId, mismatches.map((installation) => installation.id)],
+    );
+    const enabledByScope = new Map(rolloutFlags.rows.map((flag) => [`${flag.scope_type}:${flag.scope_id}`, flag.enabled]));
+    const organizationEnabled = enabledByScope.get(`organization:${input.organizationId}`)
+      ?? enabledByScope.get("global:global")
+      ?? true;
+    let deployed = 0;
+    for (const installation of mismatches) {
+      const enabled = enabledByScope.get(`installation:${installation.id}`) ?? organizationEnabled;
+      if (!enabled) {
+        recordAgentVersionDeployment({ outcome: "blocked", releaseMode: "follow_published" });
+        operationalLogger.warn({
+          event: "agent.installation.deployment.blocked",
+          organization_id: input.organizationId,
+          installation_id: installation.id,
+          agent_definition_id: input.agentId,
+          target_agent_version_id: input.versionId,
+          error_code: "AGENT_VERSION_DEPLOYMENT_FLAG_DISABLED",
+        }, "Automatic agent version deployment is disabled");
+        continue;
+      }
       await this.applyDeployment(client, {
         organizationId: input.organizationId,
         actorId: input.actorId,
@@ -77,8 +113,10 @@ export class AgentDeploymentModule {
         releaseMode: installation.release_mode,
         trigger: input.trigger,
       });
+      deployed += 1;
+      recordAgentVersionDeployment({ outcome: "deployed", releaseMode: "follow_published" });
     }
-    return installations.rowCount ?? 0;
+    return deployed;
   }
 
   public async deployInstallation(
