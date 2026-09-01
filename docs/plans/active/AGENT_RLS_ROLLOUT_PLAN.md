@@ -39,7 +39,10 @@ protected system-agent or operator workflows.
       background workers, publishers, Discord refresh, and Temporal activities now set transaction
       context; legacy activities recover it from their durable run ID
       ([context.ts](../../../agents/src/db/context.ts), [pool.ts](../../../agents/src/db/pool.ts)).
-- [ ] Repair or quarantine ordinary legacy ownership violations and validate existing constraints.
+- [x] Audit ordinary legacy ownership violations and validate the existing memory/knowledge
+      ownership-presence constraints. Production has zero invalid rows; migration 095 records the
+      validation. Local legacy fixture rows remain outside production validation and must be
+      recreated or explicitly quarantined before any local database is used as production data.
 - [x] Add RLS policies for memory and knowledge with a restricted-role integration suite
       ([091_memory_knowledge_rls.sql](../../../agents/migrations/091_memory_knowledge_rls.sql)).
 - [x] Extend RLS to conversations, messages, runs, and their direct projections in a separate
@@ -153,6 +156,47 @@ Rollback or disable plan: stop new policy migrations, restore the prior applicat
 needed, and disable only the affected table policies through a reviewed administrative migration.
 Do not grant `BYPASSRLS` to the runtime role. A full rollback drill remains open before broader
 table groups are enabled.
+
+Post-release review date: 2026-09-08.
+
+## Release record: legacy ownership constraint validation
+
+Change: Validate the three memory and knowledge agent-definition ownership-presence constraints
+after the production legacy-row audit.
+
+Owner: Agent Platform.
+
+Risk: standard. Validation is read-only with respect to valid rows, but migration failure must stop
+the release if an unclassified legacy row is found.
+
+Affected services and user surfaces: Agents PostgreSQL, agents-api, agents-worker, memory retrieval,
+knowledge ingestion, and operator database diagnostics.
+
+Platform release version or release ID: pending implementation commit and production migration
+evidence.
+
+API/schema/migration changes: additive migration 095 validates existing constraints from migration
+057; it does not change the ownership rules or delete rows.
+
+Feature flag or rollout method: run the production ownership audit first, then apply migration 095
+through the administrative migration connection. Do not bypass validation or grant runtime roles
+DDL privileges.
+
+Analytics events and success metrics: not applicable for user analytics. Operational success is
+zero invalid legacy rows and all three constraints reporting `convalidated = true`.
+
+Logs, metrics, dashboards, and alerts: migration status and database authorization logs; a
+dedicated alert for future ownership-audit failures remains open.
+
+User, API, internal, and operational documentation: update the tenant isolation inventory and
+architecture audit with the final migration evidence.
+
+Validation evidence: pending local migration test, production migration, and post-deploy smoke
+checks.
+
+Rollback or disable plan: stop before applying migration 095 if the audit finds invalid rows;
+quarantine or repair those rows through a reviewed administrative procedure. Constraint validation
+does not require a destructive rollback.
 
 Post-release review date: 2026-09-08.
 

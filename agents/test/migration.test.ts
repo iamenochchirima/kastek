@@ -124,6 +124,17 @@ describe("foundation migration", () => {
     expect(sql).toContain("kasitek_agents_tenant_definition");
   });
 
+  it("validates the audited memory and knowledge ownership-presence constraints", async () => {
+    const sql = await readFile(new URL("../migrations/095_validate_agent_context_constraints.sql", import.meta.url), "utf8");
+    for (const constraint of [
+      "memory_records_agent_scope_required",
+      "knowledge_sources_agent_scope_required",
+      "knowledge_chunks_agent_scope_required",
+    ]) {
+      expect(sql).toContain(`VALIDATE CONSTRAINT ${constraint}`);
+    }
+  });
+
   it("contains the durable scope and run tables", async () => {
     const sql = await readFile(new URL("../migrations/001_agent_platform_foundation.sql", import.meta.url), "utf8");
     expect(sql).toContain("CREATE TABLE IF NOT EXISTS agent_definitions");

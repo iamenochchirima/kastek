@@ -13,6 +13,8 @@ LEVEL SECURITY` on 63 runtime tables covering memory, knowledge, conversations, 
 credentials, channels, effects, approvals, lifecycle sidecars, analytics, and control-plane data.
 `schema_migrations` is the only table without RLS because runtime and application roles have no
 privilege to read or write it; migrations use a separate administrative database connection.
+The three memory/knowledge ownership-presence constraints introduced in migration 057 were
+validated by migration 095 after the production legacy-row audit found zero invalid rows.
 
 ## Ownership roots
 
@@ -87,8 +89,9 @@ RLS policies.
 - Production database: zero missing-agent rows and zero ordinary agent/organization mismatches.
   The two installation and two knowledge-source mismatches are the protected system-agent cases
   described above.
-- Existing ownership constraints for memory and knowledge are `NOT VALID`, so they protect new
-  writes but do not prove all legacy rows are clean.
+- Before migration 095, the memory and knowledge ownership-presence constraints were `NOT VALID`.
+  The production audit found zero invalid rows, and migration 095 now records all three as
+  validated. Local legacy fixture data is not production evidence and must not be promoted.
 - Production migrations 091, 092, 093, and 094 are recorded in `schema_migrations`; all 63
   runtime tables report both `relrowsecurity = true` and `relforcerowsecurity = true`.
   `schema_migrations` reports neither because its privileges are revoked from runtime and
@@ -108,8 +111,8 @@ RLS policies.
    operator database adapter. Connection-pool session state must never leak between tenants. The
    first context tranche is complete; legacy Temporal activities recover scope from their durable
    run when older workflow inputs lack it.
-3. Repair or explicitly exempt legacy rows, validate ownership constraints, and add negative tests
-   using the restricted role.
+3. Repair or explicitly exempt any future legacy rows, keep ownership constraints validated, and
+   add negative tests using the restricted role.
 4. Enable RLS in small migrations, beginning with memory and knowledge, then conversations, runs,
    credentials, effects, approvals, and control-plane tables. Migrations 091 through 094 cover all
    runtime tables; only the administrative migration ledger is intentionally privilege-revoked.

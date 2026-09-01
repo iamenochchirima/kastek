@@ -640,7 +640,9 @@ system-installation design.
 - [x] Provision a restricted runtime group/login and move API and worker connections off the
       PostgreSQL superuser ([090_agents_runtime_role.sql](agents/migrations/090_agents_runtime_role.sql),
       [AGENT_RLS_ROLLOUT_PLAN.md](docs/plans/active/AGENT_RLS_ROLLOUT_PLAN.md)).
-- [ ] Repair or quarantine invalid legacy rows before validating constraints.
+- [x] Audit legacy rows and validate the three memory/knowledge ownership-presence constraints;
+      production has zero invalid rows and migration 095 records `convalidated = true`. Local
+      legacy fixture rows are not production data and remain excluded from the production claim.
 - [x] Add transaction-scoped organization and actor context to API, worker, publisher, and operator
       database adapters, including legacy Temporal activity scope recovery
       ([context.ts](agents/src/db/context.ts), [pool.ts](agents/src/db/pool.ts)).
