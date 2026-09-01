@@ -394,6 +394,7 @@ describe("foundation migration", () => {
       "100_agent_skills.sql",
       "101_remote_mcp_providers.sql",
       "103_remote_mcp_rate_limits.sql",
+      "104_remote_mcp_health.sql",
     ];
     const sql = (await Promise.all(files.map((file) => readFile(new URL(`../migrations/${file}`, import.meta.url), "utf8")))).join("\n");
     const policyTables = [...sql.matchAll(/CREATE POLICY\s+\S+\s+ON\s+([a-z_]+)/gi)].map((match) => match[1]);
@@ -454,6 +455,14 @@ describe("foundation migration", () => {
     expect(sql).toContain("PRIMARY KEY (provider_id, window_started_at)");
     expect(sql).toContain("ALTER TABLE agent_mcp_provider_rate_windows ENABLE ROW LEVEL SECURITY");
     expect(sql).toContain("ALTER TABLE agent_mcp_provider_rate_windows FORCE ROW LEVEL SECURITY");
+  });
+
+  it("persists bounded remote MCP health state without changing approval state", async () => {
+    const sql = await readFile(new URL("../migrations/104_remote_mcp_health.sql", import.meta.url), "utf8");
+    expect(sql).toContain("health_status TEXT NOT NULL DEFAULT 'unknown'");
+    expect(sql).toContain("health_status IN ('unknown', 'healthy', 'unhealthy')");
+    expect(sql).toContain("health_consecutive_failures");
+    expect(sql).toContain("agent_mcp_providers_health_idx");
   });
 
   it("defines hosted-agent creation profiles", async () => {

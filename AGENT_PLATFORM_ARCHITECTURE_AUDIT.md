@@ -978,8 +978,8 @@ revision so a remote provider cannot silently change behavior.
 
 - [ ] Define one tool-provider interface shared by platform, remote MCP, test, and future sandbox
       adapters; the current implementation is the reviewed remote-MCP adapter.
-- [x] Define provider installation, authentication, ownership, revision, and revocation records;
-      durable provider health projection remains a follow-up.
+- [x] Define provider installation, authentication, ownership, revision, revocation, and durable
+      health projection records ([migrations 101 and 104](agents/migrations/104_remote_mcp_health.sql)).
 - [x] Implement MCP discovery with schema normalization, size limits, and an immutable manifest.
 - [x] Pin provider and tool revisions to the agent version or installation revision.
 - [x] Apply egress policy, timeouts, atomic cross-replica rate limits, approval classification,
@@ -990,7 +990,8 @@ revision so a remote provider cannot silently change behavior.
       the remote adapter itself.
 - [x] Add schema-change, timeout, revocation, oversized-output, private-egress, and provider-down
       boundary tests; malicious-server and health/runbook evidence remain open.
-- [ ] Add provider health, invocation, rejection, latency, and schema-drift metrics and runbooks.
+- [x] Add provider health, invocation, rejection, and latency metrics plus an operator runbook;
+      hosted dashboards and alert routing remain an operations follow-up.
 - [ ] Release organization-installed providers behind review and allowlist controls.
 
 ### P2.4 Add a sandboxed execution module before custom code

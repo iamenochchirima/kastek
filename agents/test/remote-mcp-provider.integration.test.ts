@@ -18,6 +18,7 @@ describe.skipIf(!runIntegration)("remote MCP provider persistence (integration)"
   let endpoint: string;
   let providerId: string;
   let providerVersionId: string;
+  let providerReachable = true;
 
   beforeAll(async () => {
     server = createServer((request, response) => {
@@ -26,6 +27,11 @@ describe.skipIf(!runIntegration)("remote MCP provider persistence (integration)"
       request.on("end", () => {
         const input = JSON.parse(body) as { method: string };
         response.setHeader("content-type", "application/json");
+        if (!providerReachable) {
+          response.statusCode = 503;
+          response.end(JSON.stringify({ error: "temporarily unavailable" }));
+          return;
+        }
         if (input.method === "initialize") {
           response.setHeader("Mcp-Session-Id", "integration-session");
           response.end(JSON.stringify({ jsonrpc: "2.0", id: "kasitek-initialize", result: { protocolVersion: "2025-06-18" } }));
@@ -48,12 +54,24 @@ describe.skipIf(!runIntegration)("remote MCP provider persistence (integration)"
     const discovered = await repository.discover(organizationId, actorId, provider.id);
     providerVersionId = discovered.id;
     expect(discovered.tools[0]?.name).toBe("lookup");
+    expect((await repository.list(organizationId))[0]?.health_status).toBe("healthy");
     await repository.publish(organizationId, actorId, provider.id, discovered.id);
 
     await pool.query("INSERT INTO agent_definitions (id, organization_id, name, slug, created_by) VALUES ($1, $2, 'Remote MCP test agent', $3, $4)", [agentId, organizationId, `remote-agent-${agentId.slice(0, 8)}`, actorId]);
     await pool.query("INSERT INTO agent_versions (id, agent_definition_id, version_number, instructions, checksum, created_by) VALUES ($1, $2, 1, 'test', 'test', $3)", [agentVersionId, agentId, actorId]);
     await repository.pin(organizationId, actorId, agentVersionId, discovered.id);
     expect((await repository.listPinned(organizationId, agentVersionId)).map((version) => version.id)).toEqual([discovered.id]);
+  });
+
+  it("fails closed after a failed health check and recovers after a successful probe", async () => {
+    providerReachable = false;
+    await expect(repository.healthCheck(organizationId, providerId)).rejects.toThrow("REMOTE_MCP_HTTP_503");
+    expect((await repository.list(organizationId))[0]?.health_status).toBe("unhealthy");
+    expect(await repository.listPinned(organizationId, agentVersionId)).toEqual([]);
+
+    providerReachable = true;
+    await expect(repository.healthCheck(organizationId, providerId)).resolves.toMatchObject({ health_status: "healthy", health_consecutive_failures: 0 });
+    expect((await repository.listPinned(organizationId, agentVersionId)).map((version) => version.id)).toEqual([providerVersionId]);
   });
 
   it("enforces the provider rate limit through a durable window", async () => {

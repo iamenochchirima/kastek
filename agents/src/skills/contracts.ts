@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { recordSkillSelection } from "../telemetry/spans";
 
 const skillAudienceSchema = z.enum(["personal", "customer_service"]);
 
@@ -108,9 +109,11 @@ export function matchSkills(skills: readonly SkillVersionRecord[], input: SkillM
     const score = phrases.length * 3 + keywords.length;
     matches.push({ skill, score });
   }
-  return matches
+  const selected = matches
     .sort((left, right) => right.score - left.score || left.skill.id.localeCompare(right.skill.id))
     .slice(0, Math.max(0, input.maxSkills ?? 8));
+  recordSkillSelection({ outcome: selected.length ? "matched" : "empty", count: selected.length });
+  return selected;
 }
 
 /** Render selected skill instructions within an explicit context budget. */

@@ -2503,6 +2503,17 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }
   });
 
+  app.post<{ Params: { providerId: string } }>("/v1/mcp/providers/:providerId/health", async (request, reply) => {
+    const auth = requireAuth(request, dependencies.config);
+    requireScope(auth, dependencies.config, "agents:write");
+    try {
+      return reply.send(await remoteMcpProviders.healthCheck(auth.organizationId, request.params.providerId));
+    } catch (error) {
+      request.log.warn({ event: "remote_mcp.health_check_failed", provider_id: request.params.providerId, error_code: error instanceof Error ? error.message : "unknown" }, "Remote MCP health check failed");
+      return reply.code(502).send({ error: "remote_mcp_health_check_failed" });
+    }
+  });
+
   app.get<{ Params: { providerId: string } }>("/v1/mcp/providers/:providerId/versions", async (request) => {
     const auth = requireAuth(request, dependencies.config);
     requireScope(auth, dependencies.config, "agents:read");

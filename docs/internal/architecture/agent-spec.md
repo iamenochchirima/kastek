@@ -74,7 +74,9 @@ the persisted policy and grants is the result after those checks.
 Remote MCP providers are separately reviewed and versioned. Discovery stores a bounded immutable
 tool manifest; only approved provider revisions pinned to the agent version can register tools,
 and calls use scoped credentials, HTTPS/private-egress checks, timeouts, output redaction, approval,
-and a per-provider process-local rate guard.
+and a durable per-provider rate guard. Discovery and explicit health checks also record bounded
+reachability, latency, a stable failure code, and consecutive failures. A provider must be healthy
+before publication or pinning, and known-unhealthy providers fail closed at invocation.
 
 Draft evaluation is available at
 `POST /v1/evaluations/scenarios/{scenarioId}/draft-runs`. It executes one candidate model call

@@ -11,6 +11,7 @@ import {
 import { z } from "zod";
 import type { ToolInvocationContext } from "../../tools/types";
 import type { ToolRegistry } from "../../tools/registry";
+import { recordRemoteMcpOperation } from "../../telemetry/spans";
 
 export const createRemoteMcpProviderInputSchema = z.object({
   name: z.string().trim().min(1).max(160),
@@ -34,6 +35,12 @@ export interface RemoteMcpProviderRecord {
   timeout_ms: number;
   max_response_bytes: number;
   rate_limit_per_minute: number;
+  health_status: "unknown" | "healthy" | "unhealthy";
+  health_checked_at: string | null;
+  health_last_success_at: string | null;
+  health_latency_ms: number | null;
+  health_failure_code: string | null;
+  health_consecutive_failures: number;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -88,7 +95,17 @@ export class RemoteMcpProviderRepository {
     const authorizationToken = provider.credential_reference && this.resolveCredential
       ? await this.resolveCredential(organizationId, provider.credential_reference)
       : undefined;
-    const discovered = await discoverRemoteMcpTools({ endpointUrl: provider.endpoint_url, authorizationToken, timeoutMs: provider.timeout_ms, maxResponseBytes: provider.max_response_bytes, environment: process.env.NODE_ENV === "production" ? "production" : "development" });
+    const startedAt = performance.now();
+    let discovered;
+    try {
+      discovered = await discoverRemoteMcpTools({ endpointUrl: provider.endpoint_url, authorizationToken, timeoutMs: provider.timeout_ms, maxResponseBytes: provider.max_response_bytes, environment: process.env.NODE_ENV === "production" ? "production" : "development" });
+      await this.recordHealthSuccess(organizationId, providerId, performance.now() - startedAt);
+      recordRemoteMcpOperation({ operation: "discovery", outcome: "success", durationMs: performance.now() - startedAt });
+    } catch (error) {
+      await this.recordHealthFailure(organizationId, providerId, error, performance.now() - startedAt);
+      recordRemoteMcpOperation({ operation: "discovery", outcome: "error", durationMs: performance.now() - startedAt, errorCode: remoteMcpErrorCode(error) });
+      throw error;
+    }
     return withTransaction(this.pool, async (client) => {
       const next = await client.query<{ revision: number }>("SELECT COALESCE(MAX(revision), 0) + 1 AS revision FROM agent_mcp_provider_versions WHERE provider_id = $1", [providerId]);
       const revision = Number(next.rows[0]!.revision);
@@ -99,10 +116,31 @@ export class RemoteMcpProviderRepository {
     });
   }
 
+  /** Probe the current provider endpoint without creating or publishing a revision. */
+  public async healthCheck(organizationId: string, providerId: string): Promise<RemoteMcpProviderRecord> {
+    const provider = await this.get(organizationId, providerId);
+    if (!provider || provider.status === "revoked") throw new Error("REMOTE_MCP_PROVIDER_NOT_FOUND");
+    const authorizationToken = provider.credential_reference && this.resolveCredential
+      ? await this.resolveCredential(organizationId, provider.credential_reference)
+      : undefined;
+    const startedAt = performance.now();
+    try {
+      await discoverRemoteMcpTools({ endpointUrl: provider.endpoint_url, authorizationToken, timeoutMs: provider.timeout_ms, maxResponseBytes: provider.max_response_bytes, environment: process.env.NODE_ENV === "production" ? "production" : "development" });
+      const updated = await this.recordHealthSuccess(organizationId, providerId, performance.now() - startedAt);
+      recordRemoteMcpOperation({ operation: "health_check", outcome: "success", durationMs: performance.now() - startedAt });
+      return updated;
+    } catch (error) {
+      const updated = await this.recordHealthFailure(organizationId, providerId, error, performance.now() - startedAt);
+      recordRemoteMcpOperation({ operation: "health_check", outcome: "error", durationMs: performance.now() - startedAt, errorCode: remoteMcpErrorCode(error) });
+      if (error instanceof Error) Object.assign(error, { health: updated });
+      throw error;
+    }
+  }
+
   public async publish(organizationId: string, actorId: string, providerId: string, versionId: string): Promise<RemoteMcpProviderVersionRecord> {
     return withTransaction(this.pool, async (client) => {
-      const result = await client.query<RemoteMcpProviderVersionRecord>(`UPDATE agent_mcp_provider_versions version SET status = 'published', published_at = COALESCE(published_at, now()) WHERE version.id = $1 AND version.provider_id = $2 AND version.organization_id = $3 AND version.status = 'draft' RETURNING version.*`, [versionId, providerId, organizationId]);
-      if (!result.rows[0]) throw new Error("REMOTE_MCP_PROVIDER_VERSION_NOT_FOUND_OR_NOT_DRAFT");
+      const result = await client.query<RemoteMcpProviderVersionRecord>(`UPDATE agent_mcp_provider_versions version SET status = 'published', published_at = COALESCE(published_at, now()) WHERE version.id = $1 AND version.provider_id = $2 AND version.organization_id = $3 AND version.status = 'draft' AND EXISTS (SELECT 1 FROM agent_mcp_providers provider WHERE provider.id = version.provider_id AND provider.organization_id = version.organization_id AND provider.health_status = 'healthy') RETURNING version.*`, [versionId, providerId, organizationId]);
+      if (!result.rows[0]) throw new Error("REMOTE_MCP_PROVIDER_VERSION_NOT_FOUND_OR_NOT_DRAFT_OR_UNHEALTHY");
       await client.query("UPDATE agent_mcp_providers SET status = 'approved', updated_at = now() WHERE id = $1 AND organization_id = $2", [providerId, organizationId]);
       await client.query("INSERT INTO audit_records (organization_id, actor_type, actor_id, action, resource_type, resource_id, metadata) VALUES ($1, 'human', $2, 'remote_mcp_provider.approved', 'remote_mcp_provider_version', $3, $4::jsonb)", [organizationId, actorId, versionId, JSON.stringify({ providerId, toolCount: hydrateVersion(result.rows[0]).tools.length })]);
       return hydrateVersion(result.rows[0]);
@@ -122,8 +160,8 @@ export class RemoteMcpProviderRepository {
   }
 
   public async pin(organizationId: string, actorId: string, agentVersionId: string, providerVersionId: string): Promise<void> {
-    const result = await query(this.pool, `INSERT INTO agent_version_mcp_providers (organization_id, agent_version_id, provider_version_id, pinned_by) SELECT $1, version.id, provider_version.id, $2 FROM agent_versions version JOIN agent_definitions definition ON definition.id = version.agent_definition_id JOIN agent_mcp_provider_versions provider_version ON provider_version.id = $4 AND provider_version.status = 'published' JOIN agent_mcp_providers provider ON provider.id = provider_version.provider_id AND provider.status = 'approved' WHERE version.id = $3 AND definition.organization_id = $1 AND provider.organization_id = $1 ON CONFLICT DO NOTHING`, [organizationId, actorId, agentVersionId, providerVersionId]);
-    if (!result.rowCount) throw new Error("REMOTE_MCP_PROVIDER_VERSION_NOT_FOUND_OR_NOT_PUBLISHED");
+    const result = await query(this.pool, `INSERT INTO agent_version_mcp_providers (organization_id, agent_version_id, provider_version_id, pinned_by) SELECT $1, version.id, provider_version.id, $2 FROM agent_versions version JOIN agent_definitions definition ON definition.id = version.agent_definition_id JOIN agent_mcp_provider_versions provider_version ON provider_version.id = $4 AND provider_version.status = 'published' JOIN agent_mcp_providers provider ON provider.id = provider_version.provider_id AND provider.status = 'approved' AND provider.health_status = 'healthy' WHERE version.id = $3 AND definition.organization_id = $1 AND provider.organization_id = $1 ON CONFLICT DO NOTHING`, [organizationId, actorId, agentVersionId, providerVersionId]);
+    if (!result.rowCount) throw new Error("REMOTE_MCP_PROVIDER_VERSION_NOT_FOUND_OR_NOT_PUBLISHED_OR_UNHEALTHY");
   }
 
   public async unpin(organizationId: string, agentVersionId: string, providerVersionId: string): Promise<void> {
@@ -132,7 +170,7 @@ export class RemoteMcpProviderRepository {
   }
 
   public async listPinned(organizationId: string, agentVersionId: string): Promise<RemoteMcpProviderVersionRecord[]> {
-    const result = await query<RemoteMcpProviderVersionRecord>(this.pool, `SELECT provider_version.*, provider.name AS provider_name, provider.endpoint_url, provider.credential_reference, provider.timeout_ms, provider.max_response_bytes FROM agent_version_mcp_providers pin JOIN agent_mcp_provider_versions provider_version ON provider_version.id = pin.provider_version_id JOIN agent_mcp_providers provider ON provider.id = provider_version.provider_id WHERE pin.organization_id = $1 AND pin.agent_version_id = $2 AND provider.status = 'approved' AND provider_version.status = 'published' ORDER BY provider.name`, [organizationId, agentVersionId]);
+    const result = await query<RemoteMcpProviderVersionRecord>(this.pool, `SELECT provider_version.*, provider.name AS provider_name, provider.endpoint_url, provider.credential_reference, provider.timeout_ms, provider.max_response_bytes FROM agent_version_mcp_providers pin JOIN agent_mcp_provider_versions provider_version ON provider_version.id = pin.provider_version_id JOIN agent_mcp_providers provider ON provider.id = provider_version.provider_id WHERE pin.organization_id = $1 AND pin.agent_version_id = $2 AND provider.status = 'approved' AND provider.health_status = 'healthy' AND provider_version.status = 'published' ORDER BY provider.name`, [organizationId, agentVersionId]);
     return result.rows.map(hydrateVersion);
   }
 
@@ -173,7 +211,7 @@ export class RemoteMcpProviderRepository {
   }
 
   public async callPinnedTool(input: { organizationId: string; agentVersionId: string; providerVersionId: string; toolName: string; argumentsValue: Record<string, unknown> }): Promise<unknown> {
-    const result = await query<RemoteMcpProviderVersionRecord>(this.pool, `SELECT provider_version.*, provider.endpoint_url, provider.credential_reference, provider.timeout_ms, provider.max_response_bytes, provider.rate_limit_per_minute FROM agent_version_mcp_providers pin JOIN agent_mcp_provider_versions provider_version ON provider_version.id = pin.provider_version_id JOIN agent_mcp_providers provider ON provider.id = provider_version.provider_id WHERE pin.organization_id = $1 AND pin.agent_version_id = $2 AND pin.provider_version_id = $3 AND provider.status = 'approved' AND provider_version.status = 'published'`, [input.organizationId, input.agentVersionId, input.providerVersionId]);
+    const result = await query<RemoteMcpProviderVersionRecord>(this.pool, `SELECT provider_version.*, provider.endpoint_url, provider.credential_reference, provider.timeout_ms, provider.max_response_bytes, provider.rate_limit_per_minute FROM agent_version_mcp_providers pin JOIN agent_mcp_provider_versions provider_version ON provider_version.id = pin.provider_version_id JOIN agent_mcp_providers provider ON provider.id = provider_version.provider_id WHERE pin.organization_id = $1 AND pin.agent_version_id = $2 AND pin.provider_version_id = $3 AND provider.status = 'approved' AND provider.health_status = 'healthy' AND provider_version.status = 'published'`, [input.organizationId, input.agentVersionId, input.providerVersionId]);
     const provider = result.rows[0];
     if (!provider || !provider.endpoint_url || !provider.timeout_ms || !provider.max_response_bytes) throw new Error("REMOTE_MCP_PROVIDER_NOT_PINNED");
     const allowed = await withTransaction(this.pool, async (client) => {
@@ -194,11 +232,34 @@ export class RemoteMcpProviderRepository {
       );
       return Number(window.rows[0]?.request_count ?? 0) <= (provider.rate_limit_per_minute ?? 60);
     });
-    if (!allowed) throw new Error("REMOTE_MCP_RATE_LIMITED");
+    if (!allowed) {
+      recordRemoteMcpOperation({ operation: "invocation", outcome: "rejected", errorCode: "REMOTE_MCP_RATE_LIMITED" });
+      throw new Error("REMOTE_MCP_RATE_LIMITED");
+    }
     const tool = hydrateVersion(provider).tools.find((candidate) => candidate.name === input.toolName);
     if (!tool) throw new Error("REMOTE_MCP_TOOL_NOT_PINNED");
     const authorizationToken = provider.credential_reference && this.resolveCredential ? await this.resolveCredential(input.organizationId, provider.credential_reference) : undefined;
-    return callRemoteMcpTool({ endpointUrl: provider.endpoint_url, toolName: tool.name, argumentsValue: input.argumentsValue, authorizationToken, timeoutMs: provider.timeout_ms, maxResponseBytes: provider.max_response_bytes, environment: process.env.NODE_ENV === "production" ? "production" : "development" });
+    const startedAt = performance.now();
+    try {
+      const result = await callRemoteMcpTool({ endpointUrl: provider.endpoint_url, toolName: tool.name, argumentsValue: input.argumentsValue, authorizationToken, timeoutMs: provider.timeout_ms, maxResponseBytes: provider.max_response_bytes, environment: process.env.NODE_ENV === "production" ? "production" : "development" });
+      recordRemoteMcpOperation({ operation: "invocation", outcome: "success", durationMs: performance.now() - startedAt });
+      return result;
+    } catch (error) {
+      recordRemoteMcpOperation({ operation: "invocation", outcome: "error", durationMs: performance.now() - startedAt, errorCode: remoteMcpErrorCode(error) });
+      throw error;
+    }
+  }
+
+  private async recordHealthSuccess(organizationId: string, providerId: string, latencyMs: number): Promise<RemoteMcpProviderRecord> {
+    const result = await query<RemoteMcpProviderRecord>(this.pool, `UPDATE agent_mcp_providers SET health_status = 'healthy', health_checked_at = now(), health_last_success_at = now(), health_latency_ms = $3, health_failure_code = NULL, health_consecutive_failures = 0, updated_at = now() WHERE id = $1 AND organization_id = $2 AND status <> 'revoked' RETURNING *`, [providerId, organizationId, Math.max(0, Math.min(120000, Math.round(latencyMs)))]);
+    if (!result.rows[0]) throw new Error("REMOTE_MCP_PROVIDER_NOT_FOUND");
+    return result.rows[0];
+  }
+
+  private async recordHealthFailure(organizationId: string, providerId: string, error: unknown, latencyMs: number): Promise<RemoteMcpProviderRecord> {
+    const result = await query<RemoteMcpProviderRecord>(this.pool, `UPDATE agent_mcp_providers SET health_status = 'unhealthy', health_checked_at = now(), health_latency_ms = $3, health_failure_code = $4, health_consecutive_failures = health_consecutive_failures + 1, updated_at = now() WHERE id = $1 AND organization_id = $2 AND status <> 'revoked' RETURNING *`, [providerId, organizationId, Math.max(0, Math.min(120000, Math.round(latencyMs))), remoteMcpErrorCode(error)]);
+    if (!result.rows[0]) throw new Error("REMOTE_MCP_PROVIDER_NOT_FOUND");
+    return result.rows[0];
   }
 
   private async get(organizationId: string, providerId: string): Promise<RemoteMcpProviderRecord | null> {
@@ -210,4 +271,10 @@ export class RemoteMcpProviderRepository {
 
 function hydrateVersion(row: RemoteMcpProviderVersionRecord): RemoteMcpProviderVersionRecord {
   return { ...row, tools: remoteMcpToolsSchema.parse(typeof row.tools === "string" ? JSON.parse(row.tools) : row.tools ?? []) };
+}
+
+function remoteMcpErrorCode(error: unknown): string {
+  const message = error instanceof Error ? error.message : "REMOTE_MCP_HEALTH_CHECK_FAILED";
+  const match = message.match(/^REMOTE_MCP_[A-Z0-9_]+/);
+  return (match?.[0] ?? "REMOTE_MCP_HEALTH_CHECK_FAILED").slice(0, 128);
 }

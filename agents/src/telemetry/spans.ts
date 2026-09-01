@@ -85,6 +85,16 @@ const databaseContextMissingCounter = meter.createCounter("kasitek.database.cont
 const memoryEmbeddingCounter = meter.createCounter("kasitek.memory.embedding.request.count", {
   description: "Memory and knowledge embedding requests by bounded provider outcome",
 });
+const remoteMcpOperationCounter = meter.createCounter("kasitek.remote_mcp.operation.count", {
+  description: "Remote MCP discovery, health, and invocation outcomes",
+});
+const remoteMcpOperationDuration = meter.createHistogram("kasitek.remote_mcp.operation.duration", {
+  description: "Remote MCP operation duration in milliseconds",
+  unit: "ms",
+});
+const skillSelectionCounter = meter.createCounter("kasitek.agent.skill.selection.count", {
+  description: "Skill matching and bounded skill instruction loading outcomes",
+});
 
 export function boundedAttribute(value: unknown, maxLength = 128): string {
   return String(value ?? "unknown").slice(0, maxLength);
@@ -171,6 +181,32 @@ export function recordDatabaseContextMissing(processName: string): void {
 export function recordMemoryEmbedding(input: { provider: string; outcome: "success" | "fallback"; count: number }): void {
   if (!Number.isSafeInteger(input.count) || input.count <= 0) return;
   memoryEmbeddingCounter.add(input.count, { provider: boundedAttribute(input.provider), outcome: input.outcome });
+}
+
+export function recordRemoteMcpOperation(input: {
+  operation: "discovery" | "health_check" | "invocation";
+  outcome: "success" | "error" | "rejected";
+  durationMs?: number;
+  errorCode?: string;
+}): void {
+  remoteMcpOperationCounter.add(1, {
+    operation: input.operation,
+    outcome: input.outcome,
+    ...(input.errorCode ? { error_code: boundedAttribute(input.errorCode) } : {}),
+  });
+  if (input.durationMs !== undefined && Number.isFinite(input.durationMs) && input.durationMs >= 0) {
+    remoteMcpOperationDuration.record(input.durationMs, { operation: input.operation, outcome: input.outcome });
+  }
+}
+
+export function recordSkillSelection(input: {
+  outcome: "matched" | "empty" | "rejected";
+  count?: number;
+}): void {
+  skillSelectionCounter.add(1, { outcome: input.outcome });
+  if (input.count !== undefined && Number.isSafeInteger(input.count) && input.count > 0) {
+    skillSelectionCounter.add(input.count, { outcome: "loaded" });
+  }
 }
 
 export function recordTemporalActivityAttempt(activity: string, attempt: number): void {

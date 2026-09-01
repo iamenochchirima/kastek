@@ -33,6 +33,11 @@ revision status, HTTPS/private-network rules, timeouts, response limits, approva
 redaction, credentials, and the provider rate guard. Provider secrets remain in the encrypted
 credential store and are never placed in an agent prompt.
 
+Discovery and explicit health checks record a bounded provider health projection. Publishing and
+pinning require a successful health check, and known-unhealthy providers are excluded from runtime
+tool registration. Probe an existing provider without creating a new revision with
+`POST /v1/mcp/providers/{providerId}/health`.
+
 Inbound MCP OAuth is not part of this release; existing API-key and installation-credential flows
 remain the supported provider authentication paths.
 
