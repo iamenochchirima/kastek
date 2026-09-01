@@ -295,3 +295,59 @@ affected runs are resolved; no migration rollback is required.
 
 Post-release review date: 2026-09-08; review retry replay, duplicate-operation, budget
 reconciliation, pause/resume, and multi-tool limit metrics before enabling the flag broadly.
+
+## Follow-up release record: durable tool-outcome replay
+
+Change: Replay a completed tool outcome after a worker retry when the same run and provider
+tool-call identity carry the same tool name and argument hash. The lookup runs before new proposal,
+run-step, budget, approval, resource-preview, or handler work for ordinary and configured-graph
+execution. Scope mismatches fail closed, and non-completed or unknown external-effect outcomes are
+not treated as successful replays.
+
+Owner: Agent Platform.
+
+Risk: standard.
+
+Affected services and user surfaces: agents-worker, agents-api, configured workflow execution,
+ordinary hosted runs, tool-invocation and run-step evidence, approvals, tool budgets, effect
+receipts, and retry recovery. MCP-Gateway carries the shared artifact but has no direct execution
+path change.
+
+Platform release version or release ID: corrected commit `b97ebfb2275e46fa3562e14b7ebfd21dd10157c5`;
+Railway production deployments `agents-worker` `150e88a8-dd54-4571-a1f3-f1bf75d2297b`,
+`agents-api` `1fc63a98-6e3a-4923-b8da-1c6bc35a58d6`, and `MCP-Gateway`
+`0983d9f0-3db1-4a63-8422-171740dd81b8`; all reported `SUCCESS` for the corrected SHA. The
+initial pushed candidate `4572d350` failed before deployment because its selectively staged
+runtime import was incomplete; it was replaced by the corrected commit.
+
+API/schema/migration changes: no API, database schema, or migration changes. The existing unique
+`(run_id, provider_tool_call_id)` tool-invocation record is used as the replay ledger.
+
+Feature flag or rollout method: no new flag. Replay is an always-on retry safety guard; existing
+effect-execution and loop-continuation controls remain authoritative.
+
+Analytics events and success metrics: no new customer analytics event. Review duplicate tool
+handler rate, completed-outcome replay count, scope-conflict failures, tool-budget consumption on
+retries, approval consumption, effect reconciliation, and run-step states.
+
+Logs, metrics, dashboards, and alerts: existing tool lifecycle, activity-attempt, budget, heartbeat,
+and reconciliation telemetry is reused. The workflow heartbeat includes `workflow.tool.replayed`;
+no Collector configuration change or debug exporter was added.
+
+User, API, internal, and operational documentation: updated the platform audit, workflow execution
+architecture reference, Temporal recovery runbook, and this plan. Public API contracts are
+unchanged.
+
+Validation evidence: targeted replay, checkpoint, and graph tests passed (`11/11`); Agents
+TypeScript check and production build passed; full Agents suite passed (`94` files, `569` passed,
+`24` integration files skipped, `69` tests skipped); `git diff --check` passed; and production
+Agents API live/ready, worker-shell, and public Gateway readiness checks returned successfully.
+The real Temporal recovery integration suite passed (`3/3`) against Temporal Server 1.31.2.
+
+Rollback or disable plan: redeploy the previous known-good artifact. No migration rollback is
+needed. Retain completed tool-invocation rows and unresolved external-effect receipts during
+rollback so a retry cannot lose the evidence needed to avoid duplicate execution.
+
+Post-release review date: 2026-09-08; review replay rate, scope conflicts, duplicate run-step
+creation, effect reconciliation, and handler failure metrics before closing the remaining
+worker-kill matrix and activity-decomposition items.

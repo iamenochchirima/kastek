@@ -1,7 +1,7 @@
 ---
 title: Agent Temporal recovery
 owner: agent-platform
-last_reviewed: 2026-08-31
+last_reviewed: 2026-09-01
 ---
 
 # Agent Temporal recovery
@@ -16,7 +16,7 @@ reconciliation. It applies to the Agents API and Agents Worker in every environm
 | Activity | Work enclosed | Remote or durable boundary | Retry posture |
 | --- | --- | --- | --- |
 | `transitionRun` | Run status transition | Agents PostgreSQL | Idempotent state transition |
-| `executeLoop` | Context, retrieval, model calls, tools, checkpoints, and completion decision | PostgreSQL, model providers, Core, channel/tool adapters | Still a large activity; model outcomes and opt-in loop-slice results are replayable when recorded |
+| `executeLoop` | Context, retrieval, model calls, tools, checkpoints, and completion decision | PostgreSQL, model providers, Core, channel/tool adapters | Still a large activity; completed model and tool outcomes plus opt-in loop-slice results are replayable when recorded |
 | `pauseRun` | Persist waiting state and output | Agents PostgreSQL | Idempotent run transition |
 | `deliverApprovalPrompt` | Resolve credentials and send the approval prompt | Telegram, Discord, or Core | Delivery failures are recorded; external sends require provider-safe handling |
 | `cancelPendingApproval` | Cancel approval and mark its effect not executed | PostgreSQL | Idempotent by approval/effect state |
@@ -98,6 +98,20 @@ Use `outcome: "released"` only when the provider confirms that it did not accept
 Two different operators must approve the command. A captured outcome requires provider-reported
 usage; never infer it from the local estimate.
 
+## Tool-operation recovery
+
+Before an ordinary hosted tool handler runs, the worker records the provider tool-call identity and
+argument hash in `tool_invocations`. On a retry, a completed row with the same run, tool-call ID,
+tool name, and argument hash is returned as the durable redacted outcome. The retry then rebuilds
+the model-visible tool message without invoking the handler, consuming another tool allowance,
+creating another proposal/step, or consuming approval. Configured graph tools perform the same
+lookup before resource preview, proposal, approval, budget, or effect work.
+
+If the stored tool name or argument hash differs, recovery fails closed with
+`TOOL_REPLAY_SCOPE_CONFLICT`. Proposed, executing, and failed rows are not treated as completed;
+external effects whose provider outcome is unknown remain under effect reconciliation and must not
+be replayed as if the provider had not received them.
+
 ## Incident procedure
 
 1. Check `GET /v1/operator/health` and the Temporal namespace/task queue in the deployment
@@ -134,6 +148,7 @@ Watch these metrics and structured events:
 - `kasitek.run_budget.exhaustion.count`;
 - `kasitek.run_budget.reconciliation_required.count`;
 - `agent.model.reconciliation_required`;
+- completed-tool replay and `TOOL_REPLAY_SCOPE_CONFLICT` failures;
 - `agent.reply.delivery_failed` and effect reconciliation events.
 - conversation admission outcomes, `conversation_busy` backpressure, and channel redelivery.
 

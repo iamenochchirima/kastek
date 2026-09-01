@@ -434,6 +434,11 @@ hold product evidence and idempotency records, not act as a replacement workflow
       following the checkpoint write, carry a deterministic step index, and reject partial
       multi-tool responses when the remaining budget is too small
       ([activities.ts](agents/src/temporal/activities.ts), [loop-checkpoint.ts](agents/src/runtime/loop-checkpoint.ts)).
+- [x] Replay completed ordinary and configured-graph tool outcomes by run and provider tool-call
+      identity plus argument hash before creating a new proposal/step, consuming budget, invoking a
+      handler, or consuming approval; fail closed on scope mismatch
+      ([tool-invocation-repository.ts](agents/src/db/repositories/tool-invocation-repository.ts),
+      [loop.ts](agents/src/runtime/loop.ts), [activities.ts](agents/src/temporal/activities.ts)).
 - [ ] Add worker-kill tests around every model, tool, approval, effect, and completion checkpoint.
 - [x] Add retry, timeout, cancellation, and reconciliation metrics with bounded structured logs
       ([spans.ts](agents/src/telemetry/spans.ts), [worker.ts](agents/src/temporal/worker.ts)).
@@ -1332,6 +1337,12 @@ KasiTek should retain its stronger platform features around that anatomy:
   passed. Production live/ready, worker-shell, and public Gateway readiness checks passed. The
   continuation flag remains disabled; the full per-checkpoint worker-kill matrix and activity
   decomposition remain open.
+- Durable tool-outcome replay release `b97ebfb2` reached `SUCCESS` on the Agents API, worker, and
+  MCP Gateway after the initial `4572d350` candidate was rejected by the remote build for a
+  selectively omitted type import. The corrected artifact passed the Agents typecheck, full suite
+  (`94 files`, `569 passed`, `24` integration files skipped, `69` tests skipped), build, and
+  production live/ready, worker-shell, and public Gateway readiness checks. The full worker-kill
+  matrix and separate activity decomposition remain open.
 
 Passing tests do not invalidate the verified findings. The current suite does not cover those
 contracts.

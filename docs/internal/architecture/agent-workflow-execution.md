@@ -1,7 +1,7 @@
 ---
 title: Agent workflow execution
 owner: agent-platform
-last_reviewed: 2026-08-31
+last_reviewed: 2026-09-01
 ---
 
 # Agent workflow execution
@@ -65,7 +65,13 @@ Model operations claim a stable operation key in `model_calls` and persist the p
 before budget and credit settlement; a completed operation is replayed without another provider
 request. A worker loss after the request starts can still leave the operation `started` with an
 unknown provider outcome, so it is stopped and sent to reconciliation rather than retried blindly.
-Tool invocations and external effects retain their existing durable invocation/receipt boundaries.
+Tool invocations claim a stable `(run_id, provider_tool_call_id)` record. When a retry finds a
+completed record with the same tool name and argument hash, it reuses the persisted, redacted
+outcome before creating a new proposal or step, consuming tool budget, invoking the handler, or
+consuming approval. Configured graph tools use the same lookup before resource preview and effect
+execution. A name or argument-hash mismatch fails closed; non-completed records are not replayed.
+External effects retain their durable receipt boundary, and an unknown provider outcome still goes
+to reconciliation rather than being treated as a successful replay.
 The step mode groups the tool calls returned by one model response and refuses to execute a partial
 multi-tool response when the remaining run budget cannot admit all of them. It does not yet make
 context, model, individual tool, checkpoint, and completion work separate Temporal activities.
