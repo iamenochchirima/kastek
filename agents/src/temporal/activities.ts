@@ -60,6 +60,8 @@ import { materializeResponseLinks, type ResolvedAgentMedia } from "../media/deli
 import { channelMediaProfile } from "../media/profiles";
 import { runWithDatabaseContext, type DatabaseContext } from "../db/context";
 import { durableAgentLoopCheckpoint, readDurableAgentLoopCheckpoint } from "../runtime/loop-checkpoint";
+import { createDecomposedActivities } from "./decomposed-activities";
+import type { DecomposedAgentRunActivities } from "./decomposed-contracts";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -1819,7 +1821,67 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const integrationRepository = options.config ? new IntegrationRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY) : undefined;
   const integrationTools = options.integrationTools ?? (integrationRepository ? new IntegrationToolService(integrationRepository, options.config) : undefined);
   const tools = options.tools ?? createDefaultTools(coreClient, conversationActions, integrationTools, memory);
-  const activities: AgentRunActivities = {
+  const decomposedActivities = createDecomposedActivities({
+    runs,
+    modelCalls,
+    runBudgets,
+    conversations,
+    memory,
+    knowledge,
+    toolInvocations,
+    runSteps,
+    toolGrants,
+    summaries,
+    killSwitches,
+    controls,
+    kasiaiPreferences,
+    effectReceipts,
+    approvals,
+    installationGrants,
+    workflowState,
+    gateway,
+    credentials,
+    tools,
+    coreClient,
+    config: options.config,
+    modelPricing,
+    creditPricing,
+    creditBillingMode,
+    heartbeat: activityHeartbeat,
+    signal: currentActivitySignal,
+    reserveModelCredits: ({ context, runId, operationKey, request, credentials: modelCredentials }) => reserveModelCredits({
+      billingMode: creditBillingMode,
+      gateway,
+      modelPricing,
+      creditPricing,
+      coreClient,
+      context,
+      runId,
+      operationKey,
+      request,
+      credentials: modelCredentials,
+    }),
+    reserveRunBudget: ({ organizationId, runId, reservationKey, request }) => reserveRunModelBudget({
+      repository: runBudgets,
+      organizationId,
+      runId,
+      reservationKey,
+      gateway,
+      request,
+    }),
+    consumeRunToolBudget: ({ organizationId, runId }) => consumeRunToolBudget(runBudgets, { organizationId, runId }),
+    buildApprovalResourceSnapshot: (run, capability, argumentsValue) => buildApprovalResourceSnapshotFromCore(coreClient, {
+      organizationId: run.organization_id,
+      agentId: run.agent_definition_id,
+      agentVersionId: run.agent_version_id,
+      installationId: run.installation_id,
+      runId: run.id,
+      actorId: run.created_by,
+      correlationId: run.correlation_id,
+    }, capability, argumentsValue),
+  });
+  const activities: AgentRunActivities & DecomposedAgentRunActivities = {
+    ...decomposedActivities,
     async transitionRun(input) {
       await runs.transitionRun(input.runId, input.expectedStatus, input.nextStatus);
     },

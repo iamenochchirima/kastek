@@ -419,11 +419,14 @@ hold product evidence and idempotency records, not act as a replacement workflow
 - [x] Inventory every Temporal activity, its enclosed remote calls, retry policy, and maximum
       duration ([agent-temporal-recovery.md](docs/internal/runbooks/agent-temporal-recovery.md));
       `executeLoop` remains the large decomposition boundary.
-- [x] Define the versioned, non-secret retry-safe activity protocol for context, model calls, tool
-      calls, checkpoints, and completion ([decomposed-contracts.ts](agents/src/temporal/decomposed-contracts.ts));
-      the protocol is not enabled until worker implementations and workflow wiring are released.
-- [ ] Move loop and graph coordination into Temporal workflow code without placing non-deterministic
-      work there.
+- [x] Define and wire the versioned, non-secret retry-safe activity protocol for context, model
+      calls, tool calls, checkpoints, and completion ([decomposed-contracts.ts](agents/src/temporal/decomposed-contracts.ts),
+      [decomposed-activities.ts](agents/src/temporal/decomposed-activities.ts)); ordinary hosted
+      runs are opt-in through `TEMPORAL_DECOMPOSED_ACTIVITIES_ENABLED` and the compatibility path
+      remains available.
+- [x] Move ordinary hosted-loop coordination into Temporal workflow code without placing
+      non-deterministic work there; configured graphs and MCP runs retain the compatibility
+      activity until their own decomposition boundary is released.
 - [x] Give each model and tool operation a stable idempotency key and durable outcome state
       ([model-call-repository.ts](agents/src/db/repositories/model-call-repository.ts),
       [tool-invocation-repository.ts](agents/src/db/repositories/tool-invocation-repository.ts));
@@ -466,7 +469,8 @@ hold product evidence and idempotency records, not act as a replacement workflow
 - [x] Add retry, timeout, cancellation, and reconciliation metrics with bounded structured logs
       ([spans.ts](agents/src/telemetry/spans.ts), [worker.ts](agents/src/temporal/worker.ts)).
 - [x] Update the Temporal operations runbook ([agent-temporal-recovery.md](docs/internal/runbooks/agent-temporal-recovery.md)).
-- [ ] Release the decomposed orchestration path behind a controlled flag.
+- [x] Release the decomposed orchestration path behind a controlled flag; production remains
+      disabled by default until staged worker-loss and provider-billing evidence is recorded.
 
 ### P0.4 Apply graph budgets and usage accounting
 

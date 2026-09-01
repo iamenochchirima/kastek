@@ -61,8 +61,12 @@ Reduce duplicate provider work and make worker-loss recovery explicit while the 
   being passed through Temporal history.
 - [x] Add provider/database fault-injection tests for the current inner-loop safety boundary
   ([temporal-fault-injection.test.ts](../../../agents/test/temporal-fault-injection.test.ts)).
-- [ ] Split context, model, tool, checkpoint, and completion work into independently retry-safe
-      activities behind a controlled rollout.
+- [x] Split context, model, tool, checkpoint, and completion work into independently retry-safe
+      activities behind `TEMPORAL_DECOMPOSED_ACTIVITIES_ENABLED` for ordinary hosted runs. MCP and
+      configured graph runs explicitly use the compatibility activity until their boundaries are
+      decomposed.
+- [x] Move ordinary-loop sequencing into deterministic Temporal workflow code and persist approval
+      and human/external-event resume state before the next model operation.
 - [ ] Compare provider billing with reserved, captured, released, and reconciled usage during
   staged rollout; the diagnostic path exists, but staged production evidence and provider-side
   billing verification are still required.
@@ -628,3 +632,54 @@ runtime path.
 
 Post-release review date: 2026-09-08; review the worker implementation design and require an
 activity-level provider/database fault matrix before enabling the decomposed rollout.
+
+## Follow-up release record: decomposed ordinary-run activity wiring
+
+Change: Wire the versioned decomposed context/model/tool/checkpoint/completion protocol into the
+Temporal workflow for ordinary hosted runs, with durable state revisions, model/tool outcome replay,
+approval waits, cancellation checks, and human-event resume persistence. MCP and configured graph
+runs explicitly fall back to the compatibility activity.
+
+Owner: Agent Platform.
+
+Risk: high.
+
+Affected services and user surfaces: agents-api, agents-worker, Agents PostgreSQL, Temporal
+workflow history, model providers, tool/effect execution, approval prompts, human handoff resume,
+and customer-facing hosted-agent replies. The rollout is disabled by default.
+
+Platform release version or release ID: pending final commit and production artifact identity.
+
+API/schema/migration changes: no API or database migration. Additive workflow input/configuration
+field only: `decomposed` and `TEMPORAL_DECOMPOSED_ACTIVITIES_ENABLED`.
+
+Feature flag or rollout method: `TEMPORAL_DECOMPOSED_ACTIVITIES_ENABLED=false` by default. Enable
+only for a canary worker/task queue after the real Temporal worker-loss matrix and provider billing
+reconciliation pass. Unsupported MCP and configured graph runs remain on the compatibility path.
+
+Analytics events and success metrics: no new customer analytics event. Success metrics are zero
+duplicate provider/tool outcomes, zero replay scope conflicts, no unaccounted model reservations,
+and equivalent completion/approval/handoff rates between the canary and compatibility paths.
+
+Logs, metrics, dashboards, and alerts: existing Temporal activity-attempt, model reconciliation,
+budget exhaustion, effect reconciliation, and structured run lifecycle telemetry. Decomposed
+activities emit bounded heartbeat phase metadata without prompt, response, argument, or credential
+content. Collector configuration is unchanged; `not applicable` for a new Collector revision.
+
+User, API, internal, and operational documentation: updated
+`AGENT_PLATFORM_ARCHITECTURE_AUDIT.md`, `docs/internal/architecture/agent-workflow-execution.md`,
+`docs/internal/runbooks/agent-temporal-recovery.md`, and this plan. Public API documentation is
+not applicable.
+
+Validation evidence: decomposed contract, coordinator, activity replay, and existing Temporal
+fault-injection tests pass; Agents TypeScript check passes. The full Agents suite, production
+build, real Temporal matrix with the decomposed flag enabled, and provider-side billing comparison
+remain release gates.
+
+Rollback or disable plan: set `TEMPORAL_DECOMPOSED_ACTIVITIES_ENABLED=false` and restart
+agents-api/agents-worker, then redeploy the previous successful artifact if required. Existing
+workflow runs retain their selected input and finish on their current path; new runs use the
+compatibility activity. No migration rollback or data repair is required.
+
+Post-release review date: 2026-09-08; review canary duplicate rates, activity retries, approvals,
+handoff resumes, budget settlement, provider billing, and compatibility-path fallback counts.

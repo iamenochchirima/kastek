@@ -1,9 +1,10 @@
 import type { ModelMessage, ModelProvider, ModelResponse } from "../model/types";
 import type { ToolApproval } from "../tools/types";
+import type { ActivityScope, ApprovalSignal, ExternalEventSignal } from "./contracts";
 
 /**
- * Versioned contract for the activity protocol that will replace the bundled
- * executeLoop activity. Activity payloads intentionally carry references to
+ * Versioned contract for the independently retryable activities used by eligible
+ * ordinary runs. Activity payloads intentionally carry references to
  * durable run state, not prompts, model responses, tool arguments, or tool
  * output. Those values stay in Agents PostgreSQL and are addressed by IDs.
  */
@@ -27,13 +28,18 @@ export interface DecomposedContextActivityInput {
 export interface DecomposedContextActivityResult {
   protocolVersion: typeof DECOMPOSED_ACTIVITY_PROTOCOL_VERSION;
   stateRevision: number;
-  nextPhase: "model" | "completed" | "awaiting_approval" | "awaiting_human" | "awaiting_external_event" | "failed";
+  nextPhase: "model" | "tool" | "completed" | "awaiting_approval" | "awaiting_human" | "awaiting_external_event" | "failed" | "unsupported";
+  pendingToolCallIds?: string[];
+  nextStep?: number;
+  waitingFor?: string;
 }
 
 export interface DecomposedModelActivityInput extends DecomposedActivityIdentity {
   protocolVersion: typeof DECOMPOSED_ACTIVITY_PROTOCOL_VERSION;
   /** Revision of the durable loop state that the model activity must read. */
   inputStateRevision: number;
+  /** Human or external event that resumes a previously paused tool outcome. */
+  resumeExternalEvent?: ExternalEventSignal;
 }
 
 export interface DecomposedModelActivityResult {
@@ -43,6 +49,8 @@ export interface DecomposedModelActivityResult {
   /** Only durable invocation IDs cross the workflow boundary. */
   toolCallIds?: string[];
   errorCode?: string;
+  waitingFor?: string;
+  terminal?: boolean;
 }
 
 export interface DecomposedToolActivityInput extends DecomposedActivityIdentity {
@@ -57,6 +65,8 @@ export interface DecomposedToolActivityResult {
   providerToolCallId: string;
   status: "completed" | "awaiting_approval" | "awaiting_human" | "awaiting_external_event" | "failed";
   errorCode?: string;
+  waitingFor?: string;
+  terminal?: boolean;
 }
 
 export interface DecomposedCheckpointActivityInput extends DecomposedActivityIdentity {
@@ -84,6 +94,23 @@ export interface DecomposedActivityFailure {
 export interface DecomposedCompletionActivityResult {
   protocolVersion: typeof DECOMPOSED_ACTIVITY_PROTOCOL_VERSION;
   stateRevision: number;
+}
+
+export interface DecomposedAgentRunActivities {
+  buildLoopContext(input: ActivityScope & DecomposedContextActivityInput): Promise<DecomposedContextActivityResult>;
+  executeModelStep(input: ActivityScope & DecomposedModelActivityInput): Promise<DecomposedModelActivityResult>;
+  executeToolStep(input: ActivityScope & DecomposedToolActivityInput): Promise<DecomposedToolActivityResult>;
+  checkpointLoop(input: ActivityScope & DecomposedCheckpointActivityInput): Promise<DecomposedCheckpointActivityResult>;
+  completeRunFromCheckpoint(input: ActivityScope & DecomposedCompletionActivityInput): Promise<DecomposedCompletionActivityResult>;
+}
+
+export interface DecomposedApprovalWait {
+  providerToolCallId: string;
+  decision: ApprovalSignal;
+}
+
+export interface DecomposedExternalEventWait {
+  event: ExternalEventSignal;
 }
 
 /**

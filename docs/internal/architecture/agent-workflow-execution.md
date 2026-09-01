@@ -75,17 +75,21 @@ execution. A name or argument-hash mismatch fails closed; non-completed records 
 External effects retain their durable receipt boundary, and an unknown provider outcome still goes
 to reconciliation rather than being treated as a successful replay.
 The step mode groups the tool calls returned by one model response and refuses to execute a partial
-multi-tool response when the remaining run budget cannot admit all of them. It does not yet make
-context, model, individual tool, checkpoint, and completion work separate Temporal activities.
-The versioned non-secret protocol for those future activities is defined in
-`agents/src/temporal/decomposed-contracts.ts`; it passes durable state revisions and operation IDs
-through workflow history while keeping prompts, responses, tool arguments, and tool output in the
-Agents database. The protocol is a contract only until worker implementations and workflow wiring
-are released behind a separate flag.
-For controlled rollout, the same flag can also stop eligible linear configured graphs after one
-completed node; graphs containing fan-out or `agent_loop` nodes continue through the existing
-whole-graph activity boundary. The worker-kill matrix and the fully independent context/model/tool
-activity decomposition therefore remain P0.3 work.
+multi-tool response when the remaining run budget cannot admit all of them. Ordinary hosted runs
+also have an opt-in decomposed path controlled by `TEMPORAL_DECOMPOSED_ACTIVITIES_ENABLED`:
+context, model, individual tool, checkpoint, and completion work are separate Temporal activities.
+The versioned non-secret protocol is defined in `agents/src/temporal/decomposed-contracts.ts`;
+workflow history carries only durable IDs and state revisions while prompts, responses, tool
+arguments, and tool output remain in the Agents database. Completed model and tool outcomes are
+replayed before provider, handler, budget, approval, or effect work is repeated. Approval and
+human/external-event waits are Temporal conditions, and a resumed event is persisted before the
+next model operation.
+
+The decomposed rollout is disabled by default. MCP capability runs and configured graphs return an
+explicit unsupported result and continue through the compatibility activity; graphs containing
+fan-out or `agent_loop` nodes therefore retain the existing whole-graph boundary. Production
+enablement still requires provider billing reconciliation and real worker-loss evidence for the
+new activity implementation.
 
 Fan-out admission uses `run_budget_parallel_leases`. Before branch promises are launched, the
 executor identifies the first possible model and tool operation in each branch and atomically

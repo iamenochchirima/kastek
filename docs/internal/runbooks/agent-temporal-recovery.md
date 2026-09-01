@@ -52,9 +52,13 @@ TEMPORAL_TEST_ADDRESS=127.0.0.1:7233 \
 pnpm --dir agents exec vitest run test/temporal-worker-loss-matrix.integration.test.ts
 ```
 
-This matrix proves workflow replacement, pause/resume, and terminal activity idempotency. It does
-not replace provider/database fault injection for the still-large `executeLoop` activity; those
-checks remain required before enabling the decomposed rollout path.
+This matrix proves workflow replacement, pause/resume, and terminal activity idempotency. The
+decomposed path additionally has targeted activity replay coverage in
+`agents/test/decomposed-activities.test.ts`; the matrix still needs to be run with the decomposed
+flag enabled before production rollout. The rollout flag is
+`TEMPORAL_DECOMPOSED_ACTIVITIES_ENABLED`; it is disabled by default and should first be enabled
+only for an isolated worker/task queue or tightly scoped canary. MCP and configured graph runs use
+the compatibility activity even when the flag is true.
 
 The inner-loop fault boundary is covered without making production failure injection available:
 `agents/test/temporal-fault-injection.test.ts` simulates a retryable provider failure, a database

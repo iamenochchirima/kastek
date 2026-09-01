@@ -47,6 +47,8 @@ export interface DurableRunInput extends ActivityScope {
   runId: string;
   /** Deterministic bounded-loop slice number used to make activity retries idempotent. */
   loopStep?: number;
+  /** Opt-in rollout for independently retryable context/model/tool/checkpoint activities. */
+  decomposed?: boolean;
   resumeApprovedToolCall?: ResumeApprovedToolCall;
   resumeExternalEvent?: ExternalEventSignal;
 }
