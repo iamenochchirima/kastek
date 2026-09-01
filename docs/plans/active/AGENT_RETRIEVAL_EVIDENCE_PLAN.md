@@ -51,7 +51,7 @@ retrieval behavior explainable and testable.
 - [x] Merge scoped lexical and vector candidates with model matching before ranking.
 - [ ] Measure recall, relevance, latency, provider cost, and backfill completeness before changing
       the released model or score weights.
-- [ ] Run the final unit, integration, type, build, and deployed-service smoke checks.
+- [x] Run focused unit, migration, type, build, and deployed-service smoke checks.
 
 ## Release record
 
@@ -109,7 +109,9 @@ the feature remains disabled by default until the deployed code and migration ar
 Affected services and user surfaces: agents-api, agents-worker, Agent Platform PostgreSQL, memory
 writes, knowledge ingestion, hosted-agent context assembly, and retrieval diagnostics.
 
-Platform release version or release ID: pending commit; migration `099` is applied in production.
+Platform release version or release ID: commit `74e51799`; migration `099` is applied in
+production. The production agents-api deployment is `79ce23a4-bdbc-49b7-a6fa-4f04c5f4b34f` and
+the agents-worker deployment is `0953ffb4-0ee9-4731-be24-199f9b60d4ce`.
 
 API/schema/migration changes: migration `099_pgvector_hybrid_retrieval.sql` enables the available
 pgvector `0.8.6` extension, adds `vector(1536)` columns and `embedding_model`-aware partial HNSW
@@ -135,7 +137,10 @@ observability guide, root architecture audit, and this plan. No public API contr
 Validation evidence: OpenRouter returned 1536-dimensional vectors for the released model. The
 production migration reported pgvector `0.8.6`. A production database smoke path stored a real
 vector, ranked the matching memory, and verified the restricted role saw only its organization.
-Targeted tests, build, deployment, and post-deploy flag verification remain to be recorded.
+Focused tests passed: 53 tests across embeddings, retrieval, memory policy, and migration checks;
+the Agents production build and `git diff --check` passed. Both services reached `SUCCESS`, the
+rollout variables and release metadata were verified on both services, and readiness returned
+`200`.
 
 Rollback or disable plan: set `EMBEDDINGS_ENABLED=false` on agents-api and agents-worker and
 redeploy if provider latency, cost, or errors exceed the release threshold. Lexical retrieval

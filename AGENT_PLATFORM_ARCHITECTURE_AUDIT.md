@@ -788,7 +788,8 @@ bounded candidate set, and return structured evidence instead of one concatenate
 - [x] Document retrieval failure behavior for each current memory policy mode
       ([agent-memory-lifecycle.md](docs/internal/architecture/agent-memory-lifecycle.md)).
 - [x] Verify the production migration, live embedding write, vector ranking, and vector/RLS
-      isolation smoke path; recall, relevance, latency, and provider-cost evaluation remain open.
+      isolation smoke path; production agents-api and agents-worker now run commit `74e51799`
+      with embeddings enabled; recall, relevance, latency, and provider-cost evaluation remain open.
 
 ### P1.4 Strengthen memory poisoning controls
 
