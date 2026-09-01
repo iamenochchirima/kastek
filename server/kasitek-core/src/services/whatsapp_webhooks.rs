@@ -211,6 +211,53 @@ fn agent_media_failure_message(kind: &str) -> &'static str {
     }
 }
 
+fn agent_ingest_failure_message() -> &'static str {
+    "I couldn't process that message right now. Please try again."
+}
+
+async fn acknowledge_agent_ingest_failure(
+    connection: &WhatsappConnectionRow,
+    recipient_phone: &str,
+    provider_message_id: Option<&str>,
+    reason: &str,
+) {
+    let access_token = match decrypt_social_secret(&connection.access_token_encrypted) {
+        Ok(access_token) => access_token,
+        Err(error) => {
+            observability::tracing::warn!(
+                event = "provider.call.failed",
+                provider = "whatsapp",
+                operation = "channel.ingest.failure_acknowledge",
+                connection_id = %connection.id,
+                reason = "access_token_unavailable",
+                error_type = %std::any::type_name_of_val(&error),
+                "WhatsApp could not acknowledge an Agent Platform failure"
+            );
+            return;
+        }
+    };
+
+    if let Err(error) = send_text_message(
+        &connection.phone_number_id,
+        &access_token,
+        recipient_phone,
+        agent_ingest_failure_message(),
+        provider_message_id,
+    )
+    .await
+    {
+        observability::tracing::warn!(
+            event = "provider.call.failed",
+            provider = "whatsapp",
+            operation = "channel.ingest.failure_acknowledge",
+            connection_id = %connection.id,
+            reason,
+            error_type = %std::any::type_name_of_val(&error),
+            "WhatsApp Agent Platform failure acknowledgement failed"
+        );
+    }
+}
+
 fn get_incoming_media(message: &Value) -> Option<IncomingWhatsappMedia> {
     for kind in ["image", "video", "audio", "document", "sticker"] {
         if let Some(media) = message.get(kind) {
@@ -1206,6 +1253,10 @@ async fn handle_incoming_messages(
                         "WhatsApp media failure acknowledgement failed"
                     );
                 }
+                // The media-specific acknowledgement is the terminal outcome for
+                // this message. Do not also send the generic Agent Platform
+                // failure response when the platform is unavailable.
+                continue;
             }
         }
         if let Some(provider_message_id) = wa_message_id {
@@ -1250,10 +1301,10 @@ async fn handle_incoming_messages(
                     provider_message_id = %provider_message_id,
                     "WhatsApp inbound message forwarding started"
                 );
-                match agent_client
+                let ingest_result = agent_client
                     .ingest_channel_message(org_id, &connection.user_id, payload)
-                    .await
-                {
+                    .await;
+                match ingest_result {
                     Ok(_) => observability::tracing::info!(
                         event = "provider.call.completed",
                         provider = "kasitek-agents",
@@ -1263,15 +1314,25 @@ async fn handle_incoming_messages(
                         provider_message_id = %provider_message_id,
                         "WhatsApp inbound message accepted by agent"
                     ),
-                    Err(error) => observability::tracing::warn!(
-                        event = "provider.call.failed",
-                        provider = "kasitek-agents",
-                        operation = "channel.ingest",
-                        conversation_id = %conversation_id,
-                        channel_key = %channel_key,
-                        error_type = %std::any::type_name_of_val(&error),
-                        "WhatsApp inbound message was not accepted"
-                    ),
+                    Err(error) => {
+                        observability::tracing::warn!(
+                            event = "provider.call.failed",
+                            provider = "kasitek-agents",
+                            operation = "channel.ingest",
+                            conversation_id = %conversation_id,
+                            channel_key = %channel_key,
+                            error_code = error.code(),
+                            error_type = %std::any::type_name_of_val(&error),
+                            "WhatsApp inbound message was not accepted"
+                        );
+                        acknowledge_agent_ingest_failure(
+                            &connection,
+                            &normalized_phone,
+                            Some(provider_message_id),
+                            error.code(),
+                        )
+                        .await;
+                    }
                 }
             } else {
                 observability::tracing::warn!(
@@ -1283,6 +1344,13 @@ async fn handle_incoming_messages(
                     reason = "missing_configuration",
                     "Agent Platform is not configured for inbound WhatsApp message"
                 );
+                acknowledge_agent_ingest_failure(
+                    &connection,
+                    &normalized_phone,
+                    Some(provider_message_id),
+                    "missing_configuration",
+                )
+                .await;
             }
         }
         if let Err(error) = send_push_notification_to_user(
@@ -1386,9 +1454,10 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        add_optional_display_name, agent_external_identity, agent_media_kind, agent_media_mime,
-        approval_acknowledgement, external_connection_routing_key, get_inbound_approval_token,
-        get_incoming_media, is_blocked_failure, is_opt_out_message, parse_status_pricing_details,
+        add_optional_display_name, agent_external_identity, agent_ingest_failure_message,
+        agent_media_kind, agent_media_mime, approval_acknowledgement,
+        external_connection_routing_key, get_inbound_approval_token, get_incoming_media,
+        is_blocked_failure, is_opt_out_message, parse_status_pricing_details,
     };
 
     #[test]
@@ -1555,6 +1624,14 @@ mod tests {
         assert_eq!(
             approval_acknowledgement(&json!({ "status": "approval_already_signalled" })),
             "Already decided."
+        );
+    }
+
+    #[test]
+    fn provides_a_terminal_message_when_agent_ingest_is_rejected() {
+        assert_eq!(
+            agent_ingest_failure_message(),
+            "I couldn't process that message right now. Please try again."
         );
     }
 }

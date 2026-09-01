@@ -76,7 +76,9 @@ should never be asked for a Telegram webhook secret or Telegram API URL.
 Telegram and WhatsApp agent channels accept image, video, and audio attachments. Telegram files
 sent with a generic MIME type are identified from their filename when possible. Unsupported
 document types receive an explicit response instead of being passed to the agent as an incomplete
-attachment. Media downloads are time-limited and size-bounded.
+attachment. Provider omissions represented as `null` for optional attachment metadata are normalized
+at the canonical channel boundary. Media downloads are time-limited and size-bounded; if channel
+ingestion or a run fails, the gateway receives a terminal text response instead of waiting silently.
 
 ### Agent reply formatting
 

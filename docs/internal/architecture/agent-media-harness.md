@@ -22,7 +22,8 @@ Connections deep-link intent; it never contains provider scopes or credentials.
 The envelope is stored in run output and conversation message JSONB. Older `{ text }` records remain
 valid through the compatibility parser. Inbound channel attachments are normalized to the same
 stable `media[]` projection while retaining the legacy single-attachment fields for existing
-transcription and UI consumers.
+transcription and UI consumers. Provider adapters may omit optional metadata or encode it as `null`;
+the canonical channel boundary accepts both forms and emits the normalized optional representation.
 
 ## Request and delivery flow
 
@@ -78,6 +79,8 @@ processing state, scanning state, installation grants, and provider connection s
 - Website delivery stores typed content and hydrates previews only after validating the active
   visitor session and deployment organization.
 - Delivery retries reuse stable asset IDs and mint fresh transport resources.
+- A rejected channel-ingest request or failed run reaches a terminal state and attempts one bounded
+  user-facing text response; it must not leave the gateway waiting without an outcome.
 - If a preview cannot be resolved or a provider rejects a native remote media reference, delivery
   records a bounded media-resolution event and preserves the text reply with a link or unavailable
   attachment notice where the channel supports it.

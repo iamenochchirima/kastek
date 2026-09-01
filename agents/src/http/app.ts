@@ -950,6 +950,13 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.setErrorHandler((error, request, reply) => {
     const statusCode = error instanceof ZodError ? 400 : ((error as { statusCode?: number }).statusCode ?? 500);
     if (statusCode >= 500) app.log.error(error);
+    if (statusCode === 400 && request.method === "POST" && request.url.split("?", 1)[0] === "/v1/channels/inbound") {
+      app.log.warn({
+        validation: error instanceof ZodError
+          ? error.issues.map((issue) => ({ code: issue.code, path: issue.path }))
+          : undefined,
+      }, "Channel inbound request rejected");
+    }
     if (request.url === "/mcp" && request.method === "POST" && statusCode === 400) {
       const requestedProtocol = headerValue(request, "mcp-protocol-version");
       reply.header("mcp-protocol-version", requestedProtocol === MCP_STATELESS_PROTOCOL_VERSION ? MCP_STATELESS_PROTOCOL_VERSION : MCP_PROTOCOL_VERSION);

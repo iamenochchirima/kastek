@@ -70,6 +70,21 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
     status = to;
   };
 
+  const failAndDeliver = async (error: Record<string, unknown>): Promise<void> => {
+    await activities.failRun({
+      ...activityScope(),
+      runId: input.runId,
+      error: {
+        ...error,
+        ...(typeof error.userMessage === "string" && error.userMessage.length > 0
+          ? {}
+          : { userMessage: "I couldn't complete that request. Please try again." }),
+      },
+    });
+    status = "failed";
+    await activities.deliverRunReply({ ...activityScope(), runId: input.runId });
+  };
+
   try {
     await transition("received", "queued");
     await transition("queued", "running");
@@ -138,9 +153,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
           return;
         }
         if (decomposedResult.status === "failed" || decomposedResult.status === "limited") {
-          await activities.failRun({ ...activityScope(), runId: input.runId, error: { code: decomposedResult.errorCode ?? "DECOMPOSED_RUN_FAILED", message: "The decomposed agent execution did not complete" } });
-          status = "failed";
-          await activities.deliverRunReply({ ...activityScope(), runId: input.runId });
+          await failAndDeliver({ code: decomposedResult.errorCode ?? "DECOMPOSED_RUN_FAILED", message: "The decomposed agent execution did not complete" });
           return;
         }
         await activities.generateConversationTitle({ ...activityScope(), runId: input.runId });
@@ -232,12 +245,11 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         const decision = approval;
         approval = undefined;
         if (!pending || !decision || decision.decision !== "approved" || decision.providerToolCallId !== pending.id || decision.argumentsHash !== pending.argumentsHash) {
-          await activities.failRun({
-            ...activityScope(),
-            runId: input.runId,
-            error: { code: "APPROVAL_REJECTED", message: "Approval was rejected or did not match the pending arguments" },
+          await failAndDeliver({
+            code: "APPROVAL_REJECTED",
+            message: "Approval was rejected or did not match the pending arguments",
+            userMessage: "I couldn't apply that approval because it no longer matches the pending action. Please try again.",
           });
-          status = "failed";
           return;
         }
         await transition("awaiting_approval", "running");
@@ -262,7 +274,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         if (expiration) { await transition("awaiting_external_event", "expired"); return; }
         const event = externalEvent;
         externalEvent = undefined;
-        if (!event) { await activities.failRun({ ...activityScope(), runId: input.runId, error: { code: "EXTERNAL_EVENT_MISSING", message: "External event signal was not available" } }); status = "failed"; return; }
+        if (!event) { await failAndDeliver({ code: "EXTERNAL_EVENT_MISSING", message: "External event signal was not available" }); return; }
         await transition("awaiting_external_event", "running");
         resumeExternalEvent = event;
         continue;
@@ -279,25 +291,14 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         if (expiration) { await transition("awaiting_human", "expired"); return; }
         const event = externalEvent;
         externalEvent = undefined;
-        if (!event) { await activities.failRun({ ...activityScope(), runId: input.runId, error: { code: "HANDOFF_EVENT_MISSING", message: "Handoff resolution was not available" } }); status = "failed"; return; }
+        if (!event) { await failAndDeliver({ code: "HANDOFF_EVENT_MISSING", message: "Handoff resolution was not available" }); return; }
         await transition("awaiting_human", "running");
         resumeExternalEvent = event;
         continue;
       }
       if (result.status === "failed") {
         const error = result.error ?? { code: "AGENT_LOOP_FAILED", message: "Agent loop failed" };
-        await activities.failRun({
-          ...activityScope(),
-          runId: input.runId,
-          error: error.userMessage
-            ? error
-            : {
-              ...error,
-              userMessage: "I couldn't complete that request. Please try again.",
-            },
-        });
-        status = "failed";
-        await activities.deliverRunReply({ ...activityScope(), runId: input.runId });
+        await failAndDeliver(error);
         return;
       }
       if (result.status === "limited") {
@@ -309,28 +310,17 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
           toolCalls: result.toolCalls,
           usage: result.usage,
         };
-        await activities.failRun({
-          ...activityScope(),
-          runId: input.runId,
-          error,
-        });
-        status = "failed";
-        await activities.deliverRunReply({ ...activityScope(), runId: input.runId });
+        await failAndDeliver(error);
         return;
       }
       const response = result.completionResponse
         ? parseAgentResponse({ ...result.completionResponse, text: sanitizeAssistantResponse(result.completionResponse.text) })
         : parseAgentResponse({ text: sanitizeAssistantResponse(result.completionMessage ?? result.response?.message.content ?? "") });
       if (!response.text && !response.media.length) {
-        await activities.failRun({
-          ...activityScope(),
-          runId: input.runId,
-          error: {
-            code: "EMPTY_ASSISTANT_RESPONSE",
-            message: "The agent completed without producing assistant text",
-          },
+        await failAndDeliver({
+          code: "EMPTY_ASSISTANT_RESPONSE",
+          message: "The agent completed without producing assistant text",
         });
-        status = "failed";
         return;
       }
       await activities.completeRun({
@@ -352,15 +342,14 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
       return;
     }
   } catch (error) {
-    await activities.failRun({
-      ...activityScope(),
-      runId: input.runId,
-      error: {
+    try {
+      await failAndDeliver({
         code: "WORKFLOW_ACTIVITY_FAILED",
         message: error instanceof Error ? error.message : "Unknown workflow failure",
-      },
-    });
-    status = "failed";
+      });
+    } catch {
+      // Preserve the original workflow error so Temporal can retry the failed activity.
+    }
     throw error;
   }
 }

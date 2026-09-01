@@ -329,6 +329,8 @@ describe("audio transcription HTTP contracts", () => {
             attachmentId: "provider-media-1",
             assetId: "asset-whatsapp-1",
             mimeType: "audio/ogg",
+            fileName: null,
+            url: null,
             mediaKind: "audio",
             text: "Please call me back",
           },
