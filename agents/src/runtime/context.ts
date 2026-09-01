@@ -94,13 +94,7 @@ function asUntrusted(label: string, content: string): string {
   return `<untrusted-data source="${label}">\n${content}\n</untrusted-data>`;
 }
 
-/** Remove internal grounding markers before assistant text is persisted or displayed. */
-export function sanitizeAssistantResponse(value: string): string {
-  return value
-    .replace(/<untrusted-data\b[^>]*>/gi, "")
-    .replace(/<\/untrusted-data>/gi, "")
-    .trim();
-}
+export { sanitizeAssistantResponse } from "./sanitize";
 
 export function buildAgentContext(input: ContextBuildInput): BuiltAgentContext {
   const budget = { ...defaultBudget, ...input.budget };

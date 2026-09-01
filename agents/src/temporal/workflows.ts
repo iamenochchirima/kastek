@@ -6,7 +6,7 @@ import {
   setHandler,
 } from "@temporalio/workflow";
 import type { RunStatus } from "../domain/types";
-import { sanitizeAssistantResponse } from "../runtime/context";
+import { sanitizeAssistantResponse } from "../runtime/sanitize";
 import { parseAgentResponse } from "../media/contracts";
 import type {
   AgentRunActivities,
