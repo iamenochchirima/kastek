@@ -8,6 +8,12 @@ export interface DurableAgentLoopCheckpoint {
   messages: ModelMessage[];
   iterations: number;
   toolCalls: number;
+  /** The workflow input step that produced this checkpoint. */
+  stepIndex?: number;
+  /** The activity result needed if the worker is lost before the result is acknowledged. */
+  status?: "limited" | "awaiting_approval" | "awaiting_human" | "awaiting_external_event";
+  pendingToolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown>; argumentsHash: string }>;
+  waitingFor?: string;
 }
 
 const MAX_CHECKPOINT_MESSAGES = 128;
@@ -27,15 +33,40 @@ export function readDurableAgentLoopCheckpoint(value: unknown): DurableAgentLoop
   const iterations = boundedCounter(record.iterations);
   const toolCalls = boundedCounter(record.toolCalls);
   if (iterations === undefined || toolCalls === undefined) return undefined;
-  return { version: AGENT_LOOP_CHECKPOINT_VERSION, messages, iterations, toolCalls };
+  const stepIndex = record.stepIndex === undefined ? undefined : boundedCounter(record.stepIndex);
+  if (record.stepIndex !== undefined && stepIndex === undefined) return undefined;
+  const status = checkpointStatus(record.status);
+  if (record.status !== undefined && !status) return undefined;
+  const pendingToolCalls = readPendingToolCalls(record.pendingToolCalls);
+  if (record.pendingToolCalls !== undefined && !pendingToolCalls) return undefined;
+  if (record.waitingFor !== undefined && typeof record.waitingFor !== "string") return undefined;
+  return {
+    version: AGENT_LOOP_CHECKPOINT_VERSION,
+    messages,
+    iterations,
+    toolCalls,
+    ...(stepIndex === undefined ? {} : { stepIndex }),
+    ...(status === undefined ? {} : { status }),
+    ...(pendingToolCalls === undefined ? {} : { pendingToolCalls }),
+    ...(typeof record.waitingFor === "string" ? { waitingFor: record.waitingFor } : {}),
+  };
 }
 
-export function durableAgentLoopCheckpoint(result: Pick<AgentLoopResult, "messages" | "iterations" | "toolCalls">, previous?: DurableAgentLoopCheckpoint): DurableAgentLoopCheckpoint {
+export function durableAgentLoopCheckpoint(
+  result: Pick<AgentLoopResult, "messages" | "iterations" | "toolCalls">
+    & Partial<Pick<AgentLoopResult, "status" | "pendingToolCalls" | "waitingFor">>,
+  previous?: DurableAgentLoopCheckpoint,
+  options: { stepIndex?: number } = {},
+): DurableAgentLoopCheckpoint {
   const checkpoint = {
     version: AGENT_LOOP_CHECKPOINT_VERSION as typeof AGENT_LOOP_CHECKPOINT_VERSION,
     messages: result.messages,
     iterations: (previous?.iterations ?? 0) + Math.max(0, Math.trunc(result.iterations)),
     toolCalls: (previous?.toolCalls ?? 0) + Math.max(0, Math.trunc(result.toolCalls)),
+    ...(options.stepIndex === undefined ? {} : { stepIndex: options.stepIndex }),
+    ...(result.status === "limited" || result.status === "awaiting_approval" || result.status === "awaiting_human" || result.status === "awaiting_external_event" ? { status: result.status } : {}),
+    ...(result.pendingToolCalls ? { pendingToolCalls: result.pendingToolCalls } : {}),
+    ...(result.waitingFor ? { waitingFor: result.waitingFor } : {}),
   } satisfies DurableAgentLoopCheckpoint;
   if (checkpoint.messages.length > MAX_CHECKPOINT_MESSAGES || checkpoint.messages.reduce((total, message) => total + message.content.length, 0) > MAX_CHECKPOINT_CHARACTERS) {
     throw new Error("AGENT_LOOP_CHECKPOINT_TOO_LARGE");
@@ -46,6 +77,27 @@ export function durableAgentLoopCheckpoint(result: Pick<AgentLoopResult, "messag
 function boundedCounter(value: unknown): number | undefined {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+function checkpointStatus(value: unknown): DurableAgentLoopCheckpoint["status"] {
+  return value === "limited" || value === "awaiting_approval" || value === "awaiting_human" || value === "awaiting_external_event"
+    ? value
+    : undefined;
+}
+
+function readPendingToolCalls(value: unknown): DurableAgentLoopCheckpoint["pendingToolCalls"] {
+  if (!Array.isArray(value)) return undefined;
+  const pending = value.filter((toolCall): toolCall is NonNullable<DurableAgentLoopCheckpoint["pendingToolCalls"]>[number] => {
+    if (!toolCall || typeof toolCall !== "object" || Array.isArray(toolCall)) return false;
+    const record = toolCall as Record<string, unknown>;
+    return typeof record.id === "string"
+      && typeof record.name === "string"
+      && typeof record.argumentsHash === "string"
+      && Boolean(record.arguments)
+      && typeof record.arguments === "object"
+      && !Array.isArray(record.arguments);
+  });
+  return pending.length === value.length ? pending : undefined;
 }
 
 function isModelMessage(value: unknown): value is ModelMessage {

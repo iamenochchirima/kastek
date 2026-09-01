@@ -25,5 +25,20 @@ describe("durable agent loop checkpoints", () => {
     expect(readDurableAgentLoopCheckpoint({ version: 1, messages: [{ role: "developer", content: "unsafe" }], iterations: 0, toolCalls: 0 })).toBeUndefined();
     expect(readDurableAgentLoopCheckpoint({ version: 1, messages: Array.from({ length: 129 }, () => ({ role: "user", content: "x" })), iterations: 0, toolCalls: 0 })).toBeUndefined();
     expect(readDurableAgentLoopCheckpoint({ version: 1, messages: [], iterations: -1, toolCalls: 0 })).toBeUndefined();
+    expect(readDurableAgentLoopCheckpoint({ version: 1, messages: [], iterations: 0, toolCalls: 0, stepIndex: -1 })).toBeUndefined();
+    expect(readDurableAgentLoopCheckpoint({ version: 1, messages: [], iterations: 0, toolCalls: 0, status: "unknown" })).toBeUndefined();
+    expect(readDurableAgentLoopCheckpoint({ version: 1, messages: [], iterations: 0, toolCalls: 0, pendingToolCalls: [{ id: "call-1", name: "records.search", arguments: [], argumentsHash: "hash" }] })).toBeUndefined();
+  });
+
+  it("preserves the activity result needed when a worker is replaced", () => {
+    const checkpoint = durableAgentLoopCheckpoint({
+      messages: [{ role: "assistant", content: "Choose a tool" }],
+      iterations: 1,
+      toolCalls: 0,
+      status: "awaiting_approval",
+      pendingToolCalls: [{ id: "call-1", name: "records.delete", arguments: { id: "record-1" }, argumentsHash: "hash" }],
+    }, undefined, { stepIndex: 3 });
+
+    expect(readDurableAgentLoopCheckpoint(checkpoint)).toEqual(checkpoint);
   });
 });

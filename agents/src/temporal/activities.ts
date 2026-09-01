@@ -1842,7 +1842,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
           coreClient,
         );
       }
-      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, runs, modelCalls, runBudgets, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true);
+      return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, runBudgets, conversations, memory, knowledge, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true);
     },
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
@@ -2447,6 +2447,7 @@ async function executeLoopForRun(
   run: Awaited<ReturnType<RunRepository["getRuntimeRun"]>> & object,
   resumeApprovedToolCall: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeApprovedToolCall"],
   resumeExternalEvent: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeExternalEvent"],
+  loopStep: Parameters<AgentRunActivities["executeLoop"]>[0]["loopStep"],
   runs: RunRepository,
   modelCalls: ModelCallRepository,
   runBudgets: RunBudgetRepository,
@@ -2482,7 +2483,40 @@ async function executeLoopForRun(
   const storedLoopState = storedWorkflowState?.state?.__agentLoop;
   const loopCheckpoint = readDurableAgentLoopCheckpoint(storedLoopState);
   if (storedLoopState !== undefined && !loopCheckpoint) throw new Error("AGENT_LOOP_CHECKPOINT_INVALID");
-  const stepExecutionEnabled = stepActivitiesEnabled && !(configuration.workflow && typeof configuration.workflow === "object" && !Array.isArray(configuration.workflow));
+  const stepExecutionEnabled = (stepActivitiesEnabled || loopCheckpoint?.stepIndex !== undefined)
+    && !(configuration.workflow && typeof configuration.workflow === "object" && !Array.isArray(configuration.workflow));
+  const activeLoopStep = loopStep ?? loopCheckpoint?.stepIndex ?? 0;
+  const checkpointReplaysCurrentActivity = stepExecutionEnabled
+    && loopCheckpoint?.stepIndex === activeLoopStep
+    && !resumeApprovedToolCall
+    && !resumeExternalEvent
+    && loopCheckpoint.status !== undefined;
+  if (checkpointReplaysCurrentActivity) {
+    const usage = await modelCalls.usageForRun(run.organization_id, run.id);
+    if (loopCheckpoint.status === "limited") {
+      const replayLimitedResult: AgentLoopResult & { checkpointed?: boolean } = {
+        status: "limited",
+        messages: loopCheckpoint.messages,
+        usage,
+        iterations: loopCheckpoint.iterations,
+        toolCalls: loopCheckpoint.toolCalls,
+        checkpointed: true,
+      };
+      return replayLimitedResult;
+    }
+    const replayStatus = loopCheckpoint.status;
+    if (!replayStatus) throw new Error("AGENT_LOOP_CHECKPOINT_STATUS_MISSING");
+    const replayResult: AgentLoopResult & { checkpointed?: boolean } = {
+      status: replayStatus,
+      messages: loopCheckpoint.messages,
+      usage,
+      iterations: loopCheckpoint.iterations,
+      toolCalls: loopCheckpoint.toolCalls,
+      ...(loopCheckpoint.pendingToolCalls ? { pendingToolCalls: loopCheckpoint.pendingToolCalls } : {}),
+      ...(loopCheckpoint.waitingFor ? { waitingFor: loopCheckpoint.waitingFor } : {}),
+    };
+    return replayResult;
+  }
   const activitySignal = currentActivitySignal();
   const modelTarget = resolveModelTarget(configuration, run.policy);
   const runBudgetLimits = {
@@ -3370,7 +3404,7 @@ async function executeLoopForRun(
       || loopResult.status === "awaiting_external_event";
     const nextState = { ...(storedWorkflowState?.state ?? {}) };
     if (shouldContinue || shouldPause) {
-      nextState.__agentLoop = durableAgentLoopCheckpoint(loopResult, loopCheckpoint);
+      nextState.__agentLoop = durableAgentLoopCheckpoint(loopResult, loopCheckpoint, { stepIndex: activeLoopStep });
     } else if (Object.prototype.hasOwnProperty.call(nextState, "__agentLoop")) {
       delete nextState.__agentLoop;
     }

@@ -45,6 +45,8 @@ export interface ActivityScope {
 
 export interface DurableRunInput extends ActivityScope {
   runId: string;
+  /** Deterministic bounded-loop slice number used to make activity retries idempotent. */
+  loopStep?: number;
   resumeApprovedToolCall?: ResumeApprovedToolCall;
   resumeExternalEvent?: ExternalEventSignal;
 }

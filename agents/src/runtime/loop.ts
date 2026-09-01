@@ -344,6 +344,14 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         await emit(input, { type: "loop.completed", iteration, payload: { toolCalls, totalTokens: usage.totalTokens } });
         return { status: "completed", messages, response, usage, iterations: iteration, toolCalls };
       }
+      if (response.toolCalls.length > Math.max(0, limits.maxToolCalls - toolCalls)) {
+        // A provider may return several calls in one assistant message. Do not execute a
+        // prefix when the remaining budget cannot admit the whole message: the resulting
+        // assistant/tool sequence would be incomplete and unsafe to checkpoint.
+        toolCalls += response.toolCalls.length;
+        await emit(input, { type: "loop.limited", iteration, payload: { reason: "tool_calls" } });
+        return { status: "limited", messages, response, usage, iterations: iteration, toolCalls };
+      }
       for (const toolCall of response.toolCalls) {
         toolCalls += 1;
         if (toolCalls > limits.maxToolCalls) {

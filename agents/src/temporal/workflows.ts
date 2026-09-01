@@ -73,6 +73,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
     await transition("queued", "running");
     let resumeApprovedToolCall: ResumeApprovedToolCall | undefined = input.resumeApprovedToolCall;
     let resumeExternalEvent: ExternalEventSignal | undefined = input.resumeExternalEvent;
+    let loopStep = input.loopStep ?? 0;
 
     while (true) {
       if (cancellation) {
@@ -83,7 +84,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         await transition("running", "expired");
         return;
       }
-      const result = await activities.executeLoop({ ...activityScope(), runId: input.runId, resumeApprovedToolCall, resumeExternalEvent });
+      const result = await activities.executeLoop({ ...activityScope(), runId: input.runId, loopStep, resumeApprovedToolCall, resumeExternalEvent });
       resumeApprovedToolCall = undefined;
       resumeExternalEvent = undefined;
       // Temporal delivers signals between activity completions. This check makes a
@@ -103,6 +104,7 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
       if (result.checkpointed) {
         // The activity completed one bounded model/tool slice and persisted its continuation.
         // Schedule the next slice without treating the internal checkpoint as a terminal limit.
+        loopStep += 1;
         continue;
       }
       if (result.status === "awaiting_approval") {
