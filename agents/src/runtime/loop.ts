@@ -1,7 +1,7 @@
 import { ModelGateway } from "../model/gateway";
 import type { ModelCredentials, ModelMessage, ModelRequest, ModelResponse } from "../model/types";
 import { ModelProviderError } from "../model/types";
-import { ToolPolicyError, type ToolApproval, type ToolInvocationContext } from "../tools/types";
+import { ToolPolicyError, type ToolApproval, type ToolInvocationContext, type ToolInvocationResult } from "../tools/types";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
 import { classifyFailureCode } from "./failures";
 import { redactSensitiveValue, redactToolOutput } from "../tools/redaction";
