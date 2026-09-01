@@ -1,10 +1,11 @@
 const DEFAULT_API_BASE_URL = "http://localhost:4000";
 
 export function getApiBaseUrl() {
-  // Browser requests stay same-origin by default. This keeps authenticated calls, including
-  // analytics, on the Next proxy and avoids production CORS/base-URL drift. Set the public flag
-  // to "false" only for an explicitly direct-browser API deployment.
-  if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_USE_API_PROXY !== "false") {
+  // Core owns the authenticated API and explicitly allows the configured app origin. Keep the
+  // direct browser path as the default because the Vercel runtime cannot be assumed to reach the
+  // Railway Core service from every deployment region. Enable the proxy only for deployments
+  // that have verified server-side access to the configured API origin.
+  if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_USE_API_PROXY === "true") {
     return "";
   }
 

@@ -108,12 +108,13 @@ human approval, and provider execution remain separate checks.
 
 - [x] Add provider-aware approved-publish failure messages so provider/media/readiness failures
       are not incorrectly described as connection failures.
-- [x] Make the client analytics gateway use the same-origin proxy by default in browser sessions,
-      preventing production CORS/base-URL configuration from becoming a browser network failure.
+- [x] Keep the client browser API origin configured explicitly by default; Core production CORS
+      permits the app origin, while the Next proxy remains opt-in until server-side reachability
+      is verified for the deployment region.
 - [x] Add regression coverage for provider failure classification.
 - [ ] Add regression coverage for the browser API-base choice.
-- [ ] Verify the analytics request contract against the production reporting service and record the
-      actual remaining 400 cause if one persists.
+- [ ] Verify the analytics request contract against the production reporting service from an
+      authenticated browser session and record the actual remaining failure cause if one persists.
 - [ ] Update the release record with validation, deployment artifacts, telemetry, and rollback.
 
 ## Proposed contract
