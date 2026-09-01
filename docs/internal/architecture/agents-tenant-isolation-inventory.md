@@ -11,7 +11,9 @@ the local migrated database on 2026-08-31 and the production database through th
 container. The schema contains 72 base tables. Migrations 091 through 094, 097, and 100 through 103
 now enable `FORCE ROW LEVEL SECURITY` on 71 runtime tables covering memory, knowledge,
 conversations, messages, runs,
-credentials, channels, effects, approvals, lifecycle sidecars, analytics, and control-plane data.
+credentials, channels, effects, approvals, lifecycle sidecars, analytics, control-plane data. The
+composition release also includes migration 104, which adds durable health columns to the already
+RLS-protected remote MCP provider table.
 `schema_migrations` is the only table without RLS because runtime and application roles have no
 privilege to read or write it; migrations use a separate administrative database connection.
 The three memory/knowledge ownership-presence constraints introduced in migration 057 were
@@ -97,7 +99,7 @@ RLS policies.
 - Before migration 095, the memory and knowledge ownership-presence constraints were `NOT VALID`.
   The production audit found zero invalid rows, and migration 095 now records all three as
   validated. Local legacy fixture data is not production evidence and must not be promoted.
-- Production migrations 091, 092, 093, 094, 097, and 100 through 103 are recorded in
+- Production migrations 091, 092, 093, 094, 097, and 100 through 104 are recorded in
   `schema_migrations`; all 71 runtime tables report both `relrowsecurity = true` and
   `relforcerowsecurity = true`.
   `schema_migrations` reports neither because its privileges are revoked from runtime and
