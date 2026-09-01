@@ -25,15 +25,13 @@ The platform has the right base. It is not a thin chat wrapper. The strongest mo
 bounded agent loop, typed capability registry, approval and external-effect controls, Temporal run
 ownership, channel adapters, versioned agent records, and durable operational evidence.
 
-The platform is not ready to claim that every advertised agent capability works correctly. Four
+The platform is not ready to claim that every advertised agent capability works correctly. Three
 problems need immediate attention:
 
 1. Publishing a user-created agent version does not deploy it to existing installations.
-2. The workflow graph has reproducible correctness failures and advertises an `agent_loop` node
-   that production does not wire.
-3. One retryable Temporal activity executes an entire loop or graph even though its timeout can be
+2. One retryable Temporal activity executes an entire loop or graph even though its timeout can be
    shorter than the work inside it.
-4. Memory has a strong schema but no production conversation-to-memory write and consolidation
+3. Memory has a strong schema but no production conversation-to-memory write and consolidation
    path.
 
 Agent data is logically isolated by organization, definition, installation, conversation, and
@@ -270,40 +268,26 @@ Introduce a version deployment module with a small interface that owns:
 
 ### P0.2 Replace or constrain the workflow graph executor
 
-#### Verified bugs
+#### Historical findings and remaining risks
 
 The graph implementation in
-[`agents/src/workflows/executor.ts`](agents/src/workflows/executor.ts) has the following reproduced
-failures:
+[`agents/src/workflows/executor.ts`](agents/src/workflows/executor.ts) had the following reproduced
+failures. State validation, edge iteration limits, fan-out delta merging, one-time fan-in,
+aggregate usage, graph cancellation, and the bounded `agent_loop` adapter now have regression
+coverage and implementation evidence. The remaining graph risk is:
 
-1. `stateSchema` is parsed but never enforced during execution. A field declared as a number can
-   receive a string and the graph completes.
-2. Edge-level `maxIterations` is parsed and accepted by validation but ignored by the executor. A
-   self-loop configured with a limit of two ran until the global 2,000-step fallback.
-3. Fan-out branches receive complete state snapshots and merge their complete final states with
-   `Object.assign`. A later branch can restore an older value and discard a valid sibling write.
-4. A downstream join node runs once inside each branch instead of once after all branches finish.
-5. The schema advertises `agent_loop`, but production graph execution in
-   [`agents/src/temporal/activities.ts`](agents/src/temporal/activities.ts) does not provide the
-   executor's `agentLoop` dependency. The node fails as unconfigured.
-6. Graph model nodes do not apply the bounded loop's aggregate `maxModelCalls`, total-token,
-   estimated-cost, or wall-clock checks.
-7. Graph completion reports only the last model response's usage rather than aggregate graph
-   usage.
-8. The complete graph executes inside one activity instead of checkpointing completed node work
-   durably.
+1. The complete graph executes inside one activity instead of checkpointing completed node work
+   durably between independently retry-safe Temporal activities.
 
-The current workflow tests pass because they do not exercise these contracts. The completed
-platform plan also overstates the implementation by marking safe fan-out, bounded edges, and
-agent-loop nodes complete.
+The graph contract tests now exercise these repaired behaviors. The activity boundary and full
+worker-kill matrix remain open under P0.3.
 
 #### Immediate containment
 
-Until the executor satisfies its interface:
+Until the remaining activity-boundary work is complete:
 
-- prevent publication of fan-out, fan-in, cycle, and `agent_loop` nodes;
-- allow only the verified linear subset of deterministic, route, model, tool, approval, wait, and
-  handoff nodes;
+- do not publish invalid fan-out, fan-in, or cyclic graphs;
+- keep `agent_loop` bounded by both its node limit and the enclosing graph/run budgets;
 - mark the visual workflow feature as preview if users can still access it;
 - reject graphs whose configured limits cannot be enforced by the current runtime.
 
@@ -343,9 +327,9 @@ Add contract tests for:
 
 - [x] Add regression tests for the reproduced graph bugs and their repaired contracts
       ([workflow-graph.test.ts](agents/test/workflow-graph.test.ts)).
-- [x] Add publication-time containment that rejects unsupported fan-out forms, cycles, and
-      `agent_loop` configurations, while requiring a valid fan-out/fan-in contract
-      ([graph.ts](agents/src/workflows/graph.ts)).
+- [x] Allow validated `agent_loop` nodes only when the hosted executor provides the bounded-loop
+      adapter; retain publication-time rejection for invalid fan-out forms and cycles
+      ([graph.ts](agents/src/workflows/graph.ts), [activities.ts](agents/src/temporal/activities.ts)).
 - [x] Define the graph module interface, durable state format, error model, and compatibility rules
       ([executor.ts](agents/src/workflows/executor.ts), migration 080).
 - [x] Compile `stateSchema` once and validate initial, intermediate, resumed, and final state
@@ -356,7 +340,10 @@ Add contract tests for:
       ([executor.ts](agents/src/workflows/executor.ts)).
 - [x] Implement one-time fan-in after all required branches complete
       ([executor.ts](agents/src/workflows/executor.ts), [workflow-graph.test.ts](agents/test/workflow-graph.test.ts)).
-- [ ] Wire `agent_loop` through the same bounded loop module used by normal hosted runs.
+- [x] Wire `agent_loop` through the same bounded loop module used by normal hosted runs, including
+      node-prefixed operation keys, shared grants/approval/effect hooks, residual graph limits,
+      pause/resume mapping, and aggregate usage ([activities.ts](agents/src/temporal/activities.ts),
+      [executor.ts](agents/src/workflows/executor.ts), [workflow-graph-agent-loop.test.ts](agents/test/workflow-graph-agent-loop.test.ts)).
 - [x] Persist node checkpoints, pause state, branch state, and idempotency keys
       ([workflow-checkpoint-repository.ts](agents/src/db/repositories/workflow-checkpoint-repository.ts),
       migration 080).

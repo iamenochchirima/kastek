@@ -1,5 +1,6 @@
 import { compileWorkflowStateSchema, type WorkflowGraph, type WorkflowStateValidator } from "./graph";
 import { hashToolArguments } from "../tools/registry";
+import { findAuthorizationRequirement, type AgentAuthorizationRequirement } from "../media/contracts";
 
 export interface GraphToolRequest {
   name: string;
@@ -8,9 +9,28 @@ export interface GraphToolRequest {
   approved?: unknown;
 }
 
+export interface GraphAgentLoopRequest {
+  nodeId: string;
+  config: Record<string, unknown>;
+  state: Record<string, unknown>;
+  maxIterations?: number;
+  usage: GraphExecutionUsage;
+  limits?: GraphExecutionLimits;
+}
+
+export interface GraphAgentLoopResult {
+  status: "completed" | "awaiting_approval" | "awaiting_human" | "awaiting_external_event" | "limited" | "failed";
+  output?: unknown;
+  pendingToolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown>; argumentsHash: string }>;
+  waitingFor?: string;
+  error?: string | { message?: string };
+  usage?: Partial<GraphExecutionUsage>;
+  authorizationRequired?: AgentAuthorizationRequirement;
+}
+
 export interface GraphExecutorDependencies {
   model?: (input: { nodeId: string; config: Record<string, unknown>; state: Record<string, unknown> }) => Promise<unknown>;
-  agentLoop?: (input: { nodeId: string; config: Record<string, unknown>; state: Record<string, unknown> }) => Promise<unknown>;
+  agentLoop?: (input: GraphAgentLoopRequest) => Promise<GraphAgentLoopResult>;
   tool?: (input: GraphToolRequest) => Promise<unknown>;
   /** Abort signal from the enclosing Temporal activity, when graph execution is durable. */
   signal?: AbortSignal;
@@ -57,6 +77,7 @@ export interface GraphExecutionResult {
   error?: string;
   usage: GraphExecutionUsage;
   boundaryReached?: boolean;
+  authorizationRequired?: AgentAuthorizationRequirement;
 }
 
 interface GraphExecutionContext {
@@ -126,6 +147,7 @@ export async function executeWorkflowGraph(
     validateState: compileWorkflowStateSchema(graph),
   } satisfies GraphExecutionContext;
   const { usage } = execution;
+  let authorizationRequired: AgentAuthorizationRequirement | undefined;
   let current = graph.entryNodeId;
   try {
     execution.validateState(state);
@@ -185,7 +207,29 @@ export async function executeWorkflowGraph(
         applyConfiguredWrites(state, node, result);
       } else if (node.type === "agent_loop") {
         if (!dependencies.agentLoop) throw new Error(`Agent-loop node is not configured: ${node.id}`);
-        result = await dependencies.agentLoop({ nodeId: node.id, config: node.config, state });
+        const loopResult = await dependencies.agentLoop({ nodeId: node.id, config: node.config, state, maxIterations: node.maxIterations, usage: { ...usage }, limits: dependencies.limits });
+        throwIfGraphCancelled(dependencies.signal);
+        addReportedUsage(usage, loopResult);
+        authorizationRequired = loopResult.authorizationRequired ?? findAuthorizationRequirement(loopResult) ?? authorizationRequired;
+        if (loopResult.status === "awaiting_approval" || loopResult.status === "awaiting_human" || loopResult.status === "awaiting_external_event") {
+          trace.push({ nodeId: node.id, type: node.type, status: loopResult.status });
+          await checkpointNode(dependencies, node.id, node.id, "paused", state, undefined, trace, usage, count);
+          return {
+            status: loopResult.status,
+            state,
+            trace,
+            usage,
+            pausedAt: node.id,
+            ...(loopResult.pendingToolCalls ? { pendingToolCalls: loopResult.pendingToolCalls } : {}),
+            ...(loopResult.waitingFor ? { waitingFor: loopResult.waitingFor } : {}),
+            ...(authorizationRequired ? { authorizationRequired } : {}),
+          };
+        }
+        if (loopResult.status === "failed" || loopResult.status === "limited") {
+          const error = typeof loopResult.error === "string" ? loopResult.error : loopResult.error?.message;
+          throw new Error(error ?? `Workflow agent loop ${loopResult.status}`);
+        }
+        result = graphAgentLoopOutput(loopResult);
         throwIfGraphCancelled(dependencies.signal);
         applyConfiguredWrites(state, node, result);
       } else if (node.type === "approval") {
@@ -375,6 +419,8 @@ function consumeToolCall(usage: GraphExecutionUsage, limits: GraphExecutionLimit
 function addReportedUsage(usage: GraphExecutionUsage, result: unknown): void {
   if (!isRecord(result) || !isRecord(result.usage)) return;
   const reported = result.usage;
+  usage.modelCalls += finiteNonNegative(reported.modelCalls);
+  usage.toolCalls += finiteNonNegative(reported.toolCalls);
   const inputTokens = finiteNonNegative(reported.inputTokens);
   const outputTokens = finiteNonNegative(reported.outputTokens);
   const totalTokens = finiteNonNegative(reported.totalTokens) || inputTokens + outputTokens;
@@ -382,6 +428,12 @@ function addReportedUsage(usage: GraphExecutionUsage, result: unknown): void {
   usage.outputTokens += outputTokens;
   usage.totalTokens += totalTokens;
   usage.estimatedCostUsd += finiteNonNegative(reported.estimatedCostUsd);
+}
+
+function graphAgentLoopOutput(result: GraphAgentLoopResult): unknown {
+  if (Object.prototype.hasOwnProperty.call(result, "output")) return result.output;
+  if (result.authorizationRequired) return { authorizationRequired: result.authorizationRequired };
+  return undefined;
 }
 
 function finiteNonNegative(value: unknown): number {

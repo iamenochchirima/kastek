@@ -33,6 +33,10 @@ Reduce duplicate provider work and make worker-loss recovery explicit while the 
 - [x] Add graph-boundary worker-loss contracts for model, tool, approval, external-event, and
   terminal checkpoints ([workflow-graph-worker-recovery.test.ts](../../../agents/test/workflow-graph-worker-recovery.test.ts));
   activity-level worker-kill coverage remains open.
+- [x] Route configured `agent_loop` nodes through the hosted bounded loop with scoped durable
+  operation keys, shared capability/approval/effect hooks, residual graph limits, and pause/resume
+  checkpoint mapping ([activities.ts](../../../agents/src/temporal/activities.ts),
+  [workflow-graph-agent-loop.test.ts](../../../agents/test/workflow-graph-agent-loop.test.ts)).
 - [ ] Add worker-kill tests around every model, tool, approval, effect, and completion checkpoint.
 - [ ] Split context, model, tool, checkpoint, and completion work into independently retry-safe
   activities behind a controlled rollout.
@@ -114,3 +118,52 @@ cancellation; existing unknown-outcome reconciliation remains authoritative.
 
 Post-release review date: 2026-09-08; review cancellation errors and complete the per-checkpoint
 worker-kill coverage before closing P0.2/P0.3 durability work.
+
+## Follow-up release record: hosted workflow agent-loop adapter
+
+Change: Enable version 1 workflow `agent_loop` nodes through the same bounded runtime used by
+ordinary hosted runs. Add node-prefixed model operation keys, apply residual graph budgets, share
+tool grants and approval/effect lifecycle hooks, and map loop pauses into durable graph
+checkpoints.
+
+Owner: Agent Platform.
+
+Risk: standard.
+
+Affected services and user surfaces: agents-api, agents-worker, configured workflow execution,
+workflow editor agent-loop nodes, approvals, handoffs, external-event waits, model-call ledger,
+tool/effect records, and workflow checkpoints. MCP-Gateway is deployed with the shared artifact
+but has no direct execution-path change.
+
+Platform release version or release ID: record the exact commit and Railway deployment IDs after
+production promotion.
+
+API/schema/migration changes: no API, database schema, or migration changes. The version 1 graph
+contract now has a supported `agent_loop` execution path; existing invalid graph rejection rules
+remain in force.
+
+Feature flag or rollout method: existing agent execution and effect controls remain authoritative;
+no new flag was added. Rollback is by redeploying the prior application artifact.
+
+Analytics events and success metrics: no new customer analytics event. Existing model-call,
+tool-invocation, approval, workflow checkpoint, activity-attempt, budget, and reconciliation
+signals remain the source of execution evidence; review workflow loop completion, pause, failure,
+and budget-limit rates.
+
+Logs, metrics, dashboards, and alerts: no Collector configuration change and no new exporter.
+Existing bounded activity heartbeat, workflow, model, tool, approval, and reconciliation telemetry
+is reused; no new dashboard was required for this adapter.
+
+User, API, internal, and operational documentation: updated the architecture reference, platform
+audit, and this durability plan. Public workflow schema documentation remains follow-up work.
+
+Validation evidence: targeted graph, agent-loop, cancellation, and worker-loss tests plus Agents
+TypeScript and build checks pass locally. Full suite and production deployment evidence are
+pending.
+
+Rollback or disable plan: redeploy the previous known-good commit. Disable agent execution or
+effect execution through existing controls if an operational stop is needed. No migration rollback
+is required.
+
+Post-release review date: 2026-09-08; review agent-loop completion, pause/resume, budget, and
+duplicate-operation metrics before closing the remaining graph and activity-decomposition work.

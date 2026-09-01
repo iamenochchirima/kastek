@@ -103,6 +103,28 @@ Management clients can deploy a hosted installation explicitly with `POST
 /v1/installations/{installationId}/deploy` and `{ "versionId": "...", "expectedVersionId": "..." }`.
 The expected version is optional, but prevents overwriting a concurrent deployment when supplied.
 
+### Workflow agent loops
+
+Version 1 workflow graphs support `agent_loop` nodes. The node runs within the hosted agent's
+scoped context and uses the installation's model, granted capabilities, approval policy, run
+budget, and effect controls. Set `maxIterations` on the node to bound its loop and list the state
+path that should receive its result in `writes` (the workflow editor defaults this to `output`).
+
+```json
+{
+  "id": "draft",
+  "type": "agent_loop",
+  "config": { "instruction": "Draft the response from the supplied context." },
+  "maxIterations": 3,
+  "reads": ["input"],
+  "writes": ["output"]
+}
+```
+
+Approval, human handoff, and external-event pauses are stored in the workflow checkpoint and
+resume at the same node. The enclosing graph limits still apply to model calls, tool calls,
+tokens, estimated cost, and wall time.
+
 ## Access and health
 
 Installation mode, grants, transport scopes, resource/connector constraints, provider readiness, and

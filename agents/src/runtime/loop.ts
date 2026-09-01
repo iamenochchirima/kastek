@@ -36,6 +36,8 @@ export interface AgentLoopInput {
   toolContext: ToolInvocationContext;
   grantedTools: ReadonlySet<string>;
   signal?: AbortSignal;
+  /** Prefix used to keep durable operation keys unique across hosted loop contexts. */
+  operationKeyPrefix?: string;
   limits?: Partial<AgentLoopLimits>;
   onEvent?: (event: AgentLoopEvent) => Promise<void> | void;
   /** Claims the operation before a provider call and prevents unsafe replay after worker loss. */
@@ -241,7 +243,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         let operationKey: string | undefined;
         try {
           await input.beforeModelCall?.();
-          operationKey = `model:${iteration}:${attemptIndex}`;
+          operationKey = `${input.operationKeyPrefix ?? "model"}:${iteration}:${attemptIndex}`;
           lastModelOperationKey = operationKey;
           const request: ModelRequest = {
             ...attempt.model,

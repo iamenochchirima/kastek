@@ -63,9 +63,6 @@ export function validateWorkflowGraph(input: unknown): GraphValidationResult {
     if (node.type === "fan_out" && typeof node.config.fanInNodeId !== "string") {
       throw new Error(`Fan-out node requires fanInNodeId: ${node.id}`);
     }
-    if (node.type === "agent_loop") {
-      throw new Error(`Workflow node type is not supported until durable execution semantics are implemented: ${node.type}`);
-    }
   }
   for (const node of graph.nodes) {
     if (node.type === "fan_out") {

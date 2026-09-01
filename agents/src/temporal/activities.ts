@@ -11,7 +11,7 @@ import type { AgentRunActivities } from "./contracts";
 import { ModelGateway } from "../model/gateway";
 import { EnvironmentCredentialResolver, VaultCredentialResolver, type CredentialResolver } from "../model/credentials";
 import type { ModelPricing, ModelProvider } from "../model/types";
-import { runBoundedAgentLoop, type AgentLoopResult, type ModelCreditReservation } from "../runtime/loop";
+import { runBoundedAgentLoop, type AgentLoopLimits, type AgentLoopResult, type ModelCreditReservation } from "../runtime/loop";
 import type { ModelCreditPricing } from "../model/credit-pricing";
 import { actualModelCallCredits, estimateModelCallCredits, estimatePromptTokens, shouldChargeModelCredits } from "../model/credit-pricing";
 import { buildAgentContext } from "../runtime/context";
@@ -36,11 +36,11 @@ import { ApprovalRepository } from "../db/repositories/approval-repository";
 import { InstallationGrantRepository } from "../db/repositories/installation-grant-repository";
 import { authorizeInstallationCapability } from "../capabilities/authorization";
 import { validateWorkflowGraph, type WorkflowGraph } from "../workflows/graph";
-import { executeWorkflowGraph, type GraphExecutionLimits, type GraphExecutionUsage } from "../workflows/executor";
+import { executeWorkflowGraph, type GraphAgentLoopRequest, type GraphAgentLoopResult, type GraphExecutionLimits, type GraphExecutionUsage } from "../workflows/executor";
 import { WorkflowStateRepository } from "../db/repositories/workflow-state-repository";
 import { WorkflowCheckpointRepository } from "../db/repositories/workflow-checkpoint-repository";
 import { redactSensitiveValue, redactToolOutput } from "../tools/redaction";
-import { ModelProviderError, type ModelCredentials, type ModelRequest, type ModelResponse } from "../model/types";
+import { ModelProviderError, type ModelCredentials, type ModelMessage, type ModelRequest, type ModelResponse } from "../model/types";
 import { activityInfo, cancellationSignal, heartbeat } from "@temporalio/activity";
 import { buildGroundingProvenance } from "../runtime/provenance";
 import type { ToolInvocationContext } from "../tools/types";
@@ -2718,6 +2718,281 @@ async function executeLoopForRun(
       knowledgeMatchCount: knowledgeMatches.length,
     },
   });
+  const approvedResourceSnapshot = resumeApprovedToolCall?.approval.resourceSnapshot
+    ?? (resumeApprovedToolCall ? (await approvals.getForRun(run.organization_id, run.id))?.resource_snapshot : undefined);
+  const toolSteps = new Map<string, string>();
+  const startedExternalEffects = new Set<string>();
+  const usedTools = new Set<string>();
+  const unavailableTools = new Set<string>();
+  const runHostedAgentLoop = async (options: {
+    messages: ModelMessage[];
+    operationKeyPrefix?: string;
+    model?: { temperature?: number; maxTokens?: number };
+    limits?: Partial<AgentLoopLimits>;
+  }): Promise<AgentLoopResult> => withActivityHeartbeat(
+    { phase: options.operationKeyPrefix ? "workflow.agent_loop" : "agent.loop" },
+    () => runBoundedAgentLoop({
+      model: {
+        provider,
+        model,
+        temperature: options.model?.temperature ?? (typeof configuration.temperature === "number" ? configuration.temperature : undefined),
+        maxTokens: options.model?.maxTokens,
+      },
+      messages: options.messages,
+      credentials: modelCredentials,
+      fallbackModels,
+      gateway,
+      tools,
+      grantedTools: allowedTools,
+      toolContext: modelToolContext,
+      signal: activitySignal,
+      operationKeyPrefix: options.operationKeyPrefix,
+      limits: {
+        maxIterations: typeof configuration.maxIterations === "number" ? configuration.maxIterations : undefined,
+        maxToolCalls: runBudgetLimits.maxToolCalls,
+        maxTotalTokens: runBudgetLimits.maxTotalTokens,
+        maxEstimatedCostUsd: runBudgetLimits.maxEstimatedCostUsd,
+        maxWallTimeMs: typeof configuration.maxWallTimeMs === "number" ? configuration.maxWallTimeMs : undefined,
+        ...options.limits,
+      },
+      reserveRunBudget: async ({ request, reservationKey }) => reserveRunModelBudget({ repository: runBudgets, organizationId: run.organization_id, runId: run.id, reservationKey, gateway, request }),
+      consumeRunToolCall: () => consumeRunToolBudget(runBudgets, { organizationId: run.organization_id, runId: run.id }),
+      prepareModelCall: async ({ operationKey, model: attemptModel, credentials: attemptCredentials }) => modelCalls.prepare({
+        organizationId: run.organization_id,
+        runId: run.id,
+        operationKey,
+        provider: attemptModel.provider,
+        model: attemptModel.model,
+        fundingSource: attemptCredentials.fundingSource,
+        credentialReference: attemptCredentials.credentialReference,
+      }),
+      persistModelResponse: async ({ operationKey, response, attempt }) => modelCalls.recordCompleted({
+        organizationId: run.organization_id,
+        runId: run.id,
+        operationKey,
+        provider: response.provider,
+        model: response.model,
+        fundingSource: attempt.credentials.fundingSource,
+        credentialReference: attempt.credentials.credentialReference,
+        response,
+        correlationId: run.correlation_id,
+      }),
+      persistModelError: async ({ operationKey, model: attemptModel, credentials: attemptCredentials, error }) => modelCalls.recordFailed({
+        organizationId: run.organization_id,
+        runId: run.id,
+        operationKey,
+        provider: attemptModel.provider,
+        model: attemptModel.model,
+        fundingSource: attemptCredentials.fundingSource,
+        error,
+        correlationId: run.correlation_id,
+      }),
+      reserveModelCall: async ({ request, credentials: attemptCredentials, operationKey }) => reserveModelCredits({
+        billingMode: creditBillingMode,
+        gateway,
+        modelPricing,
+        creditPricing,
+        coreClient,
+        context: modelToolContext,
+        runId: run.id,
+        operationKey,
+        request,
+        credentials: attemptCredentials,
+      }),
+      beforeToolInvoke: async (invocation) => {
+        const manifest = tools.get(invocation.name);
+        if (manifest?.requiresApproval && !invocation.approved) return;
+        await assertCurrentCapabilityPolicy({
+          organizationId: run.organization_id,
+          installationId: run.installation_id,
+          name: invocation.name,
+          argumentsValue: invocation.arguments,
+          grantedTools: allowedTools,
+          tools,
+          installationGrants,
+          approved: invocation.approved,
+        });
+      },
+      resumeApprovedToolCall,
+      onEvent: async (event) => {
+        activityHeartbeat({ phase: event.type, iteration: event.iteration });
+        await runs.appendEvent({
+          organizationId: run.organization_id,
+          runId: run.id,
+          installationId: run.installation_id,
+          eventType: `agent.${event.type}`,
+          payload: event.payload,
+        });
+      },
+      onToolProposed: async (proposal) => {
+        usedTools.add(proposal.name);
+        const resourceSnapshot = proposal.requiresApproval && approvedResourceSnapshot
+          ? approvedResourceSnapshot
+          : await buildApprovalResourceSnapshotFromCore(coreClient, {
+            organizationId: run.organization_id,
+            agentId: run.agent_definition_id,
+            agentVersionId: run.agent_version_id,
+            installationId: run.installation_id,
+            runId: run.id,
+            actorId: run.created_by,
+            correlationId: run.correlation_id,
+          }, proposal.name, proposal.arguments);
+        await toolInvocations.recordProposal({
+          organizationId: run.organization_id,
+          runId: run.id,
+          providerToolCallId: proposal.toolCallId,
+          sequenceNumber: proposal.sequenceNumber,
+          toolName: proposal.name,
+          toolVersion: proposal.version,
+          riskClass: proposal.riskClass,
+          argumentsHash: proposal.argumentsHash,
+          arguments: proposal.arguments,
+          requiresApproval: proposal.requiresApproval,
+        });
+        if (proposal.requiresApproval) {
+          await approvals.createPending({
+            organizationId: run.organization_id,
+            installationId: run.installation_id,
+            runId: run.id,
+            providerToolCallId: proposal.toolCallId,
+            capability: proposal.name,
+            capabilityVersion: proposal.version,
+            argumentsHash: proposal.argumentsHash,
+            resourceSnapshot,
+            previewRevision: proposal.argumentsHash,
+            policyRevision: "v1",
+            permittedEffectKey: `${run.id}:${proposal.toolCallId}`,
+            expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+          });
+        }
+        if (proposal.riskClass === "external-effect") {
+          await effectReceipts.reserve({
+            organizationId: run.organization_id,
+            installationId: run.installation_id,
+            runId: run.id,
+            providerToolCallId: proposal.toolCallId,
+            capability: proposal.name,
+            capabilityVersion: proposal.version,
+            argumentsHash: proposal.argumentsHash,
+            idempotencyKey: `${run.id}:${proposal.name}:${proposal.argumentsHash}`,
+          });
+        }
+        const step = await runSteps.startStep({ runId: run.id, organizationId: run.organization_id, stepType: "tool", input: { toolCallId: proposal.toolCallId, name: proposal.name, argumentsHash: proposal.argumentsHash } });
+        toolSteps.set(proposal.toolCallId, step.id);
+      },
+      onToolExecuting: async (execution) => {
+        if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
+        const manifest = tools.get(execution.name);
+        const resourceSnapshot = execution.requiresApproval && approvedResourceSnapshot
+          ? approvedResourceSnapshot
+          : await buildApprovalResourceSnapshotFromCore(coreClient, {
+            organizationId: run.organization_id,
+            agentId: run.agent_definition_id,
+            agentVersionId: run.agent_version_id,
+            installationId: run.installation_id,
+            runId: run.id,
+            actorId: run.created_by,
+            correlationId: run.correlation_id,
+          }, execution.name, execution.arguments);
+        await assertCurrentCapabilityPolicy({
+          organizationId: run.organization_id,
+          installationId: run.installation_id,
+          name: execution.name,
+          argumentsValue: execution.arguments,
+          grantedTools: allowedTools,
+          tools,
+          installationGrants,
+          approved: execution.requiresApproval,
+        });
+        if (manifest?.riskClass === "external-effect") {
+          if (!(await controls.isFeatureEnabled(run.organization_id, "effect_execution_enabled", run.installation_id))) throw new Error("AGENT_EFFECT_FLAG_DISABLED");
+          if (await controls.isHeld({ organizationId: run.organization_id, installationId: run.installation_id, runId: run.id, holdType: "effects" })) throw new Error("AGENT_EFFECT_HOLD_ACTIVE");
+        }
+        if (execution.requiresApproval) {
+          await approvals.consumeAndStartEffect({
+            organizationId: run.organization_id,
+            installationId: run.installation_id,
+            runId: run.id,
+            providerToolCallId: execution.toolCallId,
+            capability: execution.name,
+            capabilityVersion: execution.version,
+            argumentsHash: execution.argumentsHash,
+            resourceSnapshot,
+            previewRevision: execution.argumentsHash,
+            policyRevision: "v1",
+            permittedEffectKey: `${run.id}:${execution.toolCallId}`,
+            effectIdempotencyKey: `${run.id}:${execution.name}:${execution.argumentsHash}`,
+          });
+        } else {
+          await effectReceipts.markExecutingByKey(run.organization_id, `${run.id}:${execution.name}:${execution.argumentsHash}`);
+        }
+        startedExternalEffects.add(execution.toolCallId);
+      },
+      onToolCompleted: async (result) => {
+        await toolInvocations.recordCompleted({
+          runId: run.id,
+          providerToolCallId: result.toolCallId,
+          output: result.output,
+          latencyMs: result.latencyMs,
+          effectId: result.effectId,
+        });
+        if (result.effectId) await effectReceipts.markSucceededByKey(run.organization_id, `${run.id}:${result.name}:${result.argumentsHash}`, result.output);
+        const stepId = toolSteps.get(result.toolCallId);
+        if (stepId) await runSteps.finishStep({ stepId, status: "completed", output: { latencyMs: result.latencyMs } });
+      },
+      onToolFailed: async (failure) => {
+        if (["TOOL_NOT_FOUND", "TOOL_NOT_GRANTED", "CAPABILITY_NOT_GRANTED", "UNAVAILABLE", "NOT_CONFIGURED"].some((code) => failure.error.code.includes(code))) unavailableTools.add(failure.name);
+        await toolInvocations.recordFailed({
+          runId: run.id,
+          providerToolCallId: failure.toolCallId,
+          error: failure.error,
+        });
+        const failedTool = tools.get(failure.name);
+        if (failedTool?.riskClass === "external-effect" && failure.argumentsHash) {
+          const effectKey = `${run.id}:${failure.name}:${failure.argumentsHash}`;
+          if (startedExternalEffects.has(failure.toolCallId)) {
+            await effectReceipts.markUnknownByKey(run.organization_id, effectKey, failure.error);
+          } else {
+            await effectReceipts.markNotExecutedByKey(run.organization_id, effectKey, failure.error);
+          }
+        }
+        const stepId = toolSteps.get(failure.toolCallId);
+        if (stepId) await runSteps.finishStep({ stepId, status: "failed", error: failure.error });
+      },
+      onModelResponse: async (response, attempt, operationKey) => {
+        const attemptCredentials = attempt?.credentials ?? modelCredentials;
+        await modelCalls.recordCompleted({
+          organizationId: run.organization_id,
+          runId: run.id,
+          operationKey,
+          provider: response.provider,
+          model: response.model,
+          fundingSource: attemptCredentials.fundingSource,
+          credentialReference: attemptCredentials.credentialReference,
+          response,
+          correlationId: run.correlation_id,
+        });
+        const step = await runSteps.startStep({ runId: run.id, organizationId: run.organization_id, stepType: "model", input: { provider: response.provider, model: response.model } });
+        await runSteps.finishStep({ stepId: step.id, status: "completed", output: { totalTokens: response.usage.totalTokens, finishReason: response.finishReason, latencyMs: response.latencyMs } });
+      },
+      onModelError: async (error, attempt, operationKey) => {
+        const attemptModel = attempt?.model ?? { provider, model };
+        const attemptCredentials = attempt?.credentials ?? modelCredentials;
+        await modelCalls.recordFailed({
+          organizationId: run.organization_id,
+          runId: run.id,
+          operationKey,
+          provider: attemptModel.provider,
+          model: attemptModel.model,
+          fundingSource: attemptCredentials.fundingSource,
+          error,
+          correlationId: run.correlation_id,
+        });
+        const step = await runSteps.startStep({ runId: run.id, organizationId: run.organization_id, stepType: "model", input: { provider: attemptModel.provider, model: attemptModel.model } });
+        await runSteps.finishStep({ stepId: step.id, status: "failed", error });
+      },
+    }),
+  );
   if (configuration.workflow && typeof configuration.workflow === "object" && !Array.isArray(configuration.workflow)) {
     const workflowResult = await executeConfiguredWorkflow({
       run,
@@ -2750,6 +3025,43 @@ async function executeLoopForRun(
       coreClient,
       modelToolContext,
       conversationActions,
+      runAgentLoop: async ({ nodeId, config, state, maxIterations, usage, limits }) => {
+        const instruction = typeof config.instruction === "string" && config.instruction.trim()
+          ? config.instruction
+          : "Continue the workflow.";
+        const configuredIterations = typeof maxIterations === "number" && Number.isFinite(maxIterations)
+          ? Math.max(0, Math.floor(maxIterations))
+          : 8;
+        const remainingModelCalls = limits?.maxModelCalls === undefined
+          ? configuredIterations
+          : Math.max(0, limits.maxModelCalls - usage.modelCalls);
+        const loopResult = await runHostedAgentLoop({
+          messages: [...context.messages, { role: "user", content: JSON.stringify({ nodeId, instruction, state }) }],
+          operationKeyPrefix: `workflow:agent-loop:${nodeId}`,
+          model: {
+            maxTokens: typeof config.maxTokens === "number" ? Math.max(1, Math.min(8_000, Math.floor(config.maxTokens))) : undefined,
+            temperature: typeof config.temperature === "number" ? config.temperature : undefined,
+          },
+          limits: {
+            maxIterations: Math.min(configuredIterations, remainingModelCalls),
+            maxToolCalls: limits?.maxToolCalls === undefined ? undefined : Math.max(0, limits.maxToolCalls - usage.toolCalls),
+            maxTotalTokens: limits?.maxTotalTokens === undefined ? undefined : Math.max(0, limits.maxTotalTokens - usage.totalTokens),
+            maxEstimatedCostUsd: limits?.maxEstimatedCostUsd === undefined ? undefined : Math.max(0, limits.maxEstimatedCostUsd - usage.estimatedCostUsd),
+            maxWallTimeMs: limits?.maxWallTimeMs,
+          },
+        });
+        const output = loopResult.completionResponse
+          ?? loopResult.completionMessage
+          ?? loopResult.response?.message.content;
+        return {
+          status: loopResult.status,
+          ...(output === undefined ? {} : { output }),
+          ...(loopResult.pendingToolCalls ? { pendingToolCalls: loopResult.pendingToolCalls } : {}),
+          ...(loopResult.waitingFor ? { waitingFor: loopResult.waitingFor } : {}),
+          ...(loopResult.error ? { error: loopResult.error } : {}),
+          usage: { ...loopResult.usage, modelCalls: loopResult.iterations, toolCalls: loopResult.toolCalls },
+        };
+      },
       limits: {
         maxSteps: restrictiveLimit(configuration.maxIterations) ?? 8,
         maxModelCalls: runBudgetLimits.maxModelCalls,
@@ -2761,6 +3073,7 @@ async function executeLoopForRun(
     });
     return { ...workflowResult, usage: await modelCalls.usageForRun(run.organization_id, run.id) };
   }
+  {
   const approvedResourceSnapshot = resumeApprovedToolCall?.approval.resourceSnapshot
     ?? (resumeApprovedToolCall ? (await approvals.getForRun(run.organization_id, run.id))?.resource_snapshot : undefined);
   const toolSteps = new Map<string, string>();
@@ -3032,6 +3345,7 @@ async function executeLoopForRun(
   });
   loopResult.usage = await modelCalls.usageForRun(run.organization_id, run.id);
   return loopResult;
+  }
 }
 
 type ConfiguredWorkflowRun = Awaited<ReturnType<RunRepository["getRuntimeRun"]>> & object;
@@ -3065,6 +3379,7 @@ async function executeConfiguredWorkflow(input: {
   coreClient?: KasitekCoreReadClient;
   modelToolContext: ToolInvocationContext;
   conversationActions: ConversationActionService;
+  runAgentLoop: (input: GraphAgentLoopRequest) => Promise<GraphAgentLoopResult>;
   limits: GraphExecutionLimits;
   resumeApprovedToolCall?: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeApprovedToolCall"];
   resumeExternalEvent?: Parameters<AgentRunActivities["executeLoop"]>[0]["resumeExternalEvent"];
@@ -3316,6 +3631,7 @@ async function executeConfiguredWorkflow(input: {
       activityHeartbeat({ phase: "workflow.model.completed", nodeId });
       return { output: response.message.content, text: response.message.content, usage: { ...response.usage, estimatedCostUsd: response.usage.estimatedCostUsd ?? 0 } };
     },
+    agentLoop: input.runAgentLoop,
     tool: executeTool,
     resumeApprovedToolCall: input.resumeApprovedToolCall,
     resumeExternalEvent: input.resumeExternalEvent,

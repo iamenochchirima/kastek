@@ -127,12 +127,13 @@ describe("workflow graph validation", () => {
       nodes: [{ id: "fan", type: "fan_out", parallelGroup: "work", config: { fanInNodeId: "join" } }, { id: "join", type: "fan_in" }],
       edges: [{ from: "fan", to: "join" }],
     })).toThrow(/at least two branches/);
-    expect(() => validateWorkflowGraph({
+    const agentLoop = validateWorkflowGraph({
       version: 1,
       entryNodeId: "loop",
       nodes: [{ id: "loop", type: "agent_loop" }],
       edges: [],
-    })).toThrow(/not supported/);
+    });
+    expect(agentLoop.graph.nodes[0]?.type).toBe("agent_loop");
   });
 
   it("validates declared state types after every node", async () => {

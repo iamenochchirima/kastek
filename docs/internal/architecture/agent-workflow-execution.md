@@ -12,11 +12,18 @@ budgets, and workflow node checkpoints.
 
 ## Supported graph contract
 
-The graph validator accepts version 1 graphs, validates node and edge references, rejects cycles,
-and rejects `agent_loop` until its durable semantics are complete. Fan-out graphs must name a
-fan-in node, have at least two branches, and route every branch to that join. The executor runs
-those branches against a shared run budget, merges only changed state paths, rejects overlapping
-writes, and executes the fan-in node once after all branches reach it.
+The graph validator accepts version 1 graphs, validates node and edge references, and rejects
+cycles. Fan-out graphs must name a fan-in node, have at least two branches, and route every
+branch to that join. The executor runs those branches against a shared run budget, merges only
+changed state paths, rejects overlapping writes, and executes the fan-in node once after all
+branches reach it.
+
+`agent_loop` nodes are hosted through the same bounded loop runtime as ordinary runs. The node
+instruction and state are added to the existing scoped context, model operations use a node-
+prefixed durable operation key, tool grants/approval/effect policy use the normal hooks, and the
+node's loop usage is added to the graph aggregate. Node `maxIterations` and the remaining graph
+model/tool/token/cost limits are applied before the inner loop starts. Approval, handoff, and
+external-event results become graph checkpoints and resume at the same node.
 
 Supported execution records validate state at the initial, intermediate, resumed, and final
 boundaries. Node completion and pause checkpoints include state, trace, usage, next-node identity,
