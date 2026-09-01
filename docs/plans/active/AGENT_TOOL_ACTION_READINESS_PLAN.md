@@ -240,6 +240,44 @@ The contract must support both:
 - A true provider HTTP smoke test requires non-sensitive test assets and valid environment
   credentials; fixtures can prove the no-call and error-normalization paths without exposing them.
 
+## Release record: social draft destination normalization
+
+Change: Preserve the selected provider account when a content draft arrives with a combined label
+such as `Instagram @kasiteklabs`. The Agent Platform now normalizes it into a canonical platform
+key and `channelSelections`; Core applies the same defense before provider dispatch.
+
+Owner: Agent Platform and Core integrations.
+
+Risk: medium; additive request normalization with no data migration.
+
+Affected services and user surfaces: agents-api, agents-worker, MCP Gateway, kasitek-core, and
+WhatsApp-originated social content drafts.
+
+Platform release version or release ID: commit `50812fc7` (`fix: preserve agent content destinations`).
+Railway production deployments: Agents API `2f03619b-2222-4c37-8390-e912c4f0c543`, Agents Worker
+`12c0b28e-faa9-4beb-9329-a57785778b3a`, MCP Gateway `ca0518cd-ff41-4b5b-8389-f21fbf0ed3ba`, and
+Core `95d48dc9-3dee-4968-a2e6-cfe82a60e171`; all reached `SUCCESS`.
+
+API/schema/migration changes: internal content-tool request normalization only; no database schema
+or migration change.
+
+Feature flag or rollout method: no flag; deployed directly to the four affected production
+services. Rollback is by redeploying the previous successful artifacts.
+
+Analytics, logging, and monitoring: no new event or sensitive logging; existing tool failure and
+service startup logs remain the operational evidence.
+
+Documentation: updated the generated capability contract and public agent connection guide.
+
+Validation evidence: 110 Agent test files passed with 656 tests passed and 84 skipped; focused
+content/Core contract tests passed; Core adapter tests passed; Agent build passed; Rust formatting
+and diff checks passed; public Core `/health` and MCP `/health/ready` returned HTTP 200. A real
+controlled WhatsApp image-to-agent smoke test remains pending because it requires a user-sent test
+message.
+
+Rollback or disable plan: redeploy the previous successful Agents and Core artifacts; no records
+need to be deleted or rewritten.
+
 ## Release record
 
 Change: Universal provider/action readiness preflight and terminal remediation for agent tools.
