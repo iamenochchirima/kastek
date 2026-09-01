@@ -81,7 +81,7 @@ import {
   whatsappPhoneAllowed,
 } from "../channels/access";
 import { DiscordBotClient } from "../channels/discord-client";
-import { DiscordChannelAdapter } from "../channels/discord";
+import { DiscordChannelAdapter, discordMediaKind, normalizeDiscordMimeType } from "../channels/discord";
 import { channelSecretsEqual, hashChannelSecret } from "../db/channel-secret-crypto";
 import {
   clientSupportsExtension,
@@ -104,6 +104,7 @@ const MCP_TOOL_LIST_CACHE_TTL_MS = 30_000;
 const MCP_TASK_TTL_MS = 86_400_000;
 const MCP_TASK_POLL_INTERVAL_MS = 2_000;
 const MCP_MAX_RESPONSE_BYTES = 1024 * 1024;
+const MAX_DISCORD_MEDIA_BYTES = 25 * 1024 * 1024;
 import { ConnectorRegistry } from "../connectors";
 import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repository";
 import { ApprovalRepository } from "../db/repositories/approval-repository";
@@ -1347,17 +1348,25 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       let queuedAudio = false;
       const attachmentId = typeof messageContent.attachmentId === "string" ? messageContent.attachmentId : undefined;
       const attachmentUrl = typeof messageContent.url === "string" ? messageContent.url : undefined;
-      const mimeType = typeof messageContent.mimeType === "string" ? normalizeAudioMimeType(messageContent.mimeType) : undefined;
-      const isAudio = messageContent.mediaKind === "audio"
-        || mimeType?.startsWith("audio/") === true
-        || mimeType === "application/ogg";
-      if (event.message.messageType === "attachment" && isAudio) {
+      const mimeType = typeof messageContent.mimeType === "string"
+        ? normalizeDiscordMimeType({ mimeType: messageContent.mimeType, fileName: messageContent.fileName })
+        : undefined;
+      const declaredMediaKind = typeof messageContent.mediaKind === "string" && ["image", "video", "audio"].includes(messageContent.mediaKind)
+        ? messageContent.mediaKind as "image" | "video" | "audio"
+        : undefined;
+      const mediaKind = discordMediaKind(mimeType ?? "") ?? declaredMediaKind;
+      const isAudio = mediaKind === "audio";
+      if (event.message.messageType === "attachment" && attachmentId) {
+        if (!mediaKind) {
+          if (credential) await discordClient.sendMessage(credential, event.externalConversationId, "I can process image, video, and audio attachments. Please send the file in one of those formats.").catch(() => undefined);
+          return reply.code(200).send({ ok: true, media: "unsupported" });
+        }
         if (!credential || !attachmentUrl) {
-          if (credential) await discordClient.sendMessage(credential, event.externalConversationId, "I couldn't access that audio. Please try sending it again.").catch(() => undefined);
+          if (credential) await discordClient.sendMessage(credential, event.externalConversationId, `I couldn't access that ${mediaKind}. Please try sending it again.`).catch(() => undefined);
           return reply.code(200).send({ ok: true, media: "failed" });
         }
         try {
-          const downloaded = await discordClient.downloadAttachment(credential, attachmentUrl, MAX_AUDIO_FILE_BYTES);
+          const downloaded = await discordClient.downloadAttachment(credential, attachmentUrl, isAudio ? MAX_AUDIO_FILE_BYTES : MAX_DISCORD_MEDIA_BYTES);
           const uploaded = await coreClient.uploadContentMedia(
             {
               organizationId: connection.organization_id,
@@ -1368,7 +1377,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
             },
             {
               bytes: downloaded.bytes,
-              mimeType: mimeType ?? "audio/mpeg",
+              mimeType: mimeType ?? (mediaKind === "image" ? "image/png" : mediaKind === "video" ? "video/mp4" : "audio/mpeg"),
               fileName: typeof messageContent.fileName === "string" ? messageContent.fileName : undefined,
               source: "discord",
               sourceKey: `discord:${connection.id}:${event.message.providerMessageId ?? event.providerEventId}:${attachmentId ?? "audio"}`,
@@ -1378,14 +1387,15 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           messageContent = {
             ...messageContent,
             assetId: uploaded.asset.id,
-            mediaKind: "audio",
+            mimeType: uploaded.asset.mimeType,
+            mediaKind: uploaded.asset.kind.toLowerCase(),
             text: caption,
-            transcription: { status: "queued", provider: "elevenlabs" },
+            ...(isAudio ? { transcription: { status: "queued", provider: "elevenlabs" } } : {}),
           };
-          queuedAudio = true;
+          queuedAudio = isAudio;
         } catch (error) {
-          request.log.warn({ code: error instanceof AudioTranscriptionError ? error.code : undefined, error: error instanceof Error ? error.message : "audio ingestion failed" }, "Discord audio ingestion failed");
-          await discordClient.sendMessage(credential, event.externalConversationId, "I couldn't transcribe that audio. Please try sending it again.").catch(() => undefined);
+          request.log.warn({ code: error instanceof AudioTranscriptionError ? error.code : undefined, error: error instanceof Error ? error.message : "media ingestion failed", mediaKind }, isAudio ? "Discord audio ingestion failed" : `Discord ${mediaKind} ingestion failed`);
+          await discordClient.sendMessage(credential, event.externalConversationId, isAudio ? "I couldn't transcribe that audio. Please try sending it again." : `I couldn't process that ${mediaKind}. Please try sending it again.`).catch(() => undefined);
           return reply.code(200).send({ ok: true, media: "failed" });
         }
       }
