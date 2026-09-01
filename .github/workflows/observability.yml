@@ -158,6 +158,7 @@ jobs:
               -v "$PWD/infra/observability/otel-collector:/work:ro" \
               otel/opentelemetry-collector-contrib:0.158.0 \
               validate --config="/work/$config"
+          done
 
   local-e2e:
     name: Local telemetry signal smoke test
@@ -260,18 +261,27 @@ jobs:
 
       - name: Verify Collector received both service signals
         run: |
-          sleep 2
-          docker logs kasitek-otel-collector-ci 2>&1 | tee collector.log
-          grep -q "kasitek-observability-smoke" collector.log
-          grep -q "kasitek-agents" collector.log
-          grep -q "ci-local-smoke" collector.log
-          grep -q "kasitek.local.smoke.count" collector.log
-          grep -qi 'trace id' collector.log
-          grep -qi 'span id' collector.log
-          if grep -q 'operation.invalid.event' collector.log; then
-            echo 'Collector received an invalid operational event name.'
-            exit 1
-          fi
+          set -euo pipefail
+          for attempt in $(seq 1 15); do
+            docker logs kasitek-otel-collector-ci > collector.log 2>&1 || true
+            if grep -q "kasitek-observability-smoke" collector.log \
+              && grep -q "kasitek-agents" collector.log \
+              && grep -q "ci-local-smoke" collector.log \
+              && grep -q "kasitek.local.smoke.count" collector.log \
+              && grep -qi 'trace id' collector.log \
+              && grep -qi 'span id' collector.log; then
+              cat collector.log
+              if grep -q 'operation.invalid.event' collector.log; then
+                echo 'Collector received an invalid operational event name.'
+                exit 1
+              fi
+              exit 0
+            fi
+            sleep 1
+          done
+          cat collector.log
+          echo 'Collector did not receive all expected service signals before the timeout.'
+          exit 1
 
       - name: Stop local Collector
         if: always()
