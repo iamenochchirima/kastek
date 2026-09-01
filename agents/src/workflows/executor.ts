@@ -12,6 +12,8 @@ export interface GraphExecutorDependencies {
   model?: (input: { nodeId: string; config: Record<string, unknown>; state: Record<string, unknown> }) => Promise<unknown>;
   agentLoop?: (input: { nodeId: string; config: Record<string, unknown>; state: Record<string, unknown> }) => Promise<unknown>;
   tool?: (input: GraphToolRequest) => Promise<unknown>;
+  /** Abort signal from the enclosing Temporal activity, when graph execution is durable. */
+  signal?: AbortSignal;
   resumeApprovedToolCall?: { id: string; name: string; arguments: Record<string, unknown>; approval: unknown };
   resumeExternalEvent?: { key: string; payload: Record<string, unknown> };
   limits?: GraphExecutionLimits;
@@ -132,6 +134,7 @@ export async function executeWorkflowGraph(
   }
   while (execution.steps < execution.maxSteps) {
     execution.steps += 1;
+    if (dependencies.signal?.aborted) return { status: "failed", state, trace, usage, error: "Workflow execution cancelled" };
     const limitError = executionLimitError(usage, dependencies.limits, execution.startedAt);
     if (limitError) return { status: "failed", state, trace, usage, error: limitError };
     const node = graph.nodes.find((candidate) => candidate.id === current);
@@ -170,17 +173,20 @@ export async function executeWorkflowGraph(
         if (!dependencies.tool || typeof node.config.toolName !== "string") throw new Error(`Tool node is not configured: ${node.id}`);
         consumeToolCall(usage, dependencies.limits);
         result = await dependencies.tool({ name: node.config.toolName, arguments: (node.config.arguments ?? {}) as Record<string, unknown>, nodeId: node.id });
+        throwIfGraphCancelled(dependencies.signal);
         addReportedUsage(usage, result);
         applyConfiguredWrites(state, node, result);
       } else if (node.type === "model") {
         if (!dependencies.model) throw new Error(`Model node is not configured: ${node.id}`);
         consumeModelCall(usage, dependencies.limits);
         result = await dependencies.model({ nodeId: node.id, config: node.config, state });
+        throwIfGraphCancelled(dependencies.signal);
         addReportedUsage(usage, result);
         applyConfiguredWrites(state, node, result);
       } else if (node.type === "agent_loop") {
         if (!dependencies.agentLoop) throw new Error(`Agent-loop node is not configured: ${node.id}`);
         result = await dependencies.agentLoop({ nodeId: node.id, config: node.config, state });
+        throwIfGraphCancelled(dependencies.signal);
         applyConfiguredWrites(state, node, result);
       } else if (node.type === "approval") {
         const approvalConfig = node.config ?? {};
@@ -194,6 +200,7 @@ export async function executeWorkflowGraph(
           if (resumed && resumed.id === toolCallId && resumed.name === toolName) {
             consumeToolCall(usage, dependencies.limits);
             result = await dependencies.tool({ name: toolName, arguments: toolArguments, nodeId: node.id, approved: resumed.approval });
+            throwIfGraphCancelled(dependencies.signal);
             addReportedUsage(usage, result);
             applyConfiguredWrites(state, node, result);
           } else {
@@ -335,6 +342,10 @@ function emptyGraphUsage(): GraphExecutionUsage {
 function boundedLimit(value: number | undefined, fallback: number): number {
   if (value === undefined || !Number.isFinite(value)) return fallback;
   return Math.max(0, Math.floor(value));
+}
+
+function throwIfGraphCancelled(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw new Error("Workflow execution cancelled");
 }
 
 function executionLimitError(usage: GraphExecutionUsage, limits: GraphExecutionLimits | undefined, startedAt: number): string | undefined {

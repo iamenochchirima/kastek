@@ -3224,6 +3224,7 @@ async function executeConfiguredWorkflow(input: {
 
   const result = await executeWorkflowGraph(executionGraph, workflowStateValue, {
     limits: input.limits,
+    signal: currentActivitySignal(),
     model: async ({ nodeId, config, state }) => {
       const instruction = typeof config.instruction === "string" ? config.instruction : "Continue the workflow.";
       const request: ModelRequest = {
