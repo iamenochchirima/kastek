@@ -4,7 +4,7 @@
 
 **Owner:** Agent Platform
 
-**Last updated:** 2026-08-31
+**Last updated:** 2026-09-01
 
 ## Objective
 
@@ -41,6 +41,8 @@ retrieval behavior explainable and testable.
 - [x] Apply repository ownership and policy filtering before ranking.
 - [x] Record retrieval reason, source counts, empty results, and scope-safe evidence metadata.
 - [x] Add paraphrase and restricted-scope evaluation fixtures.
+- [x] Record missing-scope outcomes and retrieval latency without emitting memory or document
+      contents.
 - [x] Update memory architecture and audit evidence.
 - [ ] Run unit, integration, type, build, and production smoke checks.
 
@@ -86,3 +88,48 @@ backward-compatible.
 
 Post-release review date: 2026-09-07; monitor evidence size, context-limit failures, retrieval
 empty-result rate, and model latency before changing the default token budget.
+
+## Follow-up release record: memory and retrieval observability
+
+Change: Add bounded memory lifecycle outcome metrics, missing retrieval-scope metrics, and
+retrieval-duration metrics.
+
+Owner: Agent Platform.
+
+Risk: low. The change is observational and does not widen retrieval, change stored memory content,
+or add a database migration.
+
+Affected services and user surfaces: agents-api, agents-worker, MCP-Gateway, memory lifecycle,
+knowledge and memory retrieval diagnostics, and operator telemetry.
+
+Platform release version or release ID: `b10ad3f8`.
+
+API/schema/migration changes: not applicable.
+
+Feature flag or rollout method: not applicable; metrics are emitted only from existing lifecycle
+and retrieval paths.
+
+Analytics events and success metrics: `kasitek.memory.lifecycle.decision.count`,
+`kasitek.memory.retrieval.scope_rejection.count`, and `kasitek.memory.retrieval.duration`; metric
+attributes contain bounded outcome, source type, scope-rejection reason, or duration only.
+
+Logs, metrics, dashboards, and alerts: OpenTelemetry metrics are emitted by the affected services;
+durable retention, dashboards, and alerts remain governed by the observability plan. No memory text,
+document text, or record identifiers are emitted.
+
+User, API, internal, and operational documentation: memory architecture and the root architecture
+audit were updated in the same release record.
+
+Validation evidence: targeted memory-policy and retrieval tests passed (`13/13`), Agents
+typecheck passed, production build passed, and `git diff --check` passed. Railway deployments
+`e25edcbe-35e9-4637-8926-61fff218e49a` (agents-worker),
+`445c72f3-74b9-4f42-8cab-e817d8a16352` (agents-api), and
+`d1a51746-a52b-4006-b8a1-029f5270553d` (MCP-Gateway) reached `SUCCESS` for commit `b10ad3f8`.
+Agents-api live/readiness checks returned `200`; the public gateway readiness check returned
+`200`; and a worker SSH smoke command succeeded.
+
+Rollback or disable plan: revert commit `b10ad3f8`; the existing retrieval fail-closed behavior
+remains unchanged.
+
+Post-release review date: 2026-09-08; confirm metric delivery and check for unexpected scope
+rejection or retrieval-latency regressions before the next retrieval tranche.
