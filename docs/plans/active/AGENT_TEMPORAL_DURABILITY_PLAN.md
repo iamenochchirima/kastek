@@ -822,7 +822,9 @@ Affected services and user surfaces: agents-worker, ordinary hosted runs, workfl
 calls, run-budget reservations, and customer-facing agent replies. Agents API and MCP-Gateway carry
 the shared artifact but have no direct model execution path.
 
-Platform release version or release ID: pending deployment from the current fix commit.
+Platform release version or release ID: commit `6a117bb83bccad400ead8fad94e2b6417f34ead6`; API
+deployment `bf49a40e-4e39-4418-9b5c-061d59cad92b`; Worker deployment
+`1583c098-7eae-4a98-920e-85bd9d66938c`.
 
 API/schema/migration changes: not applicable; no API, schema, or migration changes.
 
@@ -840,8 +842,12 @@ User, API, internal, and operational documentation: updated this plan, the workf
 architecture reference, and the Temporal recovery runbook. Public API documentation is not
 applicable.
 
-Validation evidence: the focused regression test passes, the Agents TypeScript build passes, and
-full-suite verification and production deployment remain open until the artifact is promoted.
+Validation evidence: focused regression passes; targeted runtime, loop-step, Temporal fault
+injection, decomposed activity, and model-credit tests pass (40 tests); Agents TypeScript build and
+`git diff --check` pass; full suite passes (110 files, 654 tests, 27 files and 84 tests skipped).
+Both production deployments reported `SUCCESS`, the deployed commit is `6a117bb8`, the API has no
+matching budget errors in the deployment log sample, and `https://agents.kasitek.co.za/health/ready`
+returned HTTP 200. A fresh customer chat is still needed for end-to-end provider success evidence.
 
 Rollback or disable plan: redeploy the previous successful Agents API/Worker artifact. No
 migration rollback or data repair is required.
