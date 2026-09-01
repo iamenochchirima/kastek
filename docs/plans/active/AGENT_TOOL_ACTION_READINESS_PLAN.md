@@ -454,3 +454,60 @@ if failure wording causes an issue. Do not delete connection, permission, or con
 
 Post-release review date: 2026-09-09, after the next controlled WhatsApp-to-Instagram publish
 attempt and an authenticated Connections analytics check.
+
+## Release record: preserve successful provider publishes
+
+Change: Prevent a provider-backed publish from being reported as a failure when the provider
+effect and Core persistence succeeded but the Agent/Core response exceeded the general read
+timeout, post readback degraded, or usage recording failed afterward. Publishing now has a
+bounded 30-second response timeout; successful persisted effects return a publish result even when
+non-effect follow-up work degrades.
+
+Owner: Core integrations and Agent Platform.
+
+Risk: standard; the change is backward-compatible and retains idempotency for retries, but it
+changes timeout and terminal-response behavior for provider-backed publishing.
+
+Affected services and user surfaces: kasitek-core social publishing and internal content API,
+Agents Worker Core client, approved-action replies, Instagram/WhatsApp publish conversations, and
+other gateways that use the shared content publish capability.
+
+Platform release version or release ID: commit `3f6ad77d` (`fix: preserve successful social
+publishes`). Railway Core deployment `92084c1b-5683-44e7-bc38-239fa36e3774` and Agents Worker
+deployment `48947a6f-0bbe-4a40-921c-79397ec5f1af` reached `SUCCESS`. No client deployment was
+needed for this server/runtime change.
+
+API/schema/migration changes: additive internal response metadata `postReadbackStatus` and an
+optional `KASITEK_CORE_PUBLISH_TIMEOUT_MS` configuration value defaulting to 30 seconds; no
+database schema or migration change.
+
+Feature flag or rollout method: no new flag; manually deployed from pushed `main`. Rollback is
+redeploying the previous successful Core and Agents Worker artifacts. Idempotency keys remain the
+duplicate-protection boundary.
+
+Analytics events and success metrics: not applicable; no new analytics event contract. Monitor
+provider publish completion, publish response timeout rate, duplicate publish rate, and the
+existing durable job status/external provider ID.
+
+Logs, metrics, dashboards, and alerts: added bounded Core diagnostics for post-publish readback
+degradation and usage recording failure. Logs contain organization/post/job/platform references
+and error types, not tokens, scopes, URLs, or message bodies. Core startup logs confirmed the
+social-publishing worker started after deployment.
+
+User, API, internal, and operational documentation: updated the Agent Media Harness architecture,
+Connection Failure Runbook, Agent Tool Action Readiness plan, and the Agent configuration example.
+
+Validation evidence: the delayed 11-second publish regression was red before the timeout change
+and green afterward; all 110 Agent test files passed with 660 passed and 27 skipped; Core Rust
+unit tests passed with 242 passed and 3 ignored; `cargo check -p kasitek-core`, Agent build, and
+changed-file rustfmt checks passed; Core service-domain health returned HTTP 200; Agent Gateway
+readiness returned `{"status":"ready","service":"agent-gateway"}`. A live provider smoke test
+remains pending because it would create another real social post and requires the user’s explicit
+test asset/target.
+
+Rollback or disable plan: redeploy the prior successful Core and Agents Worker artifacts and keep
+the previous Agent timeout configuration if needed. Do not delete or rewrite the durable post or
+publish-job records; inspect `externalPostId` before retrying any ambiguous publish.
+
+Post-release review date: 2026-09-09, after the next controlled publish and confirmation that the
+provider result and agent reply agree.
