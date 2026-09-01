@@ -1,6 +1,6 @@
 # Agent composition plan
 
-**Status:** Active — implementation baseline released; follow-up gates remain
+**Status:** Active — implementation baseline and effective-config API released; editor and operations gates remain
 
 **Owner:** Agent Platform
 
@@ -51,6 +51,8 @@ fields.
 4. [x] Add isolated draft-run and deterministic evaluation execution with persisted evidence.
 5. [x] Update user/API/internal documentation, metrics, runbooks, and release records.
 6. [x] Run focused and full verification, deploy safe changes, and record remaining gates.
+7. [x] Expose a sanitized effective configuration projection and bounded candidate-versus-deployed
+   diff for release tooling; editor rendering and publication gating remain follow-up work.
 
 ## Verification
 
@@ -59,6 +61,8 @@ fields.
   policy failures.
 - [x] Draft evaluation tests prove no live delivery or live-memory mutation.
 - [x] Agents typecheck, build, and targeted integration checks pass.
+- [x] Effective configuration projection and version-diff route tests pass without exposing prompt,
+  credential, endpoint, or workflow internals.
 - [x] Production deployment and release metadata are recorded before enabling new behavior.
 
 ## Decisions and open questions
@@ -71,27 +75,28 @@ fields.
 | Skill matching | Deterministic metadata matching before any model-based selector | Agent Platform | Implemented |
 | Remote provider rate limits and health | Atomic PostgreSQL fixed windows enforce limits across API/worker replicas; durable health checks fail closed before publication, pinning, and invocation | Agent Platform | Implemented with dashboard/allowlist follow-up |
 | Draft execution | One bounded model call; no live run, tools, remote providers, knowledge, memory, or delivery | Agent Platform | Implemented |
+| Effective configuration | Expose only sanitized runtime-relevant state and compare effective sections, not immutable version identity | Agent Platform | Implemented; editor integration remains |
 
 ## Notes and blockers
 
 The provider allowlist and production alert-routing gates still need provider ownership decisions.
-The durable health check and fail-closed runtime gate are released; broader organization-installed
-provider rollout remains gated.
+The durable health check, fail-closed runtime gate, and effective-config API are released; editor
+integration, draft evidence, and broader organization-installed provider rollout remain gated.
 
 ## Release record
 
 | Field | Decision |
 | --- | --- |
-| Change | Typed AgentSpec v1, versioned skills, reviewed remote MCP revisions, durable provider rate windows, and isolated draft evaluation. |
+| Change | Typed AgentSpec v1, versioned skills, reviewed remote MCP revisions, durable provider rate windows, isolated draft evaluation, and sanitized effective configuration/diff projection. |
 | Owner | Agent Platform |
 | Risk | high — new database policy tables and bounded calls to untrusted external providers; remote providers remain opt-in and explicitly pinned. |
-| Affected services and user surfaces | Agents API, Agents worker/Temporal activities, Agents PostgreSQL, Agent version APIs, evaluation APIs, and composition documentation. |
-| Platform release version or release ID | `271191c7`; `KASITEK_RELEASE_ID` and `KASITEK_COMMIT_SHA` are set to this SHA on API, worker, and MCP Gateway. |
-| API/schema/migration changes | `agents/migrations/100_agent_skills.sql`, `101_remote_mcp_providers.sql`, `102_draft_evaluation_mode.sql`, `103_remote_mcp_rate_limits.sql`, and `104_remote_mcp_health.sql`; new skills, provider, health, pinning, and draft-run routes. |
+| Affected services and user surfaces | Agents API, Agents worker/Temporal activities, Agents PostgreSQL, Agent version APIs, effective configuration/release tooling, evaluation APIs, and composition documentation. |
+| Platform release version or release ID | `9e94c4cc`; `KASITEK_RELEASE_ID` and `KASITEK_COMMIT_SHA` are set to this SHA on API, worker, and MCP Gateway. |
+| API/schema/migration changes | Migrations `100_agent_skills.sql` through `104_remote_mcp_health.sql`; new skills, provider, health, pinning, draft-run, and `GET /v1/agent-versions/{agentVersionId}/effective-config` routes. No new migration was required for the projection. |
 | Feature flag or rollout method | No global enablement switch. Existing versions keep legacy behavior; typed versions, published skills, published providers, and explicit pins are opt-in. |
-| Analytics events and success metrics | Draft execution is traced as `evaluation.draft`; provider discovery/invocation failures are structured and bounded. Adoption, rejection, latency, and draft funnel dashboards remain follow-up work. |
+| Analytics events and success metrics | Draft execution is traced as `evaluation.draft`; provider discovery/invocation failures are structured and bounded. The read-only projection adds no new analytics event; adoption, rejection, latency, and draft funnel dashboards remain follow-up work. |
 | Logs, metrics, dashboards, and alerts | Provider output is redacted and bounded; rate windows and health state are durable across replicas. Remote MCP operation counters/histograms and the provider runbook are released; hosted dashboards, alert routing, and allowlist ownership remain open before broad organization-provider rollout. |
-| User, API, internal, and operational documentation | AgentSpec and composition API docs, remote MCP provider runbook, plus the internal AgentSpec and tenant-isolation inventory are updated in this change. |
-| Validation evidence | Full Agents suite: 631 passed, 84 skipped by existing integration gates; Agents typecheck/build and public docs build pass; workflow bundle compiles; focused skills/provider boundary tests pass. Production migrations 100–104 are present, API/worker/Gateway deployments `7d0b3ab1-f5d5-42de-b512-7b79c5f211c9`, `65740f9f-0b6d-4ded-b114-b45541511f9d`, and `d944d274-1e36-4903-bd8e-e6d22ac66551` are successful, the worker is running, API release metadata matches `271191c7`, and readiness is 200. The database-backed provider integration gate remains skipped locally because no isolated `AGENTS_DATABASE_URL` is configured; the generic migration runner remains blocked by pre-existing legacy fixture rows at migration 095. |
-| Rollback or disable plan | Stop provider pinning and draft-route rollout, revoke provider versions, deploy the previous artifact, and leave additive migrations in place. Apply reviewed administrative rollback only if a migration must be disabled. |
+| User, API, internal, and operational documentation | AgentSpec and composition API docs, effective-config contract, remote MCP provider runbook, plus the internal AgentSpec and tenant-isolation inventory are updated in this change. |
+| Validation evidence | Full Agents suite: 635 passed, 84 skipped by existing integration gates across 108 passed and 27 skipped files; Agents typecheck/build and public docs build pass; workflow bundle compiles; focused effective-config, skills, provider, and REST conformance tests pass. Production migrations 100–104 are present, API/worker/Gateway deployments `8143b117-316c-481e-b870-975206a25c76`, `7e1ad93e-ef5e-4582-8805-de5afad5a805`, and `1893a570-333d-4c3c-b196-5f3ca035d2e1` are successful, the worker is running, all three release variables match `9e94c4cc`, and readiness is 200. The database-backed provider integration gate remains skipped locally because no isolated `AGENTS_DATABASE_URL` is configured; the generic migration runner remains blocked by pre-existing legacy fixture rows at migration 095. |
+| Rollback or disable plan | Stop provider pinning and draft-route rollout, revoke provider versions, redeploy the previous artifact `271191c7`, and leave additive migrations in place. Apply reviewed administrative rollback only if a migration must be disabled. |
 | Post-release review date | After production smoke verification and first provider/draft usage review. |
