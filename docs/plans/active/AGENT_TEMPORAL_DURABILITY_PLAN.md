@@ -367,7 +367,13 @@ Affected services and user surfaces: agents-worker, configured graph execution, 
 workflow checkpoint records, operator budget diagnostics, and PostgreSQL tenant isolation.
 Agents API and MCP-Gateway carry the shared artifact but have no direct graph execution path.
 
-Platform release version or release ID: pending commit and exact Railway deployment IDs.
+Platform release version or release ID: commit `850681b40c98d6e465901e2a417179e7add338f5`; Railway
+production deployments `agents-worker` `15d30a24-4e44-4b09-a595-fdde9ed7759c`, `agents-api`
+`f6324539-4dd1-4567-8762-7cb70605774d`, and `MCP-Gateway`
+`0a4bab87-5a3a-432a-be5e-19495fde2def`; all reported `SUCCESS` for the release SHA. Migration
+one-shot deployment `8f21d894-105c-4696-b1a5-05ff9c14f765` exited after applying migration 097;
+the temporary migration command and DDL variable were removed before restoring the normal API
+start command.
 
 API/schema/migration changes: additive migration `097_parallel_branch_budget_leases.sql` creates
 `run_budget_parallel_leases`, applies the existing child-scope ownership trigger, and enables
@@ -389,8 +395,12 @@ User, API, internal, and operational documentation: updated the architecture aud
 execution architecture, Temporal recovery runbook, and tenant-isolation inventory. Public API
 documentation is not applicable.
 
-Validation evidence: pending typecheck, targeted graph/migration tests, full Agents suite, build,
-database migration, and production smoke verification.
+Validation evidence: targeted graph/migration tests passed (`52/52`); full Agents suite passed
+(`94` files, `571` passed, `24` integration files skipped, `69` tests skipped); Agents TypeScript
+check and production build passed; migration 097 logged as applied in the one-shot deployment;
+Agents API internal readiness returned `200`, the worker shell showed Temporal enabled with task
+queue `kasitek-agents-production`, and public Gateway `/health` and `/health/ready` returned
+`200`.
 
 Rollback or disable plan: redeploy the previous application artifact only after confirming no active
 branch lease is protecting an in-flight model or tool operation. Retain migration 097 and its rows;

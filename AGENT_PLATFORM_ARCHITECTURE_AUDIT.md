@@ -1346,6 +1346,13 @@ KasiTek should retain its stronger platform features around that anatomy:
   (`94 files`, `569 passed`, `24` integration files skipped, `69` tests skipped), build, and
   production live/ready, worker-shell, and public Gateway readiness checks. The full worker-kill
   matrix and separate activity decomposition remain open.
+- Parallel graph-branch budget admission release `850681b4` reached `SUCCESS` on the Agents API,
+  worker, and MCP Gateway. Migration `097` was applied by one-shot deployment
+  `8f21d894-105c-4696-b1a5-05ff9c14f765`; the temporary migration command and DDL variable were
+  removed afterward. The full Agents suite (`94 files`, `571 passed`, `24` integration files
+  skipped, `69` tests skipped), typecheck, build, targeted graph/migration tests, internal API
+  readiness, worker shell, and public Gateway health checks passed. Billed-versus-provider usage
+  reconciliation and the full worker-kill matrix remain open.
 
 Passing tests do not invalidate the verified findings. The current suite does not cover those
 contracts.
