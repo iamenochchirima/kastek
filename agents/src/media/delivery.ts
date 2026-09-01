@@ -88,6 +88,11 @@ function blockFallback(block: UiBlock, profile: ChannelUiProfile, appUrl: string
     ].filter(Boolean);
   }
   if (block.type === "list") {
+    // Empty states are content, not a heading. Keeping the title here made
+    // WhatsApp render orphan labels such as "Content posts:".
+    if (!block.items.length) {
+      return block.emptyText ? [uiValue(block.emptyText)] : [];
+    }
     return [
       block.title ? `${uiValue(block.title)}:` : "",
       ...block.items.slice(0, 8).map((item, index) => {

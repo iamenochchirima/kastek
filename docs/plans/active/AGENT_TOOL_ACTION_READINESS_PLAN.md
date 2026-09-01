@@ -91,6 +91,19 @@ human approval, and provider execution remain separate checks.
 - [x] Add Agent Platform and Core regression tests for the exact failed payload shape.
 - [ ] Run a controlled WhatsApp image-to-agent draft smoke test after release.
 
+### Implemented regression slice: Instagram publish readiness and empty UI states
+
+- [x] Confirm the production publish failure was Meta rejecting `media_publish` while the image
+      container was still processing (`Media ID is not available`).
+- [x] Poll the Instagram container status at the shared Core provider boundary and publish only
+      after `FINISHED`; terminal provider states and the timeout remain failed outcomes.
+- [x] Add Core regression coverage for processing, finished, and terminal container states.
+- [x] Render configured list empty states in the shared channel fallback without an orphan title.
+- [x] Add Agent Platform regression coverage for the empty `Content posts` projection.
+- [x] Update the media harness and connection-failure runbook with the provider readiness rule.
+- [ ] Deploy the affected Core and Agent Platform artifacts and run a controlled WhatsApp image
+      publish smoke test.
+
 ## Proposed contract
 
 Use one normalized result for the provider-backed action seam:

@@ -627,6 +627,80 @@ pub(crate) async fn publish_post_to_facebook(
     Ok((id.to_string(), text.to_string()))
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum InstagramContainerState {
+    Wait,
+    Ready,
+    Failed,
+}
+
+fn instagram_container_state(container: &Value) -> InstagramContainerState {
+    match container
+        .get("status_code")
+        .and_then(Value::as_str)
+        .map(|status| status.to_ascii_uppercase())
+        .as_deref()
+    {
+        Some("FINISHED") => InstagramContainerState::Ready,
+        Some("IN_PROGRESS") | Some("PENDING") | None => InstagramContainerState::Wait,
+        Some(_) => InstagramContainerState::Failed,
+    }
+}
+
+fn instagram_container_failure_message(container: &Value) -> String {
+    let status = container
+        .get("status_code")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown");
+    let detail = container
+        .get("status")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.chars().take(300).collect::<String>());
+    match detail {
+        Some(detail) => format!("Instagram media container {status}: {detail}"),
+        None => format!("Instagram media container returned terminal status {status}"),
+    }
+}
+
+async fn wait_for_instagram_container(
+    client: &reqwest::Client,
+    graph_base: &str,
+    creation_id: &str,
+    access_token: &str,
+) -> Result<(), AppError> {
+    const MAX_POLLS: usize = 15;
+    const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(1);
+
+    for attempt in 0..MAX_POLLS {
+        let status: Value = fetch_json(
+            client
+                .get(format!("{graph_base}/{creation_id}"))
+                .bearer_auth(access_token)
+                .query(&[("fields", "status_code,status")]),
+            "Failed to check the Instagram media container",
+        )
+        .await?;
+        match instagram_container_state(&status) {
+            InstagramContainerState::Ready => return Ok(()),
+            InstagramContainerState::Failed => {
+                return Err(AppError::BadRequest(instagram_container_failure_message(
+                    &status,
+                )));
+            }
+            InstagramContainerState::Wait if attempt + 1 < MAX_POLLS => {
+                tokio::time::sleep(POLL_INTERVAL).await;
+            }
+            InstagramContainerState::Wait => break,
+        }
+    }
+
+    Err(AppError::BadRequest(
+        "Instagram media container did not become ready before the publish timeout".to_string(),
+    ))
+}
+
 pub(crate) async fn publish_post_to_instagram(
     access_token_encrypted: &str,
     external_account_id: &Option<String>,
@@ -671,10 +745,11 @@ pub(crate) async fn publish_post_to_instagram(
     let creation_id = container.get("id").and_then(Value::as_str).ok_or_else(|| {
         AppError::BadRequest("Instagram did not return a media container identifier".to_string())
     })?;
+    wait_for_instagram_container(&client, graph_base, creation_id, &access_token).await?;
     let published: Value = fetch_json(
         client
             .post(format!("{graph_base}/{account_id}/media_publish"))
-            .bearer_auth(access_token)
+            .bearer_auth(&access_token)
             .form(&[("creation_id", creation_id)]),
         "Failed to publish the Instagram post",
     )
@@ -683,4 +758,40 @@ pub(crate) async fn publish_post_to_instagram(
         AppError::BadRequest("Instagram did not return a published media id".to_string())
     })?;
     Ok((post_id.to_string(), caption.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{instagram_container_state, InstagramContainerState};
+    use serde_json::json;
+
+    #[test]
+    fn instagram_container_processing_is_not_publishable() {
+        assert_eq!(
+            instagram_container_state(&json!({ "status_code": "IN_PROGRESS" })),
+            InstagramContainerState::Wait
+        );
+    }
+
+    #[test]
+    fn instagram_container_finishing_is_publishable() {
+        assert_eq!(
+            instagram_container_state(&json!({ "status_code": "FINISHED" })),
+            InstagramContainerState::Ready
+        );
+    }
+
+    #[test]
+    fn instagram_container_terminal_failures_are_not_treated_as_ready() {
+        assert_eq!(
+            instagram_container_state(
+                &json!({ "status_code": "ERROR", "status": "Unable to fetch image" })
+            ),
+            InstagramContainerState::Failed
+        );
+        assert_eq!(
+            instagram_container_state(&json!({ "status_code": "EXPIRED" })),
+            InstagramContainerState::Failed
+        );
+    }
 }

@@ -54,6 +54,11 @@ durable run/message envelope (URL-free)
 gateway needs one. The harness final-response capability validates asset ownership, media kind, and
 ready/clean state before completing the run.
 
+Provider publishing is also asynchronous at the adapter boundary. Instagram media containers are
+polled until the provider reports `FINISHED` before `media_publish` is called. A bounded timeout or
+terminal provider state completes the action with an error; it must not be converted into a local
+success or an unbounded gateway wait.
+
 ## Gateway profiles
 
 Profiles are explicit in `agents/src/media/profiles.ts` and are evaluated before delivery:
@@ -84,6 +89,7 @@ processing state, scanning state, installation grants, and provider connection s
 - If a preview cannot be resolved or a provider rejects a native remote media reference, delivery
   records a bounded media-resolution event and preserves the text reply with a link or unavailable
   attachment notice where the channel supports it.
+- Channel UI fallbacks render a list's configured empty state without emitting an orphan list title.
 - Idempotency remains at the delivery-attempt boundary. A provider failure is recorded with a
   bounded error; a text fallback is used only when the adapter can send it as a separate bounded
   transport attempt.

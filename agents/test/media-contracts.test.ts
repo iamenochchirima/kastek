@@ -157,6 +157,19 @@ describe("Agent media response contract", () => {
     expect(channelUiNavigationButtons(ui, "telegram", "https://app.kasitek.test").some((button) => button.url.includes("javascript:"))).toBe(false);
   });
 
+  it("renders a list empty state without an orphan section heading", () => {
+    const ui = agentResponseSchema.parse({
+      text: "No posts yet.",
+      ui: {
+        version: "1",
+        mode: "inline",
+        blocks: [{ type: "list", id: "content-posts", title: "Content posts", items: [], emptyText: "No content posts" }],
+      },
+    }).ui;
+
+    expect(buildChannelUiFallback(ui, "whatsapp")).toBe("No content posts");
+  });
+
   it("keeps product workspace handoffs registered against existing routes", () => {
     expect(PRODUCT_WORKFLOWS.map((workflow) => workflow.id)).toEqual([
       "agent_creation",

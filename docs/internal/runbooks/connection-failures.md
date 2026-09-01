@@ -43,6 +43,10 @@ Use this when a provider account shows `NEEDS_ATTENTION`, messages stop arriving
 9. If Inbox receives the message but the agent does not respond, open the agent's **Integrations** tab and confirm the account is **Assigned**. The route key is the workspace `ExternalConnection` owned by Core.
 10. Check Core logs for `provider.webhook.received`/`webhook.receive`, `agent_platform.meta_ingest` and Agent Platform logs for `channel.ingest`. A route conflict means another active customer-service agent owns the same Page or Instagram account; remove that route before assigning it elsewhere.
 11. If agent replies fail, inspect the Core `channel.delivery` event and Meta response. Core must remain the only service holding the Meta access token.
+12. If Instagram publishing reports `Media ID is not available`, the media container was not ready
+    when publishing was attempted. The adapter now polls the container status for a bounded period
+    before calling `media_publish`; a terminal timeout or provider error is a real failed publish,
+    so retry the same idempotent action after checking the connection rather than claiming success.
 
 ## Production Meta approval gate
 
