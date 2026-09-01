@@ -135,8 +135,13 @@ workflow editor agent-loop nodes, approvals, handoffs, external-event waits, mod
 tool/effect records, and workflow checkpoints. MCP-Gateway is deployed with the shared artifact
 but has no direct execution-path change.
 
-Platform release version or release ID: record the exact commit and Railway deployment IDs after
-production promotion.
+Platform release version or release ID: commit `ac815292`; Railway production deployments
+`agents-worker` `ca1e4843-df84-422a-8091-59dee0a14801`, `agents-api`
+`3b03c95a-0af0-4dbc-88f5-3522e7c5a32d`, and `MCP-Gateway`
+`54aeaee8-0e60-4a39-a880-be61e65b505f`; all reported `SUCCESS` for commit
+`ac81529201f4081ebbe87e34a5bf281f62b26a08`. The preceding build failure on `7d66e73d` was
+caused by an undeployed local-only authorization import; the fix is self-contained in this
+release.
 
 API/schema/migration changes: no API, database schema, or migration changes. The version 1 graph
 contract now has a supported `agent_loop` execution path; existing invalid graph rejection rules
@@ -157,9 +162,14 @@ is reused; no new dashboard was required for this adapter.
 User, API, internal, and operational documentation: updated the architecture reference, platform
 audit, and this durability plan. Public workflow schema documentation remains follow-up work.
 
-Validation evidence: targeted graph, agent-loop, cancellation, and worker-loss tests plus Agents
-TypeScript and build checks pass locally. Full suite and production deployment evidence are
-pending.
+Validation evidence: targeted graph and agent-loop tests (21/21) and the Agents TypeScript check
+passed after the release-boundary fix. The full Agents suite and production build were already
+green for the implementation commit; the exact fix commit was promoted only after all three
+Railway deployments reported `SUCCESS`. Internal agents-api live/ready checks returned 200,
+`railway ssh` reached the worker shell, and public `https://agents.kasitek.co.za/health/ready`
+returned `{"status":"ready","service":"agent-gateway"}`. `api.kasitek.co.za/health/ready`
+returning 404 is expected because that public domain is not the private Agents API health
+surface.
 
 Rollback or disable plan: redeploy the previous known-good commit. Disable agent execution or
 effect execution through existing controls if an operational stop is needed. No migration rollback
