@@ -1,6 +1,6 @@
 # Connection Permission State Fix
 
-**Status:** Active
+**Status:** Complete
 
 **Owner:** Platform integrations
 
@@ -46,7 +46,7 @@ connection must record enough verified scope information for the access panel to
    seam.
 3. [x] Cover additive reauthorization, unsupported capabilities, and provider-scope normalization.
 4. [x] Update public and internal documentation and complete the release record.
-5. [ ] Run targeted/full verification, commit, push, and deploy the tested Core artifact.
+5. [x] Run targeted/full verification, commit, push, and deploy the tested Core artifact.
 
 ## Release record
 
@@ -59,7 +59,8 @@ Risk: standard.
 Affected services and user surfaces: `kasitek-core`; Connections access panel; Threads and Bluesky
 content authorization/deletion flows.
 
-Platform release version or release ID: pending deployment.
+Platform release version or release ID: implementation commit `ccd82eba743205da188b1ef7e98a2f83f76f921f`;
+Railway Core deployment `d3b4c93e-6b9b-4527-b5db-cce2b22eb08f`.
 
 API/schema/migration changes: not applicable.
 
@@ -77,6 +78,9 @@ User, API, internal, and operational documentation: updated `social-connections.
 Validation evidence: targeted permission tests pass; full Core suite passes (255 passed, 3
 environment-dependent ignored); Core build, client production build, changed-file ESLint, rustfmt,
 and diff checks pass.
+
+Frontend production deployment: handed to the user; the client production build passed, and no
+Vercel deployment was performed after the user requested to deploy the frontend themselves.
 
 Rollback or disable plan: revert the implementation commit; existing publishing and deletion
 paths remain available according to their prior capability declarations.

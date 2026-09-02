@@ -1,6 +1,6 @@
 # Connection Permission State Fix Checklist
 
-**Status:** Active
+**Status:** Complete
 
 ## Diagnosis
 
@@ -20,6 +20,6 @@
 
 - [x] Update public and internal documentation.
 - [x] Run targeted tests, full Core tests, formatting, build, and diff checks.
-- [ ] Commit and push the implementation.
-- [ ] Deploy the tested Core artifact and verify health.
-- [ ] Record final commit/deployment evidence and move the plan to `docs/plans/completed/`.
+- [x] Commit and push the implementation.
+- [x] Deploy the tested Core artifact and verify health.
+- [x] Record final commit/deployment evidence and move the plan to `docs/plans/completed/`.
