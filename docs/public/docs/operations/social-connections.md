@@ -58,6 +58,9 @@ Bluesky supports publishing and deleting posts owned by the connected account. B
 account's `repo:app.bsky.feed.post` grant; the access panel reports deletion as requestable or
 granted instead of unsupported.
 
+Bluesky messaging is not supported. It is shown as unavailable and is not included in Bluesky
+authorization requests.
+
 TikTok's initial connection requests only `user.info.basic`. Request **Publish content**, **Use
 media**, or **View analytics** later from the connection details when the TikTok app has the
 matching approved scope. Direct publishing uses `video.publish`; draft upload uses `video.upload`;

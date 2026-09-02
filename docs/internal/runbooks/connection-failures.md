@@ -129,7 +129,9 @@ part of the adapter.
 Bluesky publishing and deletion use the same `repo:app.bsky.feed.post` repository grant. If the
 access panel reports deletion as unsupported after the capability mapping release, refresh the
 connection details and verify the connection was synced. Deletion still requires a post URI saved
-from a successful KasiTek publication.
+from a successful KasiTek publication. Bluesky messaging is not supported; do not request the
+undeclared `transition:chat.bsky` permission or add it to client metadata unless Chat support is
+implemented end to end.
 
 ## Disconnect and revoke
 

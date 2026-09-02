@@ -78,7 +78,6 @@ const X_DM_WRITE: &[&str] = &["dm.write"];
 
 const BLUESKY_POST: &[&str] = &["repo:app.bsky.feed.post"];
 const BLUESKY_MEDIA: &[&str] = &["blob:*/*"];
-const BLUESKY_CHAT: &[&str] = &["transition:chat.bsky"];
 
 pub(crate) fn adapter_for(
     provider: &str,
@@ -310,9 +309,6 @@ impl ProviderAdapter {
                 _ => unsupported(),
             },
             Self::Bluesky => match key {
-                MESSAGING_INBOUND | MESSAGING_OUTBOUND => {
-                    rule("transition:chat.bsky", BLUESKY_CHAT, BLUESKY_CHAT, true)
-                }
                 SOCIAL_PUBLISH | SOCIAL_POST_DELETE => {
                     rule("repo:app.bsky.feed.post", BLUESKY_POST, BLUESKY_POST, true)
                 }
@@ -621,6 +617,18 @@ mod tests {
         assert!(delete.requestable);
         assert_eq!(delete.provider_permission, Some("repo:app.bsky.feed.post"));
         assert_eq!(delete.request_scopes, &["repo:app.bsky.feed.post"]);
+    }
+
+    #[test]
+    fn bluesky_does_not_request_undeclared_chat_scopes() {
+        let bluesky = adapter_for("BLUESKY", None, None);
+        let inbound = bluesky.capability(MESSAGING_INBOUND);
+
+        assert!(!inbound.supported);
+        assert!(!inbound.requestable);
+        assert!(bluesky
+            .required_scopes(&[MESSAGING_INBOUND.to_string()], None)
+            .is_empty());
     }
 
     #[test]
