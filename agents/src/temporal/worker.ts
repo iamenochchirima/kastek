@@ -37,14 +37,14 @@ async function main(): Promise<void> {
         () => assertKasiAiReleaseCurrent(new AgentRepository(pool), config),
       );
       operationalLogger.info({
-        event: "kasiai.worker.release_check.completed",
+        event: "kasiai.worker.release.check.completed",
         version_number: releaseStatus.publishedVersionNumber,
         active_installations: releaseStatus.activeInstallationCount,
       }, "KasiAi worker release check completed");
     } catch (error) {
       operationalLogger.error({
         err: error,
-        event: "kasiai.worker.release_check.failed",
+        event: "kasiai.worker.release.check.failed",
         error_code: (error as { code?: string }).code,
       }, "KasiAi worker release check failed");
       await pool.end();
