@@ -134,5 +134,5 @@ The local PostgreSQL integration database is available on the isolated test port
 tests have been exercised against it. The release still needs the current tranche's production
 migrations, deployment approval, and post-release published-versus-deployed mismatch measurement.
 The existing working tree contains unrelated changes in `.github/workflows/observability.yml` and
-`docs/plans/active/AGENT_MEDIA_HARNESS_PLAN.md`; those files are outside this implementation slice
+`docs/archive/deferred-plans/AGENT_MEDIA_HARNESS_PLAN.md`; those files are outside this implementation slice
 and must remain untouched.

@@ -12,7 +12,7 @@ complete until the implementation evidence and release record exist.
 
 `[x]` means implemented and verified in this repository. `[ ]` means an external gate, an
 unresolved platform decision, or work intentionally deferred to the provider-specific follow-up.
-The plan remains under `docs/plans/active/` until the staging evidence and release owner approval
+The plan remains under `docs/archive/deferred-plans/` until the staging evidence and release owner approval
 exist.
 
 ## 0. Scope and ownership
@@ -27,7 +27,7 @@ exist.
 - [x] Record browser/client telemetry as a separate follow-up rather than enabling it implicitly.
 - [x] Create and link the implementation issue: [#2](https://github.com/iamenochchirima/kasitek/issues/2).
 - [x] Create the repository release record at
-      `docs/plans/active/OPENTELEMETRY_INFRASTRUCTURE_RELEASE_RECORD.md`.
+      `docs/archive/deferred-plans/OPENTELEMETRY_INFRASTRUCTURE_RELEASE_RECORD.md`.
 - [x] Classify the implementation risk and identify whether production enablement requires an
       approval gate.
 
@@ -296,7 +296,7 @@ exist.
 - [x] Production readiness is not claimed without a durable approved destination.
 - [ ] The final platform release identity and deployed artifact identity are recorded.
 - [ ] The owner approves the rollback and incident procedure.
-- [ ] Move the plan and checklist from `docs/plans/active/` to `docs/plans/completed/` only after
+- [ ] Move the plan and checklist from `docs/archive/deferred-plans/` to `docs/plans/completed/` only after
       implementation and required verification are complete.
 
 ## Implementation evidence — 2026-08-27

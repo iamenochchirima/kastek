@@ -11,7 +11,7 @@ below is committed.
 - Product routes and response/status contracts that must remain compatible.
 - Public REST, internal capability, MCP/Agent, webhook, worker, and admin surfaces in scope.
 - Organization, workspace, installation, resource, and customer ownership rules.
-- Explicitly deferred provider or infrastructure verification, linked to `docs/plans/active/BLOCKERS.md` when it is
+- Explicitly deferred provider or infrastructure verification, linked from the active plans directory when it is
   genuinely unavailable.
 
 ## 2. Domain layer

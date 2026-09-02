@@ -2,7 +2,7 @@
 
 **Status:** Research and plan critique only
 **Date:** 2026-09-01
-**Scope:** `docs/plans/active/KASIAI_DYNAMIC_UI_PLAN.md`, relevant KasiAi capability,
+**Scope:** `docs/archive/deferred-plans/KASIAI_DYNAMIC_UI_PLAN.md`, relevant KasiAi capability,
 response, run, and client seams, and first-party guidance. No application, package, or
 deployment files were changed.
 

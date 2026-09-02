@@ -200,7 +200,7 @@ even though an existing installation remains pinned to its previous `agent_versi
 - Rollback changes publication state without necessarily changing the deployed installation.
 - The UI and audit trail can report a state that does not match runtime behavior.
 
-Implementation is tracked in the [agent version deployment plan](docs/plans/active/AGENT_VERSION_DEPLOYMENT_PLAN.md).
+Implementation is tracked in the [agent version deployment plan](docs/archive/deferred-plans/AGENT_VERSION_DEPLOYMENT_PLAN.md).
 
 #### Required design
 
@@ -262,7 +262,7 @@ Introduce a version deployment module with a small interface that owns:
       [analytics-producer.test.ts](agents/test/analytics-producer.test.ts)).
 - [x] Update internal agent lifecycle documentation, user documentation, migration notes, and the
       deployment runbook ([agent-connection-guide.md](docs/public/docs/api/agent-connection-guide.md),
-      [AGENT_VERSION_DEPLOYMENT_PLAN.md](docs/plans/active/AGENT_VERSION_DEPLOYMENT_PLAN.md)).
+      [AGENT_VERSION_DEPLOYMENT_PLAN.md](docs/archive/deferred-plans/AGENT_VERSION_DEPLOYMENT_PLAN.md)).
 - [x] Release behind an explicit dual-controlled rollout flag and record published-versus-deployed
       matched, mismatch, blocked, and deployed counts ([096_agent_version_deployment_flag.sql](agents/migrations/096_agent_version_deployment_flag.sql), [agent-deployment-repository.ts](agents/src/db/repositories/agent-deployment-repository.ts), [spans.ts](agents/src/telemetry/spans.ts)). A durable dashboard/alert remains open.
 
@@ -703,7 +703,7 @@ restricted-role negative data suite against an isolated production-equivalent da
       production validation ([agents-tenant-isolation-inventory.md](docs/internal/architecture/agents-tenant-isolation-inventory.md)).
 - [x] Provision a restricted runtime group/login and move API and worker connections off the
       PostgreSQL superuser ([090_agents_runtime_role.sql](agents/migrations/090_agents_runtime_role.sql),
-      [AGENT_RLS_ROLLOUT_PLAN.md](docs/plans/active/AGENT_RLS_ROLLOUT_PLAN.md)).
+      [AGENT_RLS_ROLLOUT_PLAN.md](docs/archive/deferred-plans/AGENT_RLS_ROLLOUT_PLAN.md)).
 - [x] Audit legacy rows and validate the three memory/knowledge ownership-presence constraints;
       production has zero invalid rows and migration 095 records `convalidated = true`. Local
       legacy fixture rows are not production data and remain excluded from the production claim.

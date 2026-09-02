@@ -58,5 +58,5 @@ provision the server, database, domain, or service processes.
 5. Promote the same artifact to production after approval.
 6. Keep the previous artifact and migration rollback or forward-fix procedure available.
 
-The current target release model is tracked in `docs/plans/active/CI_CD_RELEASE_PLAN.md` and the
+The current target release model is tracked in `docs/archive/deferred-plans/CI_CD_RELEASE_PLAN.md` and the
 canonical release identity is described in [Platform Versioning](./platform-versioning.md).

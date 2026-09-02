@@ -12,7 +12,7 @@ This is the canonical process for deciding whether a feature or platform change 
 release. It covers product changes, APIs, database changes, integrations, background workers, and
 operational changes.
 
-`docs/plans/active/CI_CD_RELEASE_PLAN.md` remains the implementation backlog for CI/CD, environments, deployment,
+`docs/archive/deferred-plans/CI_CD_RELEASE_PLAN.md` remains the implementation backlog for CI/CD, environments, deployment,
 and rollback automation. This document defines what a release must contain; it does not claim that
 the automation already exists.
 
@@ -138,7 +138,7 @@ This snapshot records the gaps that need follow-up work:
 
 | Area | Existing foundation | Missing or incomplete |
 | --- | --- | --- |
-| Release process | `docs/plans/active/CI_CD_RELEASE_PLAN.md` contains a detailed target CI/CD and deployment model. | It is still marked draft/not started, and there is no general PR release gate. |
+| Release process | `docs/archive/deferred-plans/CI_CD_RELEASE_PLAN.md` contains a detailed target CI/CD and deployment model. | It is still marked draft/not started, and there is no general PR release gate. |
 | Platform versioning | The canonical `VERSION` file, read-only validator, and CI tag check now exist; Agent versions are also a product-domain concept. | Release tags, runtime version metadata, artifact manifests, and promotion/rollback automation are still missing. |
 | Logging | Rust and Agents now share a server-side OpenTelemetry contract, structured stdout fallback, bounded correlation IDs, redaction, HTTP/worker/provider spans, and Collector profiles. | A durable destination, retention, access control, dashboards, alerts, and hosted staging evidence are still missing; browser telemetry remains out of scope. |
 | Analytics | Analytics has versioned event contracts, registries, outboxes, metrics, and validation. | Feature work is not required to declare its events and success metrics, and analytics readiness is not a general release gate. |
@@ -157,7 +157,7 @@ This snapshot records the gaps that need follow-up work:
 4. Rebuild documentation as a separate workstream: inventory every source document, mark each as
    canonical, active, superseded, or archived, assign owners, remove tracked generated output,
    and add link/build checks.
-5. Implement the CI/CD phases in `docs/plans/active/CI_CD_RELEASE_PLAN.md`, starting with general pull-request CI
+5. Implement the CI/CD phases in `docs/archive/deferred-plans/CI_CD_RELEASE_PLAN.md`, starting with general pull-request CI
    before deployment automation.
 
 Do not solve the documentation rewrite, observability implementation, and deployment automation

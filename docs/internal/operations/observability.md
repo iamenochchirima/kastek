@@ -224,6 +224,6 @@ Collector profile, and the running services are sending OTLP signals to it. The 
 transport evidence only: it does not provide durable retention, search, alerting, or incident
 history. The remaining work is to isolate and verify staging, record a real release/artifact
 identity, and approve and configure a durable backend. Track that evidence in the
-[OpenTelemetry infrastructure plan](https://github.com/iamenochchirima/kasitek/blob/main/docs/plans/active/OPENTELEMETRY_INFRASTRUCTURE_PLAN.md) and
-its [execution checklist](https://github.com/iamenochchirima/kasitek/blob/main/docs/plans/active/OPENTELEMETRY_INFRASTRUCTURE_CHECKLIST.md) and
-[release record](https://github.com/iamenochchirima/kasitek/blob/main/docs/plans/active/OPENTELEMETRY_INFRASTRUCTURE_RELEASE_RECORD.md).
+[OpenTelemetry infrastructure plan](https://github.com/iamenochchirima/kasitek/blob/main/docs/archive/deferred-plans/OPENTELEMETRY_INFRASTRUCTURE_PLAN.md) and
+its [execution checklist](https://github.com/iamenochchirima/kasitek/blob/main/docs/archive/deferred-plans/OPENTELEMETRY_INFRASTRUCTURE_CHECKLIST.md) and
+[release record](https://github.com/iamenochchirima/kasitek/blob/main/docs/archive/deferred-plans/OPENTELEMETRY_INFRASTRUCTURE_RELEASE_RECORD.md).

@@ -49,7 +49,7 @@ State the outcome this work should achieve and how success will be recognized.
 ## Notes and blockers
 
 Record only external dependencies or missing decisions that prevent progress. Link to
-`docs/plans/active/BLOCKERS.md` when the issue needs ongoing tracking.
+the active plans directory when the issue needs ongoing tracking.
 - Continue all independent work after recording a blocker.
 - Mark checklist items complete only after their implementation and required verification exist.
 
