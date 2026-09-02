@@ -80,8 +80,10 @@ Post-release review date: 2026-09-09.
 - API startup release event: published version `9`, active installations `2`, stale installations `0`,
   rollout changes `0` (already coherent).
 - Worker startup release event: published version `9`, active installations `2`, stale installations `0`.
-- Runtime checks: `https://agents.kasitek.co.za/health/ready` and
-  `https://api.kasitek.co.za/health` both returned HTTP 200.
+- Runtime checks: the Agents API's internal `/health/ready` returned HTTP 200 with
+  `{"status":"ready","temporalEnabled":true}` through Railway SSH. The public
+  `https://agents.kasitek.co.za/health/ready` gateway check and
+  `https://api.kasitek.co.za/health` Core check also returned HTTP 200.
 
 ## Design boundary
 
