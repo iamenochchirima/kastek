@@ -1,6 +1,6 @@
 # Incremental connection permission authorization checklist
 
-**Status:** Active
+**Status:** Completed
 
 **Plan:** [`CONNECTION_PERMISSION_INCREMENTAL_AUTH_PLAN.md`](./CONNECTION_PERMISSION_INCREMENTAL_AUTH_PLAN.md)
 
@@ -27,13 +27,13 @@ Status markers: `[x]` complete, `[~]` partial, `[ ]` pending.
 
 - [x] Add a regression test for sequential X permission requests.
 - [x] Add tests for duplicate capability normalization and unsupported capabilities.
-- [ ] Run Core formatting, lint/build, and targeted tests.
-- [ ] Verify no debug instrumentation or secrets are present.
+- [x] Run Core formatting, lint/build, and targeted tests.
+- [x] Verify no debug instrumentation or secrets are present.
 
 ## Documentation and release
 
-- [ ] Update social connection operations documentation.
-- [ ] Update connection failure recovery documentation.
-- [ ] Record commit SHA and deployment evidence.
-- [ ] Verify production X access state after reauthorization.
-- [ ] Commit and push the completed change.
+- [x] Update social connection operations documentation.
+- [x] Update connection failure recovery documentation.
+- [x] Record commit SHA and deployment evidence.
+- [~] Verify production X access state after reauthorization; deployment is complete and the user must authorize the currently missing X permissions once.
+- [x] Commit and push the completed change.

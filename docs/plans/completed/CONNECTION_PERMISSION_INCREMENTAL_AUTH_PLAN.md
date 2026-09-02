@@ -1,6 +1,6 @@
 # Incremental connection permission authorization plan
 
-**Status:** Active
+**Status:** Completed
 
 **Owner:** Platform Integrations
 
@@ -58,8 +58,8 @@ Risk: standard; affects OAuth callbacks and connection access state for existing
 Affected services and user surfaces: `kasitek-core`, Connections access panel, X and other OAuth
 connection flows, Agent preflight that consumes connection permission state.
 
-Platform release version or release ID: record the deployed commit SHA; no separate platform tag is
-currently available.
+Platform release version or release ID: commit `68d4a43f008016008fd40e306e4bd694f5fc6c30`; Railway
+Core deployment `8fea78c5-aeb1-49ab-9879-c7936e0ed5ba`.
 
 API/schema/migration changes: not applicable; existing access-request and OAuth callback contracts
 remain compatible.
@@ -77,8 +77,9 @@ applicable.
 User, API, internal, and operational documentation: update the public social-connections guide and
 connection-failure runbook to explain additive reauthorization and safe recovery.
 
-Validation evidence: unit tests for scope union and callback protection, Core build/tests, and a
-production access snapshot after deployment.
+Validation evidence: 254 Core tests passed (251 active, 3 environment-dependent ignored), Core
+release build passed, formatting and diff checks passed, and the deployed Core `/health` endpoint
+returned `status: ok`. A production X access snapshot still requires one user reauthorization.
 
 Rollback or disable plan: revert the application commit. Existing tokens remain valid; do not
 delete or mutate stored connection credentials during rollback.
