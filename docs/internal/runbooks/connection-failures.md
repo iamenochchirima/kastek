@@ -101,6 +101,21 @@ The Content composer can select one connected Page for a LinkedIn destination an
 image through LinkedIn's Posts API. Page analytics, inbox, comments, and follower management are not
 part of the current adapter.
 
+## TikTok
+
+The initial TikTok OAuth request intentionally sends only `user.info.basic`, the Login Kit baseline.
+If the initial authorization page reports `scope`, inspect the generated request and confirm the
+deployed Core release is using the baseline-only flow. Optional capabilities request their own
+scopes: `video.publish` for Direct Post, `video.upload` for draft upload, and `user.info.stats` for
+profile statistics. Those scopes must be added and approved in the TikTok app before using **Grant
+access**; otherwise TikTok rejects the OAuth request before consent.
+
+The production callback is:
+
+```text
+https://api.kasitek.co.za/api/social/oauth/tiktok/callback
+```
+
 ## Threads
 
 Threads deletion uses the account owner's `threads_delete` permission. If deletion is unavailable,

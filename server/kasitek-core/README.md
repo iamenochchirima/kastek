@@ -238,20 +238,21 @@ short-lived authorization token for a long-lived token and refreshes it during p
 ```text
 AUTH_TIKTOK_CLIENT_KEY=
 AUTH_TIKTOK_CLIENT_SECRET=
-AUTH_TIKTOK_SCOPES=user.info.basic,video.publish
 ```
 
-Add Login Kit and Content Posting API to the TikTok app, register this redirect URI,
-and request approval for `user.info.basic` and `video.publish`:
+The initial connection requests only `user.info.basic`, which is the Login Kit baseline. Add
+optional access from the Connections panel when the TikTok app has the matching approved product
+and scope. `video.publish` is required for Direct Post, `video.upload` for uploading a draft, and
+`user.info.stats` for profile statistics. Register this redirect URI:
 
 ```text
 https://YOUR_APP_HOST/api/social/oauth/tiktok/callback
 ```
 
-For a TikTok sandbox app configured only for **Upload**, use
-`AUTH_TIKTOK_SCOPES=user.info.basic,video.upload`. This allows the creator to receive
-a draft in their TikTok inbox for final editing and posting. Direct publishing requires
-the separate `video.publish` scope and Direct Post configuration.
+For a TikTok sandbox app configured only for **Upload**, request the Use media capability from the
+Connections panel. This allows the creator to receive a draft in their TikTok inbox for final
+editing and posting. Direct publishing requires the separate `video.publish` scope and Direct Post
+configuration.
 
 Add every media host used by Content to TikTok's verified URL properties. Direct posts
 from an unaudited client are restricted to private visibility. Public posting requires

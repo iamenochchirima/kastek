@@ -158,6 +158,19 @@ pub fn build_tiktok_authorize_url(config: &AppConfig, state: &str) -> Result<Str
     build_tiktok_authorize_url_for_request(config, state, &[])
 }
 
+pub(crate) fn tiktok_scopes_for_request(requested_capabilities: &[String]) -> Vec<String> {
+    if requested_capabilities.is_empty() {
+        return vec!["user.info.basic".to_string()];
+    }
+
+    let mut scopes =
+        adapter_for("TIKTOK", None, None).required_scopes(requested_capabilities, None);
+    if !scopes.iter().any(|scope| scope == "user.info.basic") {
+        scopes.insert(0, "user.info.basic".to_string());
+    }
+    scopes
+}
+
 pub fn build_tiktok_authorize_url_for_request(
     config: &AppConfig,
     state: &str,
@@ -168,17 +181,7 @@ pub fn build_tiktok_authorize_url_for_request(
         "{}/api/social/oauth/tiktok/callback",
         social_app_url(config)
     );
-    let scope = if requested_capabilities.is_empty() {
-        std::env::var("AUTH_TIKTOK_SCOPES")
-            .unwrap_or_else(|_| "user.info.basic,video.publish".to_string())
-    } else {
-        let mut scopes =
-            adapter_for("TIKTOK", None, None).required_scopes(requested_capabilities, None);
-        if !scopes.iter().any(|scope| scope == "user.info.basic") {
-            scopes.insert(0, "user.info.basic".to_string());
-        }
-        scopes.join(",")
-    };
+    let scope = tiktok_scopes_for_request(requested_capabilities).join(",");
     Ok(format!(
         "{TIKTOK_AUTHORIZE_URL}?client_key={}&redirect_uri={}&scope={}&response_type=code&state={}",
         urlencoding::encode(&client_key),
@@ -309,7 +312,10 @@ pub fn build_instagram_authorize_url_for_request(
 
 #[cfg(test)]
 mod tests {
-    use super::{create_x_oauth_state, linkedin_scopes, threads_scopes_for_request};
+    use super::{
+        create_x_oauth_state, linkedin_scopes, threads_scopes_for_request,
+        tiktok_scopes_for_request,
+    };
 
     #[test]
     fn x_oauth_state_contains_distinct_pkce_material() {
@@ -354,6 +360,33 @@ mod tests {
                 "threads_basic".to_string(),
                 "threads_content_publish".to_string(),
                 "threads_delete".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn tiktok_initial_authorization_requests_only_the_login_baseline_scope() {
+        assert_eq!(
+            tiktok_scopes_for_request(&[]),
+            vec!["user.info.basic".to_string()]
+        );
+    }
+
+    #[test]
+    fn tiktok_requested_capabilities_add_only_their_provider_scopes() {
+        let scopes = tiktok_scopes_for_request(&[
+            "SOCIAL_PUBLISH".to_string(),
+            "MEDIA_PUBLISH".to_string(),
+            "SOCIAL_ANALYTICS".to_string(),
+        ]);
+
+        assert_eq!(
+            scopes,
+            vec![
+                "user.info.basic".to_string(),
+                "video.publish".to_string(),
+                "video.upload".to_string(),
+                "user.info.stats".to_string(),
             ]
         );
     }
