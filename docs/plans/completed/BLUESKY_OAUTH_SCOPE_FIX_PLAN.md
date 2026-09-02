@@ -1,6 +1,6 @@
 # Bluesky OAuth Scope Fix
 
-**Status:** Active
+**Status:** Complete
 
 **Owner:** Platform integrations
 
@@ -39,7 +39,7 @@ offered to users or sent to the provider.
 1. [x] Reproduce the invalid Bluesky scope with a deterministic adapter/access-list test.
 2. [x] Remove the undeclared messaging request from the Bluesky capability and UI access list.
 3. [x] Add regression coverage and update documentation.
-4. [ ] Run verification, commit, and push the fix.
+4. [x] Run verification, commit, and push the fix.
 
 ## Verification
 
@@ -64,7 +64,7 @@ Risk: low.
 
 Affected services and user surfaces: `kasitek-core`; Connections access panel; Bluesky OAuth.
 
-Platform release version or release ID: pending commit/push.
+Platform release version or release ID: implementation commit `757e4dd9`.
 
 API/schema/migration changes: not applicable.
 
@@ -79,8 +79,9 @@ User, API, internal, and operational documentation: updated `social-connections.
 `connection-failures.md`, and the Core README where the provider behavior is documented.
 
 Validation evidence: the regression initially failed because Bluesky messaging was marked
-requestable and emitted `transition:chat.bsky`; after the fix, targeted and full Core tests passed,
-the Core build passed, frontend lint/build passed, and formatting/diff checks passed.
+requestable and emitted `transition:chat.bsky`; after the fix, targeted and full Core tests passed
+(258 passed, 3 environment-dependent ignored), the Core build passed, frontend lint/build passed,
+and formatting/diff checks passed.
 
 Rollback or disable plan: revert the implementation commit.
 

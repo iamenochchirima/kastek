@@ -1,6 +1,6 @@
 # Bluesky OAuth Scope Fix Checklist
 
-**Status:** Active
+**Status:** Complete
 
 ## Diagnosis
 
@@ -18,5 +18,5 @@
 
 - [x] Update documentation and release record.
 - [x] Run targeted tests, full Core tests, frontend checks, and diff checks.
-- [ ] Commit and push the implementation.
-- [ ] Record final evidence and move the plan to `docs/plans/completed/`.
+- [x] Commit and push the implementation.
+- [x] Record final evidence and move the plan to `docs/plans/completed/`.
