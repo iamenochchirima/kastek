@@ -11,4 +11,6 @@
 - [x] Unit/regression tests pass; database integration remains environment-gated.
 - [x] Agents build and deployment descriptor checks pass.
 - [x] Deployment topology/runbook reflects the automatic gate and recovery command.
-- [ ] Production deployment records the commit, release identity, active version, and health result.
+- [x] Production deployment records the commit, release identity, active version, and health result.
+      API `0836645c-1555-4a51-8ea2-80380ac69755`; worker `42efc8ee-e671-4c59-9519-773526272997`;
+      source `05e1e6904f2a`; published version 9; 2 active / 0 stale; both health checks HTTP 200.

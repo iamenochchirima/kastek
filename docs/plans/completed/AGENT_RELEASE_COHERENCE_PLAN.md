@@ -2,7 +2,7 @@
 id: agent-release-coherence
 title: Agent release coherence
 owner: platform-ops
-status: active
+status: completed
 ---
 
 # Agent release coherence
@@ -28,7 +28,7 @@ Customer-owned agent versions remain governed by their installation release mode
   and deployment descriptor contracts.
 - [completed] Update deployment/runbook documentation with the new automatic gate, release identity,
   logs, validation, and rollback procedure.
-- [in_progress] Run verification, record production evidence, commit, push, and deploy the coherent change.
+- [completed] Run verification, record production evidence, commit, push, and deploy the coherent change.
 
 ## Release record
 
@@ -71,6 +71,17 @@ will restore the matching prior protected agent definition; if database recovery
 compiled release command from that artifact with `--rollout` after migrations are confirmed.
 
 Post-release review date: 2026-09-09.
+
+## Production evidence
+
+- Source commit: `05e1e6904f2a` (`fix(agents): make system release idempotency canonical`).
+- Agents API deployment: Railway `0836645c-1555-4a51-8ea2-80380ac69755`, `SUCCESS`.
+- Agents Worker deployment: Railway `42efc8ee-e671-4c59-9519-773526272997`, `SUCCESS`.
+- API startup release event: published version `9`, active installations `2`, stale installations `0`,
+  rollout changes `0` (already coherent).
+- Worker startup release event: published version `9`, active installations `2`, stale installations `0`.
+- Runtime checks: `https://agents.kasitek.co.za/health/ready` and
+  `https://api.kasitek.co.za/health` both returned HTTP 200.
 
 ## Design boundary
 
