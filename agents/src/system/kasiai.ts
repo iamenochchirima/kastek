@@ -1,30 +1,12 @@
 import type { AppConfig } from "../config";
 import type { AgentRecord, AgentVersionRecord } from "../db/repositories/agent-repository";
-import { AgentRepository, SYSTEM_ORGANIZATION_ID } from "../db/repositories/agent-repository";
+import { AgentRepository, SYSTEM_ORGANIZATION_ID, type SystemAgentReleaseStatus } from "../db/repositories/agent-repository";
+import { evaluateKasiAiRelease } from "./kasiai-release-gate";
+import { KASIAI_ALLOWED_TOOLS } from "./kasiai-tools";
 
 export const KASIAI_SLUG = "kasiai";
 export const KASIAI_RELEASE_ACTOR = "kasiai-bootstrap";
-export const KASIAI_ALLOWED_TOOLS = [
-  "platform.current_time",
-  "kasitek.core.workspace_status",
-  "kasitek.core.connections_list",
-  "kasitek.core.connection_status_update",
-  "kasitek.core.workspace_report",
-  "kasitek.core.content_posts_list",
-  "kasitek.core.content_post_get",
-  "kasitek.core.content_post_publish_batch_preflight",
-  "kasitek.core.content_post_publish_batch_status",
-  "kasitek.core.content_post_publish_batch_retry",
-  "kasitek.core.content_posts_insights_report",
-  "kasitek.core.content_post_insights",
-  "kasitek.core.content_post_draft",
-  "kasitek.core.content_post_update",
-  "kasitek.core.content_post_publish",
-  "kasitek.core.content_post_publish_batch",
-  "kasitek.core.content_post_schedule",
-  "kasitek.core.content_post_delete",
-  "kasitek.core.content_post_delete_published",
-] as const;
+export { KASIAI_ALLOWED_TOOLS } from "./kasiai-tools";
 
 const KASIAI_INSTRUCTIONS = `You are KasiAi, the protected platform guidance agent for KasiTek.
 
@@ -104,15 +86,24 @@ export async function bootstrapKasiAi(
 }
 
 /**
- * Keep the protected local KasiAi installation on the current source-defined
- * version. Production still uses the explicit release command; development
- * startup calls this so a restart is enough to pick up the current tools and
+ * Reconcile the protected KasiAi database version with the source-defined
+ * candidate. Production calls this before opening the API listener; local
+ * development uses the same path so a restart picks up current tools and
  * instructions.
  */
 export async function synchronizeKasiAi(
   agents: AgentRepository,
   config: AppConfig,
-): Promise<{ agent: AgentRecord; version: AgentVersionRecord; rolledOut: number }> {
+  options: { rollout?: boolean } = {},
+): Promise<{ agent: AgentRecord; version: AgentVersionRecord; rolledOut: number; releaseStatus: SystemAgentReleaseStatus }> {
+  const candidate = kasiaiInitialVersion(config);
+  const gate = evaluateKasiAiRelease(candidate);
+  if (!gate.passed) {
+    throw Object.assign(new Error("KasiAi release gate failed"), {
+      code: "KASIAI_RELEASE_GATE_FAILED",
+      checks: gate.checks,
+    });
+  }
   const agent = await agents.ensureSystemAgent(KASIAI_RELEASE_ACTOR, {
     organizationId: SYSTEM_ORGANIZATION_ID,
     name: "KasiAi",
@@ -123,8 +114,62 @@ export async function synchronizeKasiAi(
   const version = await agents.releaseSystemVersion(
     KASIAI_RELEASE_ACTOR,
     agent.id,
-    kasiaiInitialVersion(config),
+    candidate,
   );
-  const rolledOut = await agents.rolloutSystemVersion(agent.id, version.id, KASIAI_RELEASE_ACTOR);
-  return { agent, version, rolledOut };
+  const rolledOut = options.rollout === false
+    ? 0
+    : await agents.rolloutSystemVersion(agent.id, version.id, KASIAI_RELEASE_ACTOR);
+  const releaseStatus = await agents.getSystemAgentReleaseStatus({ systemSlug: KASIAI_SLUG, candidate });
+  if (!releaseStatus.publishedContentMatches) {
+    throw Object.assign(new Error("Published KasiAi version does not match the deployed candidate"), {
+      code: "KASIAI_PUBLISHED_VERSION_MISMATCH",
+      releaseStatus,
+    });
+  }
+  if (options.rollout !== false && releaseStatus.staleInstallationCount > 0) {
+    throw Object.assign(new Error("One or more active KasiAi installations did not receive the deployed version"), {
+      code: "KASIAI_ROLLOUT_INCOMPLETE",
+      releaseStatus,
+    });
+  }
+  return { agent, version, rolledOut, releaseStatus };
+}
+
+/**
+ * Verify that a process built from this source can safely execute new KasiAi
+ * work. It has no side effects and is used by the production worker after the
+ * API release gate has completed.
+ */
+export async function assertKasiAiReleaseCurrent(
+  agents: AgentRepository,
+  config: AppConfig,
+): Promise<SystemAgentReleaseStatus> {
+  const candidate = kasiaiInitialVersion(config);
+  const gate = evaluateKasiAiRelease(candidate);
+  if (!gate.passed) {
+    throw Object.assign(new Error("KasiAi release gate failed"), {
+      code: "KASIAI_RELEASE_GATE_FAILED",
+      checks: gate.checks,
+    });
+  }
+  const releaseStatus = await agents.getSystemAgentReleaseStatus({ systemSlug: KASIAI_SLUG, candidate });
+  if (!releaseStatus.agentId || !releaseStatus.publishedVersionId) {
+    throw Object.assign(new Error("Published KasiAi version is missing"), {
+      code: "KASIAI_PUBLISHED_VERSION_MISSING",
+      releaseStatus,
+    });
+  }
+  if (!releaseStatus.publishedContentMatches) {
+    throw Object.assign(new Error("The published KasiAi version does not match this worker artifact"), {
+      code: "KASIAI_PUBLISHED_VERSION_MISMATCH",
+      releaseStatus,
+    });
+  }
+  if (releaseStatus.staleInstallationCount > 0) {
+    throw Object.assign(new Error("Active KasiAi installations are still on an older version"), {
+      code: "KASIAI_ROLLOUT_INCOMPLETE",
+      releaseStatus,
+    });
+  }
+  return releaseStatus;
 }

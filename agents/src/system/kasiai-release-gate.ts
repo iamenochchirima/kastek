@@ -1,6 +1,6 @@
 import type { CreateVersionInput } from "../domain/types";
 import { KASIAI_KNOWLEDGE_VERSION } from "./kasiai-knowledge";
-import { KASIAI_ALLOWED_TOOLS } from "./kasiai";
+import { KASIAI_ALLOWED_TOOLS } from "./kasiai-tools";
 
 export interface KasiAiReleaseCheck {
   name: string;

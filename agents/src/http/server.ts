@@ -14,13 +14,30 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const pool = createPool(config);
   const runs = new RunRepository(pool);
-  if (config.NODE_ENV !== "production") {
+  const releaseContext = config.NODE_ENV === "production"
+    ? { operation: "kasiai-production-release", actorId: "system:kasiai-production-release" }
+    : { operation: "kasiai-development-sync", actorId: "system:kasiai-development-sync" };
+  try {
     const synced = await runWithRequiredDatabaseContext(
-      "kasiai-development-sync",
-      { organizationId: "platform", actorId: "system:kasiai-development-sync", operator: true },
+      releaseContext.operation,
+      { organizationId: "platform", actorId: releaseContext.actorId, operator: true },
       () => synchronizeKasiAi(new AgentRepository(pool), config),
     );
-    operationalLogger.info({ event: "kasiai.synchronized", version_number: synced.version.version_number, rolled_out: synced.rolledOut }, "KasiAi synchronized");
+    operationalLogger.info({
+      event: config.NODE_ENV === "production" ? "kasiai.production.release.completed" : "kasiai.synchronized",
+      version_number: synced.version.version_number,
+      rolled_out: synced.rolledOut,
+      active_installations: synced.releaseStatus.activeInstallationCount,
+      stale_installations: synced.releaseStatus.staleInstallationCount,
+    }, config.NODE_ENV === "production" ? "KasiAi production release gate completed" : "KasiAi synchronized");
+  } catch (error) {
+    operationalLogger.error({
+      err: error,
+      event: config.NODE_ENV === "production" ? "kasiai.production.release.failed" : "kasiai.synchronization.failed",
+      error_code: (error as { code?: string }).code,
+    }, config.NODE_ENV === "production" ? "KasiAi production release gate failed" : "KasiAi synchronization failed");
+    await pool.end();
+    throw error;
   }
   let temporalConnection: Awaited<ReturnType<typeof connectTemporal>> | undefined;
   if (config.TEMPORAL_ENABLED) temporalConnection = await connectTemporal(config);

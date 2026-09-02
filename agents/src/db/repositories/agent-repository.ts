@@ -98,6 +98,16 @@ export interface SystemInstallationRecord extends InstallationRecord {
   created: boolean;
 }
 
+export interface SystemAgentReleaseStatus {
+  agentId: string | null;
+  publishedVersionId: string | null;
+  publishedVersionNumber: number | null;
+  publishedContentMatches: boolean;
+  activeInstallationCount: number;
+  matchingInstallationCount: number;
+  staleInstallationCount: number;
+}
+
 export interface TemplateInstallationRecord {
   agent: AgentRecord;
   version: AgentVersionRecord;
@@ -907,6 +917,68 @@ export class AgentRepository {
       }
       return installations.rowCount ?? 0;
     });
+  }
+
+  /**
+   * Compare the source-defined protected agent candidate with the published
+   * database version and every active installation. This is deliberately a
+   * read-only projection used by release gates and worker startup checks.
+   */
+  public async getSystemAgentReleaseStatus(input: {
+    systemSlug: string;
+    candidate: CreateVersionInput;
+  }): Promise<SystemAgentReleaseStatus> {
+    const result = await query<SystemAgentReleaseStatus>(
+      this.pool,
+      `SELECT ad.id AS "agentId",
+              published.id AS "publishedVersionId",
+              published.version_number AS "publishedVersionNumber",
+              COALESCE(
+                published.instructions = $2
+                AND published.configuration = $3::jsonb
+                AND published.policy = $4::jsonb,
+                FALSE
+              ) AS "publishedContentMatches",
+              COUNT(installation.id) FILTER (WHERE installation.status <> 'disabled')::int AS "activeInstallationCount",
+              COUNT(installation.id) FILTER (
+                WHERE installation.status <> 'disabled'
+                  AND installation.agent_version_id = published.id
+              )::int AS "matchingInstallationCount"
+       FROM agent_definitions ad
+       LEFT JOIN agent_versions published
+         ON published.agent_definition_id = ad.id AND published.status = 'published'
+       LEFT JOIN agent_installations installation
+         ON installation.agent_definition_id = ad.id
+       WHERE ad.organization_id = $1
+         AND ad.owner_type = 'system'
+         AND ad.protected = TRUE
+         AND ad.slug = $5
+       GROUP BY ad.id, published.id, published.version_number,
+                published.instructions, published.configuration, published.policy`,
+      [
+        SYSTEM_ORGANIZATION_ID,
+        input.candidate.instructions,
+        JSON.stringify(input.candidate.configuration),
+        JSON.stringify(input.candidate.policy),
+        input.systemSlug,
+      ],
+    );
+    const row = result.rows[0];
+    if (!row) {
+      return {
+        agentId: null,
+        publishedVersionId: null,
+        publishedVersionNumber: null,
+        publishedContentMatches: false,
+        activeInstallationCount: 0,
+        matchingInstallationCount: 0,
+        staleInstallationCount: 0,
+      };
+    }
+    return {
+      ...row,
+      staleInstallationCount: row.activeInstallationCount - row.matchingInstallationCount,
+    };
   }
 
   public async getAgent(organizationId: string, agentId: string): Promise<AgentRecord | null> {

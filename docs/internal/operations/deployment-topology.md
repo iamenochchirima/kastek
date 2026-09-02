@@ -115,15 +115,20 @@ After the command exits successfully, restore `node dist/http/server.js`. Do not
 `pnpm run migrate` in the production image: that script references the source tree and the
 development `tsx` dependency, which are not included in the runtime image.
 
-When a release changes the protected KasiAi definition or when a new environment has no published
-KasiAi version, run the compiled release command from the migrated Agents API image:
+The migrated Agents API image reconciles the protected KasiAi definition during startup, before it
+opens the API listener. It publishes an idempotent source-defined version, rolls it out to every
+active protected installation, and fails startup if any installation remains stale. Therefore a
+healthy `/health/ready` response is also evidence that the protected system agent is current.
+
+For operator recovery or a separately controlled one-shot release, use the compiled command from
+the migrated Agents API image:
 
 ```text
-node dist/system/release-kasiai.js
+node dist/system/release-kasiai.js --rollout
 ```
 
-Record the released agent version and release-gate result. This is an explicit release step in
-Production; the API intentionally does not synchronize or publish KasiAi during startup.
+Record the released agent version and release-gate result. The one-shot command is a recovery and
+audit tool; normal production deployments use the API startup release gate.
 
 ### Analytics
 
@@ -239,11 +244,12 @@ The following are dependencies, tools, or deployment steps rather than applicati
 1. Confirm Production shared variables, service-scoped variables, secrets, databases, and domains
    are correct.
 2. Apply Agents and Analytics migrations as one-shot deployments; confirm each exits successfully.
-   If the release changes KasiAi or the environment has no published version, run the explicit
-   Agents KasiAi release command after the Agents migration.
+   The Agents API startup release gate runs after the Agents migration and must complete before the
+   API is considered healthy.
 3. Apply the Core Prisma migration chain through the temporary database tunnel; confirm no pending
    migrations remain.
-4. Deploy `agents-api`; confirm `/health/ready` is healthy.
+4. Deploy `agents-api`; confirm `/health/ready` is healthy and record the protected KasiAi version
+   reported by the release-completion log.
 5. Deploy `agents-worker`.
 6. Deploy `MCP-Gateway` and configure its public MCP domain if required.
 7. Deploy `analytics-api`; confirm `/health/ready` is healthy.

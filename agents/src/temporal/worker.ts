@@ -20,6 +20,8 @@ import { DiscordBotClient } from "../channels/discord-client";
 import { recordBudgetReconciliationRequired } from "../telemetry/spans";
 import { MemoryConsolidationWorker } from "../memory/consolidation-worker";
 import { runWithRequiredDatabaseContext } from "../db/context";
+import { AgentRepository } from "../db/repositories/agent-repository";
+import { assertKasiAiReleaseCurrent } from "../system/kasiai";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -27,6 +29,28 @@ async function main(): Promise<void> {
     throw new Error("TEMPORAL_ENABLED must be true when starting the Agent Platform worker");
   }
   const pool = createPool(config);
+  if (config.NODE_ENV === "production") {
+    try {
+      const releaseStatus = await runWithRequiredDatabaseContext(
+        "kasiai-worker-release-check",
+        { organizationId: "platform", actorId: "system:kasiai-worker-release-check", operator: true },
+        () => assertKasiAiReleaseCurrent(new AgentRepository(pool), config),
+      );
+      operationalLogger.info({
+        event: "kasiai.worker.release_check.completed",
+        version_number: releaseStatus.publishedVersionNumber,
+        active_installations: releaseStatus.activeInstallationCount,
+      }, "KasiAi worker release check completed");
+    } catch (error) {
+      operationalLogger.error({
+        err: error,
+        event: "kasiai.worker.release_check.failed",
+        error_code: (error as { code?: string }).code,
+      }, "KasiAi worker release check failed");
+      await pool.end();
+      throw error;
+    }
+  }
   const effectReceipts = new EffectReceiptRepository(pool);
   const runs = new RunRepository(pool);
   const runBudgets = new RunBudgetRepository(pool);
