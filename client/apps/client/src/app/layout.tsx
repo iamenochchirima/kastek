@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Geist_Pixel } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import PwaRegister from "@/components/pwa-register";
 import ThemeScript from "@/components/theme-script";
 import { ConfirmationProvider } from "@/components/ui/confirmation-provider";
@@ -13,11 +13,6 @@ const geist = Geist({
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const geistPixel = Geist_Pixel({
-  variable: "--font-geist-pixel",
   subsets: ["latin"],
 });
 
@@ -62,7 +57,7 @@ export default async function RootLayout({
       <head>
         <ThemeScript />
       </head>
-      <body className={`${geist.variable} ${geistMono.variable} ${geistPixel.variable} font-sans antialiased`}>
+      <body className={`${geist.variable} ${geistMono.variable} font-sans antialiased`}>
         <ConfirmationProvider>{children}</ConfirmationProvider>
         <PwaRegister />
         <Toaster />
