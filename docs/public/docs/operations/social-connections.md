@@ -34,6 +34,10 @@ connection and does not remove its drafts, published-post history, or agent assi
 selection is limited to permissions supported by that provider and connection type. Some providers
 use a fixed consent or setup flow instead of individual permission checkboxes.
 
+Additional access is additive. When a provider replaces OAuth tokens during reauthorization,
+KasiTek includes the connection's existing verified access in the new request. If the provider
+returns a narrower scope set, KasiTek rejects the update instead of silently removing access.
+
 For LinkedIn, publishing and media access are currently available. Member analytics and comment
 management remain visible in the access sheet but are locked until the app receives Community
 Management approval.

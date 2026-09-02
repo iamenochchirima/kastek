@@ -30,7 +30,7 @@ Use this when a provider account shows `NEEDS_ATTENTION`, messages stop arriving
 ## Facebook and Instagram
 
 1. Open the affected account in `/connections` and inspect the **Access** section before disconnecting anything.
-2. Use **Grant access** for requestable missing access. Reauthorization updates the existing connection and does not remove drafts, history, or agent assignments.
+2. Use **Grant access** for requestable missing access. Reauthorization updates the existing connection and does not remove drafts, history, or agent assignments. OAuth requests include existing verified access so granting one additional capability does not remove earlier grants.
 3. Confirm the expected Page and Instagram professional account were returned by Meta.
 4. Confirm required Page, messaging, publishing, and Instagram permissions are approved for the app and granted by the customer.
 5. Meta Login Instagram published-media deletion requires the provider's

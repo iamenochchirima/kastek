@@ -12,6 +12,47 @@ use super::social::{
     ThreadsTokenResponse, TikTokProfile, TikTokTokenResponse, XMeData, XTokenResponse,
 };
 
+fn metadata_scope_values(metadata: Option<&Value>) -> Vec<String> {
+    let Some(value) = metadata.and_then(|item| item.get("scope")) else {
+        return Vec::new();
+    };
+    match value {
+        Value::Array(values) => values
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::to_string)
+            .collect(),
+        Value::String(value) => value
+            .split([' ', ','])
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+            .map(str::to_string)
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn x_scope_would_downgrade(
+    existing_metadata: Option<&Value>,
+    returned_scope: Option<&str>,
+) -> bool {
+    let existing = metadata_scope_values(existing_metadata);
+    if existing.is_empty() {
+        return false;
+    }
+    let Some(returned_scope) = returned_scope else {
+        return true;
+    };
+    let returned = returned_scope
+        .split([' ', ','])
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .collect::<Vec<_>>();
+    existing
+        .iter()
+        .any(|scope| !returned.iter().any(|item| *item == scope))
+}
+
 pub(crate) async fn get_social_channel_by_external_account(
     pool: &PgPool,
     org_id: &str,
@@ -457,6 +498,15 @@ pub async fn upsert_x_connection_for_org(
     let expires_at = tokens
         .expires_in
         .map(|seconds| (Utc::now() + Duration::seconds(seconds)).to_rfc3339());
+    if let Some(existing) =
+        get_social_channel_by_external_account(pool, org_id, "X", &profile.id).await?
+    {
+        if x_scope_would_downgrade(existing.metadata.as_ref(), tokens.scope.as_deref()) {
+            return Err(AppError::BadRequest(
+                "X authorization returned less access than the existing connection; no changes were applied".to_string(),
+            ));
+        }
+    }
 
     sqlx::query(
         r#"
@@ -708,4 +758,30 @@ pub async fn upsert_bluesky_oauth_connection_for_org(
         }),
     )
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::x_scope_would_downgrade;
+    use serde_json::json;
+
+    #[test]
+    fn x_narrow_scope_response_is_rejected() {
+        assert!(x_scope_would_downgrade(
+            Some(&json!({
+                "scope": "tweet.write media.write tweet.read users.read offline.access"
+            })),
+            Some("tweet.write tweet.read users.read offline.access"),
+        ));
+    }
+
+    #[test]
+    fn x_scope_response_can_add_access_without_downgrading() {
+        assert!(!x_scope_would_downgrade(
+            Some(&json!({
+                "scope": "tweet.write tweet.read users.read offline.access"
+            })),
+            Some("tweet.write media.write tweet.read users.read offline.access"),
+        ));
+    }
 }

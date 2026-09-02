@@ -81,7 +81,7 @@ async fn prepare_provider_access_attempt(
         &plan.context.provider,
         plan.adapter.auth_mode(),
         target,
-        &requested,
+        &plan.effective_capabilities,
         state.clone(),
     )
     .await?;
@@ -1023,7 +1023,7 @@ pub async fn start_meta_oauth(
     } else {
         connection_permissions::normalize_requested_capabilities(query.capabilities.as_deref())
     };
-    let state = if let Some(connection_id) = query.connection_id.as_deref() {
+    let requested_capabilities = if let Some(connection_id) = query.connection_id.as_deref() {
         let plan = connection_permissions::plan_access_request(
             pool.get_ref(),
             &org_id,
@@ -1042,7 +1042,7 @@ pub async fn start_meta_oauth(
                     .to_string(),
             ));
         }
-        connection_permissions::create_authorization_attempt(
+        let attempt = connection_permissions::create_authorization_attempt(
             pool.get_ref(),
             &org_id,
             &user.id,
@@ -1050,13 +1050,14 @@ pub async fn start_meta_oauth(
             &plan.context.provider,
             plan.adapter.auth_mode(),
             target,
-            &requested_capabilities,
+            &plan.effective_capabilities,
         )
-        .await?
-        .state
+        .await?;
+        (attempt.state, attempt.requested_capabilities)
     } else {
-        social::create_meta_oauth_state()
+        (social::create_meta_oauth_state(), requested_capabilities)
     };
+    let (state, requested_capabilities) = requested_capabilities;
     let authorize_url = social::build_meta_authorize_url_for_request(
         config.get_ref(),
         &state,
@@ -1097,7 +1098,7 @@ pub async fn start_instagram_oauth(
     } else {
         connection_permissions::normalize_requested_capabilities(query.capabilities.as_deref())
     };
-    let state = if let Some(connection_id) = query.connection_id.as_deref() {
+    let requested_capabilities = if let Some(connection_id) = query.connection_id.as_deref() {
         let plan = connection_permissions::plan_access_request(
             pool.get_ref(),
             &org_id,
@@ -1110,7 +1111,7 @@ pub async fn start_instagram_oauth(
                 "This connection must be authorized through Instagram Login".to_string(),
             ));
         }
-        connection_permissions::create_authorization_attempt(
+        let attempt = connection_permissions::create_authorization_attempt(
             pool.get_ref(),
             &org_id,
             &user.id,
@@ -1118,13 +1119,17 @@ pub async fn start_instagram_oauth(
             &plan.context.provider,
             plan.adapter.auth_mode(),
             "instagram",
-            &requested_capabilities,
+            &plan.effective_capabilities,
         )
-        .await?
-        .state
+        .await?;
+        (attempt.state, attempt.requested_capabilities)
     } else {
-        social::create_instagram_oauth_state()
+        (
+            social::create_instagram_oauth_state(),
+            requested_capabilities,
+        )
     };
+    let (state, requested_capabilities) = requested_capabilities;
     let authorize_url = social::build_instagram_authorize_url_for_request(
         config.get_ref(),
         &state,
@@ -2110,7 +2115,7 @@ pub async fn start_bluesky_oauth(
             connection_id: query.connection_id.clone(),
             capabilities: query.capabilities.clone(),
         };
-        let (state, _attempt) = prepare_provider_access_attempt(
+        let (state, attempt) = prepare_provider_access_attempt(
             pool.get_ref(),
             &org_id,
             &user.id,
@@ -2120,20 +2125,25 @@ pub async fn start_bluesky_oauth(
             state,
         )
         .await?;
-        bluesky_oauth::start_with_state(
+        let effective_capabilities = attempt
+            .as_ref()
+            .map(|item| item.requested_capabilities.as_slice())
+            .unwrap_or(requested_capabilities.as_slice());
+        let url = bluesky_oauth::start_with_state(
             pool.get_ref(),
             config.get_ref(),
             &user.id,
             &org_id,
             handle,
             Some(&state),
-            &requested_capabilities,
+            effective_capabilities,
         )
-        .await?
+        .await?;
+        url
     } else {
         let requested_capabilities =
             connection_permissions::normalize_requested_capabilities(query.capabilities.as_deref());
-        bluesky_oauth::start_with_state(
+        let url = bluesky_oauth::start_with_state(
             pool.get_ref(),
             config.get_ref(),
             &user.id,
@@ -2142,7 +2152,8 @@ pub async fn start_bluesky_oauth(
             None,
             &requested_capabilities,
         )
-        .await?
+        .await?;
+        url
     };
     Ok(HttpResponse::Found()
         .append_header(("Location", url))

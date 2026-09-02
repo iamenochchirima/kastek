@@ -121,6 +121,7 @@ pub struct ConnectionAccessSnapshot {
 pub(crate) struct AccessRequestPlan {
     pub context: ConnectionAccessContext,
     pub adapter: super::connection_permission_providers::ProviderAdapter,
+    pub effective_capabilities: Vec<String>,
 }
 
 const DEFINITIONS: &[PermissionDefinition] = &[
@@ -203,6 +204,22 @@ pub fn parse_requested_capabilities(value: Option<&str>) -> Result<Vec<String>, 
         ));
     }
     Ok(requested)
+}
+
+/// Return the capabilities that must be included in a replacement OAuth grant. Providers such as
+/// X issue a new token for each authorization request, so requesting only a newly selected
+/// capability would silently remove permissions that were already granted.
+pub(crate) fn effective_requested_capabilities(
+    requested: &[String],
+    snapshots: &[PermissionSnapshot],
+) -> Vec<String> {
+    let mut effective = requested.to_vec();
+    for snapshot in snapshots {
+        if snapshot.definition.state == "GRANTED" && !effective.contains(&snapshot.definition.key) {
+            effective.push(snapshot.definition.key.clone());
+        }
+    }
+    effective
 }
 
 pub fn is_authorization_error(error: &AppError) -> bool {
@@ -594,7 +611,13 @@ pub(crate) async fn plan_access_request(
             )));
         }
     }
-    Ok(AccessRequestPlan { context, adapter })
+    let effective_capabilities =
+        effective_requested_capabilities(requested_capabilities, &snapshots);
+    Ok(AccessRequestPlan {
+        context,
+        adapter,
+        effective_capabilities,
+    })
 }
 
 pub(crate) fn authorization_requirement(
@@ -752,10 +775,11 @@ fn metadata_values(metadata: Option<&Value>, key: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::connection_permission_providers::adapter_for;
     use super::{
-        authorization_requirement, is_authorization_error, meta_scopes_for_request,
-        normalize_requested_capabilities, permission_snapshots, MESSAGING_INBOUND,
-        SOCIAL_POST_DELETE,
+        authorization_requirement, effective_requested_capabilities, is_authorization_error,
+        meta_scopes_for_request, normalize_requested_capabilities, permission_snapshots,
+        MESSAGING_INBOUND, SOCIAL_POST_DELETE,
     };
     use crate::error::AppError;
     use serde_json::json;
@@ -830,6 +854,23 @@ mod tests {
         let scopes = meta_scopes_for_request("instagram", &[SOCIAL_POST_DELETE.to_string()]);
         assert!(scopes.contains(&"instagram_manage_contents".to_string()));
         assert!(scopes.contains(&"instagram_basic".to_string()));
+    }
+
+    #[test]
+    fn incremental_access_requests_preserve_existing_x_grants() {
+        let existing = permission_snapshots(
+            "X",
+            Some(&json!({
+                "scope": "tweet.write tweet.read users.read offline.access"
+            })),
+        );
+        let effective = effective_requested_capabilities(&["MEDIA_PUBLISH".to_string()], &existing);
+        let scopes = adapter_for("X", None, None).required_scopes(&effective, None);
+
+        assert!(effective.contains(&"SOCIAL_PUBLISH".to_string()));
+        assert!(effective.contains(&"MEDIA_PUBLISH".to_string()));
+        assert!(scopes.contains(&"tweet.write".to_string()));
+        assert!(scopes.contains(&"media.write".to_string()));
     }
 
     #[test]
