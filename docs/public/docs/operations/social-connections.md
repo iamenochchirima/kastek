@@ -54,6 +54,10 @@ Threads supports publishing and deleting posts owned by the connected account. S
 published content** when connecting or request it later from the connection details. Editing Threads
 posts is not supported through this capability.
 
+Bluesky supports publishing and deleting posts owned by the connected account. Both actions use the
+account's `repo:app.bsky.feed.post` grant; the access panel reports deletion as requestable or
+granted instead of unsupported.
+
 ## Multi-destination publishing
 
 In **Content**, a draft can target multiple connected accounts. The Agent or composer checks every

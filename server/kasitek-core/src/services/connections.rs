@@ -429,7 +429,7 @@ async fn sync_capabilities(
                 ('SOCIAL_ANALYTICS', 'feature.analytics.view', ARRAY['FACEBOOK', 'INSTAGRAM', 'THREADS', 'TIKTOK', 'BLUESKY', 'LINKEDIN', 'X']),
                 ('COMMENTS_MANAGE', 'feature.content.manage', ARRAY['FACEBOOK', 'INSTAGRAM', 'X']),
                 ('MEDIA_PUBLISH', 'feature.content.publish', ARRAY['FACEBOOK', 'INSTAGRAM', 'TIKTOK', 'LINKEDIN', 'X']),
-                ('SOCIAL_POST_DELETE', 'feature.content.manage', ARRAY['FACEBOOK', 'INSTAGRAM', 'THREADS', 'LINKEDIN', 'X']),
+                ('SOCIAL_POST_DELETE', 'feature.content.manage', ARRAY['FACEBOOK', 'INSTAGRAM', 'THREADS', 'BLUESKY', 'LINKEDIN', 'X']),
                 ('CALLS_INBOUND', NULL::text, ARRAY['TWILIO']),
                 ('CALLS_OUTBOUND', NULL::text, ARRAY['TWILIO']),
                 ('CALLS_BROWSER', NULL::text, ARRAY['TWILIO'])

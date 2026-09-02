@@ -126,17 +126,7 @@ pub fn build_threads_authorize_url_for_request(
         "{}/api/social/oauth/threads/callback",
         social_app_url(config)
     );
-    let scope = if requested_capabilities.is_empty() {
-        std::env::var("AUTH_THREADS_SCOPES")
-            .unwrap_or_else(|_| "threads_basic,threads_content_publish".to_string())
-    } else {
-        let mut scopes =
-            adapter_for("THREADS", None, None).required_scopes(requested_capabilities, None);
-        if !scopes.iter().any(|scope| scope == "threads_basic") {
-            scopes.insert(0, "threads_basic".to_string());
-        }
-        scopes.join(",")
-    };
+    let scope = threads_scopes_for_request(requested_capabilities).join(",");
     Ok(format!(
         "{THREADS_AUTHORIZE_URL}?client_id={}&redirect_uri={}&scope={}&response_type=code&state={}",
         urlencoding::encode(&client_id),
@@ -144,6 +134,24 @@ pub fn build_threads_authorize_url_for_request(
         urlencoding::encode(&scope),
         urlencoding::encode(state)
     ))
+}
+
+pub(crate) fn threads_scopes_for_request(requested_capabilities: &[String]) -> Vec<String> {
+    let mut scopes = if requested_capabilities.is_empty() {
+        std::env::var("AUTH_THREADS_SCOPES")
+            .unwrap_or_else(|_| "threads_basic,threads_content_publish".to_string())
+            .split([',', ' '])
+            .map(str::trim)
+            .filter(|scope| !scope.is_empty())
+            .map(str::to_string)
+            .collect::<Vec<_>>()
+    } else {
+        adapter_for("THREADS", None, None).required_scopes(requested_capabilities, None)
+    };
+    if !requested_capabilities.is_empty() && !scopes.iter().any(|scope| scope == "threads_basic") {
+        scopes.insert(0, "threads_basic".to_string());
+    }
+    scopes
 }
 
 pub fn build_tiktok_authorize_url(config: &AppConfig, state: &str) -> Result<String, AppError> {
@@ -301,7 +309,7 @@ pub fn build_instagram_authorize_url_for_request(
 
 #[cfg(test)]
 mod tests {
-    use super::{create_x_oauth_state, linkedin_scopes};
+    use super::{create_x_oauth_state, linkedin_scopes, threads_scopes_for_request};
 
     #[test]
     fn x_oauth_state_contains_distinct_pkce_material() {
@@ -331,5 +339,22 @@ mod tests {
 
         assert!(scopes.contains("r_organization_admin"));
         assert!(scopes.contains("w_organization_social"));
+    }
+
+    #[test]
+    fn threads_requested_capabilities_produce_a_scope_inventory() {
+        let scopes = threads_scopes_for_request(&[
+            "SOCIAL_PUBLISH".to_string(),
+            "SOCIAL_POST_DELETE".to_string(),
+        ]);
+
+        assert_eq!(
+            scopes,
+            vec![
+                "threads_basic".to_string(),
+                "threads_content_publish".to_string(),
+                "threads_delete".to_string()
+            ]
+        );
     }
 }

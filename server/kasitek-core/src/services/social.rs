@@ -121,6 +121,7 @@ pub(crate) fn merge_channel_metadata_with_capabilities(
     Some(Value::Object(object))
 }
 
+pub(crate) use super::social_oauth::threads_scopes_for_request;
 pub use super::social_oauth::{
     build_instagram_authorize_url_for_request, build_linkedin_authorize_url_for_request,
     build_meta_authorize_url_for_request, build_threads_authorize_url_for_request,

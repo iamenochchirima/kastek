@@ -313,7 +313,9 @@ impl ProviderAdapter {
                 MESSAGING_INBOUND | MESSAGING_OUTBOUND => {
                     rule("transition:chat.bsky", BLUESKY_CHAT, BLUESKY_CHAT, true)
                 }
-                SOCIAL_PUBLISH => rule("repo:app.bsky.feed.post", BLUESKY_POST, BLUESKY_POST, true),
+                SOCIAL_PUBLISH | SOCIAL_POST_DELETE => {
+                    rule("repo:app.bsky.feed.post", BLUESKY_POST, BLUESKY_POST, true)
+                }
                 MEDIA_PUBLISH => rule("blob:*/*", BLUESKY_MEDIA, BLUESKY_MEDIA, true),
                 _ => unsupported(),
             },
@@ -604,6 +606,21 @@ mod tests {
             bluesky.capability(MEDIA_PUBLISH).provider_permission,
             Some("blob:*/*")
         );
+        assert_eq!(
+            bluesky.capability(SOCIAL_POST_DELETE).provider_permission,
+            Some("repo:app.bsky.feed.post")
+        );
+    }
+
+    #[test]
+    fn bluesky_delete_access_is_requestable_with_repository_post_scope() {
+        let bluesky = adapter_for("BLUESKY", None, None);
+        let delete = bluesky.capability(SOCIAL_POST_DELETE);
+
+        assert!(delete.supported);
+        assert!(delete.requestable);
+        assert_eq!(delete.provider_permission, Some("repo:app.bsky.feed.post"));
+        assert_eq!(delete.request_scopes, &["repo:app.bsky.feed.post"]);
     }
 
     #[test]

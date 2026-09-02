@@ -105,7 +105,16 @@ part of the current adapter.
 
 Threads deletion uses the account owner's `threads_delete` permission. If deletion is unavailable,
 reconnect or use **Grant access** from the connection details and verify that the returned token
-includes that permission. Threads post editing is not part of the adapter.
+includes that permission. Some Threads token exchanges omit the scope field; KasiTek records the
+exact scopes requested by the successful OAuth attempt in that case. Threads post editing is not
+part of the adapter.
+
+## Bluesky
+
+Bluesky publishing and deletion use the same `repo:app.bsky.feed.post` repository grant. If the
+access panel reports deletion as unsupported after the capability mapping release, refresh the
+connection details and verify the connection was synced. Deletion still requires a post URI saved
+from a successful KasiTek publication.
 
 ## Disconnect and revoke
 

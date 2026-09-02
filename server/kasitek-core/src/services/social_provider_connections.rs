@@ -130,6 +130,7 @@ pub async fn upsert_threads_connection_for_org(
     org_id: &str,
     tokens: &ThreadsTokenResponse,
     profile: &ThreadsProfile,
+    requested_scope: Option<&str>,
 ) -> Result<SocialChannel, AppError> {
     let access = tokens
         .access_token
@@ -151,13 +152,30 @@ pub async fn upsert_threads_connection_for_org(
         None,
         json!({
             "provider":"threads",
-            "scope":tokens.scope,
+            "scope":threads_scope_value(tokens.scope.as_deref(), requested_scope),
             "expiresAt":tokens.expires_in.map(|s|(Utc::now()+Duration::seconds(s)).to_rfc3339()),
             "avatarUrl":profile.threads_profile_picture_url
         }),
     )
     .await
 }
+
+pub(crate) fn threads_scope_value(
+    returned_scope: Option<&str>,
+    requested_scope: Option<&str>,
+) -> Option<String> {
+    fn normalize(value: Option<&str>) -> Option<String> {
+        let scopes = value?
+            .split([',', ' '])
+            .map(str::trim)
+            .filter(|scope| !scope.is_empty())
+            .collect::<Vec<_>>();
+        (!scopes.is_empty()).then(|| scopes.join(" "))
+    }
+
+    normalize(returned_scope).or_else(|| normalize(requested_scope))
+}
+
 pub async fn upsert_meta_connections_for_org(
     pool: &PgPool,
     user_id: &str,
@@ -762,7 +780,7 @@ pub async fn upsert_bluesky_oauth_connection_for_org(
 
 #[cfg(test)]
 mod tests {
-    use super::x_scope_would_downgrade;
+    use super::{threads_scope_value, x_scope_would_downgrade};
     use serde_json::json;
 
     #[test]
@@ -783,5 +801,13 @@ mod tests {
             })),
             Some("tweet.write media.write tweet.read users.read offline.access"),
         ));
+    }
+
+    #[test]
+    fn threads_missing_token_scope_uses_the_scope_requested_for_the_attempt() {
+        assert_eq!(
+            threads_scope_value(None, Some("threads_basic threads_content_publish")),
+            Some("threads_basic threads_content_publish".to_string())
+        );
     }
 }

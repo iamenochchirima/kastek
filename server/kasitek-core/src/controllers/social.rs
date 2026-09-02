@@ -1824,10 +1824,39 @@ pub async fn threads_oauth_callback(
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("Missing Threads access token".to_string()))?;
     let profile = social::fetch_threads_profile(access).await?;
-    social::upsert_threads_connection_for_org(pool.get_ref(), &user.id, &org_id, &tokens, &profile)
-        .await?;
+    let access_attempt = connection_permissions::find_authorization_attempt(
+        pool.get_ref(),
+        &org_id,
+        &user.id,
+        state,
+    )
+    .await?;
+    if access_attempt
+        .as_ref()
+        .is_some_and(|attempt| !attempt.provider.eq_ignore_ascii_case("THREADS"))
+    {
+        return Err(AppError::BadRequest(
+            "OAuth state does not match the requested provider".to_string(),
+        ));
+    }
+    let requested_scope = access_attempt.as_ref().map(|attempt| {
+        social::threads_scopes_for_request(&attempt.requested_capabilities).join(" ")
+    });
+    let requested_scope = requested_scope.or_else(|| {
+        let scopes = social::threads_scopes_for_request(&[]);
+        (!scopes.is_empty()).then(|| scopes.join(" "))
+    });
+    social::upsert_threads_connection_for_org(
+        pool.get_ref(),
+        &user.id,
+        &org_id,
+        &tokens,
+        &profile,
+        requested_scope.as_deref(),
+    )
+    .await?;
     connections::sync_org_connections(pool.get_ref(), &org_id).await?;
-    let access_attempt = finish_provider_attempt(
+    let completed_access_attempt = finish_provider_attempt(
         pool.get_ref(),
         &org_id,
         &user.id,
@@ -1837,7 +1866,7 @@ pub async fn threads_oauth_callback(
         None,
     )
     .await?;
-    let redirect = if access_attempt.is_some() {
+    let redirect = if completed_access_attempt.is_some() {
         format!(
             "{}/connections?connected=threads&access=granted",
             config.auth_url

@@ -1006,6 +1006,25 @@ mod tests {
     }
 
     #[test]
+    fn threads_scope_fallback_marks_requested_access_as_granted() {
+        let permissions = permission_snapshots(
+            "THREADS",
+            Some(&json!({
+                "scope": "threads_basic threads_content_publish threads_delete",
+                "permissionsInspected": true,
+            })),
+        );
+        for key in ["SOCIAL_PUBLISH", "MEDIA_PUBLISH", SOCIAL_POST_DELETE] {
+            let permission = permissions
+                .iter()
+                .find(|item| item.definition.key == key)
+                .unwrap();
+            assert_eq!(permission.definition.state, "GRANTED", "{key}");
+            assert!(!permission.definition.requestable, "{key}");
+        }
+    }
+
+    #[test]
     fn linkedin_organization_access_requires_the_returned_page_role() {
         let without_role = permission_snapshots(
             "LINKEDIN",
