@@ -204,6 +204,10 @@ function normalizeBlueskyHandle(value: string) {
   return handle && !handle.includes(".") ? `${handle}.bsky.social` : handle;
 }
 
+function displayableConnections(connections: WorkspaceConnection[]) {
+  return connections.filter((connection) => connection.status !== "DISCONNECTED");
+}
+
 function AccessSelection({
   value,
   onChange,
@@ -263,6 +267,11 @@ export function ConnectionsManager({
   const [permissionConnectProvider, setPermissionConnectProvider] = useState<string | null>(null);
   const [selectedAccess, setSelectedAccess] = useState<string[]>(DEFAULT_ACCESS_KEYS);
   const [requestedPermissionKeys, setRequestedPermissionKeys] = useState<string[]>([]);
+  const [shownConnections, setShownConnections] = useState(() => displayableConnections(connections));
+
+  useEffect(() => {
+    setShownConnections(displayableConnections(connections));
+  }, [connections]);
 
   useEffect(() => {
     function handleWhatsappSignupStatus(event: Event) {
@@ -300,7 +309,7 @@ export function ConnectionsManager({
     .map(([provider, detail]) => ({
       provider,
       detail,
-      connections: connections.filter((connection) => connection.provider === provider),
+      connections: shownConnections.filter((connection) => connection.provider === provider),
     }))
     .filter((group) => group.connections.length > 0);
 
@@ -318,6 +327,9 @@ export function ConnectionsManager({
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Connection update failed");
       setSelectedConnection(null);
+      if (status === "DISCONNECTED") {
+        setShownConnections((current) => current.filter((item) => item.id !== connection.id));
+      }
       toast.success(status === "DISCONNECTED" ? "Account removed" : "Connection marked revoked");
       router.refresh();
     } catch (caught) {
@@ -427,7 +439,7 @@ export function ConnectionsManager({
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {Object.entries(providerDetails).map(([provider, detail], index) => {
             const Icon = detail.icon;
-            const providerConnections = connections.filter((item) => item.provider === provider);
+            const providerConnections = shownConnections.filter((item) => item.provider === provider);
             const connected = providerConnections.filter((item) => item.status === "CONNECTED").length;
             const canConnect = Boolean(detail.connectPath);
             const actionLabel = connected > 0
@@ -508,7 +520,7 @@ export function ConnectionsManager({
           <p className="text-sm text-muted-foreground">Manage the accounts already available to your workspace.</p>
         </div>
 
-        {connections.length === 0 ? (
+        {shownConnections.length === 0 ? (
           <Card><CardContent className="py-6 text-sm text-muted-foreground">No accounts connected yet.</CardContent></Card>
         ) : (
           <div className="divide-y divide-border/70">
