@@ -34,6 +34,10 @@ connection and does not remove its drafts, published-post history, or agent assi
 selection is limited to permissions supported by that provider and connection type. Some providers
 use a fixed consent or setup flow instead of individual permission checkboxes.
 
+For LinkedIn, publishing and media access are currently available. Member analytics and comment
+management remain visible in the access sheet but are locked until the app receives Community
+Management approval.
+
 WhatsApp uses Embedded Signup for setup and reauthorization. Its access action opens Meta's setup
 flow rather than presenting arbitrary permission checkboxes. A successful token grant is not enough
 to report messaging as ready: the selected WABA, phone number, and webhook subscription must also

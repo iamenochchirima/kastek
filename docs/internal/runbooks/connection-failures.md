@@ -89,7 +89,9 @@ connection ID, provider scope, token, or raw provider error into a user message.
 
 1. Reconnect through the provider OAuth action on `/connections`.
 2. Confirm the provider returned the publishing scopes used by the connection.
-3. For LinkedIn profiles, use the single **Connect** action. The member scopes are requested by default.
+3. For LinkedIn profiles, use the single **Connect** action. Publishing and media access are requested
+   by default; member analytics and comment-management access remain visible but locked until the app
+   receives the required Community Management approval.
 4. For LinkedIn Company Pages, use **Sync Pages** after the app has Community Management access and `AUTH_LINKEDIN_SCOPES` includes `r_organization_admin` and `w_organization_social`. The signed-in member must have an approved Page publishing role.
 5. If those organization permissions are unavailable, the profile connection should still complete and the UI will report that Page discovery is unavailable.
 6. Treat repeated authorization or publishing failures as provider configuration issues until the account and app permissions are confirmed.

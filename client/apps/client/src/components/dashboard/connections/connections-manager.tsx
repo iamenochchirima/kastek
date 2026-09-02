@@ -136,6 +136,12 @@ const PROVIDER_ACCESS_KEYS: Record<string, string[]> = {
   BLUESKY: ["MESSAGING_INBOUND", "MESSAGING_OUTBOUND", "SOCIAL_PUBLISH", "MEDIA_PUBLISH"],
 };
 
+// Keep LinkedIn's Community Management permissions visible for clarity, but do not allow them
+// into OAuth requests until this application has been approved for that product.
+const PROVIDER_UNAVAILABLE_ACCESS_KEYS: Record<string, string[]> = {
+  LINKEDIN: ["SOCIAL_ANALYTICS", "COMMENTS_MANAGE"],
+};
+
 const accessStateLabels: Record<string, string> = {
   GRANTED: "Granted",
   REQUESTABLE: "Not granted",
@@ -208,6 +214,19 @@ function displayableConnections(connections: WorkspaceConnection[]) {
   return connections.filter((connection) => connection.status !== "DISCONNECTED");
 }
 
+type AccessOption = (typeof ACCESS_OPTIONS)[number] & {
+  available?: boolean;
+  availabilityLabel?: string;
+};
+
+function providerAccessIsAvailable(provider: string, key: string) {
+  return !(PROVIDER_UNAVAILABLE_ACCESS_KEYS[provider] ?? []).includes(key);
+}
+
+function defaultAccessKeysForProvider(provider: string) {
+  return DEFAULT_ACCESS_KEYS.filter((key) => providerAccessIsAvailable(provider, key));
+}
+
 function AccessSelection({
   value,
   onChange,
@@ -215,7 +234,7 @@ function AccessSelection({
 }: {
   value: string[];
   onChange: (keys: string[]) => void;
-  options?: readonly (typeof ACCESS_OPTIONS)[number][];
+  options?: readonly AccessOption[];
 }) {
   return (
     <div className="space-y-3 rounded-lg border bg-secondary/20 p-4">
@@ -225,19 +244,33 @@ function AccessSelection({
       </div>
       <div className="space-y-1">
         {options.map((option) => {
-          const checked = value.includes(option.key);
+          const available = option.available !== false;
+          const checked = available && value.includes(option.key);
           return (
-            <label key={option.key} className="flex cursor-pointer items-start gap-3 rounded-md p-2 hover:bg-secondary/60">
+            <label
+              key={option.key}
+              className={`flex items-start gap-3 rounded-md p-2 ${available ? "cursor-pointer hover:bg-secondary/60" : "cursor-not-allowed opacity-60"}`}
+              title={available ? undefined : option.availabilityLabel ?? "Unavailable"}
+            >
               <input
                 type="checkbox"
                 className="mt-0.5 size-4 accent-primary"
                 checked={checked}
+                disabled={!available}
                 onChange={(event) => onChange(event.target.checked
                   ? [...value, option.key]
                   : value.filter((key) => key !== option.key))}
               />
-              <span>
-                <span className="block text-sm font-medium">{option.label}</span>
+              <span className="min-w-0">
+                <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                  {option.label}
+                  {!available ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      <LockKeyhole className="size-3" aria-hidden="true" />
+                      {option.availabilityLabel ?? "Unavailable"}
+                    </span>
+                  ) : null}
+                </span>
                 <span className="block text-xs text-muted-foreground">{option.description}</span>
               </span>
             </label>
@@ -371,19 +404,26 @@ export function ConnectionsManager({
 
   function providerAccessOptions(provider: string) {
     const keys = PROVIDER_ACCESS_KEYS[provider];
-    return keys ? ACCESS_OPTIONS.filter((option) => keys.includes(option.key)) : ACCESS_OPTIONS;
+    const unavailable = PROVIDER_UNAVAILABLE_ACCESS_KEYS[provider] ?? [];
+    const options = keys ? ACCESS_OPTIONS.filter((option) => keys.includes(option.key)) : ACCESS_OPTIONS;
+    return options.map((option) => unavailable.includes(option.key)
+      ? { ...option, available: false, availabilityLabel: "Requires approval" }
+      : { ...option, available: true });
   }
 
   function providerConnectionPath(provider: string, capabilities: string[]) {
     const path = providerDetails[provider as keyof typeof providerDetails]?.connectPath;
     if (!path || path === "#whatsapp-setup") return null;
-    const params = new URLSearchParams({ capabilities: capabilities.join(",") });
+    const availableCapabilities = capabilities.filter((key) => providerAccessIsAvailable(provider, key));
+    const params = new URLSearchParams({ capabilities: availableCapabilities.join(",") });
     return `${path}?${params.toString()}`;
   }
 
   function requestConnectionAccess() {
     if (!selectedConnection || requestedPermissionKeys.length === 0) return;
-    const params = new URLSearchParams({ capabilities: requestedPermissionKeys.join(",") });
+    const availablePermissions = requestedPermissionKeys.filter((key) => providerAccessIsAvailable(selectedConnection.provider, key));
+    if (availablePermissions.length === 0) return;
+    const params = new URLSearchParams({ capabilities: availablePermissions.join(",") });
     startOAuthConnection(`/api/connections/${encodeURIComponent(selectedConnection.id)}/access/request?${params.toString()}`);
   }
 
@@ -497,7 +537,7 @@ export function ConnectionsManager({
                       variant={connected > 0 ? "outline" : "default"}
                       size="sm"
                       onClick={() => {
-                        setSelectedAccess(DEFAULT_ACCESS_KEYS);
+                        setSelectedAccess(defaultAccessKeysForProvider(provider));
                         setPermissionConnectProvider(provider);
                       }}
                     >
@@ -786,7 +826,7 @@ export function ConnectionsManager({
             const isLinkedInPage = selectedConnection.provider === "LINKEDIN"
               && selectedConnection.metadata?.accountType === "organization";
             const reconnectPath = providerDetail?.connectPath;
-            const requestablePermissions = selectedConnection.permissions.filter((permission) => permission.requestable);
+            const requestablePermissions = selectedConnection.permissions.filter((permission) => permission.requestable && providerAccessIsAvailable(selectedConnection.provider, permission.key));
             const rows = [
               ["Provider", providerDetail?.label ?? selectedConnection.provider],
               ["Account ID", selectedConnection.externalAccountId ?? "—"],
@@ -834,8 +874,8 @@ export function ConnectionsManager({
                   </div>
                   <div className="space-y-2 rounded-lg border p-3">
                     {selectedConnection.permissions.length ? selectedConnection.permissions.map((permission) => (
-                      <label key={permission.key} className={`flex items-start gap-3 rounded-md p-2 ${permission.requestable ? "cursor-pointer hover:bg-secondary/50" : ""}`}>
-                        {permission.requestable ? (
+                      <label key={permission.key} className={`flex items-start gap-3 rounded-md p-2 ${permission.requestable && providerAccessIsAvailable(selectedConnection.provider, permission.key) ? "cursor-pointer hover:bg-secondary/50" : ""}`}>
+                        {permission.requestable && providerAccessIsAvailable(selectedConnection.provider, permission.key) ? (
                           <input
                             type="checkbox"
                             aria-label={`Request ${permission.label}`}
@@ -858,7 +898,7 @@ export function ConnectionsManager({
                             </span>
                           </span>
                           <span className="mt-0.5 block text-xs text-muted-foreground">{permission.description}</span>
-                          {permission.state === "UNSUPPORTED" ? <span className="mt-0.5 block text-xs text-muted-foreground">This access is not available through this connection type.</span> : null}
+                          {!providerAccessIsAvailable(selectedConnection.provider, permission.key) ? <span className="mt-0.5 block text-xs text-muted-foreground">Requires provider approval.</span> : permission.state === "UNSUPPORTED" ? <span className="mt-0.5 block text-xs text-muted-foreground">This access is not available through this connection type.</span> : null}
                         </span>
                       </label>
                     )) : <span className="text-sm text-muted-foreground">Access has not been verified yet.</span>}
