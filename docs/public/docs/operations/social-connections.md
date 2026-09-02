@@ -46,6 +46,10 @@ be valid.
 Direct Instagram Login does not provide published-media deletion. The Access section reports that
 capability as unsupported; reconnecting the same direct-login connection cannot add it.
 
+Threads supports publishing and deleting posts owned by the connected account. Select **Delete
+published content** when connecting or request it later from the connection details. Editing Threads
+posts is not supported through this capability.
+
 ## Multi-destination publishing
 
 In **Content**, a draft can target multiple connected accounts. The Agent or composer checks every

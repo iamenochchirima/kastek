@@ -57,6 +57,7 @@ const WHATSAPP_CHAT: &[&str] = &["whatsapp_business_messaging"];
 const THREADS_PUBLISH: &[&str] = &["threads_content_publish"];
 const THREADS_ANALYTICS: &[&str] = &["threads_manage_insights"];
 const THREADS_MANAGE_REPLIES: &[&str] = &["threads_manage_replies"];
+const THREADS_DELETE: &[&str] = &["threads_delete"];
 
 const TIKTOK_PUBLISH: &[&str] = &["video.publish"];
 const TIKTOK_UPLOAD: &[&str] = &["video.upload"];
@@ -243,7 +244,7 @@ impl ProviderAdapter {
                     THREADS_MANAGE_REPLIES,
                     true,
                 ),
-                SOCIAL_POST_DELETE => unknown_supported(),
+                SOCIAL_POST_DELETE => rule("threads_delete", THREADS_DELETE, THREADS_DELETE, true),
                 _ => unsupported(),
             },
             Self::TikTok => match key {
@@ -602,6 +603,21 @@ mod tests {
         assert_eq!(
             bluesky.capability(MEDIA_PUBLISH).provider_permission,
             Some("blob:*/*")
+        );
+    }
+
+    #[test]
+    fn threads_delete_access_is_requestable_with_its_provider_scope() {
+        let threads = adapter_for("THREADS", None, None);
+        let delete = threads.capability(SOCIAL_POST_DELETE);
+
+        assert!(delete.supported);
+        assert!(delete.requestable);
+        assert_eq!(delete.provider_permission, Some("threads_delete"));
+        assert_eq!(delete.request_scopes, &["threads_delete"]);
+        assert_eq!(
+            threads.required_scopes(&[SOCIAL_POST_DELETE.to_string()], None),
+            vec!["threads_delete"]
         );
     }
 }

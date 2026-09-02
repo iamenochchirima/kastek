@@ -38,3 +38,4 @@ The following are backed by live tenant backend routes and database access:
 - test email sending
 - social content channels, including LinkedIn personal profiles and Company Pages
 - LinkedIn text and single-image publishing for the selected connected channel
+- Threads publishing and deletion of posts owned by the connected account

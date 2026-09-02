@@ -101,6 +101,12 @@ The Content composer can select one connected Page for a LinkedIn destination an
 image through LinkedIn's Posts API. Page analytics, inbox, comments, and follower management are not
 part of the current adapter.
 
+## Threads
+
+Threads deletion uses the account owner's `threads_delete` permission. If deletion is unavailable,
+reconnect or use **Grant access** from the connection details and verify that the returned token
+includes that permission. Threads post editing is not part of the adapter.
+
 ## Disconnect and revoke
 
 - `DISCONNECTED` stops normal use but keeps the inventory record for diagnosis and reconnection.

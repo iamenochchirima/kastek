@@ -117,7 +117,7 @@ const ACCESS_OPTIONS = [
   { key: "MEDIA_PUBLISH", group: "MEDIA", label: "Use media", description: "Upload and use images or videos in content." },
   { key: "SOCIAL_ANALYTICS", group: "ANALYTICS", label: "View analytics", description: "Read performance and audience metrics." },
   { key: "COMMENTS_MANAGE", group: "COMMUNITY", label: "Manage comments", description: "Read and manage supported comments and interactions." },
-  { key: "SOCIAL_POST_DELETE", group: "CONTENT_MANAGEMENT", label: "Manage published content", description: "Edit or delete published provider content where supported." },
+  { key: "SOCIAL_POST_DELETE", group: "CONTENT_MANAGEMENT", label: "Delete published content", description: "Delete content published through this account." },
 ] as const;
 
 const DEFAULT_ACCESS_KEYS = [
@@ -129,7 +129,7 @@ const DEFAULT_ACCESS_KEYS = [
 ];
 
 const PROVIDER_ACCESS_KEYS: Record<string, string[]> = {
-  THREADS: ["SOCIAL_PUBLISH", "MEDIA_PUBLISH", "SOCIAL_ANALYTICS", "COMMENTS_MANAGE"],
+  THREADS: ["SOCIAL_PUBLISH", "MEDIA_PUBLISH", "SOCIAL_ANALYTICS", "COMMENTS_MANAGE", "SOCIAL_POST_DELETE"],
   TIKTOK: ["SOCIAL_PUBLISH", "MEDIA_PUBLISH", "SOCIAL_ANALYTICS"],
   LINKEDIN: ["SOCIAL_PUBLISH", "MEDIA_PUBLISH", "SOCIAL_ANALYTICS", "COMMENTS_MANAGE"],
   X: ["MESSAGING_INBOUND", "MESSAGING_OUTBOUND", "SOCIAL_PUBLISH", "MEDIA_PUBLISH", "SOCIAL_ANALYTICS", "COMMENTS_MANAGE"],

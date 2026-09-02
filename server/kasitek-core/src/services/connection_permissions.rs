@@ -163,8 +163,8 @@ const DEFINITIONS: &[PermissionDefinition] = &[
     PermissionDefinition {
         key: SOCIAL_POST_DELETE,
         group: "CONTENT_MANAGEMENT",
-        label: "Manage published content",
-        description: "Edit or delete published provider content where supported.",
+        label: "Delete published content",
+        description: "Delete content published through this account.",
     },
 ];
 
@@ -917,12 +917,7 @@ mod tests {
     #[test]
     fn expanded_provider_grants_are_normalized_without_raw_scope_output() {
         let cases = [
-            (
-                "THREADS",
-                "threads_content_publish",
-                SOCIAL_POST_DELETE,
-                "UNKNOWN",
-            ),
+            ("THREADS", "threads_delete", SOCIAL_POST_DELETE, "GRANTED"),
             ("TIKTOK", "video.publish", "SOCIAL_PUBLISH", "GRANTED"),
             ("X", "dm.read", "MESSAGING_INBOUND", "GRANTED"),
             (
@@ -948,6 +943,25 @@ mod tests {
             assert_eq!(permission.definition.state, expected, "{provider} {key}");
             assert!(permission.definition.reason_code.as_deref() != Some(scope));
         }
+    }
+
+    #[test]
+    fn threads_delete_access_is_requestable_before_the_scope_is_granted() {
+        let permissions = permission_snapshots(
+            "THREADS",
+            Some(&json!({
+                "scope": "threads_content_publish",
+                "permissionsInspected": true,
+            })),
+        );
+        let delete = permissions
+            .iter()
+            .find(|item| item.definition.key == SOCIAL_POST_DELETE)
+            .unwrap();
+
+        assert_eq!(delete.definition.state, "REQUESTABLE");
+        assert!(delete.definition.requestable);
+        assert_eq!(delete.provider_permission, Some("threads_delete"));
     }
 
     #[test]
