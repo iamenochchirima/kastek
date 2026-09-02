@@ -212,7 +212,10 @@ Status markers: `[x]` complete, `[~]` implemented in part with a named follow-up
 - [ ] Run staging smoke tests with non-sensitive accounts and media.
 - [ ] Enable the feature for a controlled organization or provider allowlist.
 - [ ] Run a production smoke test and record final batch and provider states.
-- [ ] Record Core, Agent API, Agent worker, client, and gateway deployment IDs.
+- [~] Record Core, Agent API, Agent worker, client, and gateway deployment IDs. Production Core,
+      Agent API, Agent worker, and MCP Gateway deployments were successful from the tested source;
+      the protected KasiAi version 7 batch release was then explicitly rolled out to both
+      installations. Staging and final provider smoke evidence remain pending.
 - [ ] Complete the release record in the plan with version, commit, migration, rollout, metrics,
       documentation, validation, and rollback evidence.
 - [ ] Document how to disable new batch admissions while allowing in-flight batches to reconcile.
@@ -231,3 +234,4 @@ Status markers: `[x]` complete, `[~]` implemented in part with a named follow-up
 | 2026-09-02 | Batch retry | Batch retry endpoint, Agent approval capability, manual retry control, and fail-closed blocked-admission integration test implemented. Focused Core and Agent checks pass; live provider retry evidence remains. | Platform Integrations |
 | 2026-09-02 | Route correction | Mounted the product batch retry route inside the existing `/api/social` scope so `POST /api/social/publish-batches/{id}/retry` reaches the handler in the deployed route tree; legacy route-preservation test passes. | Platform Integrations |
 | 2026-09-02 | Documentation | Architecture, Agent REST, social connections, provider failure runbook, plan, and checklist updated. | Agent Platform |
+| 2026-09-02 | Production incident follow-up | Agents production run inspection showed the generic execution-limit response was caused by protected KasiAi version 6 proposing six legacy single-platform publish calls after one content read; no provider effect ran. Compiled `release-kasiai.js --rollout` created version 7 (`kasiai-initial-v12-content-batch`) and rolled it out to both protected installations. | Agent Platform |

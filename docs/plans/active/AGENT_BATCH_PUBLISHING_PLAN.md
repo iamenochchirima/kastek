@@ -340,6 +340,15 @@ OpenTelemetry pipeline. Existing release identity and redaction rules still appl
 ## Notes and blockers
 
 - No local implementation blocker is known.
+- Production incident follow-up (2026-09-02): a WhatsApp batch request reached the deployed
+  Agent runtime, but the active protected KasiAi installation was still on version 6
+  (`kasiai-initial-v9-connection-filters`). Its second model response proposed six legacy
+  single-platform publish calls after one content read, which exceeded the four-tool run limit
+  and produced the generic execution-limit response before any provider effect. The compiled
+  `release-kasiai.js --rollout` command was run on the production Agents API image; it created
+  and rolled out version 7 (`kasiai-initial-v12-content-batch`) to both protected installations.
+  The source implementation was already deployed; this was a missed explicit protected-agent
+  release step.
 - The local migration, Core tests, Agent suite/build, and client build pass. Staging and production
   provider evidence has not yet been run.
 - Generic provider reconciliation for an indeterminate result is intentionally still closed: the
