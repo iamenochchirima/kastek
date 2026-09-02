@@ -135,6 +135,35 @@ export type SocialPost = {
   publishJobs?: SocialPublishJob[];
 };
 
+export type SocialPublishBatchTarget = {
+  platform: SocialPlatform;
+  accountName: string;
+  handle: string | null;
+  state: string;
+  status: string;
+  requiredCapability: string;
+  remediationMode: string;
+  reasonCode: string | null;
+  message: string | null;
+};
+
+export type SocialPublishBatch = {
+  batchId: string;
+  status: string;
+  postId: string;
+  snapshotHash: string;
+  targetCount: number;
+  publishedCount: number;
+  processingCount: number;
+  unknownCount: number;
+  failedCount: number;
+  blockedCount: number;
+  errorCode: string | null;
+  errorMessage: string | null;
+  completedAt: string | null;
+  targets: SocialPublishBatchTarget[];
+};
+
 export type SocialPostInsightMetric = {
   metricKey: "impressions" | "reach" | "likes" | "comments" | "shares" | "clicks" | "video_views" | string;
   value: number | null;

@@ -149,11 +149,15 @@ describe("content capability contract", () => {
       "kasitek.core.content_media_preview",
       "kasitek.core.content_posts_list",
       "kasitek.core.content_post_get",
+      "kasitek.core.content_post_publish_batch_preflight",
+      "kasitek.core.content_post_publish_batch_status",
+      "kasitek.core.content_post_publish_batch_retry",
       "kasitek.core.content_posts_insights_report",
       "kasitek.core.content_post_insights",
       "kasitek.core.content_post_update",
       "kasitek.core.content_post_draft",
       "kasitek.core.content_post_publish",
+      "kasitek.core.content_post_publish_batch",
       "kasitek.core.content_post_schedule",
       "kasitek.core.content_post_unschedule",
       "kasitek.core.content_post_delete",
@@ -165,8 +169,8 @@ describe("content capability contract", () => {
       expect(manifest.manifest.requiredScope).toMatch(/^content\.(read|write|publish)$/);
       expect(manifest.manifest.auditClassification).toMatch(/^(restricted|full)$/);
       expect(manifest.manifest.redaction.every((entry) => entry.length > 0)).toBe(true);
-      if (manifest.name !== "kasitek.core.content_post_delete" && manifest.name !== "kasitek.core.content_media_get") expect(manifest.manifest.redaction.length).toBeGreaterThan(0);
-      if (manifest.name.endsWith("_publish") || manifest.name.endsWith("_schedule") || manifest.name.endsWith("_unschedule") || manifest.name.includes("_delete")) {
+      if (manifest.name !== "kasitek.core.content_post_delete" && manifest.name !== "kasitek.core.content_media_get" && !manifest.name.endsWith("_preflight") && !manifest.name.endsWith("_status")) expect(manifest.manifest.redaction.length).toBeGreaterThan(0);
+      if (manifest.riskClass === "external-effect") {
         expect(manifest.manifest).toMatchObject({ execution: "durable", idempotency: "required", approval: "always" });
         expect(manifest.requiresApproval).toBe(true);
       } else {
@@ -184,11 +188,15 @@ describe("content capability contract", () => {
     expect(kasiaiContentTools).toEqual([
       "kasitek.core.content_posts_list",
       "kasitek.core.content_post_get",
+      "kasitek.core.content_post_publish_batch_preflight",
+      "kasitek.core.content_post_publish_batch_status",
+      "kasitek.core.content_post_publish_batch_retry",
       "kasitek.core.content_posts_insights_report",
       "kasitek.core.content_post_insights",
       "kasitek.core.content_post_draft",
       "kasitek.core.content_post_update",
       "kasitek.core.content_post_publish",
+      "kasitek.core.content_post_publish_batch",
       "kasitek.core.content_post_schedule",
       "kasitek.core.content_post_delete",
       "kasitek.core.content_post_delete_published",

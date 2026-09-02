@@ -27,6 +27,35 @@ describe("channel approval prompts", () => {
     })).toBe("Delete “Launch” from Threads?");
   });
 
+  it("describes a batch retry without exposing internal identifiers", () => {
+    expect(buildChannelApprovalPrompt("kasitek.core.content_post_publish_batch_retry", {
+      request: { batchId: "internal-batch-id" },
+      resource: {
+        postId: "internal-post-id",
+        targets: [
+          { platform: "INSTAGRAM", accountName: "KasiTek", state: "FAILED" },
+          { platform: "X", accountName: "KasiTek Labs", state: "PUBLISHED" },
+        ],
+      },
+    })).toBe("Retry failed destinations for this post: Instagram (KasiTek)?");
+  });
+
+  it("includes media in the one-approval batch prompt", () => {
+    expect(buildChannelApprovalPrompt("kasitek.core.content_post_publish_batch", {
+      request: { postId: "internal-post-id" },
+      resource: {
+        title: "Launch",
+        mediaCount: 1,
+        batchPreflight: {
+          targets: [
+            { platform: "INSTAGRAM", accountName: "KasiTek" },
+            { platform: "THREADS", accountName: "KasiTek" },
+          ],
+        },
+      },
+    })).toBe("Publish “Launch” with 1 image to Instagram (KasiTek), Threads (KasiTek)?");
+  });
+
   it("uses concise labels for non-content effects", () => {
     expect(buildChannelApprovalPrompt("kasitek.core.contact_update")).toBe("Update this contact?");
     expect(buildChannelApprovalPrompt("kasitek.core.channel_deliver")).toBe("Send this message?");

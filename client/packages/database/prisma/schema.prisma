@@ -24,6 +24,7 @@ model Organization {
   socialChannelConnections       SocialChannelConnection[]
   socialPosts                    SocialPost[]
   socialPublishJobs              SocialPublishJob[]
+  socialPublishBatches           SocialPublishBatch[]
   socialPostInsightObservations  SocialPostInsightObservation[]
   socialPostInsightSyncStates    SocialPostInsightSyncState[]
   contentMediaAssets             ContentMediaAsset[]
@@ -871,6 +872,7 @@ model User {
   socialChannelConnections       SocialChannelConnection[]
   socialPosts                    SocialPost[]
   socialPublishJobs              SocialPublishJob[]
+  socialPublishBatches           SocialPublishBatch[]
   uploadedContentMediaAssets     ContentMediaAsset[] @relation("UploadedContentMediaAssets")
   whatsappConnections            WhatsappConnection[]
   whatsappContacts               WhatsappContact[]
@@ -2070,6 +2072,7 @@ model SocialChannelConnection {
 
   posts       SocialPost[]
   publishJobs SocialPublishJob[]
+  batchItems  SocialPublishBatchItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2154,6 +2157,7 @@ model SocialPost {
 
   variants    SocialPostVariant[]
   publishJobs SocialPublishJob[]
+  publishBatches SocialPublishBatch[]
   media       SocialPostMedia[]
   insightObservations SocialPostInsightObservation[]
 
@@ -2212,6 +2216,7 @@ model SocialPublishJob {
   metadata       Json?
   deliverySnapshot Json?
   insightObservations SocialPostInsightObservation[]
+  batchItems SocialPublishBatchItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2222,6 +2227,63 @@ model SocialPublishJob {
   @@index([variantId])
   @@index([channelConnectionId])
   @@index([scheduledFor])
+}
+
+model SocialPublishBatch {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId String
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  postId String
+  post SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  status String @default("PROCESSING")
+  idempotencyKey String
+  snapshotHash String
+  targetCount Int
+  publishedCount Int @default(0)
+  processingCount Int @default(0)
+  unknownCount Int @default(0)
+  failedCount Int @default(0)
+  blockedCount Int @default(0)
+  errorCode String?
+  errorMessage String? @db.Text
+  metadata Json?
+  completedAt DateTime?
+
+  items SocialPublishBatchItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, idempotencyKey])
+  @@index([postId, status])
+  @@index([orgId, status, updatedAt])
+}
+
+model SocialPublishBatchItem {
+  id String @id @default(cuid())
+  batchId String
+  batch SocialPublishBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  jobId String
+  job SocialPublishJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  platform SocialPlatform
+  channelConnectionId String?
+  channelConnection SocialChannelConnection? @relation(fields: [channelConnectionId], references: [id], onDelete: SetNull)
+
+  status String @default("QUEUED")
+  retryable Boolean @default(false)
+  errorCode String?
+  errorMessage String? @db.Text
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([batchId, jobId])
+  @@index([jobId])
+  @@index([batchId, status])
 }
 
 model SocialPostInsightObservation {

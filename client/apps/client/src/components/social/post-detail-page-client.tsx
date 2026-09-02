@@ -30,6 +30,7 @@ import {
   type SocialPlatform,
   type SocialPost,
   type SocialPostInsights,
+  type SocialPublishBatch,
   type SocialPublishJob,
   formatDateTime,
   getPlatformCapabilities,
@@ -96,6 +97,8 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
   const [insights, setInsights] = useState<SocialPostInsights | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [activityLoading, setActivityLoading] = useState(true);
+  const [publishBatch, setPublishBatch] = useState<SocialPublishBatch | null>(null);
+  const [publishBatchLoading, setPublishBatchLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -134,6 +137,43 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
 
     return () => {
       cancelled = true;
+    };
+  }, [post.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let firstLoad = true;
+    let timer: number | undefined;
+
+    const loadBatch = async () => {
+      try {
+        const response = await fetch(apiUrl(`/api/social/posts/${post.id}/publish-batch`), {
+          credentials: "include",
+          cache: "no-store",
+        });
+        const payload = await response.json() as { batch?: SocialPublishBatch | null; error?: string };
+        if (!response.ok) throw new Error(payload.error || "Failed to load batch status");
+        if (cancelled) return;
+        const nextBatch = payload.batch ?? null;
+        setPublishBatch(nextBatch);
+        // UNKNOWN is a terminal safety state until a provider reconciliation
+        // changes the durable job outcome. Polling it forever makes the view
+        // look active while no safe automatic action is possible.
+        if (nextBatch?.status === "PROCESSING") {
+          timer = window.setTimeout(() => void loadBatch(), 5_000);
+        }
+      } catch (caught) {
+        if (!cancelled && firstLoad) setError(caught instanceof Error ? caught.message : "Failed to load batch status");
+      } finally {
+        if (!cancelled && firstLoad) setPublishBatchLoading(false);
+        firstLoad = false;
+      }
+    };
+
+    void loadBatch();
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
     };
   }, [post.id]);
 
@@ -200,6 +240,32 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
       await refreshPostActivity();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Failed to update publish job");
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  async function retryFailedBatch() {
+    if (!publishBatch) return;
+    setBusyKey("batch-retry");
+    setError("");
+    try {
+      const response = await fetch(apiUrl(`/api/social/publish-batches/${publishBatch.batchId}/retry`), {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": `manual-content-publish-batch-retry:${publishBatch.batchId}:${crypto.randomUUID()}`,
+        },
+        body: JSON.stringify({}),
+      });
+      const payload = await response.json() as { post?: SocialPost; batch?: SocialPublishBatch; error?: string };
+      if (!response.ok || !payload.post || !payload.batch) throw new Error(payload.error || "Failed to retry the batch");
+      setPost(payload.post);
+      setPublishBatch(payload.batch);
+      await refreshPostActivity();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to retry the batch");
     } finally {
       setBusyKey(null);
     }
@@ -404,6 +470,48 @@ export function PostDetailPageClient({ initialPost }: { initialPost: SocialPost 
                 <div className="flex items-start justify-between gap-4"><span className="text-muted-foreground">Destinations</span><span className="text-right text-foreground">{publishedJobs} of {post.publishJobs?.length || post.channels.length} published</span></div>
               </CardContent>
             </Card>
+
+            {publishBatchLoading || publishBatch ? (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <CardTitle>Batch publish</CardTitle>
+                      <CardDescription>Per-destination delivery state.</CardDescription>
+                    </div>
+                    {publishBatch ? <Badge className="border-border bg-background text-muted-foreground">{publishBatch.status}</Badge> : null}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {publishBatchLoading && !publishBatch ? <p className="text-sm text-muted-foreground">Checking batch status...</p> : publishBatch ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-5">
+                        <div><div className="text-muted-foreground">Published</div><div className="mt-1 font-medium">{publishBatch.publishedCount}</div></div>
+                        <div><div className="text-muted-foreground">Processing</div><div className="mt-1 font-medium">{publishBatch.processingCount}</div></div>
+                        <div><div className="text-muted-foreground">Failed</div><div className="mt-1 font-medium">{publishBatch.failedCount}</div></div>
+                        <div><div className="text-muted-foreground">Blocked</div><div className="mt-1 font-medium">{publishBatch.blockedCount}</div></div>
+                        <div><div className="text-muted-foreground">Unconfirmed</div><div className="mt-1 font-medium">{publishBatch.unknownCount}</div></div>
+                      </div>
+                      {publishBatch.targets.some((target) => target.remediationMode === "RETRY") ? (
+                        <Button size="sm" variant="outline" className="mt-4 gap-1.5" onClick={() => void retryFailedBatch()} disabled={busyKey === "batch-retry"}>
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          {busyKey === "batch-retry" ? "Retrying..." : "Retry failed"}
+                        </Button>
+                      ) : null}
+                      <div className="mt-4 space-y-2">
+                        {publishBatch.targets.map((target, index) => (
+                          <div key={`${target.platform}-${target.accountName}-${index}`} className="flex items-start justify-between gap-3 rounded-lg border border-border p-3 text-xs">
+                            <div className="min-w-0"><p className="font-medium text-foreground">{getPlatformLabel(target.platform)} · {target.accountName}</p>{target.message ? <p className="mt-1 text-muted-foreground">{target.message}</p> : null}</div>
+                            <Badge className="shrink-0 border-border bg-background text-muted-foreground">{target.state}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                      {publishBatch.errorMessage ? <p className="mt-3 text-xs text-destructive">{publishBatch.errorMessage}</p> : null}
+                    </>
+                  ) : null}
+                </CardContent>
+              </Card>
+            ) : null}
 
             <Card>
               <CardHeader>

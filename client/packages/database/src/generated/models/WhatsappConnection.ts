@@ -42,6 +42,7 @@ export type WhatsappConnectionMinAggregateOutputType = {
   phoneDisplayNumber: string | null
   accessTokenEncrypted: string | null
   wabaId: string | null
+  authMethod: string | null
   currentQualityRating: $Enums.WhatsappConnectionQualityRating | null
   dailyLimitEstimate: number | null
   verified: boolean | null
@@ -57,6 +58,7 @@ export type WhatsappConnectionMaxAggregateOutputType = {
   phoneDisplayNumber: string | null
   accessTokenEncrypted: string | null
   wabaId: string | null
+  authMethod: string | null
   currentQualityRating: $Enums.WhatsappConnectionQualityRating | null
   dailyLimitEstimate: number | null
   verified: boolean | null
@@ -72,6 +74,8 @@ export type WhatsappConnectionCountAggregateOutputType = {
   phoneDisplayNumber: number
   accessTokenEncrypted: number
   wabaId: number
+  authMethod: number
+  providerPermissions: number
   currentQualityRating: number
   dailyLimitEstimate: number
   verified: number
@@ -97,6 +101,7 @@ export type WhatsappConnectionMinAggregateInputType = {
   phoneDisplayNumber?: true
   accessTokenEncrypted?: true
   wabaId?: true
+  authMethod?: true
   currentQualityRating?: true
   dailyLimitEstimate?: true
   verified?: true
@@ -112,6 +117,7 @@ export type WhatsappConnectionMaxAggregateInputType = {
   phoneDisplayNumber?: true
   accessTokenEncrypted?: true
   wabaId?: true
+  authMethod?: true
   currentQualityRating?: true
   dailyLimitEstimate?: true
   verified?: true
@@ -127,6 +133,8 @@ export type WhatsappConnectionCountAggregateInputType = {
   phoneDisplayNumber?: true
   accessTokenEncrypted?: true
   wabaId?: true
+  authMethod?: true
+  providerPermissions?: true
   currentQualityRating?: true
   dailyLimitEstimate?: true
   verified?: true
@@ -229,6 +237,8 @@ export type WhatsappConnectionGroupByOutputType = {
   phoneDisplayNumber: string | null
   accessTokenEncrypted: string
   wabaId: string
+  authMethod: string
+  providerPermissions: runtime.JsonValue | null
   currentQualityRating: $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate: number | null
   verified: boolean
@@ -267,6 +277,8 @@ export type WhatsappConnectionWhereInput = {
   phoneDisplayNumber?: Prisma.StringNullableFilter<"WhatsappConnection"> | string | null
   accessTokenEncrypted?: Prisma.StringFilter<"WhatsappConnection"> | string
   wabaId?: Prisma.StringFilter<"WhatsappConnection"> | string
+  authMethod?: Prisma.StringFilter<"WhatsappConnection"> | string
+  providerPermissions?: Prisma.JsonNullableFilter<"WhatsappConnection">
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFilter<"WhatsappConnection"> | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.IntNullableFilter<"WhatsappConnection"> | number | null
   verified?: Prisma.BoolFilter<"WhatsappConnection"> | boolean
@@ -288,6 +300,8 @@ export type WhatsappConnectionOrderByWithRelationInput = {
   phoneDisplayNumber?: Prisma.SortOrderInput | Prisma.SortOrder
   accessTokenEncrypted?: Prisma.SortOrder
   wabaId?: Prisma.SortOrder
+  authMethod?: Prisma.SortOrder
+  providerPermissions?: Prisma.SortOrderInput | Prisma.SortOrder
   currentQualityRating?: Prisma.SortOrder
   dailyLimitEstimate?: Prisma.SortOrderInput | Prisma.SortOrder
   verified?: Prisma.SortOrder
@@ -312,6 +326,8 @@ export type WhatsappConnectionWhereUniqueInput = Prisma.AtLeast<{
   phoneDisplayNumber?: Prisma.StringNullableFilter<"WhatsappConnection"> | string | null
   accessTokenEncrypted?: Prisma.StringFilter<"WhatsappConnection"> | string
   wabaId?: Prisma.StringFilter<"WhatsappConnection"> | string
+  authMethod?: Prisma.StringFilter<"WhatsappConnection"> | string
+  providerPermissions?: Prisma.JsonNullableFilter<"WhatsappConnection">
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFilter<"WhatsappConnection"> | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.IntNullableFilter<"WhatsappConnection"> | number | null
   verified?: Prisma.BoolFilter<"WhatsappConnection"> | boolean
@@ -333,6 +349,8 @@ export type WhatsappConnectionOrderByWithAggregationInput = {
   phoneDisplayNumber?: Prisma.SortOrderInput | Prisma.SortOrder
   accessTokenEncrypted?: Prisma.SortOrder
   wabaId?: Prisma.SortOrder
+  authMethod?: Prisma.SortOrder
+  providerPermissions?: Prisma.SortOrderInput | Prisma.SortOrder
   currentQualityRating?: Prisma.SortOrder
   dailyLimitEstimate?: Prisma.SortOrderInput | Prisma.SortOrder
   verified?: Prisma.SortOrder
@@ -356,6 +374,8 @@ export type WhatsappConnectionScalarWhereWithAggregatesInput = {
   phoneDisplayNumber?: Prisma.StringNullableWithAggregatesFilter<"WhatsappConnection"> | string | null
   accessTokenEncrypted?: Prisma.StringWithAggregatesFilter<"WhatsappConnection"> | string
   wabaId?: Prisma.StringWithAggregatesFilter<"WhatsappConnection"> | string
+  authMethod?: Prisma.StringWithAggregatesFilter<"WhatsappConnection"> | string
+  providerPermissions?: Prisma.JsonNullableWithAggregatesFilter<"WhatsappConnection">
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingWithAggregatesFilter<"WhatsappConnection"> | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.IntNullableWithAggregatesFilter<"WhatsappConnection"> | number | null
   verified?: Prisma.BoolWithAggregatesFilter<"WhatsappConnection"> | boolean
@@ -369,6 +389,8 @@ export type WhatsappConnectionCreateInput = {
   phoneDisplayNumber?: string | null
   accessTokenEncrypted: string
   wabaId: string
+  authMethod?: string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: number | null
   verified?: boolean
@@ -390,6 +412,8 @@ export type WhatsappConnectionUncheckedCreateInput = {
   phoneDisplayNumber?: string | null
   accessTokenEncrypted: string
   wabaId: string
+  authMethod?: string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: number | null
   verified?: boolean
@@ -407,6 +431,8 @@ export type WhatsappConnectionUpdateInput = {
   phoneDisplayNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   accessTokenEncrypted?: Prisma.StringFieldUpdateOperationsInput | string
   wabaId?: Prisma.StringFieldUpdateOperationsInput | string
+  authMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFieldUpdateOperationsInput | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   verified?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -428,6 +454,8 @@ export type WhatsappConnectionUncheckedUpdateInput = {
   phoneDisplayNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   accessTokenEncrypted?: Prisma.StringFieldUpdateOperationsInput | string
   wabaId?: Prisma.StringFieldUpdateOperationsInput | string
+  authMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFieldUpdateOperationsInput | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   verified?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -447,6 +475,8 @@ export type WhatsappConnectionCreateManyInput = {
   phoneDisplayNumber?: string | null
   accessTokenEncrypted: string
   wabaId: string
+  authMethod?: string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: number | null
   verified?: boolean
@@ -460,6 +490,8 @@ export type WhatsappConnectionUpdateManyMutationInput = {
   phoneDisplayNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   accessTokenEncrypted?: Prisma.StringFieldUpdateOperationsInput | string
   wabaId?: Prisma.StringFieldUpdateOperationsInput | string
+  authMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFieldUpdateOperationsInput | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   verified?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -475,6 +507,8 @@ export type WhatsappConnectionUncheckedUpdateManyInput = {
   phoneDisplayNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   accessTokenEncrypted?: Prisma.StringFieldUpdateOperationsInput | string
   wabaId?: Prisma.StringFieldUpdateOperationsInput | string
+  authMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFieldUpdateOperationsInput | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   verified?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -500,6 +534,8 @@ export type WhatsappConnectionCountOrderByAggregateInput = {
   phoneDisplayNumber?: Prisma.SortOrder
   accessTokenEncrypted?: Prisma.SortOrder
   wabaId?: Prisma.SortOrder
+  authMethod?: Prisma.SortOrder
+  providerPermissions?: Prisma.SortOrder
   currentQualityRating?: Prisma.SortOrder
   dailyLimitEstimate?: Prisma.SortOrder
   verified?: Prisma.SortOrder
@@ -519,6 +555,7 @@ export type WhatsappConnectionMaxOrderByAggregateInput = {
   phoneDisplayNumber?: Prisma.SortOrder
   accessTokenEncrypted?: Prisma.SortOrder
   wabaId?: Prisma.SortOrder
+  authMethod?: Prisma.SortOrder
   currentQualityRating?: Prisma.SortOrder
   dailyLimitEstimate?: Prisma.SortOrder
   verified?: Prisma.SortOrder
@@ -534,6 +571,7 @@ export type WhatsappConnectionMinOrderByAggregateInput = {
   phoneDisplayNumber?: Prisma.SortOrder
   accessTokenEncrypted?: Prisma.SortOrder
   wabaId?: Prisma.SortOrder
+  authMethod?: Prisma.SortOrder
   currentQualityRating?: Prisma.SortOrder
   dailyLimitEstimate?: Prisma.SortOrder
   verified?: Prisma.SortOrder
@@ -707,6 +745,8 @@ export type WhatsappConnectionCreateWithoutOrgInput = {
   phoneDisplayNumber?: string | null
   accessTokenEncrypted: string
   wabaId: string
+  authMethod?: string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: number | null
   verified?: boolean
@@ -726,6 +766,8 @@ export type WhatsappConnectionUncheckedCreateWithoutOrgInput = {
   phoneDisplayNumber?: string | null
   accessTokenEncrypted: string
   wabaId: string
+  authMethod?: string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: number | null
   verified?: boolean
@@ -774,6 +816,8 @@ export type WhatsappConnectionScalarWhereInput = {
   phoneDisplayNumber?: Prisma.StringNullableFilter<"WhatsappConnection"> | string | null
   accessTokenEncrypted?: Prisma.StringFilter<"WhatsappConnection"> | string
   wabaId?: Prisma.StringFilter<"WhatsappConnection"> | string
+  authMethod?: Prisma.StringFilter<"WhatsappConnection"> | string
+  providerPermissions?: Prisma.JsonNullableFilter<"WhatsappConnection">
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFilter<"WhatsappConnection"> | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.IntNullableFilter<"WhatsappConnection"> | number | null
   verified?: Prisma.BoolFilter<"WhatsappConnection"> | boolean
@@ -787,6 +831,8 @@ export type WhatsappConnectionCreateWithoutUserInput = {
   phoneDisplayNumber?: string | null
   accessTokenEncrypted: string
   wabaId: string
+  authMethod?: string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: number | null
   verified?: boolean
@@ -806,6 +852,8 @@ export type WhatsappConnectionUncheckedCreateWithoutUserInput = {
   phoneDisplayNumber?: string | null
   accessTokenEncrypted: string
   wabaId: string
+  authMethod?: string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: number | null
   verified?: boolean
@@ -849,6 +897,8 @@ export type WhatsappConnectionCreateWithoutCallSessionsInput = {
   phoneDisplayNumber?: string | null
   accessTokenEncrypted: string
   wabaId: string
+  authMethod?: string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: number | null
   verified?: boolean
@@ -869,6 +919,8 @@ export type WhatsappConnectionUncheckedCreateWithoutCallSessionsInput = {
   phoneDisplayNumber?: string | null
   accessTokenEncrypted: string
   wabaId: string
+  authMethod?: string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: number | null
   verified?: boolean
@@ -901,6 +953,8 @@ export type WhatsappConnectionUpdateWithoutCallSessionsInput = {
   phoneDisplayNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   accessTokenEncrypted?: Prisma.StringFieldUpdateOperationsInput | string
   wabaId?: Prisma.StringFieldUpdateOperationsInput | string
+  authMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFieldUpdateOperationsInput | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   verified?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -921,6 +975,8 @@ export type WhatsappConnectionUncheckedUpdateWithoutCallSessionsInput = {
   phoneDisplayNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   accessTokenEncrypted?: Prisma.StringFieldUpdateOperationsInput | string
   wabaId?: Prisma.StringFieldUpdateOperationsInput | string
+  authMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFieldUpdateOperationsInput | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   verified?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -937,6 +993,8 @@ export type WhatsappConnectionCreateWithoutTemplatesInput = {
   phoneDisplayNumber?: string | null
   accessTokenEncrypted: string
   wabaId: string
+  authMethod?: string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: number | null
   verified?: boolean
@@ -957,6 +1015,8 @@ export type WhatsappConnectionUncheckedCreateWithoutTemplatesInput = {
   phoneDisplayNumber?: string | null
   accessTokenEncrypted: string
   wabaId: string
+  authMethod?: string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: number | null
   verified?: boolean
@@ -989,6 +1049,8 @@ export type WhatsappConnectionUpdateWithoutTemplatesInput = {
   phoneDisplayNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   accessTokenEncrypted?: Prisma.StringFieldUpdateOperationsInput | string
   wabaId?: Prisma.StringFieldUpdateOperationsInput | string
+  authMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFieldUpdateOperationsInput | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   verified?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1009,6 +1071,8 @@ export type WhatsappConnectionUncheckedUpdateWithoutTemplatesInput = {
   phoneDisplayNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   accessTokenEncrypted?: Prisma.StringFieldUpdateOperationsInput | string
   wabaId?: Prisma.StringFieldUpdateOperationsInput | string
+  authMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFieldUpdateOperationsInput | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   verified?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1025,6 +1089,8 @@ export type WhatsappConnectionCreateWithoutCampaignsInput = {
   phoneDisplayNumber?: string | null
   accessTokenEncrypted: string
   wabaId: string
+  authMethod?: string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: number | null
   verified?: boolean
@@ -1045,6 +1111,8 @@ export type WhatsappConnectionUncheckedCreateWithoutCampaignsInput = {
   phoneDisplayNumber?: string | null
   accessTokenEncrypted: string
   wabaId: string
+  authMethod?: string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: number | null
   verified?: boolean
@@ -1077,6 +1145,8 @@ export type WhatsappConnectionUpdateWithoutCampaignsInput = {
   phoneDisplayNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   accessTokenEncrypted?: Prisma.StringFieldUpdateOperationsInput | string
   wabaId?: Prisma.StringFieldUpdateOperationsInput | string
+  authMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFieldUpdateOperationsInput | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   verified?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1097,6 +1167,8 @@ export type WhatsappConnectionUncheckedUpdateWithoutCampaignsInput = {
   phoneDisplayNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   accessTokenEncrypted?: Prisma.StringFieldUpdateOperationsInput | string
   wabaId?: Prisma.StringFieldUpdateOperationsInput | string
+  authMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFieldUpdateOperationsInput | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   verified?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1113,6 +1185,8 @@ export type WhatsappConnectionCreateWithoutSendEventsInput = {
   phoneDisplayNumber?: string | null
   accessTokenEncrypted: string
   wabaId: string
+  authMethod?: string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: number | null
   verified?: boolean
@@ -1133,6 +1207,8 @@ export type WhatsappConnectionUncheckedCreateWithoutSendEventsInput = {
   phoneDisplayNumber?: string | null
   accessTokenEncrypted: string
   wabaId: string
+  authMethod?: string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: number | null
   verified?: boolean
@@ -1165,6 +1241,8 @@ export type WhatsappConnectionUpdateWithoutSendEventsInput = {
   phoneDisplayNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   accessTokenEncrypted?: Prisma.StringFieldUpdateOperationsInput | string
   wabaId?: Prisma.StringFieldUpdateOperationsInput | string
+  authMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFieldUpdateOperationsInput | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   verified?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1185,6 +1263,8 @@ export type WhatsappConnectionUncheckedUpdateWithoutSendEventsInput = {
   phoneDisplayNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   accessTokenEncrypted?: Prisma.StringFieldUpdateOperationsInput | string
   wabaId?: Prisma.StringFieldUpdateOperationsInput | string
+  authMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFieldUpdateOperationsInput | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   verified?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1202,6 +1282,8 @@ export type WhatsappConnectionCreateManyOrgInput = {
   phoneDisplayNumber?: string | null
   accessTokenEncrypted: string
   wabaId: string
+  authMethod?: string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: number | null
   verified?: boolean
@@ -1215,6 +1297,8 @@ export type WhatsappConnectionUpdateWithoutOrgInput = {
   phoneDisplayNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   accessTokenEncrypted?: Prisma.StringFieldUpdateOperationsInput | string
   wabaId?: Prisma.StringFieldUpdateOperationsInput | string
+  authMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFieldUpdateOperationsInput | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   verified?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1234,6 +1318,8 @@ export type WhatsappConnectionUncheckedUpdateWithoutOrgInput = {
   phoneDisplayNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   accessTokenEncrypted?: Prisma.StringFieldUpdateOperationsInput | string
   wabaId?: Prisma.StringFieldUpdateOperationsInput | string
+  authMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFieldUpdateOperationsInput | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   verified?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1252,6 +1338,8 @@ export type WhatsappConnectionUncheckedUpdateManyWithoutOrgInput = {
   phoneDisplayNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   accessTokenEncrypted?: Prisma.StringFieldUpdateOperationsInput | string
   wabaId?: Prisma.StringFieldUpdateOperationsInput | string
+  authMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFieldUpdateOperationsInput | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   verified?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1266,6 +1354,8 @@ export type WhatsappConnectionCreateManyUserInput = {
   phoneDisplayNumber?: string | null
   accessTokenEncrypted: string
   wabaId: string
+  authMethod?: string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: number | null
   verified?: boolean
@@ -1279,6 +1369,8 @@ export type WhatsappConnectionUpdateWithoutUserInput = {
   phoneDisplayNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   accessTokenEncrypted?: Prisma.StringFieldUpdateOperationsInput | string
   wabaId?: Prisma.StringFieldUpdateOperationsInput | string
+  authMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFieldUpdateOperationsInput | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   verified?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1298,6 +1390,8 @@ export type WhatsappConnectionUncheckedUpdateWithoutUserInput = {
   phoneDisplayNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   accessTokenEncrypted?: Prisma.StringFieldUpdateOperationsInput | string
   wabaId?: Prisma.StringFieldUpdateOperationsInput | string
+  authMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFieldUpdateOperationsInput | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   verified?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1316,6 +1410,8 @@ export type WhatsappConnectionUncheckedUpdateManyWithoutUserInput = {
   phoneDisplayNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   accessTokenEncrypted?: Prisma.StringFieldUpdateOperationsInput | string
   wabaId?: Prisma.StringFieldUpdateOperationsInput | string
+  authMethod?: Prisma.StringFieldUpdateOperationsInput | string
+  providerPermissions?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   currentQualityRating?: Prisma.EnumWhatsappConnectionQualityRatingFieldUpdateOperationsInput | $Enums.WhatsappConnectionQualityRating
   dailyLimitEstimate?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   verified?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1389,6 +1485,8 @@ export type WhatsappConnectionSelect<ExtArgs extends runtime.Types.Extensions.In
   phoneDisplayNumber?: boolean
   accessTokenEncrypted?: boolean
   wabaId?: boolean
+  authMethod?: boolean
+  providerPermissions?: boolean
   currentQualityRating?: boolean
   dailyLimitEstimate?: boolean
   verified?: boolean
@@ -1411,6 +1509,8 @@ export type WhatsappConnectionSelectCreateManyAndReturn<ExtArgs extends runtime.
   phoneDisplayNumber?: boolean
   accessTokenEncrypted?: boolean
   wabaId?: boolean
+  authMethod?: boolean
+  providerPermissions?: boolean
   currentQualityRating?: boolean
   dailyLimitEstimate?: boolean
   verified?: boolean
@@ -1428,6 +1528,8 @@ export type WhatsappConnectionSelectUpdateManyAndReturn<ExtArgs extends runtime.
   phoneDisplayNumber?: boolean
   accessTokenEncrypted?: boolean
   wabaId?: boolean
+  authMethod?: boolean
+  providerPermissions?: boolean
   currentQualityRating?: boolean
   dailyLimitEstimate?: boolean
   verified?: boolean
@@ -1445,6 +1547,8 @@ export type WhatsappConnectionSelectScalar = {
   phoneDisplayNumber?: boolean
   accessTokenEncrypted?: boolean
   wabaId?: boolean
+  authMethod?: boolean
+  providerPermissions?: boolean
   currentQualityRating?: boolean
   dailyLimitEstimate?: boolean
   verified?: boolean
@@ -1452,7 +1556,7 @@ export type WhatsappConnectionSelectScalar = {
   updatedAt?: boolean
 }
 
-export type WhatsappConnectionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "orgId" | "phoneNumberId" | "phoneDisplayNumber" | "accessTokenEncrypted" | "wabaId" | "currentQualityRating" | "dailyLimitEstimate" | "verified" | "createdAt" | "updatedAt", ExtArgs["result"]["whatsappConnection"]>
+export type WhatsappConnectionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "orgId" | "phoneNumberId" | "phoneDisplayNumber" | "accessTokenEncrypted" | "wabaId" | "authMethod" | "providerPermissions" | "currentQualityRating" | "dailyLimitEstimate" | "verified" | "createdAt" | "updatedAt", ExtArgs["result"]["whatsappConnection"]>
 export type WhatsappConnectionInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   org?: boolean | Prisma.WhatsappConnection$orgArgs<ExtArgs>
@@ -1489,6 +1593,8 @@ export type $WhatsappConnectionPayload<ExtArgs extends runtime.Types.Extensions.
     phoneDisplayNumber: string | null
     accessTokenEncrypted: string
     wabaId: string
+    authMethod: string
+    providerPermissions: runtime.JsonValue | null
     currentQualityRating: $Enums.WhatsappConnectionQualityRating
     dailyLimitEstimate: number | null
     verified: boolean
@@ -1930,6 +2036,8 @@ export interface WhatsappConnectionFieldRefs {
   readonly phoneDisplayNumber: Prisma.FieldRef<"WhatsappConnection", 'String'>
   readonly accessTokenEncrypted: Prisma.FieldRef<"WhatsappConnection", 'String'>
   readonly wabaId: Prisma.FieldRef<"WhatsappConnection", 'String'>
+  readonly authMethod: Prisma.FieldRef<"WhatsappConnection", 'String'>
+  readonly providerPermissions: Prisma.FieldRef<"WhatsappConnection", 'Json'>
   readonly currentQualityRating: Prisma.FieldRef<"WhatsappConnection", 'WhatsappConnectionQualityRating'>
   readonly dailyLimitEstimate: Prisma.FieldRef<"WhatsappConnection", 'Int'>
   readonly verified: Prisma.FieldRef<"WhatsappConnection", 'Boolean'>

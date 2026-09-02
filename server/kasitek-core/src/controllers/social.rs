@@ -3,12 +3,14 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use serde::Deserialize;
 use sqlx::PgPool;
 
+use crate::capabilities::content_batch;
 use crate::config::AppConfig;
 use crate::db::models::{
     SocialChannelCreateRequest, SocialChannelUpdateRequest, SocialPostUpsertRequest,
     SocialPublishJobActionRequest, SocialPublishRequest,
 };
 use crate::error::AppError;
+use crate::identity::product_session;
 use crate::middleware::{extract_user, resolve_active_org_id};
 use crate::services::{
     bluesky_oauth, connection_permissions, connections, orgs, social, social_posts,
@@ -31,6 +33,13 @@ pub struct ProviderAccessStartQuery {
     #[serde(rename = "connectionId")]
     connection_id: Option<String>,
     capabilities: Option<String>,
+}
+
+fn has_unknown_publish_outcome(metadata: Option<&serde_json::Value>) -> bool {
+    metadata
+        .and_then(|value| value.get("_kasitek_outcome"))
+        .and_then(|value| value.as_str())
+        == Some("UNKNOWN")
 }
 
 async fn prepare_provider_access_attempt(
@@ -631,6 +640,64 @@ pub async fn publish_post(
     })))
 }
 
+pub async fn publish_post_batch(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let mut context = product_session::resolve(&req, pool.get_ref()).await?;
+    let post_id = path.into_inner();
+    if context.idempotency_key.is_none() {
+        context.idempotency_key = Some(format!(
+            "manual:content-publish-batch:{}:{}",
+            post_id,
+            cuid2::create_id()
+        ));
+    }
+    let result = content_batch::publish_batch(pool.get_ref(), &context, &post_id, None).await?;
+    Ok(HttpResponse::Accepted().json(result))
+}
+
+pub async fn preflight_post_batch(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let context = product_session::resolve(&req, pool.get_ref()).await?;
+    let result = content_batch::preflight(pool.get_ref(), &context, &path.into_inner()).await?;
+    Ok(HttpResponse::Ok().json(result))
+}
+
+pub async fn get_latest_post_batch(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let context = product_session::resolve(&req, pool.get_ref()).await?;
+    let result =
+        content_batch::get_latest_batch_for_post(pool.get_ref(), &context, &path.into_inner())
+            .await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({ "batch": result })))
+}
+
+pub async fn retry_post_batch(
+    pool: web::Data<PgPool>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let mut context = product_session::resolve(&req, pool.get_ref()).await?;
+    let batch_id = path.into_inner();
+    if context.idempotency_key.is_none() {
+        context.idempotency_key = Some(format!(
+            "manual:content-publish-batch-retry:{}:{}",
+            batch_id,
+            cuid2::create_id()
+        ));
+    }
+    let result = content_batch::retry_failed_batch(pool.get_ref(), &context, &batch_id).await?;
+    Ok(HttpResponse::Accepted().json(result))
+}
+
 pub async fn update_publish_job(
     pool: web::Data<PgPool>,
     req: HttpRequest,
@@ -680,11 +747,19 @@ pub async fn update_publish_job(
             .await?;
         }
         "retry" => {
+            if has_unknown_publish_outcome(job.metadata.as_ref()) {
+                return Err(AppError::Conflict(
+                    "This publish result is unknown; reconcile the provider before retrying"
+                        .to_string(),
+                ));
+            }
             sqlx::query(
                 r#"
                 UPDATE "SocialPublishJob"
                 SET status = 'QUEUED'::"SocialPublishJobStatus", "errorMessage" = NULL,
-                    "scheduledFor" = NOW(), "updatedAt" = NOW()
+                    "scheduledFor" = NOW(),
+                    metadata = COALESCE(metadata, '{}'::jsonb) - '_kasitek_outcome',
+                    "updatedAt" = NOW()
                 WHERE id = $1
                 "#,
             )
@@ -693,6 +768,12 @@ pub async fn update_publish_job(
             .await?;
         }
         "run_now" => {
+            if has_unknown_publish_outcome(job.metadata.as_ref()) {
+                return Err(AppError::Conflict(
+                    "This publish result is unknown; reconcile the provider before retrying"
+                        .to_string(),
+                ));
+            }
             let claimed = social::claim_publish_job(
                 pool.get_ref(),
                 &job_id,
@@ -2130,4 +2211,21 @@ pub async fn bluesky_oauth_callback(
     Ok(HttpResponse::Found()
         .append_header(("Location", redirect))
         .finish())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::has_unknown_publish_outcome;
+    use serde_json::json;
+
+    #[test]
+    fn unknown_provider_results_are_distinguished_from_retryable_failures() {
+        assert!(has_unknown_publish_outcome(Some(&json!({
+            "_kasitek_outcome": "UNKNOWN"
+        }))));
+        assert!(!has_unknown_publish_outcome(Some(&json!({
+            "_kasitek_outcome": "FAILED"
+        }))));
+        assert!(!has_unknown_publish_outcome(None));
+    }
 }

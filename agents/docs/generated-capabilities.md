@@ -1329,6 +1329,320 @@ Read one workspace-owned content post and its safe publication status.
   "additionalProperties": true
 }
 ```
+## kasitek.core.content_post_publish_batch_preflight (1.0.0)
+
+Check every configured social destination for batch publishing readiness without publishing.
+
+- Owner: `kasitek-core`
+- Permission: `content.read` (Content Read permission)
+- Risk: `read`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 15000ms
+- Resource scope: `content_post`
+- Audit: `restricted`; redacts: none
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "postId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    }
+  },
+  "required": [
+    "postId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "postId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "snapshotHash": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mediaCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "handle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "requiredCapability": {
+            "type": "string"
+          },
+          "remediationMode": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "platform",
+          "accountName",
+          "state",
+          "status",
+          "requiredCapability",
+          "remediationMode"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "postId",
+    "status",
+    "snapshotHash",
+    "targets"
+  ],
+  "additionalProperties": false
+}
+```
+## kasitek.core.content_post_publish_batch_status (1.0.0)
+
+Read the durable status of a multi-destination content publish batch.
+
+- Owner: `kasitek-core`
+- Permission: `content.read` (Content Read permission)
+- Risk: `read`; execution: `immediate`; approval: `none`
+- Idempotency: `not_applicable`; timeout: 12000ms
+- Resource scope: `content_publish_batch`
+- Audit: `restricted`; redacts: none
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "batchId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    }
+  },
+  "required": [
+    "batchId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "batchId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "postId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "snapshotHash": {
+      "type": "string",
+      "minLength": 1
+    },
+    "targetCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "publishedCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "processingCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unknownCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "failedCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "blockedCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "errorCode": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "errorMessage": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "completedAt": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "handle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "requiredCapability": {
+            "type": "string"
+          },
+          "remediationMode": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "platform",
+          "accountName",
+          "state",
+          "status",
+          "requiredCapability",
+          "remediationMode"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "batchId",
+    "status",
+    "unknownCount",
+    "targets"
+  ],
+  "additionalProperties": false
+}
+```
+## kasitek.core.content_post_publish_batch_retry (1.0.0)
+
+Retry only confirmed failed destinations from an existing content publish batch.
+
+- Owner: `kasitek-core`
+- Permission: `content.publish` (Content Publish permission)
+- Risk: `external-effect`; execution: `durable`; approval: `always`
+- Idempotency: `required`; timeout: 60000ms
+- Resource scope: `content_publish_batch`
+- Audit: `full`; redacts: `post.publishJobs.providerReceipt`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "batchId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    }
+  },
+  "required": [
+    "batchId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "required": [
+    "post",
+    "batch"
+  ],
+  "additionalProperties": true
+}
+```
 ## kasitek.core.content_posts_insights_report (1.0.0)
 
 Report provider-reported performance for published workspace posts.
@@ -1808,6 +2122,48 @@ Publish an approved content post to one configured social channel.
   "required": [
     "post",
     "result"
+  ],
+  "additionalProperties": true
+}
+```
+## kasitek.core.content_post_publish_batch (1.0.0)
+
+Publish one approved content post to every configured social destination in its draft as one durable operation.
+
+- Owner: `kasitek-core`
+- Permission: `content.publish` (Content Publish permission)
+- Risk: `external-effect`; execution: `durable`; approval: `always`
+- Idempotency: `required`; timeout: 60000ms
+- Resource scope: `content_post`
+- Audit: `full`; redacts: `post.publishJobs.providerReceipt`
+
+### Input schema
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "postId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    }
+  },
+  "required": [
+    "postId"
+  ],
+  "additionalProperties": false
+}
+```
+
+### Output schema
+
+```json
+{
+  "type": "object",
+  "required": [
+    "post",
+    "batch"
   ],
   "additionalProperties": true
 }

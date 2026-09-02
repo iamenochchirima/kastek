@@ -43,8 +43,8 @@ import { redactSensitiveValue, redactToolOutput } from "../tools/redaction";
 import { ModelProviderError, type ModelCredentials, type ModelMessage, type ModelRequest, type ModelResponse } from "../model/types";
 import { activityInfo, cancellationSignal, heartbeat } from "@temporalio/activity";
 import { buildGroundingProvenance } from "../runtime/provenance";
-import type { ToolInvocationContext } from "../tools/types";
-import type { CoreContentPost, CoreContentPosts, CoreWorkspaceConnections } from "../core/client";
+import { approvalSnapshotHashFromResource, type ToolInvocationContext } from "../tools/types";
+import type { CoreContentPost, CoreContentPosts, CoreContentPublishBatch, CoreContentPublishBatchPreflight, CoreWorkspaceConnections } from "../core/client";
 import { buildDomainApprovalSnapshot, projectBookingApprovalResource, projectCampaignApprovalResource } from "../approval/domain-preview";
 import { ConversationActionService } from "../actions/conversation-actions";
 import type { OfferHandoffArguments } from "../actions/conversation-actions";
@@ -1135,6 +1135,118 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     },
   });
   tools.register({
+    name: "kasitek.core.content_post_publish_batch_preflight",
+    version: "1.0.0",
+    description: "Check every configured social destination for batch publishing readiness without publishing.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 15_000,
+    inputSchema: { type: "object", properties: { postId: { type: "string", minLength: 1, maxLength: 160 } }, required: ["postId"], additionalProperties: false },
+    outputSchema: {
+      type: "object",
+      properties: {
+        postId: { type: "string", minLength: 1 },
+        status: { type: "string", minLength: 1 },
+        snapshotHash: { type: "string", minLength: 1 },
+        mediaCount: { type: "integer", minimum: 0 },
+        targets: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              platform: { type: "string" },
+              accountName: { type: "string" },
+              handle: { type: ["string", "null"] },
+              state: { type: "string" },
+              status: { type: "string" },
+              requiredCapability: { type: "string" },
+              remediationMode: { type: "string" },
+              reasonCode: { type: ["string", "null"] },
+              message: { type: ["string", "null"] },
+            },
+            required: ["platform", "accountName", "state", "status", "requiredCapability", "remediationMode"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["postId", "status", "snapshotHash", "targets"],
+      additionalProperties: false,
+    },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.read", resourceSelector: { type: "content_post", argument: "postId" }, execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: [] },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
+      return coreClient.preflightContentPublishBatch(context, String(args.postId));
+    },
+  });
+  tools.register({
+    name: "kasitek.core.content_post_publish_batch_status",
+    version: "1.0.0",
+    description: "Read the durable status of a multi-destination content publish batch.",
+    riskClass: "read",
+    requiresApproval: false,
+    timeoutMs: 12_000,
+    inputSchema: { type: "object", properties: { batchId: { type: "string", minLength: 1, maxLength: 160 } }, required: ["batchId"], additionalProperties: false },
+    outputSchema: {
+      type: "object",
+      properties: {
+        batchId: { type: "string", minLength: 1 },
+        status: { type: "string", minLength: 1 },
+        postId: { type: "string", minLength: 1 },
+        snapshotHash: { type: "string", minLength: 1 },
+        targetCount: { type: "integer", minimum: 0 },
+        publishedCount: { type: "integer", minimum: 0 },
+        processingCount: { type: "integer", minimum: 0 },
+        unknownCount: { type: "integer", minimum: 0 },
+        failedCount: { type: "integer", minimum: 0 },
+        blockedCount: { type: "integer", minimum: 0 },
+        errorCode: { type: ["string", "null"] },
+        errorMessage: { type: ["string", "null"] },
+        completedAt: { type: ["string", "null"] },
+        targets: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              platform: { type: "string" },
+              accountName: { type: "string" },
+              handle: { type: ["string", "null"] },
+              state: { type: "string" },
+              status: { type: "string" },
+              requiredCapability: { type: "string" },
+              remediationMode: { type: "string" },
+              reasonCode: { type: ["string", "null"] },
+              message: { type: ["string", "null"] },
+            },
+            required: ["platform", "accountName", "state", "status", "requiredCapability", "remediationMode"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["batchId", "status", "unknownCount", "targets"],
+      additionalProperties: false,
+    },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.read", resourceSelector: { type: "content_publish_batch", argument: "batchId" }, execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: [] },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
+      return coreClient.getContentPublishBatch(context, String(args.batchId));
+    },
+  });
+  tools.register({
+    name: "kasitek.core.content_post_publish_batch_retry",
+    version: "1.0.0",
+    description: "Retry only confirmed failed destinations from an existing content publish batch.",
+    riskClass: "external-effect",
+    requiresApproval: true,
+    timeoutMs: 60_000,
+    inputSchema: { type: "object", properties: { batchId: { type: "string", minLength: 1, maxLength: 160 } }, required: ["batchId"], additionalProperties: false },
+    outputSchema: { type: "object", required: ["post", "batch"], additionalProperties: true },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.publish", resourceSelector: { type: "content_publish_batch", argument: "batchId" }, execution: "durable", idempotency: "required", approval: "always", auditClassification: "full", redaction: ["post.publishJobs.providerReceipt"] },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
+      return coreClient.retryContentPublishBatch(context, String(args.batchId));
+    },
+  });
+  tools.register({
     name: "kasitek.core.content_posts_insights_report",
     version: "1.0.0",
     description: "Report provider-reported performance for published workspace posts.",
@@ -1392,6 +1504,28 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     },
   });
   tools.register({
+    name: "kasitek.core.content_post_publish_batch",
+    version: "1.0.0",
+    description: "Publish one approved content post to every configured social destination in its draft as one durable operation.",
+    riskClass: "external-effect",
+    requiresApproval: true,
+    timeoutMs: 60_000,
+    inputSchema: {
+      type: "object",
+      properties: {
+        postId: { type: "string", minLength: 1, maxLength: 160 },
+      },
+      required: ["postId"],
+      additionalProperties: false,
+    },
+    outputSchema: { type: "object", required: ["post", "batch"], additionalProperties: true },
+    manifest: { ownerService: "kasitek-core", requiredScope: "content.publish", resourceSelector: { type: "content_post", argument: "postId" }, execution: "durable", idempotency: "required", approval: "always", auditClassification: "full", redaction: ["post.publishJobs.providerReceipt"] },
+    handler: async (context, args) => {
+      if (!coreClient) throw new Error("kasitek-core write boundary is not configured");
+      return coreClient.publishContentPostBatch(context, String(args.postId));
+    },
+  });
+  tools.register({
     name: "kasitek.core.content_post_schedule",
     version: "1.0.0",
     description: "Schedule a draft for provider publishing at a future time.",
@@ -1570,14 +1704,20 @@ const approvalPreviewKeys = new Set([
   "externalConversationId",
   "templateName",
   "action",
+  "batchId",
 ]);
 
 const contentPreviewCapabilities = new Set([
   "kasitek.core.content_post_publish",
+  "kasitek.core.content_post_publish_batch",
   "kasitek.core.content_post_schedule",
   "kasitek.core.content_post_unschedule",
   "kasitek.core.content_post_delete",
   "kasitek.core.content_post_delete_published",
+]);
+
+const batchPreviewCapabilities = new Set([
+  "kasitek.core.content_post_publish_batch_retry",
 ]);
 
 const campaignPreviewCapabilities = new Set([
@@ -1720,7 +1860,7 @@ function projectContentVariant(value: unknown): Record<string, unknown> | null {
 }
 
 /** Project only the fields an authenticated approver needs to understand a content effect. */
-export function projectContentApprovalResource(post: CoreContentPost): Record<string, unknown> {
+export function projectContentApprovalResource(post: CoreContentPost, preflight?: CoreContentPublishBatchPreflight): Record<string, unknown> {
   const variants = Array.isArray(post.variants)
     ? post.variants.map(projectContentVariant).filter((value): value is Record<string, unknown> => Boolean(value)).slice(0, 20)
     : [];
@@ -1734,6 +1874,48 @@ export function projectContentApprovalResource(post: CoreContentPost): Record<st
     ...(boundedPreviewString(post.published_at, 64) ? { publishedAt: boundedPreviewString(post.published_at, 64) } : {}),
     ...(variants.length ? { variants } : {}),
     ...(Array.isArray(post.media) && post.media.length ? { mediaCount: post.media.length } : {}),
+    ...(preflight ? {
+      batchPreflight: {
+        status: boundedPreviewString(preflight.status, 40) ?? "UNKNOWN",
+        snapshotHash: boundedPreviewString(preflight.snapshotHash, 128) ?? "",
+        targets: Array.isArray(preflight.targets)
+          ? preflight.targets.map((target) => ({
+            platform: boundedPreviewString(target.platform, 80) ?? "UNKNOWN",
+            accountName: boundedPreviewString(target.accountName, 160) ?? "Connected account",
+            ...(boundedPreviewString(target.handle, 160) ? { handle: boundedPreviewString(target.handle, 160) } : {}),
+            state: boundedPreviewString(target.state, 40) ?? "UNKNOWN",
+            status: boundedPreviewString(target.status, 40) ?? "UNKNOWN",
+            remediationMode: boundedPreviewString(target.remediationMode, 40) ?? "REVIEW",
+            ...(boundedPreviewString(target.reasonCode, 80) ? { reasonCode: boundedPreviewString(target.reasonCode, 80) } : {}),
+            ...(boundedPreviewString(target.message, 240) ? { message: boundedPreviewString(target.message, 240) } : {}),
+          })).slice(0, 20)
+          : [],
+      },
+    } : {}),
+  };
+}
+
+function projectContentBatchApprovalResource(batch: CoreContentPublishBatch): Record<string, unknown> {
+  return {
+    batchId: boundedPreviewString(batch.batchId, 160) ?? "",
+    postId: boundedPreviewString(batch.postId, 160) ?? "",
+    status: boundedPreviewString(batch.status, 40) ?? "UNKNOWN",
+    snapshotHash: boundedPreviewString(batch.snapshotHash, 128) ?? "",
+    targetCount: batch.targetCount,
+    publishedCount: batch.publishedCount,
+    failedCount: batch.failedCount,
+    unknownCount: batch.unknownCount,
+    targets: Array.isArray(batch.targets)
+      ? batch.targets.map((target) => ({
+        platform: boundedPreviewString(target.platform, 80) ?? "UNKNOWN",
+        accountName: boundedPreviewString(target.accountName, 160) ?? "Connected account",
+        ...(boundedPreviewString(target.handle, 160) ? { handle: boundedPreviewString(target.handle, 160) } : {}),
+        state: boundedPreviewString(target.state, 40) ?? "UNKNOWN",
+        remediationMode: boundedPreviewString(target.remediationMode, 40) ?? "REVIEW",
+        ...(boundedPreviewString(target.reasonCode, 80) ? { reasonCode: boundedPreviewString(target.reasonCode, 80) } : {}),
+        ...(boundedPreviewString(target.message, 240) ? { message: boundedPreviewString(target.message, 240) } : {}),
+      })).slice(0, 20)
+      : [],
   };
 }
 
@@ -1747,6 +1929,7 @@ export function projectContentApprovalOperation(
   capability: string,
   argumentsValue: Record<string, unknown>,
   post: CoreContentPost,
+  preflight?: CoreContentPublishBatchPreflight,
 ): Record<string, unknown> {
   const postId = boundedPreviewString(post.id, 160) ?? "";
   const fromStatus = boundedPreviewString(post.status, 40) ?? "UNKNOWN";
@@ -1758,6 +1941,16 @@ export function projectContentApprovalOperation(
         fromStatus,
         ...(boundedPreviewString(argumentsValue.platform, 80) ? { platform: boundedPreviewString(argumentsValue.platform, 80) } : {}),
         targetStatus: "PUBLISHED",
+      };
+    case "kasitek.core.content_post_publish_batch":
+      return {
+        type: "publish_batch",
+        postId,
+        fromStatus,
+        targetStatus: "PROCESSING",
+        targetCount: Array.isArray(preflight?.targets) ? preflight!.targets.length : post.channels.length,
+        preflightStatus: boundedPreviewString(preflight?.status, 40) ?? "UNKNOWN",
+        ...(boundedPreviewString(preflight?.snapshotHash, 128) ? { snapshotHash: boundedPreviewString(preflight?.snapshotHash, 128) } : {}),
       };
     case "kasitek.core.content_post_schedule":
       return {
@@ -1824,6 +2017,9 @@ export async function buildApprovalResourceSnapshotFromCore(
   if (contentPreviewCapabilities.has(capability) && (!coreClient || typeof argumentsValue.postId !== "string")) {
     throw new Error("CONTENT_PREVIEW_UNAVAILABLE");
   }
+  if (batchPreviewCapabilities.has(capability) && (!coreClient || typeof argumentsValue.batchId !== "string")) {
+    throw new Error("CONTENT_BATCH_PREVIEW_UNAVAILABLE");
+  }
   if (campaignPreviewCapabilities.has(capability) && (!coreClient || typeof argumentsValue.campaignId !== "string")) {
     throw new Error("CAMPAIGN_PREVIEW_UNAVAILABLE");
   }
@@ -1833,14 +2029,31 @@ export async function buildApprovalResourceSnapshotFromCore(
   if (channelPreviewCapabilities.has(capability)) {
     return buildDomainApprovalSnapshot(capability, argumentsValue);
   }
+  if (batchPreviewCapabilities.has(capability)) {
+    try {
+      const response = await coreClient!.getContentPublishBatch(context, argumentsValue.batchId as string);
+      const resource = projectContentBatchApprovalResource(response);
+      return buildApprovalResourceSnapshot(capability, argumentsValue, {
+        kind: "content_publish_batch",
+        revision: "content-publish-batch.v1",
+        ...resource,
+        operation: { type: "retry_failed_targets", batchId: resource.batchId, targetStatus: "PROCESSING" },
+      });
+    } catch {
+      throw new Error("CONTENT_BATCH_PREVIEW_UNAVAILABLE");
+    }
+  }
   if (!contentPreviewCapabilities.has(capability) && !campaignPreviewCapabilities.has(capability) && !bookingPreviewCapabilities.has(capability)) {
     return capability.startsWith("kasitek.core.") ? buildDomainApprovalSnapshot(capability, argumentsValue) : buildApprovalResourceSnapshot(capability, argumentsValue);
   }
   try {
     if (contentPreviewCapabilities.has(capability)) {
       const response = await coreClient!.getContentPost(context, argumentsValue.postId as string);
-      const resource = projectContentApprovalResource(response.post);
-      return buildApprovalResourceSnapshot(capability, argumentsValue, { kind: "content_post", revision: "content-post.v1", ...resource, operation: projectContentApprovalOperation(capability, argumentsValue, response.post) });
+      const preflight = capability === "kasitek.core.content_post_publish_batch"
+        ? await coreClient!.preflightContentPublishBatch(context, argumentsValue.postId as string)
+        : undefined;
+      const resource = projectContentApprovalResource(response.post, preflight);
+      return buildApprovalResourceSnapshot(capability, argumentsValue, { kind: "content_post", revision: "content-post.v1", ...resource, operation: projectContentApprovalOperation(capability, argumentsValue, response.post, preflight) });
     }
     if (campaignPreviewCapabilities.has(capability)) {
       const response = await coreClient!.getCampaignSummary(context, argumentsValue.campaignId as string);
@@ -2601,6 +2814,7 @@ async function executeMcpToolRun(
         conversationId: run.conversation_id ?? undefined,
         actorId: run.created_by,
         correlationId: run.correlation_id,
+        approvalSnapshotHash: approvalSnapshotHashFromResource(resourceSnapshot),
       },
     });
     const durableOutput = redactToolOutput(result.output, manifest.manifest?.redaction ?? []);
@@ -2924,6 +3138,7 @@ async function executeLoopForRun(
       userAgentIdentityInstruction,
       skillInstructions,
       "Media delivery is a shared harness capability across every hosted agent and channel. Use kasitek.agent.respond for final responses containing workspace media, passing stable asset IDs and kinds. Keep provider URLs and raw bytes out of durable responses; the channel adapter resolves the appropriate preview, upload, or native attachment at delivery time.",
+      "When batch social publishing tools are available and the user names multiple destinations, prepare one draft with explicit account selections and visible platform variants, preflight it before approval, request one approval, and execute one batch publish. Do not loop over single-destination publish tools. Use the batch status tool for a later PROCESSING update and report each destination state.",
     ].filter(Boolean).join("\n\n"),
     organizationId: run.organization_id,
     agentId: run.agent_definition_id,
@@ -3843,6 +4058,7 @@ async function executeConfiguredWorkflow(input: {
           actorId: input.run.created_by,
           correlationId: input.run.correlation_id,
           memoryPolicy: input.run.policy && typeof input.run.policy.memory === "object" && !Array.isArray(input.run.policy.memory) ? input.run.policy.memory as Record<string, unknown> : undefined,
+          approvalSnapshotHash: approvalSnapshotHashFromResource(resourceSnapshot),
           signal: currentActivitySignal(),
         },
         signal: currentActivitySignal(),

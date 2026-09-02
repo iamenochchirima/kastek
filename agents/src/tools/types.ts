@@ -43,6 +43,17 @@ export interface ToolInvocationContext {
   signal?: AbortSignal;
   /** Normalized policy snapshot used by scoped platform capabilities. */
   memoryPolicy?: Record<string, unknown>;
+  /** Snapshot hash approved for the resumed external effect, when applicable. */
+  approvalSnapshotHash?: string;
+}
+
+export function approvalSnapshotHashFromResource(snapshot?: Record<string, unknown>): string | undefined {
+  const resource = snapshot?.resource;
+  if (!resource || typeof resource !== "object" || Array.isArray(resource)) return undefined;
+  const preflight = (resource as Record<string, unknown>).batchPreflight;
+  if (!preflight || typeof preflight !== "object" || Array.isArray(preflight)) return undefined;
+  const value = (preflight as Record<string, unknown>).snapshotHash;
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
 export interface ToolApproval {

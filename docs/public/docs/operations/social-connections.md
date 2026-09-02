@@ -42,6 +42,21 @@ be valid.
 Direct Instagram Login does not provide published-media deletion. The Access section reports that
 capability as unsupported; reconnecting the same direct-login connection cannot add it.
 
+## Multi-destination publishing
+
+In **Content**, a draft can target multiple connected accounts. The Agent or composer checks every
+selected account first, shows any missing access, unsupported capability, connection issue, content
+limit, or media issue, and asks for one approval covering the complete target set. Platform-specific
+variants must be prepared before approval; Core does not silently rewrite an approved variant.
+
+The publish result is tracked per account. A partial result keeps confirmed publications and shows
+which targets need attention. A provider timeout is shown as unconfirmed rather than as a safe retry;
+check the batch status or provider record before trying again. Accounts already confirmed as
+published are excluded from a later retry. For a confirmed failure, use the batch retry action to
+retry the failed destinations together; unconfirmed outcomes require provider reconciliation first.
+The first release supports immediate batch publishing; scheduled cross-provider batches remain
+separate.
+
 ## Production Meta configuration
 
 The production Meta app must be Live and have Advanced Access approved through App Review for every

@@ -52,6 +52,37 @@ export function buildChannelApprovalPrompt(
   switch (capability) {
     case "kasitek.core.content_post_publish":
       return `Publish ${post}${media}${destination}?`;
+    case "kasitek.core.content_post_publish_batch": {
+      const preflight = record(record(snapshot?.resource)?.batchPreflight);
+      const targets = Array.isArray(preflight?.targets) ? preflight.targets : [];
+      const destinations = targets
+        .map((target) => {
+          const item = record(target);
+          const platform = platformLabel(item?.platform);
+          const account = text(item?.accountName, 80);
+          return platform ? `${platform}${account ? ` (${account})` : ""}` : undefined;
+        })
+        .filter((value): value is string => Boolean(value));
+      return destinations.length
+        ? `Publish ${post}${media} to ${destinations.join(", ")}?`
+        : `Publish ${post}${media} to all configured destinations?`;
+    }
+    case "kasitek.core.content_post_publish_batch_retry": {
+      const resource = record(snapshot?.resource);
+      const targets = Array.isArray(resource?.targets) ? resource.targets : [];
+      const failed = targets
+        .map((target) => {
+          const item = record(target);
+          const platform = platformLabel(item?.platform);
+          const account = text(item?.accountName, 80);
+          const state = text(item?.state, 40)?.toUpperCase();
+          return state === "FAILED" && platform ? `${platform}${account ? ` (${account})` : ""}` : undefined;
+        })
+        .filter((value): value is string => Boolean(value));
+      return failed.length
+        ? `Retry failed destinations for this post: ${failed.join(", ")}?`
+        : "Retry the confirmed failed destinations for this post?";
+    }
     case "kasitek.core.content_post_schedule":
       return `Schedule ${post}${destination}?`;
     case "kasitek.core.content_post_unschedule":

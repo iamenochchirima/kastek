@@ -105,6 +105,22 @@ type PostDeleteProviderResult = {
   message?: string | null;
 };
 
+type PublishBatchPreflight = {
+  postId: string;
+  status: string;
+  snapshotHash: string;
+  mediaCount: number;
+  targets: Array<{
+    platform: string;
+    accountName: string;
+    handle?: string | null;
+    state: string;
+    status: string;
+    reasonCode?: string | null;
+    message?: string | null;
+  }>;
+};
+
 type AiGenerationTarget =
   | { kind: "shared" }
   | { kind: "variant"; platform: SocialPlatform };
@@ -188,6 +204,18 @@ function formatDuration(durationMs: number | null) {
   return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`;
 }
 
+function formatBatchPreflightError(preflight: PublishBatchPreflight) {
+  const blocked = preflight.targets
+    .filter((target) => !["READY", "ALREADY_PUBLISHED"].includes(target.state))
+    .map((target) => {
+      const platform = getPlatformLabel(target.platform.toUpperCase() as SocialPlatform);
+      return `${platform}${target.accountName ? ` (${target.accountName})` : ""}${target.message ? `: ${target.message}` : ""}`;
+    });
+  return blocked.length
+    ? `Publishing is blocked for ${blocked.join("; ")}. The post is saved; resolve these destinations before retrying.`
+    : "Publishing is blocked for one or more destinations. The post is saved; resolve the destination issues before retrying.";
+}
+
 type PostsWorkspaceProps = { view?: "posts" | "history" };
 
 export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
@@ -224,6 +252,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
   const [deleteScope, setDeleteScope] = useState<"local" | "platforms">("local");
   const [deleteProviderResults, setDeleteProviderResults] = useState<PostDeleteProviderResult[]>([]);
   const [deletingPost, setDeletingPost] = useState(false);
+  const [batchPreflight, setBatchPreflight] = useState<PublishBatchPreflight | null>(null);
   const refreshedChannelIdentities = useRef(new Set<string>());
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -396,6 +425,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
 
   function openNewComposer() {
     setComposer(emptyComposer);
+    setBatchPreflight(null);
     setActiveVariantPlatform("FACEBOOK");
     setComposerStep(1);
     setIsComposerOpen(true);
@@ -430,6 +460,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
         status: variant.platform === "LINKEDIN" ? "NEEDS_EDITS" : "DRAFT",
       })),
     });
+    setBatchPreflight(null);
     setActiveVariantPlatform(nextChannels[0] || "FACEBOOK");
     setComposerStep(1);
     setIsComposerOpen(true);
@@ -473,6 +504,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       })),
       variants: buildComposerVariants(post.channels, post.variants, post.content),
     });
+    setBatchPreflight(null);
     setActiveVariantPlatform(post.channels[0] || "FACEBOOK");
     setComposerStep(1);
     setIsComposerOpen(true);
@@ -505,6 +537,7 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     }
 
     setComposer({ ...emptyComposer, scheduledFor: `${scheduleDate}T09:00` });
+    setBatchPreflight(null);
     setActiveVariantPlatform("FACEBOOK");
     setComposerStep(1);
     setIsComposerOpen(true);
@@ -870,9 +903,9 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
     const activeVariants = composer.variants.filter((variant) =>
       composer.channels.includes(variant.platform),
     );
-    // An immediate post starts in-flight. It becomes PUBLISHED when a destination
-    // succeeds, rather than being persisted as a draft while provider jobs run.
-    const postStatus = publishNow ? "PROCESSING" : requestedStatus ?? composer.status;
+    // Keep the draft state until Core preflight accepts the batch. Core changes
+    // it to PROCESSING atomically with the durable batch admission.
+    const postStatus = publishNow ? "DRAFT" : requestedStatus ?? composer.status;
 
     if (!composer.media.length && activeVariants.some((variant) => !variant.content.trim())) {
       setError("Each selected platform needs its own variant content.");
@@ -935,42 +968,54 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
       });
 
       if (publishNow) {
-        const failedPlatforms: string[] = [];
-        for (const platform of composer.channels) {
-          try {
-            const publishResponse = await fetch(apiUrl(`/api/social/posts/${savedPost.id}/publish`), {
-              method: "POST",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ platform }),
-            });
-            const publishPayload = (await publishResponse.json()) as { post?: SocialPost; error?: string };
-            if (!publishResponse.ok || !publishPayload.post) {
-              failedPlatforms.push(getPlatformLabel(platform));
-              continue;
-            }
-            const publishedPost = publishPayload.post;
-            savedPost = publishedPost;
-            setPosts((current) => current.map((post) => (post.id === publishedPost.id ? publishedPost : post)));
-          } catch {
-            failedPlatforms.push(getPlatformLabel(platform));
-          }
+        const preflightResponse = await fetch(apiUrl(`/api/social/posts/${savedPost.id}/publish-batch/preflight`), {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        });
+        const preflightPayload = await preflightResponse.json() as PublishBatchPreflight & { error?: string };
+        if (!preflightResponse.ok || !preflightPayload.postId) {
+          throw new Error(preflightPayload.error || "Failed to check publishing destinations");
+        }
+        setBatchPreflight(preflightPayload);
+        if (preflightPayload.status !== "READY") {
+          setComposer((current) => ({ ...current, id: savedPost!.id, status: "DRAFT" }));
+          setError(formatBatchPreflightError(preflightPayload));
+          return;
         }
 
-        if (failedPlatforms.length) {
-          setError(`Could not publish to ${failedPlatforms.join(", ")}. The post is saved; retry those destinations from Posts.`);
+        const publishResponse = await fetch(apiUrl(`/api/social/posts/${savedPost.id}/publish-batch`), {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": `manual-content-publish-batch:${savedPost.id}:${crypto.randomUUID()}`,
+          },
+        });
+        const publishPayload = (await publishResponse.json()) as {
+          post?: SocialPost;
+          batch?: { status?: string; targets?: Array<{ platform?: string; state?: string; message?: string }> };
+          error?: string;
+        };
+        if (!publishResponse.ok || !publishPayload.post || !publishPayload.batch) {
+          throw new Error(publishPayload.error || "Failed to start batch publish");
         }
+        savedPost = publishPayload.post;
+        setPosts((current) => current.map((post) => (post.id === savedPost?.id ? savedPost as SocialPost : post)));
+
       }
 
       await loadData({ showLoading: false, clearError: !publishNow });
 
       setComposer(emptyComposer);
+      setBatchPreflight(null);
       setActiveVariantPlatform("FACEBOOK");
       setComposerStep(1);
       setIsComposerOpen(false);
     } catch (err) {
       if (savedPost) {
         setComposer(emptyComposer);
+        setBatchPreflight(null);
         setActiveVariantPlatform("FACEBOOK");
         setComposerStep(1);
         setIsComposerOpen(false);
@@ -1641,6 +1686,20 @@ export function PostsWorkspace({ view = "posts" }: PostsWorkspaceProps) {
                 <section className="space-y-5">
                   <div><h2 className="text-xl font-semibold text-foreground">Review and publish</h2><p className="mt-1 text-sm text-muted-foreground">Save as a draft, schedule, or publish the selected versions now.</p></div>
                   <div className="rounded-xl border border-border p-4"><p className="text-sm font-medium text-foreground">Destinations</p><div className="mt-3 space-y-2">{composer.channels.map((platform) => { const channel = connectedChannels.find((item) => item.id === composer.channelSelections[platform]); return <div key={platform} className="flex items-center justify-between gap-3 text-sm"><span>{getPlatformLabel(platform)}</span><span className="text-muted-foreground">{channel?.displayName || "Not selected"}</span></div>; })}</div></div>
+                  {batchPreflight ? (
+                    <div className={`rounded-xl border p-4 ${batchPreflight.status === "READY" ? "border-status-success/30 bg-status-success-soft" : "border-destructive/30 bg-status-danger-soft"}`}>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium text-foreground">Destination check</p>
+                        <Badge className={batchPreflight.status === "READY" ? "bg-status-success-soft text-status-success" : "bg-status-danger-soft text-destructive"}>{batchPreflight.status}</Badge>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {batchPreflight.targets.map((target, index) => {
+                          const ready = ["READY", "ALREADY_PUBLISHED"].includes(target.state);
+                          return <div key={`${target.platform}-${target.accountName}-${index}`} className="flex items-start gap-2 text-xs"><span className={ready ? "text-status-success" : "text-destructive"}>{ready ? "✓" : "!"}</span><span className="text-foreground"><strong>{getPlatformLabel(target.platform.toUpperCase() as SocialPlatform)}</strong> · {target.accountName}{target.message ? <span className="block text-muted-foreground">{target.message}</span> : null}</span></div>;
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
                   {mediaPublishIssues.length ? <div className="rounded-xl border border-status-warning/30 bg-status-warning-soft px-3 py-2 text-sm text-status-warning"><p className="font-medium">Media needs an adjustment before publishing</p><ul className="mt-1 list-disc space-y-1 pl-4 text-xs">{mediaPublishIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul><p className="mt-2 text-xs">You can still save this as a draft.</p></div> : null}
                   <label className="block space-y-2"><span className="text-sm text-muted-foreground">Schedule for</span><Input type="datetime-local" value={composer.scheduledFor} onChange={(event) => setComposer((current) => ({ ...current, scheduledFor: event.target.value }))} /><span className="block text-xs text-muted-foreground">Choose a date and time only when scheduling this post.</span></label>
                 </section>

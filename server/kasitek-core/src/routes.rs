@@ -66,6 +66,29 @@ mod tests {
                 "/api/internal/agents/v1/content/posts/post-1/unschedule",
             ),
             (
+                Method::GET,
+                "/api/internal/agents/v1/content/posts/post-1/publish-batch/preflight",
+            ),
+            (
+                Method::POST,
+                "/api/internal/agents/v1/content/posts/post-1/publish-batch",
+            ),
+            (
+                Method::GET,
+                "/api/internal/agents/v1/content/publish-batches/batch-1",
+            ),
+            (
+                Method::POST,
+                "/api/internal/agents/v1/content/publish-batches/batch-1/retry",
+            ),
+            (Method::POST, "/api/social/posts/post-1/publish-batch"),
+            (Method::GET, "/api/social/posts/post-1/publish-batch"),
+            (
+                Method::GET,
+                "/api/social/posts/post-1/publish-batch/preflight",
+            ),
+            (Method::POST, "/api/social/publish-batches/batch-1/retry"),
+            (
                 Method::DELETE,
                 "/api/internal/agents/v1/content/posts/post-1",
             ),

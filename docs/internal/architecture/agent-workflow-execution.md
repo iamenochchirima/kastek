@@ -47,6 +47,16 @@ records; if a provider outcome cannot be proven, the effect remains eligible for
 rather than being treated as reversed. Activity attempt, budget exhaustion, and reconciliation
 signals are emitted as bounded metrics and structured events.
 
+Social content batch publishing uses the same boundary. The Agent prepares one draft, Core
+preflights every concrete account and captures the target, variant, media, and permission
+identity in an approval snapshot, then admits one durable batch after one approval. Existing
+per-account publish jobs remain the provider execution records; the batch only coordinates them
+and aggregates their states. The batch status endpoint and Agent status capability expose
+`SUCCEEDED`, `PARTIAL`, `PROCESSING`, `FAILED`, `BLOCKED`, or `UNKNOWN` plus bounded per-target
+reason and remediation fields. A blocked preflight queues no provider work. A timeout or upstream
+5xx is recorded as `UNKNOWN` and is not retryable until a provider reconciliation path confirms
+the outcome; confirmed published targets are never retried.
+
 The run budget ledger follows the same fail-closed rule. A worker timeout can leave a model
 reservation in `unknown`; reconciliation releases the estimate only as a ledger operation and does
 not claim that the provider did not execute the request. An operator or provider lookup must later

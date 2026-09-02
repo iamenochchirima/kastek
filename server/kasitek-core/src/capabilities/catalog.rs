@@ -316,6 +316,54 @@ pub fn content_publish() -> ActionDefinition {
     )
 }
 
+pub fn content_publish_batch() -> ActionDefinition {
+    social_action(
+        "content.posts.publish_batch",
+        Version::new(1, 0, 0),
+        "Publish content batch",
+        "Publish one approved content revision to every configured destination as one durable operation.",
+        RiskClass::ExternalEffect,
+        ApprovalRule::Always,
+        json!({
+            "type": "object",
+            "properties": { "postId": { "type": "string" } },
+            "required": ["postId"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "required": ["status", "batch"],
+            "additionalProperties": true
+        }),
+        ["content.publish"],
+        IdempotencyRule::Required,
+    )
+}
+
+pub fn content_publish_batch_retry() -> ActionDefinition {
+    social_action(
+        "content.posts.publish_batch.retry",
+        Version::new(1, 0, 0),
+        "Retry failed content destinations",
+        "Retry only confirmed failed destinations from an existing content publish batch.",
+        RiskClass::ExternalEffect,
+        ApprovalRule::Always,
+        json!({
+            "type": "object",
+            "properties": { "batchId": { "type": "string" } },
+            "required": ["batchId"],
+            "additionalProperties": false
+        }),
+        json!({
+            "type": "object",
+            "required": ["status", "batch"],
+            "additionalProperties": true
+        }),
+        ["content.publish"],
+        IdempotencyRule::Required,
+    )
+}
+
 pub fn content_unschedule() -> ActionDefinition {
     social_action(
         "content.posts.unschedule",
@@ -360,6 +408,8 @@ pub fn definitions() -> Vec<ActionDefinition> {
         content_create_draft(),
         content_update_draft(),
         content_publish(),
+        content_publish_batch(),
+        content_publish_batch_retry(),
         content_unschedule(),
         content_delete(),
     ]
@@ -376,7 +426,7 @@ mod tests {
     #[test]
     fn built_in_actions_have_valid_policy_metadata() {
         let actions = definitions();
-        assert_eq!(actions.len(), 14);
+        assert_eq!(actions.len(), 16);
         for action in &actions {
             action
                 .validate_metadata()
@@ -385,6 +435,9 @@ mod tests {
         assert!(actions
             .iter()
             .any(|action| action.id.name() == "content.posts.publish"));
+        assert!(actions
+            .iter()
+            .any(|action| action.id.name() == "content.posts.publish_batch"));
         let draft = actions
             .iter()
             .find(|action| action.id.name() == "content.posts.draft.create")

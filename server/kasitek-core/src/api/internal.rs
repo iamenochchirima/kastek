@@ -122,6 +122,22 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::post().to(agent_internal::publish_content_post),
             )
             .route(
+                "/content/posts/{id}/publish-batch/preflight",
+                web::get().to(agent_internal::preflight_content_publish_batch),
+            )
+            .route(
+                "/content/posts/{id}/publish-batch",
+                web::post().to(agent_internal::publish_content_post_batch),
+            )
+            .route(
+                "/content/publish-batches/{id}",
+                web::get().to(agent_internal::get_content_publish_batch),
+            )
+            .route(
+                "/content/publish-batches/{id}/retry",
+                web::post().to(agent_internal::retry_content_publish_batch),
+            )
+            .route(
                 "/content/posts/{id}/delete-published",
                 web::post().to(agent_internal::delete_published_content_post),
             )

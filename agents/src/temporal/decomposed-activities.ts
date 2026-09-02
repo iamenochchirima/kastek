@@ -27,7 +27,7 @@ import { estimatePromptTokens } from "../model/credit-pricing";
 import type { ModelCreditPricing } from "../model/credit-pricing";
 import { ModelGateway } from "../model/gateway";
 import { type ModelCreditReservation } from "../runtime/loop";
-import { ToolPolicyError, type ToolInvocationContext } from "../tools/types";
+import { approvalSnapshotHashFromResource, ToolPolicyError, type ToolInvocationContext } from "../tools/types";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
 import { redactSensitiveValue, redactToolOutput } from "../tools/redaction";
 import { AGENT_MEDIA_HARNESS_TOOLS, parseAgentResponse } from "../media/contracts";
@@ -293,7 +293,10 @@ export function createDecomposedActivities(deps: DecomposedActivityDependencies)
         const result = replayed ?? await deps.tools.invoke({
           name: proposal.toolName,
           arguments: proposal.arguments,
-          context: toolContext(run),
+          context: {
+            ...toolContext(run),
+            approvalSnapshotHash: approvalSnapshotHashFromResource(resourceSnapshot),
+          },
           signal: deps.signal(),
           grantedTools: runtime.allowedTools,
           approval: input.approval,
@@ -430,7 +433,11 @@ async function buildInitialState(deps: DecomposedActivityDependencies, run: Runt
   });
   const skillInstructions = renderSkillInstructions(selectedSkills);
   const context = buildAgentContext({
-    instructions: [run.instructions, skillInstructions].filter(Boolean).join("\n\n"),
+    instructions: [
+      run.instructions,
+      skillInstructions,
+      "When batch social publishing tools are available and the user names multiple destinations, prepare one draft with explicit account selections and visible platform variants, preflight it before approval, request one approval, and execute one batch publish. Do not loop over single-destination publish tools. Use the batch status tool for a later PROCESSING update and report each destination state.",
+    ].filter(Boolean).join("\n\n"),
     organizationId: run.organization_id,
     agentId: run.agent_definition_id,
     agentVersionId: run.agent_version_id,

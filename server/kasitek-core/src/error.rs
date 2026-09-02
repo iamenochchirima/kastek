@@ -224,6 +224,15 @@ impl From<bcrypt::BcryptError> for AppError {
 
 impl From<reqwest::Error> for AppError {
     fn from(error: reqwest::Error) -> Self {
+        if error.is_timeout() {
+            observability::tracing::warn!(
+                event = "dependency.timeout",
+                dependency = "http",
+                operation = "request",
+                "external request timed out"
+            );
+            return Self::GatewayTimeout("Provider request timed out".to_string());
+        }
         observability::tracing::error!(
             event = "dependency.unavailable",
             dependency = "http",

@@ -469,6 +469,61 @@ describe("kasitek-core read boundary", () => {
     expect(JSON.parse(String(init.body))).toEqual({ platform: "THREADS" });
   });
 
+  it("reads batch preflight without creating an effect or idempotency key", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      postId: "post-1",
+      status: "READY",
+      snapshotHash: "snapshot-1",
+      mediaCount: 1,
+      targets: [],
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+    await expect(new KasitekCoreReadClient(config).preflightContentPublishBatch(context, "post-1")).resolves.toMatchObject({ status: "READY", snapshotHash: "snapshot-1" });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://core.example.test/api/internal/agents/v1/content/posts/post-1/publish-batch/preflight");
+    expect(init.method).toBe("GET");
+    expect(init.headers).not.toHaveProperty("idempotency-key");
+  });
+
+  it("binds the approved batch snapshot to the effect request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      post: { id: "post-1", content: "Hello", channels: ["THREADS", "X"], status: "PROCESSING" },
+      batch: { batchId: "batch-1", postId: "post-1", status: "PROCESSING", targets: [] },
+    }), { status: 202 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+    await expect(new KasitekCoreReadClient(config).publishContentPostBatch({ ...context, approvalSnapshotHash: "snapshot-1" }, "post-1")).resolves.toMatchObject({ batch: { batchId: "batch-1" } });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://core.example.test/api/internal/agents/v1/content/posts/post-1/publish-batch");
+    expect(init.headers).toHaveProperty("idempotency-key");
+    expect(JSON.parse(String(init.body))).toEqual({ snapshotHash: "snapshot-1" });
+  });
+
+  it("reads durable batch status through its dedicated capability route", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ batchId: "batch-1", status: "PARTIAL", targets: [] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+    await expect(new KasitekCoreReadClient(config).getContentPublishBatch(context, "batch-1")).resolves.toMatchObject({ batchId: "batch-1", status: "PARTIAL" });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://core.example.test/api/internal/agents/v1/content/publish-batches/batch-1");
+    expect((fetchMock.mock.calls[0]?.[1] as RequestInit).headers).not.toHaveProperty("idempotency-key");
+  });
+
+  it("retries a batch through the dedicated durable route", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      post: { id: "post-1", content: "Hello", channels: ["THREADS"], status: "PROCESSING" },
+      batch: { batchId: "batch-1", status: "PROCESSING", targets: [] },
+    }), { status: 202 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const config = loadConfig({ AGENTS_DATABASE_URL: "postgres://localhost/agents", KASITEK_CORE_URL: "https://core.example.test", KASITEK_CORE_INTERNAL_TOKEN: "internal-token" });
+    await expect(new KasitekCoreReadClient(config).retryContentPublishBatch(context, "batch-1")).resolves.toMatchObject({ batch: { batchId: "batch-1" } });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://core.example.test/api/internal/agents/v1/content/publish-batches/batch-1/retry");
+    expect(init.method).toBe("POST");
+    expect(init.headers).toHaveProperty("idempotency-key");
+    expect(JSON.parse(String(init.body))).toEqual({});
+  });
+
   it("keeps a provider-backed publish alive beyond the general Core read timeout", async () => {
     vi.useFakeTimers();
     try {

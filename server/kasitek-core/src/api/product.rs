@@ -281,7 +281,19 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     )
                     .route("/{id}", web::patch().to(social::update_post))
                     .route("/{id}", web::delete().to(social::delete_post))
-                    .route("/{id}/publish", web::post().to(social::publish_post)),
+                    .route("/{id}/publish", web::post().to(social::publish_post))
+                    .route(
+                        "/{id}/publish-batch",
+                        web::post().to(social::publish_post_batch),
+                    )
+                    .route(
+                        "/{id}/publish-batch",
+                        web::get().to(social::get_latest_post_batch),
+                    )
+                    .route(
+                        "/{id}/publish-batch/preflight",
+                        web::get().to(social::preflight_post_batch),
+                    ),
             )
             .service(
                 web::scope("/media")
@@ -292,6 +304,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .service(
                 web::scope("/publish-jobs")
                     .route("/{id}", web::patch().to(social::update_publish_job)),
+            )
+            .service(
+                web::scope("/publish-batches")
+                    .route("/{id}/retry", web::post().to(social::retry_post_batch)),
             ),
     );
     cfg.service(

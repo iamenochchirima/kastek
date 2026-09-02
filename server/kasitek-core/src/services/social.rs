@@ -455,6 +455,9 @@ pub(crate) async fn fetch_json<T: serde::de::DeserializeOwned>(
         if let Some(error) = AppError::provider_http_failure(status) {
             return Err(error);
         }
+        if status.is_server_error() {
+            return Err(AppError::BadGateway("Provider request failed".to_string()));
+        }
         let parsed: Option<Value> = serde_json::from_str(&body).ok();
         let message = parsed
             .as_ref()
@@ -2653,18 +2656,38 @@ pub async fn get_tiktok_creator_info(
         .ok_or_else(|| AppError::BadRequest("TikTok did not return creator settings".to_string()))
 }
 
+fn is_indeterminate_publish_error(error: &AppError) -> bool {
+    match error {
+        AppError::GatewayTimeout(_) | AppError::BadGateway(_) | AppError::ServiceUnavailable(_) => {
+            true
+        }
+        AppError::BadRequest(message) => {
+            let message = message.to_ascii_lowercase();
+            message.contains("timed out") || message.contains("timeout")
+        }
+        _ => false,
+    }
+}
+
 async fn mark_job_failed(
     pool: &PgPool,
     job_id: &str,
     post_id: &str,
     message: &str,
+    outcome: Option<&str>,
 ) -> Result<(), AppError> {
+    let outcome_metadata = outcome
+        .map(|value| json!({"_kasitek_outcome": value}))
+        .unwrap_or_else(|| json!({}));
+    let post_status = outcome.unwrap_or("FAILED");
     let mut tx = pool.begin().await?;
     let result = sqlx::query(
         r#"
         UPDATE "SocialPublishJob"
-        SET status = 'FAILED'::"SocialPublishJobStatus", "errorMessage" = $1, "updatedAt" = NOW()
-        WHERE id = $2
+        SET status = 'FAILED'::"SocialPublishJobStatus", "errorMessage" = $1,
+            metadata = (COALESCE(metadata, '{}'::jsonb) - '_kasitek_outcome') || $2,
+            "updatedAt" = NOW()
+        WHERE id = $3
           AND status IN (
               'PENDING'::"SocialPublishJobStatus",
               'QUEUED'::"SocialPublishJobStatus",
@@ -2673,6 +2696,7 @@ async fn mark_job_failed(
         "#,
     )
     .bind(message)
+    .bind(outcome_metadata)
     .bind(job_id)
     .execute(tx.as_mut())
     .await?;
@@ -2683,16 +2707,17 @@ async fn mark_job_failed(
     sqlx::query(
         r#"
         UPDATE "SocialPost"
-        SET status = 'FAILED'::"SocialPostStatus",
+        SET status = CASE WHEN $2 = 'UNKNOWN' THEN 'PROCESSING'::"SocialPostStatus" ELSE 'FAILED'::"SocialPostStatus" END,
             metadata = COALESCE(metadata, '{}'::jsonb) || $1,
             "updatedAt" = NOW()
-        WHERE id = $2
+        WHERE id = $3
         "#,
     )
     .bind(json!({
         "failedAt": Utc::now().to_rfc3339(),
         "failureReason": message
     }))
+    .bind(post_status)
     .bind(post_id)
     .execute(tx.as_mut())
     .await?;
@@ -3274,7 +3299,8 @@ pub async fn execute_social_publish_job(
         Err(error) => {
             let message = error.to_string();
             let detail = message.split(": ").last().unwrap_or(&message).to_string();
-            mark_job_failed(pool, &job.id, &job.post_id, &detail).await?;
+            let outcome = is_indeterminate_publish_error(&error).then_some("UNKNOWN");
+            mark_job_failed(pool, &job.id, &job.post_id, &detail, outcome).await?;
             Err(error)
         }
     }
@@ -3306,6 +3332,8 @@ pub async fn process_due_social_publish_jobs(pool: &PgPool, limit: i64) -> Resul
         let _ = execute_social_publish_job(pool, &job_id).await;
         processed += 1;
     }
+
+    let _ = crate::capabilities::content_batch::refresh_active_batches(pool, limit).await?;
 
     Ok(processed + reconciled + webhook_events)
 }
@@ -3420,7 +3448,7 @@ async fn reconcile_tiktok_publish_jobs(pool: &PgPool, limit: i64) -> Result<i64,
                     .get("fail_reason")
                     .and_then(Value::as_str)
                     .unwrap_or("TikTok rejected the post");
-                mark_job_failed(pool, &job.id, &job.post_id, reason).await?;
+                mark_job_failed(pool, &job.id, &job.post_id, reason, None).await?;
                 handled += 1;
             }
             _ => {}
@@ -3432,8 +3460,8 @@ async fn reconcile_tiktok_publish_jobs(pool: &PgPool, limit: i64) -> Result<i64,
 #[cfg(test)]
 mod tests {
     use super::{
-        decode_threads_signed_request, linkedin_role_rank, meta_webhook_callback_url, HmacSha256,
-        InstagramProfile, Value,
+        decode_threads_signed_request, is_indeterminate_publish_error, linkedin_role_rank,
+        meta_webhook_callback_url, HmacSha256, InstagramProfile, Value,
     };
     use base64::engine::general_purpose::URL_SAFE_NO_PAD;
     use base64::Engine as _;
@@ -3452,6 +3480,22 @@ mod tests {
             media_count: None,
             account_type: None,
         }
+    }
+
+    #[test]
+    fn indeterminate_provider_failures_are_not_retryable_without_reconciliation() {
+        assert!(is_indeterminate_publish_error(
+            &super::AppError::GatewayTimeout("Provider request timed out".to_string(),)
+        ));
+        assert!(is_indeterminate_publish_error(
+            &super::AppError::BadGateway("Provider request failed".to_string(),)
+        ));
+        assert!(is_indeterminate_publish_error(
+            &super::AppError::BadRequest("Bluesky request timed out".to_string(),)
+        ));
+        assert!(!is_indeterminate_publish_error(
+            &super::AppError::BadRequest("Provider rejected the content".to_string(),)
+        ));
     }
 
     #[test]

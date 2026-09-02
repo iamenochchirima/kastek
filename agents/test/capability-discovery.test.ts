@@ -28,11 +28,15 @@ describe("capability discovery", () => {
       "kasitek.core.channel_deliver",
       "kasitek.core.content_posts_list",
       "kasitek.core.content_post_get",
+      "kasitek.core.content_post_publish_batch_preflight",
+      "kasitek.core.content_post_publish_batch_status",
+      "kasitek.core.content_post_publish_batch_retry",
       "kasitek.core.content_posts_insights_report",
       "kasitek.core.content_post_insights",
       "kasitek.core.content_post_update",
       "kasitek.core.content_post_draft",
       "kasitek.core.content_post_publish",
+      "kasitek.core.content_post_publish_batch",
       "kasitek.core.content_post_schedule",
       "kasitek.core.content_post_unschedule",
       "kasitek.core.content_post_delete",
@@ -55,9 +59,10 @@ describe("capability discovery", () => {
     expect(manifests[18]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "inbox.write", approval: "none", execution: "immediate", resourceSelector: { type: "conversation" } });
     expect(manifests[19]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "inbox.write", approval: "always", execution: "durable", idempotency: "required", resourceSelector: { type: "conversation" } });
     expect(manifests[20]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "channels.write", approval: "always", execution: "durable", resourceSelector: { type: "conversation" } });
-    expect(manifests[25]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.write", idempotency: "not_applicable" });
-    expect(manifests[26]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.write", idempotency: "required" });
-    expect(manifests[27]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.publish", approval: "always", execution: "durable" });
-    expect(manifests[28]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.publish", approval: "always", execution: "durable" });
+    expect(manifests[27]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.read", idempotency: "not_applicable" });
+    expect(manifests[28]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.write", idempotency: "not_applicable" });
+    expect(manifests[29]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.write", idempotency: "required" });
+    expect(manifests[30]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.publish", approval: "always", execution: "durable" });
+    expect(manifests[31]?.manifest).toMatchObject({ ownerService: "kasitek-core", requiredScope: "content.publish", approval: "always", execution: "durable" });
   });
 });

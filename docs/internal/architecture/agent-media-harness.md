@@ -64,6 +64,13 @@ Core returns the successful publish result and emits a bounded diagnostic instea
 false publish failure. A true response timeout remains an indeterminate result: callers check the
 durable publish job before retrying, and idempotency prevents duplicate execution.
 
+For multi-destination publishing, Core performs one media and content preflight per target before
+queueing any provider job. The approved snapshot names the concrete account, selected variant,
+media identity, and required capability; the client and gateways receive only the normalized
+target state and remediation mode. A media or permission failure blocks the complete batch before
+external effects. After admission, each target keeps its own job and receipt state so a successful
+provider publication is preserved when another target fails or becomes indeterminate.
+
 ## Gateway profiles
 
 Profiles are explicit in `agents/src/media/profiles.ts` and are evaluated before delivery:

@@ -284,6 +284,8 @@ export type ExternalConnectionWhereInput = {
   updatedAt?: Prisma.DateTimeFilter<"ExternalConnection"> | Date | string
   org?: Prisma.XOR<Prisma.OrganizationScalarRelationFilter, Prisma.OrganizationWhereInput>
   capabilities?: Prisma.ExternalConnectionCapabilityListRelationFilter
+  permissions?: Prisma.ExternalConnectionPermissionListRelationFilter
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptListRelationFilter
   consumers?: Prisma.ExternalConnectionConsumerListRelationFilter
   conversations?: Prisma.ConversationListRelationFilter
   calls?: Prisma.CommunicationCallListRelationFilter
@@ -310,6 +312,8 @@ export type ExternalConnectionOrderByWithRelationInput = {
   updatedAt?: Prisma.SortOrder
   org?: Prisma.OrganizationOrderByWithRelationInput
   capabilities?: Prisma.ExternalConnectionCapabilityOrderByRelationAggregateInput
+  permissions?: Prisma.ExternalConnectionPermissionOrderByRelationAggregateInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptOrderByRelationAggregateInput
   consumers?: Prisma.ExternalConnectionConsumerOrderByRelationAggregateInput
   conversations?: Prisma.ConversationOrderByRelationAggregateInput
   calls?: Prisma.CommunicationCallOrderByRelationAggregateInput
@@ -340,6 +344,8 @@ export type ExternalConnectionWhereUniqueInput = Prisma.AtLeast<{
   updatedAt?: Prisma.DateTimeFilter<"ExternalConnection"> | Date | string
   org?: Prisma.XOR<Prisma.OrganizationScalarRelationFilter, Prisma.OrganizationWhereInput>
   capabilities?: Prisma.ExternalConnectionCapabilityListRelationFilter
+  permissions?: Prisma.ExternalConnectionPermissionListRelationFilter
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptListRelationFilter
   consumers?: Prisma.ExternalConnectionConsumerListRelationFilter
   conversations?: Prisma.ConversationListRelationFilter
   calls?: Prisma.CommunicationCallListRelationFilter
@@ -413,6 +419,8 @@ export type ExternalConnectionCreateInput = {
   updatedAt?: Date | string
   org: Prisma.OrganizationCreateNestedOneWithoutExternalConnectionsInput
   capabilities?: Prisma.ExternalConnectionCapabilityCreateNestedManyWithoutConnectionInput
+  permissions?: Prisma.ExternalConnectionPermissionCreateNestedManyWithoutConnectionInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallCreateNestedManyWithoutConnectionInput
@@ -438,6 +446,8 @@ export type ExternalConnectionUncheckedCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   capabilities?: Prisma.ExternalConnectionCapabilityUncheckedCreateNestedManyWithoutConnectionInput
+  permissions?: Prisma.ExternalConnectionPermissionUncheckedCreateNestedManyWithoutConnectionInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutConnectionInput
@@ -463,6 +473,8 @@ export type ExternalConnectionUpdateInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   org?: Prisma.OrganizationUpdateOneRequiredWithoutExternalConnectionsNestedInput
   capabilities?: Prisma.ExternalConnectionCapabilityUpdateManyWithoutConnectionNestedInput
+  permissions?: Prisma.ExternalConnectionPermissionUpdateManyWithoutConnectionNestedInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUpdateManyWithoutConnectionNestedInput
@@ -488,6 +500,8 @@ export type ExternalConnectionUncheckedUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   capabilities?: Prisma.ExternalConnectionCapabilityUncheckedUpdateManyWithoutConnectionNestedInput
+  permissions?: Prisma.ExternalConnectionPermissionUncheckedUpdateManyWithoutConnectionNestedInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutConnectionNestedInput
@@ -706,6 +720,34 @@ export type ExternalConnectionUpdateOneRequiredWithoutCapabilitiesNestedInput = 
   update?: Prisma.XOR<Prisma.XOR<Prisma.ExternalConnectionUpdateToOneWithWhereWithoutCapabilitiesInput, Prisma.ExternalConnectionUpdateWithoutCapabilitiesInput>, Prisma.ExternalConnectionUncheckedUpdateWithoutCapabilitiesInput>
 }
 
+export type ExternalConnectionCreateNestedOneWithoutPermissionsInput = {
+  create?: Prisma.XOR<Prisma.ExternalConnectionCreateWithoutPermissionsInput, Prisma.ExternalConnectionUncheckedCreateWithoutPermissionsInput>
+  connectOrCreate?: Prisma.ExternalConnectionCreateOrConnectWithoutPermissionsInput
+  connect?: Prisma.ExternalConnectionWhereUniqueInput
+}
+
+export type ExternalConnectionUpdateOneRequiredWithoutPermissionsNestedInput = {
+  create?: Prisma.XOR<Prisma.ExternalConnectionCreateWithoutPermissionsInput, Prisma.ExternalConnectionUncheckedCreateWithoutPermissionsInput>
+  connectOrCreate?: Prisma.ExternalConnectionCreateOrConnectWithoutPermissionsInput
+  upsert?: Prisma.ExternalConnectionUpsertWithoutPermissionsInput
+  connect?: Prisma.ExternalConnectionWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.ExternalConnectionUpdateToOneWithWhereWithoutPermissionsInput, Prisma.ExternalConnectionUpdateWithoutPermissionsInput>, Prisma.ExternalConnectionUncheckedUpdateWithoutPermissionsInput>
+}
+
+export type ExternalConnectionCreateNestedOneWithoutAuthorizationAttemptsInput = {
+  create?: Prisma.XOR<Prisma.ExternalConnectionCreateWithoutAuthorizationAttemptsInput, Prisma.ExternalConnectionUncheckedCreateWithoutAuthorizationAttemptsInput>
+  connectOrCreate?: Prisma.ExternalConnectionCreateOrConnectWithoutAuthorizationAttemptsInput
+  connect?: Prisma.ExternalConnectionWhereUniqueInput
+}
+
+export type ExternalConnectionUpdateOneRequiredWithoutAuthorizationAttemptsNestedInput = {
+  create?: Prisma.XOR<Prisma.ExternalConnectionCreateWithoutAuthorizationAttemptsInput, Prisma.ExternalConnectionUncheckedCreateWithoutAuthorizationAttemptsInput>
+  connectOrCreate?: Prisma.ExternalConnectionCreateOrConnectWithoutAuthorizationAttemptsInput
+  upsert?: Prisma.ExternalConnectionUpsertWithoutAuthorizationAttemptsInput
+  connect?: Prisma.ExternalConnectionWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.ExternalConnectionUpdateToOneWithWhereWithoutAuthorizationAttemptsInput, Prisma.ExternalConnectionUpdateWithoutAuthorizationAttemptsInput>, Prisma.ExternalConnectionUncheckedUpdateWithoutAuthorizationAttemptsInput>
+}
+
 export type ExternalConnectionCreateNestedOneWithoutConsumersInput = {
   create?: Prisma.XOR<Prisma.ExternalConnectionCreateWithoutConsumersInput, Prisma.ExternalConnectionUncheckedCreateWithoutConsumersInput>
   connectOrCreate?: Prisma.ExternalConnectionCreateOrConnectWithoutConsumersInput
@@ -771,6 +813,8 @@ export type ExternalConnectionCreateWithoutOrgInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   capabilities?: Prisma.ExternalConnectionCapabilityCreateNestedManyWithoutConnectionInput
+  permissions?: Prisma.ExternalConnectionPermissionCreateNestedManyWithoutConnectionInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallCreateNestedManyWithoutConnectionInput
@@ -795,6 +839,8 @@ export type ExternalConnectionUncheckedCreateWithoutOrgInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   capabilities?: Prisma.ExternalConnectionCapabilityUncheckedCreateNestedManyWithoutConnectionInput
+  permissions?: Prisma.ExternalConnectionPermissionUncheckedCreateNestedManyWithoutConnectionInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutConnectionInput
@@ -869,6 +915,8 @@ export type ExternalConnectionCreateWithoutCapabilitiesInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   org: Prisma.OrganizationCreateNestedOneWithoutExternalConnectionsInput
+  permissions?: Prisma.ExternalConnectionPermissionCreateNestedManyWithoutConnectionInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallCreateNestedManyWithoutConnectionInput
@@ -893,6 +941,8 @@ export type ExternalConnectionUncheckedCreateWithoutCapabilitiesInput = {
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
+  permissions?: Prisma.ExternalConnectionPermissionUncheckedCreateNestedManyWithoutConnectionInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutConnectionInput
@@ -933,6 +983,8 @@ export type ExternalConnectionUpdateWithoutCapabilitiesInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   org?: Prisma.OrganizationUpdateOneRequiredWithoutExternalConnectionsNestedInput
+  permissions?: Prisma.ExternalConnectionPermissionUpdateManyWithoutConnectionNestedInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUpdateManyWithoutConnectionNestedInput
@@ -957,6 +1009,248 @@ export type ExternalConnectionUncheckedUpdateWithoutCapabilitiesInput = {
   metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  permissions?: Prisma.ExternalConnectionPermissionUncheckedUpdateManyWithoutConnectionNestedInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedUpdateManyWithoutConnectionNestedInput
+  consumers?: Prisma.ExternalConnectionConsumerUncheckedUpdateManyWithoutConnectionNestedInput
+  conversations?: Prisma.ConversationUncheckedUpdateManyWithoutExternalConnectionNestedInput
+  calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutConnectionNestedInput
+}
+
+export type ExternalConnectionCreateWithoutPermissionsInput = {
+  id?: string
+  provider: string
+  sourceType: string
+  sourceId: string
+  externalAccountId?: string | null
+  displayName: string
+  handle?: string | null
+  status?: $Enums.ExternalConnectionStatus
+  statusOverride?: $Enums.ExternalConnectionStatus | null
+  credentialStatus?: string
+  healthStatus?: string
+  webhookStatus?: string
+  lastCheckedAt?: Date | string | null
+  lastError?: string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  org: Prisma.OrganizationCreateNestedOneWithoutExternalConnectionsInput
+  capabilities?: Prisma.ExternalConnectionCapabilityCreateNestedManyWithoutConnectionInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptCreateNestedManyWithoutConnectionInput
+  consumers?: Prisma.ExternalConnectionConsumerCreateNestedManyWithoutConnectionInput
+  conversations?: Prisma.ConversationCreateNestedManyWithoutExternalConnectionInput
+  calls?: Prisma.CommunicationCallCreateNestedManyWithoutConnectionInput
+}
+
+export type ExternalConnectionUncheckedCreateWithoutPermissionsInput = {
+  id?: string
+  orgId: string
+  provider: string
+  sourceType: string
+  sourceId: string
+  externalAccountId?: string | null
+  displayName: string
+  handle?: string | null
+  status?: $Enums.ExternalConnectionStatus
+  statusOverride?: $Enums.ExternalConnectionStatus | null
+  credentialStatus?: string
+  healthStatus?: string
+  webhookStatus?: string
+  lastCheckedAt?: Date | string | null
+  lastError?: string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  capabilities?: Prisma.ExternalConnectionCapabilityUncheckedCreateNestedManyWithoutConnectionInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedCreateNestedManyWithoutConnectionInput
+  consumers?: Prisma.ExternalConnectionConsumerUncheckedCreateNestedManyWithoutConnectionInput
+  conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutExternalConnectionInput
+  calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutConnectionInput
+}
+
+export type ExternalConnectionCreateOrConnectWithoutPermissionsInput = {
+  where: Prisma.ExternalConnectionWhereUniqueInput
+  create: Prisma.XOR<Prisma.ExternalConnectionCreateWithoutPermissionsInput, Prisma.ExternalConnectionUncheckedCreateWithoutPermissionsInput>
+}
+
+export type ExternalConnectionUpsertWithoutPermissionsInput = {
+  update: Prisma.XOR<Prisma.ExternalConnectionUpdateWithoutPermissionsInput, Prisma.ExternalConnectionUncheckedUpdateWithoutPermissionsInput>
+  create: Prisma.XOR<Prisma.ExternalConnectionCreateWithoutPermissionsInput, Prisma.ExternalConnectionUncheckedCreateWithoutPermissionsInput>
+  where?: Prisma.ExternalConnectionWhereInput
+}
+
+export type ExternalConnectionUpdateToOneWithWhereWithoutPermissionsInput = {
+  where?: Prisma.ExternalConnectionWhereInput
+  data: Prisma.XOR<Prisma.ExternalConnectionUpdateWithoutPermissionsInput, Prisma.ExternalConnectionUncheckedUpdateWithoutPermissionsInput>
+}
+
+export type ExternalConnectionUpdateWithoutPermissionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceType?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalAccountId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  displayName?: Prisma.StringFieldUpdateOperationsInput | string
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.EnumExternalConnectionStatusFieldUpdateOperationsInput | $Enums.ExternalConnectionStatus
+  statusOverride?: Prisma.NullableEnumExternalConnectionStatusFieldUpdateOperationsInput | $Enums.ExternalConnectionStatus | null
+  credentialStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  healthStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  webhookStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  lastCheckedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  org?: Prisma.OrganizationUpdateOneRequiredWithoutExternalConnectionsNestedInput
+  capabilities?: Prisma.ExternalConnectionCapabilityUpdateManyWithoutConnectionNestedInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUpdateManyWithoutConnectionNestedInput
+  consumers?: Prisma.ExternalConnectionConsumerUpdateManyWithoutConnectionNestedInput
+  conversations?: Prisma.ConversationUpdateManyWithoutExternalConnectionNestedInput
+  calls?: Prisma.CommunicationCallUpdateManyWithoutConnectionNestedInput
+}
+
+export type ExternalConnectionUncheckedUpdateWithoutPermissionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceType?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalAccountId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  displayName?: Prisma.StringFieldUpdateOperationsInput | string
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.EnumExternalConnectionStatusFieldUpdateOperationsInput | $Enums.ExternalConnectionStatus
+  statusOverride?: Prisma.NullableEnumExternalConnectionStatusFieldUpdateOperationsInput | $Enums.ExternalConnectionStatus | null
+  credentialStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  healthStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  webhookStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  lastCheckedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  capabilities?: Prisma.ExternalConnectionCapabilityUncheckedUpdateManyWithoutConnectionNestedInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedUpdateManyWithoutConnectionNestedInput
+  consumers?: Prisma.ExternalConnectionConsumerUncheckedUpdateManyWithoutConnectionNestedInput
+  conversations?: Prisma.ConversationUncheckedUpdateManyWithoutExternalConnectionNestedInput
+  calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutConnectionNestedInput
+}
+
+export type ExternalConnectionCreateWithoutAuthorizationAttemptsInput = {
+  id?: string
+  provider: string
+  sourceType: string
+  sourceId: string
+  externalAccountId?: string | null
+  displayName: string
+  handle?: string | null
+  status?: $Enums.ExternalConnectionStatus
+  statusOverride?: $Enums.ExternalConnectionStatus | null
+  credentialStatus?: string
+  healthStatus?: string
+  webhookStatus?: string
+  lastCheckedAt?: Date | string | null
+  lastError?: string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  org: Prisma.OrganizationCreateNestedOneWithoutExternalConnectionsInput
+  capabilities?: Prisma.ExternalConnectionCapabilityCreateNestedManyWithoutConnectionInput
+  permissions?: Prisma.ExternalConnectionPermissionCreateNestedManyWithoutConnectionInput
+  consumers?: Prisma.ExternalConnectionConsumerCreateNestedManyWithoutConnectionInput
+  conversations?: Prisma.ConversationCreateNestedManyWithoutExternalConnectionInput
+  calls?: Prisma.CommunicationCallCreateNestedManyWithoutConnectionInput
+}
+
+export type ExternalConnectionUncheckedCreateWithoutAuthorizationAttemptsInput = {
+  id?: string
+  orgId: string
+  provider: string
+  sourceType: string
+  sourceId: string
+  externalAccountId?: string | null
+  displayName: string
+  handle?: string | null
+  status?: $Enums.ExternalConnectionStatus
+  statusOverride?: $Enums.ExternalConnectionStatus | null
+  credentialStatus?: string
+  healthStatus?: string
+  webhookStatus?: string
+  lastCheckedAt?: Date | string | null
+  lastError?: string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  capabilities?: Prisma.ExternalConnectionCapabilityUncheckedCreateNestedManyWithoutConnectionInput
+  permissions?: Prisma.ExternalConnectionPermissionUncheckedCreateNestedManyWithoutConnectionInput
+  consumers?: Prisma.ExternalConnectionConsumerUncheckedCreateNestedManyWithoutConnectionInput
+  conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutExternalConnectionInput
+  calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutConnectionInput
+}
+
+export type ExternalConnectionCreateOrConnectWithoutAuthorizationAttemptsInput = {
+  where: Prisma.ExternalConnectionWhereUniqueInput
+  create: Prisma.XOR<Prisma.ExternalConnectionCreateWithoutAuthorizationAttemptsInput, Prisma.ExternalConnectionUncheckedCreateWithoutAuthorizationAttemptsInput>
+}
+
+export type ExternalConnectionUpsertWithoutAuthorizationAttemptsInput = {
+  update: Prisma.XOR<Prisma.ExternalConnectionUpdateWithoutAuthorizationAttemptsInput, Prisma.ExternalConnectionUncheckedUpdateWithoutAuthorizationAttemptsInput>
+  create: Prisma.XOR<Prisma.ExternalConnectionCreateWithoutAuthorizationAttemptsInput, Prisma.ExternalConnectionUncheckedCreateWithoutAuthorizationAttemptsInput>
+  where?: Prisma.ExternalConnectionWhereInput
+}
+
+export type ExternalConnectionUpdateToOneWithWhereWithoutAuthorizationAttemptsInput = {
+  where?: Prisma.ExternalConnectionWhereInput
+  data: Prisma.XOR<Prisma.ExternalConnectionUpdateWithoutAuthorizationAttemptsInput, Prisma.ExternalConnectionUncheckedUpdateWithoutAuthorizationAttemptsInput>
+}
+
+export type ExternalConnectionUpdateWithoutAuthorizationAttemptsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceType?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalAccountId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  displayName?: Prisma.StringFieldUpdateOperationsInput | string
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.EnumExternalConnectionStatusFieldUpdateOperationsInput | $Enums.ExternalConnectionStatus
+  statusOverride?: Prisma.NullableEnumExternalConnectionStatusFieldUpdateOperationsInput | $Enums.ExternalConnectionStatus | null
+  credentialStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  healthStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  webhookStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  lastCheckedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  org?: Prisma.OrganizationUpdateOneRequiredWithoutExternalConnectionsNestedInput
+  capabilities?: Prisma.ExternalConnectionCapabilityUpdateManyWithoutConnectionNestedInput
+  permissions?: Prisma.ExternalConnectionPermissionUpdateManyWithoutConnectionNestedInput
+  consumers?: Prisma.ExternalConnectionConsumerUpdateManyWithoutConnectionNestedInput
+  conversations?: Prisma.ConversationUpdateManyWithoutExternalConnectionNestedInput
+  calls?: Prisma.CommunicationCallUpdateManyWithoutConnectionNestedInput
+}
+
+export type ExternalConnectionUncheckedUpdateWithoutAuthorizationAttemptsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  orgId?: Prisma.StringFieldUpdateOperationsInput | string
+  provider?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceType?: Prisma.StringFieldUpdateOperationsInput | string
+  sourceId?: Prisma.StringFieldUpdateOperationsInput | string
+  externalAccountId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  displayName?: Prisma.StringFieldUpdateOperationsInput | string
+  handle?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.EnumExternalConnectionStatusFieldUpdateOperationsInput | $Enums.ExternalConnectionStatus
+  statusOverride?: Prisma.NullableEnumExternalConnectionStatusFieldUpdateOperationsInput | $Enums.ExternalConnectionStatus | null
+  credentialStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  healthStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  webhookStatus?: Prisma.StringFieldUpdateOperationsInput | string
+  lastCheckedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  metadata?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  capabilities?: Prisma.ExternalConnectionCapabilityUncheckedUpdateManyWithoutConnectionNestedInput
+  permissions?: Prisma.ExternalConnectionPermissionUncheckedUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutConnectionNestedInput
@@ -982,6 +1276,8 @@ export type ExternalConnectionCreateWithoutConsumersInput = {
   updatedAt?: Date | string
   org: Prisma.OrganizationCreateNestedOneWithoutExternalConnectionsInput
   capabilities?: Prisma.ExternalConnectionCapabilityCreateNestedManyWithoutConnectionInput
+  permissions?: Prisma.ExternalConnectionPermissionCreateNestedManyWithoutConnectionInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallCreateNestedManyWithoutConnectionInput
 }
@@ -1006,6 +1302,8 @@ export type ExternalConnectionUncheckedCreateWithoutConsumersInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   capabilities?: Prisma.ExternalConnectionCapabilityUncheckedCreateNestedManyWithoutConnectionInput
+  permissions?: Prisma.ExternalConnectionPermissionUncheckedCreateNestedManyWithoutConnectionInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutExternalConnectionInput
   calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutConnectionInput
 }
@@ -1046,6 +1344,8 @@ export type ExternalConnectionUpdateWithoutConsumersInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   org?: Prisma.OrganizationUpdateOneRequiredWithoutExternalConnectionsNestedInput
   capabilities?: Prisma.ExternalConnectionCapabilityUpdateManyWithoutConnectionNestedInput
+  permissions?: Prisma.ExternalConnectionPermissionUpdateManyWithoutConnectionNestedInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUpdateManyWithoutConnectionNestedInput
 }
@@ -1070,6 +1370,8 @@ export type ExternalConnectionUncheckedUpdateWithoutConsumersInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   capabilities?: Prisma.ExternalConnectionCapabilityUncheckedUpdateManyWithoutConnectionNestedInput
+  permissions?: Prisma.ExternalConnectionPermissionUncheckedUpdateManyWithoutConnectionNestedInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutConnectionNestedInput
 }
@@ -1094,6 +1396,8 @@ export type ExternalConnectionCreateWithoutConversationsInput = {
   updatedAt?: Date | string
   org: Prisma.OrganizationCreateNestedOneWithoutExternalConnectionsInput
   capabilities?: Prisma.ExternalConnectionCapabilityCreateNestedManyWithoutConnectionInput
+  permissions?: Prisma.ExternalConnectionPermissionCreateNestedManyWithoutConnectionInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerCreateNestedManyWithoutConnectionInput
   calls?: Prisma.CommunicationCallCreateNestedManyWithoutConnectionInput
 }
@@ -1118,6 +1422,8 @@ export type ExternalConnectionUncheckedCreateWithoutConversationsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   capabilities?: Prisma.ExternalConnectionCapabilityUncheckedCreateNestedManyWithoutConnectionInput
+  permissions?: Prisma.ExternalConnectionPermissionUncheckedCreateNestedManyWithoutConnectionInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedCreateNestedManyWithoutConnectionInput
   calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutConnectionInput
 }
@@ -1158,6 +1464,8 @@ export type ExternalConnectionUpdateWithoutConversationsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   org?: Prisma.OrganizationUpdateOneRequiredWithoutExternalConnectionsNestedInput
   capabilities?: Prisma.ExternalConnectionCapabilityUpdateManyWithoutConnectionNestedInput
+  permissions?: Prisma.ExternalConnectionPermissionUpdateManyWithoutConnectionNestedInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUpdateManyWithoutConnectionNestedInput
   calls?: Prisma.CommunicationCallUpdateManyWithoutConnectionNestedInput
 }
@@ -1182,6 +1490,8 @@ export type ExternalConnectionUncheckedUpdateWithoutConversationsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   capabilities?: Prisma.ExternalConnectionCapabilityUncheckedUpdateManyWithoutConnectionNestedInput
+  permissions?: Prisma.ExternalConnectionPermissionUncheckedUpdateManyWithoutConnectionNestedInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedUpdateManyWithoutConnectionNestedInput
   calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutConnectionNestedInput
 }
@@ -1206,6 +1516,8 @@ export type ExternalConnectionCreateWithoutCallsInput = {
   updatedAt?: Date | string
   org: Prisma.OrganizationCreateNestedOneWithoutExternalConnectionsInput
   capabilities?: Prisma.ExternalConnectionCapabilityCreateNestedManyWithoutConnectionInput
+  permissions?: Prisma.ExternalConnectionPermissionCreateNestedManyWithoutConnectionInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationCreateNestedManyWithoutExternalConnectionInput
 }
@@ -1230,6 +1542,8 @@ export type ExternalConnectionUncheckedCreateWithoutCallsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   capabilities?: Prisma.ExternalConnectionCapabilityUncheckedCreateNestedManyWithoutConnectionInput
+  permissions?: Prisma.ExternalConnectionPermissionUncheckedCreateNestedManyWithoutConnectionInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedCreateNestedManyWithoutConnectionInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedCreateNestedManyWithoutConnectionInput
   conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutExternalConnectionInput
 }
@@ -1270,6 +1584,8 @@ export type ExternalConnectionUpdateWithoutCallsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   org?: Prisma.OrganizationUpdateOneRequiredWithoutExternalConnectionsNestedInput
   capabilities?: Prisma.ExternalConnectionCapabilityUpdateManyWithoutConnectionNestedInput
+  permissions?: Prisma.ExternalConnectionPermissionUpdateManyWithoutConnectionNestedInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUpdateManyWithoutExternalConnectionNestedInput
 }
@@ -1294,6 +1610,8 @@ export type ExternalConnectionUncheckedUpdateWithoutCallsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   capabilities?: Prisma.ExternalConnectionCapabilityUncheckedUpdateManyWithoutConnectionNestedInput
+  permissions?: Prisma.ExternalConnectionPermissionUncheckedUpdateManyWithoutConnectionNestedInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutExternalConnectionNestedInput
 }
@@ -1337,6 +1655,8 @@ export type ExternalConnectionUpdateWithoutOrgInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   capabilities?: Prisma.ExternalConnectionCapabilityUpdateManyWithoutConnectionNestedInput
+  permissions?: Prisma.ExternalConnectionPermissionUpdateManyWithoutConnectionNestedInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUpdateManyWithoutConnectionNestedInput
@@ -1361,6 +1681,8 @@ export type ExternalConnectionUncheckedUpdateWithoutOrgInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   capabilities?: Prisma.ExternalConnectionCapabilityUncheckedUpdateManyWithoutConnectionNestedInput
+  permissions?: Prisma.ExternalConnectionPermissionUncheckedUpdateManyWithoutConnectionNestedInput
+  authorizationAttempts?: Prisma.ExternalConnectionAuthorizationAttemptUncheckedUpdateManyWithoutConnectionNestedInput
   consumers?: Prisma.ExternalConnectionConsumerUncheckedUpdateManyWithoutConnectionNestedInput
   conversations?: Prisma.ConversationUncheckedUpdateManyWithoutExternalConnectionNestedInput
   calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutConnectionNestedInput
@@ -1393,6 +1715,8 @@ export type ExternalConnectionUncheckedUpdateManyWithoutOrgInput = {
 
 export type ExternalConnectionCountOutputType = {
   capabilities: number
+  permissions: number
+  authorizationAttempts: number
   consumers: number
   conversations: number
   calls: number
@@ -1400,6 +1724,8 @@ export type ExternalConnectionCountOutputType = {
 
 export type ExternalConnectionCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   capabilities?: boolean | ExternalConnectionCountOutputTypeCountCapabilitiesArgs
+  permissions?: boolean | ExternalConnectionCountOutputTypeCountPermissionsArgs
+  authorizationAttempts?: boolean | ExternalConnectionCountOutputTypeCountAuthorizationAttemptsArgs
   consumers?: boolean | ExternalConnectionCountOutputTypeCountConsumersArgs
   conversations?: boolean | ExternalConnectionCountOutputTypeCountConversationsArgs
   calls?: boolean | ExternalConnectionCountOutputTypeCountCallsArgs
@@ -1420,6 +1746,20 @@ export type ExternalConnectionCountOutputTypeDefaultArgs<ExtArgs extends runtime
  */
 export type ExternalConnectionCountOutputTypeCountCapabilitiesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.ExternalConnectionCapabilityWhereInput
+}
+
+/**
+ * ExternalConnectionCountOutputType without action
+ */
+export type ExternalConnectionCountOutputTypeCountPermissionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ExternalConnectionPermissionWhereInput
+}
+
+/**
+ * ExternalConnectionCountOutputType without action
+ */
+export type ExternalConnectionCountOutputTypeCountAuthorizationAttemptsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ExternalConnectionAuthorizationAttemptWhereInput
 }
 
 /**
@@ -1465,6 +1805,8 @@ export type ExternalConnectionSelect<ExtArgs extends runtime.Types.Extensions.In
   updatedAt?: boolean
   org?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
   capabilities?: boolean | Prisma.ExternalConnection$capabilitiesArgs<ExtArgs>
+  permissions?: boolean | Prisma.ExternalConnection$permissionsArgs<ExtArgs>
+  authorizationAttempts?: boolean | Prisma.ExternalConnection$authorizationAttemptsArgs<ExtArgs>
   consumers?: boolean | Prisma.ExternalConnection$consumersArgs<ExtArgs>
   conversations?: boolean | Prisma.ExternalConnection$conversationsArgs<ExtArgs>
   calls?: boolean | Prisma.ExternalConnection$callsArgs<ExtArgs>
@@ -1540,6 +1882,8 @@ export type ExternalConnectionOmit<ExtArgs extends runtime.Types.Extensions.Inte
 export type ExternalConnectionInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   org?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
   capabilities?: boolean | Prisma.ExternalConnection$capabilitiesArgs<ExtArgs>
+  permissions?: boolean | Prisma.ExternalConnection$permissionsArgs<ExtArgs>
+  authorizationAttempts?: boolean | Prisma.ExternalConnection$authorizationAttemptsArgs<ExtArgs>
   consumers?: boolean | Prisma.ExternalConnection$consumersArgs<ExtArgs>
   conversations?: boolean | Prisma.ExternalConnection$conversationsArgs<ExtArgs>
   calls?: boolean | Prisma.ExternalConnection$callsArgs<ExtArgs>
@@ -1557,6 +1901,8 @@ export type $ExternalConnectionPayload<ExtArgs extends runtime.Types.Extensions.
   objects: {
     org: Prisma.$OrganizationPayload<ExtArgs>
     capabilities: Prisma.$ExternalConnectionCapabilityPayload<ExtArgs>[]
+    permissions: Prisma.$ExternalConnectionPermissionPayload<ExtArgs>[]
+    authorizationAttempts: Prisma.$ExternalConnectionAuthorizationAttemptPayload<ExtArgs>[]
     consumers: Prisma.$ExternalConnectionConsumerPayload<ExtArgs>[]
     conversations: Prisma.$ConversationPayload<ExtArgs>[]
     calls: Prisma.$CommunicationCallPayload<ExtArgs>[]
@@ -1976,6 +2322,8 @@ export interface Prisma__ExternalConnectionClient<T, Null = never, ExtArgs exten
   readonly [Symbol.toStringTag]: "PrismaPromise"
   org<T extends Prisma.OrganizationDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.OrganizationDefaultArgs<ExtArgs>>): Prisma.Prisma__OrganizationClient<runtime.Types.Result.GetResult<Prisma.$OrganizationPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   capabilities<T extends Prisma.ExternalConnection$capabilitiesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ExternalConnection$capabilitiesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ExternalConnectionCapabilityPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  permissions<T extends Prisma.ExternalConnection$permissionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ExternalConnection$permissionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ExternalConnectionPermissionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  authorizationAttempts<T extends Prisma.ExternalConnection$authorizationAttemptsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ExternalConnection$authorizationAttemptsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ExternalConnectionAuthorizationAttemptPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   consumers<T extends Prisma.ExternalConnection$consumersArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ExternalConnection$consumersArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ExternalConnectionConsumerPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   conversations<T extends Prisma.ExternalConnection$conversationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ExternalConnection$conversationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ConversationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   calls<T extends Prisma.ExternalConnection$callsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ExternalConnection$callsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CommunicationCallPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -2443,6 +2791,54 @@ export type ExternalConnection$capabilitiesArgs<ExtArgs extends runtime.Types.Ex
   take?: number
   skip?: number
   distinct?: Prisma.ExternalConnectionCapabilityScalarFieldEnum | Prisma.ExternalConnectionCapabilityScalarFieldEnum[]
+}
+
+/**
+ * ExternalConnection.permissions
+ */
+export type ExternalConnection$permissionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ExternalConnectionPermission
+   */
+  select?: Prisma.ExternalConnectionPermissionSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ExternalConnectionPermission
+   */
+  omit?: Prisma.ExternalConnectionPermissionOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ExternalConnectionPermissionInclude<ExtArgs> | null
+  where?: Prisma.ExternalConnectionPermissionWhereInput
+  orderBy?: Prisma.ExternalConnectionPermissionOrderByWithRelationInput | Prisma.ExternalConnectionPermissionOrderByWithRelationInput[]
+  cursor?: Prisma.ExternalConnectionPermissionWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ExternalConnectionPermissionScalarFieldEnum | Prisma.ExternalConnectionPermissionScalarFieldEnum[]
+}
+
+/**
+ * ExternalConnection.authorizationAttempts
+ */
+export type ExternalConnection$authorizationAttemptsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ExternalConnectionAuthorizationAttempt
+   */
+  select?: Prisma.ExternalConnectionAuthorizationAttemptSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ExternalConnectionAuthorizationAttempt
+   */
+  omit?: Prisma.ExternalConnectionAuthorizationAttemptOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ExternalConnectionAuthorizationAttemptInclude<ExtArgs> | null
+  where?: Prisma.ExternalConnectionAuthorizationAttemptWhereInput
+  orderBy?: Prisma.ExternalConnectionAuthorizationAttemptOrderByWithRelationInput | Prisma.ExternalConnectionAuthorizationAttemptOrderByWithRelationInput[]
+  cursor?: Prisma.ExternalConnectionAuthorizationAttemptWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ExternalConnectionAuthorizationAttemptScalarFieldEnum | Prisma.ExternalConnectionAuthorizationAttemptScalarFieldEnum[]
 }
 
 /**

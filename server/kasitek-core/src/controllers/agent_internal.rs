@@ -13,7 +13,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::{PgPool, Row};
 
-use crate::capabilities::{content_adapter, core_adapter};
+use crate::capabilities::{content_adapter, content_batch, core_adapter};
 use crate::config::AppConfig;
 use crate::db::models::{
     ConversationUpdateRequest, SocialPostUpsertRequest, WhatsappContactListQuery,
@@ -1391,6 +1391,94 @@ pub async fn publish_content_post(
     let result =
         content_adapter::publish(pool.get_ref(), &context, &path.into_inner(), &body.platform)
             .await?;
+    Ok(HttpResponse::Accepted().json(result))
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct AgentContentPublishBatchRequest {
+    #[serde(rename = "snapshotHash")]
+    pub snapshot_hash: Option<String>,
+}
+
+pub async fn preflight_content_publish_batch(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.content_post_publish_batch_preflight",
+    )
+    .await?;
+    let preflight = content_batch::preflight(pool.get_ref(), &context, &path.into_inner()).await?;
+    Ok(HttpResponse::Ok().json(preflight))
+}
+
+pub async fn publish_content_post_batch(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+    body: web::Json<AgentContentPublishBatchRequest>,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.content_post_publish_batch",
+    )
+    .await?;
+    let snapshot_hash = body
+        .snapshot_hash
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if matches!(
+        context.principal.kind,
+        crate::identity::principal::PrincipalKind::TrustedInternalService
+    ) && snapshot_hash.is_none()
+    {
+        return Err(AppError::BadRequest(
+            "snapshotHash is required for an approved batch publish".to_string(),
+        ));
+    }
+    let result =
+        content_batch::publish_batch(pool.get_ref(), &context, &path.into_inner(), snapshot_hash)
+            .await?;
+    Ok(HttpResponse::Accepted().json(result))
+}
+
+pub async fn get_content_publish_batch(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.content_post_publish_batch_status",
+    )
+    .await?;
+    let result = content_batch::get_batch(pool.get_ref(), &context, &path.into_inner()).await?;
+    Ok(HttpResponse::Ok().json(result))
+}
+
+pub async fn retry_content_publish_batch(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+    path: web::Path<String>,
+) -> Result<HttpResponse, AppError> {
+    let context = resolve_internal_agent_context(
+        config.get_ref(),
+        &req,
+        "kasitek.core.content_post_publish_batch_retry",
+    )
+    .await?;
+    let result =
+        content_batch::retry_failed_batch(pool.get_ref(), &context, &path.into_inner()).await?;
     Ok(HttpResponse::Accepted().json(result))
 }
 

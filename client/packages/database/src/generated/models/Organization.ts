@@ -212,6 +212,7 @@ export type OrganizationWhereInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionListRelationFilter
   socialPosts?: Prisma.SocialPostListRelationFilter
   socialPublishJobs?: Prisma.SocialPublishJobListRelationFilter
+  socialPublishBatches?: Prisma.SocialPublishBatchListRelationFilter
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationListRelationFilter
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateListRelationFilter
   contentMediaAssets?: Prisma.ContentMediaAssetListRelationFilter
@@ -268,6 +269,7 @@ export type OrganizationOrderByWithRelationInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionOrderByRelationAggregateInput
   socialPosts?: Prisma.SocialPostOrderByRelationAggregateInput
   socialPublishJobs?: Prisma.SocialPublishJobOrderByRelationAggregateInput
+  socialPublishBatches?: Prisma.SocialPublishBatchOrderByRelationAggregateInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationOrderByRelationAggregateInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateOrderByRelationAggregateInput
   contentMediaAssets?: Prisma.ContentMediaAssetOrderByRelationAggregateInput
@@ -327,6 +329,7 @@ export type OrganizationWhereUniqueInput = Prisma.AtLeast<{
   socialChannelConnections?: Prisma.SocialChannelConnectionListRelationFilter
   socialPosts?: Prisma.SocialPostListRelationFilter
   socialPublishJobs?: Prisma.SocialPublishJobListRelationFilter
+  socialPublishBatches?: Prisma.SocialPublishBatchListRelationFilter
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationListRelationFilter
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateListRelationFilter
   contentMediaAssets?: Prisma.ContentMediaAssetListRelationFilter
@@ -410,6 +413,7 @@ export type OrganizationCreateInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -465,6 +469,7 @@ export type OrganizationUncheckedCreateInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -520,6 +525,7 @@ export type OrganizationUpdateInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -575,6 +581,7 @@ export type OrganizationUncheckedUpdateInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -1273,6 +1280,20 @@ export type OrganizationUpdateOneWithoutSocialPublishJobsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutSocialPublishJobsInput, Prisma.OrganizationUpdateWithoutSocialPublishJobsInput>, Prisma.OrganizationUncheckedUpdateWithoutSocialPublishJobsInput>
 }
 
+export type OrganizationCreateNestedOneWithoutSocialPublishBatchesInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutSocialPublishBatchesInput, Prisma.OrganizationUncheckedCreateWithoutSocialPublishBatchesInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutSocialPublishBatchesInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+}
+
+export type OrganizationUpdateOneRequiredWithoutSocialPublishBatchesNestedInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutSocialPublishBatchesInput, Prisma.OrganizationUncheckedCreateWithoutSocialPublishBatchesInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutSocialPublishBatchesInput
+  upsert?: Prisma.OrganizationUpsertWithoutSocialPublishBatchesInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutSocialPublishBatchesInput, Prisma.OrganizationUpdateWithoutSocialPublishBatchesInput>, Prisma.OrganizationUncheckedUpdateWithoutSocialPublishBatchesInput>
+}
+
 export type OrganizationCreateNestedOneWithoutSocialPostInsightObservationsInput = {
   create?: Prisma.XOR<Prisma.OrganizationCreateWithoutSocialPostInsightObservationsInput, Prisma.OrganizationUncheckedCreateWithoutSocialPostInsightObservationsInput>
   connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutSocialPostInsightObservationsInput
@@ -1408,6 +1429,7 @@ export type OrganizationCreateWithoutMembersInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -1462,6 +1484,7 @@ export type OrganizationUncheckedCreateWithoutMembersInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -1532,6 +1555,7 @@ export type OrganizationUpdateWithoutMembersInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -1586,6 +1610,7 @@ export type OrganizationUncheckedUpdateWithoutMembersInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -1641,6 +1666,7 @@ export type OrganizationCreateWithoutOnboardingProfileInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -1695,6 +1721,7 @@ export type OrganizationUncheckedCreateWithoutOnboardingProfileInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -1765,6 +1792,7 @@ export type OrganizationUpdateWithoutOnboardingProfileInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -1819,6 +1847,7 @@ export type OrganizationUncheckedUpdateWithoutOnboardingProfileInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -1872,6 +1901,7 @@ export type OrganizationCreateWithoutInvitationsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -1926,6 +1956,7 @@ export type OrganizationUncheckedCreateWithoutInvitationsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -1996,6 +2027,7 @@ export type OrganizationUpdateWithoutInvitationsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -2050,6 +2082,7 @@ export type OrganizationUncheckedUpdateWithoutInvitationsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -2105,6 +2138,7 @@ export type OrganizationCreateWithoutExternalConnectionsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -2159,6 +2193,7 @@ export type OrganizationUncheckedCreateWithoutExternalConnectionsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -2229,6 +2264,7 @@ export type OrganizationUpdateWithoutExternalConnectionsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -2283,6 +2319,7 @@ export type OrganizationUncheckedUpdateWithoutExternalConnectionsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -2337,6 +2374,7 @@ export type OrganizationCreateWithoutProductToursInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -2391,6 +2429,7 @@ export type OrganizationUncheckedCreateWithoutProductToursInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -2461,6 +2500,7 @@ export type OrganizationUpdateWithoutProductToursInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -2515,6 +2555,7 @@ export type OrganizationUncheckedUpdateWithoutProductToursInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -2569,6 +2610,7 @@ export type OrganizationCreateWithoutSubscriptionsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -2623,6 +2665,7 @@ export type OrganizationUncheckedCreateWithoutSubscriptionsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -2693,6 +2736,7 @@ export type OrganizationUpdateWithoutSubscriptionsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -2747,6 +2791,7 @@ export type OrganizationUncheckedUpdateWithoutSubscriptionsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -2801,6 +2846,7 @@ export type OrganizationCreateWithoutEntitlementGrantsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -2855,6 +2901,7 @@ export type OrganizationUncheckedCreateWithoutEntitlementGrantsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -2925,6 +2972,7 @@ export type OrganizationUpdateWithoutEntitlementGrantsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -2979,6 +3027,7 @@ export type OrganizationUncheckedUpdateWithoutEntitlementGrantsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -3033,6 +3082,7 @@ export type OrganizationCreateWithoutUsageEventsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -3087,6 +3137,7 @@ export type OrganizationUncheckedCreateWithoutUsageEventsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -3157,6 +3208,7 @@ export type OrganizationUpdateWithoutUsageEventsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -3211,6 +3263,7 @@ export type OrganizationUncheckedUpdateWithoutUsageEventsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -3265,6 +3318,7 @@ export type OrganizationCreateWithoutReferralCodesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -3319,6 +3373,7 @@ export type OrganizationUncheckedCreateWithoutReferralCodesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -3389,6 +3444,7 @@ export type OrganizationUpdateWithoutReferralCodesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -3443,6 +3499,7 @@ export type OrganizationUncheckedUpdateWithoutReferralCodesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -3497,6 +3554,7 @@ export type OrganizationCreateWithoutReferralsSentInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -3551,6 +3609,7 @@ export type OrganizationUncheckedCreateWithoutReferralsSentInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -3610,6 +3669,7 @@ export type OrganizationCreateWithoutReferralReceivedInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -3664,6 +3724,7 @@ export type OrganizationUncheckedCreateWithoutReferralReceivedInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -3734,6 +3795,7 @@ export type OrganizationUpdateWithoutReferralsSentInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -3788,6 +3850,7 @@ export type OrganizationUncheckedUpdateWithoutReferralsSentInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -3853,6 +3916,7 @@ export type OrganizationUpdateWithoutReferralReceivedInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -3907,6 +3971,7 @@ export type OrganizationUncheckedUpdateWithoutReferralReceivedInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -3961,6 +4026,7 @@ export type OrganizationCreateWithoutCreditAccountInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -4015,6 +4081,7 @@ export type OrganizationUncheckedCreateWithoutCreditAccountInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -4085,6 +4152,7 @@ export type OrganizationUpdateWithoutCreditAccountInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -4139,6 +4207,7 @@ export type OrganizationUncheckedUpdateWithoutCreditAccountInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -4193,6 +4262,7 @@ export type OrganizationCreateWithoutCreditGrantsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -4247,6 +4317,7 @@ export type OrganizationUncheckedCreateWithoutCreditGrantsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -4317,6 +4388,7 @@ export type OrganizationUpdateWithoutCreditGrantsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -4371,6 +4443,7 @@ export type OrganizationUncheckedUpdateWithoutCreditGrantsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -4425,6 +4498,7 @@ export type OrganizationCreateWithoutCreditLedgerEntriesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -4479,6 +4553,7 @@ export type OrganizationUncheckedCreateWithoutCreditLedgerEntriesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -4549,6 +4624,7 @@ export type OrganizationUpdateWithoutCreditLedgerEntriesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -4603,6 +4679,7 @@ export type OrganizationUncheckedUpdateWithoutCreditLedgerEntriesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -4657,6 +4734,7 @@ export type OrganizationCreateWithoutCreditReservationsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -4711,6 +4789,7 @@ export type OrganizationUncheckedCreateWithoutCreditReservationsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -4781,6 +4860,7 @@ export type OrganizationUpdateWithoutCreditReservationsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -4835,6 +4915,7 @@ export type OrganizationUncheckedUpdateWithoutCreditReservationsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -4889,6 +4970,7 @@ export type OrganizationCreateWithoutCreditUsageEventsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -4943,6 +5025,7 @@ export type OrganizationUncheckedCreateWithoutCreditUsageEventsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -5013,6 +5096,7 @@ export type OrganizationUpdateWithoutCreditUsageEventsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -5067,6 +5151,7 @@ export type OrganizationUncheckedUpdateWithoutCreditUsageEventsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -5121,6 +5206,7 @@ export type OrganizationCreateWithoutCreditAdminOperationsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -5175,6 +5261,7 @@ export type OrganizationUncheckedCreateWithoutCreditAdminOperationsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -5245,6 +5332,7 @@ export type OrganizationUpdateWithoutCreditAdminOperationsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -5299,6 +5387,7 @@ export type OrganizationUncheckedUpdateWithoutCreditAdminOperationsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -5353,6 +5442,7 @@ export type OrganizationCreateWithoutPublicApiRequestsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -5407,6 +5497,7 @@ export type OrganizationUncheckedCreateWithoutPublicApiRequestsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -5477,6 +5568,7 @@ export type OrganizationUpdateWithoutPublicApiRequestsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -5531,6 +5623,7 @@ export type OrganizationUncheckedUpdateWithoutPublicApiRequestsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -5585,6 +5678,7 @@ export type OrganizationCreateWithoutDeveloperApiKeysInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -5639,6 +5733,7 @@ export type OrganizationUncheckedCreateWithoutDeveloperApiKeysInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -5709,6 +5804,7 @@ export type OrganizationUpdateWithoutDeveloperApiKeysInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -5763,6 +5859,7 @@ export type OrganizationUncheckedUpdateWithoutDeveloperApiKeysInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -5817,6 +5914,7 @@ export type OrganizationCreateWithoutAgentWebsiteDeploymentsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -5871,6 +5969,7 @@ export type OrganizationUncheckedCreateWithoutAgentWebsiteDeploymentsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -5941,6 +6040,7 @@ export type OrganizationUpdateWithoutAgentWebsiteDeploymentsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -5995,6 +6095,7 @@ export type OrganizationUncheckedUpdateWithoutAgentWebsiteDeploymentsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -6049,6 +6150,7 @@ export type OrganizationCreateWithoutPublicApiWebhookSubscriptionsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -6103,6 +6205,7 @@ export type OrganizationUncheckedCreateWithoutPublicApiWebhookSubscriptionsInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -6173,6 +6276,7 @@ export type OrganizationUpdateWithoutPublicApiWebhookSubscriptionsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -6227,6 +6331,7 @@ export type OrganizationUncheckedUpdateWithoutPublicApiWebhookSubscriptionsInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -6281,6 +6386,7 @@ export type OrganizationCreateWithoutBillingCheckoutsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -6335,6 +6441,7 @@ export type OrganizationUncheckedCreateWithoutBillingCheckoutsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -6405,6 +6512,7 @@ export type OrganizationUpdateWithoutBillingCheckoutsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -6459,6 +6567,7 @@ export type OrganizationUncheckedUpdateWithoutBillingCheckoutsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -6513,6 +6622,7 @@ export type OrganizationCreateWithoutBillingInvoicesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -6567,6 +6677,7 @@ export type OrganizationUncheckedCreateWithoutBillingInvoicesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -6637,6 +6748,7 @@ export type OrganizationUpdateWithoutBillingInvoicesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -6691,6 +6803,7 @@ export type OrganizationUncheckedUpdateWithoutBillingInvoicesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -6745,6 +6858,7 @@ export type OrganizationCreateWithoutBillingIssuesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -6799,6 +6913,7 @@ export type OrganizationUncheckedCreateWithoutBillingIssuesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -6869,6 +6984,7 @@ export type OrganizationUpdateWithoutBillingIssuesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -6923,6 +7039,7 @@ export type OrganizationUncheckedUpdateWithoutBillingIssuesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -6976,6 +7093,7 @@ export type OrganizationCreateWithoutOwnerInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -7030,6 +7148,7 @@ export type OrganizationUncheckedCreateWithoutOwnerInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -7125,6 +7244,7 @@ export type OrganizationCreateWithoutSupportAccessGrantsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -7179,6 +7299,7 @@ export type OrganizationUncheckedCreateWithoutSupportAccessGrantsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -7249,6 +7370,7 @@ export type OrganizationUpdateWithoutSupportAccessGrantsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -7303,6 +7425,7 @@ export type OrganizationUncheckedUpdateWithoutSupportAccessGrantsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -7357,6 +7480,7 @@ export type OrganizationCreateWithoutCustomersInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -7411,6 +7535,7 @@ export type OrganizationUncheckedCreateWithoutCustomersInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -7481,6 +7606,7 @@ export type OrganizationUpdateWithoutCustomersInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -7535,6 +7661,7 @@ export type OrganizationUncheckedUpdateWithoutCustomersInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -7589,6 +7716,7 @@ export type OrganizationCreateWithoutCustomerIdentitiesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -7643,6 +7771,7 @@ export type OrganizationUncheckedCreateWithoutCustomerIdentitiesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -7713,6 +7842,7 @@ export type OrganizationUpdateWithoutCustomerIdentitiesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -7767,6 +7897,7 @@ export type OrganizationUncheckedUpdateWithoutCustomerIdentitiesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -7821,6 +7952,7 @@ export type OrganizationCreateWithoutBookingServicesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -7875,6 +8007,7 @@ export type OrganizationUncheckedCreateWithoutBookingServicesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -7945,6 +8078,7 @@ export type OrganizationUpdateWithoutBookingServicesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -7999,6 +8133,7 @@ export type OrganizationUncheckedUpdateWithoutBookingServicesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -8053,6 +8188,7 @@ export type OrganizationCreateWithoutBookingsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -8107,6 +8243,7 @@ export type OrganizationUncheckedCreateWithoutBookingsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -8177,6 +8314,7 @@ export type OrganizationUpdateWithoutBookingsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -8231,6 +8369,7 @@ export type OrganizationUncheckedUpdateWithoutBookingsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -8285,6 +8424,7 @@ export type OrganizationCreateWithoutConversationsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -8339,6 +8479,7 @@ export type OrganizationUncheckedCreateWithoutConversationsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -8409,6 +8550,7 @@ export type OrganizationUpdateWithoutConversationsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -8463,6 +8605,7 @@ export type OrganizationUncheckedUpdateWithoutConversationsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -8517,6 +8660,7 @@ export type OrganizationCreateWithoutCallsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -8571,6 +8715,7 @@ export type OrganizationUncheckedCreateWithoutCallsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -8641,6 +8786,7 @@ export type OrganizationUpdateWithoutCallsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -8695,6 +8841,7 @@ export type OrganizationUncheckedUpdateWithoutCallsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -8749,6 +8896,7 @@ export type OrganizationCreateWithoutWhatsappConnectionsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -8803,6 +8951,7 @@ export type OrganizationUncheckedCreateWithoutWhatsappConnectionsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -8873,6 +9022,7 @@ export type OrganizationUpdateWithoutWhatsappConnectionsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -8927,6 +9077,7 @@ export type OrganizationUncheckedUpdateWithoutWhatsappConnectionsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -8981,6 +9132,7 @@ export type OrganizationCreateWithoutWhatsappCallSessionsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -9035,6 +9187,7 @@ export type OrganizationUncheckedCreateWithoutWhatsappCallSessionsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -9105,6 +9258,7 @@ export type OrganizationUpdateWithoutWhatsappCallSessionsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -9159,6 +9313,7 @@ export type OrganizationUncheckedUpdateWithoutWhatsappCallSessionsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -9212,6 +9367,7 @@ export type OrganizationCreateWithoutSocialChannelConnectionsInput = {
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -9266,6 +9422,7 @@ export type OrganizationUncheckedCreateWithoutSocialChannelConnectionsInput = {
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -9336,6 +9493,7 @@ export type OrganizationUpdateWithoutSocialChannelConnectionsInput = {
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -9390,6 +9548,7 @@ export type OrganizationUncheckedUpdateWithoutSocialChannelConnectionsInput = {
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -9444,6 +9603,7 @@ export type OrganizationCreateWithoutSocialPostsInput = {
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -9498,6 +9658,7 @@ export type OrganizationUncheckedCreateWithoutSocialPostsInput = {
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -9568,6 +9729,7 @@ export type OrganizationUpdateWithoutSocialPostsInput = {
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -9622,6 +9784,7 @@ export type OrganizationUncheckedUpdateWithoutSocialPostsInput = {
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -9676,6 +9839,7 @@ export type OrganizationCreateWithoutSocialPublishJobsInput = {
   invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -9730,6 +9894,7 @@ export type OrganizationUncheckedCreateWithoutSocialPublishJobsInput = {
   invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -9800,6 +9965,7 @@ export type OrganizationUpdateWithoutSocialPublishJobsInput = {
   invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -9854,6 +10020,243 @@ export type OrganizationUncheckedUpdateWithoutSocialPublishJobsInput = {
   invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUncheckedUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUncheckedUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUncheckedUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedUpdateManyWithoutOrgNestedInput
+  creditAccount?: Prisma.CreditAccountUncheckedUpdateOneWithoutOrgNestedInput
+  creditGrants?: Prisma.CreditGrantUncheckedUpdateManyWithoutOrgNestedInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedUpdateManyWithoutOrgNestedInput
+  creditReservations?: Prisma.CreditReservationUncheckedUpdateManyWithoutOrgNestedInput
+  creditUsageEvents?: Prisma.CreditUsageEventUncheckedUpdateManyWithoutOrgNestedInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedUpdateManyWithoutOrgNestedInput
+  referralCodes?: Prisma.ReferralCodeUncheckedUpdateManyWithoutOrgNestedInput
+  referralsSent?: Prisma.ReferralAttributionUncheckedUpdateManyWithoutReferrerNestedInput
+  referralReceived?: Prisma.ReferralAttributionUncheckedUpdateOneWithoutRefereeNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUncheckedUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUncheckedUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUncheckedUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationCreateWithoutSocialPublishBatchesInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  reportingTimezone?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  owner: Prisma.UserCreateNestedOneWithoutOwnedOrganizationsInput
+  members?: Prisma.OrganizationMemberCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueCreateNestedManyWithoutOrgInput
+  creditAccount?: Prisma.CreditAccountCreateNestedOneWithoutOrgInput
+  creditGrants?: Prisma.CreditGrantCreateNestedManyWithoutOrgInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryCreateNestedManyWithoutOrgInput
+  creditReservations?: Prisma.CreditReservationCreateNestedManyWithoutOrgInput
+  creditUsageEvents?: Prisma.CreditUsageEventCreateNestedManyWithoutOrgInput
+  creditAdminOperations?: Prisma.CreditAdminOperationCreateNestedManyWithoutOrgInput
+  referralCodes?: Prisma.ReferralCodeCreateNestedManyWithoutOrgInput
+  referralsSent?: Prisma.ReferralAttributionCreateNestedManyWithoutReferrerInput
+  referralReceived?: Prisma.ReferralAttributionCreateNestedOneWithoutRefereeInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileCreateNestedOneWithoutOrgInput
+  productTours?: Prisma.UserProductTourCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentCreateNestedManyWithoutOrgInput
+}
+
+export type OrganizationUncheckedCreateWithoutSocialPublishBatchesInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  ownerId: string
+  reportingTimezone?: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  members?: Prisma.OrganizationMemberUncheckedCreateNestedManyWithoutOrgInput
+  invitations?: Prisma.OrganizationInvitationUncheckedCreateNestedManyWithoutOrgInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
+  socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
+  whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContacts?: Prisma.WhatsappContactUncheckedCreateNestedManyWithoutOrgInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUncheckedCreateNestedManyWithoutOrgInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUncheckedCreateNestedManyWithoutOrgInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUncheckedCreateNestedManyWithoutOrgInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUncheckedCreateNestedManyWithoutOrgInput
+  calls?: Prisma.CommunicationCallUncheckedCreateNestedManyWithoutOrgInput
+  externalConnections?: Prisma.ExternalConnectionUncheckedCreateNestedManyWithoutOrgInput
+  customers?: Prisma.CustomerUncheckedCreateNestedManyWithoutOrgInput
+  customerIdentities?: Prisma.CustomerIdentityUncheckedCreateNestedManyWithoutOrgInput
+  conversations?: Prisma.ConversationUncheckedCreateNestedManyWithoutOrgInput
+  subscriptions?: Prisma.OrganizationSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUncheckedCreateNestedManyWithoutOrgInput
+  usageEvents?: Prisma.UsageEventUncheckedCreateNestedManyWithoutOrgInput
+  publicApiRequests?: Prisma.PublicApiRequestUncheckedCreateNestedManyWithoutOrgInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUncheckedCreateNestedManyWithoutOrgInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUncheckedCreateNestedManyWithoutOrgInput
+  billingCheckouts?: Prisma.BillingCheckoutUncheckedCreateNestedManyWithoutOrgInput
+  billingInvoices?: Prisma.BillingInvoiceUncheckedCreateNestedManyWithoutOrgInput
+  billingIssues?: Prisma.BillingReconciliationIssueUncheckedCreateNestedManyWithoutOrgInput
+  creditAccount?: Prisma.CreditAccountUncheckedCreateNestedOneWithoutOrgInput
+  creditGrants?: Prisma.CreditGrantUncheckedCreateNestedManyWithoutOrgInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUncheckedCreateNestedManyWithoutOrgInput
+  creditReservations?: Prisma.CreditReservationUncheckedCreateNestedManyWithoutOrgInput
+  creditUsageEvents?: Prisma.CreditUsageEventUncheckedCreateNestedManyWithoutOrgInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUncheckedCreateNestedManyWithoutOrgInput
+  referralCodes?: Prisma.ReferralCodeUncheckedCreateNestedManyWithoutOrgInput
+  referralsSent?: Prisma.ReferralAttributionUncheckedCreateNestedManyWithoutReferrerInput
+  referralReceived?: Prisma.ReferralAttributionUncheckedCreateNestedOneWithoutRefereeInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUncheckedCreateNestedManyWithoutOrganizationInput
+  bookingServices?: Prisma.BookingServiceUncheckedCreateNestedManyWithoutOrgInput
+  bookings?: Prisma.BookingUncheckedCreateNestedManyWithoutOrgInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUncheckedCreateNestedOneWithoutOrgInput
+  productTours?: Prisma.UserProductTourUncheckedCreateNestedManyWithoutOrgInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUncheckedCreateNestedManyWithoutOrgInput
+}
+
+export type OrganizationCreateOrConnectWithoutSocialPublishBatchesInput = {
+  where: Prisma.OrganizationWhereUniqueInput
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutSocialPublishBatchesInput, Prisma.OrganizationUncheckedCreateWithoutSocialPublishBatchesInput>
+}
+
+export type OrganizationUpsertWithoutSocialPublishBatchesInput = {
+  update: Prisma.XOR<Prisma.OrganizationUpdateWithoutSocialPublishBatchesInput, Prisma.OrganizationUncheckedUpdateWithoutSocialPublishBatchesInput>
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutSocialPublishBatchesInput, Prisma.OrganizationUncheckedCreateWithoutSocialPublishBatchesInput>
+  where?: Prisma.OrganizationWhereInput
+}
+
+export type OrganizationUpdateToOneWithWhereWithoutSocialPublishBatchesInput = {
+  where?: Prisma.OrganizationWhereInput
+  data: Prisma.XOR<Prisma.OrganizationUpdateWithoutSocialPublishBatchesInput, Prisma.OrganizationUncheckedUpdateWithoutSocialPublishBatchesInput>
+}
+
+export type OrganizationUpdateWithoutSocialPublishBatchesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  owner?: Prisma.UserUpdateOneRequiredWithoutOwnedOrganizationsNestedInput
+  members?: Prisma.OrganizationMemberUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
+  socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
+  contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
+  whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
+  whatsappContacts?: Prisma.WhatsappContactUpdateManyWithoutOrgNestedInput
+  whatsappContactListMemberships?: Prisma.WhatsappContactListMembershipUpdateManyWithoutOrgNestedInput
+  whatsappTemplates?: Prisma.WhatsappTemplateUpdateManyWithoutOrgNestedInput
+  whatsappCampaigns?: Prisma.WhatsappCampaignUpdateManyWithoutOrgNestedInput
+  whatsappSendEvents?: Prisma.WhatsappSendEventUpdateManyWithoutOrgNestedInput
+  whatsappCallSessions?: Prisma.WhatsappCallSessionUpdateManyWithoutOrgNestedInput
+  calls?: Prisma.CommunicationCallUpdateManyWithoutOrgNestedInput
+  externalConnections?: Prisma.ExternalConnectionUpdateManyWithoutOrgNestedInput
+  customers?: Prisma.CustomerUpdateManyWithoutOrgNestedInput
+  customerIdentities?: Prisma.CustomerIdentityUpdateManyWithoutOrgNestedInput
+  conversations?: Prisma.ConversationUpdateManyWithoutOrgNestedInput
+  subscriptions?: Prisma.OrganizationSubscriptionUpdateManyWithoutOrgNestedInput
+  entitlementGrants?: Prisma.OrganizationEntitlementGrantUpdateManyWithoutOrgNestedInput
+  usageEvents?: Prisma.UsageEventUpdateManyWithoutOrgNestedInput
+  publicApiRequests?: Prisma.PublicApiRequestUpdateManyWithoutOrgNestedInput
+  developerApiKeys?: Prisma.DeveloperApiKeyUpdateManyWithoutOrgNestedInput
+  publicApiWebhookSubscriptions?: Prisma.PublicApiWebhookSubscriptionUpdateManyWithoutOrgNestedInput
+  billingCheckouts?: Prisma.BillingCheckoutUpdateManyWithoutOrgNestedInput
+  billingInvoices?: Prisma.BillingInvoiceUpdateManyWithoutOrgNestedInput
+  billingIssues?: Prisma.BillingReconciliationIssueUpdateManyWithoutOrgNestedInput
+  creditAccount?: Prisma.CreditAccountUpdateOneWithoutOrgNestedInput
+  creditGrants?: Prisma.CreditGrantUpdateManyWithoutOrgNestedInput
+  creditLedgerEntries?: Prisma.CreditLedgerEntryUpdateManyWithoutOrgNestedInput
+  creditReservations?: Prisma.CreditReservationUpdateManyWithoutOrgNestedInput
+  creditUsageEvents?: Prisma.CreditUsageEventUpdateManyWithoutOrgNestedInput
+  creditAdminOperations?: Prisma.CreditAdminOperationUpdateManyWithoutOrgNestedInput
+  referralCodes?: Prisma.ReferralCodeUpdateManyWithoutOrgNestedInput
+  referralsSent?: Prisma.ReferralAttributionUpdateManyWithoutReferrerNestedInput
+  referralReceived?: Prisma.ReferralAttributionUpdateOneWithoutRefereeNestedInput
+  supportAccessGrants?: Prisma.AdminSupportAccessGrantUpdateManyWithoutOrganizationNestedInput
+  bookingServices?: Prisma.BookingServiceUpdateManyWithoutOrgNestedInput
+  bookings?: Prisma.BookingUpdateManyWithoutOrgNestedInput
+  onboardingProfile?: Prisma.OrganizationOnboardingProfileUpdateOneWithoutOrgNestedInput
+  productTours?: Prisma.UserProductTourUpdateManyWithoutOrgNestedInput
+  agentWebsiteDeployments?: Prisma.AgentWebsiteDeploymentUpdateManyWithoutOrgNestedInput
+}
+
+export type OrganizationUncheckedUpdateWithoutSocialPublishBatchesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  ownerId?: Prisma.StringFieldUpdateOperationsInput | string
+  reportingTimezone?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  members?: Prisma.OrganizationMemberUncheckedUpdateManyWithoutOrgNestedInput
+  invitations?: Prisma.OrganizationInvitationUncheckedUpdateManyWithoutOrgNestedInput
+  socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
+  socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -9909,6 +10312,7 @@ export type OrganizationCreateWithoutSocialPostInsightObservationsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
@@ -9963,6 +10367,7 @@ export type OrganizationUncheckedCreateWithoutSocialPostInsightObservationsInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -10033,6 +10438,7 @@ export type OrganizationUpdateWithoutSocialPostInsightObservationsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
@@ -10087,6 +10493,7 @@ export type OrganizationUncheckedUpdateWithoutSocialPostInsightObservationsInput
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -10141,6 +10548,7 @@ export type OrganizationCreateWithoutSocialPostInsightSyncStatesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
@@ -10195,6 +10603,7 @@ export type OrganizationUncheckedCreateWithoutSocialPostInsightSyncStatesInput =
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -10265,6 +10674,7 @@ export type OrganizationUpdateWithoutSocialPostInsightSyncStatesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
@@ -10319,6 +10729,7 @@ export type OrganizationUncheckedUpdateWithoutSocialPostInsightSyncStatesInput =
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -10373,6 +10784,7 @@ export type OrganizationCreateWithoutContentMediaAssetsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionCreateNestedManyWithoutOrgInput
@@ -10427,6 +10839,7 @@ export type OrganizationUncheckedCreateWithoutContentMediaAssetsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedCreateNestedManyWithoutOrgInput
@@ -10497,6 +10910,7 @@ export type OrganizationUpdateWithoutContentMediaAssetsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUpdateManyWithoutOrgNestedInput
@@ -10551,6 +10965,7 @@ export type OrganizationUncheckedUpdateWithoutContentMediaAssetsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   whatsappConnections?: Prisma.WhatsappConnectionUncheckedUpdateManyWithoutOrgNestedInput
@@ -10605,6 +11020,7 @@ export type OrganizationCreateWithoutWhatsappContactsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -10659,6 +11075,7 @@ export type OrganizationUncheckedCreateWithoutWhatsappContactsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -10729,6 +11146,7 @@ export type OrganizationUpdateWithoutWhatsappContactsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -10783,6 +11201,7 @@ export type OrganizationUncheckedUpdateWithoutWhatsappContactsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -10837,6 +11256,7 @@ export type OrganizationCreateWithoutWhatsappContactListMembershipsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -10891,6 +11311,7 @@ export type OrganizationUncheckedCreateWithoutWhatsappContactListMembershipsInpu
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -10961,6 +11382,7 @@ export type OrganizationUpdateWithoutWhatsappContactListMembershipsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -11015,6 +11437,7 @@ export type OrganizationUncheckedUpdateWithoutWhatsappContactListMembershipsInpu
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -11069,6 +11492,7 @@ export type OrganizationCreateWithoutWhatsappTemplatesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -11123,6 +11547,7 @@ export type OrganizationUncheckedCreateWithoutWhatsappTemplatesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -11193,6 +11618,7 @@ export type OrganizationUpdateWithoutWhatsappTemplatesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -11247,6 +11673,7 @@ export type OrganizationUncheckedUpdateWithoutWhatsappTemplatesInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -11301,6 +11728,7 @@ export type OrganizationCreateWithoutWhatsappCampaignsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -11355,6 +11783,7 @@ export type OrganizationUncheckedCreateWithoutWhatsappCampaignsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -11425,6 +11854,7 @@ export type OrganizationUpdateWithoutWhatsappCampaignsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -11479,6 +11909,7 @@ export type OrganizationUncheckedUpdateWithoutWhatsappCampaignsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -11533,6 +11964,7 @@ export type OrganizationCreateWithoutWhatsappSendEventsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetCreateNestedManyWithoutOrgInput
@@ -11587,6 +12019,7 @@ export type OrganizationUncheckedCreateWithoutWhatsappSendEventsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedCreateNestedManyWithoutOrgInput
   socialPosts?: Prisma.SocialPostUncheckedCreateNestedManyWithoutOrgInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedCreateNestedManyWithoutOrgInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedCreateNestedManyWithoutOrgInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedCreateNestedManyWithoutOrgInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedCreateNestedManyWithoutOrgInput
@@ -11657,6 +12090,7 @@ export type OrganizationUpdateWithoutWhatsappSendEventsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -11711,6 +12145,7 @@ export type OrganizationUncheckedUpdateWithoutWhatsappSendEventsInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -11774,6 +12209,7 @@ export type OrganizationUpdateWithoutOwnerInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUpdateManyWithoutOrgNestedInput
@@ -11828,6 +12264,7 @@ export type OrganizationUncheckedUpdateWithoutOwnerInput = {
   socialChannelConnections?: Prisma.SocialChannelConnectionUncheckedUpdateManyWithoutOrgNestedInput
   socialPosts?: Prisma.SocialPostUncheckedUpdateManyWithoutOrgNestedInput
   socialPublishJobs?: Prisma.SocialPublishJobUncheckedUpdateManyWithoutOrgNestedInput
+  socialPublishBatches?: Prisma.SocialPublishBatchUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightObservations?: Prisma.SocialPostInsightObservationUncheckedUpdateManyWithoutOrgNestedInput
   socialPostInsightSyncStates?: Prisma.SocialPostInsightSyncStateUncheckedUpdateManyWithoutOrgNestedInput
   contentMediaAssets?: Prisma.ContentMediaAssetUncheckedUpdateManyWithoutOrgNestedInput
@@ -11890,6 +12327,7 @@ export type OrganizationCountOutputType = {
   socialChannelConnections: number
   socialPosts: number
   socialPublishJobs: number
+  socialPublishBatches: number
   socialPostInsightObservations: number
   socialPostInsightSyncStates: number
   contentMediaAssets: number
@@ -11934,6 +12372,7 @@ export type OrganizationCountOutputTypeSelect<ExtArgs extends runtime.Types.Exte
   socialChannelConnections?: boolean | OrganizationCountOutputTypeCountSocialChannelConnectionsArgs
   socialPosts?: boolean | OrganizationCountOutputTypeCountSocialPostsArgs
   socialPublishJobs?: boolean | OrganizationCountOutputTypeCountSocialPublishJobsArgs
+  socialPublishBatches?: boolean | OrganizationCountOutputTypeCountSocialPublishBatchesArgs
   socialPostInsightObservations?: boolean | OrganizationCountOutputTypeCountSocialPostInsightObservationsArgs
   socialPostInsightSyncStates?: boolean | OrganizationCountOutputTypeCountSocialPostInsightSyncStatesArgs
   contentMediaAssets?: boolean | OrganizationCountOutputTypeCountContentMediaAssetsArgs
@@ -12015,6 +12454,13 @@ export type OrganizationCountOutputTypeCountSocialPostsArgs<ExtArgs extends runt
  */
 export type OrganizationCountOutputTypeCountSocialPublishJobsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.SocialPublishJobWhereInput
+}
+
+/**
+ * OrganizationCountOutputType without action
+ */
+export type OrganizationCountOutputTypeCountSocialPublishBatchesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.SocialPublishBatchWhereInput
 }
 
 /**
@@ -12285,6 +12731,7 @@ export type OrganizationSelect<ExtArgs extends runtime.Types.Extensions.Internal
   socialChannelConnections?: boolean | Prisma.Organization$socialChannelConnectionsArgs<ExtArgs>
   socialPosts?: boolean | Prisma.Organization$socialPostsArgs<ExtArgs>
   socialPublishJobs?: boolean | Prisma.Organization$socialPublishJobsArgs<ExtArgs>
+  socialPublishBatches?: boolean | Prisma.Organization$socialPublishBatchesArgs<ExtArgs>
   socialPostInsightObservations?: boolean | Prisma.Organization$socialPostInsightObservationsArgs<ExtArgs>
   socialPostInsightSyncStates?: boolean | Prisma.Organization$socialPostInsightSyncStatesArgs<ExtArgs>
   contentMediaAssets?: boolean | Prisma.Organization$contentMediaAssetsArgs<ExtArgs>
@@ -12370,6 +12817,7 @@ export type OrganizationInclude<ExtArgs extends runtime.Types.Extensions.Interna
   socialChannelConnections?: boolean | Prisma.Organization$socialChannelConnectionsArgs<ExtArgs>
   socialPosts?: boolean | Prisma.Organization$socialPostsArgs<ExtArgs>
   socialPublishJobs?: boolean | Prisma.Organization$socialPublishJobsArgs<ExtArgs>
+  socialPublishBatches?: boolean | Prisma.Organization$socialPublishBatchesArgs<ExtArgs>
   socialPostInsightObservations?: boolean | Prisma.Organization$socialPostInsightObservationsArgs<ExtArgs>
   socialPostInsightSyncStates?: boolean | Prisma.Organization$socialPostInsightSyncStatesArgs<ExtArgs>
   contentMediaAssets?: boolean | Prisma.Organization$contentMediaAssetsArgs<ExtArgs>
@@ -12427,6 +12875,7 @@ export type $OrganizationPayload<ExtArgs extends runtime.Types.Extensions.Intern
     socialChannelConnections: Prisma.$SocialChannelConnectionPayload<ExtArgs>[]
     socialPosts: Prisma.$SocialPostPayload<ExtArgs>[]
     socialPublishJobs: Prisma.$SocialPublishJobPayload<ExtArgs>[]
+    socialPublishBatches: Prisma.$SocialPublishBatchPayload<ExtArgs>[]
     socialPostInsightObservations: Prisma.$SocialPostInsightObservationPayload<ExtArgs>[]
     socialPostInsightSyncStates: Prisma.$SocialPostInsightSyncStatePayload<ExtArgs>[]
     contentMediaAssets: Prisma.$ContentMediaAssetPayload<ExtArgs>[]
@@ -12876,6 +13325,7 @@ export interface Prisma__OrganizationClient<T, Null = never, ExtArgs extends run
   socialChannelConnections<T extends Prisma.Organization$socialChannelConnectionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$socialChannelConnectionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialChannelConnectionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   socialPosts<T extends Prisma.Organization$socialPostsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$socialPostsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPostPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   socialPublishJobs<T extends Prisma.Organization$socialPublishJobsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$socialPublishJobsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPublishJobPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  socialPublishBatches<T extends Prisma.Organization$socialPublishBatchesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$socialPublishBatchesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPublishBatchPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   socialPostInsightObservations<T extends Prisma.Organization$socialPostInsightObservationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$socialPostInsightObservationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPostInsightObservationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   socialPostInsightSyncStates<T extends Prisma.Organization$socialPostInsightSyncStatesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$socialPostInsightSyncStatesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SocialPostInsightSyncStatePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   contentMediaAssets<T extends Prisma.Organization$contentMediaAssetsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$contentMediaAssetsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ContentMediaAssetPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -13465,6 +13915,30 @@ export type Organization$socialPublishJobsArgs<ExtArgs extends runtime.Types.Ext
   take?: number
   skip?: number
   distinct?: Prisma.SocialPublishJobScalarFieldEnum | Prisma.SocialPublishJobScalarFieldEnum[]
+}
+
+/**
+ * Organization.socialPublishBatches
+ */
+export type Organization$socialPublishBatchesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the SocialPublishBatch
+   */
+  select?: Prisma.SocialPublishBatchSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the SocialPublishBatch
+   */
+  omit?: Prisma.SocialPublishBatchOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.SocialPublishBatchInclude<ExtArgs> | null
+  where?: Prisma.SocialPublishBatchWhereInput
+  orderBy?: Prisma.SocialPublishBatchOrderByWithRelationInput | Prisma.SocialPublishBatchOrderByWithRelationInput[]
+  cursor?: Prisma.SocialPublishBatchWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.SocialPublishBatchScalarFieldEnum | Prisma.SocialPublishBatchScalarFieldEnum[]
 }
 
 /**

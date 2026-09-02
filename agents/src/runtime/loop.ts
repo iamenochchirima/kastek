@@ -2,7 +2,7 @@ import { ModelGateway } from "../model/gateway";
 import type { ModelCredentials, ModelMessage, ModelRequest, ModelResponse } from "../model/types";
 import { ModelProviderError } from "../model/types";
 import { estimatePromptTokens } from "../model/credit-pricing";
-import { ToolPolicyError, type CapabilityPresentationMetadata, type ToolApproval, type ToolInvocationContext, type ToolInvocationResult } from "../tools/types";
+import { approvalSnapshotHashFromResource, ToolPolicyError, type CapabilityPresentationMetadata, type ToolApproval, type ToolInvocationContext, type ToolInvocationResult } from "../tools/types";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
 import { classifyFailureCode } from "./failures";
 import { redactSensitiveValue, redactToolOutput } from "../tools/redaction";
@@ -204,7 +204,13 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       const result = replayed ?? await input.tools.invoke({
           name: resumed.name,
           arguments: resumed.arguments,
-          context: input.signal ? { ...input.toolContext, signal: input.signal } : input.toolContext,
+          context: {
+            ...input.toolContext,
+            ...(resumed.approval.resourceSnapshot && typeof resumed.approval.resourceSnapshot === "object"
+              ? { approvalSnapshotHash: approvalSnapshotHashFromResource(resumed.approval.resourceSnapshot) }
+              : {}),
+            ...(input.signal ? { signal: input.signal } : {}),
+          },
           signal: input.signal,
           grantedTools: input.grantedTools,
           approval: resumed.approval,

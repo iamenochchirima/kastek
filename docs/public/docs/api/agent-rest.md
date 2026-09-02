@@ -98,6 +98,32 @@ The response is `202 Accepted` and contains an `operationId`/`runId`. The reques
 after authentication, installation isolation, tool grants, and durable execution availability have
 been checked. Repeating the same idempotency key for the same credential returns the original run.
 
+### Batch social publishing
+
+Agents with the `content.read` and `content.publish` grants can use these capabilities for one
+approval across the accounts selected in a content draft:
+
+- `kasitek.core.content_post_publish_batch_preflight` checks access, connection health, media,
+  content limits, and target state without publishing.
+- `kasitek.core.content_post_publish_batch` starts one durable, idempotent publish operation for all
+  targets in the approved draft.
+- `kasitek.core.content_post_publish_batch_status` returns aggregate and per-account results.
+- `kasitek.core.content_post_publish_batch_retry` requeues only destinations whose provider failure
+  is confirmed and marked retryable. It never retries published or unconfirmed destinations.
+
+The product surface also exposes `GET /api/social/posts/{postId}/publish-batch` for the latest
+authorized batch, so the web post detail view can show durable progress without a separate internal
+batch lookup.
+
+The product surface exposes `POST /api/social/publish-batches/{batchId}/retry` for the same confirmed
+failure-only retry action. Both retry routes require an idempotency key; Agent callers provide it in
+the delegated capability context.
+
+Preflight returns a snapshot hash. Core rejects the effect if the draft, media, variant, or target
+selection changed after approval. Blocked targets prevent provider jobs from being queued. A timeout
+or provider 5xx is an unknown outcome and must be reconciled before retrying; confirmed published
+targets are excluded from later retries.
+
 ## Inspect an operation
 
 ```http

@@ -13,6 +13,9 @@ function platformLabel(value: unknown): string | undefined {
   if (!platform) return undefined;
   const normalized = platform.toLowerCase();
   if (normalized === "x" || normalized === "twitter") return "X";
+  if (normalized === "linkedin") return "LinkedIn";
+  if (normalized === "bluesky") return "Bluesky";
+  if (normalized === "tiktok") return "TikTok";
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
@@ -21,6 +24,43 @@ function destination(argumentsValue: Record<string, unknown>, output: Record<str
   const post = asRecord(output?.post);
   const channels = Array.isArray(post?.channels) ? post.channels : [];
   return platformLabel(result?.platform ?? argumentsValue.platform ?? channels[0]);
+}
+
+function batchTargetLabel(target: unknown): string | undefined {
+  const item = asRecord(target);
+  const platform = platformLabel(item?.platform);
+  const account = nonEmptyString(item?.accountName);
+  if (!platform) return undefined;
+  return account ? `${platform} (${account})` : platform;
+}
+
+function batchTargetStatus(target: unknown): string {
+  const item = asRecord(target);
+  return (nonEmptyString(item?.state) ?? nonEmptyString(item?.status) ?? "UNKNOWN").toUpperCase();
+}
+
+function batchTargetRemediation(target: unknown): string | undefined {
+  const item = asRecord(target);
+  const mode = nonEmptyString(item?.remediationMode)?.toUpperCase();
+  switch (mode) {
+    case "GRANT_ACCESS": return "grant access";
+    case "RECONNECT": return "reconnect";
+    case "CHECK_CONNECTION": return "check the connection";
+    case "FIX_MEDIA": return "fix the media";
+    case "FIX_CONTENT": return "fix the content";
+    case "REMOVE_TARGET": return "remove this destination";
+    case "RECONCILE": return "reconcile before retrying";
+    case "RETRY": return "retry available";
+    case "RECREATE_DRAFT": return "recreate the draft";
+    case "REVIEW": return "review the target";
+    default: return undefined;
+  }
+}
+
+function batchTargetAttentionLabel(target: unknown): string | undefined {
+  const label = batchTargetLabel(target);
+  const remediation = batchTargetRemediation(target);
+  return label && remediation ? `${label} — ${remediation}` : label;
 }
 
 /**
@@ -42,6 +82,38 @@ export function buildApprovedToolCompletionMessage(
   switch (toolName) {
     case "kasitek.core.content_post_publish":
       return `Published ${target}${suffix}.`;
+    case "kasitek.core.content_post_publish_batch":
+    case "kasitek.core.content_post_publish_batch_retry": {
+      const batch = asRecord(output?.batch);
+      const targets = Array.isArray(batch?.targets) ? batch.targets : [];
+      const published = targets
+        .filter((item) => batchTargetStatus(item) === "PUBLISHED")
+        .map(batchTargetLabel)
+        .filter((value): value is string => Boolean(value));
+      const attention = targets
+        .filter((item) => batchTargetStatus(item) !== "PUBLISHED")
+        .map(batchTargetAttentionLabel)
+        .filter((value): value is string => Boolean(value));
+      const status = nonEmptyString(batch?.status);
+      if (toolName === "kasitek.core.content_post_publish_batch_retry" && status === "PROCESSING") return `Retrying the failed destinations for ${target}.`;
+      if (status === "SUCCEEDED") return `Published ${target}${published.length ? ` to ${published.join(", ")}` : ""}.`;
+      if (status === "PROCESSING") return `Publishing ${target} to ${(attention.length ? attention : published).join(", ") || "the selected destinations"}.`;
+      if (status === "PARTIAL") {
+        const publishedText = published.length ? `Published to ${published.join(", ")}. ` : "";
+        return `${publishedText}${attention.join(", ") || "Some destinations"} still need attention.`;
+      }
+      if (status === "UNKNOWN") {
+        const unknownTargets = targets
+          .filter((item) => batchTargetStatus(item) === "UNKNOWN")
+          .map(batchTargetLabel)
+          .filter((value): value is string => Boolean(value));
+        return `The batch publish for ${target} could not be confirmed${unknownTargets.length ? ` for ${unknownTargets.join(", ")}` : ""}. Reconcile the provider result before retrying.`;
+      }
+      if (status === "BLOCKED" || status === "FAILED") {
+        return `The batch publish for ${target} is ${status.toLowerCase()}${attention.length ? ` for ${attention.join(", ")}` : ""}.`;
+      }
+      return `The batch publish for ${target} is ${status?.toLowerCase() ?? "pending"}.`;
+    }
     case "kasitek.core.content_post_schedule":
       return `Scheduled ${target}${suffix}.`;
     case "kasitek.core.content_post_unschedule":
@@ -84,6 +156,15 @@ export function buildApprovedToolFailureMessage(
       return `I couldn’t publish the ${platform} post because the provider is temporarily unavailable. The post was not confirmed as published; try again shortly.`;
     }
     return `I couldn’t publish the ${platform} post. The provider did not confirm that it was published; please try again.`;
+  }
+  if (toolName === "kasitek.core.content_post_publish_batch" || toolName === "kasitek.core.content_post_publish_batch_retry") {
+    if (/permission|scope|authorization|forbidden|reconnect|connection|credential|oauth|token/i.test(message)) {
+      return "I couldn’t start the batch publish because one or more destination connections need attention. Check the batch preflight results in Connections before retrying.";
+    }
+    if (/timed out|result may be pending|confirmation/i.test(message)) {
+      return "I couldn’t confirm the batch publish request. Check the post status before retrying so completed destinations are not duplicated.";
+    }
+    return "I couldn’t start the batch publish. No destination was confirmed as published; please try again.";
   }
   return "I couldn’t complete the approved action. Please try again.";
 }

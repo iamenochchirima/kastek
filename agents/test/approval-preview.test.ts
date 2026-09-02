@@ -133,6 +133,58 @@ describe("approval preview projection", () => {
     });
   });
 
+  it("includes the fixed batch targets and snapshot used for one approval", async () => {
+    const coreClient = {
+      getContentPost: async () => ({
+        post: {
+          id: "post-123",
+          title: "Launch",
+          content: "Reviewed copy",
+          channels: ["INSTAGRAM", "X"],
+          status: "DRAFT",
+          variants: [{ platform: "X", content: "Short copy", status: "DRAFT" }],
+          media: [{ assetId: "asset-1", kind: "IMAGE", processingStatus: "READY", scanStatus: "CLEAN" }],
+        },
+      }),
+      preflightContentPublishBatch: async () => ({
+        postId: "post-123",
+        status: "READY",
+        snapshotHash: "snapshot-123",
+        mediaCount: 1,
+        targets: [
+          { platform: "INSTAGRAM", accountName: "KasiTek", handle: "@kasiteklabs", state: "READY", status: "READY", requiredCapability: "MEDIA_PUBLISH" },
+          { platform: "X", accountName: "KasiTek Labs", state: "READY", status: "READY", requiredCapability: "MEDIA_PUBLISH" },
+        ],
+      }),
+    } as never;
+    const preview = await buildApprovalResourceSnapshotFromCore(coreClient, {
+      organizationId: "org-1",
+      agentId: "agent-1",
+      agentVersionId: "version-1",
+      installationId: "install-1",
+      runId: "run-1",
+      correlationId: "corr-1",
+    }, "kasitek.core.content_post_publish_batch", { postId: "post-123" });
+    expect(preview).toMatchObject({
+      resource: {
+        batchPreflight: {
+          status: "READY",
+          snapshotHash: "snapshot-123",
+          targets: [
+            { platform: "INSTAGRAM", accountName: "KasiTek", state: "READY" },
+            { platform: "X", accountName: "KasiTek Labs", state: "READY" },
+          ],
+        },
+        operation: {
+          type: "publish_batch",
+          targetCount: 2,
+          preflightStatus: "READY",
+          snapshotHash: "snapshot-123",
+        },
+      },
+    });
+  });
+
   it("fails closed when an enabled content effect cannot load its preview", async () => {
     const coreClient = { getContentPost: async () => { throw new Error("unavailable"); } } as never;
     await expect(buildApprovalResourceSnapshotFromCore(coreClient, {
