@@ -67,6 +67,27 @@ export interface AgentVersionRecord {
   published_at: string | null;
 }
 
+function canonicalizeJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalizeJson);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, canonicalizeJson(nested)]),
+    );
+  }
+  return value;
+}
+
+export function agentVersionContentMatches(
+  current: Pick<AgentVersionRecord, "instructions" | "configuration" | "policy">,
+  input: CreateVersionInput,
+): boolean {
+  return current.instructions === input.instructions
+    && JSON.stringify(canonicalizeJson(current.configuration)) === JSON.stringify(canonicalizeJson(input.configuration))
+    && JSON.stringify(canonicalizeJson(current.policy)) === JSON.stringify(canonicalizeJson(input.policy));
+}
+
 export interface InstallationRecord {
   id: string;
   agent_definition_id: string;
@@ -845,9 +866,7 @@ export class AgentRepository {
         `SELECT * FROM agent_versions WHERE agent_definition_id = $1 AND status = 'published' LIMIT 1 FOR UPDATE`,
         [agentId],
       );
-      if (current.rows[0]?.instructions === input.instructions
-        && JSON.stringify(current.rows[0].configuration) === JSON.stringify(input.configuration)
-        && JSON.stringify(current.rows[0].policy) === JSON.stringify(input.policy)) return current.rows[0];
+      if (current.rows[0] && agentVersionContentMatches(current.rows[0], input)) return current.rows[0];
       const next = await client.query<{ version_number: number }>(
         `SELECT COALESCE(MAX(version_number), 0) + 1 AS version_number
          FROM agent_versions WHERE agent_definition_id = $1`,

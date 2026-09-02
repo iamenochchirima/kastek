@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AppConfig } from "../src/config";
+import { agentVersionContentMatches } from "../src/db/repositories/agent-repository";
 import type { AgentRecord, AgentVersionRecord, AgentRepository, SystemAgentReleaseStatus } from "../src/db/repositories/agent-repository";
 import { assertKasiAiReleaseCurrent, kasiaiInitialVersion, synchronizeKasiAi } from "../src/system/kasiai";
 
@@ -61,6 +62,21 @@ function fakeAgents(status = releaseStatus()): AgentRepository {
 }
 
 describe("KasiAi release synchronization", () => {
+  it("keeps release comparisons stable when JSONB key order differs", () => {
+    expect(agentVersionContentMatches(
+      {
+        instructions: "same",
+        configuration: { model: "model", provider: "openrouter", nested: { z: 1, a: true } },
+        policy: { modelPolicy: { fallback: [], primary: { model: "model", provider: "openrouter" } } },
+      },
+      {
+        instructions: "same",
+        configuration: { nested: { a: true, z: 1 }, provider: "openrouter", model: "model" },
+        policy: { modelPolicy: { primary: { provider: "openrouter", model: "model" }, fallback: [] } },
+      },
+    )).toBe(true);
+  });
+
   it("publishes, rolls out, and verifies the source-defined candidate", async () => {
     const agents = fakeAgents();
     const result = await synchronizeKasiAi(agents, config);
