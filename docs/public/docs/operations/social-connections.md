@@ -56,7 +56,9 @@ posts is not supported through this capability.
 
 Bluesky supports publishing and deleting posts owned by the connected account. Both actions use the
 account's `repo:app.bsky.feed.post` grant; the access panel reports deletion as requestable or
-granted instead of unsupported.
+granted instead of unsupported. **Use media** requests the additional `blob:*/*` grant for image
+uploads. The public OAuth metadata declares this scope, but the initial connection does not request
+it.
 
 Bluesky messaging is not supported. It is shown as unavailable and is not included in Bluesky
 authorization requests.

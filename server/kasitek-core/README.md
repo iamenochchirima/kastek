@@ -316,6 +316,7 @@ make the OAuth callback reachable.
 
 The connection flow resolves the user's handle and PDS, uses PAR and PKCE, and stores a
 separate encrypted DPoP key for every authorized account. Access and refresh tokens are
-DPoP-bound and encrypted. The requested scope is limited to identity and Bluesky post
-records: `atproto repo:app.bsky.feed.post`. Publishing and deleting an account-owned post use the
-same `repo:app.bsky.feed.post` grant.
+DPoP-bound and encrypted. The public client metadata declares the maximum requested scope set:
+`atproto repo:app.bsky.feed.post blob:*/*`. Initial connections request only
+`atproto repo:app.bsky.feed.post`; requesting **Use media** adds `blob:*/*`. Publishing and
+deleting an account-owned post use the `repo:app.bsky.feed.post` grant.

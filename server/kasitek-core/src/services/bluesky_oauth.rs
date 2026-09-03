@@ -15,7 +15,8 @@ use crate::{config::AppConfig, error::AppError};
 
 use super::connection_permission_providers::adapter_for;
 
-const SCOPE: &str = "atproto repo:app.bsky.feed.post";
+const BASE_SCOPE: &str = "atproto repo:app.bsky.feed.post";
+const CLIENT_METADATA_SCOPE: &str = "atproto repo:app.bsky.feed.post blob:*/*";
 const STATE_TTL_MINUTES: i64 = 10;
 
 fn normalize_handle(value: &str) -> String {
@@ -148,7 +149,7 @@ pub fn client_metadata(config: &AppConfig) -> Result<Value, AppError> {
         "grant_types":["authorization_code","refresh_token"],
         "response_types":["code"],
         "redirect_uris":[callback_url(config)],
-        "scope":SCOPE,
+        "scope":CLIENT_METADATA_SCOPE,
         "dpop_bound_access_tokens":true,
         "token_endpoint_auth_method":"private_key_jwt",
         "token_endpoint_auth_signing_alg":"ES256",
@@ -503,6 +504,19 @@ pub async fn start(
     start_with_state(pool, config, user_id, org_id, handle, None, &[]).await
 }
 
+fn bluesky_scope_for_request(requested_capabilities: &[String]) -> String {
+    if requested_capabilities.is_empty() {
+        return BASE_SCOPE.to_string();
+    }
+
+    let mut scopes =
+        adapter_for("BLUESKY", None, None).required_scopes(requested_capabilities, None);
+    if !scopes.iter().any(|scope| scope == "atproto") {
+        scopes.insert(0, "atproto".to_string());
+    }
+    scopes.join(" ")
+}
+
 pub fn create_authorization_state() -> String {
     generate_token(24)
 }
@@ -528,16 +542,7 @@ pub async fn start_with_state(
     let state = state_override
         .map(ToString::to_string)
         .unwrap_or_else(create_authorization_state);
-    let scope = if requested_capabilities.is_empty() {
-        SCOPE.to_string()
-    } else {
-        let mut scopes =
-            adapter_for("BLUESKY", None, None).required_scopes(requested_capabilities, None);
-        if !scopes.iter().any(|scope| scope == "atproto") {
-            scopes.insert(0, "atproto".to_string());
-        }
-        scopes.join(" ")
-    };
+    let scope = bluesky_scope_for_request(requested_capabilities);
     let verifier = generate_token(48);
     let challenge = sha256_base64_url(&verifier);
     let dpop_key = SigningKey::random(&mut thread_rng());
@@ -941,7 +946,10 @@ pub async fn delete_post(
 
 #[cfg(test)]
 mod tests {
-    use super::{did_document_url, dpop_proof, normalize_handle, validate_public_https};
+    use super::{
+        bluesky_scope_for_request, did_document_url, dpop_proof, normalize_handle,
+        validate_public_https, CLIENT_METADATA_SCOPE,
+    };
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
     use p256::ecdsa::{signature::Verifier, Signature, SigningKey};
     use rand::thread_rng;
@@ -1003,6 +1011,29 @@ mod tests {
         assert_eq!(
             did_document_url(did).unwrap(),
             "https://plc.directory/did:plc:jif45llp4ysqv5onnb7b4ory"
+        );
+    }
+
+    #[test]
+    fn client_metadata_declares_blob_scope_for_media_upload() {
+        assert!(CLIENT_METADATA_SCOPE
+            .split_whitespace()
+            .any(|scope| scope == "blob:*/*"));
+    }
+
+    #[test]
+    fn initial_bluesky_authorization_does_not_request_media_scope() {
+        assert_eq!(
+            bluesky_scope_for_request(&[]),
+            "atproto repo:app.bsky.feed.post"
+        );
+    }
+
+    #[test]
+    fn bluesky_media_authorization_requests_declared_blob_scope() {
+        assert_eq!(
+            bluesky_scope_for_request(&["MEDIA_PUBLISH".to_string()]),
+            "atproto blob:*/*"
         );
     }
 }
