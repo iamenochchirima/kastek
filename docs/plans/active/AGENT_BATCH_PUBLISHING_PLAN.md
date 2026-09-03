@@ -217,6 +217,23 @@ The Agent workflow becomes:
 6. Wait for or query the durable batch status.
 7. Report the aggregate plus each destination's result and remediation.
 
+### Follow-up: approved batch completion feedback
+
+The first production trace of the batch flow exposed a completion gap. Core admitted the batch,
+persisted three published targets and three failed targets, and marked the batch `PARTIAL`, but the
+Agent delivered the initial `PROCESSING` text as its terminal response and never queried the
+durable batch status. The approved flow must therefore:
+
+- retain the admitted `batchId` as a typed runtime continuation;
+- let the Temporal workflow poll the read-only batch status activity on a durable timer;
+- complete and deliver one terminal result containing every destination and its bounded remediation;
+- stop after a bounded observation window with an explicit unconfirmed/processing message rather
+  than silently ending or claiming success;
+- treat an approval as the explicit TikTok direct-post consent for a batch that names TikTok, while
+  preserving the existing direct single-post consent requirement;
+- classify provider authentication and consent failures as actionable target outcomes so retry does
+  not repeatedly execute a target that cannot succeed until its connection or consent changes.
+
 Approval projections must include the batch ID or stable preview reference, exact target accounts,
 variant previews, media count, and the requested action. They must not show raw provider scopes or
 credentials.

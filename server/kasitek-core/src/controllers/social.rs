@@ -2104,6 +2104,7 @@ pub async fn bluesky_client_metadata(
 ) -> Result<HttpResponse, AppError> {
     Ok(HttpResponse::Ok()
         .content_type("application/json")
+        .insert_header(("Cache-Control", "no-store"))
         .json(bluesky_oauth::client_metadata(config.get_ref())?))
 }
 

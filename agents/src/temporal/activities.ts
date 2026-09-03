@@ -2244,6 +2244,42 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       }
       return executeLoopForRun(run, input.resumeApprovedToolCall, input.resumeExternalEvent, input.loopStep, runs, modelCalls, runBudgets, conversations, memory, knowledge, skills, remoteMcpProviders, toolInvocations, approvals, effectReceipts, runSteps, toolGrants, installationGrants, summaries, killSwitches, controls, kasiaiPreferences, gateway, credentials, tools, workflowState, workflowCheckpoints, modelPricing, creditPricing, creditBillingMode, coreClient, conversationActions, options.config?.TEMPORAL_STEP_ACTIVITIES_ENABLED === true);
     },
+    async getContentPublishBatchStatus(input) {
+      const run = await runs.getRuntimeRunById(input.runId);
+      if (!run || !coreClient) return { status: "UNAVAILABLE" };
+      try {
+        const batch = await coreClient.getContentPublishBatch({
+          organizationId: run.organization_id,
+          agentId: run.agent_definition_id,
+          agentVersionId: run.agent_version_id,
+          installationId: run.installation_id,
+          runId: run.id,
+          conversationId: run.conversation_id ?? undefined,
+          actorId: run.created_by,
+          correlationId: run.correlation_id,
+        }, input.batchId);
+        await runs.appendEvent({
+          organizationId: run.organization_id,
+          runId: run.id,
+          installationId: run.installation_id,
+          eventType: "content.publish_batch.status_observed",
+          payload: { batchId: input.batchId, status: batch.status },
+        });
+        return { status: batch.status, batch: batch as unknown as Record<string, unknown> };
+      } catch (error) {
+        await runs.appendEvent({
+          organizationId: run.organization_id,
+          runId: run.id,
+          installationId: run.installation_id,
+          eventType: "content.publish_batch.status_observation_failed",
+          payload: {
+            batchId: input.batchId,
+            errorCode: error instanceof Error && "code" in error ? String((error as { code?: unknown }).code ?? "BATCH_STATUS_UNAVAILABLE") : "BATCH_STATUS_UNAVAILABLE",
+          },
+        });
+        return { status: "UNAVAILABLE" };
+      }
+    },
     async pauseRun(input) {
       await runs.pauseRun(input.runId, input.status, input.output);
     },

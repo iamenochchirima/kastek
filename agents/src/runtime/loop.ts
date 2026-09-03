@@ -142,6 +142,12 @@ export interface AgentLoopResult {
   response?: ModelResponse;
   completionMessage?: string;
   completionResponse?: AgentResponse;
+  /** Set when an approved batch was admitted but Core still reports PROCESSING. */
+  pendingBatch?: {
+    toolName: "kasitek.core.content_post_publish_batch" | "kasitek.core.content_post_publish_batch_retry";
+    batchId: string;
+    title?: string;
+  };
   pendingToolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown>; argumentsHash: string }>;
   usage: { inputTokens: number; outputTokens: number; totalTokens: number; estimatedCostUsd: number };
   iterations: number;
@@ -150,6 +156,30 @@ export interface AgentLoopResult {
   waitingFor?: string;
   ui?: AgentResponse["ui"];
   provenance?: GroundingProvenance;
+}
+
+function pendingBatchFromOutput(
+  toolName: string,
+  outputValue: unknown,
+): AgentLoopResult["pendingBatch"] {
+  if (toolName !== "kasitek.core.content_post_publish_batch" && toolName !== "kasitek.core.content_post_publish_batch_retry") return undefined;
+  if (!outputValue || typeof outputValue !== "object" || Array.isArray(outputValue)) return undefined;
+  const output = outputValue as Record<string, unknown>;
+  const batch = output.batch;
+  if (!batch || typeof batch !== "object" || Array.isArray(batch)) return undefined;
+  const batchRecord = batch as Record<string, unknown>;
+  if (String(batchRecord.status ?? "").toUpperCase() !== "PROCESSING") return undefined;
+  const batchId = typeof batchRecord.batchId === "string" ? batchRecord.batchId.trim() : "";
+  if (!batchId) return undefined;
+  const post = output.post;
+  const title = post && typeof post === "object" && !Array.isArray(post) && typeof (post as Record<string, unknown>).title === "string"
+    ? ((post as Record<string, unknown>).title as string).trim().slice(0, 240)
+    : undefined;
+  return {
+    toolName: toolName as "kasitek.core.content_post_publish_batch" | "kasitek.core.content_post_publish_batch_retry",
+    batchId,
+    ...(title ? { title } : {}),
+  };
 }
 
 const defaultLimits: AgentLoopLimits = {
@@ -228,6 +258,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
       messages.push({ role: "assistant", content: "", toolCalls: [{ id: resumed.id, name: resumed.name, arguments: resumed.arguments }] });
       const authorization = findAuthorizationRequirement(result.output);
       const safeOutput = redactSensitiveValue(result.output);
+      const pendingBatch = pendingBatchFromOutput(resumed.name, safeOutput);
       const durableOutput = redactToolOutput(result.output, resumedManifest?.manifest?.redaction ?? []);
       const resumedUi = input.dynamicUiEnabled === false ? undefined : projectCapabilityResultUi({ presentation: resumedManifest?.manifest?.presentation, output: durableOutput, channel: input.uiChannel ?? "platform" });
       if (resumedUi || resumedManifest?.manifest?.presentation) lastToolUi = resumedUi;
@@ -252,6 +283,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         status: "completed",
         messages,
         completionMessage,
+        ...(pendingBatch ? { pendingBatch } : {}),
         ...(authorizationRequired || lastToolUi
           ? { completionResponse: { version: "1" as const, text: completionMessage, media: [], ...(authorizationRequired ? { authorizationRequired } : {}), ...(lastToolUi ? { ui: lastToolUi } : {}) } }
           : {}),

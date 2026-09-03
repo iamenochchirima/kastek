@@ -26,6 +26,13 @@ source of truth:
 - `FAILED`: no target is confirmed and the attempted targets failed.
 - `UNKNOWN`: a provider may have accepted the request but Core did not receive confirmation.
 
+An approved Agent batch is observed automatically after admission. The Temporal workflow keeps the
+run open while the batch is `PROCESSING`, polls the read-only status activity on a durable timer,
+and sends the terminal or bounded unconfirmed result to the originating channel. A message that
+only says `Publishing...` is therefore an incomplete incident signal: inspect the Agent run events
+for `content.publish_batch.status_observed` or
+`content.publish_batch.status_observation_failed`, then query the batch directly.
+
 Do not retry an `UNKNOWN` target. First reconcile it with the provider and record a confirmed
 external ID or a provider-confirmed failure. Never retry a target whose job is `PUBLISHED`.
 The legacy per-job retry and run-now actions enforce the same rule; a provider-confirmed failure
@@ -36,6 +43,11 @@ or `POST /api/social/publish-batches/{batchId}/retry` from the authorized web su
 operation reuses the original target set, leaves published targets untouched, and requeues only
 confirmed failed jobs. If no retryable target remains, the request is rejected instead of creating
 a duplicate attempt.
+
+Provider authentication failures are reported as reconnect-required target results. TikTok's
+direct-post consent is carried by an approved multi-destination batch; single-destination publishing
+still requires its explicit `tiktokConsent` metadata. This prevents an approved batch from failing
+after admission solely because the provider adapter lost the batch's approval context.
 
 ## Observability and rollback
 

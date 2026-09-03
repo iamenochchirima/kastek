@@ -14,6 +14,22 @@ export interface ResumeApprovedToolCall {
   approval: ToolApproval;
 }
 
+/**
+ * A batch effect is admitted asynchronously by Core. Keep its identity in the
+ * workflow result so Temporal can observe the durable outcome before completing
+ * the user-facing run.
+ */
+export interface PendingBatchPublish {
+  toolName: "kasitek.core.content_post_publish_batch" | "kasitek.core.content_post_publish_batch_retry";
+  batchId: string;
+  title?: string;
+}
+
+export interface ContentPublishBatchStatusActivityResult {
+  status: string;
+  batch?: Record<string, unknown>;
+}
+
 export interface ApprovalSignal {
   decision: "approved" | "rejected";
   approvedBy: string;
@@ -62,6 +78,8 @@ export interface TransitionRunActivityInput extends ActivityScope {
 export interface AgentRunActivities {
   transitionRun(input: TransitionRunActivityInput): Promise<void>;
   executeLoop(input: DurableRunInput): Promise<DurableAgentLoopResult>;
+  /** Read the Core-owned batch state without creating another approval or effect. */
+  getContentPublishBatchStatus(input: ActivityScope & { runId: string; batchId: string }): Promise<ContentPublishBatchStatusActivityResult>;
   pauseRun(input: ActivityScope & { runId: string; status: "awaiting_approval" | "awaiting_human" | "awaiting_external_event"; output: Record<string, unknown> }): Promise<void>;
   deliverApprovalPrompt(input: ActivityScope & { runId: string }): Promise<void>;
   cancelPendingApproval(input: ActivityScope & { runId: string; providerToolCallId: string; reason?: string; outcome?: "cancelled" | "expired" }): Promise<void>;

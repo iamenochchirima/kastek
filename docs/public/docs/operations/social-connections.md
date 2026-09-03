@@ -76,11 +76,12 @@ selected account first, shows any missing access, unsupported capability, connec
 limit, or media issue, and asks for one approval covering the complete target set. Platform-specific
 variants must be prepared before approval; Core does not silently rewrite an approved variant.
 
-The publish result is tracked per account. A partial result keeps confirmed publications and shows
-which targets need attention. A provider timeout is shown as unconfirmed rather than as a safe retry;
-check the batch status or provider record before trying again. Accounts already confirmed as
-published are excluded from a later retry. For a confirmed failure, use the batch retry action to
-retry the failed destinations together; unconfirmed outcomes require provider reconciliation first.
+The publish result is tracked per account. After approval, the Agent waits for the durable batch
+result and reports confirmed publications plus every target that failed or needs attention. A
+provider timeout is shown as unconfirmed rather than as a safe retry; check the batch status or
+provider record before trying again. Accounts already confirmed as published are excluded from a
+later retry. For a confirmed failure, use the batch retry action to retry the failed destinations
+together; unconfirmed outcomes require provider reconciliation first.
 The first release supports immediate batch publishing; scheduled cross-provider batches remain
 separate.
 

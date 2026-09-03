@@ -757,14 +757,18 @@ async fn load_batch_targets(
 }
 
 fn batch_target_view(row: BatchTargetRow) -> PublishBatchTarget {
-    let state = match row.status.as_str() {
-        "PUBLISHED" => "PUBLISHED",
-        "PROCESSING" | "QUEUED" => "PROCESSING",
-        "FAILED" => "FAILED",
-        "UNKNOWN" => "UNKNOWN",
-        "BLOCKED" => "BLOCKED",
-        "CANCELED" => "CANCELED",
-        _ => row.status.as_str(),
+    let state = match row.error_code.as_deref() {
+        Some("provider_auth_required") => "RECONNECT_REQUIRED",
+        Some("tiktok_publishing_consent_required") => "MISSING_ACCESS",
+        _ => match row.status.as_str() {
+            "PUBLISHED" => "PUBLISHED",
+            "PROCESSING" | "QUEUED" => "PROCESSING",
+            "FAILED" => "FAILED",
+            "UNKNOWN" => "UNKNOWN",
+            "BLOCKED" => "BLOCKED",
+            "CANCELED" => "CANCELED",
+            _ => row.status.as_str(),
+        },
     };
     let required_capability = row
         .metadata
@@ -773,7 +777,7 @@ fn batch_target_view(row: BatchTargetRow) -> PublishBatchTarget {
         .and_then(Value::as_str)
         .unwrap_or(connection_permissions::SOCIAL_PUBLISH)
         .to_string();
-    let remediation_mode = remediation_mode(&state, row.error_code.as_deref(), row.retryable);
+    let remediation_mode = remediation_mode(state, row.error_code.as_deref(), row.retryable);
     PublishBatchTarget {
         platform: row.platform,
         account_name: row
@@ -844,6 +848,17 @@ pub async fn refresh_batch_status(
            "errorCode" = CASE
                WHEN item.status IN ('BLOCKED', 'UNKNOWN') THEN item."errorCode"
                WHEN job.metadata->>'_kasitek_outcome' = 'UNKNOWN' THEN 'provider_outcome_unknown'
+               WHEN job.status = 'FAILED'::"SocialPublishJobStatus"
+                    AND LOWER(COALESCE(job."errorMessage", '')) LIKE '%tiktok publishing consent is required%'
+                 THEN 'tiktok_publishing_consent_required'
+               WHEN job.status = 'FAILED'::"SocialPublishJobStatus"
+                    AND (
+                      LOWER(COALESCE(job."errorMessage", '')) LIKE '%unauthorized%'
+                      OR LOWER(COALESCE(job."errorMessage", '')) LIKE '%reconnect%'
+                      OR LOWER(COALESCE(job."errorMessage", '')) LIKE '%invalid refresh%'
+                      OR LOWER(COALESCE(job."errorMessage", '')) LIKE '%token%'
+                    )
+                 THEN 'provider_auth_required'
                ELSE NULL
            END,
            "errorMessage" = CASE
@@ -1367,7 +1382,11 @@ pub async fn refresh_active_batches(pool: &PgPool, limit: i64) -> Result<i64, Ap
 
 #[cfg(test)]
 mod tests {
-    use super::{aggregate_batch_status, platform_media_error, text_length_error};
+    use super::{
+        aggregate_batch_status, batch_target_view, platform_media_error, text_length_error,
+        BatchTargetRow,
+    };
+    use serde_json::json;
 
     #[test]
     fn aggregate_status_preserves_partial_results() {
@@ -1387,5 +1406,42 @@ mod tests {
         assert!(platform_media_error("TIKTOK", &["VIDEO".to_string()], 1).is_none());
         assert!(text_length_error("X", &"x".repeat(281)).is_some());
         assert!(text_length_error("INSTAGRAM", &"x".repeat(10_000)).is_none());
+    }
+
+    #[test]
+    fn provider_auth_failures_are_projected_as_reconnect_targets() {
+        let target = batch_target_view(BatchTargetRow {
+            platform: "X".to_string(),
+            display_name: Some("KasiTek Labs".to_string()),
+            handle: None,
+            status: "FAILED".to_string(),
+            retryable: true,
+            error_code: Some("provider_auth_required".to_string()),
+            error_message: Some("Unauthorized".to_string()),
+            metadata: Some(json!({"requiredCapability": "SOCIAL_PUBLISH"})),
+        });
+        assert_eq!(target.state, "RECONNECT_REQUIRED");
+        assert_eq!(target.remediation_mode, "RECONNECT");
+        assert_eq!(target.message.as_deref(), Some("Unauthorized"));
+    }
+
+    #[test]
+    fn tiktok_consent_failures_are_projected_as_access_targets() {
+        let target = batch_target_view(BatchTargetRow {
+            platform: "TIKTOK".to_string(),
+            display_name: Some("KasiTek Labs".to_string()),
+            handle: None,
+            status: "FAILED".to_string(),
+            retryable: true,
+            error_code: Some("tiktok_publishing_consent_required".to_string()),
+            error_message: Some("TikTok publishing consent is required".to_string()),
+            metadata: Some(json!({"requiredCapability": "MEDIA_PUBLISH"})),
+        });
+        assert_eq!(target.state, "MISSING_ACCESS");
+        assert_eq!(target.remediation_mode, "GRANT_ACCESS");
+        assert_eq!(
+            target.message.as_deref(),
+            Some("TikTok publishing consent is required")
+        );
     }
 }

@@ -59,7 +59,9 @@ function batchTargetRemediation(target: unknown): string | undefined {
 
 function batchTargetAttentionLabel(target: unknown): string | undefined {
   const label = batchTargetLabel(target);
+  const message = nonEmptyString(asRecord(target)?.message);
   const remediation = batchTargetRemediation(target);
+  if (label && message) return `${label} — ${message}${remediation ? ` (${remediation})` : ""}`;
   return label && remediation ? `${label} — ${remediation}` : label;
 }
 

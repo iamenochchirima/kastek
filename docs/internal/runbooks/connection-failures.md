@@ -130,6 +130,8 @@ part of the adapter.
 
 Bluesky publishing and deletion use the same `repo:app.bsky.feed.post` repository grant. Media
 uploads additionally require `blob:*/*`, which must be declared in the public client metadata.
+The metadata response is served with `Cache-Control: no-store` so authorization servers do not
+retain an earlier scope declaration after a deployment.
 Initial connections do not request the media scope; request **Use media** later from the connection
 details. If the access panel reports deletion as unsupported after the capability mapping release,
 refresh the connection details and verify the connection was synced. Deletion still requires a post

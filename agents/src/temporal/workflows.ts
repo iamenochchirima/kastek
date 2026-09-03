@@ -4,14 +4,17 @@ import {
   defineSignal,
   proxyActivities,
   setHandler,
+  sleep,
 } from "@temporalio/workflow";
 import type { RunStatus } from "../domain/types";
 import { sanitizeAssistantResponse } from "../runtime/sanitize";
 import { parseAgentResponse } from "../media/contracts";
+import { buildApprovedToolCompletionMessage } from "../runtime/approved-tool-completion";
 import type {
   AgentRunActivities,
   ApprovalSignal,
   CancellationSignal,
+  ContentPublishBatchStatusActivityResult,
   DurableRunInput,
   ExpirationSignal,
   ExternalEventSignal,
@@ -30,6 +33,31 @@ const activities = proxyActivities<AgentRunActivities>({
     maximumAttempts: 5,
   },
 });
+
+const terminalBatchStatuses = new Set(["SUCCEEDED", "PARTIAL", "FAILED", "BLOCKED", "UNKNOWN"]);
+const batchStatusPollInterval = "2 seconds";
+const batchStatusPollLimit = 40;
+
+async function observeBatchUntilTerminal(
+  scope: { organizationId?: string; actorId?: string; runId: string },
+  batchId: string,
+): Promise<ContentPublishBatchStatusActivityResult> {
+  const getStatus = activities.getContentPublishBatchStatus;
+  if (!getStatus) return { status: "UNAVAILABLE" };
+  let last: ContentPublishBatchStatusActivityResult = { status: "UNAVAILABLE" };
+  for (let attempt = 0; attempt < batchStatusPollLimit; attempt += 1) {
+    const observed = await getStatus({ ...scope, batchId });
+    last = observed;
+    if (observed.batch && terminalBatchStatuses.has(observed.status.toUpperCase())) return observed;
+    if (attempt + 1 < batchStatusPollLimit) await sleep(batchStatusPollInterval);
+  }
+  return last;
+}
+
+function unconfirmedBatchMessage(title?: string): string {
+  const target = title ? `“${title}”` : "the post";
+  return `The batch publish for ${target} is still processing or could not be refreshed. I couldn't confirm the final destination results; ask me to check the batch status before retrying.`;
+}
 
 export const approvalSignal = defineSignal<[ApprovalSignal]>("agent.approval");
 export const cancellationSignal = defineSignal<[CancellationSignal]>("agent.cancel");
@@ -313,9 +341,30 @@ export async function agentRunWorkflow(input: DurableRunInput): Promise<void> {
         await failAndDeliver(error);
         return;
       }
-      const response = result.completionResponse
-        ? parseAgentResponse({ ...result.completionResponse, text: sanitizeAssistantResponse(result.completionResponse.text) })
-        : parseAgentResponse({ text: sanitizeAssistantResponse(result.completionMessage ?? result.response?.message.content ?? "") });
+      let completionOverride: string | undefined;
+      if (result.pendingBatch) {
+        const observed = await observeBatchUntilTerminal(
+          { ...activityScope(), runId: input.runId },
+          result.pendingBatch.batchId,
+        );
+        completionOverride = observed.batch
+          ? buildApprovedToolCompletionMessage(
+            result.pendingBatch.toolName,
+            { batchId: result.pendingBatch.batchId },
+            { post: result.pendingBatch.title ? { title: result.pendingBatch.title } : undefined, batch: observed.batch },
+          )
+          : unconfirmedBatchMessage(result.pendingBatch.title);
+      }
+      const response = completionOverride !== undefined
+        ? parseAgentResponse({
+          version: "1",
+          text: sanitizeAssistantResponse(completionOverride),
+          media: result.completionResponse?.media ?? [],
+          ...(result.completionResponse?.ui ? { ui: result.completionResponse.ui } : {}),
+        })
+        : result.completionResponse
+          ? parseAgentResponse({ ...result.completionResponse, text: sanitizeAssistantResponse(result.completionResponse.text) })
+          : parseAgentResponse({ text: sanitizeAssistantResponse(result.completionMessage ?? result.response?.message.content ?? "") });
       if (!response.text && !response.media.length) {
         await failAndDeliver({
           code: "EMPTY_ASSISTANT_RESPONSE",

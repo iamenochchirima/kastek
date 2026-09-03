@@ -57,6 +57,13 @@ reason and remediation fields. A blocked preflight queues no provider work. A ti
 5xx is recorded as `UNKNOWN` and is not retryable until a provider reconciliation path confirms
 the outcome; confirmed published targets are never retried.
 
+After an approved batch is admitted, the Agent retains the returned batch ID in the run result and
+the Temporal workflow polls the read-only Core status activity on durable timers. The run is not
+completed with the initial `PROCESSING` text. It delivers one terminal aggregate and per-target
+result when Core settles the batch, or an explicit unconfirmed message after the bounded observation
+window. Status observation failures are recorded as bounded run events and never become a claim that
+the batch failed or that no destination published.
+
 The run budget ledger follows the same fail-closed rule. A worker timeout can leave a model
 reservation in `unknown`; reconciliation releases the estimate only as a ledger operation and does
 not claim that the provider did not execute the request. An operator or provider lookup must later

@@ -408,6 +408,44 @@ describe("Tool Gateway and bounded runtime", () => {
     expect(modelCalls).toBe(0);
   });
 
+  it("retains an admitted processing batch for the durable workflow follow-up", async () => {
+    const registry = new ToolRegistry();
+    registry.register({
+      name: "kasitek.core.content_post_publish_batch",
+      version: "1.0.0",
+      description: "Publish content batch",
+      riskClass: "external-effect",
+      requiresApproval: true,
+      timeoutMs: 1_000,
+      inputSchema: { type: "object" },
+      outputSchema: { type: "object", additionalProperties: true },
+      handler: async () => ({
+        post: { title: "Launch" },
+        batch: { batchId: "batch-1", status: "PROCESSING", targets: [] },
+      }),
+    });
+    const argumentsValue = { postId: "post-1" };
+    const result = await runBoundedAgentLoop({
+      model: { provider: "openai", model: "test-model" },
+      messages: [{ role: "user", content: "publish everywhere" }],
+      credentials,
+      gateway: new ModelGateway([]),
+      tools: registry,
+      grantedTools: new Set(["kasitek.core.content_post_publish_batch"]),
+      toolContext: { organizationId: "org", agentId: "agent", agentVersionId: "version", installationId: "install", runId: "run", correlationId: "corr" },
+      resumeApprovedToolCall: {
+        id: "call-1",
+        name: "kasitek.core.content_post_publish_batch",
+        arguments: argumentsValue,
+        approval: { approvedBy: "user", argumentsHash: hashToolArguments(argumentsValue), expiresAt: new Date(Date.now() + 60_000).toISOString() },
+      },
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.pendingBatch).toEqual({ toolName: "kasitek.core.content_post_publish_batch", batchId: "batch-1", title: "Launch" });
+    expect(result.completionMessage).toBe("Publishing “Launch” to the selected destinations.");
+  });
+
   it("returns a useful channel-safe error when an approved Bluesky publish fails", async () => {
     const registry = new ToolRegistry();
     registry.register({

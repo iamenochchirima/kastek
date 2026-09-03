@@ -436,7 +436,7 @@ async function buildInitialState(deps: DecomposedActivityDependencies, run: Runt
     instructions: [
       run.instructions,
       skillInstructions,
-      "When batch social publishing tools are available and the user names multiple destinations, prepare one draft with explicit account selections and visible platform variants, preflight it before approval, request one approval, and execute one batch publish. Do not loop over single-destination publish tools. Use the batch status tool for a later PROCESSING update and report each destination state.",
+      "When batch social publishing tools are available and the user names multiple destinations, prepare one draft with explicit account selections and visible platform variants, preflight it before approval, request one approval, and execute one batch publish. Do not loop over single-destination publish tools. The runtime follows an admitted PROCESSING batch to a terminal result automatically; use the batch status tool for a later user-requested update and report each destination state.",
     ].filter(Boolean).join("\n\n"),
     organizationId: run.organization_id,
     agentId: run.agent_definition_id,

@@ -30,6 +30,7 @@ describe.skipIf(!runIntegration)("Temporal workflow recovery (integration)", () 
     let resumed = false;
     const activities: AgentRunActivities = {
       transitionRun: async ({ nextStatus }) => { calls.push(`transition:${nextStatus}`); },
+      getContentPublishBatchStatus: async () => ({ status: "UNAVAILABLE" }),
       executeLoop: async ({ resumeApprovedToolCall }) => {
         calls.push(resumeApprovedToolCall ? "execute:resumed" : "execute:initial");
         if (!resumeApprovedToolCall) {
@@ -103,6 +104,97 @@ describe.skipIf(!runIntegration)("Temporal workflow recovery (integration)", () 
     expect(calls).toContain("complete");
   }, 30_000);
 
+  it("waits for a terminal batch result before delivering an approved publish", async () => {
+    const connection = await NativeConnection.connect({ address: temporalAddress! });
+    connections.push(connection);
+    const taskQueue = `agent-batch-feedback-${randomUUID()}`;
+    const workflowId = `agent-run-${randomUUID()}`;
+    const calls: string[] = [];
+    let completedOutput: Record<string, unknown> | undefined;
+    let executionCount = 0;
+    const activities: AgentRunActivities = {
+      transitionRun: async ({ nextStatus }) => { calls.push(`transition:${nextStatus}`); },
+      getContentPublishBatchStatus: async ({ batchId }) => {
+        calls.push(`batch-status:${batchId}`);
+        return {
+          status: "PARTIAL",
+          batch: {
+            batchId,
+            status: "PARTIAL",
+            targets: [
+              { platform: "THREADS", accountName: "KasiTek", state: "PUBLISHED" },
+              { platform: "X", accountName: "KasiTek Labs", state: "RECONNECT_REQUIRED", remediationMode: "RECONNECT", message: "Unauthorized" },
+            ],
+          },
+        };
+      },
+      executeLoop: async ({ resumeApprovedToolCall }) => {
+        executionCount += 1;
+        if (!resumeApprovedToolCall) {
+          return {
+            status: "awaiting_approval",
+            messages: [],
+            pendingToolCalls: [{ id: "call-1", name: "kasitek.core.content_post_publish_batch", arguments: { postId: "post-1" }, argumentsHash: "a".repeat(64) }],
+            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 },
+            iterations: 0,
+            toolCalls: 1,
+          };
+        }
+        return {
+          status: "completed",
+          messages: [],
+          completionMessage: "Publishing “Launch” to the selected destinations.",
+          pendingBatch: { toolName: "kasitek.core.content_post_publish_batch" as const, batchId: "batch-1", title: "Launch" },
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 },
+          iterations: 0,
+          toolCalls: 1,
+        };
+      },
+      pauseRun: async () => { calls.push("pause"); },
+      deliverApprovalPrompt: async () => { calls.push("approval-prompt"); },
+      cancelPendingApproval: async () => { calls.push("cancel"); },
+      cancelHandoff: async () => { calls.push("cancel-handoff"); },
+      completeRun: async ({ output }) => { completedOutput = output; calls.push("complete"); },
+      generateConversationTitle: async () => { calls.push("title"); },
+      deliverRunReply: async () => { calls.push("deliver"); },
+      failRun: async () => { calls.push("failed"); },
+    };
+    const worker = await Worker.create({
+      connection,
+      namespace: "default",
+      taskQueue,
+      workflowsPath: new URL("../src/temporal/workflows.ts", import.meta.url).pathname,
+      activities,
+    });
+    workers.push(worker);
+    runs.push(worker.run());
+    const client = new Client({ connection, namespace: "default" });
+    const handle = await client.workflow.start(agentRunWorkflow, { taskQueue, workflowId, args: [{ runId: workflowId }] });
+    await new Promise<void>((resolve, reject) => {
+      const deadline = setTimeout(() => reject(new Error("workflow did not pause for batch approval")), 10_000);
+      const timer = setInterval(() => {
+        if (calls.includes("pause")) {
+          clearTimeout(deadline);
+          clearInterval(timer);
+          resolve();
+        }
+      }, 50);
+    });
+    await handle.signal(approvalSignal, {
+      decision: "approved",
+      approvedBy: "approver",
+      argumentsHash: "a".repeat(64),
+      providerToolCallId: "call-1",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    await handle.result();
+    expect(executionCount).toBe(2);
+    expect(calls).toContain("batch-status:batch-1");
+    expect(completedOutput).toMatchObject({ message: "Published to Threads (KasiTek). X (KasiTek Labs) — Unauthorized (reconnect) still need attention." });
+    expect(calls).toContain("deliver");
+    expect(calls).not.toContain("failed");
+  }, 30_000);
+
   it("resumes the next bounded loop slice after the first worker is replaced", async () => {
     const connection = await NativeConnection.connect({ address: temporalAddress! });
     connections.push(connection);
@@ -113,6 +205,7 @@ describe.skipIf(!runIntegration)("Temporal workflow recovery (integration)", () 
     let firstWorker: Worker | undefined;
     const activities: AgentRunActivities = {
       transitionRun: async ({ nextStatus }) => { calls.push(`transition:${nextStatus}`); },
+      getContentPublishBatchStatus: async () => ({ status: "UNAVAILABLE" }),
       executeLoop: async () => {
         executions += 1;
         calls.push(`execute:${executions}`);
@@ -188,6 +281,7 @@ describe.skipIf(!runIntegration)("Temporal workflow recovery (integration)", () 
     const calls: string[] = [];
     const activities: AgentRunActivities = {
       transitionRun: async ({ nextStatus }) => { calls.push(`transition:${nextStatus}`); },
+      getContentPublishBatchStatus: async () => ({ status: "UNAVAILABLE" }),
       executeLoop: async () => ({
         status: "awaiting_human",
         messages: [],

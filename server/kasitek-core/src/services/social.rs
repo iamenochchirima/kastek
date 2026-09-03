@@ -236,6 +236,7 @@ struct PublishJobLoad {
     external_post_id: Option<String>,
     post_content: String,
     post_metadata: Option<Value>,
+    job_metadata: Option<Value>,
     #[sqlx(rename = "post_primary_channel_id")]
     post_primary_channel_id: Option<String>,
     variant_content: Option<String>,
@@ -255,6 +256,13 @@ fn attached_media_url(media: &Value, config: &AppConfig, kind: Option<&str>) -> 
 
 fn has_attached_media(media: &Value) -> bool {
     media.as_array().is_some_and(|items| !items.is_empty())
+}
+
+fn batch_approval_grants_tiktok_consent(metadata: Option<&Value>) -> bool {
+    metadata
+        .and_then(|value| value.get("_kasitek_batch_id"))
+        .and_then(Value::as_str)
+        .is_some_and(|value| !value.trim().is_empty())
 }
 
 async fn attached_publish_images(
@@ -2732,7 +2740,7 @@ async fn load_publish_job(pool: &PgPool, job_id: &str) -> Result<Option<PublishJ
         SELECT j.id, j."userId" AS user_id, j."orgId" AS org_id, j."postId" AS post_id, j."variantId" AS variant_id,
                j."channelConnectionId" AS channel_connection_id, j.platform::text AS platform,
                j.status::text AS status, j."externalPostId" AS external_post_id,
-               p.content AS post_content, p.metadata AS post_metadata,
+               p.content AS post_content, p.metadata AS post_metadata, j.metadata AS job_metadata,
                p."primaryChannelId" AS post_primary_channel_id,
                v.content AS variant_content,
                COALESCE((
@@ -3002,6 +3010,13 @@ pub async fn execute_social_publish_job(
             let tiktok_metadata_object = tiktok_metadata.as_object_mut().ok_or_else(|| {
                 AppError::BadRequest("TikTok post metadata must be an object".to_string())
             })?;
+            // A batch approval is the explicit user approval for every named
+            // destination. Carry that approval into TikTok's direct-post
+            // consent gate; single-platform publishing still requires the
+            // existing explicit tiktokConsent metadata.
+            if batch_approval_grants_tiktok_consent(job.job_metadata.as_ref()) {
+                tiktok_metadata_object.insert("tiktokConsent".to_string(), Value::Bool(true));
+            }
             if tiktok_metadata_object
                 .get("tiktokMediaUrl")
                 .and_then(Value::as_str)
@@ -3461,8 +3476,9 @@ async fn reconcile_tiktok_publish_jobs(pool: &PgPool, limit: i64) -> Result<i64,
 #[cfg(test)]
 mod tests {
     use super::{
-        decode_threads_signed_request, is_indeterminate_publish_error, linkedin_role_rank,
-        meta_webhook_callback_url, HmacSha256, InstagramProfile, Value,
+        batch_approval_grants_tiktok_consent, decode_threads_signed_request,
+        is_indeterminate_publish_error, linkedin_role_rank, meta_webhook_callback_url, HmacSha256,
+        InstagramProfile, Value,
     };
     use base64::engine::general_purpose::URL_SAFE_NO_PAD;
     use base64::Engine as _;
@@ -3497,6 +3513,17 @@ mod tests {
         assert!(!is_indeterminate_publish_error(
             &super::AppError::BadRequest("Provider rejected the content".to_string(),)
         ));
+    }
+
+    #[test]
+    fn only_an_admitted_batch_grants_tiktok_direct_post_consent() {
+        assert!(batch_approval_grants_tiktok_consent(Some(
+            &json!({"_kasitek_batch_id": "batch-1"})
+        )));
+        assert!(!batch_approval_grants_tiktok_consent(Some(
+            &json!({"tiktokConsent": true})
+        )));
+        assert!(!batch_approval_grants_tiktok_consent(None));
     }
 
     #[test]

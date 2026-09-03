@@ -24,10 +24,10 @@ Status markers: `[x]` complete, `[~]` implemented in part with a named follow-up
 - [x] Use the normalized aggregate states: `SUCCEEDED`, `PARTIAL`, `PROCESSING`, `FAILED`,
       `BLOCKED`, and `UNKNOWN`.
 - [x] Use normalized target states with retries limited to failed or reconciled retryable targets.
-- [~] Confirm the completion delivery mechanism for durable batches after inspecting Agent worker
-      continuation, polling, and gateway delivery capabilities. A durable status capability, worker
-      refresh hook, and non-blocking accepted completion are implemented; automatic push continuation
-      remains pending.
+- [x] Confirm the completion delivery mechanism for durable batches after inspecting Agent worker
+      continuation, polling, and gateway delivery capabilities. The approved workflow now retains
+      the admitted batch and follows it through a durable status activity/timer before terminal
+      delivery, with a bounded fallback when confirmation remains unavailable.
 - [x] Record the settled implementation defaults in the plan before changing code.
 
 ## Phase 1: contracts and domain model
@@ -108,9 +108,13 @@ Status markers: `[x]` complete, `[~]` implemented in part with a named follow-up
 - [x] Add safe result projection for per-target reason and remediation.
 - [x] Add terminal completion formatting for succeeded, partial, processing, failed, blocked, and
       unknown batches.
-- [~] Add status continuation or polling so an accepted batch does not leave the Agent waiting
-      indefinitely. A durable status tool, worker refresh hook, and non-blocking completion are
-      implemented; automatic push continuation remains.
+- [x] Add status continuation or polling so an accepted batch does not leave the Agent waiting
+      indefinitely. The workflow polls the read-only status activity after approval, reports the
+      terminal per-target result, and emits an explicit bounded-time unconfirmed result.
+- [x] Make batch-approved TikTok direct publishing carry the explicit batch approval into the
+      provider adapter, while leaving single-post consent enforcement intact.
+- [x] Classify authentication/consent failures in batch target output so the Agent reports the
+      required remediation and does not advertise a blind retry.
 - [~] Add Agent tests for one approval, changed snapshot rejection, partial results, and retry-only
       failed targets. Approval, projection, completion, contract, and retry route tests pass;
       provider retry integration remains.
@@ -218,6 +222,45 @@ Status markers: `[x]` complete, `[~]` implemented in part with a named follow-up
       installations. Staging and final provider smoke evidence remain pending.
 - [ ] Complete the release record in the plan with version, commit, migration, rollout, metrics,
       documentation, validation, and rollback evidence.
+
+## Follow-up incident record: partial batch with missing Agent feedback
+
+**Change:** Automatic terminal feedback and provider-failure classification for approved batch
+publishing.
+
+**Owner:** Agent Platform and Platform Integrations.
+
+**Risk:** standard. The change affects the Agent worker's post-approval wait path and Core's
+target-result classification; it does not change the batch approval snapshot or provider effect
+idempotency.
+
+**Affected services and user surfaces:** Agent API/Temporal worker, Core social publishing worker,
+WhatsApp and other Agent gateways, and batch target status projections.
+
+**Platform release version or release ID:** pending the next commit and deployment.
+
+**API/schema/migration changes:** no database migration and no public route change; one internal
+Agent activity contract is extended.
+
+**Feature flag or rollout method:** existing batch capability and Agent installation rollout;
+not applicable to add a new flag for this corrective behavior.
+
+**Analytics events and success metrics:** reuse existing run/tool and batch lifecycle events;
+success is terminal feedback delivered for every admitted batch, including partial outcomes.
+
+**Logs, metrics, dashboards, and alerts:** existing Core batch lifecycle logs and Agent run events;
+add bounded status-follow-up events if implementation requires new observability. No credentials,
+tokens, media URLs, or message bodies may be logged.
+
+**User, API, internal, and operational documentation:** update the batch workflow architecture and
+provider failure runbook with the automatic terminal status behavior and TikTok batch-consent rule.
+
+**Validation evidence:** pending implementation and targeted tests.
+
+**Rollback or disable plan:** revert the Agent/Core commit; the existing durable batch status route
+and manual status/retry path remain available.
+
+**Post-release review date:** pending deployment.
 - [ ] Document how to disable new batch admissions while allowing in-flight batches to reconcile.
 - [ ] Monitor post-release errors, queue age, provider responses, partial results, and support reports.
 - [ ] Move the plan and checklist to `docs/plans/completed/` only after all release gates pass.

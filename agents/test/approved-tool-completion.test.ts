@@ -30,6 +30,21 @@ describe("approved batch completion", () => {
     })).toBe("Published to Threads (KasiTek). LinkedIn (Company Page) still need attention.");
   });
 
+  it("includes bounded provider reasons in partial batch feedback", () => {
+    expect(buildApprovedToolCompletionMessage("kasitek.core.content_post_publish_batch", args, {
+      post: { title: "Launch" },
+      batch: {
+        status: "PARTIAL",
+        targets: [
+          { platform: "FACEBOOK", accountName: "KasiTek", state: "PUBLISHED" },
+          { platform: "X", accountName: "KasiTek Labs", state: "RECONNECT_REQUIRED", remediationMode: "RECONNECT", message: "Unauthorized" },
+          { platform: "BLUESKY", accountName: "KasiTek Labs", state: "RECONNECT_REQUIRED", remediationMode: "RECONNECT", message: "Reconnect Bluesky using the new authorization flow" },
+          { platform: "TIKTOK", accountName: "KasiTek Labs", state: "MISSING_ACCESS", remediationMode: "GRANT_ACCESS", message: "TikTok publishing consent is required" },
+        ],
+      },
+    })).toBe("Published to Facebook (KasiTek). X (KasiTek Labs) — Unauthorized (reconnect), Bluesky (KasiTek Labs) — Reconnect Bluesky using the new authorization flow (reconnect), TikTok (KasiTek Labs) — TikTok publishing consent is required (grant access) still need attention.");
+  });
+
   it("does not claim a processing batch was published", () => {
     expect(buildApprovedToolCompletionMessage("kasitek.core.content_post_publish_batch", args, {
       post: { title: "Launch" },
