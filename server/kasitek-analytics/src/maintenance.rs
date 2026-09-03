@@ -305,7 +305,8 @@ pub async fn claim_source_backfill_work(
                AND method IN ('source_reconstruction', 'provider_history_import')
                AND (
                  job_status = 'queued'
-                 OR (job_status = 'running' AND lease_expires_at <= NOW())
+                 OR (job_status = 'running'
+                     AND (lease_expires_at IS NULL OR lease_expires_at <= NOW()))
                )
              ORDER BY updated_at ASC, job_id ASC
              LIMIT 1
@@ -556,7 +557,9 @@ async fn claim_worker_backfill_work(
              WHERE method IN ('projection_rebuild', 'fact_replay')
                AND (
                  (job_status IN ('queued', 'failed') AND next_attempt_at <= NOW())
-                 OR (job_status = 'running' AND lease_expires_at <= NOW())
+                 OR (job_status = 'running'
+                     AND next_attempt_at <= NOW()
+                     AND (lease_expires_at IS NULL OR lease_expires_at <= NOW()))
                )
              ORDER BY next_attempt_at ASC, updated_at ASC, job_id ASC
              LIMIT 1

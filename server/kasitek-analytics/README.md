@@ -166,7 +166,8 @@ Set `ANALYTICS_INGESTION_URL` to the Analytics origin and configure
 `ANALYTICS_AGENT_INGESTION_TOKEN` in the corresponding source environment. The publisher claims a
 bounded leased batch, posts it to the private ingestion endpoint, marks accepted and identical
 duplicate records delivered, retries transport and transient acknowledgements with capped jitter,
-and quarantines permanent record or batch rejections. Expired leases are reclaimed automatically.
+and quarantines permanent record or batch rejections. Expired leases are reclaimed automatically,
+including deferred worker jobs whose lease is intentionally cleared before their next attempt.
 The same publisher process periodically submits the bounded reconciliation summaries described
 above; reconciliation failure does not mutate or delete source outbox facts.
 
