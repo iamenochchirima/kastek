@@ -178,7 +178,7 @@ fn manifest_record(
         "connection_ref": "connection-a09",
         "supported_contracts": ["campaign.recipient.sent@1"],
         "supported_observation_contracts": ["campaign.delivery.observation@1"],
-        "supported_metrics": ["campaign.recipients.sent"],
+        "supported_metrics": ["campaign.recipients.sent", "campaign.delivery_delay_ms"],
         "supported_dimensions": ["channel"],
         "expected_refresh_seconds": 300,
         "reliable_coverage_start": null,
@@ -450,7 +450,7 @@ async fn ingests_idempotently_tracks_cursor_and_reconciles_source_summary() {
         1
     );
     let source_state = sqlx::query(
-        "SELECT availability_state, metric_scope, latest_source_sequence FROM analytics.analytics_source_state WHERE producer_id = $1 AND source_stream_key = $2",
+        "SELECT availability_state, metric_scope, latest_source_sequence, latest_manifest_id FROM analytics.analytics_source_state WHERE producer_id = $1 AND source_stream_key = $2 AND metric_scope = 'campaign.recipients.sent'",
     )
     .bind(&authenticated.producer_id)
     .bind(&stream)
@@ -465,7 +465,18 @@ async fn ingests_idempotently_tracks_cursor_and_reconciles_source_summary() {
         source_state.get::<String, _>("metric_scope"),
         "campaign.recipients.sent"
     );
-    assert_eq!(source_state.get::<i64, _>("latest_source_sequence"), 2);
+    assert_eq!(source_state.get::<i64, _>("latest_source_sequence"), 3);
+    assert!(source_state.get::<i64, _>("latest_manifest_id") > 0);
+    let manifest_source_state_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM analytics.analytics_source_state WHERE producer_id = $1 AND source_stream_key = $2 AND metric_scope IN ('campaign.recipients.sent', 'campaign.delivery_delay_ms') AND availability_state = 'available' AND latest_manifest_id = $3",
+    )
+    .bind(&authenticated.producer_id)
+    .bind(&stream)
+    .bind(manifest_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(manifest_source_state_count, 2);
 
     let duplicate = ingest_batch(
         &pool,

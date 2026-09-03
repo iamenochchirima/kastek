@@ -168,7 +168,7 @@ async fn enqueue_projection_work(
              projection_name, projection_version, fact_kind, reporting_scope_id, root_scope_id,
              source_window_start, source_window_end, min_source_storage_id, max_source_storage_id,
              priority, repair_reason
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
            ON CONFLICT (
              projection_name, projection_version, fact_kind, reporting_scope_id,
              source_window_start, source_window_end
@@ -225,6 +225,7 @@ async fn enqueue_projection_work(
     .bind(fact.source_window_start)
     .bind(fact.source_window_end)
     .bind(fact.source_storage_id)
+    .bind(max_source_storage_id)
     .bind(priority)
     .bind(repair_reason)
     .execute(&mut **transaction)

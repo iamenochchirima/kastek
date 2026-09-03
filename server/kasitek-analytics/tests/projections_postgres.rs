@@ -1,6 +1,6 @@
 use std::{env, fs};
 
-use chrono::{TimeZone, Utc};
+use chrono::{Duration, TimeZone, Utc};
 use kasitek_analytics::{projections, registry::load_registry};
 use serde_json::json;
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
@@ -25,6 +25,74 @@ async fn pool() -> Option<PgPool> {
         .connect(&url)
         .await
         .ok()
+}
+
+#[tokio::test]
+async fn enqueue_fact_inserts_unassigned_work_with_source_bounds() {
+    let Some(pool) = pool().await else { return };
+    let scope = sqlx::query(
+        r#"SELECT scope_id, root_scope_id
+           FROM analytics.reporting_scope
+           WHERE status = 'active' AND root_scope_id IS NOT NULL
+           ORDER BY scope_id DESC
+           LIMIT 1"#,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("an active reporting scope should exist");
+    let reporting_scope_id = scope.get::<i64, _>("scope_id");
+    let root_scope_id = scope.get::<i64, _>("root_scope_id");
+    let source_storage_id = 9_000_000_001_i64;
+    let window_start = Utc.with_ymd_and_hms(2099, 1, 1, 0, 0, 0).unwrap();
+    let window_end = window_start + Duration::hours(1);
+
+    let mut transaction = pool.begin().await.expect("projection transaction");
+    projections::enqueue_fact(
+        &mut transaction,
+        projections::FactWindow {
+            fact_kind: projections::FactKind::Event,
+            reporting_scope_id,
+            root_scope_id,
+            source_storage_id,
+            source_window_start: window_start,
+            source_window_end: window_end,
+        },
+    )
+    .await
+    .expect("unassigned projection work should be inserted");
+
+    let work = sqlx::query(
+        r#"SELECT min_source_storage_id, max_source_storage_id, priority,
+                  work_status, repair_reason
+           FROM analytics.analytics_projection_work
+           WHERE projection_name = $1 AND projection_version = $2
+             AND fact_kind = 'event' AND reporting_scope_id = $3
+             AND source_window_start = $4 AND source_window_end = $5
+             AND generation_id IS NULL"#,
+    )
+    .bind(projections::PROJECTION_NAME)
+    .bind(projections::PROJECTION_VERSION)
+    .bind(reporting_scope_id)
+    .bind(window_start)
+    .bind(window_end)
+    .fetch_one(&mut *transaction)
+    .await
+    .expect("inserted projection work");
+    assert_eq!(
+        work.get::<i64, _>("min_source_storage_id"),
+        source_storage_id
+    );
+    assert_eq!(
+        work.get::<i64, _>("max_source_storage_id"),
+        source_storage_id
+    );
+    assert_eq!(work.get::<i16, _>("priority"), 100);
+    assert_eq!(work.get::<String, _>("work_status"), "pending");
+    assert!(work.get::<Option<String>, _>("repair_reason").is_none());
+    transaction
+        .rollback()
+        .await
+        .expect("test transaction rollback");
 }
 
 #[tokio::test]

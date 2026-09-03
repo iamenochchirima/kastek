@@ -4,7 +4,7 @@ title: Customer Analytics Display Semantics
 slug: /architecture/customer-analytics
 sidebar_position: 7
 owner: engineering
-last_reviewed: 2026-08-30
+last_reviewed: 2026-09-03
 ---
 
 # Customer Analytics Display Semantics
@@ -28,6 +28,17 @@ The client determines whether a metric is populated from its report points:
 Source availability, freshness, coverage, and instrumentation states remain part of the API response
 for diagnostics. They are not a substitute for user activity and should not be presented as the
 primary customer-facing content for an empty report.
+
+## Source state and freshness
+
+An accepted source manifest is materialized into one source-state row per supported metric. This
+keeps manifest capability evidence and observation evidence on the same reporting path, including
+metrics that have no individual observation yet. `freshness.state` is derived from the latest
+source timestamp and the metric's freshness window; it is not a copy of the source availability
+state. A source can therefore be available but stale.
+
+Projection work records must retain both the minimum and maximum source storage IDs for a fact
+window. The projection worker uses these bounds when coalescing live events and replay work.
 
 ## Error boundary
 

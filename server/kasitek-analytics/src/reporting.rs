@@ -1315,7 +1315,12 @@ pub async fn execute_report(
                 missing_dimension_points,
             },
             freshness: FreshnessSummary {
-                state: source.state.clone(),
+                state: freshness_state(
+                    &source.state,
+                    source.latest_timestamp,
+                    metric.freshness.max_age_seconds,
+                    Utc::now(),
+                ),
                 latest_source_timestamp: source.latest_timestamp,
                 max_age_seconds: metric.freshness.max_age_seconds,
             },
@@ -1948,6 +1953,29 @@ fn report_availability_state(
     source_state.to_string()
 }
 
+fn freshness_state(
+    source_state: &str,
+    latest_source_timestamp: Option<DateTime<Utc>>,
+    max_age_seconds: u64,
+    now: DateTime<Utc>,
+) -> String {
+    match source_state {
+        "available" => match latest_source_timestamp {
+            Some(timestamp)
+                if timestamp + Duration::seconds(max_age_seconds.min(i64::MAX as u64) as i64)
+                    >= now =>
+            {
+                "fresh".to_string()
+            }
+            Some(_) => "stale".to_string(),
+            None => "unknown".to_string(),
+        },
+        "stale" => "stale".to_string(),
+        "partial" => "partial".to_string(),
+        other => other.to_string(),
+    }
+}
+
 fn projection_coverage_state(generation: Option<&GenerationInfo>) -> String {
     match generation.map(|generation| generation.processing_status.as_str()) {
         None => "unknown".to_string(),
@@ -2485,6 +2513,20 @@ mod tests {
             report_availability_state("available", "available", "unavailable", true),
             "unavailable"
         );
+    }
+
+    #[test]
+    fn freshness_is_derived_from_source_timestamp_not_availability_state() {
+        let now = Utc.with_ymd_and_hms(2026, 9, 3, 12, 0, 0).unwrap();
+        assert_eq!(
+            freshness_state("available", Some(now - Duration::minutes(5)), 3_600, now,),
+            "fresh"
+        );
+        assert_eq!(
+            freshness_state("available", Some(now - Duration::hours(2)), 3_600, now,),
+            "stale"
+        );
+        assert_eq!(freshness_state("available", None, 3_600, now), "unknown");
     }
 
     #[test]

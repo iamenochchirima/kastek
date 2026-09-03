@@ -737,6 +737,30 @@ async fn ingest_record(
             Ok(row) => row.get::<i64, _>("manifest_id"),
             Err(_) => return retryable(record_id, source_sequence, "analytics_unavailable"),
         };
+        if update_manifest_source_state(
+            &mut transaction,
+            &record,
+            authenticated,
+            &resolution.binding,
+            manifest_id,
+            SourceManifestStateInput {
+                provider,
+                connection_ref,
+                supported_metrics,
+                expected_refresh_seconds: *expected_refresh_seconds,
+                approved_checkpoint_count: *approved_checkpoint_count,
+                reliable_coverage_start: *reliable_coverage_start,
+                last_successful_collection_at: *last_successful_collection_at,
+                next_expected_at: *next_expected_at,
+                safe_failure_code: safe_failure_code.as_deref(),
+                manifest_state,
+            },
+        )
+        .await
+        .is_err()
+        {
+            return retryable(record_id, source_sequence, "analytics_unavailable");
+        }
         if insert_source_manifest_coverage_checkpoint(
             &mut transaction,
             &record,
@@ -1229,6 +1253,108 @@ struct SourceManifestCoverageInput<'a> {
     safe_failure_code: Option<&'a str>,
     manifest_state: &'a str,
     observed_at: DateTime<Utc>,
+}
+
+struct SourceManifestStateInput<'a> {
+    provider: &'a str,
+    connection_ref: &'a str,
+    supported_metrics: &'a [String],
+    expected_refresh_seconds: i64,
+    approved_checkpoint_count: Option<i64>,
+    reliable_coverage_start: Option<DateTime<Utc>>,
+    last_successful_collection_at: Option<DateTime<Utc>>,
+    next_expected_at: Option<DateTime<Utc>>,
+    safe_failure_code: Option<&'a str>,
+    manifest_state: &'a str,
+}
+
+fn source_manifest_availability_state(
+    manifest_state: &str,
+    safe_failure_code: Option<&str>,
+    has_approved_checkpoint: bool,
+    has_successful_collection: bool,
+) -> &'static str {
+    match manifest_state {
+        "disabled" => "unavailable",
+        "unsupported" => "unsupported",
+        "awaiting_instrumentation" => "not_instrumented",
+        "active" if safe_failure_code.is_some() => {
+            if has_successful_collection {
+                "stale"
+            } else {
+                "unavailable"
+            }
+        }
+        "active" if has_approved_checkpoint => "available",
+        "active" => "not_instrumented",
+        _ => "unavailable",
+    }
+}
+
+async fn update_manifest_source_state(
+    transaction: &mut Transaction<'_, Postgres>,
+    record: &IngestionRecord,
+    authenticated: &AuthenticatedProducer,
+    binding: &ScopeBinding,
+    manifest_id: i64,
+    state: SourceManifestStateInput<'_>,
+) -> Result<(), sqlx::Error> {
+    let availability_state = source_manifest_availability_state(
+        state.manifest_state,
+        state.safe_failure_code,
+        state.approved_checkpoint_count.is_some(),
+        state.last_successful_collection_at.is_some(),
+    );
+    for metric_scope in state.supported_metrics {
+        sqlx::query(
+            r#"INSERT INTO analytics.analytics_source_state (
+                 producer_id, source_service, source_domain, source_stream_key,
+                 reporting_scope_id, root_scope_id, provider, connection_ref, metric_scope,
+                 availability_state, reliable_coverage_start, latest_source_timestamp,
+                 last_successful_sync_at, expected_refresh_seconds, next_attempt_at,
+                 safe_failure_code, latest_source_sequence, latest_manifest_id
+               ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12,$13,$14,$15,$16,$17)
+               ON CONFLICT (producer_id, source_stream_key, reporting_scope_id, metric_scope)
+               DO UPDATE SET source_service = EXCLUDED.source_service,
+                             source_domain = EXCLUDED.source_domain,
+                             provider = EXCLUDED.provider,
+                             connection_ref = EXCLUDED.connection_ref,
+                             availability_state = EXCLUDED.availability_state,
+                             reliable_coverage_start = EXCLUDED.reliable_coverage_start,
+                             latest_source_timestamp = EXCLUDED.latest_source_timestamp,
+                             last_successful_sync_at = EXCLUDED.last_successful_sync_at,
+                             expected_refresh_seconds = EXCLUDED.expected_refresh_seconds,
+                             next_attempt_at = EXCLUDED.next_attempt_at,
+                             safe_failure_code = EXCLUDED.safe_failure_code,
+                             latest_source_sequence = GREATEST(
+                                 COALESCE(analytics.analytics_source_state.latest_source_sequence, 0),
+                                 EXCLUDED.latest_source_sequence
+                             ),
+                             latest_manifest_id = EXCLUDED.latest_manifest_id
+               WHERE analytics.analytics_source_state.latest_manifest_id IS NULL
+                  OR analytics.analytics_source_state.latest_manifest_id <= EXCLUDED.latest_manifest_id"#,
+        )
+        .bind(&record.producer_id)
+        .bind(&authenticated.source_service)
+        .bind(record_source_domain(record))
+        .bind(&record.source_stream_key)
+        .bind(binding.reporting_scope_id)
+        .bind(binding.root_scope_id)
+        .bind(state.provider)
+        .bind(state.connection_ref)
+        .bind(metric_scope)
+        .bind(availability_state)
+        .bind(state.reliable_coverage_start)
+        .bind(state.last_successful_collection_at)
+        .bind(state.expected_refresh_seconds)
+        .bind(state.next_expected_at)
+        .bind(state.safe_failure_code)
+        .bind(record.source_sequence)
+        .bind(manifest_id)
+        .execute(&mut **transaction)
+        .await?;
+    }
+    Ok(())
 }
 
 async fn insert_source_manifest_coverage_checkpoint(
