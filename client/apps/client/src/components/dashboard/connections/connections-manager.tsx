@@ -224,6 +224,7 @@ function providerAccessIsAvailable(provider: string, key: string) {
 }
 
 function defaultAccessKeysForProvider(provider: string) {
+  if (provider === "TIKTOK") return [];
   return DEFAULT_ACCESS_KEYS.filter((key) => providerAccessIsAvailable(provider, key));
 }
 
@@ -415,6 +416,7 @@ export function ConnectionsManager({
     const path = providerDetails[provider as keyof typeof providerDetails]?.connectPath;
     if (!path || path === "#whatsapp-setup") return null;
     const availableCapabilities = capabilities.filter((key) => providerAccessIsAvailable(provider, key));
+    if (availableCapabilities.length === 0) return path;
     const params = new URLSearchParams({ capabilities: availableCapabilities.join(",") });
     return `${path}?${params.toString()}`;
   }
@@ -666,7 +668,7 @@ export function ConnectionsManager({
               />
               <Button
                 className="w-full"
-                disabled={selectedAccess.filter((key) => providerAccessOptions(permissionConnectProvider).some((option) => option.key === key)).length === 0}
+                disabled={permissionConnectProvider !== "TIKTOK" && selectedAccess.filter((key) => providerAccessOptions(permissionConnectProvider).some((option) => option.key === key)).length === 0}
                 onClick={() => {
                   const capabilities = selectedAccess.filter((key) => providerAccessOptions(permissionConnectProvider).some((option) => option.key === key));
                   const path = providerConnectionPath(permissionConnectProvider, capabilities);

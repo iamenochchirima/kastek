@@ -4,7 +4,7 @@
 
 **Owner:** Platform integrations
 
-**Last updated:** 2026-09-02
+**Last updated:** 2026-09-03
 
 ## Objective
 
@@ -18,6 +18,7 @@ permission flow used by the other social providers.
 
 - Trace the TikTok authorization URL from the access request through the provider adapter.
 - Correct invalid or unsupported TikTok scope construction at its source.
+- Keep the first-time permission modal from preselecting optional TikTok scopes.
 - Add a regression test that fails on the current provider `scope` error.
 - Update relevant connection and operational documentation and release evidence.
 
@@ -48,7 +49,8 @@ permission flow used by the other social providers.
 
 - [x] Targeted TikTok tests: 2 passed; provider mapping regression passed.
 - [x] Full Core tests/build: 257 passed, 3 environment-dependent ignored; build passed.
-- [x] Client checks/build if frontend code changes: not applicable; no client files changed.
+- [x] Client checks/build if frontend code changes: changed-file ESLint and client production build
+  passed.
 - [ ] Production smoke check: pending the new Core release from `main`.
 
 ## Decisions and open questions
@@ -67,7 +69,7 @@ Risk: standard.
 
 Affected services and user surfaces: `kasitek-core`; Connections access panel; TikTok OAuth.
 
-Platform release version or release ID: pending commit/push.
+Platform release version or release ID: pending current UI follow-up commit.
 
 API/schema/migration changes: not applicable.
 
@@ -84,8 +86,8 @@ User, API, internal, and operational documentation: updated `social-connections.
 
 Validation evidence: the red-capable baseline-scope regression initially failed to compile because
 the helper was absent; after implementation, targeted TikTok tests passed, the full Core suite
-passed (257 passed, 3 environment-dependent ignored), the Core build passed, rustfmt check passed,
-and `git diff --check` passed.
+passed (257 passed, 3 environment-dependent ignored), the Core build passed, the changed frontend
+file lint and client production build passed, rustfmt check passed, and `git diff --check` passed.
 
 Rollback or disable plan: revert the implementation commit.
 
@@ -93,5 +95,6 @@ Post-release review date: 2026-09-09.
 
 ## Notes and blockers
 
-The provider-console scope/product configuration may still require a user-side change after the
-code request is corrected.
+The provider-console scope/product configuration may still require a user-side change for optional
+access after the baseline connection succeeds. The UI follow-up was required because it had been
+preselecting optional TikTok capabilities and bypassing the server baseline path.

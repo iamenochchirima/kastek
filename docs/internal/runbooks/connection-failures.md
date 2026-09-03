@@ -104,6 +104,8 @@ part of the current adapter.
 ## TikTok
 
 The initial TikTok OAuth request intentionally sends only `user.info.basic`, the Login Kit baseline.
+The Connections modal must leave TikTok's optional access boxes unselected unless the user asks for
+them; otherwise the UI bypasses the baseline-only path.
 If the initial authorization page reports `scope`, inspect the generated request and confirm the
 deployed Core release is using the baseline-only flow. Optional capabilities request their own
 scopes: `video.publish` for Direct Post, `video.upload` for draft upload, and `user.info.stats` for

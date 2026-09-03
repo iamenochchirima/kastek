@@ -1,6 +1,6 @@
 # TikTok OAuth Scope Fix Checklist
 
-**Status:** Complete
+**Status:** Active
 
 ## Diagnosis
 
@@ -12,6 +12,7 @@
 ## Implementation
 
 - [x] Correct the server-side TikTok scope mapping or URL construction.
+- [x] Leave optional TikTok access unchecked on the initial connection.
 - [x] Preserve capability-driven and incremental permission behavior.
 - [x] Add a regression test for the provider rejection.
 
