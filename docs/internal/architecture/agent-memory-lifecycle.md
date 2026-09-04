@@ -40,11 +40,15 @@ are available, and applies the installation's bounded `maxRetrievedTokens` budge
 selected evidence into the untrusted context section. Oversized candidates are truncated only when
 needed to fit an otherwise empty budget; later candidates are skipped when they would exceed the
 remaining budget. Run-step evidence records counts and ranked IDs/scores without recording the
-retrieved text there.
+retrieved text there. Knowledge retrieval is enabled for factual questions even when conversational
+memory is disabled. Customer-facing factual questions with no selected trusted evidence are stopped
+before the model call, return a deterministic limitation response, and append an
+`agent.grounding.blocked` run event.
 
 When `EMBEDDINGS_ENABLED=true`, retrieval also uses the released pgvector path. The application
 calls the configured OpenAI-compatible embedding endpoint once for the query, then runs lexical
-and cosine-vector searches in parallel. The repositories merge results by record ID and rank them
+and cosine-vector searches in parallel. Vector candidates must meet the minimum cosine similarity
+threshold before they count as evidence. The repositories merge results by record ID and rank them
 with `0.55 * lexical_score + 0.45 * vector_score`. Both searches apply the same organization,
 agent, installation, namespace, status, expiry, revision, and sensitivity filters before ranking.
 The active model is `openai/text-embedding-3-small` at 1536 dimensions. `embedding_model` is stored
@@ -55,8 +59,16 @@ Canonical text, ownership, lifecycle state, and PostgreSQL full-text search rema
 Embedding failures do not fail a memory write or make retrieval unavailable. The code records a
 bounded failure event and returns lexical results. Existing rows with valid 1536-value JSON
 embeddings are converted during migration; rows without a valid vector are filled on their next
-write. Backfill completeness, retrieval recall, relevance, latency, and provider cost still need
-measurement before changing the model or score weights.
+write or repaired lazily before a scoped knowledge search. Knowledge-source provenance records
+whether the current revision is `ready` for semantic indexing or `lexical_only`; canonical text
+remains usable while a provider outage is being retried. Backfill completeness, retrieval recall,
+relevance, latency, and provider cost still need measurement before changing the model or score
+weights.
+
+Knowledge-source creation is therefore a two-part contract: `knowledge_sources` and
+`knowledge_chunks` hold the canonical, scoped content, while ingestion writes the search indexes
+and records their state. Older sources do not need to be recreated after a runtime upgrade; the
+retrieval boundary repairs missing or stale embeddings for the active agent scope before searching.
 
 The worker exposes two installation-scoped capabilities:
 

@@ -43,6 +43,11 @@ validated and evolved explicitly.
 The requested tool list is still checked against the platform registry and installation grants.
 User configuration cannot grant a tool that the platform or installation does not permit.
 
+For customer-facing agents, factual questions are answered from the agent's configured knowledge
+or trusted tool results. If no approved evidence is available, the runtime returns a limitation
+response instead of asking the model to fill the gap from general knowledge. Greetings and
+action-oriented requests continue through their normal response or tool flow.
+
 ## Draft evaluation
 
 Create a scenario, then test a draft or published candidate without delivering a message or

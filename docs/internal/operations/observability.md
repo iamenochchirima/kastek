@@ -125,6 +125,7 @@ The minimum event vocabulary is:
 | Queues/workers | `queue.item.claimed`, `queue.item.completed`, `queue.item.failed`, `queue.item.ignored`, `queue.claim.failed`, `worker.started`, `worker.disabled`, `worker.failed` |
 | Database isolation | `database.authorization.failed`, `database.context.missing` |
 | Memory embeddings | `memory.embedding.failed` |
+| Agent grounding | `agent.grounding.blocked` |
 | Terminal failures | `operation.failed`, `operation.terminal.failure` |
 
 Event names are identifiers, not user-facing prose. Production Rust operational `log!` callsites

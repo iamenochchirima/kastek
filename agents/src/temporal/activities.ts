@@ -15,6 +15,7 @@ import { runBoundedAgentLoop, type AgentLoopLimits, type AgentLoopResult, type M
 import type { ModelCreditPricing } from "../model/credit-pricing";
 import { actualModelCallCredits, estimateModelCallCredits, estimatePromptTokens, shouldChargeModelCredits } from "../model/credit-pricing";
 import { buildAgentContext } from "../runtime/context";
+import { createGroundingFallbackResponse, shouldFailClosedWithoutEvidence } from "../runtime/grounding";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
 import { KasitekCoreReadClient } from "../core/client";
 import type { AppConfig } from "../config";
@@ -3241,6 +3242,53 @@ async function executeLoopForRun(
       knowledgeMatchCount: knowledgeMatches.length,
     },
   });
+  if (shouldFailClosedWithoutEvidence({
+    message: currentMessage,
+    agentAudience: run.agent_audience,
+    isSystemAgent: isKasiAiInstallation,
+    evidenceCount: retrievalResult.evidence.length,
+  })) {
+    const response = createGroundingFallbackResponse(provider, model);
+    const usage = {
+      inputTokens: response.usage.inputTokens,
+      outputTokens: response.usage.outputTokens,
+      totalTokens: response.usage.totalTokens,
+      estimatedCostUsd: response.usage.estimatedCostUsd ?? 0,
+    };
+    const groundingStep = await runSteps.startStep({
+      runId: run.id,
+      organizationId: run.organization_id,
+      stepType: "policy",
+      input: { policy: "grounding", decision: "no_trusted_evidence" },
+    });
+    await runSteps.finishStep({
+      stepId: groundingStep.id,
+      status: "completed",
+      output: { decision: "no_trusted_evidence", modelCallSkipped: true },
+    });
+    await runs.appendEvent({
+      organizationId: run.organization_id,
+      runId: run.id,
+      installationId: run.installation_id,
+      eventType: "agent.grounding.blocked",
+      payload: { reason: "no_trusted_evidence", retrievalRequested, knowledgeMatchCount: retrievalResult.evidence.filter((entry) => entry.sourceType === "knowledge").length },
+    });
+    const groundingResult: AgentLoopResult = {
+      status: "completed",
+      messages: [response.message],
+      response,
+      usage,
+      iterations: 0,
+      toolCalls: 0,
+      provenance: buildGroundingProvenance({
+        authorizedTools: allowedTools,
+        usedTools: [],
+        retrievalRequested,
+        knowledgeMatchCount: retrievalResult.evidence.filter((entry) => entry.sourceType === "knowledge").length,
+      }),
+    };
+    return groundingResult;
+  }
   const approvedResourceSnapshot = resumeApprovedToolCall?.approval.resourceSnapshot
     ?? (resumeApprovedToolCall ? (await approvals.getForRun(run.organization_id, run.id))?.resource_snapshot : undefined);
   const toolSteps = new Map<string, string>();

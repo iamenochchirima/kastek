@@ -2,7 +2,8 @@ import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
 import { assertNoActiveLegalHold, type MemoryScope } from "./memory-repository";
 import { recordMemoryDeletion } from "../../telemetry/spans";
-import { createEnvironmentEmbeddingProvider, embedSafely, formatPgVector, type EmbeddingProvider } from "../../memory/embeddings";
+import { createEnvironmentEmbeddingProvider, embedSafely, formatPgVector, MIN_VECTOR_SIMILARITY, type EmbeddingProvider } from "../../memory/embeddings";
+import { buildLexicalSearchQuery } from "../../memory/search-query";
 
 export interface KnowledgeSourceRecord {
   id: string;
@@ -41,6 +42,11 @@ export interface KnowledgeChunkRecord {
 export interface KnowledgeSourceDocument {
   source: KnowledgeSourceRecord;
   text: string;
+}
+
+export interface KnowledgeEmbeddingRepairResult {
+  attempted: number;
+  embedded: number;
 }
 
 export class KnowledgeRepository {
@@ -157,25 +163,122 @@ export class KnowledgeRepository {
         );
         chunks.push(created.rows[0]!);
       }
-      await client.query("UPDATE knowledge_sources SET revision = $2, updated_at = now() WHERE id = $1", [input.sourceId, input.revision]);
+      await client.query(
+        `UPDATE knowledge_sources
+         SET revision = $2,
+             provenance = provenance || $3::jsonb,
+             updated_at = now()
+         WHERE id = $1`,
+        [
+          input.sourceId,
+          input.revision,
+          JSON.stringify({
+            indexing: {
+              status: embeddings?.length === input.chunks.length ? "ready" : "lexical_only",
+              embeddedChunkCount: embeddings?.length ?? 0,
+              chunkCount: input.chunks.length,
+              embeddingModel: this.embeddingProvider?.model ?? null,
+              checkedAt: new Date().toISOString(),
+            },
+          }),
+        ],
+      );
       return chunks;
     });
   }
 
-  public async search(scope: MemoryScope, searchText: string, limit = 8, queryEmbedding?: readonly number[]): Promise<KnowledgeChunkRecord[]> {
-    const boundedLimit = Math.max(1, Math.min(limit, 50));
-    const lexical = query<KnowledgeChunkRecord & { lexical_score: number }>(
+  /**
+   * Repairs chunks written before embeddings were enabled. This is deliberately
+   * safe to call from retrieval: canonical text remains available through the
+   * lexical path if the provider is unavailable, while the next run can retry.
+   */
+  public async ensureEmbeddings(scope: MemoryScope, limit = 50): Promise<KnowledgeEmbeddingRepairResult> {
+    const embeddingProvider = this.embeddingProvider;
+    if (!embeddingProvider) return { attempted: 0, embedded: 0 };
+    const boundedLimit = Math.max(1, Math.min(limit, 100));
+    const candidates = await query<Pick<KnowledgeChunkRecord, "id" | "source_id" | "revision" | "canonical_text">>(
       this.pool,
-      `SELECT kc.*, LEAST(1, ts_rank_cd(kc.search_vector, plainto_tsquery('simple', $4))) AS lexical_score FROM knowledge_chunks kc
+      `SELECT kc.id, kc.source_id, kc.revision, kc.canonical_text
+       FROM knowledge_chunks kc
        JOIN knowledge_sources ks ON ks.id = kc.source_id AND ks.status = 'active'
        WHERE kc.organization_id = $1
          AND kc.agent_definition_id = $2
          AND (kc.installation_id IS NULL OR kc.installation_id = $3)
          AND kc.revision = ks.revision
-         AND kc.search_vector @@ plainto_tsquery('simple', $4)
+         AND (kc.embedding_vector IS NULL OR kc.embedding_model IS DISTINCT FROM $4)
+       ORDER BY kc.created_at ASC
+       LIMIT $5`,
+      [scope.organizationId, scope.agentId, scope.installationId ?? null, embeddingProvider.model, boundedLimit],
+    );
+    if (!candidates.rows.length) return { attempted: 0, embedded: 0 };
+    const embeddings = await embedSafely(embeddingProvider, candidates.rows.map((candidate) => candidate.canonical_text));
+    if (!embeddings?.length) return { attempted: candidates.rows.length, embedded: 0 };
+    let embedded = 0;
+    const sourceIds = [...new Set(candidates.rows.map((candidate) => candidate.source_id))];
+    await withTransaction(this.pool, async (client) => {
+      for (const [index, candidate] of candidates.rows.entries()) {
+        const vector = formatPgVector(embeddings[index]);
+        if (!vector) continue;
+        const updated = await client.query(
+          `UPDATE knowledge_chunks kc
+           SET embedding_vector = $2::vector, embedding_model = $3
+           FROM knowledge_sources ks
+           WHERE kc.id = $1
+             AND ks.id = kc.source_id
+             AND ks.status = 'active'
+             AND kc.organization_id = $4
+             AND kc.agent_definition_id = $5
+             AND (kc.installation_id IS NULL OR kc.installation_id = $6)
+             AND kc.revision = ks.revision
+           RETURNING kc.id`,
+          [candidate.id, vector, embeddingProvider.model, scope.organizationId, scope.agentId, scope.installationId ?? null],
+        );
+        embedded += updated.rowCount ?? 0;
+      }
+      await client.query(
+        `UPDATE knowledge_sources ks
+         SET provenance = COALESCE(ks.provenance, '{}'::jsonb) || jsonb_build_object(
+           'indexing',
+           COALESCE(ks.provenance->'indexing', '{}'::jsonb) || jsonb_build_object(
+             'status', CASE WHEN NOT EXISTS (
+               SELECT 1 FROM knowledge_chunks kc
+               WHERE kc.source_id = ks.id
+                 AND kc.revision = ks.revision
+                 AND (kc.embedding_vector IS NULL OR kc.embedding_model IS DISTINCT FROM $2)
+             ) THEN 'ready' ELSE 'lexical_only' END,
+             'embeddedChunkCount', (SELECT COUNT(*) FROM knowledge_chunks kc WHERE kc.source_id = ks.id AND kc.revision = ks.revision AND kc.embedding_model = $2 AND kc.embedding_vector IS NOT NULL),
+             'chunkCount', (SELECT COUNT(*) FROM knowledge_chunks kc WHERE kc.source_id = ks.id AND kc.revision = ks.revision),
+             'embeddingModel', $2,
+             'checkedAt', to_jsonb(now())
+           )
+         ),
+         updated_at = now()
+         WHERE ks.id = ANY($1::uuid[])
+           AND ks.organization_id = $3
+           AND ks.agent_definition_id = $4
+           AND (ks.installation_id IS NULL OR ks.installation_id = $5)
+           AND ks.status = 'active'`,
+        [sourceIds, embeddingProvider.model, scope.organizationId, scope.agentId, scope.installationId ?? null],
+      );
+    });
+    return { attempted: candidates.rows.length, embedded };
+  }
+
+  public async search(scope: MemoryScope, searchText: string, limit = 8, queryEmbedding?: readonly number[]): Promise<KnowledgeChunkRecord[]> {
+    const boundedLimit = Math.max(1, Math.min(limit, 50));
+    const lexicalQuery = buildLexicalSearchQuery(searchText);
+    const lexical = query<KnowledgeChunkRecord & { lexical_score: number }>(
+      this.pool,
+      `SELECT kc.*, LEAST(1, ts_rank_cd(kc.search_vector, to_tsquery('simple', $4))) AS lexical_score FROM knowledge_chunks kc
+       JOIN knowledge_sources ks ON ks.id = kc.source_id AND ks.status = 'active'
+       WHERE kc.organization_id = $1
+         AND kc.agent_definition_id = $2
+         AND (kc.installation_id IS NULL OR kc.installation_id = $3)
+         AND kc.revision = ks.revision
+         AND kc.search_vector @@ to_tsquery('simple', $4)
        ORDER BY lexical_score DESC, kc.created_at DESC
        LIMIT $5`,
-      [scope.organizationId, scope.agentId, scope.installationId ?? null, searchText, boundedLimit],
+      [scope.organizationId, scope.agentId, scope.installationId ?? null, lexicalQuery ?? "", boundedLimit],
     );
     const vectorText = formatPgVector(queryEmbedding);
     const vector = query<KnowledgeChunkRecord & { vector_score: number }>(
@@ -189,9 +292,10 @@ export class KnowledgeRepository {
          AND kc.embedding_model = $6
          AND $4::vector IS NOT NULL
          AND kc.embedding_vector IS NOT NULL
+         AND 1 - (kc.embedding_vector <=> $4::vector) >= $7
        ORDER BY kc.embedding_vector <=> $4::vector ASC, kc.created_at DESC
        LIMIT $5`,
-      [scope.organizationId, scope.agentId, scope.installationId ?? null, vectorText, boundedLimit, this.embeddingProvider?.model ?? null],
+      [scope.organizationId, scope.agentId, scope.installationId ?? null, vectorText, boundedLimit, this.embeddingProvider?.model ?? null, MIN_VECTOR_SIMILARITY],
     );
     const [lexicalResult, vectorResult] = await Promise.all([lexical, vector]);
     const merged = new Map<string, KnowledgeChunkRecord & { lexical_score?: number; vector_score?: number }>();

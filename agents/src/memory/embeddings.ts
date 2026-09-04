@@ -8,6 +8,8 @@ export const DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-small";
 export const DEFAULT_EMBEDDING_DIMENSIONS = 1_536;
 export const DEFAULT_EMBEDDING_BATCH_SIZE = 32;
 export const DEFAULT_EMBEDDING_TIMEOUT_MS = 10_000;
+/** Minimum cosine similarity for a vector result to count as retrieval evidence. */
+export const MIN_VECTOR_SIMILARITY = 0.25;
 
 export interface EmbeddingProvider {
   readonly provider: ModelProvider;

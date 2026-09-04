@@ -3,7 +3,9 @@ import type { MemoryNamespace, MemoryRecord, MemoryScope } from "../db/repositor
 import { MemoryLifecycle } from "./lifecycle";
 import { memoryPolicyFromAgentPolicy, type MemoryPolicy } from "./policy";
 import { recordRetrievalDuration } from "../telemetry/spans";
+import { operationalLogger } from "../telemetry/logger";
 import { createEnvironmentEmbeddingProvider, embedSafely, type EmbeddingProvider } from "./embeddings";
+import { isKnowledgeSeekingMessage } from "../runtime/grounding";
 
 export type RetrievalSourceType = "memory" | "knowledge";
 export type RetrievalReason = "always" | "direct_reference" | "preference_reference" | "contextual_question" | "semantic_reference" | "knowledge_reference" | "policy_disabled" | "not_requested";
@@ -88,13 +90,8 @@ export function decideMemoryRetrieval(
   const sourceTypes = sourceTypesFor(policy);
   const base = { query, sourceTypes, maxResults: 8, maxTokens: policy.maxRetrievedTokens };
   if (options.always) return { requested: true, reason: "always", reasonCode: "always", ...base };
-  if (policy.mode === "disabled") return { requested: false, reason: "policy_disabled", reasonCode: "policy_disabled", ...base };
-
   const tokens = normalizeTokens(query);
-  const hasPersonalAnchor = tokens.some((token) => token === "my" || token === "our" || token === "me" || token === "we" || token === "i");
   const hasDirectReference = tokens.some((token) => directReferenceTerms.has(token));
-  const hasPreferenceReference = (hasPersonalAnchor && tokens.some((token) => preferenceTerms.has(token)))
-    || includesPhrase(tokens, ["what", "do", "you", "know", "about", "me"]);
   const hasContextualQuestion = includesPhrase(tokens, ["what", "did", "we"])
     || includesPhrase(tokens, ["where", "were", "we"])
     || includesPhrase(tokens, ["pick", "up"])
@@ -103,8 +100,16 @@ export function decideMemoryRetrieval(
     || includesPhrase(tokens, ["did", "i", "mention"])
     || tokens.includes("continue")
     || tokens.includes("resume");
+  if (policy.mode === "disabled") {
+    return !hasDirectReference && !hasContextualQuestion && isKnowledgeSeekingMessage(query)
+      ? { requested: true, reason: "knowledge_reference", reasonCode: "knowledge_reference", ...base }
+      : { requested: false, reason: "policy_disabled", reasonCode: "policy_disabled", ...base };
+  }
+  const hasPersonalAnchor = tokens.some((token) => token === "my" || token === "our" || token === "me" || token === "we" || token === "i");
+  const hasPreferenceReference = (hasPersonalAnchor && tokens.some((token) => preferenceTerms.has(token)))
+    || includesPhrase(tokens, ["what", "do", "you", "know", "about", "me"]);
   const hasSemanticReference = tokens.some((token) => semanticReferenceTerms.has(token));
-  const hasKnowledgeReference = tokens.some((token) => knowledgeReferenceTerms.has(token));
+  const hasKnowledgeReference = tokens.some((token) => knowledgeReferenceTerms.has(token)) || isKnowledgeSeekingMessage(query);
 
   const reason: RetrievalReason | undefined = hasPreferenceReference
     ? "preference_reference"
@@ -159,7 +164,7 @@ function rankEvidence(
     })),
   ];
   const unique = new Map<string, RetrievalEvidence>();
-  for (const candidate of candidates) {
+  for (const candidate of candidates.filter((entry) => entry.score > 0)) {
     const key = normalizedText(candidate.text);
     const existing = unique.get(key);
     if (!existing || candidate.score > existing.score) unique.set(key, candidate);
@@ -199,6 +204,15 @@ export class RetrievalService {
     const started = performance.now();
     try {
       const candidateLimit = Math.min(50, Math.max(decision.maxResults, decision.maxResults * 2));
+      try {
+        await this.knowledge.ensureEmbeddings?.(scope, 50);
+      } catch (error) {
+        operationalLogger.warn({
+          event: "knowledge.embedding.repair.failed",
+          error_code: error instanceof Error ? error.name.slice(0, 80) : "unknown",
+          fallback: "lexical",
+        }, "Knowledge embedding repair failed; continuing with retrieval fallback");
+      }
       const queryEmbedding = (await embedSafely(this.embeddingProvider, [decision.query]))?.[0];
       const [memoryMatches, knowledgeMatches] = await Promise.all([
         decision.sourceTypes.includes("memory") ? this.memory.search(scope, decision.query, policyValue, candidateLimit, queryEmbedding) : Promise.resolve([]),

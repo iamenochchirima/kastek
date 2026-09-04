@@ -2,7 +2,7 @@ import type { Pool, PoolClient } from "pg";
 import { query, withTransaction } from "../pool";
 import { assessMemorySafety, type MemorySourceTrust, type MemorySafetyStatus } from "../../memory/poisoning";
 import { recordMemoryDeletion, recordMemoryLifecycleDecision, recordMemoryReviewOutcome, recordMemorySafetyAssessment } from "../../telemetry/spans";
-import { createEnvironmentEmbeddingProvider, embedSafely, formatPgVector, type EmbeddingProvider } from "../../memory/embeddings";
+import { createEnvironmentEmbeddingProvider, embedSafely, formatPgVector, MIN_VECTOR_SIMILARITY, type EmbeddingProvider } from "../../memory/embeddings";
 
 export type MemoryNamespace = "conversation" | "user_private" | "organization_shared" | "agent_private";
 export type MemoryType = "working" | "semantic" | "episodic" | "procedural";
@@ -470,9 +470,10 @@ export class MemoryRepository {
          AND embedding_model = $9
          AND $6::vector IS NOT NULL
          AND embedding_vector IS NOT NULL
+         AND 1 - (embedding_vector <=> $6::vector) >= $10
        ORDER BY embedding_vector <=> $6::vector ASC, created_at DESC
        LIMIT $8`,
-      [scope.organizationId, scope.agentId, scope.installationId ?? null, scope.conversationId ?? null, scope.actorId ?? null, vectorText, namespaceFilter, boundedLimit, this.embeddingProvider?.model ?? null],
+      [scope.organizationId, scope.agentId, scope.installationId ?? null, scope.conversationId ?? null, scope.actorId ?? null, vectorText, namespaceFilter, boundedLimit, this.embeddingProvider?.model ?? null, MIN_VECTOR_SIMILARITY],
     );
     const [lexicalResult, vectorResult] = await Promise.all([lexical, vector]);
     const merged = new Map<string, MemoryRecord & { lexical_score?: number; vector_score?: number }>();

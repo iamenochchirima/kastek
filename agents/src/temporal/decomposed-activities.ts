@@ -23,6 +23,8 @@ import { RetrievalService } from "../memory/retrieval";
 import { ModelProviderError, type ModelCredentials, type ModelMessage, type ModelProvider, type ModelRequest, type ModelResponse } from "../model/types";
 import { resolveModelTarget } from "../model/policy";
 import { buildAgentContext } from "../runtime/context";
+import { createGroundingFallbackResponse, shouldFailClosedWithoutEvidence } from "../runtime/grounding";
+import { buildGroundingProvenance } from "../runtime/provenance";
 import { estimatePromptTokens } from "../model/credit-pricing";
 import type { ModelCreditPricing } from "../model/credit-pricing";
 import { ModelGateway } from "../model/gateway";
@@ -420,6 +422,52 @@ async function buildInitialState(deps: DecomposedActivityDependencies, run: Runt
   const durableMessages = run.conversation_id ? (await deps.conversations.listMessages(run.organization_id, run.conversation_id)).filter((message) => message.run_id !== run.id) : [];
   const summary = run.conversation_id ? await deps.summaries.getSummary(run.organization_id, run.conversation_id) : null;
   const retrieval = await new RetrievalService(new MemoryLifecycle(deps.memory), deps.knowledge).retrieve({ organizationId: run.organization_id, agentId: run.agent_definition_id, installationId: run.installation_id, conversationId: run.conversation_id ?? undefined, actorId: run.created_by }, inputMessage, run.policy, { always: run.installation_settings?.profile === "general" });
+  if (shouldFailClosedWithoutEvidence({
+    message: inputMessage,
+    agentAudience: run.agent_audience,
+    isSystemAgent: run.agent_owner_type === "system" && run.agent_protected === true,
+    evidenceCount: retrieval.evidence.length,
+  })) {
+    const response = createGroundingFallbackResponse(runtime.provider, runtime.model);
+    const groundingStep = await deps.runSteps.startStep({
+      runId: run.id,
+      organizationId: run.organization_id,
+      stepType: "policy",
+      input: { policy: "grounding", decision: "no_trusted_evidence" },
+    });
+    await deps.runSteps.finishStep({ stepId: groundingStep.id, status: "completed", output: { decision: "no_trusted_evidence", modelCallSkipped: true } });
+    await deps.runs.appendEvent({
+      organizationId: run.organization_id,
+      runId: run.id,
+      installationId: run.installation_id,
+      eventType: "agent.grounding.blocked",
+      payload: { reason: "no_trusted_evidence", retrievalRequested: retrieval.decision.requested, knowledgeMatchCount: retrieval.evidence.filter((entry) => entry.sourceType === "knowledge").length },
+    });
+    return {
+      version: DECOMPOSED_ACTIVITY_PROTOCOL_VERSION,
+      phase: "completed",
+      messages: [response.message],
+      iteration: 0,
+      toolCalls: 0,
+      usage: emptyUsage(),
+      pendingToolCallIds: [],
+      completedToolCallIds: [],
+      toolStepIds: {},
+      completion: {
+        response,
+        usage: emptyUsage(),
+        iterations: 0,
+        toolCalls: 0,
+        provenance: { ...buildGroundingProvenance({
+          authorizedTools: runtime.allowedTools,
+          usedTools: [],
+          retrievalRequested: retrieval.decision.requested,
+          knowledgeMatchCount: retrieval.evidence.filter((entry) => entry.sourceType === "knowledge").length,
+        }) },
+      },
+      lastModelResponse: response,
+    };
+  }
   const longTermMemory = retrieval.evidence.map((entry) => entry.sourceType === "memory" ? `[memory:${entry.namespace ?? "unknown"}:${entry.rank}] ${entry.text}` : `[knowledge:${entry.sourceId ?? "unknown"}:${entry.chunkIndex ?? 0}:${entry.rank}] ${entry.text}`).join("\n");
   const allowedTools = runtime.allowedTools;
   const pinnedSkills = deps.skills ? await deps.skills.loadPinnedVersions(run.organization_id, run.agent_version_id) : [];

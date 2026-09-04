@@ -18,4 +18,7 @@ to the storage adapter.
 
 The first deployment has one durable data system and straightforward backups. A dedicated
 vector engine is introduced only after measured retrieval or scale limits justify the added
-operational system.
+operational system. Embeddings are rebuildable indexes: ingestion records indexing readiness and
+the runtime repairs missing or stale knowledge vectors before a scoped search, while PostgreSQL
+full-text search remains the availability fallback. Customer-facing factual requests are not
+allowed to fall through to unsupported model knowledge when retrieval returns no evidence.
