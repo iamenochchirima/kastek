@@ -532,9 +532,10 @@ export class PlatformChatRepository {
          WHERE cb.organization_id = $1
            AND ($2::uuid IS NULL OR cb.installation_id = $2)
            AND cb.channel_type = $3 AND cb.external_identity = $4
+           AND ($5::text IS NULL OR cc.channel_key = $5)
            AND cb.status = 'active' AND cc.status = 'active'
          LIMIT 1`,
-        [input.organizationId, input.installationId ?? null, input.channelType, input.externalIdentity],
+        [input.organizationId, input.installationId ?? null, input.channelType, input.externalIdentity, input.channelKey ?? null],
       );
       let route = binding.rows[0];
 
@@ -560,7 +561,7 @@ export class PlatformChatRepository {
             `INSERT INTO channel_bindings
               (organization_id, installation_id, channel_connection_id, channel_type, external_identity, routing_key, owner_actor_id)
              VALUES ($1, $2, $3, $4, $5, 'default', NULL)
-             ON CONFLICT (organization_id, channel_type, external_identity) DO NOTHING
+             ON CONFLICT DO NOTHING
              RETURNING id, owner_actor_id, channel_connection_id, installation_id`,
             [input.organizationId, target.installation_id, target.id, input.channelType, input.externalIdentity],
           );
@@ -573,9 +574,10 @@ export class PlatformChatRepository {
                WHERE cb.organization_id = $1
                  AND ($2::uuid IS NULL OR cb.installation_id = $2)
                  AND cb.channel_type = $3 AND cb.external_identity = $4
+                 AND ($5::text IS NULL OR cc.channel_key = $5)
                  AND cb.status = 'active' AND cc.status = 'active'
                LIMIT 1`,
-              [input.organizationId, input.installationId ?? null, input.channelType, input.externalIdentity],
+              [input.organizationId, input.installationId ?? null, input.channelType, input.externalIdentity, input.channelKey ?? null],
             );
             route = existingBinding.rows[0];
           }

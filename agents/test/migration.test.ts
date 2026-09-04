@@ -90,6 +90,13 @@ describe("foundation migration", () => {
     expect(sql).toContain("status IN ('received', 'queued', 'running'");
   });
 
+  it("scopes external channel bindings to their bot connection", async () => {
+    const sql = await readFile(new URL("../migrations/107_channel_bindings_per_connection.sql", import.meta.url), "utf8");
+    expect(sql).toContain("DROP CONSTRAINT");
+    expect(sql).toContain("channel_bindings_connection_identity_uidx");
+    expect(sql).toContain("channel_connection_id, external_identity");
+  });
+
   it("protects identity, credentials, channels, schedules, effects, and approvals", async () => {
     const sql = await readFile(new URL("../migrations/093_identity_credentials_effects_rls.sql", import.meta.url), "utf8");
     for (const table of [

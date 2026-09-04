@@ -248,21 +248,43 @@ export class ChannelRepository {
       );
       const target = connection.rows[0];
       if (!target) throw new Error("Channel connection not found");
+      // Keep this write valid while the legacy identity constraint is being
+      // replaced by the per-connection constraint in migration 107.
       const result = await client.query<ChannelBindingRecord>(
         `INSERT INTO channel_bindings
           (organization_id, installation_id, channel_connection_id, channel_type, external_identity, routing_key,
            owner_actor_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (organization_id, channel_type, external_identity) DO UPDATE SET
-           installation_id = EXCLUDED.installation_id,
-           channel_connection_id = EXCLUDED.channel_connection_id,
-           routing_key = EXCLUDED.routing_key,
-           owner_actor_id = EXCLUDED.owner_actor_id,
-           status = 'active', updated_at = now()
+         ON CONFLICT DO NOTHING
          RETURNING *`,
         [input.organizationId, input.installationId, input.connectionId, target.channel_type, input.externalIdentity, input.routingKey ?? "default", input.ownerActorId],
       );
-      return result.rows[0]!;
+      if (result.rows[0]) return result.rows[0];
+      const updated = await client.query<ChannelBindingRecord>(
+        `UPDATE channel_bindings cb
+         SET installation_id = $2, channel_connection_id = $3, routing_key = $6,
+             owner_actor_id = $7, status = 'active', updated_at = now()
+         WHERE cb.id = (
+           SELECT candidate.id
+           FROM channel_bindings candidate
+           WHERE candidate.organization_id = $1 AND candidate.channel_type = $4
+             AND candidate.external_identity = $5
+             AND (
+               candidate.channel_connection_id = $3
+               OR NOT EXISTS (
+                 SELECT 1 FROM channel_bindings exact
+                 WHERE exact.organization_id = $1 AND exact.channel_type = $4
+                   AND exact.channel_connection_id = $3 AND exact.external_identity = $5
+               )
+             )
+           ORDER BY (candidate.channel_connection_id = $3) DESC, candidate.updated_at DESC
+           LIMIT 1
+         )
+         RETURNING cb.*`,
+        [input.organizationId, input.installationId, input.connectionId, target.channel_type, input.externalIdentity, input.routingKey ?? "default", input.ownerActorId],
+      );
+      if (!updated.rows[0]) throw new Error("Channel binding could not be persisted");
+      return updated.rows[0];
     });
   }
 
@@ -659,18 +681,44 @@ export class ChannelRepository {
         [pairing.connection_id, input.organizationId, pairing.installation_id],
       );
       if (!connection.rows[0]) throw new Error("Channel connection not found");
+      // Pairing can run during the same constraint transition as allowlist
+      // binding, so use the same schema-compatible insert/update sequence.
       const binding = await client.query<ChannelBindingRecord>(
         `INSERT INTO channel_bindings
           (organization_id, installation_id, channel_connection_id, channel_type, external_identity,
            routing_key, owner_actor_id)
          VALUES ($1, $2, $3, $4, $5, 'default', $6)
-         ON CONFLICT (organization_id, channel_type, external_identity) DO UPDATE SET
-           installation_id = EXCLUDED.installation_id, channel_connection_id = EXCLUDED.channel_connection_id,
-           routing_key = EXCLUDED.routing_key, owner_actor_id = EXCLUDED.owner_actor_id,
-           status = 'active', updated_at = now()
+         ON CONFLICT DO NOTHING
          RETURNING *`,
         [input.organizationId, pairing.installation_id, pairing.connection_id, connection.rows[0].channel_type, pairing.external_identity, pairing.owner_actor_id],
       );
+      if (!binding.rows[0]) {
+        const updated = await client.query<ChannelBindingRecord>(
+          `UPDATE channel_bindings cb
+           SET installation_id = $2, channel_connection_id = $3, routing_key = 'default',
+               owner_actor_id = $6, status = 'active', updated_at = now()
+           WHERE cb.id = (
+             SELECT candidate.id
+             FROM channel_bindings candidate
+             WHERE candidate.organization_id = $1 AND candidate.channel_type = $4
+               AND candidate.external_identity = $5
+               AND (
+                 candidate.channel_connection_id = $3
+                 OR NOT EXISTS (
+                   SELECT 1 FROM channel_bindings exact
+                   WHERE exact.organization_id = $1 AND exact.channel_type = $4
+                     AND exact.channel_connection_id = $3 AND exact.external_identity = $5
+                 )
+               )
+             ORDER BY (candidate.channel_connection_id = $3) DESC, candidate.updated_at DESC
+             LIMIT 1
+           )
+           RETURNING cb.*`,
+          [input.organizationId, pairing.installation_id, pairing.connection_id, connection.rows[0].channel_type, pairing.external_identity, pairing.owner_actor_id],
+        );
+        if (updated.rows[0]) binding.rows.push(updated.rows[0]);
+      }
+      if (!binding.rows[0]) throw new Error("Channel binding could not be persisted");
       await client.query(
         `INSERT INTO audit_records (organization_id, actor_type, action, resource_type, resource_id, metadata)
          VALUES ($1, 'channel', 'channel.pairing_consumed', 'channel_binding', $2, $3::jsonb)`,

@@ -25,6 +25,8 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
   let agentId = "";
   let versionId = "";
   let installationId = "";
+  let customerAgentId = "";
+  let customerVersionId = "";
 
   beforeAll(async () => {
     const agent = await agents.createAgent(organizationId, "test-user", { name: "Platform chat test" });
@@ -513,6 +515,80 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       .some((message) => message.provider_message_id === "wamid-after-disconnect")).toBe(false);
   });
 
+  it("routes the same external identity independently for personal and public connections", async () => {
+    const customerAgent = await agents.createAgent(organizationId, "test-user", {
+      name: "Customer channel test",
+      agentAudience: "customer_service",
+    });
+    customerAgentId = customerAgent.id;
+    const customerVersion = await agents.createVersion(organizationId, "test-user", customerAgent.id, {
+      instructions: "Answer customer questions briefly.",
+      configuration: {},
+      policy: {},
+    });
+    customerVersionId = customerVersion.id;
+    await agents.publishVersion(organizationId, "test-user", customerAgent.id, customerVersion.id);
+    const customerInstallation = await agents.createInstallation(organizationId, "test-user", {
+      agentVersionId: customerVersion.id,
+      scopeType: "organization",
+      scopeId: organizationId,
+      settings: {},
+    });
+
+    const telegramUser = "5251104155";
+    const personalConnection = await channels.createConnection({
+      organizationId,
+      installationId,
+      channelType: "telegram",
+      channelKey: "bot:personal-routing-test",
+      metadata: { routing: "private" },
+      actorId: "test-user",
+    });
+    await channels.bind({
+      organizationId,
+      installationId,
+      connectionId: personalConnection.id,
+      externalIdentity: telegramUser,
+      ownerActorId: "test-user",
+    });
+    const publicConnection = await channels.createConnection({
+      organizationId,
+      installationId: customerInstallation.id,
+      channelType: "telegram",
+      channelKey: "bot:public-routing-test",
+      metadata: { routing: "public" },
+      actorId: "test-user",
+    });
+
+    const accepted = await platformChat.acceptExternalMessage({
+      organizationId,
+      installationId: customerInstallation.id,
+      channelType: "telegram",
+      channelKey: publicConnection.channel_key,
+      provider: "telegram",
+      providerEventId: "routing-public-event",
+      providerMessageId: "routing-public-message",
+      externalIdentity: telegramUser,
+      externalConversationId: "routing-public-thread",
+      messageType: "text",
+      content: { text: "A public customer message" },
+    });
+
+    expect(accepted.conversation.conversation_kind).toBe("customer");
+    expect(accepted.run.created_by).toBe(`installation:${customerInstallation.id}`);
+    const bindings = await pool.query<{ channel_connection_id: string; owner_actor_id: string | null }>(
+      `SELECT channel_connection_id, owner_actor_id
+       FROM channel_bindings
+       WHERE organization_id = $1 AND channel_type = 'telegram' AND external_identity = $2
+       ORDER BY channel_connection_id`,
+      [organizationId, telegramUser],
+    );
+    expect(bindings.rows).toEqual(expect.arrayContaining([
+      { channel_connection_id: personalConnection.id, owner_actor_id: "test-user" },
+      { channel_connection_id: publicConnection.id, owner_actor_id: null },
+    ]));
+  });
+
   it("keeps each platform user in a separate conversation", async () => {
     const userOne = await platformChat.resolveConversation({ organizationId, installationId, actorId: "user-1" });
     const userTwo = await platformChat.resolveConversation({ organizationId, installationId, actorId: "user-2" });
@@ -581,8 +657,11 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
     await pool.query("DELETE FROM channel_connections WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_principals WHERE organization_id = $1", [organizationId]);
     await pool.query("DELETE FROM agent_installations WHERE organization_id = $1", [organizationId]);
+    if (customerVersionId) await pool.query("DELETE FROM agent_tool_grants WHERE agent_version_id = $1", [customerVersionId]);
     if (versionId) await pool.query("DELETE FROM agent_versions WHERE id = $1", [versionId]);
     if (agentId) await pool.query("DELETE FROM agent_definitions WHERE id = $1", [agentId]);
+    if (customerVersionId) await pool.query("DELETE FROM agent_versions WHERE id = $1", [customerVersionId]);
+    if (customerAgentId) await pool.query("DELETE FROM agent_definitions WHERE id = $1", [customerAgentId]);
     await pool.end();
   });
 });
