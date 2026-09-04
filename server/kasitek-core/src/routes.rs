@@ -20,9 +20,20 @@ mod tests {
         let product_routes = include_str!("api/product.rs");
         let website_routes = include_str!("api/website.rs");
         let public_v1_routes = include_str!("api/public_v1.rs");
+        let internal_routes = include_str!("api/internal.rs");
         assert!(!product_routes.contains("scope(\"/v1\")"));
         assert!(!website_routes.contains("scope(\"/v1\")"));
         assert!(public_v1_routes.contains("scope(\"/v1\")"));
+        let live_route = internal_routes
+            .find("\"/conversations/live\"")
+            .expect("live conversation route");
+        let dynamic_conversation_route = internal_routes
+            .find("\"/conversations/{conversationId}\",\n                web::get().to(agent_platform::get_conversation)")
+            .expect("dynamic conversation route");
+        assert!(
+            live_route < dynamic_conversation_route,
+            "the literal live route must be registered before the dynamic conversation route"
+        );
         let routes = [
             (Method::GET, "/health"),
             (Method::GET, "/v1/health"),

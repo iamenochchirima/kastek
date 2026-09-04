@@ -16,7 +16,7 @@ export const defaultAgentRuntimeLimits: AgentRuntimeLimitsValue = {
   maxIterations: "8",
   maxToolCalls: "8",
   maxModelCalls: "8",
-  maxTotalTokens: "4096",
+  maxTotalTokens: "16000",
   maxContextMessages: "30",
   maxContextTokens: "12000",
   maxWallTimeMs: "60000",
@@ -31,7 +31,7 @@ function parseLimit(value: string, label: string, minimum: number, maximum: numb
 }
 
 export function parseAgentRuntimeLimits(value: AgentRuntimeLimitsValue) {
-  return {
+  const limits = {
     maxIterations: parseLimit(value.maxIterations, "Max iterations", 1, 100),
     maxToolCalls: parseLimit(value.maxToolCalls, "Max tool calls", 1, 100),
     maxModelCalls: parseLimit(value.maxModelCalls, "Max model calls", 1, 100),
@@ -40,6 +40,10 @@ export function parseAgentRuntimeLimits(value: AgentRuntimeLimitsValue) {
     maxContextTokens: parseLimit(value.maxContextTokens, "Max context tokens", 256, 200_000),
     maxWallTimeMs: parseLimit(value.maxWallTimeMs, "Max wall time", 1_000, 600_000),
   };
+  if (limits.maxTotalTokens <= limits.maxContextTokens) {
+    throw new Error("Max total tokens must be greater than max context tokens");
+  }
+  return limits;
 }
 
 export function AgentRuntimeLimits({ value, onChange }: { value: AgentRuntimeLimitsValue; onChange: (value: AgentRuntimeLimitsValue) => void }) {

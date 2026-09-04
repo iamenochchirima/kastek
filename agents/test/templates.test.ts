@@ -25,6 +25,7 @@ describe("agent templates", () => {
       });
       expect(template.policy.allowedTools).toEqual(["platform.current_time"]);
       expect(template.channelCompatibility).toContain("platform");
+      expect(Number(template.configuration.maxTotalTokens)).toBeGreaterThan(Number(template.configuration.maxContextTokens));
     }
   });
 

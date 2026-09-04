@@ -37,7 +37,17 @@ export const agentSpecSchema = z.object({
     maxWallTimeMs: z.number().int().positive().max(3_600_000).optional(),
     maxEstimatedCostUsd: z.number().nonnegative().max(10_000).optional(),
     temperature: z.number().min(0).max(2).optional(),
-  }).strict().default({}),
+  }).strict().superRefine((runtime, context) => {
+    if (runtime.maxTotalTokens !== undefined
+      && runtime.maxContextTokens !== undefined
+      && runtime.maxTotalTokens <= runtime.maxContextTokens) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["maxTotalTokens"],
+        message: "must be greater than maxContextTokens",
+      });
+    }
+  }).default({}),
   capabilities: z.object({
     allowedTools: boundedStringList(200),
     requiredCapabilities: boundedStringList(200),

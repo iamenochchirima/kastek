@@ -39,6 +39,18 @@ describe("AgentSpec", () => {
     expect(() => createVersionInputSchema.parse({ ...spec, unexpected: true })).toThrow();
   });
 
+  it("rejects a token budget that cannot contain its configured context", () => {
+    expect(() => agentSpecSchema.parse({
+      ...spec,
+      runtime: { maxContextTokens: 8_000, maxTotalTokens: 2_048 },
+    })).toThrow("must be greater than maxContextTokens");
+    expect(() => createVersionInputSchema.parse({
+      instructions: "legacy",
+      configuration: { maxContextTokens: 8_000, maxTotalTokens: 2_048 },
+      policy: {},
+    })).toThrow("must be greater than maxContextTokens");
+  });
+
   it("validates workflow graphs before they enter a version", () => {
     expect(() => compileAgentSpec({
       ...spec,

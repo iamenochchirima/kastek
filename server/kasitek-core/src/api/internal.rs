@@ -576,16 +576,16 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_platform::get_conversation_summary),
             )
             .route(
-                "/conversations/{conversationId}",
-                web::get().to(agent_platform::get_conversation),
+                "/conversations/live",
+                web::get().to(agent_platform::list_live_conversations),
             )
             .route(
                 "/conversations/handoffs/{handoffId}/messages",
                 web::post().to(agent_platform::send_human_message),
             )
             .route(
-                "/conversations/live",
-                web::get().to(agent_platform::list_live_conversations),
+                "/conversations/{conversationId}",
+                web::get().to(agent_platform::get_conversation),
             )
             .route(
                 "/conversations/{conversationId}/events/stream",

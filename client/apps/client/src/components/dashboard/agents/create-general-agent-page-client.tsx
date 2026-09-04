@@ -241,7 +241,10 @@ export function CreateGeneralAgentPageClient({ audience = "personal", userId, on
     try {
       const roleSummaryFallback = roles.map((key) => getAgentRole(key, audience).summary).join(" ");
       const agent = crawlAgent ?? await createAgent({ name: name.trim(), description: roleSummary.trim() || roleSummaryFallback, creationProfile: "general", agentAudience: audience });
-      const maxTotalTokens = 2_048;
+      // The total budget includes the prompt tokens. Keep it above the
+      // generated agent context budget so a normal greeting can reach the
+      // model instead of failing before the first response.
+      const maxTotalTokens = 12_000;
       const version = await createAgentVersion(agent.id, {
         instructions: generatedInstructions,
         configuration: {

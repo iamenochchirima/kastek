@@ -98,7 +98,42 @@ const legacyCreateVersionInputSchema = z.object({
   instructions: z.string().min(1).max(200_000),
   configuration: z.record(z.string(), z.unknown()).default({}),
   policy: z.record(z.string(), z.unknown()).default({}),
-}).strict();
+}).strict().superRefine((value, context) => {
+  const record = (candidate: unknown): Record<string, unknown> => (
+    candidate && typeof candidate === "object" && !Array.isArray(candidate)
+      ? candidate as Record<string, unknown>
+      : {}
+  );
+  const number = (candidate: unknown): number | undefined => (
+    typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate > 0
+      ? candidate
+      : undefined
+  );
+  const configuration = value.configuration;
+  const policy = value.policy;
+  const nestedRuntime = record(configuration.runtime);
+  const modelPolicy = record(policy.modelPolicy);
+  const runLimits = record(policy.runLimits);
+  const contextTokens = number(configuration.maxContextTokens)
+    ?? number(nestedRuntime.maxContextTokens)
+    ?? 8_000;
+  const totalTokenLimits = [
+    number(configuration.maxTotalTokens),
+    number(nestedRuntime.maxTotalTokens),
+    number(modelPolicy.maxTokensPerRun),
+    number(runLimits.maxTotalTokens),
+  ].filter((candidate): candidate is number => candidate !== undefined);
+  for (const totalTokens of totalTokenLimits) {
+    if (totalTokens <= contextTokens) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["configuration", "maxTotalTokens"],
+        message: "must be greater than maxContextTokens",
+      });
+      break;
+    }
+  }
+});
 
 const typedCreateVersionInputSchema = z.object({
   spec: agentSpecSchema,
