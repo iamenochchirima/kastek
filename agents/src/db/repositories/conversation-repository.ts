@@ -501,8 +501,9 @@ export class ConversationRepository {
       if (input.provider && input.providerMessageId) {
         const existing = await client.query<MessageRecord>(
           `SELECT * FROM messages
-           WHERE organization_id = $1 AND provider = $2 AND provider_message_id = $3`,
-          [input.organizationId, input.provider, input.providerMessageId],
+           WHERE organization_id = $1 AND provider = $2 AND provider_message_id = $3
+             AND source_connection_id IS NOT DISTINCT FROM $4::uuid`,
+          [input.organizationId, input.provider, input.providerMessageId, input.sourceConnectionId ?? null],
         );
         if (existing.rows[0]) return existing.rows[0];
       }

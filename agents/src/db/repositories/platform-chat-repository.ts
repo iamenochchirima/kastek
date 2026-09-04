@@ -627,8 +627,9 @@ export class PlatformChatRepository {
       const duplicate = await client.query<MessageRecord>(
         `SELECT * FROM messages
          WHERE organization_id = $1 AND provider = $2 AND provider_message_id = $3
+           AND source_connection_id = $4
          LIMIT 1`,
-        [input.organizationId, input.provider, input.providerMessageId],
+        [input.organizationId, input.provider, input.providerMessageId, route.channel_connection_id],
       );
       if (duplicate.rows[0]) {
         const existingRun = duplicate.rows[0].run_id

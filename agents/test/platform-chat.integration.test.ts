@@ -551,6 +551,20 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       externalIdentity: telegramUser,
       ownerActorId: "test-user",
     });
+    const personalAccepted = await platformChat.acceptExternalMessage({
+      organizationId,
+      installationId,
+      channelType: "telegram",
+      channelKey: personalConnection.channel_key,
+      provider: "telegram",
+      providerEventId: "telegram-update-117-personal",
+      providerMessageId: "117",
+      externalIdentity: telegramUser,
+      externalConversationId: "routing-personal-thread",
+      messageType: "text",
+      content: { text: "A personal message" },
+    });
+    expect(personalAccepted.created).toBe(true);
     const publicConnection = await channels.createConnection({
       organizationId,
       installationId: customerInstallation.id,
@@ -566,14 +580,15 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       channelType: "telegram",
       channelKey: publicConnection.channel_key,
       provider: "telegram",
-      providerEventId: "routing-public-event",
-      providerMessageId: "routing-public-message",
+      providerEventId: "telegram-update-117-public",
+      providerMessageId: "117",
       externalIdentity: telegramUser,
       externalConversationId: "routing-public-thread",
       messageType: "text",
       content: { text: "A public customer message" },
     });
 
+    expect(accepted.created).toBe(true);
     expect(accepted.conversation.conversation_kind).toBe("customer");
     expect(accepted.run.created_by).toBe(`installation:${customerInstallation.id}`);
     const bindings = await pool.query<{ channel_connection_id: string; owner_actor_id: string | null }>(

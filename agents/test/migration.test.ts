@@ -97,6 +97,14 @@ describe("foundation migration", () => {
     expect(sql).toContain("channel_connection_id, external_identity");
   });
 
+  it("scopes provider message identity to its source connection", async () => {
+    const sql = await readFile(new URL("../migrations/108_messages_provider_identity_per_connection.sql", import.meta.url), "utf8");
+    expect(sql).toContain("DROP INDEX IF EXISTS messages_provider_identity_idx");
+    expect(sql).toContain("messages_provider_connection_identity_idx");
+    expect(sql).toContain("source_connection_id, provider_message_id");
+    expect(sql).toContain("source_connection_id IS NULL");
+  });
+
   it("protects identity, credentials, channels, schedules, effects, and approvals", async () => {
     const sql = await readFile(new URL("../migrations/093_identity_credentials_effects_rls.sql", import.meta.url), "utf8");
     for (const table of [
