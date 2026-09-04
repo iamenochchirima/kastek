@@ -3469,6 +3469,76 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         correlationId: auth.correlationId,
         ...input,
       });
+      if (accepted.handoffAcknowledgement) {
+        const acknowledgement = accepted.handoffAcknowledgement;
+        let claimed = false;
+        try {
+          await channels.claimDelivery(auth.organizationId, acknowledgement.deliveryAttemptId);
+          claimed = true;
+          const channelType = input.channelType.trim().toLowerCase();
+          const text = typeof acknowledgement.message.content.text === "string"
+            ? acknowledgement.message.content.text
+            : "Your request has been sent to a team member. Someone will respond here.";
+          const delivery = channelType === "telegram"
+            ? await (async () => {
+              const connection = (await channels.listConnections(auth.organizationId, accepted.conversation.installation_id))
+                .find((candidate) => candidate.id === acknowledgement.channelConnectionId && candidate.status === "active");
+              if (!connection?.credential_reference) throw new Error("Telegram channel delivery is not configured");
+              const token = await channelCredentials.resolve(auth.organizationId, connection.credential_reference, "telegram");
+              return telegramClient.sendMessage(token, input.externalConversationId, text);
+            })()
+            : channelType === "discord"
+            ? await (async () => {
+              const connection = (await channels.listConnections(auth.organizationId, accepted.conversation.installation_id))
+                .find((candidate) => candidate.id === acknowledgement.channelConnectionId && candidate.status === "active");
+              if (!connection?.credential_reference) throw new Error("Discord channel delivery is not configured");
+              const token = await channelCredentials.resolve(auth.organizationId, connection.credential_reference, "discord");
+              return discordClient.sendMessage(token, input.externalConversationId, text);
+            })()
+            : await coreClient.deliverChannelMessage({
+              organizationId: auth.organizationId,
+              installationId: accepted.conversation.installation_id,
+              actorId: accepted.conversation.owner_actor_id ?? "kasitek-agent-platform",
+              runId: acknowledgement.message.id,
+              correlationId: auth.correlationId ?? acknowledgement.message.id,
+              channelType,
+              externalConversationId: input.externalConversationId,
+              text,
+            });
+          if (delivery.status === "unknown") throw new Error("HANDOFF_ACKNOWLEDGEMENT_DELIVERY_UNKNOWN");
+          await channels.markDelivered({
+            organizationId: auth.organizationId,
+            attemptId: acknowledgement.deliveryAttemptId,
+            providerMessageId: delivery.providerMessageId,
+          });
+          request.log.info({
+            event: "conversation.handoff.acknowledgement_delivered",
+            channelType,
+            handoffRequestId: accepted.handoffRequestId,
+            deliveryAttemptId: acknowledgement.deliveryAttemptId,
+          }, "Handoff acknowledgement delivered");
+        } catch (error) {
+          if (claimed) {
+            await channels.markDeliveryFailed({
+              organizationId: auth.organizationId,
+              attemptId: acknowledgement.deliveryAttemptId,
+              error: {
+                code: "HANDOFF_ACKNOWLEDGEMENT_DELIVERY_FAILED",
+                message: error instanceof Error ? error.message : "Handoff acknowledgement delivery failed",
+              },
+            }).catch((markError) => {
+              request.log.error({ err: markError, event: "conversation.handoff.acknowledgement_status_update_failed", deliveryAttemptId: acknowledgement.deliveryAttemptId }, "Handoff acknowledgement status update failed");
+            });
+          }
+          request.log.error({
+            err: error,
+            event: "conversation.handoff.acknowledgement_delivery_failed",
+            channelType: input.channelType,
+            handoffRequestId: accepted.handoffRequestId,
+            deliveryAttemptId: acknowledgement.deliveryAttemptId,
+          }, "Handoff acknowledgement delivery failed");
+        }
+      }
       const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
       if (workflowEnabled && dependencies.startWorkflow && accepted.created && accepted.run?.status === "received") {
         try {

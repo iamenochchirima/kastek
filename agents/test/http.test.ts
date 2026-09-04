@@ -1748,6 +1748,57 @@ describe("Agent Platform HTTP foundation", () => {
     await app.close();
   });
 
+  it("delivers a durable acknowledgement when an external message requests a human", async () => {
+    const accepted = {
+      conversation: { id: "conversation-1", installation_id: "install-1", owner_actor_id: null },
+      message: { id: "message-1", content: { text: "Can I speak to a person?" } },
+      run: null,
+      handoffRequestId: "handoff-1",
+      handoffAcknowledgement: {
+        message: { id: "ack-message-1", content: { text: "Your request has been sent to a team member. Someone will respond here." } },
+        deliveryAttemptId: "ack-attempt-1",
+        channelConnectionId: "telegram-connection-1",
+      },
+      created: true,
+    };
+    const sent: Array<{ token: string; chatId: string; text: string }> = [];
+    const channels = {
+      claimDelivery: vi.fn(async () => undefined),
+      listConnections: vi.fn(async () => [{ id: "telegram-connection-1", status: "active", credential_reference: "telegram-credential" }]),
+      markDelivered: vi.fn(async () => undefined),
+      markDeliveryFailed: vi.fn(async () => undefined),
+    };
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      platformChat: { acceptExternalMessage: vi.fn(async () => accepted) } as unknown as PlatformChatRepository,
+      channels: channels as never,
+      channelCredentials: { resolve: vi.fn(async () => "telegram-token") } as never,
+      telegramClient: { sendMessage: vi.fn(async (token: string, chatId: string, text: string) => { sent.push({ token, chatId, text }); return { providerMessageId: "telegram-ack-1", status: "sent" as const }; }) } as never,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/channels/inbound",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "agent-1" },
+      payload: {
+        channelType: "telegram",
+        provider: "telegram",
+        providerEventId: "event-1",
+        providerMessageId: "message-1",
+        externalIdentity: "customer-1",
+        externalConversationId: "chat-1",
+        content: { text: "Can I speak to a person?" },
+      },
+    });
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toMatchObject({ status: "handoff_requested", handoffRequestId: "handoff-1", runId: null });
+    expect(sent).toEqual([{ token: "telegram-token", chatId: "chat-1", text: "Your request has been sent to a team member. Someone will respond here." }]);
+    expect(channels.claimDelivery).toHaveBeenCalledWith("org-1", "ack-attempt-1");
+    expect(channels.markDelivered).toHaveBeenCalledWith({ organizationId: "org-1", attemptId: "ack-attempt-1", providerMessageId: "telegram-ack-1" });
+    expect(channels.markDeliveryFailed).not.toHaveBeenCalled();
+    await app.close();
+  });
+
   it("resolves a user's platform conversation and accepts an idempotent chat message", async () => {
     const started: string[] = [];
     const platformChat = {

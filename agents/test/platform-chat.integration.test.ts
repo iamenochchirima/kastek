@@ -455,8 +455,18 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       content: { text: "This agent reply must be blocked." },
       provider: "platform",
     })).rejects.toMatchObject({ code: "conversation_handoff_active", statusCode: 409 });
-    expect((await conversations.listMessages(organizationId, handoffThread.conversation.id))
-      .filter((message) => message.direction === "outbound")).toHaveLength(0);
+    const handoffMessages = (await conversations.listMessages(organizationId, handoffThread.conversation.id))
+      .filter((message) => message.direction === "outbound");
+    expect(handoffMessages).toHaveLength(1);
+    expect(handoffMessages[0]).toMatchObject({
+      content: { text: "Your request has been sent to a team member. Someone will respond here." },
+      delivery_status: "queued",
+      source_channel: "whatsapp",
+    });
+    expect(handoffThread.handoffAcknowledgement).toMatchObject({
+      message: { id: handoffMessages[0]!.id },
+      deliveryAttemptId: expect.any(String),
+    });
     await expect(platformChat.acceptExternalMessage({
       organizationId,
       installationId,

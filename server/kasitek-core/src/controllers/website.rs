@@ -121,7 +121,15 @@ const WEBSITE_CHAT_LOADER: &str = r#"(() => {
       if (event.data.type === 'kasitek:retry-audio' && typeof event.data.jobId === 'string') retryAudio(event.data.jobId);
       if (event.data.type === 'kasitek:send' && typeof event.data.text === 'string') {
         fetch(`${api}/sessions/${encodeURIComponent(session.sessionId)}/messages${shareSuffix}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idempotencyKey: crypto.randomUUID(), text: event.data.text }) })
-          .then((r) => { if (!r.ok) throw new Error('Message not accepted'); emit({ type: 'kasitek:accepted' }); })
+          .then(async (r) => {
+            const result = await r.json().catch(() => null);
+            if (!r.ok) throw new Error('Message not accepted');
+            if (result?.status === 'handoff_requested' || result?.handoffRequestId) {
+              emit({ type: 'kasitek:handoff-requested', text: 'Your request has been sent to a team member. Someone will respond here.' });
+            } else {
+              emit({ type: 'kasitek:accepted', status: result?.status || '' });
+            }
+          })
           .catch(() => emit({ type: 'kasitek:error', message: 'Unable to send your message. Please try again.' }));
       }
     });
@@ -282,6 +290,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     const expandIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H3v5M3 3l7 7M16 21h5v-5M21 21l-7-7"></path></svg>';
     const restoreIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3H3v6M3 3l7 7M15 21h6v-6M21 21l-7-7"></path></svg>';
     let pending=false;
+    let handoffPending=false;
     let pendingTimer=null;
     let recorder=null;
     let stream=null;
@@ -292,6 +301,14 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     const setSendState=(isSending)=>{
       sendButton.setAttribute('aria-label',isSending?'Sending message':'Send message');
       sendButton.title=isSending?'Sending message':'Send message';
+    };
+    const setComposerState=()=>{
+      const disabled=pending||handoffPending;
+      input.disabled=disabled;
+      sendButton.disabled=disabled;
+      audioButton.disabled=disabled;
+      fileButton.disabled=disabled;
+      input.placeholder=handoffPending?'Waiting for a reply...':'Ask me anything...';
     };
     const setExpandState=()=>{
       expandButton.innerHTML=expanded?restoreIcon:expandIcon;
@@ -543,10 +560,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     const stopPending=()=>{
       pending=false;
       typing.hidden=true;
-      input.disabled=false;
-      sendButton.disabled=false;
-      audioButton.disabled=false;
-      fileButton.disabled=false;
+      setComposerState();
       setSendState(false);
       if(pendingTimer){window.clearTimeout(pendingTimer);pendingTimer=null}
     };
@@ -554,10 +568,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
       pending=true;
       typing.hidden=false;
       messages.append(typing);
-      input.disabled=true;
-      sendButton.disabled=true;
-      audioButton.disabled=true;
-      fileButton.disabled=true;
+      setComposerState();
       setSendState(true);
       scrollToBottom();
       if(pendingTimer)window.clearTimeout(pendingTimer);
@@ -568,8 +579,14 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
         scrollToBottom();
       },45000);
     };
+    const showHandoffPending=(text)=>{
+      stopPending();
+      handoffPending=true;
+      setComposerState();
+      add(text,'bot');
+    };
     const sendAudio=(audio,fileName)=>{
-      if(pending)return;
+      if(pending||handoffPending)return;
       error.textContent='';
       hideQuickReplies();
       pendingAudioMessage=add('Audio message','me');
@@ -579,7 +596,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     const stopTracks=()=>{if(stream){stream.getTracks().forEach((track)=>track.stop());stream=null}recorder=null;audioButton.classList.remove('recording');audioButton.innerHTML=audioIcon;audioButton.setAttribute('aria-label','Record audio');audioButton.title='Record audio'};
     const supportedRecordingType=()=>{if(typeof MediaRecorder==='undefined')return '';return ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/ogg'].find((value)=>MediaRecorder.isTypeSupported(value))||''};
     audioButton.onclick=async()=>{
-      if(pending)return;
+      if(pending||handoffPending)return;
       if(recorder){recorder.stop();return}
       if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined'){error.textContent='Audio recording is not supported in this browser';return}
       try{
@@ -594,7 +611,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
         audioButton.classList.add('recording');audioButton.innerHTML=stopIcon;audioButton.setAttribute('aria-label','Stop recording');audioButton.title='Stop recording';
       }catch(errorValue){stopTracks();error.textContent=errorValue?.name==='NotAllowedError'?'Microphone permission is required':'Unable to access the microphone'}
     };
-    fileButton.onclick=()=>{if(!pending)fileInput.click()};
+    fileButton.onclick=()=>{if(!pending&&!handoffPending)fileInput.click()};
     fileInput.onchange=()=>{const file=fileInput.files?.[0];fileInput.value='';if(file)sendAudio(file,file.name)};
 
     window.addEventListener('message',(event)=>{
@@ -616,6 +633,10 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
         error.textContent='';
         if(pendingAudioMessage){const transcript=pendingAudioMessage.querySelector('.transcript');if(transcript)transcript.textContent='Transcribing…';else{const next=document.createElement('div');next.className='transcript';next.textContent='Transcribing…';pendingAudioMessage.append(next)}}
       }
+      if(data.type==='kasitek:handoff-requested'){
+        error.textContent='';
+        showHandoffPending(data.text||'Your request has been sent to a team member. Someone will respond here.');
+      }
       if(data.type==='kasitek:audio-status'&&pendingAudioMessage){
         const transcript=pendingAudioMessage.querySelector('.transcript');
         if(typeof data.audioUrl==='string'&&data.audioUrl){let player=pendingAudioMessage.querySelector('audio');if(!player){player=document.createElement('audio');player.controls=true;player.preload='metadata';player.className='audio-player';pendingAudioMessage.prepend(player)}player.src=data.audioUrl}
@@ -628,6 +649,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
         }
       }
       if(data.type==='kasitek:reply'){
+        handoffPending=false;
         stopPending();
         add(data.text,'bot',data.content);
       }
@@ -641,7 +663,7 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
     backButton.onclick=()=>{expanded=false;setExpandState();parent.postMessage({type:'kasitek:toggle-expand',expanded},targetOrigin)};
     q('#close').onclick=()=>parent.postMessage({type:'kasitek:close'},targetOrigin);
     const sendText=(value)=>{
-      if(pending)return;
+      if(pending||handoffPending)return;
       const text=String(value||'').trim();
       if(!text)return;
       error.textContent='';
@@ -1327,6 +1349,9 @@ mod tests {
     fn widget_frame_keeps_the_polished_shell_and_existing_controls() {
         assert!(WEBSITE_CHAT_FRAME.contains("Powered by AI"));
         assert!(WEBSITE_CHAT_FRAME.contains("Ask me anything..."));
+        assert!(WEBSITE_CHAT_FRAME.contains("kasitek:handoff-requested"));
+        assert!(WEBSITE_CHAT_FRAME.contains("showHandoffPending"));
+        assert!(WEBSITE_CHAT_FRAME.contains("Your request has been sent to a team member"));
         assert!(WEBSITE_CHAT_FRAME.contains("AI-generated content may be inaccurate."));
         assert!(WEBSITE_CHAT_FRAME.contains("#powered-by a{color:var(--chat-primary)"));
         assert!(WEBSITE_CHAT_FRAME.contains("quick-replies"));
@@ -1344,6 +1369,8 @@ mod tests {
     #[test]
     fn widget_loader_supports_expanding_and_restoring_the_frame() {
         assert!(WEBSITE_CHAT_LOADER.contains("kasitek:toggle-expand"));
+        assert!(WEBSITE_CHAT_LOADER.contains("kasitek:handoff-requested"));
+        assert!(WEBSITE_CHAT_LOADER.contains("handoffRequestId"));
         assert!(WEBSITE_CHAT_LOADER.contains("width:min(500px,calc(100vw - 48px))"));
         assert!(WEBSITE_CHAT_LOADER.contains("top:12px;bottom:12px"));
         assert!(WEBSITE_CHAT_LOADER.contains("aria-expanded"));
