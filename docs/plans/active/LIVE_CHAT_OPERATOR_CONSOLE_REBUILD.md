@@ -1,6 +1,6 @@
 # Live Chat operator console rebuild
 
-**Status:** Active
+**Status:** Active — deployed; channel and browser smoke checks remain
 
 **Owner:** Agent Platform and Client
 
@@ -28,7 +28,7 @@ and each ownership action must have one clear result.
 - A general replacement for the Agent Platform event journal.
 - New customer channels or provider connection work.
 - A broader redesign of the Inbox product outside customer-agent handoffs.
-- Deployment. The user will decide when to deploy after verification.
+- Production deployment execution beyond the release record.
 
 ## Context and constraints
 
@@ -58,7 +58,7 @@ and each ownership action must have one clear result.
 6. [x] Put the reply composer below the transcript and show per-message delivery state and retry.
 7. [x] Move Return to queue, Resume agent, and Resolve conversation into clear contextual actions.
 8. [x] Update handoff architecture, operator documentation, analytics, logs, and release evidence.
-9. [in_progress] Run targeted tests, full Agent tests, Client lint and build, then record remaining gaps.
+9. [x] Run targeted tests, full Agent tests, Client lint and build, then record remaining gaps.
 
 ## Verification
 
@@ -76,13 +76,13 @@ Change: Rebuild Live Chat ownership, reply delivery feedback, and real-time upda
 Owner: Agent Platform and Client
 Risk: high
 Affected services and user surfaces: agents API, Agent PostgreSQL schema, client Live Chat, Core channel delivery
-Platform release version or release ID: pending
+Platform release version or release ID: Railway Agents API 2fd28c83-b895-493b-93c5-a15c308e376d; Agents Worker c33c00ab-a8b0-43ce-aa4c-3ba8a4ea98dc; MCP Gateway 5deb004b-ee53-48e5-b97c-50a56a2bab69; Vercel dpl_CTwnUZ9Zm8KxGHedmN4vksLLWMyh
 API/schema/migration changes: Added authenticated assignment filters and summary fields; added conversation SSE endpoints; migration 109 adds PostgreSQL conversation notification triggers
 Feature flag or rollout method: existing customer_handoff_enabled gate; staged organization rollout recommended
 Analytics events and success metrics: claim latency, first-human-response latency, delivery failures, retries, queue feed reconnects
 Logs, metrics, dashboards, and alerts: structured delivery and stream lifecycle logs; dashboard decision pending
 User, API, internal, and operational documentation: customer handoff architecture and Conversations operator guide
-Validation evidence: 696 Agent tests pass (86 integration/environment skips); targeted HTTP, repository, notification, and migration tests pass; Agent build, Client TypeScript check, changed-file lint, and Client production build pass. Migration application, provider smoke, and responsive browser checks remain pending.
+Validation evidence: 696 Agent tests pass (86 integration/environment skips); targeted HTTP, repository, notification, and migration tests pass; Agent build, Client TypeScript check, changed-file lint, and Client production build pass. Railway deployments are healthy, migration 109 applied successfully in one-shot deployment 46c02e7c-77e6-4210-b2c9-ed131a5c3df9, Vercel deployment is READY and aliased to app.kasitek.co.za, and the public MCP Gateway health check returned 200. Provider smoke and responsive browser checks remain pending.
 Rollback or disable plan: revert Client surface and API additions; disable customer_handoff_enabled if ownership safety regresses
 Post-release review date: pending deployment date
 ```
@@ -98,4 +98,4 @@ Post-release review date: pending deployment date
 
 ## Notes and blockers
 
-Migration 109 must be applied before the SSE feed can receive database notifications. Provider delivery and browser smoke checks require the deployed Agent API, Client, Core delivery boundary, and channel credentials.
+Migration 109 is applied and the normal Agents API start command has been restored. Provider delivery and browser smoke checks still require an end-to-end test through the deployed Agent API, Client, Core delivery boundary, and channel credentials.
