@@ -9,6 +9,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import Script from "next/script";
+import { AgentSystemPreview } from "@/components/agent-system-preview";
 import { ProductWorkspacePreview } from "@/components/product-workspace-preview";
 import { ServiceDeliveryMontage } from "@/components/service-delivery-montage";
 import { PartnershipWorkspacePreview } from "@/components/partnership-workspace-preview";
@@ -116,33 +117,16 @@ export default function LabsLandingPage() {
         </div>
       </section>
 
-      <section className="disciplines section-pad" id="work">
-        <div className="section-heading">
-          <h2>
-            AI should earn its place in the <em>business.</em>
-          </h2>
-          <p>
-            Use Kasitek directly, bring us in to build, or deliver the platform
-            under your own brand.
+      <section className="connected-agents-section section-pad" id="agents">
+        <div className="connected-agents-heading">
+          <h2>Stay on top of your game with KasiTek Agents.</h2>
+          <p className="connected-agents-intro">
+            Ask your agent what needs attention, follow up with customers, check
+            bookings, and manage work across web, WhatsApp, Telegram, and Discord.
           </p>
         </div>
 
-        <div className="discipline-grid">
-          {disciplines.map((discipline) => (
-            <article className="discipline-card" key={discipline.title}>
-              <div className="discipline-top">
-                <discipline.icon aria-hidden="true" />
-              </div>
-              <h3>{discipline.title}</h3>
-              <p>{discipline.text}</p>
-              <ul>
-                {discipline.tags.map((tag) => (
-                  <li key={tag}>{tag}</li>
-                ))}
-              </ul>
-            </article>
-          ))}
-        </div>
+        <AgentSystemPreview />
       </section>
 
       <section className="operating-system section-pad" id="kasitek">
@@ -198,6 +182,35 @@ export default function LabsLandingPage() {
           </Link>
         </div>
         <PartnershipWorkspacePreview />
+      </section>
+
+      <section className="disciplines section-pad" id="work">
+        <div className="section-heading">
+          <h2>
+            AI should earn its place in the <em>business.</em>
+          </h2>
+          <p>
+            Use Kasitek directly, bring us in to build, or deliver the platform
+            under your own brand.
+          </p>
+        </div>
+
+        <div className="discipline-grid">
+          {disciplines.map((discipline) => (
+            <article className="discipline-card" key={discipline.title}>
+              <div className="discipline-top">
+                <discipline.icon aria-hidden="true" />
+              </div>
+              <h3>{discipline.title}</h3>
+              <p>{discipline.text}</p>
+              <ul>
+                {discipline.tags.map((tag) => (
+                  <li key={tag}>{tag}</li>
+                ))}
+              </ul>
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="final-cta section-pad">
