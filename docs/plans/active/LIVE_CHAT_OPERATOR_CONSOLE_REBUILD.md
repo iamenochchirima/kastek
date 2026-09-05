@@ -99,3 +99,31 @@ Post-release review date: pending deployment date
 ## Notes and blockers
 
 Migration 109 is applied and the normal Agents API start command has been restored. Provider delivery and browser smoke checks still require an end-to-end test through the deployed Agent API, Client, Core delivery boundary, and channel credentials.
+
+## Follow-up: Core proxy compatibility
+
+The first Live Chat release exposed two Core boundary gaps and one incomplete proxy query contract:
+
+- The Client connected to `/api/agents/conversations/events/stream`, but Core had only mounted the selected-conversation stream. Core now proxies the organization-scoped Agent Platform feed.
+- Operator replies send `Idempotency-Key`; Core CORS now allows that header so the browser preflight reaches the message endpoint.
+- Core now forwards `assignment=mine|team` to the Agent Platform instead of silently dropping the filter.
+
+Regression coverage includes the Core route registry, the actual CORS preflight middleware, the organization feed upstream path, and assignment query forwarding. Production verification on 2026-09-05 returned a successful operator-message preflight, an authenticated response rather than `404` for the feed, and a healthy Core response.
+
+Follow-up release record:
+
+```text
+Change: Restore Core Live Chat realtime feed proxy, operator-message CORS, and assignment query forwarding
+Owner: Agent Platform and Core
+Risk: medium
+Affected services and user surfaces: Core API, Live Chat operator console
+Platform release version or release ID: Railway Core 4258f25e-968a-443f-9d3a-a05a70db4379
+API/schema/migration changes: Added the Core organization conversation-feed proxy route; added Idempotency-Key to dashboard CORS; forwarded handoff assignment filters
+Feature flag or rollout method: Existing Live Chat surface; no new flag
+Analytics events and success metrics: Existing queue feed, message delivery, and reconnect metrics; no new event
+Logs, metrics, dashboards, and alerts: Existing Core request correlation and HTTP logs; production preflight and feed checks passed
+User, API, internal, and operational documentation: Existing customer handoff architecture and Conversations operator guide remain current
+Validation evidence: Core package tests passed (268 passed, 3 ignored), Core binary CORS regression passed, Core build passed, production OPTIONS returned 200 with Idempotency-Key allowed, production feed returned 401 instead of 404 without credentials, and /health returned 200
+Rollback or disable plan: Redeploy the previous Core deployment 2d63b490-61e9-466c-9444-c45c0327f3ef if the proxy boundary regresses
+Post-release review date: pending browser smoke confirmation
+```
