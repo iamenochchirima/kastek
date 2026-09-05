@@ -30,9 +30,16 @@ mod tests {
         let dynamic_conversation_route = internal_routes
             .find("\"/conversations/{conversationId}\",\n                web::get().to(agent_platform::get_conversation)")
             .expect("dynamic conversation route");
+        let conversation_feed_route = internal_routes
+            .find("\"/conversations/events/stream\"")
+            .expect("conversation feed route");
         assert!(
             live_route < dynamic_conversation_route,
             "the literal live route must be registered before the dynamic conversation route"
+        );
+        assert!(
+            conversation_feed_route < dynamic_conversation_route,
+            "the literal conversation feed route must be registered before the dynamic conversation route"
         );
         let routes = [
             (Method::GET, "/health"),
@@ -104,6 +111,7 @@ mod tests {
                 "/api/internal/agents/v1/content/posts/post-1",
             ),
             (Method::GET, "/api/agents"),
+            (Method::GET, "/api/agents/conversations/events/stream"),
             (Method::PATCH, "/api/agents/agent-1"),
             (Method::GET, "/api/agents/knowledge/sources/source-1"),
             (Method::GET, "/api/developers"),

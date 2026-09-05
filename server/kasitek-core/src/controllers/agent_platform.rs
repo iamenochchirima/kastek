@@ -24,6 +24,7 @@ pub struct HandoffQuery {
     pub channel_type: Option<String>,
     pub reason: Option<String>,
     pub status: Option<String>,
+    pub assignment: Option<String>,
     pub priority: Option<String>,
     pub search: Option<String>,
     pub limit: Option<u32>,
@@ -998,6 +999,7 @@ pub async fn list_handoffs(
             query.channel_type.as_deref(),
             query.reason.as_deref(),
             query.status.as_deref(),
+            query.assignment.as_deref(),
             query.priority.as_deref(),
             query.search.as_deref(),
             query.limit,
@@ -1071,6 +1073,28 @@ pub async fn get_conversation_summary(
         )
         .await?;
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn stream_conversation_feed(
+    pool: web::Data<PgPool>,
+    config: web::Data<AppConfig>,
+    req: HttpRequest,
+) -> Result<HttpResponse, AppError> {
+    let (user, organization_id) = scope(&req, pool.get_ref()).await?;
+    let response = client(config.get_ref())?
+        .stream_conversation_feed_events(&organization_id, &user.id)
+        .await?;
+    let stream = response.bytes_stream().map(|chunk| {
+        chunk.map_err(|error| {
+            actix_web::error::ErrorBadGateway(format!("Agent Platform stream failed: {error}"))
+        })
+    });
+    Ok(HttpResponse::Ok()
+        .append_header(("Content-Type", "text/event-stream"))
+        .append_header(("Cache-Control", "no-cache, no-transform"))
+        .append_header(("Connection", "keep-alive"))
+        .append_header(("X-Accel-Buffering", "no"))
+        .streaming(stream))
 }
 
 pub async fn stream_conversation(

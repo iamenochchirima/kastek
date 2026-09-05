@@ -242,19 +242,7 @@ async fn main() -> std::io::Result<()> {
     );
 
     HttpServer::new(move || {
-        let mut cors = Cors::default()
-            .allowed_origin(&frontend_origin)
-            .allowed_methods(vec!["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"])
-            .allowed_headers(vec![
-                "Content-Type",
-                "Authorization",
-                "X-Audio-Idempotency-Key",
-                "X-Audio-File-Name",
-                "X-Audio-Caption",
-                "X-Audio-Display-Name",
-            ])
-            .supports_credentials()
-            .max_age(3600);
+        let mut cors = dashboard_cors(&frontend_origin);
 
         // Website Chat is embedded on customer-controlled origins. The
         // widget handlers still validate each origin against the deployment's
@@ -290,4 +278,68 @@ async fn main() -> std::io::Result<()> {
     .bind(("0.0.0.0", port))?
     .run()
     .await
+}
+
+fn dashboard_cors(frontend_origin: &str) -> Cors {
+    Cors::default()
+        .allowed_origin(frontend_origin)
+        .allowed_methods(vec!["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"])
+        .allowed_headers(vec![
+            "Content-Type",
+            "Authorization",
+            "Idempotency-Key",
+            "X-Audio-Idempotency-Key",
+            "X-Audio-File-Name",
+            "X-Audio-Caption",
+            "X-Audio-Display-Name",
+        ])
+        .supports_credentials()
+        .max_age(3600)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::dashboard_cors;
+    use actix_web::{http::Method, test, web, App, HttpResponse};
+
+    #[actix_web::test]
+    async fn cors_allows_operator_message_idempotency_preflight() {
+        let app = test::init_service(
+            App::new()
+                .wrap(dashboard_cors("https://app.kasitek.co.za"))
+                .route(
+                    "/api/agents/conversations/handoffs/handoff-1/messages",
+                    web::post().to(|| async { HttpResponse::Ok() }),
+                ),
+        )
+        .await;
+        let response = test::call_service(
+            &app,
+            test::TestRequest::default()
+                .method(Method::OPTIONS)
+                .uri("/api/agents/conversations/handoffs/handoff-1/messages")
+                .insert_header(("Origin", "https://app.kasitek.co.za"))
+                .insert_header(("Access-Control-Request-Method", "POST"))
+                .insert_header((
+                    "Access-Control-Request-Headers",
+                    "content-type,idempotency-key",
+                ))
+                .to_request(),
+        )
+        .await;
+
+        assert_eq!(response.status(), 200);
+        assert_eq!(
+            response
+                .headers()
+                .get("access-control-allow-origin")
+                .and_then(|value| value.to_str().ok()),
+            Some("https://app.kasitek.co.za")
+        );
+        assert!(response
+            .headers()
+            .get("access-control-allow-headers")
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.to_ascii_lowercase().contains("idempotency-key")));
+    }
 }

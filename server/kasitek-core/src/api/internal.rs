@@ -580,6 +580,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::get().to(agent_platform::list_live_conversations),
             )
             .route(
+                "/conversations/events/stream",
+                web::get().to(agent_platform::stream_conversation_feed),
+            )
+            .route(
                 "/conversations/handoffs/{handoffId}/messages",
                 web::post().to(agent_platform::send_human_message),
             )

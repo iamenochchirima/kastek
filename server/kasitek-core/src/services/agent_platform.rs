@@ -1747,6 +1747,7 @@ impl AgentPlatformClient {
         channel_type: Option<&str>,
         reason: Option<&str>,
         status: Option<&str>,
+        assignment: Option<&str>,
         priority: Option<&str>,
         search: Option<&str>,
         limit: Option<u32>,
@@ -1760,6 +1761,7 @@ impl AgentPlatformClient {
             ("channelType", channel_type),
             ("reason", reason),
             ("status", status),
+            ("assignment", assignment),
             ("priority", priority),
             ("search", search),
             ("cursor", cursor),
@@ -1786,6 +1788,43 @@ impl AgentPlatformClient {
             None,
         )
         .await
+    }
+
+    pub async fn stream_conversation_feed_events(
+        &self,
+        organization_id: &str,
+        actor_id: &str,
+    ) -> Result<Response, AppError> {
+        let correlation_id = new_correlation_id();
+        let request = self
+            .client
+            .get(format!("{}/v1/conversations/events/stream", self.base_url))
+            .header("accept", "text/event-stream")
+            .header(
+                "Authorization",
+                format!(
+                    "Bearer {}",
+                    self.token(organization_id, actor_id, &["agents:read"], &correlation_id)?
+                ),
+            )
+            .header("x-organization-id", organization_id)
+            .header("x-actor-id", actor_id)
+            .header("x-correlation-id", &correlation_id);
+        let response = observability::provider_result_span_with(
+            "kasitek-agents",
+            "http.request",
+            move || async move {
+                let mut trace_headers = HeaderMap::new();
+                observability::inject_trace_context(&mut trace_headers);
+                request.headers(trace_headers).send().await
+            },
+        )
+        .await
+        .map_err(|error| self.map_request_error(error))?;
+        if response.status().is_success() {
+            return Ok(response);
+        }
+        Err(self.map_status(response).await)
     }
 
     pub async fn list_live_conversations(
@@ -3197,6 +3236,60 @@ mod tests {
             audience: "kasitek-agents".to_string(),
             timeout: Duration::from_secs(2),
         }
+    }
+
+    #[tokio::test]
+    async fn conversation_feed_uses_the_organization_stream_and_read_scope() {
+        let (base_url, server) =
+            mock_agent_server(vec![(200, "event: conversation.ready\\ndata: {}\\n\\n")]).await;
+        let client = test_client(&base_url);
+
+        let response = client
+            .stream_conversation_feed_events("org-1", "actor-1")
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let _ = response.bytes().await.unwrap();
+
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 1);
+        assert!(requests[0].starts_with("GET /v1/conversations/events/stream HTTP/1.1"));
+        assert_eq!(
+            request_header(&requests[0], "accept").as_deref(),
+            Some("text/event-stream")
+        );
+        assert_scoped_request(&requests[0], "agents:read");
+    }
+
+    #[tokio::test]
+    async fn handoff_assignment_filter_is_forwarded_to_agent_platform() {
+        let (base_url, server) = mock_agent_server(vec![(200, r#"{"items":[]}"#)]).await;
+        let client = test_client(&base_url);
+
+        client
+            .list_handoffs(
+                "org-1",
+                "actor-1",
+                Some("install-1"),
+                Some("agent-1"),
+                Some("whatsapp"),
+                Some("customer_requested"),
+                Some("pending,claimed"),
+                Some("mine"),
+                Some("urgent"),
+                Some("acme"),
+                Some(10),
+                Some("next-page"),
+                None,
+            )
+            .await
+            .unwrap();
+
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 1);
+        assert!(requests[0].starts_with("GET /v1/conversations/handoffs?"));
+        assert!(requests[0].contains("assignment=mine"));
+        assert_scoped_request(&requests[0], "agents:read");
     }
 
     #[tokio::test]
