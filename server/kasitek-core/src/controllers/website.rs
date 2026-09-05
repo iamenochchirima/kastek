@@ -123,9 +123,18 @@ const WEBSITE_CHAT_LOADER: &str = r#"(() => {
         fetch(`${api}/sessions/${encodeURIComponent(session.sessionId)}/messages${shareSuffix}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idempotencyKey: crypto.randomUUID(), text: event.data.text }) })
           .then(async (r) => {
             const result = await r.json().catch(() => null);
+            const handoffActive = result?.status === 'handoff_active'
+              || result?.handoffActive === true
+              || result?.code === 'conversation_handoff_active'
+              || result?.error?.code === 'conversation_handoff_active'
+              || (r.status === 409 && typeof result?.error === 'string' && result.error.includes('owned by a human'));
+            if (handoffActive) {
+              emit({ type: 'kasitek:handoff-active', text: result?.handoffMessage || 'Your request for a team member is already open. Someone will reply here as soon as possible.' });
+              return;
+            }
             if (!r.ok) throw new Error('Message not accepted');
             if (result?.status === 'handoff_requested' || result?.handoffRequestId) {
-              emit({ type: 'kasitek:handoff-requested', text: 'Your request has been sent to a team member. Someone will respond here.' });
+              emit({ type: 'kasitek:handoff-requested', text: 'Absolutely — I’ve sent your request to our team. A team member will reply here as soon as possible.' });
             } else {
               emit({ type: 'kasitek:accepted', status: result?.status || '' });
             }
@@ -635,7 +644,11 @@ const WEBSITE_CHAT_FRAME: &str = r#"<!doctype html>
       }
       if(data.type==='kasitek:handoff-requested'){
         error.textContent='';
-        showHandoffPending(data.text||'Your request has been sent to a team member. Someone will respond here.');
+        showHandoffPending(data.text||'Absolutely — I’ve sent your request to our team. A team member will reply here as soon as possible.');
+      }
+      if(data.type==='kasitek:handoff-active'){
+        error.textContent='';
+        showHandoffPending(data.text||'Your request for a team member is already open. Someone will reply here as soon as possible.');
       }
       if(data.type==='kasitek:audio-status'&&pendingAudioMessage){
         const transcript=pendingAudioMessage.querySelector('.transcript');
@@ -1350,8 +1363,10 @@ mod tests {
         assert!(WEBSITE_CHAT_FRAME.contains("Powered by AI"));
         assert!(WEBSITE_CHAT_FRAME.contains("Ask me anything..."));
         assert!(WEBSITE_CHAT_FRAME.contains("kasitek:handoff-requested"));
+        assert!(WEBSITE_CHAT_FRAME.contains("kasitek:handoff-active"));
         assert!(WEBSITE_CHAT_FRAME.contains("showHandoffPending"));
-        assert!(WEBSITE_CHAT_FRAME.contains("Your request has been sent to a team member"));
+        assert!(WEBSITE_CHAT_FRAME.contains("Absolutely — I’ve sent your request to our team"));
+        assert!(WEBSITE_CHAT_FRAME.contains("Your request for a team member is already open"));
         assert!(WEBSITE_CHAT_FRAME.contains("AI-generated content may be inaccurate."));
         assert!(WEBSITE_CHAT_FRAME.contains("#powered-by a{color:var(--chat-primary)"));
         assert!(WEBSITE_CHAT_FRAME.contains("quick-replies"));
@@ -1370,6 +1385,8 @@ mod tests {
     fn widget_loader_supports_expanding_and_restoring_the_frame() {
         assert!(WEBSITE_CHAT_LOADER.contains("kasitek:toggle-expand"));
         assert!(WEBSITE_CHAT_LOADER.contains("kasitek:handoff-requested"));
+        assert!(WEBSITE_CHAT_LOADER.contains("kasitek:handoff-active"));
+        assert!(WEBSITE_CHAT_LOADER.contains("handoff_active"));
         assert!(WEBSITE_CHAT_LOADER.contains("handoffRequestId"));
         assert!(WEBSITE_CHAT_LOADER.contains("width:min(500px,calc(100vw - 48px))"));
         assert!(WEBSITE_CHAT_LOADER.contains("top:12px;bottom:12px"));

@@ -459,7 +459,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       .filter((message) => message.direction === "outbound");
     expect(handoffMessages).toHaveLength(1);
     expect(handoffMessages[0]).toMatchObject({
-      content: { text: "Your request has been sent to a team member. Someone will respond here." },
+      content: { text: "Absolutely — I’ve sent your request to our team. A team member will reply here as soon as possible." },
       delivery_status: "queued",
       source_channel: "whatsapp",
     });
@@ -467,7 +467,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       message: { id: handoffMessages[0]!.id },
       deliveryAttemptId: expect.any(String),
     });
-    await expect(platformChat.acceptExternalMessage({
+    const activeHandoff = await platformChat.acceptExternalMessage({
       organizationId,
       installationId,
       channelType: "whatsapp",
@@ -478,7 +478,13 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       externalConversationId: "wa-handoff-thread",
       messageType: "text",
       content: { text: "Do not start another agent run while a human owns this thread." },
-    })).rejects.toMatchObject({ code: "conversation_handoff_active", statusCode: 409 });
+    });
+    expect(activeHandoff).toMatchObject({
+      created: false,
+      handoffActive: true,
+      handoffRequestId: handoffThread.handoffRequestId,
+      handoffAcknowledgement: { deliveryAttemptId: expect.any(String) },
+    });
 
     await channels.createConnection({
       organizationId,

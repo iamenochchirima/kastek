@@ -9,6 +9,7 @@ import {
 import type { ConversationRecord, MessageRecord, ParticipantRecord } from "./conversation-repository";
 import type { RunRecord } from "./run-repository";
 import { ConversationHandoffService } from "../../handoff/service";
+import { HANDOFF_ACKNOWLEDGEMENT_TEXT } from "../../handoff/messages";
 import { recordConversationAdmission } from "../../telemetry/spans";
 import { purgeMemoryRecords } from "./memory-repository";
 
@@ -22,6 +23,7 @@ export interface AcceptedPlatformMessage extends PlatformConversation {
   message: MessageRecord;
   run: RunRecord | null;
   created: boolean;
+  handoffActive?: boolean;
   handoffRequestId?: string;
   handoffAcknowledgement?: HandoffAcknowledgement;
 }
@@ -41,6 +43,13 @@ interface ActiveInstallation {
   agent_version_id: string;
   agent_name: string;
   execution_mode: "system_hosted" | "kasitek_hosted" | "external_connected";
+}
+
+interface ChannelRoute {
+  id: string;
+  owner_actor_id: string | null;
+  channel_connection_id: string;
+  installation_id: string;
 }
 
 function fallbackConversationTitle(message: string): string {
@@ -526,12 +535,6 @@ export class PlatformChatRepository {
   }): Promise<AcceptedExternalMessage> {
     return withTransaction(this.pool, async (client) => {
       const content = normalizeAgentMediaContent(input.content);
-      type ChannelRoute = {
-        id: string;
-        owner_actor_id: string | null;
-        channel_connection_id: string;
-        installation_id: string;
-      };
       const binding = await client.query<ChannelRoute>(
         `SELECT cb.id, cb.owner_actor_id, cb.channel_connection_id, cb.installation_id
          FROM channel_bindings cb
@@ -713,11 +716,51 @@ export class PlatformChatRepository {
         };
       }
 
-      if (resolved.conversation.conversation_kind === "customer" && resolved.conversation.handoff_state !== "agent_active") {
-        throw Object.assign(new Error("Agent execution is paused while this conversation is owned by a human"), {
-          statusCode: 409,
-          code: "conversation_handoff_active",
-        });
+      if (
+        resolved.conversation.conversation_kind === "customer"
+        && ["handoff_requested", "human_owned"].includes(resolved.conversation.handoff_state)
+      ) {
+        const activeHandoff = await client.query<{ id: string }>(
+          `SELECT id
+           FROM agent_handoff_requests
+           WHERE organization_id = $1 AND conversation_id = $2
+             AND status IN ('pending', 'claimed')
+           ORDER BY created_at DESC, id DESC
+           LIMIT 1
+           FOR UPDATE`,
+          [input.organizationId, resolved.conversation.id],
+        );
+        const handoffId = activeHandoff.rows[0]?.id;
+        const handoffAcknowledgement = handoffId && input.channelType !== "website"
+          ? await this.queueHandoffAcknowledgement(client, {
+            organizationId: input.organizationId,
+            channelType: input.channelType,
+            externalConversationId: input.externalConversationId,
+            route,
+            conversation: resolved.conversation,
+            agentParticipant: resolved.agentParticipant,
+            handoffId,
+          })
+          : undefined;
+        const latestMessage = handoffAcknowledgement?.message ?? (await client.query<MessageRecord>(
+          `SELECT * FROM messages
+           WHERE conversation_id = $1
+           ORDER BY sequence_number DESC, created_at DESC
+           LIMIT 1`,
+          [resolved.conversation.id],
+        )).rows[0];
+        if (!latestMessage) throw new Error("Active handoff has no conversation message");
+        recordConversationAdmission({ outcome: "redelivery", channel: input.channelType });
+        return {
+          ...resolved,
+          sourceParticipant,
+          message: latestMessage,
+          run: null,
+          handoffActive: true,
+          ...(handoffId ? { handoffRequestId: handoffId } : {}),
+          ...(handoffAcknowledgement ? { handoffAcknowledgement } : {}),
+          created: false,
+        };
       }
 
       const idempotencyKey = `channel:${input.provider}:${input.providerEventId}`;
@@ -783,57 +826,15 @@ export class PlatformChatRepository {
         await enqueueAgentConversationMessage(client, context, message, "created");
         let handoffAcknowledgement: HandoffAcknowledgement | undefined;
         if (input.channelType !== "website") {
-          const acknowledgementText = "Your request has been sent to a team member. Someone will respond here.";
-          const acknowledgementSequence = await this.nextSequence(client, resolved.conversation.id);
-          const acknowledgementResult = await client.query<MessageRecord>(
-            `INSERT INTO messages
-              (conversation_id, organization_id, participant_id, direction, message_type, content,
-               provider, provider_message_id, sequence_number, source_channel,
-               source_connection_id, source_binding_id, external_conversation_id, occurred_at,
-               delivery_status)
-             VALUES ($1, $2, $3, 'outbound', 'text', $4::jsonb,
-                     'kasitek-handoff', $5, $6, $7, $8, $9, $10, now(), 'queued')
-             RETURNING *`,
-            [
-              resolved.conversation.id,
-              input.organizationId,
-              resolved.agentParticipant.id,
-              JSON.stringify({ text: acknowledgementText }),
-              `handoff:${handoffDecision.handoff.id}:ack`,
-              acknowledgementSequence,
-              input.channelType,
-              route.channel_connection_id,
-              route.id,
-              input.externalConversationId,
-            ],
-          );
-          const acknowledgementMessage = acknowledgementResult.rows[0];
-          if (!acknowledgementMessage) throw new Error("Handoff acknowledgement could not be persisted");
-          const attemptResult = await client.query<{ id: string }>(
-            `INSERT INTO delivery_attempts
-              (organization_id, conversation_id, message_id, channel_type, status, attempt_number)
-             VALUES ($1, $2, $3, $4, 'queued', 1)
-             RETURNING id`,
-            [input.organizationId, resolved.conversation.id, acknowledgementMessage.id, input.channelType],
-          );
-          const deliveryAttemptId = attemptResult.rows[0]?.id;
-          if (!deliveryAttemptId) throw new Error("Handoff acknowledgement delivery could not be queued");
-          const updatedConversation = await client.query<ConversationRecord>(
-            `UPDATE conversations
-             SET updated_at = now(), last_message_at = now(), last_message_direction = 'outbound',
-                 last_message_preview = LEFT($3, 500), message_count = message_count + 1
-             WHERE organization_id = $1 AND id = $2
-             RETURNING *`,
-            [input.organizationId, resolved.conversation.id, acknowledgementText],
-          );
-          if (!updatedConversation.rows[0]) throw new Error("Conversation update failed after handoff acknowledgement");
-          const acknowledgementContext = await loadAgentConversationAnalyticsContext(client, input.organizationId, resolved.conversation.id);
-          await enqueueAgentConversationMessage(client, acknowledgementContext, acknowledgementMessage, "created");
-          handoffAcknowledgement = {
-            message: acknowledgementMessage,
-            deliveryAttemptId,
-            channelConnectionId: route.channel_connection_id,
-          };
+          handoffAcknowledgement = await this.queueHandoffAcknowledgement(client, {
+            organizationId: input.organizationId,
+            channelType: input.channelType,
+            externalConversationId: input.externalConversationId,
+            route,
+            conversation: resolved.conversation,
+            agentParticipant: resolved.agentParticipant,
+            handoffId: handoffDecision.handoff.id,
+          });
         }
         return {
           ...resolved,
@@ -1207,6 +1208,131 @@ export class PlatformChatRepository {
       [input.conversationId, input.organizationId, input.participantType, input.externalId, input.displayName ?? null],
     );
     return participant.rows[0]!;
+  }
+
+  /**
+   * Return a queued handoff acknowledgement, retry its last failed delivery,
+   * or create it when an older handoff never received one. This keeps the
+   * provider adapters idempotent while allowing a customer who messages an
+   * already-owned thread to receive a useful response.
+   */
+  private async queueHandoffAcknowledgement(
+    client: PoolClient,
+    input: {
+      organizationId: string;
+      channelType: string;
+      externalConversationId: string;
+      route: ChannelRoute;
+      conversation: ConversationRecord;
+      agentParticipant: ParticipantRecord;
+      handoffId: string;
+    },
+  ): Promise<HandoffAcknowledgement | undefined> {
+    const existingResult = await client.query<MessageRecord & {
+      delivery_attempt_id: string;
+      delivery_attempt_status: string;
+    }>(
+      `SELECT m.*, da.id AS delivery_attempt_id, da.status AS delivery_attempt_status
+       FROM messages m
+       JOIN LATERAL (
+         SELECT id, status
+         FROM delivery_attempts
+         WHERE message_id = m.id
+         ORDER BY attempt_number DESC
+         LIMIT 1
+       ) da ON true
+       WHERE m.organization_id = $1
+         AND m.provider = 'kasitek-handoff'
+         AND m.provider_message_id = $2
+       LIMIT 1`,
+      [input.organizationId, `handoff:${input.handoffId}:ack`],
+    );
+    const existing = existingResult.rows[0];
+    if (existing) {
+      if (existing.delivery_attempt_status === "failed" || existing.delivery_attempt_status === "unknown") {
+        const retryAttempt = await client.query<{ id: string }>(
+          `INSERT INTO delivery_attempts
+           (organization_id, conversation_id, message_id, channel_type, status, attempt_number)
+           SELECT $1, conversation_id, id, $2, 'queued',
+                  COALESCE((SELECT MAX(da.attempt_number) FROM delivery_attempts da WHERE da.message_id = m.id), 0) + 1
+           FROM messages m
+           WHERE m.id = $3 AND m.organization_id = $1
+           RETURNING id`,
+          [input.organizationId, input.channelType, existing.id],
+        );
+        if (retryAttempt.rows[0]) {
+          await client.query(
+            `UPDATE messages SET delivery_status = 'queued'
+             WHERE id = $1 AND organization_id = $2`,
+            [existing.id, input.organizationId],
+          );
+          const retryContext = await loadAgentConversationAnalyticsContext(client, input.organizationId, existing.conversation_id);
+          await enqueueAgentConversationMessage(client, retryContext, existing, "delivery_updated");
+          return {
+            message: existing,
+            deliveryAttemptId: retryAttempt.rows[0].id,
+            channelConnectionId: input.route.channel_connection_id,
+          };
+        }
+      }
+      if (existing.delivery_attempt_status === "queued") {
+        return {
+          message: existing,
+          deliveryAttemptId: existing.delivery_attempt_id,
+          channelConnectionId: input.route.channel_connection_id,
+        };
+      }
+      return undefined;
+    }
+
+    const acknowledgementSequence = await this.nextSequence(client, input.conversation.id);
+    const acknowledgementResult = await client.query<MessageRecord>(
+      `INSERT INTO messages
+        (conversation_id, organization_id, participant_id, direction, message_type, content,
+         provider, provider_message_id, sequence_number, source_channel,
+         source_connection_id, source_binding_id, external_conversation_id, occurred_at,
+         delivery_status)
+       VALUES ($1, $2, $3, 'outbound', 'text', $4::jsonb,
+               'kasitek-handoff', $5, $6, $7, $8, $9, $10, now(), 'queued')
+       RETURNING *`,
+      [
+        input.conversation.id,
+        input.organizationId,
+        input.agentParticipant.id,
+        JSON.stringify({ text: HANDOFF_ACKNOWLEDGEMENT_TEXT }),
+        `handoff:${input.handoffId}:ack`,
+        acknowledgementSequence,
+        input.channelType,
+        input.route.channel_connection_id,
+        input.route.id,
+        input.externalConversationId,
+      ],
+    );
+    const acknowledgementMessage = acknowledgementResult.rows[0];
+    if (!acknowledgementMessage) throw new Error("Handoff acknowledgement could not be persisted");
+    const attemptResult = await client.query<{ id: string }>(
+      `INSERT INTO delivery_attempts
+        (organization_id, conversation_id, message_id, channel_type, status, attempt_number)
+       VALUES ($1, $2, $3, $4, 'queued', 1)
+       RETURNING id`,
+      [input.organizationId, input.conversation.id, acknowledgementMessage.id, input.channelType],
+    );
+    const deliveryAttemptId = attemptResult.rows[0]?.id;
+    if (!deliveryAttemptId) throw new Error("Handoff acknowledgement delivery could not be queued");
+    await client.query(
+      `UPDATE conversations
+       SET updated_at = now(), last_message_at = now(), last_message_direction = 'outbound',
+           last_message_preview = LEFT($3, 500), message_count = message_count + 1
+       WHERE organization_id = $1 AND id = $2`,
+      [input.organizationId, input.conversation.id, HANDOFF_ACKNOWLEDGEMENT_TEXT],
+    );
+    const acknowledgementContext = await loadAgentConversationAnalyticsContext(client, input.organizationId, input.conversation.id);
+    await enqueueAgentConversationMessage(client, acknowledgementContext, acknowledgementMessage, "created");
+    return {
+      message: acknowledgementMessage,
+      deliveryAttemptId,
+      channelConnectionId: input.route.channel_connection_id,
+    };
   }
 
   private async nextSequence(client: PoolClient, conversationId: string): Promise<string> {

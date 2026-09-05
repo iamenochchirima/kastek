@@ -45,6 +45,7 @@ struct InternalClaims<'a> {
 #[derive(Debug, Deserialize)]
 struct UpstreamError {
     error: Option<String>,
+    code: Option<String>,
 }
 
 pub struct AgentPlatformClient {
@@ -3095,12 +3096,20 @@ impl AgentPlatformClient {
 
     async fn map_status(&self, response: Response) -> AppError {
         let status = response.status();
-        let detail = response
-            .json::<UpstreamError>()
-            .await
-            .ok()
-            .and_then(|value| value.error)
+        let detail = response.json::<UpstreamError>().await.ok();
+        let code = detail.as_ref().and_then(|value| value.code.as_deref());
+        let message = detail
+            .as_ref()
+            .and_then(|value| value.error.clone())
             .unwrap_or_else(|| "Agent Platform request failed".to_string());
+        if code == Some("conversation_handoff_active") {
+            return AppError::referral(
+                "conversation_handoff_active",
+                message,
+                actix_web::http::StatusCode::CONFLICT,
+            );
+        }
+        let detail = message;
         match status {
             StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => {
                 AppError::BadRequest(detail)
@@ -3188,6 +3197,31 @@ mod tests {
             audience: "kasitek-agents".to_string(),
             timeout: Duration::from_secs(2),
         }
+    }
+
+    #[tokio::test]
+    async fn channel_handoff_conflicts_preserve_the_upstream_reason_code() {
+        let (base_url, server) = mock_agent_server(vec![
+            (409, r#"{"error":"Agent execution is paused while this conversation is owned by a human","code":"conversation_handoff_active"}"#),
+        ]).await;
+        let client = test_client(&base_url);
+        let error = client
+            .ingest_channel_message("org-1", "actor-1", json!({"channelType": "website"}))
+            .await
+            .expect_err("active handoff should be surfaced as a conflict");
+        match error {
+            AppError::Referral {
+                code,
+                message,
+                status,
+            } => {
+                assert_eq!(code, "conversation_handoff_active");
+                assert!(message.contains("owned by a human"));
+                assert_eq!(status, actix_web::http::StatusCode::CONFLICT);
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+        server.await.unwrap();
     }
 
     #[tokio::test]

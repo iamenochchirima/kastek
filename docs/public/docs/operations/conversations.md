@@ -53,6 +53,6 @@ Customer-service agents use a two-step handoff flow:
 
 Until a request is created, the conversation remains agent-owned. Once created, it appears in the handoff queue and automated replies stop until an operator resolves or continues the conversation.
 
-An inbound API response for a confirmed handoff includes `status: "handoff_requested"`, the durable `handoffRequestId`, and no agent `runId`. Ordinary messages continue to return a run ID.
+An inbound API response for a confirmed handoff includes `status: "handoff_requested"`, the durable `handoffRequestId`, and no agent `runId`. If another message arrives while that handoff is pending or claimed, the response is successful with `status: "handoff_active"` and the same request ID; no second agent run is created. Ordinary agent-owned messages continue to return a run ID.
 
-The customer receives an acknowledgement that the request was sent. Website Chat displays this immediately and waits for a human reply; external channel acknowledgements are recorded as delivery attempts so failed sends can be investigated and replayed.
+The customer receives a conversational acknowledgement that the request was sent. Website Chat displays this immediately and waits for a human reply; external channel acknowledgements are recorded as delivery attempts so failed sends can be investigated and replayed. If an older active handoff is missing its acknowledgement, the next inbound message can safely queue or retry it without creating another handoff.

@@ -48,7 +48,8 @@ import { authenticateRequest, type AuthContext } from "./auth";
 import type { ApprovalSignal, CancellationSignal, ExternalEventSignal } from "../temporal/contracts";
 import { advanceSseCursor, formatSseComment, formatSseEvent, toPublicEvent } from "./sse";
 import { KASIAI_SLUG } from "../system/kasiai";
-import { PlatformChatRepository } from "../db/repositories/platform-chat-repository";
+import { PlatformChatRepository, type AcceptedExternalMessage, type HandoffAcknowledgement } from "../db/repositories/platform-chat-repository";
+import { HANDOFF_ACKNOWLEDGEMENT_TEXT, HANDOFF_ACTIVE_TEXT } from "../handoff/messages";
 import { listAgentTemplates, parseTemplateSettings } from "../system/templates";
 import { KasiAiPreferenceRepository } from "../db/repositories/kasiai-preference-repository";
 import { availableKasiAiModels, getKasiAiModelCatalog, isAllowedKasiAiModel } from "../system/kasiai-models";
@@ -513,6 +514,83 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const conversationActions = dependencies.conversationActions ?? new ConversationActionService(handoffs, controls);
   const conversationControls = dependencies.conversationControls ?? new ConversationControlService(handoffs);
   const coreClient = new KasitekCoreReadClient(dependencies.config);
+  const deliverHandoffAcknowledgement = async (input: {
+    accepted: AcceptedExternalMessage;
+    organizationId: string;
+    channelType: string;
+    externalConversationId: string;
+  }): Promise<void> => {
+    const acknowledgement: HandoffAcknowledgement | undefined = input.accepted.handoffAcknowledgement;
+    if (!acknowledgement) return;
+    const organizationId = input.organizationId;
+    let claimed = false;
+    try {
+      await channels.claimDelivery(organizationId, acknowledgement.deliveryAttemptId);
+      claimed = true;
+      const channelType = input.channelType.trim().toLowerCase();
+      const text = typeof acknowledgement.message.content.text === "string"
+        ? acknowledgement.message.content.text
+        : HANDOFF_ACKNOWLEDGEMENT_TEXT;
+      const delivery = channelType === "telegram"
+        ? await (async () => {
+          const connection = (await channels.listConnections(organizationId, input.accepted.conversation.installation_id))
+            .find((candidate) => candidate.id === acknowledgement.channelConnectionId && candidate.status === "active");
+          if (!connection?.credential_reference) throw new Error("Telegram channel delivery is not configured");
+          const token = await channelCredentials.resolve(organizationId, connection.credential_reference, "telegram");
+          return telegramClient.sendMessage(token, input.externalConversationId, text);
+        })()
+        : channelType === "discord"
+        ? await (async () => {
+          const connection = (await channels.listConnections(organizationId, input.accepted.conversation.installation_id))
+            .find((candidate) => candidate.id === acknowledgement.channelConnectionId && candidate.status === "active");
+          if (!connection?.credential_reference) throw new Error("Discord channel delivery is not configured");
+          const token = await channelCredentials.resolve(organizationId, connection.credential_reference, "discord");
+          return discordClient.sendMessage(token, input.externalConversationId, text);
+        })()
+        : await coreClient.deliverChannelMessage({
+          organizationId,
+          installationId: input.accepted.conversation.installation_id,
+          actorId: input.accepted.conversation.owner_actor_id ?? "kasitek-agent-platform",
+          runId: acknowledgement.message.id,
+          correlationId: acknowledgement.message.id,
+          channelType,
+          externalConversationId: input.externalConversationId,
+          text,
+        });
+      if (delivery.status === "unknown") throw new Error("HANDOFF_ACKNOWLEDGEMENT_DELIVERY_UNKNOWN");
+      await channels.markDelivered({
+        organizationId,
+        attemptId: acknowledgement.deliveryAttemptId,
+        providerMessageId: delivery.providerMessageId,
+      });
+      app.log.info({
+        event: "conversation.handoff.acknowledgement_delivered",
+        channelType,
+        handoffRequestId: input.accepted.handoffRequestId,
+        deliveryAttemptId: acknowledgement.deliveryAttemptId,
+      }, "Handoff acknowledgement delivered");
+    } catch (error) {
+      if (claimed) {
+        await channels.markDeliveryFailed({
+          organizationId,
+          attemptId: acknowledgement.deliveryAttemptId,
+          error: {
+            code: "HANDOFF_ACKNOWLEDGEMENT_DELIVERY_FAILED",
+            message: error instanceof Error ? error.message : "Handoff acknowledgement delivery failed",
+          },
+        }).catch((markError) => {
+          app.log.error({ err: markError, event: "conversation.handoff.acknowledgement_status_update_failed", deliveryAttemptId: acknowledgement.deliveryAttemptId }, "Handoff acknowledgement status update failed");
+        });
+      }
+      app.log.error({
+        err: error,
+        event: "conversation.handoff.acknowledgement_delivery_failed",
+        channelType: input.channelType,
+        handoffRequestId: input.accepted.handoffRequestId,
+        deliveryAttemptId: acknowledgement.deliveryAttemptId,
+      }, "Handoff acknowledgement delivery failed");
+    }
+  };
   const integrationRepository = dependencies.integrationRepository ?? new IntegrationRepository(dependencies.pool, dependencies.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY);
   const integrationTools = dependencies.integrationTools ?? new IntegrationToolService(integrationRepository, dependencies.config);
   const remoteMcpProviders = dependencies.remoteMcpProviders ?? new RemoteMcpProviderRepository(
@@ -1257,6 +1335,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         displayName: typeof event.metadata.senderDisplayName === "string" ? event.metadata.senderDisplayName : undefined,
         correlationId,
       });
+      await deliverHandoffAcknowledgement({
+        accepted,
+        organizationId: connection.organization_id,
+        channelType: event.channelType,
+        externalConversationId: event.externalConversationId,
+      });
       const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
       if (workflowEnabled && dependencies.startWorkflow && accepted.created && accepted.run?.status === "received") {
         await dependencies.startWorkflow(accepted.run.id);
@@ -1456,6 +1540,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         occurredAt: event.message.occurredAt,
         displayName: typeof event.metadata.senderDisplayName === "string" ? event.metadata.senderDisplayName : undefined,
         correlationId,
+      });
+      await deliverHandoffAcknowledgement({
+        accepted,
+        organizationId: connection.organization_id,
+        channelType: event.channelType,
+        externalConversationId: event.externalConversationId,
       });
       const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
       if (workflowEnabled && dependencies.startWorkflow && accepted.created && accepted.run?.status === "received") await dependencies.startWorkflow(accepted.run.id);
@@ -3469,76 +3559,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         correlationId: auth.correlationId,
         ...input,
       });
-      if (accepted.handoffAcknowledgement) {
-        const acknowledgement = accepted.handoffAcknowledgement;
-        let claimed = false;
-        try {
-          await channels.claimDelivery(auth.organizationId, acknowledgement.deliveryAttemptId);
-          claimed = true;
-          const channelType = input.channelType.trim().toLowerCase();
-          const text = typeof acknowledgement.message.content.text === "string"
-            ? acknowledgement.message.content.text
-            : "Your request has been sent to a team member. Someone will respond here.";
-          const delivery = channelType === "telegram"
-            ? await (async () => {
-              const connection = (await channels.listConnections(auth.organizationId, accepted.conversation.installation_id))
-                .find((candidate) => candidate.id === acknowledgement.channelConnectionId && candidate.status === "active");
-              if (!connection?.credential_reference) throw new Error("Telegram channel delivery is not configured");
-              const token = await channelCredentials.resolve(auth.organizationId, connection.credential_reference, "telegram");
-              return telegramClient.sendMessage(token, input.externalConversationId, text);
-            })()
-            : channelType === "discord"
-            ? await (async () => {
-              const connection = (await channels.listConnections(auth.organizationId, accepted.conversation.installation_id))
-                .find((candidate) => candidate.id === acknowledgement.channelConnectionId && candidate.status === "active");
-              if (!connection?.credential_reference) throw new Error("Discord channel delivery is not configured");
-              const token = await channelCredentials.resolve(auth.organizationId, connection.credential_reference, "discord");
-              return discordClient.sendMessage(token, input.externalConversationId, text);
-            })()
-            : await coreClient.deliverChannelMessage({
-              organizationId: auth.organizationId,
-              installationId: accepted.conversation.installation_id,
-              actorId: accepted.conversation.owner_actor_id ?? "kasitek-agent-platform",
-              runId: acknowledgement.message.id,
-              correlationId: auth.correlationId ?? acknowledgement.message.id,
-              channelType,
-              externalConversationId: input.externalConversationId,
-              text,
-            });
-          if (delivery.status === "unknown") throw new Error("HANDOFF_ACKNOWLEDGEMENT_DELIVERY_UNKNOWN");
-          await channels.markDelivered({
-            organizationId: auth.organizationId,
-            attemptId: acknowledgement.deliveryAttemptId,
-            providerMessageId: delivery.providerMessageId,
-          });
-          request.log.info({
-            event: "conversation.handoff.acknowledgement_delivered",
-            channelType,
-            handoffRequestId: accepted.handoffRequestId,
-            deliveryAttemptId: acknowledgement.deliveryAttemptId,
-          }, "Handoff acknowledgement delivered");
-        } catch (error) {
-          if (claimed) {
-            await channels.markDeliveryFailed({
-              organizationId: auth.organizationId,
-              attemptId: acknowledgement.deliveryAttemptId,
-              error: {
-                code: "HANDOFF_ACKNOWLEDGEMENT_DELIVERY_FAILED",
-                message: error instanceof Error ? error.message : "Handoff acknowledgement delivery failed",
-              },
-            }).catch((markError) => {
-              request.log.error({ err: markError, event: "conversation.handoff.acknowledgement_status_update_failed", deliveryAttemptId: acknowledgement.deliveryAttemptId }, "Handoff acknowledgement status update failed");
-            });
-          }
-          request.log.error({
-            err: error,
-            event: "conversation.handoff.acknowledgement_delivery_failed",
-            channelType: input.channelType,
-            handoffRequestId: accepted.handoffRequestId,
-            deliveryAttemptId: acknowledgement.deliveryAttemptId,
-          }, "Handoff acknowledgement delivery failed");
-        }
-      }
+      await deliverHandoffAcknowledgement({
+        accepted,
+        organizationId: auth.organizationId,
+        channelType: input.channelType,
+        externalConversationId: input.externalConversationId,
+      });
       const workflowEnabled = dependencies.config.TEMPORAL_ENABLED && Boolean(dependencies.startWorkflow);
       if (workflowEnabled && dependencies.startWorkflow && accepted.created && accepted.run?.status === "received") {
         try {
@@ -3561,8 +3587,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         conversation: accepted.conversation,
         message: accepted.message,
         runId: accepted.run?.id ?? null,
-        status: accepted.run?.status ?? (accepted.handoffRequestId ? "handoff_requested" : "received"),
+        status: accepted.handoffActive ? "handoff_active" : (accepted.run?.status ?? (accepted.handoffRequestId ? "handoff_requested" : "received")),
         handoffRequestId: accepted.handoffRequestId ?? null,
+        handoffActive: accepted.handoffActive ?? false,
+        ...(accepted.handoffActive ? { handoffMessage: HANDOFF_ACTIVE_TEXT } : {}),
         created: accepted.created,
         durable: workflowEnabled,
       });
@@ -4015,8 +4043,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         conversation: accepted.conversation,
         message: accepted.message,
         runId: accepted.run?.id ?? null,
-        status: accepted.run?.status ?? (accepted.handoffRequestId ? "handoff_requested" : "received"),
+        status: accepted.handoffActive ? "handoff_active" : (accepted.run?.status ?? (accepted.handoffRequestId ? "handoff_requested" : "received")),
         handoffRequestId: accepted.handoffRequestId ?? null,
+        handoffActive: accepted.handoffActive ?? false,
+        ...(accepted.handoffActive ? { handoffMessage: HANDOFF_ACTIVE_TEXT } : {}),
         created: accepted.created,
         durable: result.durable,
       });
@@ -4083,8 +4113,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         conversation: accepted.conversation,
         message: accepted.message,
         runId: accepted.run?.id ?? null,
-        status: accepted.run?.status ?? (accepted.handoffRequestId ? "handoff_requested" : "received"),
+        status: accepted.handoffActive ? "handoff_active" : (accepted.run?.status ?? (accepted.handoffRequestId ? "handoff_requested" : "received")),
         handoffRequestId: accepted.handoffRequestId ?? null,
+        handoffActive: accepted.handoffActive ?? false,
+        ...(accepted.handoffActive ? { handoffMessage: HANDOFF_ACTIVE_TEXT } : {}),
         created: accepted.created,
         durable: workflowEnabled,
       });
@@ -4138,8 +4170,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         conversation: accepted.conversation,
         message: accepted.message,
         runId: accepted.run?.id ?? null,
-        status: accepted.run?.status ?? (accepted.handoffRequestId ? "handoff_requested" : "received"),
+        status: accepted.handoffActive ? "handoff_active" : (accepted.run?.status ?? (accepted.handoffRequestId ? "handoff_requested" : "received")),
         handoffRequestId: accepted.handoffRequestId ?? null,
+        handoffActive: accepted.handoffActive ?? false,
+        ...(accepted.handoffActive ? { handoffMessage: HANDOFF_ACTIVE_TEXT } : {}),
         created: accepted.created,
         durable: workflowEnabled,
       });

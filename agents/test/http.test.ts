@@ -1755,7 +1755,7 @@ describe("Agent Platform HTTP foundation", () => {
       run: null,
       handoffRequestId: "handoff-1",
       handoffAcknowledgement: {
-        message: { id: "ack-message-1", content: { text: "Your request has been sent to a team member. Someone will respond here." } },
+        message: { id: "ack-message-1", content: { text: "Absolutely — I’ve sent your request to our team. A team member will reply here as soon as possible." } },
         deliveryAttemptId: "ack-attempt-1",
         channelConnectionId: "telegram-connection-1",
       },
@@ -1792,7 +1792,7 @@ describe("Agent Platform HTTP foundation", () => {
     });
     expect(response.statusCode).toBe(202);
     expect(response.json()).toMatchObject({ status: "handoff_requested", handoffRequestId: "handoff-1", runId: null });
-    expect(sent).toEqual([{ token: "telegram-token", chatId: "chat-1", text: "Your request has been sent to a team member. Someone will respond here." }]);
+    expect(sent).toEqual([{ token: "telegram-token", chatId: "chat-1", text: "Absolutely — I’ve sent your request to our team. A team member will reply here as soon as possible." }]);
     expect(channels.claimDelivery).toHaveBeenCalledWith("org-1", "ack-attempt-1");
     expect(channels.markDelivered).toHaveBeenCalledWith({ organizationId: "org-1", attemptId: "ack-attempt-1", providerMessageId: "telegram-ack-1" });
     expect(channels.markDeliveryFailed).not.toHaveBeenCalled();
