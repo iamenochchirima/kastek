@@ -120,6 +120,7 @@ import { ConversationControlService } from "../actions/conversation-controls";
 import { AgentUiInteractionCoordinator } from "../actions/ui-interaction-coordinator";
 import { UiInteractionRepository } from "../db/repositories/ui-interaction-repository";
 import { HandoffRepository } from "../db/repositories/handoff-repository";
+import { PostgresConversationEventNotifications, type ConversationEventNotifications } from "../events/postgres-conversation-notifications";
 import { verifyChannelApprovalActionToken, type ChannelApprovalDecision } from "../approval/channel-action";
 import { IntegrationRepository } from "../integrations/repository";
 import { IntegrationToolService } from "../integrations/service";
@@ -197,6 +198,7 @@ export interface AppDependencies {
   signalApproval?: (runId: string, signal: ApprovalSignal) => Promise<void>;
   signalCancellation?: (runId: string, signal: CancellationSignal) => Promise<void>;
   signalExternalEvent?: (runId: string, signal: ExternalEventSignal) => Promise<void>;
+  eventNotifications?: ConversationEventNotifications;
 }
 
 function headerValue(request: FastifyRequest, name: string): string | undefined {
@@ -511,6 +513,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     temporalEnabled: dependencies.config.TEMPORAL_ENABLED,
   });
   const handoffs = new HandoffRepository(dependencies.pool);
+  const eventNotifications = dependencies.eventNotifications ?? new PostgresConversationEventNotifications(dependencies.pool);
+  const ownsEventNotifications = !dependencies.eventNotifications;
   const conversationActions = dependencies.conversationActions ?? new ConversationActionService(handoffs, controls);
   const conversationControls = dependencies.conversationControls ?? new ConversationControlService(handoffs);
   const coreClient = new KasitekCoreReadClient(dependencies.config);
@@ -1024,6 +1028,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     app.addHook("onReady", async () => readinessSweep.start());
     app.addHook("onClose", async () => readinessSweep.stop());
   }
+  if (ownsEventNotifications) app.addHook("onClose", async () => eventNotifications.close());
 
   app.setErrorHandler((error, request, reply) => {
     const statusCode = error instanceof ZodError ? 400 : ((error as { statusCode?: number }).statusCode ?? 500);
@@ -3711,7 +3716,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     },
   );
 
-  app.get<{ Querystring: { installationId?: string; agentId?: string; channelType?: string; reason?: string; status?: string; priority?: string; search?: string; limit?: string; cursor?: string; before?: string } }>(
+  app.get<{ Querystring: { installationId?: string; agentId?: string; channelType?: string; reason?: string; status?: string; assignment?: string; priority?: string; search?: string; limit?: string; cursor?: string; before?: string } }>(
     "/v1/conversations/handoffs",
     async (request) => {
       const auth = requireAuth(request, dependencies.config);
@@ -3722,6 +3727,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         channelType: z.string().trim().min(1).max(80).optional(),
         reason: z.enum(["customer_requested", "agent_uncertain", "policy_required", "high_value", "configured_workflow", "other"]).optional(),
         status: z.string().optional(),
+        assignment: z.enum(["mine", "team"]).optional(),
         priority: z.enum(["normal", "high", "urgent"]).optional(),
         search: z.string().trim().max(240).optional(),
         limit: z.coerce.number().int().min(1).max(100).optional(),
@@ -3735,6 +3741,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       return conversationControls.listHandoffs(auth.organizationId, {
         ...queryInput,
         status: validStatuses,
+        actorId: auth.actorId,
       });
     },
   );
@@ -3750,7 +3757,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         channelType: z.string().trim().min(1).max(80).optional(),
         search: z.string().trim().max(240).optional(),
       }).parse(request.query);
-      return conversationControls.getSummary(auth.organizationId, queryInput);
+      return conversationControls.getSummary(auth.organizationId, auth.actorId, queryInput);
     },
   );
 
@@ -3786,6 +3793,49 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     },
   );
 
+  app.get(
+    "/v1/conversations/events/stream",
+    async (request, reply) => {
+      const auth = requireAuth(request, dependencies.config);
+      requireScope(auth, dependencies.config, "agents:read");
+      reply.hijack();
+      const response = reply.raw;
+      response.writeHead(200, {
+        "content-type": "text/event-stream",
+        "cache-control": "no-cache, no-transform",
+        connection: "keep-alive",
+        "x-accel-buffering": "no",
+      });
+      let closed = false;
+      let unsubscribe: (() => void) | undefined;
+      const keepAliveTimer = setInterval(() => {
+        if (!closed) response.write(formatSseComment("keep-alive"));
+      }, 15_000);
+      const close = (): void => {
+        if (closed) return;
+        closed = true;
+        clearInterval(keepAliveTimer);
+        unsubscribe?.();
+        response.end();
+      };
+      request.raw.on("close", close);
+      request.raw.on("aborted", close);
+      request.raw.socket?.on("close", close);
+      response.on("close", close);
+      response.on("error", close);
+      try {
+        unsubscribe = await eventNotifications.subscribe((event) => {
+          if (closed || event.organizationId !== auth.organizationId) return;
+          response.write(`event: conversation.changed\ndata: ${JSON.stringify(event)}\n\n`);
+        });
+        if (!closed) response.write(`event: conversation.ready\ndata: ${JSON.stringify({ status: "connected" })}\n\n`);
+      } catch {
+        if (!closed) response.write(`event: agent.stream_error\ndata: ${JSON.stringify({ error: "conversation_stream_unavailable" })}\n\n`);
+        close();
+      }
+    },
+  );
+
   app.get<{ Params: { conversationId: string }; Querystring: { after?: string } }>(
     "/v1/conversations/:conversationId/events/stream",
     async (request, reply) => {
@@ -3808,10 +3858,15 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       let cursor = parsedAfter;
       let closed = false;
       let polling = false;
+      let unsubscribe: (() => void) | undefined;
+      const keepAliveTimer = setInterval(() => {
+        if (!closed) response.write(formatSseComment("keep-alive"));
+      }, 15_000);
       const close = (): void => {
         if (closed) return;
         closed = true;
-        clearInterval(timer);
+        clearInterval(keepAliveTimer);
+        unsubscribe?.();
         response.end();
       };
       const poll = async (): Promise<void> => {
@@ -3836,8 +3891,20 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       request.raw.socket?.on("close", close);
       response.on("close", close);
       response.on("error", close);
-      const timer = setInterval(() => void poll(), 1000);
-      await poll();
+      try {
+        unsubscribe = await eventNotifications.subscribe((event) => {
+          if (closed || event.organizationId !== auth.organizationId || event.subject !== `conversation:${conversationId}`) return;
+          if (event.eventType === "conversation.message.changed") {
+            response.write(`event: conversation.message.changed\ndata: ${JSON.stringify(event)}\n\n`);
+          } else {
+            void poll();
+          }
+        });
+        await poll();
+      } catch {
+        if (!closed) response.write(`event: agent.stream_error\ndata: ${JSON.stringify({ error: "conversation_stream_unavailable" })}\n\n`);
+        close();
+      }
     },
   );
 
@@ -3928,11 +3995,23 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       text: input.text,
       idempotencyKey: idempotencyKey ?? "",
     });
-    if (!result.created || !result.deliveryAttemptId) return reply.code(result.created ? 201 : 200).send(result);
+    let deliveryAttemptId = result.deliveryAttemptId;
+    if (!result.created && result.deliveryAttemptId && (result.deliveryAttemptStatus === "failed" || result.deliveryAttemptStatus === "unknown")) {
+      const replay = await channels.replayDelivery({
+        organizationId: auth.organizationId,
+        attemptId: result.deliveryAttemptId,
+        confirmUnknown: result.deliveryAttemptStatus === "unknown",
+        expectedStatus: result.deliveryAttemptStatus,
+      });
+      deliveryAttemptId = replay.replay.id;
+    }
+    if (!deliveryAttemptId || (!result.created && result.deliveryAttemptStatus !== "failed" && result.deliveryAttemptStatus !== "unknown")) {
+      return reply.code(result.created ? 201 : 200).send(result);
+    }
 
     let claimed = false;
     try {
-      await channels.claimDelivery(auth.organizationId, result.deliveryAttemptId);
+      await channels.claimDelivery(auth.organizationId, deliveryAttemptId);
       claimed = true;
       const text = typeof result.message.content.text === "string" ? result.message.content.text : input.text;
       const delivery = result.conversation.channel_type === "telegram"
@@ -3956,19 +4035,31 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         });
       await channels.markDelivered({
         organizationId: auth.organizationId,
-        attemptId: result.deliveryAttemptId,
+        attemptId: deliveryAttemptId,
         providerMessageId: delivery.providerMessageId,
       });
-      return reply.code(201).send({ ...result, delivery: { status: delivery.status } });
+      return reply.code(201).send({ ...result, deliveryAttemptId, message: { ...result.message, delivery_status: "sent", provider_message_id: delivery.providerMessageId ?? result.message.provider_message_id }, delivery: { status: delivery.status } });
     } catch (error) {
       if (claimed) {
         await channels.markDeliveryFailed({
           organizationId: auth.organizationId,
-          attemptId: result.deliveryAttemptId,
+          attemptId: deliveryAttemptId,
           error: { code: "HUMAN_MESSAGE_DELIVERY_FAILED", message: error instanceof Error ? error.message : "Human message delivery failed" },
         });
       }
-      throw error;
+      request.log.warn({
+        event: "conversation.human_message.delivery_failed",
+        handoff_id: handoffId,
+        conversation_id: result.conversation.id,
+        delivery_attempt_id: deliveryAttemptId,
+        error_code: error instanceof Error && "code" in error ? String((error as { code?: unknown }).code) : "HUMAN_MESSAGE_DELIVERY_FAILED",
+      }, "Human message delivery failed");
+      return reply.code(202).send({
+        ...result,
+        deliveryAttemptId,
+        message: { ...result.message, delivery_status: "failed" },
+        delivery: { status: "failed", error: { code: "HUMAN_MESSAGE_DELIVERY_FAILED", message: "Message could not be delivered" } },
+      });
     }
   });
 

@@ -241,8 +241,9 @@ export type AgentHandoffMutation = AgentHandoffQueueItem & { changed: boolean };
 export type AgentHumanMessageResult = AgentHandoffQueueItem & {
   message: AgentMessage;
   deliveryAttemptId: string | null;
+  deliveryAttemptStatus?: string | null;
   created: boolean;
-  delivery?: { status: string };
+  delivery?: { status: string; error?: { code?: string; message?: string } };
 };
 
 export type AgentLiveConversation = {
@@ -252,8 +253,9 @@ export type AgentLiveConversation = {
 export type AgentConversationSummary = {
   all: number;
   live: number;
-  handoff: number;
-  assigned: number;
+  inbox: number;
+  mine: number;
+  team: number;
 };
 
 export function listAgentHandoffs(filters: {
@@ -267,6 +269,7 @@ export function listAgentHandoffs(filters: {
   limit?: number;
   cursor?: string;
   before?: string;
+  assignment?: "mine" | "team";
 } = {}): Promise<AgentHandoffQueue> {
   const query = new URLSearchParams();
   if (filters.installationId) query.set("installationId", filters.installationId);
@@ -279,6 +282,7 @@ export function listAgentHandoffs(filters: {
   if (filters.limit) query.set("limit", String(filters.limit));
   if (filters.cursor) query.set("cursor", filters.cursor);
   if (filters.before) query.set("before", filters.before);
+  if (filters.assignment) query.set("assignment", filters.assignment);
   const suffix = query.toString() ? `?${query.toString()}` : "";
   return request<AgentHandoffQueue>(`/api/agents/conversations/handoffs${suffix}`);
 }
@@ -1602,6 +1606,53 @@ export async function streamAgentRun(
       if (buffer.trim()) dataLines.push(buffer.trim());
       flush();
       return { lastSequence, terminal };
+    }
+  }
+}
+
+/** Organization-level conversation changes used by operator queues. */
+export async function streamAgentConversationFeed(
+  onEvent: (event: AgentStreamEvent) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  const response = await fetch(apiUrl("/api/agents/conversations/events/stream"), {
+    credentials: "include",
+    signal,
+    headers: { Accept: "text/event-stream" },
+  });
+  if (!response.ok || !response.body) {
+    throw new AgentRequestError(`Conversation feed failed (${response.status})`, response.status);
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let eventName = "message";
+  let dataLines: string[] = [];
+  const flush = () => {
+    if (!dataLines.length) return;
+    try {
+      onEvent({ event: eventName, data: JSON.parse(dataLines.join("\n")) as Record<string, unknown> });
+    } catch {
+      // Ignore keep-alives and malformed intermediary chunks.
+    }
+    eventName = "message";
+    dataLines = [];
+  };
+  while (true) {
+    const chunk = await reader.read();
+    buffer += decoder.decode(chunk.value ?? new Uint8Array(), { stream: !chunk.done });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const rawLine of lines) {
+      const line = rawLine.replace(/\r$/, "");
+      if (line === "") flush();
+      else if (line.startsWith("event:")) eventName = line.slice(6).trim();
+      else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+    }
+    if (chunk.done) {
+      if (buffer.trim()) dataLines.push(buffer.trim());
+      flush();
+      return;
     }
   }
 }

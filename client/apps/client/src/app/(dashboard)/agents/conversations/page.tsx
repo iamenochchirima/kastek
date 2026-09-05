@@ -17,6 +17,9 @@ type ConversationQuery = {
 };
 
 const viewStatuses: Record<string, string> = {
+  inbox: "pending",
+  mine: "claimed",
+  team: "claimed",
   handoff: "pending",
   human: "claimed",
   all: "pending,claimed,resolved,expired,cancelled",
@@ -32,10 +35,11 @@ export default async function AgentConversationsPage({
   const session = await getRustSession();
   if (!session?.user?.id) redirect("/login");
   const query = await searchParams;
-  const view = query.view === "handoff" || query.view === "human" || query.view === "live" ? query.view : "all";
+  const view = query.view === "handoff" ? "inbox" : query.view === "human" ? "mine" : query.view === "inbox" || query.view === "mine" || query.view === "team" || query.view === "live" ? query.view : "all";
   const reason = handoffReasons.includes(query.reason as AgentHandoffReason) ? query.reason as AgentHandoffReason : undefined;
   const priority = handoffPriorities.includes(query.priority as AgentHandoffPriority) ? query.priority as AgentHandoffPriority : undefined;
   const params = new URLSearchParams({ status: viewStatuses[view] ?? "pending", limit: "100" });
+  if (view === "mine" || view === "team") params.set("assignment", view);
   if (query.agentId) params.set("agentId", query.agentId);
   if (query.installationId) params.set("installationId", query.installationId);
   if (query.search) params.set("search", query.search);
@@ -64,7 +68,7 @@ export default async function AgentConversationsPage({
     ).catch((): AgentHandoffQueue => ({ items: [], nextBefore: null }));
   const initialSummary = await fetchRustJson<AgentConversationSummary>(
     `/api/agents/conversations/summary${summaryParams.toString() ? `?${summaryParams.toString()}` : ""}`,
-  ).catch((): AgentConversationSummary => ({ all: 0, live: 0, handoff: 0, assigned: 0 }));
+  ).catch((): AgentConversationSummary => ({ all: 0, live: 0, inbox: 0, mine: 0, team: 0 }));
 
   return <AgentConversationsPageClient initialQueue={initialQueue} initialCustomerConversations={initialCustomerConversations.items} initialSummary={initialSummary} initialFilters={{ view, agentId: query.agentId, installationId: query.installationId, search: query.search, channelType: query.channelType, reason, priority }} />;
 }

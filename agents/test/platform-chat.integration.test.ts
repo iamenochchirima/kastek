@@ -6,6 +6,7 @@ import { ConversationRepository } from "../src/db/repositories/conversation-repo
 import { PlatformChatRepository } from "../src/db/repositories/platform-chat-repository";
 import { RunRepository } from "../src/db/repositories/run-repository";
 import { ChannelRepository } from "../src/db/repositories/channel-repository";
+import { HandoffRepository } from "../src/db/repositories/handoff-repository";
 import { KasiAiPreferenceRepository } from "../src/db/repositories/kasiai-preference-repository";
 import { createActivities } from "../src/temporal/activities";
 import type { KasitekCoreReadClient } from "../src/core/client";
@@ -20,6 +21,7 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
   const platformChat = new PlatformChatRepository(pool);
   const runs = new RunRepository(pool);
   const channels = new ChannelRepository(pool);
+  const handoffs = new HandoffRepository(pool);
   const preferences = new KasiAiPreferenceRepository(pool);
   const organizationId = `platform-chat-${randomUUID()}`;
   let agentId = "";
@@ -485,6 +487,24 @@ describe.skipIf(!runIntegration)("platform chat durability (integration)", () =>
       handoffRequestId: handoffThread.handoffRequestId,
       handoffAcknowledgement: { deliveryAttemptId: expect.any(String) },
     });
+
+    await handoffs.claim({ organizationId, handoffId: handoffThread.handoffRequestId!, actorId: "operator-1" });
+    const resolvedHandoff = await handoffs.resolve({ organizationId, handoffId: handoffThread.handoffRequestId!, actorId: "operator-1", resolution: "Customer interaction completed" });
+    expect(resolvedHandoff.conversation).toMatchObject({ handoff_state: "resolved", assigned_actor_id: null });
+    const reopenedThread = await platformChat.acceptExternalMessage({
+      organizationId,
+      installationId,
+      channelType: "whatsapp",
+      provider: "meta-whatsapp",
+      providerEventId: "event-handoff-after-resolve",
+      providerMessageId: "wamid-handoff-after-resolve",
+      externalIdentity: "+27820000001",
+      externalConversationId: "wa-handoff-thread",
+      messageType: "text",
+      content: { text: "I have one more question." },
+    });
+    expect(reopenedThread).toMatchObject({ created: true, conversation: { id: handoffThread.conversation.id, handoff_state: "agent_active" } });
+    expect(reopenedThread.run).toBeTruthy();
 
     await channels.createConnection({
       organizationId,

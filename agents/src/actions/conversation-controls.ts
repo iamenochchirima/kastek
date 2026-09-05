@@ -31,8 +31,8 @@ export class ConversationControlService {
     return this.handoffs.listCustomer(organizationId, filters);
   }
 
-  public getSummary(organizationId: string, filters?: Omit<CustomerConversationFilters, "limit">): Promise<ConversationSummary> {
-    return this.handoffs.getSummary(organizationId, filters);
+  public getSummary(organizationId: string, actorId: string, filters?: Omit<CustomerConversationFilters, "limit">): Promise<ConversationSummary> {
+    return this.handoffs.getSummary(organizationId, actorId, filters);
   }
 
   public claim(input: { organizationId: string; handoffId: string; actorId: string }): Promise<HandoffMutationResult> {

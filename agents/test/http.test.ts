@@ -2500,7 +2500,7 @@ describe("Agent Platform HTTP foundation", () => {
       })),
       listLive: vi.fn(async () => ({ items: [{ conversation: { id: "22222222-2222-4222-8222-222222222222" } }] })),
       listCustomer: vi.fn(async () => ({ items: [{ id: "22222222-2222-4222-8222-222222222222", channel_type: "facebook" }] })),
-      getSummary: vi.fn(async () => ({ all: 7, live: 1, handoff: 2, assigned: 1 })),
+      getSummary: vi.fn(async () => ({ all: 7, live: 1, inbox: 2, mine: 1, team: 1 })),
       getHandoff: vi.fn(async () => ({
         handoff: { id: "11111111-1111-4111-8111-111111111111" },
         conversation: { id: "22222222-2222-4222-8222-222222222222" },
@@ -2516,13 +2516,14 @@ describe("Agent Platform HTTP foundation", () => {
         conversation: { id: "22222222-2222-4222-8222-222222222222", channel_type: "platform" },
         message: { id: "33333333-3333-4333-8333-333333333333", content: { text: "I can help." } },
         deliveryAttemptId: null,
+        deliveryAttemptStatus: null,
         created: true,
       })),
     } as never;
     const signalExternalEvent = vi.fn(async () => undefined);
     const app = buildApp({ config, pool: fakePool, conversationControls: controls, signalExternalEvent });
     const headers = { "x-organization-id": "org-1", "x-actor-id": "user-1" };
-    const queue = await app.inject({ method: "GET", url: "/v1/conversations/handoffs?status=pending,claimed&channelType=whatsapp&reason=customer_requested&priority=urgent&cursor=next-page&limit=10", headers });
+    const queue = await app.inject({ method: "GET", url: "/v1/conversations/handoffs?status=pending,claimed&assignment=mine&channelType=whatsapp&reason=customer_requested&priority=urgent&cursor=next-page&limit=10", headers });
     const live = await app.inject({ method: "GET", url: "/v1/conversations/live?search=acme&channelType=facebook&limit=10", headers });
     const customer = await app.inject({ method: "GET", url: "/v1/conversations/customer?search=acme&channelType=facebook&limit=10", headers });
     const summary = await app.inject({ method: "GET", url: "/v1/conversations/summary?search=acme&channelType=facebook", headers });
@@ -2538,7 +2539,7 @@ describe("Agent Platform HTTP foundation", () => {
     expect(customer.statusCode).toBe(200);
     expect(live.json()).toMatchObject({ items: [{ conversation: { id: "22222222-2222-4222-8222-222222222222" } }] });
     expect(summary.statusCode).toBe(200);
-    expect(summary.json()).toEqual({ all: 7, live: 1, handoff: 2, assigned: 1 });
+    expect(summary.json()).toEqual({ all: 7, live: 1, inbox: 2, mine: 1, team: 1 });
     expect(queue.json()).toMatchObject({ items: [{ handoff: { status: "pending" } }], nextBefore: null });
     expect(detail.statusCode).toBe(200);
     expect(detail.json()).toMatchObject({ history: [{ event_type: "conversation.handoff.requested", actor_type: "agent" }] });
@@ -2553,12 +2554,127 @@ describe("Agent Platform HTTP foundation", () => {
     expect(resolved.json()).toMatchObject({ conversation: { handoff_state: "resolved" } });
     expect(message.statusCode).toBe(201);
     expect(message.json()).toMatchObject({ message: { content: { text: "I can help." } }, created: true });
-    expect(controls.listHandoffs).toHaveBeenCalledWith("org-1", expect.objectContaining({ status: ["pending", "claimed"], channelType: "whatsapp", reason: "customer_requested", priority: "urgent", cursor: "next-page", limit: 10 }));
+    expect(controls.listHandoffs).toHaveBeenCalledWith("org-1", expect.objectContaining({ status: ["pending", "claimed"], assignment: "mine", actorId: "user-1", channelType: "whatsapp", reason: "customer_requested", priority: "urgent", cursor: "next-page", limit: 10 }));
     expect(controls.listLive).toHaveBeenCalledWith("org-1", { search: "acme", channelType: "facebook", limit: 10 });
     expect(controls.listCustomer).toHaveBeenCalledWith("org-1", { search: "acme", channelType: "facebook", limit: 10 });
-    expect(controls.getSummary).toHaveBeenCalledWith("org-1", { search: "acme", channelType: "facebook" });
+    expect(controls.getSummary).toHaveBeenCalledWith("org-1", "user-1", { search: "acme", channelType: "facebook" });
     expect(controls.claim).toHaveBeenCalledWith({ organizationId: "org-1", handoffId: "11111111-1111-4111-8111-111111111111", actorId: "user-1" });
     expect(controls.sendHumanMessage).toHaveBeenCalledWith({ organizationId: "org-1", handoffId: "11111111-1111-4111-8111-111111111111", actorId: "user-1", text: "I can help.", idempotencyKey: "human-message-1" });
+    await app.close();
+  });
+
+  it("returns a visible failed message when provider delivery fails after persistence", async () => {
+    const controls = {
+      sendHumanMessage: vi.fn(async () => ({
+        handoff: { id: "11111111-1111-4111-8111-111111111111", status: "claimed" },
+        conversation: {
+          id: "22222222-2222-4222-8222-222222222222",
+          installation_id: "33333333-3333-4333-8333-333333333333",
+          channel_type: "telegram",
+          external_conversation_id: "telegram-chat-1",
+        },
+        message: { id: "44444444-4444-4444-8444-444444444444", content: { text: "I can help." }, delivery_status: "queued" },
+        deliveryAttemptId: "attempt-1",
+        deliveryAttemptStatus: "queued",
+        created: true,
+      })),
+    } as never;
+    const channels = {
+      claimDelivery: vi.fn(async () => undefined),
+      markDeliveryFailed: vi.fn(async () => undefined),
+      listConnections: vi.fn(async () => [{ channel_type: "telegram", status: "active", credential_reference: "credential-ref" }]),
+    } as never;
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      conversationControls: controls,
+      channels,
+      channelCredentials: { resolve: vi.fn(async () => "<REDACTED>") } as never,
+      telegramClient: { sendMessage: vi.fn(async () => { throw new Error("provider unavailable"); }) } as never,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/messages",
+      headers: { "x-organization-id": "org-1", "x-actor-id": "user-1", "idempotency-key": "message-1" },
+      payload: { text: "I can help." },
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toMatchObject({ message: { id: "44444444-4444-4444-8444-444444444444", delivery_status: "failed" }, delivery: { status: "failed" } });
+    expect(channels.markDeliveryFailed).toHaveBeenCalledWith(expect.objectContaining({ attemptId: "attempt-1" }));
+    await app.close();
+  });
+
+  it("replays a failed persisted message with the same idempotency key", async () => {
+    const controls = {
+      sendHumanMessage: vi.fn()
+        .mockResolvedValueOnce({
+          handoff: { id: "11111111-1111-4111-8111-111111111111", status: "claimed" },
+          conversation: {
+            id: "22222222-2222-4222-8222-222222222222",
+            installation_id: "33333333-3333-4333-8333-333333333333",
+            channel_type: "telegram",
+            external_conversation_id: "telegram-chat-1",
+          },
+          message: { id: "44444444-4444-4444-8444-444444444444", content: { text: "I can help." }, delivery_status: "queued" },
+          deliveryAttemptId: "attempt-1",
+          deliveryAttemptStatus: "queued",
+          created: true,
+        })
+        .mockResolvedValueOnce({
+          handoff: { id: "11111111-1111-4111-8111-111111111111", status: "claimed" },
+          conversation: {
+            id: "22222222-2222-4222-8222-222222222222",
+            installation_id: "33333333-3333-4333-8333-333333333333",
+            channel_type: "telegram",
+            external_conversation_id: "telegram-chat-1",
+          },
+          message: { id: "44444444-4444-4444-8444-444444444444", content: { text: "I can help." }, delivery_status: "failed" },
+          deliveryAttemptId: "attempt-1",
+          deliveryAttemptStatus: "failed",
+          created: false,
+        }),
+    } as never;
+    const channels = {
+      claimDelivery: vi.fn(async () => undefined),
+      markDeliveryFailed: vi.fn(async () => undefined),
+      markDelivered: vi.fn(async () => undefined),
+      replayDelivery: vi.fn(async () => ({ replay: { id: "attempt-2" } })),
+      listConnections: vi.fn(async () => [{ channel_type: "telegram", status: "active", credential_reference: "credential-ref" }]),
+    } as never;
+    const app = buildApp({
+      config,
+      pool: fakePool,
+      conversationControls: controls,
+      channels,
+      channelCredentials: { resolve: vi.fn(async () => "<REDACTED>") } as never,
+      telegramClient: {
+        sendMessage: vi.fn()
+          .mockRejectedValueOnce(new Error("provider unavailable"))
+          .mockResolvedValueOnce({ providerMessageId: "telegram-message-2", status: "sent" }),
+      } as never,
+    });
+    const headers = { "x-organization-id": "org-1", "x-actor-id": "user-1", "idempotency-key": "message-1" };
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/messages",
+      headers,
+      payload: { text: "I can help." },
+    });
+    const retry = await app.inject({
+      method: "POST",
+      url: "/v1/conversations/handoffs/11111111-1111-4111-8111-111111111111/messages",
+      headers,
+      payload: { text: "I can help." },
+    });
+
+    expect(first.statusCode).toBe(202);
+    expect(retry.statusCode).toBe(201);
+    expect(channels.replayDelivery).toHaveBeenCalledWith({ organizationId: "org-1", attemptId: "attempt-1", confirmUnknown: false, expectedStatus: "failed" });
+    expect(channels.claimDelivery).toHaveBeenLastCalledWith("org-1", "attempt-2");
+    expect(retry.json()).toMatchObject({ created: false, deliveryAttemptId: "attempt-2", message: { delivery_status: "sent", provider_message_id: "telegram-message-2" } });
     await app.close();
   });
 

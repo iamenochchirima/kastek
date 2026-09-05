@@ -75,6 +75,9 @@ export interface HandoffQueueFilters {
   limit?: number;
   cursor?: string;
   before?: string;
+  assignment?: "mine" | "team";
+  /** Derived from authenticated context. Never accept this value from query input. */
+  actorId?: string;
 }
 
 export interface CustomerConversationFilters {
@@ -88,8 +91,9 @@ export interface CustomerConversationFilters {
 export interface ConversationSummary {
   all: number;
   live: number;
-  handoff: number;
-  assigned: number;
+  inbox: number;
+  mine: number;
+  team: number;
 }
 
 export interface HandoffQueueItem {
@@ -132,6 +136,7 @@ export interface HumanMessageResult {
   conversation: ConversationRecord;
   message: MessageRecord;
   deliveryAttemptId: string | null;
+  deliveryAttemptStatus: string | null;
   created: boolean;
 }
 
@@ -187,6 +192,10 @@ export class HandoffRepository {
       const statuses = Array.isArray(filters.status) ? filters.status : [filters.status];
       values.push(statuses);
       where.push(`h.status = ANY($${values.length}::text[])`);
+    }
+    if (filters.assignment) {
+      if (!filters.actorId) throw handoffError("An authenticated operator is required for assignment filters", "handoff_assignment_actor_required", 400);
+      add(filters.assignment === "mine" ? "h.claimed_by = $VALUE" : "h.claimed_by IS NOT NULL AND h.claimed_by <> $VALUE", filters.actorId);
     }
     if (filters.search?.trim()) {
       values.push(`%${filters.search.trim().replace(/[%_]/g, "\\$&")}%`);
@@ -271,8 +280,8 @@ export class HandoffRepository {
     return { items: await this.listCustomerProjection(organizationId, filters) };
   }
 
-  public async getSummary(organizationId: string, filters: Omit<CustomerConversationFilters, "limit"> = {}): Promise<ConversationSummary> {
-    const values: unknown[] = [organizationId];
+  public async getSummary(organizationId: string, actorId: string, filters: Omit<CustomerConversationFilters, "limit"> = {}): Promise<ConversationSummary> {
+    const values: unknown[] = [organizationId, actorId];
     const where = [
       "c.organization_id = $1",
       "c.conversation_kind = 'customer'",
@@ -303,8 +312,15 @@ export class HandoffRepository {
                   AND c.last_message_at IS NOT NULL
                   AND c.last_message_at >= NOW() - INTERVAL '30 minutes'
               )::integer AS live,
-              COUNT(*) FILTER (WHERE c.handoff_state = 'handoff_requested')::integer AS handoff,
-              COUNT(*) FILTER (WHERE c.handoff_state = 'human_owned')::integer AS assigned
+              COUNT(*) FILTER (WHERE c.handoff_state = 'handoff_requested')::integer AS inbox,
+              COUNT(*) FILTER (
+                WHERE c.handoff_state = 'human_owned' AND c.assigned_actor_id = $2
+              )::integer AS mine,
+              COUNT(*) FILTER (
+                WHERE c.handoff_state = 'human_owned'
+                  AND c.assigned_actor_id IS NOT NULL
+                  AND c.assigned_actor_id <> $2
+              )::integer AS team
        FROM conversations c
        JOIN agent_installations ai
          ON ai.id = c.installation_id
@@ -323,7 +339,7 @@ export class HandoffRepository {
        WHERE ${where.join(" AND ")}`,
       values,
     );
-    return result.rows[0] ?? { all: 0, live: 0, handoff: 0, assigned: 0 };
+    return result.rows[0] ?? { all: 0, live: 0, inbox: 0, mine: 0, team: 0 };
   }
 
   private async listCustomerProjection(
@@ -698,8 +714,8 @@ export class HandoffRepository {
         if (existing.rows[0].conversation_id !== current.conversation.id) {
           throw handoffError("The idempotency key belongs to another conversation", "human_message_idempotency_conflict", 409);
         }
-        const attempt = await client.query<{ id: string }>(
-          `SELECT id FROM delivery_attempts WHERE message_id = $1 ORDER BY attempt_number DESC LIMIT 1`,
+        const attempt = await client.query<{ id: string; status: string }>(
+          `SELECT id, status FROM delivery_attempts WHERE message_id = $1 ORDER BY attempt_number DESC LIMIT 1`,
           [existing.rows[0].id],
         );
         return {
@@ -707,6 +723,7 @@ export class HandoffRepository {
           conversation: current.conversation,
           message: existing.rows[0],
           deliveryAttemptId: attempt.rows[0]?.id ?? null,
+          deliveryAttemptStatus: attempt.rows[0]?.status ?? null,
           created: false,
         };
       }
@@ -801,6 +818,7 @@ export class HandoffRepository {
         conversation: updatedConversation.rows[0],
         message: message.rows[0],
         deliveryAttemptId,
+        deliveryAttemptStatus: deliveryAttemptId ? "queued" : null,
         created: true,
       };
     });

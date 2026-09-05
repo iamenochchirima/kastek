@@ -716,6 +716,27 @@ export class PlatformChatRepository {
         };
       }
 
+      // Resolve closes the current human interaction, not the provider thread
+      // forever. A later inbound message reopens the durable customer
+      // conversation so the agent can handle the new interaction without
+      // requiring an operator to manually reset state.
+      if (
+        resolved.conversation.conversation_kind === "customer"
+        && ["resolved", "expired", "cancelled"].includes(resolved.conversation.handoff_state)
+      ) {
+        const reopened = await client.query<ConversationRecord>(
+          `UPDATE conversations
+           SET handoff_state = 'agent_active', assigned_actor_id = NULL,
+               handoff_resolved_at = NULL, handoff_revision = handoff_revision + 1,
+               updated_at = now()
+           WHERE organization_id = $1 AND id = $2
+             AND handoff_state = ANY($3::text[])
+           RETURNING *`,
+          [input.organizationId, resolved.conversation.id, ["resolved", "expired", "cancelled"]],
+        );
+        if (reopened.rows[0]) resolved.conversation = reopened.rows[0];
+      }
+
       if (
         resolved.conversation.conversation_kind === "customer"
         && ["handoff_requested", "human_owned"].includes(resolved.conversation.handoff_state)

@@ -504,6 +504,14 @@ describe("foundation migration", () => {
     expect(handoffSql).toContain("idempotency_key");
   });
 
+  it("defines transaction-backed conversation change notifications", async () => {
+    const notificationSql = await readFile(new URL("../migrations/109_conversation_event_notifications.sql", import.meta.url), "utf8");
+    expect(notificationSql).toContain("pg_notify('agent_conversation_events'");
+    expect(notificationSql).toContain("agent_events_conversation_notify");
+    expect(notificationSql).toContain("messages_conversation_notify");
+    expect(notificationSql).toContain("UPDATE OF delivery_status");
+  });
+
   it("defines the scoped customer handoff rollout flag", async () => {
     const rolloutSql = await readFile(new URL("../migrations/069_customer_handoff_feature_flag.sql", import.meta.url), "utf8");
     expect(rolloutSql).toContain("customer_handoff_enabled");

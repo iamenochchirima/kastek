@@ -108,6 +108,7 @@ describe("conversation action contract", () => {
         conversation: { id: "conversation-1" },
         message: { id: "message-1" },
         deliveryAttemptId: null,
+        deliveryAttemptStatus: null,
         created: true,
       })),
     } as unknown as HandoffRepository;

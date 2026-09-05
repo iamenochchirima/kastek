@@ -53,19 +53,37 @@ describe("handoff repository lifecycle", () => {
   });
 
   it("returns queue counts from the same customer-service conversation scope", async () => {
-    const query = vi.fn(async () => ({ rows: [{ all: 4, live: 2, handoff: 1, assigned: 1 }] }));
+    const query = vi.fn(async () => ({ rows: [{ all: 4, live: 2, inbox: 1, mine: 1, team: 1 }] }));
     const repository = new HandoffRepository({ query } as never);
 
-    await expect(repository.getSummary("org-1", { channelType: "messenger", search: "Jane" })).resolves.toEqual({
+    await expect(repository.getSummary("org-1", "operator-1", { channelType: "messenger", search: "Jane" })).resolves.toEqual({
       all: 4,
       live: 2,
-      handoff: 1,
-      assigned: 1,
+      inbox: 1,
+      mine: 1,
+      team: 1,
     });
     const sql = String(query.mock.calls[0]?.[0]);
     expect(sql).toContain("COUNT(*) FILTER");
     expect(sql).toContain("c.handoff_state = 'agent_active'");
-    expect(query.mock.calls[0]?.[1]).toEqual(["org-1", ["facebook", "messenger"], "%Jane%"]);
+    expect(sql).toContain("c.assigned_actor_id = $2");
+    expect(sql).toContain("c.assigned_actor_id <> $2");
+    expect(query.mock.calls[0]?.[1]).toEqual(["org-1", "operator-1", ["facebook", "messenger"], "%Jane%"]);
+  });
+
+  it("separates the current operator's assignments from the team queue", async () => {
+    const query = vi.fn(async () => ({ rows: [] }));
+    const repository = new HandoffRepository({ query } as never);
+    vi.spyOn(repository, "expirePending").mockResolvedValue(0);
+
+    await repository.listQueue("org-1", { status: "claimed", assignment: "mine", actorId: "operator-1" });
+    expect(String(query.mock.calls[0]?.[0])).toContain("h.claimed_by = $3");
+    expect(query.mock.calls[0]?.[1]).toEqual(["org-1", ["claimed"], "operator-1", 51]);
+
+    query.mockClear();
+    await repository.listQueue("org-1", { status: "claimed", assignment: "team", actorId: "operator-1" });
+    expect(String(query.mock.calls[0]?.[0])).toContain("h.claimed_by <> $3");
+    expect(query.mock.calls[0]?.[1]).toEqual(["org-1", ["claimed"], "operator-1", 51]);
   });
 
   it("emits first-human-response before the per-message event", async () => {
