@@ -617,8 +617,8 @@ restructure.
 Core adapter seam, tool registry, agent execution, internal operator evidence, and the agent UI.
 Customer-facing behavior and UI may change as part of the rewrite.
 
-**Platform release version or release ID:** Local implementation commits `b74f70db` and
-`75930229`; final documentation/evidence commit follows. No remote release has been created.
+**Platform release version or release ID:** Local implementation artifact `aa61409c` (built on
+`b74f70db` and `75930229`). No remote release has been created.
 
 **API/schema/migration changes:** Migration `110_agent_run_identity_and_extension_snapshots.sql`
 adds optional extension snapshot references and an immutable run-identity trigger. It is additive
