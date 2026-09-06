@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { AsYouType, getCountries, getCountryCallingCode, parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js";
+import { AsYouType, parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js";
 import { useState, type FormEvent } from "react";
+import { phoneCountries } from "@/lib/phone-countries";
 
 const businessTypes = [
   ["individual", "Individual"],
@@ -23,32 +24,6 @@ const products = [
   { value: "kasitek_product_growth", label: "Growth workflows", detail: "Campaigns, content and customer follow-up" },
   { value: "kasitek_product_scale", label: "Automation", detail: "Agents and connected business workflows" },
 ];
-
-const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
-const stableCountryNames: Partial<Record<CountryCode, string>> = {
-  FK: "Falkland Islands",
-  HK: "Hong Kong SAR China",
-  MO: "Macao SAR China",
-  PS: "Palestinian Territories",
-};
-
-function countrySortKey(name: string) {
-  return name.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-}
-
-const phoneCountries = getCountries()
-  .map((code) => ({
-    code,
-    name: stableCountryNames[code] ?? regionNames.of(code) ?? code,
-    callingCode: getCountryCallingCode(code),
-  }))
-  .sort((left, right) => {
-    const leftKey = countrySortKey(left.name);
-    const rightKey = countrySortKey(right.name);
-    if (leftKey < rightKey) return -1;
-    if (leftKey > rightKey) return 1;
-    return left.code < right.code ? -1 : left.code > right.code ? 1 : 0;
-  });
 
 export function EarlyAccessForm() {
   const [businessName, setBusinessName] = useState("");

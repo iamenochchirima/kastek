@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { AsYouType, parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js";
 import { useEffect, useState, type FormEvent } from "react";
+import { phoneCountries } from "@/lib/phone-countries";
 
 type EnquiryMode = "contact" | "quote";
 
@@ -79,6 +81,8 @@ export function ProjectEnquiryForm({ mode }: ProjectEnquiryFormProps) {
   const [businessName, setBusinessName] = useState("");
   const [contactPerson, setContactPerson] = useState("");
   const [phone, setPhone] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState<CountryCode>("ZA");
+  const [phoneTouched, setPhoneTouched] = useState(false);
   const [email, setEmail] = useState("");
   const [businessType, setBusinessType] = useState("");
   const [services, setServices] = useState<string[]>([]);
@@ -105,6 +109,19 @@ export function ProjectEnquiryForm({ mode }: ProjectEnquiryFormProps) {
     );
   }
 
+  function updatePhoneCountry(value: string) {
+    const nextCountry = value as CountryCode;
+    setPhoneCountry(nextCountry);
+    if (phone.trim() && !phone.trim().startsWith("+")) {
+      setPhone(new AsYouType(nextCountry).input(phone));
+    }
+  }
+
+  function updatePhone(value: string) {
+    setPhoneTouched(true);
+    setPhone(new AsYouType(phoneCountry).input(value));
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -112,12 +129,20 @@ export function ProjectEnquiryForm({ mode }: ProjectEnquiryFormProps) {
     if (
       !businessName.trim() ||
       !contactPerson.trim() ||
-      !phone.trim() ||
       !email.trim() ||
       !businessType ||
       services.length === 0
     ) {
       setError("Complete the required fields and choose at least one area.");
+      return;
+    }
+
+    const parsedPhone = phone.trim()
+      ? parsePhoneNumberFromString(phone, phoneCountry)
+      : undefined;
+    if (!parsedPhone?.isValid()) {
+      setPhoneTouched(true);
+      setError("Enter a valid international phone number.");
       return;
     }
 
@@ -130,7 +155,7 @@ export function ProjectEnquiryForm({ mode }: ProjectEnquiryFormProps) {
         body: JSON.stringify({
           businessName,
           contactPerson,
-          phone,
+          phone: parsedPhone.number,
           email,
           businessType,
           services,
@@ -220,14 +245,41 @@ export function ProjectEnquiryForm({ mode }: ProjectEnquiryFormProps) {
           </label>
           <label>
             <span>Phone or WhatsApp *</span>
-            <input
-              required
-              type="tel"
-              autoComplete="tel"
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-              placeholder="+27"
-            />
+            <div className="phone-input">
+              <select
+                aria-label="Country"
+                value={phoneCountry}
+                onChange={(event) => updatePhoneCountry(event.target.value)}
+              >
+                {phoneCountries.map((country) => (
+                  <option key={country.code} value={country.code}>
+                    {country.name} (+{country.callingCode})
+                  </option>
+                ))}
+              </select>
+              <input
+                required
+                aria-label="Phone or WhatsApp number"
+                aria-invalid={
+                  phoneTouched &&
+                  (!phone || !parsePhoneNumberFromString(phone, phoneCountry)?.isValid())
+                }
+                type="tel"
+                autoComplete="tel"
+                value={phone}
+                onChange={(event) => updatePhone(event.target.value)}
+                placeholder="73 123 4567"
+              />
+            </div>
+            {phoneTouched && phone ? (
+              <small
+                className={`phone-status ${parsePhoneNumberFromString(phone, phoneCountry)?.isValid() ? "is-valid" : "is-invalid"}`}
+              >
+                {parsePhoneNumberFromString(phone, phoneCountry)?.isValid()
+                  ? `Valid number · ${parsePhoneNumberFromString(phone, phoneCountry)?.number}`
+                  : "Enter a valid number for this country"}
+              </small>
+            ) : null}
           </label>
           <label className="enquiry-field-wide">
             <span>Email *</span>
