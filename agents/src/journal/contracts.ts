@@ -8,6 +8,10 @@ import { randomUUID } from "node:crypto";
  * may be referenced here by identifier when needed.
  */
 export interface ExecutionJournalScope {
+  /** Tenant boundary; required for every durable journal read and write. */
+  readonly organizationId: string;
+  /** Installation boundary; a run cannot be used to cross an installation. */
+  readonly installationId: string;
   readonly runId: string;
   readonly operationId?: string;
   readonly correlationId?: string;
@@ -90,6 +94,16 @@ export interface DeliveryObligationEvent {
   };
 }
 
+/** A lossless, bounded record of one harness loop lifecycle transition. */
+export interface HarnessTurnEvent {
+  readonly kind: "harness.turn";
+  readonly data: {
+    readonly type: "loop.started" | "model.completed" | "tool.proposed" | "tool.completed" | "loop.paused" | "loop.completed" | "loop.failed" | "loop.limited";
+    readonly iteration: number;
+    readonly payload: Record<string, unknown>;
+  };
+}
+
 export type ExecutionJournalEvent =
   | RunTransitionEvent
   | ContextEvent
@@ -97,7 +111,8 @@ export type ExecutionJournalEvent =
   | ToolEvent
   | WaitingEvent
   | EffectUncertainEvent
-  | DeliveryObligationEvent;
+  | DeliveryObligationEvent
+  | HarnessTurnEvent;
 
 export interface ExecutionJournalEventInput {
   readonly scope: ExecutionJournalScope;
@@ -113,7 +128,8 @@ export interface PersistedExecutionJournalEvent extends ExecutionJournalEventInp
 }
 
 export interface ExecutionJournalRead {
-  readonly runId?: string;
+  readonly organizationId: string;
+  readonly runId: string;
   /** Return events strictly after this sequence. */
   readonly afterSequence?: number;
   readonly limit?: number;
@@ -130,7 +146,7 @@ export type ExecutionJournalListener = (event: PersistedExecutionJournalEvent) =
  */
 export interface ExecutionJournal {
   append(input: ExecutionJournalEventInput): Promise<PersistedExecutionJournalEvent>;
-  read(query?: ExecutionJournalRead): Promise<ReadonlyArray<PersistedExecutionJournalEvent>>;
+  read(query: ExecutionJournalRead): Promise<ReadonlyArray<PersistedExecutionJournalEvent>>;
   subscribe(query: ExecutionJournalRead, listener: ExecutionJournalListener): () => void;
 }
 

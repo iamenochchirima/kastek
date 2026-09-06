@@ -15,6 +15,7 @@ import { parseAgentResponse } from "../../media/contracts";
 import type { ConversationRecord } from "./conversation-repository";
 import { recordConversationAdmission } from "../../telemetry/spans";
 import { admissionDecision, sameSessionSerializationPolicy } from "../../runtime/admission";
+import type { ExecutionJournalRead, PendingExecutionJournalEvent, PersistedExecutionJournalEvent } from "../../journal";
 
 export interface RunRecord {
   id: string;
@@ -831,6 +832,71 @@ export class RunRepository {
        WHERE agent_runs.id = $2 AND agent_runs.organization_id = $1 AND agent_runs.installation_id = $3`,
       [input.organizationId, input.runId, input.installationId, input.eventType, JSON.stringify(event.data), event.specversion, event.source, event.subject, event.datacontenttype],
     );
+  }
+
+  /**
+   * Persist the canonical typed journal payload in the existing append-only
+   * agent event stream. The journal adapter owns its event vocabulary; this
+   * repository owns tenant-scoped SQL and durable sequence allocation.
+   */
+  public async appendJournalEvent(input: PendingExecutionJournalEvent): Promise<PersistedExecutionJournalEvent> {
+    const result = await query<{ sequence_number: string | number; created_at: string }>(
+      this.pool,
+      `INSERT INTO agent_events
+        (id, organization_id, run_id, installation_id, event_type, payload, created_at)
+       SELECT $1::uuid, $2, $3::uuid, $4::uuid, $5, $6::jsonb, $7::timestamptz
+       FROM agent_runs
+       WHERE id = $3::uuid AND organization_id = $2 AND installation_id = $4::uuid
+       RETURNING sequence_number, created_at`,
+      [
+        input.id,
+        input.scope.organizationId,
+        input.scope.runId,
+        input.scope.installationId,
+        `agent.journal.${input.event.kind}`,
+        JSON.stringify({ journal: { scope: input.scope, event: input.event, occurredAt: input.occurredAt } }),
+        input.occurredAt,
+      ],
+    );
+    const persisted = result.rows[0];
+    if (!persisted) throw new Error("EXECUTION_JOURNAL_SCOPE_CONFLICT");
+    return {
+      ...input,
+      sequence: Number(persisted.sequence_number),
+      occurredAt: new Date(persisted.created_at).toISOString(),
+    };
+  }
+
+  public async listJournalEvents(
+    organizationId: string,
+    runId: string,
+    afterSequence = 0,
+    limit = 200,
+  ): Promise<ReadonlyArray<PersistedExecutionJournalEvent>> {
+    const result = await query<{
+      id: string;
+      sequence_number: string | number;
+      payload: { journal?: { scope?: PersistedExecutionJournalEvent["scope"]; event?: PersistedExecutionJournalEvent["event"]; occurredAt?: string } };
+    }>(
+      this.pool,
+      `SELECT id, sequence_number, payload
+       FROM agent_events
+       WHERE organization_id = $1 AND run_id = $2::uuid AND event_type LIKE 'agent.journal.%'
+         AND sequence_number > $3
+       ORDER BY sequence_number ASC LIMIT $4`,
+      [organizationId, runId, afterSequence, Math.min(Math.max(Math.trunc(limit), 1), 200)],
+    );
+    return result.rows.flatMap((row) => {
+      const journal = row.payload?.journal;
+      if (!journal?.scope || !journal.event || !journal.occurredAt) return [];
+      return [{
+        id: row.id,
+        sequence: Number(row.sequence_number),
+        occurredAt: journal.occurredAt,
+        scope: journal.scope,
+        event: journal.event,
+      }];
+    });
   }
 
   public async operationalSummary(organizationId: string): Promise<{

@@ -11,7 +11,7 @@ import type { AgentRunActivities } from "./contracts";
 import { ModelGateway } from "../model/gateway";
 import { EnvironmentCredentialResolver, VaultCredentialResolver, type CredentialResolver } from "../model/credentials";
 import type { ModelPricing, ModelProvider } from "../model/types";
-import { type AgentLoopLimits, type AgentLoopResult, type ModelCreditReservation } from "../runtime/loop";
+import { type AgentLoopEvent, type AgentLoopLimits, type AgentLoopResult, type ModelCreditReservation } from "../runtime/loop";
 import type { ModelCreditPricing } from "../model/credit-pricing";
 import { actualModelCallCredits, estimateModelCallCredits, estimatePromptTokens, shouldChargeModelCredits } from "../model/credit-pricing";
 import { buildAgentContext } from "../runtime/context";
@@ -73,6 +73,7 @@ import { RemoteMcpProviderRepository } from "../db/repositories/remote-mcp-provi
 import { CoreHostAdapter, HostCapabilityRouter, NativeHostAdapter } from "../hosts/capabilities";
 import { createAgentHarness, type AgentHarness } from "../runtime/harness";
 import { resourceAccessFromExecutionScope } from "../runtime/scope-projections";
+import { PostgresExecutionJournal, RunRepositoryExecutionJournalStore } from "../journal";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -94,6 +95,17 @@ export function normalizeConnectionFilter(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const normalized = value.trim();
   return normalized && normalized.toLowerCase() !== "all" ? normalized : undefined;
+}
+
+function journalHarnessEvent(event: AgentLoopEvent) {
+  return {
+    kind: "harness.turn" as const,
+    data: {
+      type: event.type,
+      iteration: event.iteration,
+      payload: event.payload,
+    },
+  };
 }
 
 type ChannelSelectionObject = {
@@ -2956,6 +2968,7 @@ async function executeLoopForRun(
   stepActivitiesEnabled: boolean,
 ) {
   if (run.installation_status !== "active") throw new Error("INSTALLATION_NOT_ACTIVE");
+  const journal = new PostgresExecutionJournal(new RunRepositoryExecutionJournalStore(runs));
   const configuration = run.configuration;
   const installationSettings = run.installation_settings ?? {};
   const storedWorkflowState = await workflowState.get(run.organization_id, run.id);
@@ -3431,12 +3444,14 @@ async function executeLoopForRun(
       resumeApprovedToolCall,
       onEvent: async (event) => {
         activityHeartbeat({ phase: event.type, iteration: event.iteration });
-        await runs.appendEvent({
-          organizationId: run.organization_id,
-          runId: run.id,
-          installationId: run.installation_id,
-          eventType: `agent.${event.type}`,
-          payload: event.payload,
+        await journal.append({
+          scope: {
+            organizationId: run.organization_id,
+            installationId: run.installation_id,
+            runId: run.id,
+            correlationId: run.correlation_id,
+          },
+          event: journalHarnessEvent(event),
         });
       },
       onToolProposed: async (proposal) => {

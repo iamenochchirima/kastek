@@ -31,7 +31,7 @@ describe("PostgresExecutionJournal", () => {
     const journal = new PostgresExecutionJournal(store);
 
     const appended = await journal.append({
-      scope: { runId: "run-1", operationId: "turn-1" },
+      scope: { organizationId: "org-1", installationId: "installation-1", runId: "run-1", operationId: "turn-1" },
       event: {
         kind: "tool.invoked",
         data: { toolCallId: "call-1", capability: "booking.list", outcome: "completed" },
@@ -43,12 +43,12 @@ describe("PostgresExecutionJournal", () => {
       expect.objectContaining({
         id: appended.id,
         occurredAt: "2026-09-06T12:00:00.000Z",
-        scope: { runId: "run-1", operationId: "turn-1" },
+        scope: { organizationId: "org-1", installationId: "installation-1", runId: "run-1", operationId: "turn-1" },
         event: { kind: "tool.invoked", data: { toolCallId: "call-1", capability: "booking.list", outcome: "completed" } },
       }),
     ]);
     expect(appended.sequence).toBe(1);
-    expect(await journal.read({ runId: "run-1" })).toEqual([appended]);
+    expect(await journal.read({ organizationId: "org-1", runId: "run-1" })).toEqual([appended]);
   });
 
   it("replays only the requested run cursor even when a store returns a broader result", async () => {
@@ -60,27 +60,27 @@ describe("PostgresExecutionJournal", () => {
           id: "event-1",
           sequence: 1,
           occurredAt: "2026-09-06T12:00:00.000Z",
-          scope: { runId: "run-1" },
+          scope: { organizationId: "org-1", installationId: "installation-1", runId: "run-1" },
           event: { kind: "run.transition", data: { to: "running" } },
         },
         {
           id: "event-2",
           sequence: 2,
           occurredAt: "2026-09-06T12:01:00.000Z",
-          scope: { runId: "run-2" },
+          scope: { organizationId: "org-1", installationId: "installation-1", runId: "run-2" },
           event: { kind: "run.transition", data: { to: "running" } },
         },
         {
           id: "event-3",
           sequence: 3,
           occurredAt: "2026-09-06T12:02:00.000Z",
-          scope: { runId: "run-1" },
+          scope: { organizationId: "org-1", installationId: "installation-1", runId: "run-1" },
           event: { kind: "run.transition", data: { to: "completed" } },
         },
       ]),
     });
 
-    const replayed = await journal.read({ runId: "run-1", afterSequence: 1 });
+    const replayed = await journal.read({ organizationId: "org-1", runId: "run-1", afterSequence: 1 });
     expect(replayed.map((event) => event.id)).toEqual(["event-3"]);
   });
 
@@ -88,13 +88,13 @@ describe("PostgresExecutionJournal", () => {
     const store = new FakePostgresJournalStore();
     const journal = new PostgresExecutionJournal(store);
     const healthy = vi.fn();
-    journal.subscribe({}, () => {
+    journal.subscribe({ organizationId: "org-1", runId: "run-1" }, () => {
       throw new Error("projection failed");
     });
-    journal.subscribe({ runId: "run-1" }, healthy);
+    journal.subscribe({ organizationId: "org-1", runId: "run-1" }, healthy);
 
     const appended = await journal.append({
-      scope: { runId: "run-1" },
+      scope: { organizationId: "org-1", installationId: "installation-1", runId: "run-1" },
       event: { kind: "delivery.obligation", data: { deliveryId: "delivery-1", status: "sent", channel: "telegram" } },
     });
 
@@ -109,7 +109,7 @@ describe("PostgresExecutionJournal", () => {
     });
 
     await expect(journal.append({
-      scope: { runId: "run-1" },
+      scope: { organizationId: "org-1", installationId: "installation-1", runId: "run-1" },
       event: { kind: "run.transition", data: { to: "queued" } },
       occurredAt: "2026-09-06T12:00:00.000Z",
     })).rejects.toThrow("Execution journal store changed the event identity");

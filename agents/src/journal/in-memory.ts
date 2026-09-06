@@ -33,7 +33,7 @@ export class InMemoryExecutionJournal implements ExecutionJournal {
     return event;
   }
 
-  public async read(query: ExecutionJournalRead = {}): Promise<ReadonlyArray<PersistedExecutionJournalEvent>> {
+  public async read(query: ExecutionJournalRead): Promise<ReadonlyArray<PersistedExecutionJournalEvent>> {
     const limit = query.limit === undefined ? undefined : Math.max(0, query.limit);
     return this.events
       .filter((event) => matches(query, event))
@@ -48,7 +48,7 @@ export class InMemoryExecutionJournal implements ExecutionJournal {
 }
 
 function matches(query: ExecutionJournalRead, event: PersistedExecutionJournalEvent): boolean {
-  if (query.runId !== undefined && event.scope.runId !== query.runId) return false;
+  if (event.scope.organizationId !== query.organizationId || event.scope.runId !== query.runId) return false;
   if (query.afterSequence !== undefined && event.sequence <= query.afterSequence) return false;
   return true;
 }
