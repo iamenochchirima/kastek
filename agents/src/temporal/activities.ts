@@ -37,6 +37,7 @@ import { EffectReceiptRepository } from "../db/repositories/effect-receipt-repos
 import { ApprovalRepository } from "../db/repositories/approval-repository";
 import { InstallationGrantRepository } from "../db/repositories/installation-grant-repository";
 import { authorizeInstallationCapability } from "../capabilities/authorization";
+import { createCapabilityRuntime } from "../capabilities/runtime";
 import { validateWorkflowGraph, type WorkflowGraph } from "../workflows/graph";
 import { executeWorkflowGraph, type GraphAgentLoopRequest, type GraphAgentLoopResult, type GraphExecutionLimits, type GraphExecutionUsage } from "../workflows/executor";
 import { WorkflowStateRepository } from "../db/repositories/workflow-state-repository";
@@ -2182,7 +2183,28 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const remoteMcpProviders = options.remoteMcpProviders ?? new RemoteMcpProviderRepository(pool, integrationRepository ? (organizationId, credentialReference) => integrationRepository.resolveCredential(organizationId, credentialReference) : undefined);
   const integrationTools = options.integrationTools ?? (integrationRepository ? new IntegrationToolService(integrationRepository, options.config) : undefined);
   const tools = options.harness?.tools ?? options.tools ?? createDefaultTools(coreClient, conversationActions, integrationTools, memory, hostCapabilities);
-  const harness = options.harness ?? createAgentHarness({ tools, host: hostCapabilities });
+  const harness = options.harness ?? createAgentHarness({
+    tools,
+    host: hostCapabilities,
+    capabilities: createCapabilityRuntime({
+      registry: tools,
+      admission: {
+        admit: async ({ request }) => {
+          await authorizeInstallationCapability({
+            organizationId: request.context.organizationId,
+            installationId: request.context.installationId,
+            name: request.name,
+            argumentsValue: request.arguments,
+            grantedTools: request.grantedTools,
+            tools,
+            installationGrants,
+            approved: Boolean(request.approval),
+          });
+          return { status: "ready" };
+        },
+      },
+    }),
+  });
   const decomposedActivities = createDecomposedActivities({
     runs,
     modelCalls,

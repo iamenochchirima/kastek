@@ -707,8 +707,14 @@ check or a UI screenshot alone does not prove a durable runtime contract.
 
 ### Extensions and capabilities
 
-- [ ] Define declarative plugin manifests, lifecycle records, dependency/compatibility rules, and
-  immutable extension snapshots.
+- [x] Add declarative skill, plugin, connector, and MCP extension contracts with typed readiness
+  gates and deterministic immutable snapshots. Evidence: `agents/src/extensions/` and
+  `agents/test/extension-resolver.test.ts`.
+- [x] Add a capability-runtime seam that consistently applies manifest lookup, readiness, grants,
+  and injected installation admission before handler invocation. Evidence:
+  `agents/src/capabilities/runtime.ts` and `agents/test/capability-runtime.test.ts`.
+- [ ] Persist declarative plugin lifecycle records, dependency/compatibility rules, and immutable
+  extension snapshots at agent-version publication and run admission.
 - [ ] Build `ExtensionResolver` for skills, plugins, connectors, and MCP configurations.
 - [ ] Build one capability-admission interface that always performs readiness, authorization,
   approval, durable operation/receipt handling, invocation, redaction, and evidence.

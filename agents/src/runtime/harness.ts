@@ -1,6 +1,7 @@
 import type { HostCapabilityRouter } from "../hosts/capabilities";
 import type { ToolInvocationRequest, ToolInvocationResult } from "../tools/types";
 import { ToolRegistry } from "../tools/registry";
+import { createCapabilityRuntime, type CapabilityRuntime } from "../capabilities/runtime";
 import type { ExecutionScope } from "./execution-scope";
 import { toolInvocationContextFromScope } from "../tools/types";
 import {
@@ -27,6 +28,7 @@ export interface AgentToolSurface {
 
 export interface AgentHarness extends AgentToolSurface {
   readonly tools: ToolRegistry;
+  readonly capabilities: CapabilityRuntime;
   readonly host: HostCapabilityRouter;
   readonly contextPolicy: ContextPolicy;
   context(scope: ExecutionScope, extras?: Parameters<typeof toolInvocationContextFromScope>[1]): ReturnType<typeof toolInvocationContextFromScope>;
@@ -42,15 +44,18 @@ export function createAgentHarness(input: {
   tools: ToolRegistry;
   host: HostCapabilityRouter;
   contextPolicy?: ContextPolicy;
+  capabilities?: CapabilityRuntime;
 }): AgentHarness {
   const contextPolicy = input.contextPolicy ?? new DefaultContextPolicy();
+  const capabilities = input.capabilities ?? createCapabilityRuntime({ registry: input.tools });
   return {
     tools: input.tools,
+    capabilities,
     host: input.host,
     contextPolicy,
-    get: (name) => input.tools.get(name),
-    list: (grantedTools) => input.tools.list(grantedTools),
-    invoke: (request) => input.tools.invoke(request),
+    get: (name) => capabilities.get(name),
+    list: (grantedTools) => capabilities.list(grantedTools),
+    invoke: (request) => capabilities.invoke(request),
     context: (scope, extras) => toolInvocationContextFromScope(scope, extras),
     buildContext: (contextInput) => contextPolicy.build(contextInput),
     runTurn: (turnInput) => runBoundedAgentLoop({ ...turnInput, tools: input.tools }),
