@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { AsYouType, getCountries, getCountryCallingCode, parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js";
 import { useState, type FormEvent } from "react";
 
 const businessTypes = [
+  ["individual", "Individual"],
   ["professional_services", "Professional services"],
   ["retail", "Retail or e-commerce"],
   ["healthcare", "Healthcare or medical"],
@@ -22,10 +24,22 @@ const products = [
   { value: "kasitek_product_scale", label: "Automation", detail: "Agents and connected business workflows" },
 ];
 
+const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
+const phoneCountries = getCountries()
+  .map((code) => ({
+    code,
+    name: regionNames.of(code) ?? code,
+    callingCode: getCountryCallingCode(code),
+  }))
+  .sort((left, right) => left.name.localeCompare(right.name));
+
 export function EarlyAccessForm() {
   const [businessName, setBusinessName] = useState("");
   const [contactPerson, setContactPerson] = useState("");
   const [phone, setPhone] = useState("");
+  const [phoneCountry, setPhoneCountry] = useState<CountryCode>("ZA");
+  const [phoneTouched, setPhoneTouched] = useState(false);
+  const [companyWebsite, setCompanyWebsite] = useState("");
   const [email, setEmail] = useState("");
   const [businessType, setBusinessType] = useState("");
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
@@ -41,11 +55,47 @@ export function EarlyAccessForm() {
     );
   }
 
+  function updatePhoneCountry(value: string) {
+    const nextCountry = value as CountryCode;
+    setPhoneCountry(nextCountry);
+    if (phone.trim() && !phone.trim().startsWith("+")) {
+      setPhone(new AsYouType(nextCountry).input(phone));
+    }
+  }
+
+  function updatePhone(value: string) {
+    setPhoneTouched(true);
+    setPhone(new AsYouType(phoneCountry).input(value));
+  }
+
+  function normalizeWebsite(value: string) {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    try {
+      const url = new URL(candidate);
+      return ["http:", "https:"].includes(url.protocol) && url.hostname ? url.toString() : null;
+    } catch {
+      return null;
+    }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    if (!businessName.trim() || !contactPerson.trim() || !email.trim() || !businessType || !selectedProducts.length || !contactConsent) {
+    if (!contactPerson.trim() || !email.trim() || !selectedProducts.length || !contactConsent) {
       setError("Complete the required fields and consent to be contacted.");
+      return;
+    }
+    const normalizedWebsite = normalizeWebsite(companyWebsite);
+    if (companyWebsite.trim() && !normalizedWebsite) {
+      setError("Enter a valid company website.");
+      return;
+    }
+    const parsedPhone = phone.trim() ? parsePhoneNumberFromString(phone, phoneCountry) : undefined;
+    if (phone.trim() && !parsedPhone?.isValid()) {
+      setPhoneTouched(true);
+      setError("Enter a valid international phone number.");
       return;
     }
     setLoading(true);
@@ -54,11 +104,12 @@ export function EarlyAccessForm() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          businessName,
+          businessName: businessName.trim() || undefined,
           contactPerson,
-          phone: phone || undefined,
+          phone: parsedPhone?.number ?? undefined,
           email,
-          businessType,
+          businessType: businessType || undefined,
+          companyWebsite: normalizedWebsite,
           products: selectedProducts,
           notes: notes || undefined,
           contactConsent: true,
@@ -93,18 +144,22 @@ export function EarlyAccessForm() {
       {error ? <p className="enquiry-error" role="alert">{error}</p> : null}
 
       <fieldset>
-        <legend>About the business</legend>
+        <legend>About you</legend>
         <div className="enquiry-fields">
           <label>
-            <span>Business name *</span>
-            <input required value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="Business or organisation" />
+            <span>Company name</span>
+            <input value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder="Company name (optional)" />
           </label>
           <label>
-            <span>Business type *</span>
-            <select required value={businessType} onChange={(event) => setBusinessType(event.target.value)}>
-              <option value="">Select one</option>
+            <span>Company type</span>
+            <select value={businessType} onChange={(event) => setBusinessType(event.target.value)}>
+              <option value="">Select one (optional)</option>
               {businessTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
+          </label>
+          <label className="enquiry-field-wide">
+            <span>Company website</span>
+            <input type="url" autoComplete="url" value={companyWebsite} onChange={(event) => setCompanyWebsite(event.target.value)} placeholder="https://example.com (optional)" />
           </label>
         </div>
       </fieldset>
@@ -117,8 +172,14 @@ export function EarlyAccessForm() {
             <input required autoComplete="name" value={contactPerson} onChange={(event) => setContactPerson(event.target.value)} placeholder="Full name" />
           </label>
           <label>
-            <span>Phone or WhatsApp</span>
-            <input type="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+27" />
+            <span>Phone or WhatsApp (optional)</span>
+            <div className="phone-input">
+              <select aria-label="Country" value={phoneCountry} onChange={(event) => updatePhoneCountry(event.target.value)}>
+                {phoneCountries.map((country) => <option key={country.code} value={country.code}>{country.name} (+{country.callingCode})</option>)}
+              </select>
+              <input aria-label="Phone or WhatsApp number" aria-invalid={phoneTouched && Boolean(phone) && !parsePhoneNumberFromString(phone, phoneCountry)?.isValid()} type="tel" autoComplete="tel" value={phone} onChange={(event) => updatePhone(event.target.value)} placeholder="73 123 4567" />
+            </div>
+            {phoneTouched && phone ? <small className={`phone-status ${parsePhoneNumberFromString(phone, phoneCountry)?.isValid() ? "is-valid" : "is-invalid"}`}>{parsePhoneNumberFromString(phone, phoneCountry)?.isValid() ? `Valid number · ${parsePhoneNumberFromString(phone, phoneCountry)?.number}` : "Enter a valid number for this country"}</small> : null}
           </label>
           <label className="enquiry-field-wide">
             <span>Email *</span>

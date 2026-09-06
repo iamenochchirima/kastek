@@ -1138,11 +1138,12 @@ model QuoteRequest {
 
 model ProductWaitlistEntry {
   id                   String                @id @default(cuid())
-  businessName         String
+  businessName         String?
   contactPerson        String
   phone                String?
   email                String
   businessType         String?
+  website              String?
   products             String[]
   notes                String?               @db.Text
   source               String                @default("website")

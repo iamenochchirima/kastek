@@ -57,6 +57,7 @@ pub struct EarlyAccessApplication {
     #[serde(rename = "businessType")]
     #[sqlx(rename = "business_type")]
     pub business_type: Option<String>,
+    pub website: Option<String>,
     pub products: Vec<String>,
     pub notes: Option<String>,
     pub source: String,
@@ -214,11 +215,12 @@ pub struct ActivateSignupInvitationRequest {
 fn application_select() -> &'static str {
     r#"
         SELECT id,
-               "businessName" AS business_name,
+               COALESCE("businessName", "contactPerson") AS business_name,
                "contactPerson" AS contact_person,
                phone,
                email,
                "businessType" AS business_type,
+               website,
                COALESCE(products, ARRAY[]::text[]) AS products,
                notes,
                source,
@@ -909,7 +911,7 @@ pub async fn signup_invitation_preview(
 ) -> Result<SignupInvitationPreview, AppError> {
     expire_due_invitations(pool).await?;
     let hash = crypto_utils::sha256_hex(token);
-    let preview = sqlx::query_as::<_, SignupInvitationPreview>(r#"SELECT i.email, i.status, i."expiresAt" AS expires_at, w."businessName" AS business_name FROM "EarlyAccessInvitation" i JOIN "ProductWaitlistEntry" w ON w.id = i."waitlistEntryId" WHERE i."tokenHash" = $1"#)
+    let preview = sqlx::query_as::<_, SignupInvitationPreview>(r#"SELECT i.email, i.status, i."expiresAt" AS expires_at, COALESCE(w."businessName", w."contactPerson") AS business_name FROM "EarlyAccessInvitation" i JOIN "ProductWaitlistEntry" w ON w.id = i."waitlistEntryId" WHERE i."tokenHash" = $1"#)
         .bind(hash).fetch_optional(pool).await?.ok_or_else(|| AppError::NotFound("Early-access invitation not found".to_string()))?;
     Ok(preview)
 }
@@ -1234,7 +1236,7 @@ pub async fn status_for_org(pool: &PgPool, org_id: &str) -> Result<Option<Value>
 
 pub async fn expire_due_access(pool: &PgPool) -> Result<(), AppError> {
     let applications = sqlx::query_as::<_, (String, String, String)>(
-        r#"SELECT id, status, "businessName" FROM "ProductWaitlistEntry"
+        r#"SELECT id, status, COALESCE("businessName", "contactPerson") FROM "ProductWaitlistEntry"
            WHERE "earlyAccessEndsAt" IS NOT NULL AND "earlyAccessEndsAt" <= NOW()
              AND status IN ('approved', 'invited', 'active')"#,
     )

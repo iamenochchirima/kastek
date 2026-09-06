@@ -15,6 +15,7 @@ const STATUSES = ["new", "approved", "invited", "active", "rejected", "expired",
 export type EarlyAccessApplication = {
   id: string;
   businessName: string;
+  website: string | null;
   contactPerson: string;
   email: string;
   products: string[];
@@ -328,6 +329,11 @@ export function EarlyAccessManager({
                   <p className="mt-1 text-sm text-muted-foreground">
                     {item.contactPerson} · {item.email}
                   </p>
+                  {item.website ? (
+                    <a href={item.website} target="_blank" rel="noreferrer" className="mt-1 block text-xs text-primary hover:underline">
+                      {item.website}
+                    </a>
+                  ) : null}
                   {item.products.length ? (
                     <p className="mt-1 text-xs text-muted-foreground">
                       {item.products.join(" · ")}

@@ -29,6 +29,8 @@ pub struct ProductWaitlistCreateRequest {
     pub email: Option<String>,
     #[serde(rename = "businessType")]
     pub business_type: Option<String>,
+    #[serde(rename = "companyWebsite")]
+    pub company_website: Option<String>,
     pub products: Option<Vec<String>>,
     pub notes: Option<String>,
     #[serde(rename = "contactConsent")]

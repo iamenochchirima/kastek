@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
 import { appUrl } from "@/lib/site-config";
 
 type LabsHeaderProps = {
@@ -42,13 +41,10 @@ export function LabsHeader({ home = false, tone = "dark" }: LabsHeaderProps) {
       </nav>
 
       <div className="header-actions">
-        <Link className="header-cta header-cta-secondary" href="/early-access">
+        <Link className="header-cta" href="/early-access">
           Early access
         </Link>
-        <a className="header-cta" href={appUrl} target="_blank" rel="noreferrer">
-          Get started
-          <ArrowUpRight aria-hidden="true" />
-        </a>
+        {/* <a className="header-cta" href={appUrl} target="_blank" rel="noreferrer">Get started</a> */}
       </div>
 
       <details className="mobile-nav">
@@ -60,7 +56,7 @@ export function LabsHeader({ home = false, tone = "dark" }: LabsHeaderProps) {
           <Link href="/pricing">Pricing</Link>
           <Link href="/early-access">Early access</Link>
           <Link href="/get-quote">Get a quote</Link>
-          <a href={appUrl} target="_blank" rel="noreferrer">Get started ↗</a>
+          {/* <a href={appUrl} target="_blank" rel="noreferrer">Get started ↗</a> */}
         </div>
       </details>
     </header>

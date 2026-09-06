@@ -14,6 +14,7 @@ use crate::error::AppError;
 use crate::services::auth::send_email;
 
 const VALID_BUSINESS_TYPES: &[&str] = &[
+    "individual",
     "restaurant",
     "retail",
     "healthcare",
@@ -940,9 +941,10 @@ pub async fn create_waitlist_entry(
     input: ProductWaitlistCreateRequest,
 ) -> Result<serde_json::Value, AppError> {
     let business_name =
-        normalize_required_with_limit(input.business_name.as_deref(), "Business name", 160)?;
+        normalize_optional_with_limit(input.business_name.as_deref(), "Company name", 160)?;
     let contact_person =
         normalize_required_with_limit(input.contact_person.as_deref(), "Contact person", 160)?;
+    let business_label = business_name.as_deref().unwrap_or(&contact_person);
     let email = normalize_required_with_limit(input.email.as_deref(), "Email", 320)?.to_lowercase();
     validate_email(&email)?;
     let business_type =
@@ -978,6 +980,10 @@ pub async fn create_waitlist_entry(
     {
         return Err(AppError::BadRequest("Invalid application".to_string()));
     }
+    let company_website = optional_url(
+        normalize_optional_with_limit(input.company_website.as_deref(), "Company website", 320)?,
+        "Company website",
+    )?;
     let phone = normalize_optional_with_limit(input.phone.as_deref(), "Phone", 40)?;
     let notes = normalize_optional_with_limit(input.notes.as_deref(), "Primary use case", 4_000)?;
 
@@ -993,9 +999,9 @@ pub async fn create_waitlist_entry(
         r#"
         INSERT INTO "ProductWaitlistEntry" (
             id, "businessName", "contactPerson", phone, email, "businessType",
-            products, notes, source, status, "contactConsentAt", "createdAt", "updatedAt"
+            website, products, notes, source, status, "contactConsentAt", "createdAt", "updatedAt"
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'website', 'new', NOW(), NOW(), NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'website', 'new', NOW(), NOW(), NOW())
         "#,
     )
     .bind(&id)
@@ -1004,6 +1010,7 @@ pub async fn create_waitlist_entry(
     .bind(phone)
     .bind(&email)
     .bind(&business_type)
+    .bind(&company_website)
     .bind(&products)
     .bind(notes)
     .execute(pool)
@@ -1030,7 +1037,7 @@ pub async fn create_waitlist_entry(
         "New early-access application",
         &format!(
             "{} applied for early access to {}.",
-            business_name,
+            business_label,
             products.join(", ")
         ),
         "product_waitlist_entry",
@@ -1039,6 +1046,7 @@ pub async fn create_waitlist_entry(
             "businessName": business_name,
             "contactPerson": contact_person,
             "email": email,
+            "companyWebsite": company_website,
             "products": products,
         }),
         &format!("early_access.submitted:{id}"),
@@ -1060,9 +1068,10 @@ pub async fn create_waitlist_entry(
     let _ = send_email(
         config,
         &admin_email,
-        &format!("New Product Waitlist Signup: {business_name}"),
+        &format!("New Product Waitlist Signup: {business_label}"),
         &format!(
-            "Business: {business_name}\nContact: {contact_person}\nEmail: {email}\nProducts: {}",
+            "Company: {business_label}\nContact: {contact_person}\nEmail: {email}\nWebsite: {}\nProducts: {}",
+            company_website.as_deref().unwrap_or("Not provided"),
             products.join(", ")
         ),
     )

@@ -2095,7 +2095,7 @@ function InstallationIntegrations({ agentId, installationId, personal, agentName
     }
   };
 
-  const linkedConnections = workspaceConnections.filter((connection) => ["WHATSAPP", "FACEBOOK", "INSTAGRAM"].includes(connection.provider.toUpperCase()));
+  const linkedConnections = workspaceConnections.filter((connection) => connection.status !== "DISCONNECTED" && ["WHATSAPP", "FACEBOOK", "INSTAGRAM"].includes(connection.provider.toUpperCase()));
   const linkedGroups = ["WHATSAPP", "FACEBOOK", "INSTAGRAM"].map((provider) => ({
     provider,
     connections: linkedConnections.filter((connection) => connection.provider.toUpperCase() === provider),
