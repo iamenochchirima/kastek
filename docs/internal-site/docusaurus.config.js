@@ -11,6 +11,7 @@ const config = {
   projectName: "internal-docs",
   onBrokenLinks: "throw",
   markdown: {
+    mermaid: true,
     hooks: {
       onBrokenMarkdownLinks: "warn",
     },
@@ -36,6 +37,25 @@ const config = {
       },
     ],
   ],
+  plugins: [
+    [
+      "@docusaurus/plugin-content-docs",
+      {
+        id: "agentPlatformPlan",
+        path: path.resolve(__dirname, "../plans"),
+        routeBasePath: "/plans/agents",
+        sidebarPath: require.resolve("./agent-platform-plan-sidebars.js"),
+        include: [
+          "agents/AGENT_PLATFORM_IMPLEMENTATION_PLAN.md",
+          "active/AGENT_PLATFORM_HOST_BOUNDARY_RESTRUCTURE_PLAN.md",
+          "active/AGENT_PLATFORM_HERMES_ALIGNED_RUNTIME_RELIABILITY_PLAN.md",
+        ],
+        showLastUpdateAuthor: false,
+        showLastUpdateTime: true,
+      },
+    ],
+  ],
+  themes: ["@docusaurus/theme-mermaid"],
   themeConfig: {
     navbar: {
       title: "Kasitek Internal",
@@ -43,6 +63,7 @@ const config = {
         { to: "/", label: "Home", position: "left" },
         { to: "/development", label: "Development", position: "left" },
         { to: "/architecture", label: "Architecture", position: "left" },
+        { to: "/plans/agents/", label: "Agent Platform Plan", position: "left" },
         { to: "/operations/release-process", label: "Operations", position: "left" },
       ],
     },

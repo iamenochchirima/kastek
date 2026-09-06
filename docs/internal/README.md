@@ -23,6 +23,7 @@ This is the canonical home for private Kasitek documentation.
 - [Railway Deployment Topology](./operations/deployment-topology.md)
 - [Observability](./operations/observability.md)
 - [Documentation Maintenance](./operations/documentation-maintenance.md)
+- [Agent Platform Implementation Plan](/plans/agents/)
 
 ## Structure
 
@@ -31,11 +32,14 @@ This is the canonical home for private Kasitek documentation.
 - `development/`: repository and local-development guidance
 - `operations/`: release, environment, versioning, observability, and documentation procedures
 - `runbooks/`: step-by-step operational playbooks
-- `docs/plans/`: temporary implementation plans, kept outside the documentation site
+- `docs/plans/`: implementation plans; the canonical Agent Platform program map and selected active
+  implementation chunks are mounted at `/plans/agents/`
 - `docs/archive/legacy/`: historical or superseded material, not current guidance
 
 ## Notes
 
 - This site contains current technical and operational guidance only.
 - Temporary plans and checklists are maintained in `docs/plans/active/` and moved to
-  `docs/plans/completed/` when finished; they are not documentation sources of truth.
+  `docs/plans/completed/` when finished. The Agent Platform program map remains the maintained
+  implementation index, while selected active chunks may be mounted under its plan UI for review.
+  Current runtime behavior remains documented under `docs/internal/architecture/`.
