@@ -21,6 +21,7 @@ const context: ToolInvocationContext = {
     actorId: "actor-contract",
     actorType: "user",
     correlationId: "correlation-contract",
+    capabilityGrants: ["kasitek.core.workspace_status"],
   },
 };
 

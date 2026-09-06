@@ -46,7 +46,7 @@ import { ModelProviderError, type ModelCredentials, type ModelMessage, type Mode
 import { activityInfo, cancellationSignal, heartbeat } from "@temporalio/activity";
 import { buildGroundingProvenance } from "../runtime/provenance";
 import { approvalSnapshotHashFromResource, toolInvocationContextFromScope, type ToolInvocationContext } from "../tools/types";
-import type { CoreContentPost, CoreContentPosts, CoreContentPublishBatch, CoreContentPublishBatchPreflight, CoreWorkspaceConnections } from "../core/client";
+import type { CoreContentPost, CoreContentPosts, CoreContentPublishBatch, CoreContentPublishBatchPreflight, CoreWorkspaceConnections, CoreWorkspaceStatus } from "../core/client";
 import { buildDomainApprovalSnapshot, projectBookingApprovalResource, projectCampaignApprovalResource } from "../approval/domain-preview";
 import { ConversationActionService } from "../actions/conversation-actions";
 import type { OfferHandoffArguments } from "../actions/conversation-actions";
@@ -69,6 +69,9 @@ import type { DecomposedAgentRunActivities } from "./decomposed-contracts";
 import { SkillRepository } from "../db/repositories/skill-repository";
 import { matchSkills, renderSkillInstructions } from "../skills/contracts";
 import { RemoteMcpProviderRepository } from "../db/repositories/remote-mcp-provider-repository";
+import { CoreHostAdapter, HostCapabilityRouter, NativeHostAdapter } from "../hosts/capabilities";
+import { createAgentHarness, type AgentHarness } from "../runtime/harness";
+import { resourceAccessFromExecutionScope } from "../runtime/scope-projections";
 
 export interface ActivityOptions {
   gateway?: ModelGateway;
@@ -82,6 +85,8 @@ export interface ActivityOptions {
   integrationTools?: IntegrationToolService;
   skills?: SkillRepository;
   remoteMcpProviders?: RemoteMcpProviderRepository;
+  hostCapabilities?: HostCapabilityRouter;
+  harness?: AgentHarness;
 }
 
 export function normalizeConnectionFilter(value: unknown): string | undefined {
@@ -294,7 +299,10 @@ async function consumeRunToolBudget(repository: RunBudgetRepository, input: { or
   }
 }
 
-export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversationActions?: ConversationActionService, integrationTools?: IntegrationToolService, memoryRepository?: MemoryRepository): ToolRegistry {
+export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversationActions?: ConversationActionService, integrationTools?: IntegrationToolService, memoryRepository?: MemoryRepository, hostCapabilities?: HostCapabilityRouter): ToolRegistry {
+  const resolvedHostCapabilities = hostCapabilities ?? (coreClient
+    ? new HostCapabilityRouter([new CoreHostAdapter(coreClient), new NativeHostAdapter()])
+    : undefined);
   const tools = new ToolRegistry();
   if (memoryRepository) {
     const memoryLifecycle = new MemoryLifecycle(memoryRepository);
@@ -315,7 +323,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
       manifest: { ownerService: "agents", requiredScope: "agent.memory.read", execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "restricted", redaction: ["memories.content", "memories.provenance"] },
       handler: async (context, args) => {
         const records = await memoryLifecycle.search(
-          { organizationId: context.organizationId, agentId: context.agentId, installationId: context.installationId, conversationId: context.conversationId, actorId: context.actorId },
+          resourceAccessFromExecutionScope(context.scope),
           String(args.query),
           context.memoryPolicy,
           typeof args.limit === "number" ? args.limit : undefined,
@@ -358,7 +366,7 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
       manifest: { ownerService: "agents", requiredScope: "agent.memory.write", execution: "durable", idempotency: "required", approval: "always", auditClassification: "restricted", redaction: ["memory.content", "memory.provenance"] },
       handler: async (context, args) => {
         const memory = await memoryLifecycle.rememberExplicit(
-          { organizationId: context.organizationId, agentId: context.agentId, installationId: context.installationId, conversationId: context.conversationId, actorId: context.actorId, runId: context.runId },
+          resourceAccessFromExecutionScope(context.scope),
           {
             namespace: String(args.namespace) as Parameters<MemoryLifecycle["rememberExplicit"]>[1]["namespace"],
             memoryType: String(args.memoryType) as Parameters<MemoryLifecycle["rememberExplicit"]>[1]["memoryType"],
@@ -425,7 +433,12 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
       additionalProperties: false,
     },
     manifest: { ownerService: "agents", requiredScope: "platform.time.read", execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "access", redaction: [] },
-    handler: async () => ({ iso: new Date().toISOString() }),
+    handler: async (context) => {
+      if (!resolvedHostCapabilities) throw new Error("HOST_CAPABILITY_ROUTER_NOT_CONFIGURED");
+      const result = await resolvedHostCapabilities.invoke<{ iso: string }>({ name: "platform.current_time", scope: context.scope });
+      if (result.status !== "succeeded") throw new Error(`HOST_CAPABILITY_${result.code}`);
+      return result.value;
+    },
   });
   tools.register({
     name: "kasitek.core.content_media_get",
@@ -507,8 +520,16 @@ export function createDefaultTools(coreClient?: KasitekCoreReadClient, conversat
     },
     manifest: { ownerService: "kasitek-core", requiredScope: "connections.read", execution: "immediate", idempotency: "not_applicable", approval: "none", auditClassification: "access", redaction: ["connections.credentials"] },
     handler: async (context, args) => {
-      if (!coreClient) throw new Error("kasitek-core read boundary is not configured");
-      return coreClient.getWorkspaceStatus(context);
+      if (resolvedHostCapabilities) {
+        const result = await resolvedHostCapabilities.invoke<CoreWorkspaceStatus>({
+          name: "kasitek.core.workspace_status",
+          scope: context.scope,
+          arguments: args,
+        });
+        if (result.status !== "succeeded") throw new Error(`HOST_CAPABILITY_${result.code}`);
+        return result.value;
+      }
+      throw new Error("HOST_CAPABILITY_ROUTER_NOT_CONFIGURED");
     },
   });
   tools.register({
@@ -2149,6 +2170,10 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
     ? new VaultCredentialResolver(new CredentialVaultRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY))
     : new EnvironmentCredentialResolver());
   const coreClient = options.coreClient ?? (options.config ? new KasitekCoreReadClient(options.config) : undefined);
+  const hostCapabilities = options.harness?.host ?? options.hostCapabilities ?? new HostCapabilityRouter([
+    ...(coreClient ? [new CoreHostAdapter(coreClient)] : []),
+    new NativeHostAdapter(),
+  ]);
   const telegramClient = options.telegramClient ?? (options.config ? new TelegramBotClient({ apiBaseUrl: options.config.TELEGRAM_API_BASE_URL, timeoutMs: options.config.TELEGRAM_API_TIMEOUT_MS }) : undefined);
   const discordClient = options.discordClient ?? (options.config ? new DiscordBotClient({ apiBaseUrl: options.config.DISCORD_API_BASE_URL, timeoutMs: options.config.DISCORD_API_TIMEOUT_MS }) : undefined);
   const conversationActions = options.conversationActions ?? new ConversationActionService(new HandoffRepository(pool), controls);
@@ -2156,11 +2181,12 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
   const integrationRepository = options.config ? new IntegrationRepository(pool, options.config.AGENTS_CREDENTIAL_ENCRYPTION_KEY) : undefined;
   const remoteMcpProviders = options.remoteMcpProviders ?? new RemoteMcpProviderRepository(pool, integrationRepository ? (organizationId, credentialReference) => integrationRepository.resolveCredential(organizationId, credentialReference) : undefined);
   const integrationTools = options.integrationTools ?? (integrationRepository ? new IntegrationToolService(integrationRepository, options.config) : undefined);
-  const tools = options.tools ?? createDefaultTools(coreClient, conversationActions, integrationTools, memory);
+  const tools = options.harness?.tools ?? options.tools ?? createDefaultTools(coreClient, conversationActions, integrationTools, memory, hostCapabilities);
+  const harness = options.harness ?? createAgentHarness({ tools, host: hostCapabilities });
   const decomposedActivities = createDecomposedActivities({
     runs,
     modelCalls,
-    runBudgets,
+      runBudgets,
     conversations,
     memory,
     knowledge,
@@ -2992,6 +3018,10 @@ async function executeLoopForRun(
   // Harness controls are available to every hosted run. They are not an
   // installation grant and are never exposed as external business actions.
   addAgentMediaHarnessTools(allowedTools);
+  const executionScope = {
+    ...executionScopeFromRun(run),
+    capabilityGrants: [...allowedTools],
+  };
   if (!(await controls.isFeatureEnabled(run.organization_id, "agent_execution_enabled", run.installation_id))) throw new Error("AGENT_EXECUTION_FLAG_DISABLED");
   if (await controls.isHeld({ organizationId: run.organization_id, installationId: run.installation_id, runId: run.id, holdType: "execution" })) throw new Error("AGENT_EXECUTION_HOLD_ACTIVE");
   const credentialReference = isKasiAiInstallation && typeof preference?.default_credential_reference === "string"
@@ -3088,14 +3118,7 @@ async function executeLoopForRun(
     : [];
   const conversationSummary = run.conversation_id ? await summaries.getSummary(run.organization_id, run.conversation_id) : null;
   const memoryLifecycle = new MemoryLifecycle(memory);
-  const retrievalScope = {
-    organizationId: run.organization_id,
-    agentId: run.agent_definition_id,
-    installationId: run.installation_id,
-    conversationId: run.conversation_id ?? undefined,
-    actorId: run.created_by,
-  };
-  const retrievalResult = await new RetrievalService(memoryLifecycle, knowledge).retrieve(retrievalScope, currentMessage, run.policy, {
+  const retrievalResult = await new RetrievalService(memoryLifecycle, knowledge).retrieve(resourceAccessFromExecutionScope(executionScope), currentMessage, run.policy, {
     always: run.installation_settings?.profile === "general",
   });
   const retrievalDecision = retrievalResult.decision;
@@ -3134,7 +3157,6 @@ async function executeLoopForRun(
       ? `[memory:${entry.namespace ?? "unknown"}:${entry.rank}] ${entry.text}`
       : `[knowledge:${entry.sourceId ?? "unknown"}:${entry.chunkIndex ?? 0}:${entry.rank}] ${entry.text}`)
     .join("\n");
-  const executionScope = executionScopeFromRun(run);
   const context = buildAgentContext({
     instructions: [
       isKasiAiInstallation
@@ -3270,7 +3292,7 @@ async function executeLoopForRun(
       credentials: modelCredentials,
       fallbackModels,
       gateway,
-      tools,
+      tools: harness,
       grantedTools: allowedTools,
       toolContext: modelToolContext,
       uiChannel: run.reply_channel_type === "website" ? "website" : "platform",
@@ -3451,12 +3473,26 @@ async function executeLoopForRun(
         startedExternalEffects.add(execution.toolCallId);
       },
       onToolCompleted: async (result) => {
+        const completedManifest = tools.get(result.name);
         await toolInvocations.recordCompleted({
           runId: run.id,
           providerToolCallId: result.toolCallId,
           output: result.output,
           latencyMs: result.latencyMs,
           effectId: result.effectId,
+        });
+        await runs.appendEvent({
+          organizationId: run.organization_id,
+          runId: run.id,
+          installationId: run.installation_id,
+          eventType: "agent.tool.completed",
+          operationId: result.toolCallId,
+          payload: {
+            name: result.name,
+            argumentsHash: result.argumentsHash,
+            latencyMs: result.latencyMs,
+            output: redactToolOutput(result.output, completedManifest?.manifest?.redaction ?? []),
+          },
         });
         if (result.effectId) await effectReceipts.markSucceededByKey(run.organization_id, `${run.id}:${result.name}:${result.argumentsHash}`, result.output);
         const stepId = toolSteps.get(result.toolCallId);
@@ -3468,6 +3504,14 @@ async function executeLoopForRun(
           runId: run.id,
           providerToolCallId: failure.toolCallId,
           error: failure.error,
+        });
+        await runs.appendEvent({
+          organizationId: run.organization_id,
+          runId: run.id,
+          installationId: run.installation_id,
+          eventType: "agent.tool.failed",
+          operationId: failure.toolCallId,
+          payload: { name: failure.name, argumentsHash: failure.argumentsHash, error: failure.error },
         });
         const failedTool = tools.get(failure.name);
         if (failedTool?.riskClass === "external-effect" && failure.argumentsHash) {
@@ -3612,7 +3656,7 @@ async function executeLoopForRun(
     credentials: modelCredentials,
     fallbackModels,
     gateway,
-    tools,
+    tools: harness,
     grantedTools: allowedTools,
     toolContext: modelToolContext,
     uiChannel: run.reply_channel_type === "website" ? "website" : "platform",

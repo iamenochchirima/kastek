@@ -3,7 +3,8 @@ import type { ModelCredentials, ModelMessage, ModelRequest, ModelResponse } from
 import { ModelProviderError } from "../model/types";
 import { estimatePromptTokens } from "../model/credit-pricing";
 import { approvalSnapshotHashFromResource, ToolPolicyError, type CapabilityPresentationMetadata, type ToolApproval, type ToolInvocationContext, type ToolInvocationResult } from "../tools/types";
-import { hashToolArguments, ToolRegistry } from "../tools/registry";
+import { hashToolArguments } from "../tools/registry";
+import type { AgentHarnessRunStatus, AgentToolSurface } from "./harness";
 import { classifyFailureCode } from "./failures";
 import { redactSensitiveValue, redactToolOutput } from "../tools/redaction";
 import type { GroundingProvenance } from "./provenance";
@@ -34,7 +35,7 @@ export interface AgentLoopInput {
     credentials: ModelCredentials;
   }>;
   gateway: ModelGateway;
-  tools: ToolRegistry;
+  tools: AgentToolSurface;
   toolContext: ToolInvocationContext;
   grantedTools: ReadonlySet<string>;
   signal?: AbortSignal;
@@ -137,7 +138,7 @@ export interface ModelCreditReservation {
 }
 
 export interface AgentLoopResult {
-  status: "completed" | "awaiting_approval" | "awaiting_human" | "awaiting_external_event" | "limited" | "failed";
+  status: AgentHarnessRunStatus;
   messages: ModelMessage[];
   response?: ModelResponse;
   completionMessage?: string;

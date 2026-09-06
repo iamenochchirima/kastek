@@ -62,6 +62,7 @@ export interface AgentVersionRecord {
   configuration: Record<string, unknown>;
   policy: Record<string, unknown>;
   checksum: string;
+  extension_snapshot_id?: string | null;
   created_by: string;
   created_at: string;
   published_at: string | null;

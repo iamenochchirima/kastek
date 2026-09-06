@@ -313,7 +313,7 @@ export function recordAgentVersionDeployment(input: {
 }
 
 export function recordConversationAdmission(input: {
-  outcome: "accepted" | "busy" | "idempotent" | "redelivery" | "retry";
+  outcome: "accepted" | "queued" | "limited" | "rejected" | "busy" | "idempotent" | "redelivery" | "retry";
   channel: string;
 }): void {
   conversationAdmissionCounter.add(1, {

@@ -1,7 +1,8 @@
 import type { Pool } from "pg";
 import { query, withTransaction } from "../pool";
 import { assertRunTransition, type RunStatus, type StartRunInput } from "../../domain/types";
-import { createAgentEvent } from "../../events/envelope";
+import { createScopedAgentEvent } from "../../runtime/execution-evidence";
+import { executionScopeFromRun } from "../../runtime/execution-scope";
 import {
   buildCompletedAgentRunEvent,
   buildFailedAgentRunEvent,
@@ -13,6 +14,7 @@ import {
 import { parseAgentResponse } from "../../media/contracts";
 import type { ConversationRecord } from "./conversation-repository";
 import { recordConversationAdmission } from "../../telemetry/spans";
+import { admissionDecision, sameSessionSerializationPolicy } from "../../runtime/admission";
 
 export interface RunRecord {
   id: string;
@@ -34,6 +36,7 @@ export interface RunRecord {
   finished_at: string | null;
   updated_at: string;
   idempotency_key?: string | null;
+  extension_snapshot_id?: string | null;
   reply_channel_type?: string | null;
   reply_binding_id?: string | null;
   resolved_model_provider?: string | null;
@@ -89,11 +92,13 @@ export class RunRepository {
       const installation = await client.query<{
         agent_definition_id: string;
         agent_version_id: string;
+        extension_snapshot_id: string | null;
         status: string;
         execution_mode: "system_hosted" | "kasitek_hosted" | "external_connected";
         policy: Record<string, unknown>;
       }>(
-        `SELECT ai.agent_definition_id, ai.agent_version_id, ai.status, ai.execution_mode, av.policy
+        `SELECT ai.agent_definition_id, ai.agent_version_id, av.extension_snapshot_id,
+                ai.status, ai.execution_mode, av.policy
          FROM agent_installations ai
          JOIN agent_versions av ON av.id = ai.agent_version_id
          WHERE ai.id = $1 AND ai.organization_id = $2
@@ -143,10 +148,12 @@ export class RunRepository {
           [organizationId, input.conversationId],
         );
         if (activeConversationRun.rows[0]) {
+          recordConversationAdmission({ outcome: "rejected", channel: "run" });
           throw Object.assign(new Error("This conversation already has an active agent run; retry after it reaches a terminal state"), {
             statusCode: 409,
             code: "conversation_run_active",
             runId: activeConversationRun.rows[0].id,
+            admission: admissionDecision({ outcome: "rejected", reasonCode: "conversation_run_active", retryable: true, policy: sameSessionSerializationPolicy }),
           });
         }
       }
@@ -162,6 +169,7 @@ export class RunRepository {
           [organizationId, input.installationId],
         );
         if (Number(active.rows[0]?.count ?? 0) >= maxConcurrentRuns) {
+          recordConversationAdmission({ outcome: "limited", channel: "run" });
           throw new Error("AGENT_CONCURRENCY_LIMIT");
         }
       }
@@ -189,8 +197,9 @@ export class RunRepository {
       const created = await client.query<RunRecord>(
         `INSERT INTO agent_runs
           (organization_id, agent_definition_id, agent_version_id, installation_id,
-           conversation_id, trigger_type, status, input, correlation_id, created_by, idempotency_key)
-         VALUES ($1, $2, $3, $4, $5, $6, 'received', $7::jsonb, gen_random_uuid(), $8, $9)
+           conversation_id, trigger_type, status, input, correlation_id, created_by,
+           idempotency_key, extension_snapshot_id)
+         VALUES ($1, $2, $3, $4, $5, $6, 'received', $7::jsonb, gen_random_uuid(), $8, $9, $10)
          ON CONFLICT DO NOTHING
          RETURNING *`,
         [
@@ -203,6 +212,7 @@ export class RunRepository {
           JSON.stringify(input.input),
           actorId,
           input.idempotencyKey ?? null,
+          target.extension_snapshot_id,
         ],
       );
       const run = created.rows[0] ?? (input.idempotencyKey
@@ -221,11 +231,12 @@ export class RunRepository {
             [organizationId, input.conversationId],
           );
           if (active.rows[0]) {
-            recordConversationAdmission({ outcome: "busy", channel: "run" });
+            recordConversationAdmission({ outcome: "rejected", channel: "run" });
             throw Object.assign(new Error("This conversation already has an active agent run; retry after it reaches a terminal state"), {
               statusCode: 409,
               code: "conversation_run_active",
               runId: active.rows[0].id,
+              admission: admissionDecision({ outcome: "rejected", reasonCode: "conversation_run_active", retryable: true, policy: sameSessionSerializationPolicy }),
             });
           }
         }
@@ -792,16 +803,32 @@ export class RunRepository {
     runId: string;
     installationId: string;
     eventType: string;
+    operationId?: string;
     payload: Record<string, unknown>;
   }): Promise<void> {
-    const event = createAgentEvent({ type: input.eventType, subject: `run:${input.runId}`, data: input.payload });
+    const runResult = await query<Pick<RunRecord, "id" | "organization_id" | "agent_definition_id" | "agent_version_id" | "installation_id" | "conversation_id" | "created_by" | "correlation_id" | "causation_id">>(
+      this.pool,
+      `SELECT id, organization_id, agent_definition_id, agent_version_id, installation_id,
+              conversation_id, created_by, correlation_id, causation_id
+       FROM agent_runs
+       WHERE organization_id = $1 AND id = $2 AND installation_id = $3`,
+      [input.organizationId, input.runId, input.installationId],
+    );
+    const run = runResult.rows[0];
+    if (!run) return;
+    const event = createScopedAgentEvent({
+      scope: executionScopeFromRun(run),
+      type: input.eventType,
+      ...(input.operationId ? { operationId: input.operationId } : {}),
+      data: input.payload,
+    });
     await query(
       this.pool,
       `INSERT INTO agent_events
         (organization_id, run_id, installation_id, event_type, payload, spec_version, source, subject, data_content_type, correlation_id)
        SELECT $1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, agent_runs.correlation_id
        FROM agent_runs
-       WHERE agent_runs.id = $2 AND agent_runs.organization_id = $1`,
+       WHERE agent_runs.id = $2 AND agent_runs.organization_id = $1 AND agent_runs.installation_id = $3`,
       [input.organizationId, input.runId, input.installationId, input.eventType, JSON.stringify(event.data), event.specversion, event.source, event.subject, event.datacontenttype],
     );
   }

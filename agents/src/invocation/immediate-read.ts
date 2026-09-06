@@ -66,7 +66,10 @@ export class InstallationImmediateReadService {
       const result = await this.dependencies.tools.invoke({
         name: input.name,
         arguments: input.argumentsValue,
-        context: toolInvocationContextFromScope(executionScopeFromRun(accepted)),
+        context: toolInvocationContextFromScope({
+          ...executionScopeFromRun(accepted),
+          capabilityGrants: [input.name],
+        }),
         grantedTools: input.grantedTools,
       });
       await this.dependencies.toolInvocations.recordCompleted({

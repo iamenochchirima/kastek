@@ -24,6 +24,7 @@ import { ModelProviderError, type ModelCredentials, type ModelMessage, type Mode
 import { resolveModelTarget } from "../model/policy";
 import { buildAgentContext } from "../runtime/context";
 import { executionScopeFromRun } from "../runtime/execution-scope";
+import { resourceAccessFromExecutionScope } from "../runtime/scope-projections";
 import { createGroundingFallbackResponse, shouldFailClosedWithoutEvidence } from "../runtime/grounding";
 import { buildGroundingProvenance } from "../runtime/provenance";
 import { estimatePromptTokens } from "../model/credit-pricing";
@@ -143,7 +144,7 @@ export function createDecomposedActivities(deps: DecomposedActivityDependencies)
         maxTokens: Math.max(1, runtime.runBudgetLimits.maxTotalTokens - estimatePromptTokens({ messages: modelState.messages } as ModelRequest)),
         temperature: typeof run.configuration.temperature === "number" ? run.configuration.temperature : undefined,
       };
-      const modelContext = toolContext(run);
+      const modelContext = toolContext(run, runtime.allowedTools);
       const response = await executeModelOperation(deps, run, input, request, runtime.credentials, modelContext);
       const modelStep = await deps.runSteps.startStep({ runId: run.id, organizationId: run.organization_id, stepType: "model", input: { provider: response.provider, model: response.model, operationKey: input.operationKey } });
       await deps.runSteps.finishStep({ stepId: modelStep.id, status: "completed", output: { totalTokens: response.usage.totalTokens, finishReason: response.finishReason, latencyMs: response.latencyMs } });
@@ -297,7 +298,7 @@ export function createDecomposedActivities(deps: DecomposedActivityDependencies)
           name: proposal.toolName,
           arguments: proposal.arguments,
           context: {
-            ...toolContext(run),
+            ...toolContext(run, runtime.allowedTools),
             approvalSnapshotHash: approvalSnapshotHashFromResource(resourceSnapshot),
           },
           signal: deps.signal(),
@@ -422,7 +423,10 @@ async function buildInitialState(deps: DecomposedActivityDependencies, run: Runt
   const conversation = run.conversation_id ? await deps.conversations.getConversation(run.organization_id, run.conversation_id) : null;
   const durableMessages = run.conversation_id ? (await deps.conversations.listMessages(run.organization_id, run.conversation_id)).filter((message) => message.run_id !== run.id) : [];
   const summary = run.conversation_id ? await deps.summaries.getSummary(run.organization_id, run.conversation_id) : null;
-  const retrieval = await new RetrievalService(new MemoryLifecycle(deps.memory), deps.knowledge).retrieve({ organizationId: run.organization_id, agentId: run.agent_definition_id, installationId: run.installation_id, conversationId: run.conversation_id ?? undefined, actorId: run.created_by }, inputMessage, run.policy, { always: run.installation_settings?.profile === "general" });
+  const retrieval = await new RetrievalService(new MemoryLifecycle(deps.memory), deps.knowledge).retrieve(resourceAccessFromExecutionScope({
+    ...executionScopeFromRun(run),
+    capabilityGrants: [...runtime.allowedTools],
+  }), inputMessage, run.policy, { always: run.installation_settings?.profile === "general" });
   if (shouldFailClosedWithoutEvidence({
     message: inputMessage,
     agentAudience: run.agent_audience,
@@ -481,7 +485,10 @@ async function buildInitialState(deps: DecomposedActivityDependencies, run: Runt
     grantedConnectors: new Set(installationConnectors.connectors),
   });
   const skillInstructions = renderSkillInstructions(selectedSkills);
-  const executionScope = executionScopeFromRun(run);
+  const executionScope = {
+    ...executionScopeFromRun(run),
+    capabilityGrants: [...allowedTools],
+  };
   const context = buildAgentContext({
     instructions: [
       run.instructions,
@@ -619,8 +626,12 @@ async function putState(deps: DecomposedActivityDependencies, run: RuntimeRunRec
   return deps.workflowState.put({ organizationId: run.organization_id, runId: run.id, expectedRevision: revision, state: { ...(current?.state ?? {}), __decomposedLoop: state } });
 }
 
-function toolContext(run: RuntimeRunRecord): ToolInvocationContext {
-  return toolInvocationContextFromScope(executionScopeFromRun(run), { memoryPolicy: isRecord(run.policy.memory) ? run.policy.memory : undefined });
+function toolContext(run: RuntimeRunRecord, capabilityGrants?: ReadonlySet<string>): ToolInvocationContext {
+  const scope = executionScopeFromRun(run);
+  return toolInvocationContextFromScope({
+    ...scope,
+    ...(capabilityGrants ? { capabilityGrants: [...capabilityGrants] } : {}),
+  }, { memoryPolicy: isRecord(run.policy.memory) ? run.policy.memory : undefined });
 }
 
 function isMcpToolRun(input: Record<string, unknown>): boolean {

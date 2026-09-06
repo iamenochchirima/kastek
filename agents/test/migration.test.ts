@@ -512,6 +512,28 @@ describe("foundation migration", () => {
     expect(notificationSql).toContain("UPDATE OF delivery_status");
   });
 
+  it("pins extension snapshots and protects immutable run identity", async () => {
+    const sql = await readFile(new URL("../migrations/110_agent_run_identity_and_extension_snapshots.sql", import.meta.url), "utf8");
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS extension_snapshot_id UUID");
+    expect(sql).toContain("agent_runs_identity_immutable");
+    expect(sql).toContain("prevent_agent_run_identity_update");
+    for (const field of [
+      "organization_id",
+      "agent_definition_id",
+      "agent_version_id",
+      "installation_id",
+      "conversation_id",
+      "trigger_type",
+      "correlation_id",
+      "causation_id",
+      "created_by",
+      "extension_snapshot_id",
+    ]) {
+      expect(sql).toContain(`NEW.${field} IS DISTINCT FROM OLD.${field}`);
+    }
+    expect(sql).toContain("Agent run identity is immutable");
+  });
+
   it("defines the scoped customer handoff rollout flag", async () => {
     const rolloutSql = await readFile(new URL("../migrations/069_customer_handoff_feature_flag.sql", import.meta.url), "utf8");
     expect(rolloutSql).toContain("customer_handoff_enabled");

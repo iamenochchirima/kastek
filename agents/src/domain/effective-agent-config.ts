@@ -37,6 +37,7 @@ export interface EffectiveAgentConfigProjection {
     versionNumber: number;
     status: string;
     checksum: string;
+    extensionSnapshotId: string | null;
     createdAt: string;
     publishedAt: string | null;
   };
@@ -114,6 +115,7 @@ export function projectEffectiveAgentConfig(input: EffectiveAgentConfigInput): E
       versionNumber: input.version.version_number,
       status: input.version.status,
       checksum: input.version.checksum,
+      extensionSnapshotId: input.version.extension_snapshot_id ?? null,
       createdAt: input.version.created_at,
       publishedAt: input.version.published_at,
     },

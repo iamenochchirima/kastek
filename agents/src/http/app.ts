@@ -137,6 +137,8 @@ import { RemoteMcpProviderRepository, createRemoteMcpProviderInputSchema } from 
 import { executeDraftEvaluation, type DraftEvaluationRunner } from "../evaluations/draft";
 import { ModelGateway } from "../model/gateway";
 import { VaultCredentialResolver } from "../model/credentials";
+import { CoreHostAdapter, HostCapabilityRouter, NativeHostAdapter } from "../hosts/capabilities";
+import { createAgentHarness, type AgentHarness } from "../runtime/harness";
 
 export interface AppDependencies {
   config: AppConfig;
@@ -163,6 +165,8 @@ export interface AppDependencies {
   developerApiKeyResolver?: DeveloperApiKeyResolver;
   installationGrants?: InstallationGrantRepository;
   toolRegistry?: ToolRegistry;
+  hostCapabilities?: HostCapabilityRouter;
+  harness?: AgentHarness;
   conversationActions?: ConversationActionService;
   conversationControls?: ConversationControlService;
   uiInteractionCoordinator?: AgentUiInteractionCoordinator;
@@ -518,6 +522,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const conversationActions = dependencies.conversationActions ?? new ConversationActionService(handoffs, controls);
   const conversationControls = dependencies.conversationControls ?? new ConversationControlService(handoffs);
   const coreClient = new KasitekCoreReadClient(dependencies.config);
+  const hostCapabilities = dependencies.harness?.host ?? dependencies.hostCapabilities ?? new HostCapabilityRouter([
+    new CoreHostAdapter(coreClient),
+    new NativeHostAdapter(),
+  ]);
   const deliverHandoffAcknowledgement = async (input: {
     accepted: AcceptedExternalMessage;
     organizationId: string;
@@ -601,7 +609,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     dependencies.pool,
     (organizationId, credentialReference) => integrationRepository.resolveCredential(organizationId, credentialReference),
   );
-  const toolRegistry = dependencies.toolRegistry ?? createDefaultTools(coreClient, conversationActions, integrationTools);
+  const toolRegistry = (dependencies.harness ?? createAgentHarness({
+    tools: dependencies.toolRegistry ?? createDefaultTools(coreClient, conversationActions, integrationTools, undefined, hostCapabilities),
+    host: hostCapabilities,
+  })).tools;
   const capabilityAccess = dependencies.capabilityAccess ?? new UnknownCapabilityAccessSource();
   const connectorRegistry = dependencies.connectorRegistry ?? new ConnectorRegistry();
   if (connectorRegistry.list().length === 0) {

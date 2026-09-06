@@ -13,6 +13,7 @@ describe("execution scope", () => {
       installation_id: "installation",
       agent_definition_id: "agent",
       agent_version_id: "version",
+      extension_snapshot_id: "extension-snapshot",
       conversation_id: "conversation",
       id: "run",
       created_by: "actor",
@@ -28,6 +29,7 @@ describe("execution scope", () => {
       conversationId: "conversation",
       runId: "run",
       actorType: "service",
+      extensionSnapshotId: "extension-snapshot",
     });
     expect(toolInvocationContextFromScope(scope)).toMatchObject({
       scope,
