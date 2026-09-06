@@ -700,7 +700,10 @@ check or a UI screenshot alone does not prove a durable runtime contract.
 - [x] Bound historical messages and model-visible tool schemas while retaining durable evidence
   outside model context. Evidence: `DefaultContextPolicy` contract tests.
 - [ ] Add protected assistant/tool-call pairing and durable compaction summaries.
-- [ ] Add provider overflow recovery that compacts or limits once without retrying a doomed request.
+- [x] Add provider overflow recovery that compacts or limits once without retrying a doomed request.
+  Evidence: context is bounded before dispatch and `runBoundedAgentLoop` turns a provider
+  context-overflow response into one typed limited result with no adapter retry or fallback;
+  `agents/test/context-overflow-recovery.test.ts` verifies the behavior.
 - [ ] Unify the budget ledger across context, model calls, tools, credits, wall time, graph work,
   and child work.
 - [ ] Prove ordinary and decomposed/graph turns have identical model/tool event and outcome semantics.

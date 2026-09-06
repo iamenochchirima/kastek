@@ -342,6 +342,10 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
             messages,
             signal: input.signal,
             tools,
+            // The harness owns recovery decisions. Retrying an identical
+            // oversized request inside a provider adapter is never useful and
+            // can consume budget without changing the outcome.
+            maxAttempts: 1,
             maxTokens: attempt.model.maxTokens === undefined ? availableOutputTokens : Math.min(attempt.model.maxTokens, availableOutputTokens),
           };
           const prepared = await input.prepareModelCall?.({ operationKey, model: attempt.model, credentials: attempt.credentials });
@@ -398,6 +402,18 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
           if (error instanceof ModelProviderError) {
             const normalized = { code: error.code, message: error.message };
             if (operationKey) await input.persistModelError?.({ operationKey, model: attempt.model, credentials: attempt.credentials, error: normalized });
+            if (isProviderContextOverflow(error)) {
+              await emit(input, { type: "loop.limited", iteration, payload: { reason: "provider_context_overflow", code: error.code } });
+              return {
+                status: "limited",
+                messages,
+                usage,
+                iterations: iteration - 1,
+                toolCalls,
+                error: { code: "PROVIDER_CONTEXT_OVERFLOW", message: "The provider rejected the bounded context", failureClass: "terminal" },
+                ...(lastToolUi ? { ui: lastToolUi } : {}),
+              };
+            }
           }
           // A fallback is only for provider failures. Budget, policy, and
           // cancellation errors must stop the run immediately.
@@ -591,4 +607,8 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
   }
   await emit(input, { type: "loop.limited", iteration: limits.maxIterations, payload: { reason: "iterations" } });
   return { status: "limited", messages, usage, iterations: limits.maxIterations, toolCalls, ...(lastToolUi ? { ui: lastToolUi } : {}) };
+}
+
+function isProviderContextOverflow(error: ModelProviderError): boolean {
+  return /(?:context|token).*(?:length|limit|exceed|overflow)|(?:context|token)_?(?:length|limit|exceed|overflow)/i.test(`${error.code} ${error.message}`);
 }
