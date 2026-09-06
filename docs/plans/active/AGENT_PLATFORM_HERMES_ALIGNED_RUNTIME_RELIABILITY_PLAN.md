@@ -723,7 +723,10 @@ check or a UI screenshot alone does not prove a durable runtime contract.
 
 ### Durability, events, delivery, graphs, and children
 
-- [ ] Define one typed execution-journal writer interface and migrate harness/operation events.
+- [x] Define a typed execution-journal interface and in-memory conformance adapter covering run,
+  context, model, tool, wait, uncertain-effect, and delivery events. Evidence:
+  `agents/src/journal/` and `agents/test/journal-conformance.test.ts`.
+- [ ] Add the PostgreSQL journal adapter and migrate harness/operation event writes to it.
 - [ ] Separate delivery obligations from run completion behind one reusable delivery interface.
 - [ ] Complete decomposed waiting/external-event continuation and remove the dual-loop rollout path.
 - [ ] Make graph nodes use harness turn and capability interfaces exclusively.
