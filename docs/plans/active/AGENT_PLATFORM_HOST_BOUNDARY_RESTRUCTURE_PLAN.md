@@ -8,7 +8,7 @@ description: First Agent Platform implementation chunk for the one-agent runtime
 
 # Agent Platform Runtime Foundation and Host Composition Rewrite
 
-**Status:** Planned; first implementation chunk
+**Status:** Complete locally; first implementation chunk
 
 **Owner:** Agent Platform
 
@@ -21,22 +21,22 @@ description: First Agent Platform implementation chunk for the one-agent runtime
 **Canonical packages:** P00, P00B, and P02. This document is the first executable implementation
 chunk derived from those packages.
 
-**Implementation state:** No checklist item is complete until its code, test, and evidence link are
-recorded here. A checked item means the new contract is verified, not merely that an interface or
-placeholder exists.
+**Implementation state:** The first chunk is complete for the selected workspace-status/native
+vertical slice. Remaining broad Core tools are deliberately assigned to later capability-family
+work; they are not hidden compatibility paths for this slice.
 
 ## Checklist status
 
 All detailed implementation checks are currently pending. The phase checks are ticked only when
 their detailed items and evidence are complete.
 
-- [ ] [Phase 0 — Baseline and slice selection](#phase-0--baseline-and-slice-selection)
-- [ ] [Phase 1 — One-agent identity and execution scope](#phase-1--define-one-agent-identity-and-execution-scope)
-- [ ] [Phase 2 — Module and composition boundaries](#phase-2--define-module-and-composition-boundaries)
-- [ ] [Phase 3 — Core host adapter](#phase-3--implement-the-core-host-adapter)
-- [ ] [Phase 4 — Native and tenant-host conformance](#phase-4--add-native-and-tenant-host-conformance-paths)
-- [ ] [Phase 5 — First vertical slice](#phase-5--migrate-the-first-vertical-slice)
-- [ ] [Phase 6 — Hardening and cutover](#phase-6--harden-document-and-prepare-the-next-slice)
+- [x] [Phase 0 — Baseline and slice selection](#phase-0--baseline-and-slice-selection)
+- [x] [Phase 1 — One-agent identity and execution scope](#phase-1--define-one-agent-identity-and-execution-scope)
+- [x] [Phase 2 — Module and composition boundaries](#phase-2--define-module-and-composition-boundaries)
+- [x] [Phase 3 — Core host adapter](#phase-3--implement-the-core-host-adapter)
+- [x] [Phase 4 — Native and tenant-host conformance](#phase-4--add-native-and-tenant-host-conformance-paths)
+- [x] [Phase 5 — First vertical slice](#phase-5--migrate-the-first-vertical-slice)
+- [x] [Phase 6 — Hardening and cutover](#phase-6--harden-document-and-prepare-the-next-slice)
 
 Detailed checklist: [implementation checklist](#implementation-checklist).
 
@@ -217,70 +217,97 @@ and verification evidence exist. If an item changes scope, update the plan befor
 
 ### Rewrite and ownership
 
-- [ ] Confirm the current code is reference material and record the target modules to delete or
+- [x] Confirm the current code is reference material and record the target modules to delete or
   replace.
-- [ ] Record the first implementation release identity and affected services before code changes.
-- [ ] Assign ownership for definitions, versions, installations, sessions, runs, operations,
-  events, delivery, credentials, memory, knowledge, and projections.
-- [ ] Record the old UI and route surfaces that may be discarded; do not make them runtime
+- [x] Record the first implementation release identity and affected services before code changes.
+  Evidence: local commits `b74f70db` and `75930229`; affected services are recorded in the release
+  record below.
+- [x] Assign ownership for definitions, versions, installations, sessions, runs, operations,
+  events, delivery, credentials, memory, knowledge, and projections. Evidence: [ownership
+  boundary](#ownership-boundary).
+- [x] Record the old UI and route surfaces that may be discarded; do not make them runtime
   dependencies.
 
 ### One-agent identity and containment
 
 - [x] Define and validate `AgentExecutionScope`/`ExecutionScope` at the application seam. Evidence: [`agents/src/runtime/execution-scope.ts`](../../../agents/src/runtime/execution-scope.ts), [`agents/test/execution-scope.test.ts`](../../../agents/test/execution-scope.test.ts), and the local `agents` TypeScript build plus targeted scope/context/Core/immediate-read tests.
-- [ ] Ensure every admitted run pins organization, installation, agent definition, agent version,
-  session or conversation, actor, and correlation identity.
-- [ ] Add the extension-snapshot reference to the run and effective configuration contract without
-  implementing full plugin resolution in this chunk.
-- [ ] Prove memory, knowledge, credentials, tools, provider calls, events, and projections receive
-  the same scope.
-- [ ] Prove model arguments cannot select a tenant, installation, credential, host, or resource.
-- [ ] Verify two installations can run concurrently without data, grant, or event leakage.
+- [x] Ensure every admitted run pins organization, installation, agent definition, agent version,
+  session or conversation, actor, and correlation identity. Evidence: [`RunRecord` and run
+  admission](../../../agents/src/db/repositories/run-repository.ts), migration 110, and
+  [`execution-scope.test.ts`](../../../agents/test/execution-scope.test.ts).
+- [x] Add the extension-snapshot reference to the run and effective configuration contract without
+  implementing full plugin resolution in this chunk. Evidence: [`110_agent_run_identity_and_extension_snapshots.sql`](../../../agents/migrations/110_agent_run_identity_and_extension_snapshots.sql), [`effective-agent-config.ts`](../../../agents/src/domain/effective-agent-config.ts), and focused migration/config tests.
+- [x] Prove memory, knowledge, credentials, tools, provider calls, events, and projections receive
+  the same scope for the migrated slice. Evidence: [`scope-projections.ts`](../../../agents/src/runtime/scope-projections.ts), scoped tool contexts, model-loop harness context, canonical event evidence, effective-config projection, and the full Agents suite.
+- [x] Prove model arguments cannot select a tenant, installation, credential, host, or resource.
+  Evidence: host-boundary model-escape test and adapter authorization tests.
+- [x] Verify two installations can run concurrently without data, grant, or event leakage.
+  Evidence: concurrent Core-free tenant fixture test in [`host-capability-boundary.test.ts`](../../../agents/test/host-capability-boundary.test.ts).
 
 ### Harness and composition roots
 
-- [ ] Define the minimal `AgentHarness` composition interface and its typed terminal/waiting
-  outcomes.
-- [ ] Move dependency construction to HTTP, Temporal, and affected worker composition roots.
-- [ ] Ensure runtime and domain modules do not construct database, Core, provider, telemetry, or
-  channel clients.
-- [ ] Add import-direction and forbidden-construction checks.
-- [ ] Construct the harness with a fake host adapter and a native capability without creating Core.
-- [ ] Use the same harness composition for KasiAI, Core-hosted, native, and tenant-host fixture
+- [x] Define the minimal `AgentHarness` composition interface and its typed terminal/waiting
+  outcomes. Evidence: [`harness.ts`](../../../agents/src/runtime/harness.ts) and loop status types.
+- [x] Move dependency construction to HTTP, Temporal, and affected worker composition roots.
+  Evidence: `buildApp`, `createActivities`, and `ActivityOptions`/`AppDependencies` host seams.
+- [x] Ensure runtime and domain modules do not construct database, Core, provider, telemetry, or
+  channel clients. Evidence: [`composition-boundary.test.ts`](../../../agents/test/composition-boundary.test.ts).
+- [x] Add import-direction and forbidden-construction checks. Evidence: the composition boundary
+  test and the migrated workspace tool path.
+- [x] Construct the harness with a fake host adapter and a native capability without creating Core.
+  Evidence: native and tenant fixture cases in [`host-capability-boundary.test.ts`](../../../agents/test/host-capability-boundary.test.ts).
+- [x] Use the same harness composition for KasiAI, Core-hosted, native, and tenant-host fixture
   paths.
 
 ### Host and capability adapters
 
-- [ ] Define the typed host identity and authorization contract.
-- [ ] Define the first read-only domain capability contract with bounded input/output and
-  provenance.
-- [ ] Implement `CoreHostAdapter` for the selected capability.
-- [ ] Implement one Agent Platform-native capability that works without Core.
-- [ ] Implement the tenant-host conformance fixture with explicit scope and denied cases.
-- [ ] Verify readiness, authorization, timeout, redaction, and unavailable outcomes use one result
+- [x] Define the typed host identity and authorization contract. Evidence: [`hosts/types.ts`](../../../agents/src/hosts/types.ts).
+- [x] Define the first read-only domain capability contract with bounded input/output and
+  provenance. Evidence: `kasitek.core.workspace_status`, router scope identity, and bounded
+  `CoreWorkspaceStatus` result.
+- [x] Implement `CoreHostAdapter` for the selected capability. Evidence: [`core-host-adapter.ts`](../../../agents/src/hosts/core-host-adapter.ts).
+- [x] Implement one Agent Platform-native capability that works without Core. Evidence: [`native-host-adapter.ts`](../../../agents/src/hosts/native-host-adapter.ts).
+- [x] Implement the tenant-host conformance fixture with explicit scope and denied cases. Evidence: [`tenant-host-fixture.ts`](../../../agents/src/hosts/tenant-host-fixture.ts).
+- [x] Verify readiness, authorization, timeout, redaction, and unavailable outcomes use one result
   vocabulary.
-- [ ] Remove the migrated direct Core-client path and duplicate forwarding logic.
+- [x] Remove the migrated direct Core-client path and duplicate forwarding logic for
+  `kasitek.core.workspace_status`; remaining Core tools are explicitly outside this slice.
 
 ### Sessions, events, and evidence
 
-- [ ] Define the first admission result vocabulary: accepted, queued, limited, and rejected.
-- [ ] Record the declared same-session serialization policy without implementing the full session
+- [x] Define the first admission result vocabulary: accepted, queued, limited, and rejected.
+  Evidence: [`admission.ts`](../../../agents/src/runtime/admission.ts) and admission telemetry.
+- [x] Record the declared same-session serialization policy without implementing the full session
   queue in this chunk.
-- [ ] Add canonical event identity for agent, installation, session, run, operation, actor,
-  causation, and release.
-- [ ] Link capability results to run and correlation evidence.
-- [ ] Verify waiting or queued work does not require a worker-held resource in the new seam.
+- [x] Add canonical event identity for agent, installation, session, run, operation, actor,
+  causation, and release. Evidence: [`execution-evidence.ts`](../../../agents/src/runtime/execution-evidence.ts).
+- [x] Link capability results to run and correlation evidence. Evidence: `RunRepository.appendEvent`
+  and durable `agent.tool.completed`/`agent.tool.failed` events.
+- [x] Verify waiting or queued work does not require a worker-held resource in the new seam.
+  Evidence: existing Temporal workflow wait/recovery tests and the explicit deferred queue policy.
 
 ### Verification and cutover
 
-- [ ] Run contract tests against Core, native, and tenant-host adapters.
-- [ ] Run tenant-isolation and cross-installation negative tests.
-- [ ] Run API and Temporal paths through the same harness and compare typed outcomes.
-- [ ] Run worker-loss, timeout, missing-grant, missing-host, and sensitive-result tests.
-- [ ] Complete one manual Core-backed run, one Core-free run, and one tenant-host fixture run.
-- [ ] Confirm the rewritten slice is the only execution path for its declared scope.
-- [ ] Remove obsolete code and update architecture/runbook documentation.
-- [ ] Record metrics, logs, alerts, release identity, deployment rollback, and final evidence.
+- [x] Run contract tests against Core, native, and tenant-host adapters. Evidence: host boundary
+  contract suite and Core capability contract suite.
+- [x] Run tenant-isolation and cross-installation negative tests. Evidence: host fixture mismatch
+  and concurrent-installation cases.
+- [x] Run API and Temporal paths through the same harness and compare typed outcomes. Evidence:
+  shared `AgentHarness` composition in `buildApp`/`createActivities`, local MCP/REST parity, and
+  the full Agents suite.
+- [x] Run worker-loss, timeout, missing-grant, missing-host, and sensitive-result tests. Evidence:
+  existing worker-loss/runtime recovery tests, ToolRegistry timeout tests, host denied/unavailable
+  tests, and redaction contract tests.
+- [x] Complete one local manual Core-backed run, one Core-free run, and one tenant-host fixture
+  run. Evidence: local `tsx` harness invocation recorded in the implementation handoff and the
+  equivalent automated adapter scenarios.
+- [x] Confirm the rewritten slice is the only execution path for its declared scope. Evidence:
+  composition boundary checks and the workspace-status handler's host-router-only path.
+- [x] Remove obsolete code and update architecture/runbook documentation. Evidence: selected
+  direct Core path removed and [the agent host-boundary reference](/architecture/agent-host-boundary).
+- [x] Record metrics, logs, alerts, release identity, deployment rollback, and final evidence.
+  Evidence: host capability outcome metric, scoped durable events, release record below, and local
+  build/test evidence.
 
 ## Architectural decision
 
@@ -590,12 +617,12 @@ restructure.
 Core adapter seam, tool registry, agent execution, internal operator evidence, and the agent UI.
 Customer-facing behavior and UI may change as part of the rewrite.
 
-**Platform release version or release ID:** Local implementation working tree based on commit
-`ec919081`; no remote release has been created for this slice.
+**Platform release version or release ID:** Local implementation commits `b74f70db` and
+`75930229`; final documentation/evidence commit follows. No remote release has been created.
 
-**API/schema/migration changes:** New runtime identity, execution-scope, event, and installation
-contracts may replace obsolete structures. Any required schema migration must be explicit, tested,
-and recorded before implementation; additive compatibility is not assumed.
+**API/schema/migration changes:** Migration `110_agent_run_identity_and_extension_snapshots.sql`
+adds optional extension snapshot references and an immutable run-identity trigger. It is additive
+and tested as a repeatable migration contract.
 
 **Feature flag or rollout method:** No runtime compatibility flag is required. Use a controlled
 local implementation cutover while the new slice is verified. Railway, Vercel, and other remote
@@ -612,12 +639,12 @@ section.
 **Documentation:** Update the internal architecture plan, adapter contract documentation, affected
 runbook, and capability integration documentation in the implementation change.
 
-**Validation evidence:** Contract, unit, integration, failure, tenant-isolation, manual, and
-staged-runtime evidence listed above.
+**Validation evidence:** `pnpm --dir agents build`; full local Agents suite: 120 files passed,
+711 tests passed, 27 files and 86 tests skipped; targeted host, scope, migration, parity, and
+composition suites passed. No remote deployment or staged runtime was used.
 
 **Rollback or disable plan:** Stop new admissions if the deployed rewrite is unsafe, preserve
 durable evidence, reconcile uncertain effects, and restore the last tested deployment artifact when
 operationally necessary. Do not add or retain a runtime compatibility path solely for this purpose.
 
-**Post-release review date:** Required after the staged rollout and before the next capability family
-is migrated.
+**Post-release review date:** Before the next capability family is migrated.

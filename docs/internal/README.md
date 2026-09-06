@@ -24,6 +24,7 @@ This is the canonical home for private Kasitek documentation.
 - [Observability](./operations/observability.md)
 - [Documentation Maintenance](./operations/documentation-maintenance.md)
 - [Agent Platform Implementation Plan](/plans/agents/)
+- [Agent runtime host boundary](./architecture/agent-host-boundary.md)
 
 ## Structure
 

@@ -98,9 +98,24 @@ const remoteMcpOperationDuration = meter.createHistogram("kasitek.remote_mcp.ope
 const skillSelectionCounter = meter.createCounter("kasitek.agent.skill.selection.count", {
   description: "Skill matching and bounded skill instruction loading outcomes",
 });
+const hostCapabilityOutcomeCounter = meter.createCounter("kasitek.agent.host_capability.outcome.count", {
+  description: "Host capability outcomes by adapter and bounded result status",
+});
 
 export function boundedAttribute(value: unknown, maxLength = 128): string {
   return String(value ?? "unknown").slice(0, maxLength);
+}
+
+export function recordHostCapabilityOutcome(input: {
+  host: string;
+  capability: string;
+  outcome: "succeeded" | "denied" | "unavailable" | "failed";
+}): void {
+  hostCapabilityOutcomeCounter.add(1, {
+    host: boundedAttribute(input.host),
+    capability: boundedAttribute(input.capability),
+    outcome: input.outcome,
+  });
 }
 
 function recordFailure(span: Span, error: unknown): void {

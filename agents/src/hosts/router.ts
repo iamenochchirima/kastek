@@ -9,6 +9,7 @@ import {
   type HostCapabilityOutcome,
   type HostCapabilityUnavailableCode,
 } from "./types";
+import { recordHostCapabilityOutcome } from "../telemetry/spans";
 
 export interface HostCapabilityRequest {
   readonly name: string;
@@ -53,24 +54,28 @@ export class HostCapabilityRouter {
     const scope = createExecutionScope(request.scope);
     const route = this.routes.get(request.name);
     if (!route) {
-      return {
+      const outcome = {
         status: "unavailable",
         identity: this.unavailableIdentity(request.name),
         scope,
         code: "CAPABILITY_UNAVAILABLE",
         message: "Host capability is not registered",
       };
+      recordHostCapabilityOutcome({ host: outcome.identity.host.id, capability: request.name, outcome: "unavailable" });
+      return outcome as HostCapabilityOutcome<T>;
     }
 
     const authorization = route.adapter.authorize(route.identity, scope);
     if (!authorization.allowed) {
-      return {
+      const outcome = {
         status: "denied",
         identity: route.identity,
         scope,
         code: authorization.code,
         message: authorization.message,
       };
+      recordHostCapabilityOutcome({ host: route.identity.host.id, capability: request.name, outcome: "denied" });
+      return outcome as HostCapabilityOutcome<T>;
     }
 
     try {
@@ -81,9 +86,12 @@ export class HostCapabilityRouter {
         context,
         arguments: request.arguments ?? {},
       });
+      recordHostCapabilityOutcome({ host: route.identity.host.id, capability: request.name, outcome: "succeeded" });
       return { status: "succeeded", identity: route.identity, scope, value: value as T };
     } catch (error) {
-      return this.errorOutcome(route.identity, scope, error);
+      const outcome = this.errorOutcome<T>(route.identity, scope, error);
+      recordHostCapabilityOutcome({ host: route.identity.host.id, capability: request.name, outcome: outcome.status });
+      return outcome;
     }
   }
 

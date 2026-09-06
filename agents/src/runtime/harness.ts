@@ -14,6 +14,7 @@ export type AgentHarnessOutcome =
 /** The narrow tool surface consumed by the model loop. */
 export interface AgentToolSurface {
   get(name: string): ReturnType<ToolRegistry["get"]>;
+  list(grantedTools?: ReadonlySet<string>): ReturnType<ToolRegistry["list"]>;
   invoke(request: ToolInvocationRequest): Promise<ToolInvocationResult>;
 }
 
@@ -31,6 +32,7 @@ export function createAgentHarness(input: {
     tools: input.tools,
     host: input.host,
     get: (name) => input.tools.get(name),
+    list: (grantedTools) => input.tools.list(grantedTools),
     invoke: (request) => input.tools.invoke(request),
     context: (scope, extras) => toolInvocationContextFromScope(scope, extras),
   };
