@@ -2,7 +2,7 @@ import { ModelGateway } from "../model/gateway";
 import type { ModelCredentials, ModelMessage, ModelRequest, ModelResponse } from "../model/types";
 import { ModelProviderError } from "../model/types";
 import { estimatePromptTokens } from "../model/credit-pricing";
-import { approvalSnapshotHashFromResource, ToolPolicyError, type CapabilityPresentationMetadata, type ToolApproval, type ToolInvocationContext, type ToolInvocationResult } from "../tools/types";
+import { approvalSnapshotHashFromResource, ToolPolicyError, type CapabilityPresentationMetadata, type ToolApproval, type ToolDefinition, type ToolInvocationContext, type ToolInvocationResult } from "../tools/types";
 import { hashToolArguments } from "../tools/registry";
 import type { AgentHarnessRunStatus, AgentToolSurface } from "./harness";
 import { classifyFailureCode } from "./failures";
@@ -38,6 +38,8 @@ export interface AgentLoopInput {
   tools: AgentToolSurface;
   toolContext: ToolInvocationContext;
   grantedTools: ReadonlySet<string>;
+  /** Model-facing capability projection selected by ContextPolicy for this turn. */
+  modelTools?: Array<Omit<ToolDefinition, "handler">>;
   signal?: AbortSignal;
   /** Prefix used to keep durable operation keys unique across hosted loop contexts. */
   operationKeyPrefix?: string;
@@ -330,7 +332,7 @@ export async function runBoundedAgentLoop(input: AgentLoopInput): Promise<AgentL
         let operationKey: string | undefined;
         try {
           await input.beforeModelCall?.();
-          const tools = input.tools.list(input.grantedTools);
+          const tools = input.modelTools ?? input.tools.list(input.grantedTools);
           const estimatedInputTokens = estimatePromptTokens({ messages, tools });
           const availableOutputTokens = Math.max(1, remainingTokens - estimatedInputTokens);
           operationKey = `${input.operationKeyPrefix ?? "model"}:${iteration}:${attemptIndex}`;

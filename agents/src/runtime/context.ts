@@ -13,6 +13,12 @@ export interface DurableContextMessage {
 export interface ContextBudget {
   maxMessages: number;
   maxContextTokens: number;
+  /** Tokens kept available for the next model response. */
+  reservedOutputTokens: number;
+  /** Maximum tool-schema footprint admitted to one model request. */
+  maxToolSchemaTokens: number;
+  /** Maximum historical message footprint admitted before it is compacted. */
+  maxHistoricalMessageTokens: number;
 }
 
 export interface ContextBuildInput {
@@ -45,9 +51,49 @@ export interface BuiltAgentContext {
   retrievalRequested: boolean;
   retrievalDecision: RetrievalDecision;
   omittedMessageCount: number;
+  omittedToolCount: number;
+  budget: ContextBudgetLedger;
+  decision: ContextDecisionRecord;
 }
 
-const defaultBudget: ContextBudget = { maxMessages: 30, maxContextTokens: 8_000 };
+export interface ContextBudgetLedger {
+  maxContextTokens: number;
+  reservedOutputTokens: number;
+  availableInputTokens: number;
+  systemTokens: number;
+  historyTokens: number;
+  currentMessageTokens: number;
+  toolSchemaTokens: number;
+  totalInputTokens: number;
+}
+
+export interface ContextDecisionRecord {
+  policyVersion: "v1";
+  status: "ready" | "limited";
+  reasons: string[];
+  selectedMessageCount: number;
+  omittedMessageCount: number;
+  selectedToolCount: number;
+  omittedToolCount: number;
+  retrievalRequested: boolean;
+}
+
+/**
+ * The context seam used by the AgentHarness. Durable evidence stays outside
+ * this module; it returns only the bounded model-facing projection plus the
+ * evidence needed to explain its selection.
+ */
+export interface ContextPolicy {
+  build(input: ContextBuildInput): BuiltAgentContext;
+}
+
+const defaultBudget: ContextBudget = {
+  maxMessages: 30,
+  maxContextTokens: 8_000,
+  reservedOutputTokens: 1_024,
+  maxToolSchemaTokens: 2_000,
+  maxHistoricalMessageTokens: 2_000,
+};
 
 export function estimateTokens(value: string): number {
   return Math.ceil(value.length / 4);
@@ -91,10 +137,34 @@ function asUntrusted(label: string, content: string): string {
   return `<untrusted-data source="${label}">\n${content}\n</untrusted-data>`;
 }
 
+function boundedText(value: string, maxTokens: number): { text: string; truncated: boolean } {
+  const maxCharacters = Math.max(4, maxTokens * 4);
+  if (value.length <= maxCharacters) return { text: value, truncated: false };
+  return {
+    text: `${value.slice(0, Math.max(0, maxCharacters - 64))}\n[Earlier content omitted by context policy]`,
+    truncated: true,
+  };
+}
+
+function toolSchemaTokens(tool: Omit<ToolDefinition, "handler">): number {
+  return estimateTokens(JSON.stringify({
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.inputSchema,
+  }));
+}
+
 export { sanitizeAssistantResponse } from "./sanitize";
 
-export function buildAgentContext(input: ContextBuildInput): BuiltAgentContext {
-  const budget = { ...defaultBudget, ...input.budget };
+export class DefaultContextPolicy implements ContextPolicy {
+  public build(input: ContextBuildInput): BuiltAgentContext {
+    const budget = { ...defaultBudget, ...input.budget };
+    // Existing callers that set only a context window retain their historical
+    // meaning. New callers opt into a response reservation explicitly, while
+    // the default runtime budget reserves output capacity.
+    const reservedOutputTokens = input.budget?.reservedOutputTokens
+      ?? (input.budget?.maxContextTokens === undefined ? budget.reservedOutputTokens : 0);
+    const availableInputTokens = Math.max(1, budget.maxContextTokens - reservedOutputTokens);
   const fallbackRetrievalDecision = decideMemoryRetrieval(input.currentMessage, { always: input.alwaysRetrieveKnowledge });
   const systemSections = [
     input.instructions,
@@ -120,31 +190,81 @@ export function buildAgentContext(input: ContextBuildInput): BuiltAgentContext {
     })));
   }
 
-  const messages: ModelMessage[] = [{ role: "system", content: systemSections.join("\n\n") }];
-  let estimatedTokens = estimateTokens(messages[0]!.content);
+    const messages: ModelMessage[] = [{ role: "system", content: systemSections.join("\n\n") }];
+    const systemTokens = estimateTokens(messages[0]!.content);
+    const current = asUntrusted("current-user-message", input.currentMessage);
+    const currentMessageTokens = estimateTokens(current);
+    const selectedTools: Array<Omit<ToolDefinition, "handler">> = [];
+    let selectedToolTokens = 0;
+    for (const tool of input.authorizedTools) {
+      const candidateTokens = toolSchemaTokens(tool);
+      if (selectedToolTokens + candidateTokens > budget.maxToolSchemaTokens) continue;
+      selectedTools.push(tool);
+      selectedToolTokens += candidateTokens;
+    }
+    let historyTokens = 0;
   const ordered = input.recentMessages.slice(-budget.maxMessages);
-  const omittedMessageCount = Math.max(0, input.recentMessages.length - ordered.length);
+    let omittedMessageCount = Math.max(0, input.recentMessages.length - ordered.length);
   const retained: ModelMessage[] = [];
   for (let index = ordered.length - 1; index >= 0; index -= 1) {
     const durable = ordered[index]!;
     const role = durable.direction === "outbound" ? "assistant" : durable.direction === "system" ? "system" : "user";
-    const text = asUntrusted(`conversation-${durable.messageType}`, contentText(durable.content));
+      const bounded = boundedText(contentText(durable.content), budget.maxHistoricalMessageTokens);
+      const text = asUntrusted(`conversation-${durable.messageType}`, bounded.text);
     const candidateTokens = estimateTokens(text);
-    if (estimatedTokens + candidateTokens + estimateTokens(input.currentMessage) > budget.maxContextTokens) break;
+      if (systemTokens + currentMessageTokens + selectedToolTokens + historyTokens + candidateTokens > availableInputTokens) {
+        omittedMessageCount += index + 1;
+        break;
+      }
     retained.unshift({ role, content: text });
-    estimatedTokens += candidateTokens;
+      historyTokens += candidateTokens;
+      if (bounded.truncated) omittedMessageCount += 1;
   }
   messages.push(...retained);
-  const current = asUntrusted("current-user-message", input.currentMessage);
   messages.push({ role: "user", content: current });
-  estimatedTokens += estimateTokens(current);
-  return {
+    const totalInputTokens = systemTokens + historyTokens + currentMessageTokens + selectedToolTokens;
+    const reasons: string[] = [];
+    if (systemTokens + currentMessageTokens + selectedToolTokens > availableInputTokens) reasons.push("minimum_context_exceeds_budget");
+    if (selectedTools.length < input.authorizedTools.length) reasons.push("tool_schema_budget");
+    if (omittedMessageCount > 0) reasons.push("history_compacted");
+    const retrievalDecision = input.retrievalDecision ?? fallbackRetrievalDecision;
+    const decision: ContextDecisionRecord = {
+      policyVersion: "v1",
+      status: reasons.includes("minimum_context_exceeds_budget") ? "limited" : "ready",
+      reasons,
+      selectedMessageCount: retained.length,
+      omittedMessageCount,
+      selectedToolCount: selectedTools.length,
+      omittedToolCount: input.authorizedTools.length - selectedTools.length,
+      retrievalRequested: retrievalDecision.requested,
+    };
+    return {
     scope: input.scope,
     messages,
-    tools: input.authorizedTools,
-    estimatedTokens,
-    retrievalRequested: input.retrievalDecision?.requested ?? fallbackRetrievalDecision.requested,
-    retrievalDecision: input.retrievalDecision ?? fallbackRetrievalDecision,
-    omittedMessageCount: omittedMessageCount + (ordered.length - retained.length),
-  };
+      tools: selectedTools,
+      estimatedTokens: totalInputTokens,
+      retrievalRequested: retrievalDecision.requested,
+      retrievalDecision,
+      omittedMessageCount,
+      omittedToolCount: input.authorizedTools.length - selectedTools.length,
+      budget: {
+        maxContextTokens: budget.maxContextTokens,
+        reservedOutputTokens,
+        availableInputTokens,
+        systemTokens,
+        historyTokens,
+        currentMessageTokens,
+        toolSchemaTokens: selectedToolTokens,
+        totalInputTokens,
+      },
+      decision,
+    };
+  }
+}
+
+const defaultContextPolicy = new DefaultContextPolicy();
+
+/** Compatibility entry point. New runtime composition should inject ContextPolicy through AgentHarness. */
+export function buildAgentContext(input: ContextBuildInput): BuiltAgentContext {
+  return defaultContextPolicy.build(input);
 }

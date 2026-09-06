@@ -126,6 +126,32 @@ describe("decomposed Temporal coordinator", () => {
     }));
   });
 
+  it("resumes a model-owned external wait instead of failing the decomposed run", async () => {
+    let modelCalls = 0;
+    const phaseActivities = activities({
+      executeModelStep: vi.fn(async () => {
+        modelCalls += 1;
+        return modelCalls === 1
+          ? { protocolVersion: DECOMPOSED_ACTIVITY_PROTOCOL_VERSION, stateRevision: 2, status: "awaiting_external_event" as const, waitingFor: "provider-callback" }
+          : { protocolVersion: DECOMPOSED_ACTIVITY_PROTOCOL_VERSION, stateRevision: 3, status: "completed" as const };
+      }),
+    });
+    const waitForExternalEvent = vi.fn(async () => ({ event: { key: "provider-callback", payload: { receipt: "ok" } } }));
+
+    await expect(runDecomposedCoordinator({
+      runId: "run-1",
+      activities: phaseActivities,
+      waitForApproval: vi.fn(),
+      waitForExternalEvent,
+      maxSteps: 2,
+    })).resolves.toEqual({ status: "completed", steps: 2 });
+    expect(waitForExternalEvent).toHaveBeenCalledWith("provider-callback", "awaiting_external_event");
+    expect(phaseActivities.executeModelStep).toHaveBeenLastCalledWith(expect.objectContaining({
+      step: 1,
+      resumeExternalEvent: { key: "provider-callback", payload: { receipt: "ok" } },
+    }));
+  });
+
   it("fails closed when an activity returns a terminal failure", async () => {
     const phaseActivities = activities({
       executeModelStep: vi.fn(async () => ({ protocolVersion: DECOMPOSED_ACTIVITY_PROTOCOL_VERSION, stateRevision: 2, status: "failed" as const, errorCode: "MODEL_CALL_OUTCOME_UNKNOWN" })),

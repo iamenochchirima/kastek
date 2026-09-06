@@ -87,7 +87,9 @@ export async function runDecomposedCoordinator(input: DecomposedCoordinatorInput
     }
     if (model.status === "awaiting_human" || model.status === "awaiting_external_event") {
       stateRevision = await checkpoint(input, nextStep, model.status, stateRevision);
-      return { status: "failed", steps: nextStep + 1, errorCode: "DECOMPOSED_EXTERNAL_RESUME_NOT_WIRED" };
+      if (!model.waitingFor) return { status: "failed", steps: nextStep + 1, errorCode: "DECOMPOSED_WAITING_KEY_MISSING" };
+      resumeExternalEvent = (await input.waitForExternalEvent(model.waitingFor, model.status)).event;
+      continue;
     }
     if (!model.toolCallIds?.length) return { status: "failed", steps: nextStep + 1, errorCode: "MODEL_TOOL_CALLS_MISSING" };
     const tools = await executeTools(input, nextStep, stateRevision, model.toolCallIds);

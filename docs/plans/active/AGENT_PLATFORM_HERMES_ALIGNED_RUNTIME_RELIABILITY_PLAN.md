@@ -8,7 +8,7 @@ description: Second Agent Platform implementation chunk for adopting Hermes-insp
 
 # Agent Platform Hermes-Aligned Runtime Reliability
 
-**Status:** Planned; second implementation chunk
+**Status:** In progress; second implementation chunk
 
 **Owner:** Agent Platform
 
@@ -676,6 +676,56 @@ partial results, duplicate completion, budget exhaustion, and version mismatch.
 - Add a bounded child invocation contract and deterministic fake child.
 - Enable one controlled Temporal child path only after parent/child failure tests pass.
 
+## Implementation checklist
+
+Tick an item only when the implementation, focused tests, and evidence path exist. A passing type
+check or a UI screenshot alone does not prove a durable runtime contract.
+
+### Harness and context foundation
+
+- [x] Add an injected `ContextPolicy` seam to `AgentHarness` and preserve a compatibility adapter
+  for existing callers. Evidence: `agents/src/runtime/harness.ts`, `agents/src/runtime/context.ts`,
+  and `agents/test/context.test.ts`.
+- [x] Route the hosted Temporal loop and configured-graph loop through `AgentHarness.runTurn`
+  rather than calling the loop implementation directly. Evidence: `agents/src/temporal/activities.ts`.
+- [x] Record context budget, omission, tool-schema selection, and typed context decisions in the
+  existing run-step and event evidence. Evidence: `agent.context.built` and `agent.context.limited`.
+- [ ] Make decomposed execution consume the same harness turn and context contracts.
+- [ ] Define typed harness continuations for completed, waiting, limited, failed, cancelled, and
+  reconciliation-required states.
+- [ ] Remove remaining caller-owned model/tool policy construction after migration tests pass.
+
+### Context and loop reliability
+
+- [x] Bound historical messages and model-visible tool schemas while retaining durable evidence
+  outside model context. Evidence: `DefaultContextPolicy` contract tests.
+- [ ] Add protected assistant/tool-call pairing and durable compaction summaries.
+- [ ] Add provider overflow recovery that compacts or limits once without retrying a doomed request.
+- [ ] Unify the budget ledger across context, model calls, tools, credits, wall time, graph work,
+  and child work.
+- [ ] Prove ordinary and decomposed/graph turns have identical model/tool event and outcome semantics.
+
+### Extensions and capabilities
+
+- [ ] Define declarative plugin manifests, lifecycle records, dependency/compatibility rules, and
+  immutable extension snapshots.
+- [ ] Build `ExtensionResolver` for skills, plugins, connectors, and MCP configurations.
+- [ ] Build one capability-admission interface that always performs readiness, authorization,
+  approval, durable operation/receipt handling, invocation, redaction, and evidence.
+- [ ] Migrate a read-only Core/native capability and one remote MCP capability through that interface.
+- [ ] Prove KasiAI, Core, tenant, and customer agents consume the same extension contracts.
+
+### Durability, events, delivery, graphs, and children
+
+- [ ] Define one typed execution-journal writer interface and migrate harness/operation events.
+- [ ] Separate delivery obligations from run completion behind one reusable delivery interface.
+- [ ] Complete decomposed waiting/external-event continuation and remove the dual-loop rollout path.
+- [ ] Make graph nodes use harness turn and capability interfaces exclusively.
+- [ ] Add bounded, attenuated Temporal child invocation with parent/child evidence and fake-child
+  conformance coverage.
+- [ ] Complete worker-loss, provider-uncertainty, approval, handoff, delivery, event-replay, tenant
+  isolation, and manual verification evidence.
+
 ## Manual verification matrix
 
 | Scenario | Evidence required |
@@ -754,7 +804,7 @@ dependency changes are authorized by this document alone.
 | --- | --- |
 | Change | Hermes-aligned Agent Platform runtime reliability foundation. |
 | Owner | Agent Platform; Operations owns release and recovery evidence. |
-| Risk | High once implementation begins; planning-only at this stage. |
+| Risk | High; local implementation in progress. |
 | Affected services and surfaces | Agents API and worker, Temporal, PostgreSQL, Core and tenant adapters, channels, MCP, provider integrations, execution UI, and future child runs. |
 | Platform release version or ID | Not applicable until an implementation package is released. |
 | API/schema/migration changes | Expected; new contracts may replace obsolete contracts. Dual-read or additive compatibility layers are not required unless a specific data-safety migration proves they are necessary. Exact revisions belong to implementation packages. |

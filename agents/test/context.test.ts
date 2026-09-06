@@ -125,6 +125,52 @@ describe("Waku-derived context builder", () => {
     expect(context.messages[1]?.content).toContain('"assetId":"asset-1"');
   });
 
+  it("records schema pruning and a typed limit instead of silently overflowing the model context", () => {
+    const context = buildAgentContext({
+      instructions: "Policy",
+      scope,
+      currentMessage: "hello",
+      recentMessages: [],
+      authorizedTools: [
+        {
+          name: "first.read",
+          version: "1.0.0",
+          description: "a".repeat(180),
+          riskClass: "read",
+          requiresApproval: false,
+          timeoutMs: 1_000,
+          inputSchema: { type: "object" },
+          outputSchema: { type: "object" },
+        },
+        {
+          name: "second.read",
+          version: "1.0.0",
+          description: "b".repeat(180),
+          riskClass: "read",
+          requiresApproval: false,
+          timeoutMs: 1_000,
+          inputSchema: { type: "object" },
+          outputSchema: { type: "object" },
+        },
+      ],
+      budget: { maxContextTokens: 20_000, maxToolSchemaTokens: 100 },
+    });
+    expect(context.tools.map((tool) => tool.name)).toEqual(["first.read"]);
+    expect(context.omittedToolCount).toBe(1);
+    expect(context.decision.reasons).toContain("tool_schema_budget");
+
+    const limited = buildAgentContext({
+      instructions: "Policy",
+      scope,
+      currentMessage: "hello",
+      recentMessages: [],
+      authorizedTools: [],
+      budget: { maxContextTokens: 10, reservedOutputTokens: 0 },
+    });
+    expect(limited.decision.status).toBe("limited");
+    expect(limited.decision.reasons).toContain("minimum_context_exceeds_budget");
+  });
+
   it("removes internal grounding markers from assistant text", () => {
     expect(sanitizeAssistantResponse('<untrusted-data source="conversation-text">\nHello\n</untrusted-data>')).toBe("Hello");
   });

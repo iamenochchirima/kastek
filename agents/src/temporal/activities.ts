@@ -11,7 +11,7 @@ import type { AgentRunActivities } from "./contracts";
 import { ModelGateway } from "../model/gateway";
 import { EnvironmentCredentialResolver, VaultCredentialResolver, type CredentialResolver } from "../model/credentials";
 import type { ModelPricing, ModelProvider } from "../model/types";
-import { runBoundedAgentLoop, type AgentLoopLimits, type AgentLoopResult, type ModelCreditReservation } from "../runtime/loop";
+import { type AgentLoopLimits, type AgentLoopResult, type ModelCreditReservation } from "../runtime/loop";
 import type { ModelCreditPricing } from "../model/credit-pricing";
 import { actualModelCallCredits, estimateModelCallCredits, estimatePromptTokens, shouldChargeModelCredits } from "../model/credit-pricing";
 import { buildAgentContext } from "../runtime/context";
@@ -3158,7 +3158,7 @@ async function executeLoopForRun(
       ? `[memory:${entry.namespace ?? "unknown"}:${entry.rank}] ${entry.text}`
       : `[knowledge:${entry.sourceId ?? "unknown"}:${entry.chunkIndex ?? 0}:${entry.rank}] ${entry.text}`)
     .join("\n");
-  const context = buildAgentContext({
+  const context = harness.buildContext({
     instructions: [
       isKasiAiInstallation
         ? run.instructions
@@ -3204,7 +3204,14 @@ async function executeLoopForRun(
   await runSteps.finishStep({
     stepId: contextStep.id,
     status: "completed",
-    output: { estimatedTokens: context.estimatedTokens, messageCount: context.messages.length },
+    output: {
+      estimatedTokens: context.estimatedTokens,
+      messageCount: context.messages.length,
+      omittedMessageCount: context.omittedMessageCount,
+      omittedToolCount: context.omittedToolCount,
+      budget: context.budget,
+      decision: context.decision,
+    },
   });
   await runs.appendEvent({
     organizationId: run.organization_id,
@@ -3219,8 +3226,33 @@ async function executeLoopForRun(
       messageCount: context.messages.length,
       memoryMatchCount: memoryMatches.length,
       knowledgeMatchCount: knowledgeMatches.length,
+      omittedToolCount: context.omittedToolCount,
+      budget: context.budget,
+      decision: context.decision,
     },
   });
+  if (context.decision.status === "limited") {
+    const error = {
+      code: "CONTEXT_MINIMUM_EXCEEDS_BUDGET",
+      message: "The minimum required instructions, current message, and tool schemas exceed the configured context budget.",
+      failureClass: "terminal" as const,
+    };
+    await runs.appendEvent({
+      organizationId: run.organization_id,
+      runId: run.id,
+      installationId: run.installation_id,
+      eventType: "agent.context.limited",
+      payload: { error, decision: context.decision, budget: context.budget },
+    });
+    return {
+      status: "limited" as const,
+      messages: context.messages,
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCostUsd: 0 },
+      iterations: 0,
+      toolCalls: 0,
+      error,
+    };
+  }
   if (shouldFailClosedWithoutEvidence({
     message: currentMessage,
     agentAudience: run.agent_audience,
@@ -3282,7 +3314,7 @@ async function executeLoopForRun(
     limits?: Partial<AgentLoopLimits>;
   }): Promise<AgentLoopResult> => withActivityHeartbeat(
     { phase: options.operationKeyPrefix ? "workflow.agent_loop" : "agent.loop" },
-    () => runBoundedAgentLoop({
+    () => harness.runTurn({
       model: {
         provider,
         model,
@@ -3293,8 +3325,8 @@ async function executeLoopForRun(
       credentials: modelCredentials,
       fallbackModels,
       gateway,
-      tools: harness,
       grantedTools: allowedTools,
+      modelTools: context.tools,
       toolContext: modelToolContext,
       uiChannel: run.reply_channel_type === "website" ? "website" : "platform",
       dynamicUiEnabled,
@@ -3649,7 +3681,7 @@ async function executeLoopForRun(
   const startedExternalEffects = new Set<string>();
   const usedTools = new Set<string>();
   const unavailableTools = new Set<string>();
-  const loopResult = await withActivityHeartbeat({ phase: "agent.loop" }, () => runBoundedAgentLoop({
+  const loopResult = await withActivityHeartbeat({ phase: "agent.loop" }, () => harness.runTurn({
     model: { provider, model, temperature: typeof configuration.temperature === "number" ? configuration.temperature : undefined },
     messages: resumeExternalEvent
       ? [...(loopCheckpoint?.messages ?? context.messages), { role: "user" as const, content: JSON.stringify({ externalEvent: resumeExternalEvent }) }]
@@ -3657,8 +3689,8 @@ async function executeLoopForRun(
     credentials: modelCredentials,
     fallbackModels,
     gateway,
-    tools: harness,
     grantedTools: allowedTools,
+    modelTools: context.tools,
     toolContext: modelToolContext,
     uiChannel: run.reply_channel_type === "website" ? "website" : "platform",
     dynamicUiEnabled,
