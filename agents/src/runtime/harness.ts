@@ -11,6 +11,7 @@ import {
   type ContextPolicy,
 } from "./context";
 import { runBoundedAgentLoop, type AgentLoopInput, type AgentLoopResult } from "./loop";
+import { continuationFromLoopResult, type AgentHarnessContinuation } from "./continuation";
 
 export type AgentHarnessRunStatus = "completed" | "awaiting_approval" | "awaiting_human" | "awaiting_external_event" | "limited" | "failed";
 
@@ -38,6 +39,8 @@ export interface AgentHarness extends AgentToolSurface {
   runTurn(input: Omit<AgentLoopInput, "tools">): Promise<AgentLoopResult>;
   /** Resume a persisted turn using the same loop contract and pinned dependencies. */
   resumeTurn(input: Omit<AgentLoopInput, "tools">): Promise<AgentLoopResult>;
+  /** Translate a loop result into an explicit durable continuation decision. */
+  continuation(result: AgentLoopResult): AgentHarnessContinuation;
 }
 
 export function createAgentHarness(input: {
@@ -60,5 +63,6 @@ export function createAgentHarness(input: {
     buildContext: (contextInput) => contextPolicy.build(contextInput),
     runTurn: (turnInput) => runBoundedAgentLoop({ ...turnInput, tools: input.tools }),
     resumeTurn: (turnInput) => runBoundedAgentLoop({ ...turnInput, tools: input.tools }),
+    continuation: continuationFromLoopResult,
   };
 }
