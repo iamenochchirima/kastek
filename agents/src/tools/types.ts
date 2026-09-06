@@ -1,3 +1,5 @@
+import type { ExecutionScope } from "../runtime/execution-scope";
+
 export type ToolRiskClass = "read" | "draft" | "controlled-write" | "external-effect" | "privileged";
 
 export type CapabilityExecution = "immediate" | "durable";
@@ -31,6 +33,8 @@ export interface CapabilityManifestMetadata {
 }
 
 export interface ToolInvocationContext {
+  /** Canonical runtime identity; the other identity fields are capability projections. */
+  scope: ExecutionScope;
   organizationId: string;
   agentId: string;
   agentVersionId: string;
@@ -45,6 +49,24 @@ export interface ToolInvocationContext {
   memoryPolicy?: Record<string, unknown>;
   /** Snapshot hash approved for the resumed external effect, when applicable. */
   approvalSnapshotHash?: string;
+}
+
+export function toolInvocationContextFromScope(
+  scope: ExecutionScope,
+  extras: Pick<ToolInvocationContext, "memoryPolicy" | "approvalSnapshotHash" | "signal"> = {},
+): ToolInvocationContext {
+  return {
+    scope,
+    organizationId: scope.organizationId,
+    agentId: scope.agentDefinitionId,
+    agentVersionId: scope.agentVersionId,
+    installationId: scope.installationId,
+    runId: scope.runId,
+    conversationId: scope.conversationId,
+    actorId: scope.actorId,
+    correlationId: scope.correlationId,
+    ...extras,
+  };
 }
 
 export function approvalSnapshotHashFromResource(snapshot?: Record<string, unknown>): string | undefined {

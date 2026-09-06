@@ -12,6 +12,16 @@ const context: ToolInvocationContext = {
   runId: "run-contract",
   actorId: "actor-contract",
   correlationId: "correlation-contract",
+  scope: {
+    organizationId: "org-contract",
+    installationId: "installation-contract",
+    agentDefinitionId: "agent-contract",
+    agentVersionId: "version-contract",
+    runId: "run-contract",
+    actorId: "actor-contract",
+    actorType: "user",
+    correlationId: "correlation-contract",
+  },
 };
 
 const post = { id: "post-1", content: "Contract test", channels: ["threads"], status: "DRAFT" };

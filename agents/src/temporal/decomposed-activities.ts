@@ -23,13 +23,14 @@ import { RetrievalService } from "../memory/retrieval";
 import { ModelProviderError, type ModelCredentials, type ModelMessage, type ModelProvider, type ModelRequest, type ModelResponse } from "../model/types";
 import { resolveModelTarget } from "../model/policy";
 import { buildAgentContext } from "../runtime/context";
+import { executionScopeFromRun } from "../runtime/execution-scope";
 import { createGroundingFallbackResponse, shouldFailClosedWithoutEvidence } from "../runtime/grounding";
 import { buildGroundingProvenance } from "../runtime/provenance";
 import { estimatePromptTokens } from "../model/credit-pricing";
 import type { ModelCreditPricing } from "../model/credit-pricing";
 import { ModelGateway } from "../model/gateway";
 import { type ModelCreditReservation } from "../runtime/loop";
-import { approvalSnapshotHashFromResource, ToolPolicyError, type ToolInvocationContext } from "../tools/types";
+import { approvalSnapshotHashFromResource, ToolPolicyError, toolInvocationContextFromScope, type ToolInvocationContext } from "../tools/types";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
 import { redactSensitiveValue, redactToolOutput } from "../tools/redaction";
 import { AGENT_MEDIA_HARNESS_TOOLS, parseAgentResponse } from "../media/contracts";
@@ -480,18 +481,14 @@ async function buildInitialState(deps: DecomposedActivityDependencies, run: Runt
     grantedConnectors: new Set(installationConnectors.connectors),
   });
   const skillInstructions = renderSkillInstructions(selectedSkills);
+  const executionScope = executionScopeFromRun(run);
   const context = buildAgentContext({
     instructions: [
       run.instructions,
       skillInstructions,
       "When batch social publishing tools are available and the user names multiple destinations, prepare one draft with explicit account selections and visible platform variants, preflight it before approval, request one approval, and execute one batch publish. Do not loop over single-destination publish tools. The runtime follows an admitted PROCESSING batch to a terminal result automatically; use the batch status tool for a later user-requested update and report each destination state.",
     ].filter(Boolean).join("\n\n"),
-    organizationId: run.organization_id,
-    agentId: run.agent_definition_id,
-    agentVersionId: run.agent_version_id,
-    installationId: run.installation_id,
-    runId: run.id,
-    actorId: run.created_by,
+    scope: executionScope,
     channelType: conversation?.channel_type,
     currentMessage: inputMessage,
     summary: summary?.summary,
@@ -623,7 +620,7 @@ async function putState(deps: DecomposedActivityDependencies, run: RuntimeRunRec
 }
 
 function toolContext(run: RuntimeRunRecord): ToolInvocationContext {
-  return { organizationId: run.organization_id, agentId: run.agent_definition_id, agentVersionId: run.agent_version_id, installationId: run.installation_id, runId: run.id, conversationId: run.conversation_id ?? undefined, actorId: run.created_by, correlationId: run.correlation_id, memoryPolicy: isRecord(run.policy.memory) ? run.policy.memory : undefined };
+  return toolInvocationContextFromScope(executionScopeFromRun(run), { memoryPolicy: isRecord(run.policy.memory) ? run.policy.memory : undefined });
 }
 
 function isMcpToolRun(input: Record<string, unknown>): boolean {

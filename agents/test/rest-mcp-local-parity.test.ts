@@ -75,11 +75,15 @@ function createLocalParityApp() {
       const run = {
         id,
         organization_id: organizationId,
+        agent_definition_id: context.agentDefinitionId,
+        agent_version_id: "version-local-parity",
         installation_id: input.installationId,
+        conversation_id: null,
         created_by: actorId,
         trigger_type: input.triggerType ?? "manual",
-        status: "received",
+        status: "received" as const,
         correlation_id: `correlation-${id}`,
+        causation_id: null,
         created: true,
       };
       runsById.set(id, run);

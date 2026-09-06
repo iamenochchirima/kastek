@@ -1,6 +1,7 @@
 import type { ModelMessage } from "../model/types";
 import type { ToolDefinition } from "../tools/types";
 import { decideMemoryRetrieval, type RetrievalDecision } from "../memory/retrieval";
+import type { ExecutionScope } from "./execution-scope";
 
 export interface DurableContextMessage {
   direction: "inbound" | "outbound" | "system";
@@ -16,12 +17,7 @@ export interface ContextBudget {
 
 export interface ContextBuildInput {
   instructions: string;
-  organizationId: string;
-  agentId: string;
-  agentVersionId: string;
-  installationId: string;
-  runId: string;
-  actorId?: string;
+  scope: ExecutionScope;
   locale?: string;
   channelType?: string;
   summary?: string;
@@ -42,6 +38,7 @@ export interface ContextBuildInput {
 }
 
 export interface BuiltAgentContext {
+  scope: ExecutionScope;
   messages: ModelMessage[];
   tools: Array<Omit<ToolDefinition, "handler">>;
   estimatedTokens: number;
@@ -142,6 +139,7 @@ export function buildAgentContext(input: ContextBuildInput): BuiltAgentContext {
   messages.push({ role: "user", content: current });
   estimatedTokens += estimateTokens(current);
   return {
+    scope: input.scope,
     messages,
     tools: input.authorizedTools,
     estimatedTokens,

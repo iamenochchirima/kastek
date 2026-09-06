@@ -1,6 +1,7 @@
 import type { AppConfig } from "../config";
 import type { AgentMediaReference, AgentResponse } from "../media/contracts";
 import type { ToolInvocationContext } from "../tools/types";
+import type { ExecutionScope } from "../runtime/execution-scope";
 import { issueCoreDelegation } from "./delegation";
 import { createHash } from "node:crypto";
 
@@ -424,7 +425,7 @@ export interface CoreCreditUsageReconciliation {
   usageEvents: CoreCreditUsageReconciliationEvent[];
 }
 
-type CoreRequestContext = Pick<ToolInvocationContext, "organizationId" | "actorId" | "installationId" | "runId" | "correlationId">;
+type CoreRequestContext = Pick<ExecutionScope, "organizationId" | "actorId" | "installationId" | "runId" | "correlationId">;
 
 export class CoreToolError extends Error {
   public constructor(public readonly code: string, message: string) {

@@ -1,7 +1,9 @@
 import { InstallationCapabilityError } from "./installation-capability";
 import { RunRepository, type RunRecord } from "../db/repositories/run-repository";
 import { ToolInvocationRepository } from "../db/repositories/tool-invocation-repository";
+import { executionScopeFromRun } from "../runtime/execution-scope";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
+import { toolInvocationContextFromScope } from "../tools/types";
 
 export interface ImmediateReadInput {
   organizationId: string;
@@ -64,15 +66,7 @@ export class InstallationImmediateReadService {
       const result = await this.dependencies.tools.invoke({
         name: input.name,
         arguments: input.argumentsValue,
-        context: {
-          organizationId: input.organizationId,
-          agentId: input.agentId,
-          agentVersionId: input.agentVersionId,
-          installationId: input.installationId,
-          runId: accepted.id,
-          actorId: input.actorId,
-          correlationId: accepted.correlation_id,
-        },
+        context: toolInvocationContextFromScope(executionScopeFromRun(accepted)),
         grantedTools: input.grantedTools,
       });
       await this.dependencies.toolInvocations.recordCompleted({

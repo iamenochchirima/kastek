@@ -105,7 +105,27 @@ describe("InstallationCapabilityInvocationService", () => {
   });
 
   it("records an immediate read as a durable run and tool-evidence outcome", async () => {
-    const createRun = vi.fn(async () => ({ id: "read-run", status: "received", created: true, correlation_id: "correlation-1" }));
+    const createRun = vi.fn(async () => ({
+      id: "read-run",
+      organization_id: "org-1",
+      agent_definition_id: "agent-1",
+      agent_version_id: "version-1",
+      installation_id: "install-1",
+      conversation_id: null,
+      trigger_type: "manual" as const,
+      status: "received" as const,
+      input: {},
+      output: null,
+      error: null,
+      correlation_id: "correlation-1",
+      causation_id: null,
+      created_by: "installation:install-1",
+      created_at: new Date().toISOString(),
+      started_at: null,
+      finished_at: null,
+      updated_at: new Date().toISOString(),
+      created: true,
+    }));
     const transitionRun = vi.fn(async () => undefined);
     const completeRun = vi.fn(async () => ({ id: "read-run", status: "completed", output: { iso: "2026-08-13T00:00:00.000Z" } }));
     const recordProposal = vi.fn(async () => undefined);

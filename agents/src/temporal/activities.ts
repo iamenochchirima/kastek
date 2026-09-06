@@ -15,6 +15,7 @@ import { runBoundedAgentLoop, type AgentLoopLimits, type AgentLoopResult, type M
 import type { ModelCreditPricing } from "../model/credit-pricing";
 import { actualModelCallCredits, estimateModelCallCredits, estimatePromptTokens, shouldChargeModelCredits } from "../model/credit-pricing";
 import { buildAgentContext } from "../runtime/context";
+import { executionScopeFromRun } from "../runtime/execution-scope";
 import { createGroundingFallbackResponse, shouldFailClosedWithoutEvidence } from "../runtime/grounding";
 import { hashToolArguments, ToolRegistry } from "../tools/registry";
 import { KasitekCoreReadClient } from "../core/client";
@@ -44,7 +45,7 @@ import { redactSensitiveValue, redactToolOutput } from "../tools/redaction";
 import { ModelProviderError, type ModelCredentials, type ModelMessage, type ModelRequest, type ModelResponse } from "../model/types";
 import { activityInfo, cancellationSignal, heartbeat } from "@temporalio/activity";
 import { buildGroundingProvenance } from "../runtime/provenance";
-import { approvalSnapshotHashFromResource, type ToolInvocationContext } from "../tools/types";
+import { approvalSnapshotHashFromResource, toolInvocationContextFromScope, type ToolInvocationContext } from "../tools/types";
 import type { CoreContentPost, CoreContentPosts, CoreContentPublishBatch, CoreContentPublishBatchPreflight, CoreWorkspaceConnections } from "../core/client";
 import { buildDomainApprovalSnapshot, projectBookingApprovalResource, projectCampaignApprovalResource } from "../approval/domain-preview";
 import { ConversationActionService } from "../actions/conversation-actions";
@@ -2207,15 +2208,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       request,
     }),
     consumeRunToolBudget: ({ organizationId, runId }) => consumeRunToolBudget(runBudgets, { organizationId, runId }),
-    buildApprovalResourceSnapshot: (run, capability, argumentsValue) => buildApprovalResourceSnapshotFromCore(coreClient, {
-      organizationId: run.organization_id,
-      agentId: run.agent_definition_id,
-      agentVersionId: run.agent_version_id,
-      installationId: run.installation_id,
-      runId: run.id,
-      actorId: run.created_by,
-      correlationId: run.correlation_id,
-    }, capability, argumentsValue),
+    buildApprovalResourceSnapshot: (run, capability, argumentsValue) => buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScopeFromRun(run)), capability, argumentsValue),
   });
   const activities: AgentRunActivities & DecomposedAgentRunActivities = {
     ...decomposedActivities,
@@ -2249,16 +2242,7 @@ export function createActivities(pool: Pool, options: ActivityOptions = {}): Age
       const run = await runs.getRuntimeRunById(input.runId);
       if (!run || !coreClient) return { status: "UNAVAILABLE" };
       try {
-        const batch = await coreClient.getContentPublishBatch({
-          organizationId: run.organization_id,
-          agentId: run.agent_definition_id,
-          agentVersionId: run.agent_version_id,
-          installationId: run.installation_id,
-          runId: run.id,
-          conversationId: run.conversation_id ?? undefined,
-          actorId: run.created_by,
-          correlationId: run.correlation_id,
-        }, input.batchId);
+        const batch = await coreClient.getContentPublishBatch(toolInvocationContextFromScope(executionScopeFromRun(run)), input.batchId);
         await runs.appendEvent({
           organizationId: run.organization_id,
           runId: run.id,
@@ -2698,15 +2682,7 @@ async function executeMcpToolRun(
   const approvalRecord = resumeApprovedToolCall ? await approvals.getForRun(run.organization_id, run.id) : null;
   const resourceSnapshot = resumeApprovedToolCall?.approval.resourceSnapshot
     ?? approvalRecord?.resource_snapshot
-    ?? await buildApprovalResourceSnapshotFromCore(coreClient, {
-      organizationId: run.organization_id,
-      agentId: run.agent_definition_id,
-      agentVersionId: run.agent_version_id,
-      installationId: run.installation_id,
-      runId: run.id,
-      actorId: run.created_by,
-      correlationId: run.correlation_id,
-    }, invocation.name, invocation.arguments);
+    ?? await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScopeFromRun(run)), invocation.name, invocation.arguments);
   const grantedTools = await toolGrants.effectiveTools(run.organization_id, run.agent_version_id, run.installation_id);
   // New direct calls must be granted before a proposal is created. Resumed
   // approvals are re-authorized in the guarded path below so revocation closes
@@ -2842,17 +2818,9 @@ async function executeMcpToolRun(
         }
         effectTransitioned = true;
       } : undefined,
-      context: {
-        organizationId: run.organization_id,
-        agentId: run.agent_definition_id,
-        agentVersionId: run.agent_version_id,
-        installationId: run.installation_id,
-        runId: run.id,
-        conversationId: run.conversation_id ?? undefined,
-        actorId: run.created_by,
-        correlationId: run.correlation_id,
+      context: toolInvocationContextFromScope(executionScopeFromRun(run), {
         approvalSnapshotHash: approvalSnapshotHashFromResource(resourceSnapshot),
-      },
+      }),
     });
     const durableOutput = redactToolOutput(result.output, manifest.manifest?.redaction ?? []);
     await toolInvocations.recordCompleted({
@@ -3166,6 +3134,7 @@ async function executeLoopForRun(
       ? `[memory:${entry.namespace ?? "unknown"}:${entry.rank}] ${entry.text}`
       : `[knowledge:${entry.sourceId ?? "unknown"}:${entry.chunkIndex ?? 0}:${entry.rank}] ${entry.text}`)
     .join("\n");
+  const executionScope = executionScopeFromRun(run);
   const context = buildAgentContext({
     instructions: [
       isKasiAiInstallation
@@ -3177,12 +3146,7 @@ async function executeLoopForRun(
       "Media delivery is a shared harness capability across every hosted agent and channel. Use kasitek.agent.respond for final responses containing workspace media, passing stable asset IDs and kinds. Keep provider URLs and raw bytes out of durable responses; the channel adapter resolves the appropriate preview, upload, or native attachment at delivery time.",
       "When batch social publishing tools are available and the user names multiple destinations, prepare one draft with explicit account selections and visible platform variants, preflight it before approval, request one approval, and execute one batch publish. Do not loop over single-destination publish tools. Use the batch status tool for a later PROCESSING update and report each destination state.",
     ].filter(Boolean).join("\n\n"),
-    organizationId: run.organization_id,
-    agentId: run.agent_definition_id,
-    agentVersionId: run.agent_version_id,
-    installationId: run.installation_id,
-    runId: run.id,
-    actorId: run.created_by,
+    scope: executionScope,
     channelType: conversation?.channel_type,
     currentMessage,
     alwaysRetrieveKnowledge: run.installation_settings?.profile === "general",
@@ -3205,17 +3169,9 @@ async function executeLoopForRun(
       maxContextTokens: restrictiveLimit(configuration.maxContextTokens, installationSettings.maxContextTokens),
     },
   });
-  const modelToolContext: ToolInvocationContext = {
-    organizationId: run.organization_id,
-    agentId: run.agent_definition_id,
-    agentVersionId: run.agent_version_id,
-    installationId: run.installation_id,
-    runId: run.id,
-    conversationId: run.conversation_id ?? undefined,
-    actorId: run.created_by,
-    correlationId: run.correlation_id,
+  const modelToolContext = toolInvocationContextFromScope(executionScope, {
     memoryPolicy: run.policy && typeof run.policy.memory === "object" && !Array.isArray(run.policy.memory) ? run.policy.memory as Record<string, unknown> : undefined,
-  };
+  });
   const contextStep = await runSteps.startStep({
     runId: run.id,
     organizationId: run.organization_id,
@@ -3410,15 +3366,7 @@ async function executeLoopForRun(
         usedTools.add(proposal.name);
         const resourceSnapshot = proposal.requiresApproval && approvedResourceSnapshot
           ? approvedResourceSnapshot
-          : await buildApprovalResourceSnapshotFromCore(coreClient, {
-            organizationId: run.organization_id,
-            agentId: run.agent_definition_id,
-            agentVersionId: run.agent_version_id,
-            installationId: run.installation_id,
-            runId: run.id,
-            actorId: run.created_by,
-            correlationId: run.correlation_id,
-          }, proposal.name, proposal.arguments);
+          : await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScopeFromRun(run)), proposal.name, proposal.arguments);
         await toolInvocations.recordProposal({
           organizationId: run.organization_id,
           runId: run.id,
@@ -3467,15 +3415,7 @@ async function executeLoopForRun(
         const manifest = tools.get(execution.name);
         const resourceSnapshot = execution.requiresApproval && approvedResourceSnapshot
           ? approvedResourceSnapshot
-          : await buildApprovalResourceSnapshotFromCore(coreClient, {
-            organizationId: run.organization_id,
-            agentId: run.agent_definition_id,
-            agentVersionId: run.agent_version_id,
-            installationId: run.installation_id,
-            runId: run.id,
-            actorId: run.created_by,
-            correlationId: run.correlation_id,
-          }, execution.name, execution.arguments);
+          : await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScopeFromRun(run)), execution.name, execution.arguments);
         await assertCurrentCapabilityPolicy({
           organizationId: run.organization_id,
           installationId: run.installation_id,
@@ -3764,15 +3704,7 @@ async function executeLoopForRun(
       usedTools.add(proposal.name);
       const resourceSnapshot = proposal.requiresApproval && approvedResourceSnapshot
         ? approvedResourceSnapshot
-        : await buildApprovalResourceSnapshotFromCore(coreClient, {
-          organizationId: run.organization_id,
-          agentId: run.agent_definition_id,
-          agentVersionId: run.agent_version_id,
-          installationId: run.installation_id,
-          runId: run.id,
-          actorId: run.created_by,
-          correlationId: run.correlation_id,
-        }, proposal.name, proposal.arguments);
+        : await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScopeFromRun(run)), proposal.name, proposal.arguments);
       await toolInvocations.recordProposal({
         organizationId: run.organization_id,
         runId: run.id,
@@ -3821,15 +3753,7 @@ async function executeLoopForRun(
       const manifest = tools.get(execution.name);
       const resourceSnapshot = execution.requiresApproval && approvedResourceSnapshot
         ? approvedResourceSnapshot
-        : await buildApprovalResourceSnapshotFromCore(coreClient, {
-          organizationId: run.organization_id,
-          agentId: run.agent_definition_id,
-          agentVersionId: run.agent_version_id,
-          installationId: run.installation_id,
-          runId: run.id,
-          actorId: run.created_by,
-          correlationId: run.correlation_id,
-        }, execution.name, execution.arguments);
+        : await buildApprovalResourceSnapshotFromCore(coreClient, toolInvocationContextFromScope(executionScopeFromRun(run)), execution.name, execution.arguments);
       await assertCurrentCapabilityPolicy({
         organizationId: run.organization_id,
         installationId: run.installation_id,
@@ -4090,15 +4014,7 @@ async function executeConfiguredWorkflow(input: {
     const persistedApproval = manifest.requiresApproval ? await input.approvals.getForRun(input.run.organization_id, input.run.id) : null;
     const resourceSnapshot = request.approved && persistedApproval?.provider_tool_call_id === providerToolCallId
       ? persistedApproval.resource_snapshot
-      : await buildApprovalResourceSnapshotFromCore(input.coreClient, {
-        organizationId: input.run.organization_id,
-        agentId: input.run.agent_definition_id,
-        agentVersionId: input.run.agent_version_id,
-        installationId: input.run.installation_id,
-        runId: input.run.id,
-        actorId: input.run.created_by,
-        correlationId: input.run.correlation_id,
-      }, request.name, request.arguments);
+      : await buildApprovalResourceSnapshotFromCore(input.coreClient, toolInvocationContextFromScope(executionScopeFromRun(input.run)), request.name, request.arguments);
     const step = await input.runSteps.startStep({ runId: input.run.id, organizationId: input.run.organization_id, stepType: "tool", input: { toolCallId: providerToolCallId, name: request.name, argumentsHash } });
     await input.toolInvocations.recordProposal({
       organizationId: input.run.organization_id,
@@ -4132,19 +4048,11 @@ async function executeConfiguredWorkflow(input: {
       const result = await withActivityHeartbeat({ phase: "workflow.tool.running", nodeId: request.nodeId, tool: request.name }, () => input.tools.invoke({
         name: request.name,
         arguments: request.arguments,
-        context: {
-          organizationId: input.run.organization_id,
-          agentId: input.run.agent_definition_id,
-          agentVersionId: input.run.agent_version_id,
-          installationId: input.run.installation_id,
-          runId: input.run.id,
-          conversationId: input.run.conversation_id ?? undefined,
-          actorId: input.run.created_by,
-          correlationId: input.run.correlation_id,
+        context: toolInvocationContextFromScope(executionScopeFromRun(input.run), {
           memoryPolicy: input.run.policy && typeof input.run.policy.memory === "object" && !Array.isArray(input.run.policy.memory) ? input.run.policy.memory as Record<string, unknown> : undefined,
           approvalSnapshotHash: approvalSnapshotHashFromResource(resourceSnapshot),
           signal: currentActivitySignal(),
-        },
+        }),
         signal: currentActivitySignal(),
         grantedTools: input.allowedTools,
         approval: request.approved as Parameters<ToolRegistry["invoke"]>[0]["approval"],
@@ -4334,15 +4242,7 @@ async function executeConfiguredWorkflow(input: {
     const approvalAlreadyRecorded = executionGraph.nodes.find((node) => node.id === result.pausedAt)?.type === "agent_loop";
     if (!approvalAlreadyRecorded) {
       await input.toolInvocations.recordProposal({ organizationId: input.run.organization_id, runId: input.run.id, providerToolCallId: pending.id, sequenceNumber: toolSequence.value + 1, toolName: pending.name, toolVersion: manifest.version, riskClass: manifest.riskClass, argumentsHash: pending.argumentsHash, arguments: pending.arguments, requiresApproval: true });
-      await input.approvals.createPending({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, resourceSnapshot: await buildApprovalResourceSnapshotFromCore(input.coreClient, {
-        organizationId: input.run.organization_id,
-        agentId: input.run.agent_definition_id,
-        agentVersionId: input.run.agent_version_id,
-        installationId: input.run.installation_id,
-        runId: input.run.id,
-        actorId: input.run.created_by,
-        correlationId: input.run.correlation_id,
-      }, pending.name, pending.arguments), previewRevision: pending.argumentsHash, policyRevision: "v1", permittedEffectKey: `${input.run.id}:${pending.id}`, expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() });
+      await input.approvals.createPending({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, resourceSnapshot: await buildApprovalResourceSnapshotFromCore(input.coreClient, toolInvocationContextFromScope(executionScopeFromRun(input.run)), pending.name, pending.arguments), previewRevision: pending.argumentsHash, policyRevision: "v1", permittedEffectKey: `${input.run.id}:${pending.id}`, expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() });
       if (manifest.riskClass === "external-effect") await input.effectReceipts.reserve({ organizationId: input.run.organization_id, installationId: input.run.installation_id, runId: input.run.id, providerToolCallId: pending.id, capability: pending.name, capabilityVersion: manifest.version, argumentsHash: pending.argumentsHash, idempotencyKey: `${input.run.id}:${pending.name}:${pending.argumentsHash}` });
     }
     await input.workflowState.put({ organizationId: input.run.organization_id, runId: input.run.id, expectedRevision: persisted?.revision, state: { __workflowNodeId: result.pausedAt, __workflowState: result.state } });
@@ -4356,16 +4256,7 @@ async function executeConfiguredWorkflow(input: {
   }
   if (result.status === "awaiting_human") {
     const offer = input.run.conversation_id
-      ? await input.conversationActions.offerHandoff({
-        organizationId: input.run.organization_id,
-        agentId: input.run.agent_definition_id,
-        agentVersionId: input.run.agent_version_id,
-        installationId: input.run.installation_id,
-        runId: input.run.id,
-        conversationId: input.run.conversation_id,
-        actorId: input.run.created_by,
-        correlationId: input.run.correlation_id,
-      }, {
+      ? await input.conversationActions.offerHandoff(toolInvocationContextFromScope(executionScopeFromRun(input.run)), {
         reason: "configured_workflow",
         summary: `Configured workflow requested human handoff${result.waitingFor ? ` (${result.waitingFor})` : ""}.`,
         metadata: { handoffKey: result.waitingFor ?? result.pausedAt ?? "handoff", nodeId: result.pausedAt ?? null },

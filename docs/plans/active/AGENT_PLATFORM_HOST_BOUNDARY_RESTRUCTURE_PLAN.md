@@ -227,7 +227,7 @@ and verification evidence exist. If an item changes scope, update the plan befor
 
 ### One-agent identity and containment
 
-- [ ] Define and validate `AgentExecutionScope`/`ExecutionScope` at the application seam.
+- [x] Define and validate `AgentExecutionScope`/`ExecutionScope` at the application seam. Evidence: [`agents/src/runtime/execution-scope.ts`](../../../agents/src/runtime/execution-scope.ts), [`agents/test/execution-scope.test.ts`](../../../agents/test/execution-scope.test.ts), and the local `agents` TypeScript build plus targeted scope/context/Core/immediate-read tests.
 - [ ] Ensure every admitted run pins organization, installation, agent definition, agent version,
   session or conversation, actor, and correlation identity.
 - [ ] Add the extension-snapshot reference to the run and effective configuration contract without
@@ -590,16 +590,17 @@ restructure.
 Core adapter seam, tool registry, agent execution, internal operator evidence, and the agent UI.
 Customer-facing behavior and UI may change as part of the rewrite.
 
-**Platform release version or release ID:** Required when implementation begins; not applicable to
-this planning document.
+**Platform release version or release ID:** Local implementation working tree based on commit
+`ec919081`; no remote release has been created for this slice.
 
 **API/schema/migration changes:** New runtime identity, execution-scope, event, and installation
 contracts may replace obsolete structures. Any required schema migration must be explicit, tested,
 and recorded before implementation; additive compatibility is not assumed.
 
 **Feature flag or rollout method:** No runtime compatibility flag is required. Use a controlled
-deployment or maintenance cutover while the new slice is verified; record the deployment rollback
-action separately.
+local implementation cutover while the new slice is verified. Railway, Vercel, and other remote
+deployments are intentionally out of scope for this implementation period; local build, test, and
+runtime evidence is the release gate. Record any later deployment rollback action separately.
 
 **Analytics events and success metrics:** Track adapter selected, capability outcome, host latency,
 Core-free execution, authorization denial, and direct-Core construction attempts. Do not record
