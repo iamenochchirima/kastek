@@ -1,7 +1,8 @@
 # Agent platform architecture audit
 
 Status: engineering assessment
-Date: 2026-09-01
+Assessment date: 2026-09-01
+Architecture improvement planning update: 2026-09-03
 Scope: hosted agents, external-connected agents, agent runtime, workflow execution, tools, memory, knowledge, data isolation, customization, operations, and scaling
 Reference implementation: `/home/enoch/aworkspace/agents/waku-agent`
 
@@ -44,6 +45,18 @@ matrix coverage, legacy constraint validation, and untrusted-code sandboxing rem
 The recommended direction is to keep the existing control plane and bounded loop, repair the
 deployment and workflow contracts, complete memory as a real module, and add stronger database and
 execution isolation where the risk requires it.
+
+The next architecture improvement also needs a unified external-operation and execution-visuals
+direction. Tool calls should pass through a provider-neutral readiness and durable-operation seam
+before reaching provider adapters. That seam must own capability decisions, idempotency, bounded
+retry, receipts, reconciliation, and truthful terminal outcomes. The visual layer should project
+the same durable evidence into run timelines, workflow graphs, per-provider operation views, batch
+target status, connection health, and exact agent/service release identity. This extends the
+existing action, capability, approval, Temporal, provider-adapter, and outbox modules; it does not
+propose adopting Nango or adding a second workflow runtime at this stage.
+
+The initial planning record is
+[`docs/plans/agents/AGENT_PLATFORM_ARCHITECTURE_IMPROVEMENT_PLAN.md`](docs/plans/agents/AGENT_PLATFORM_ARCHITECTURE_IMPROVEMENT_PLAN.md).
 
 ## Terms and required invariants
 
@@ -1493,4 +1506,6 @@ concepts for keeping agents separate inside shared infrastructure.
 The next phase should not add more advertised node types or broad customization fields. It should
 make the existing contracts true. Fix version deployment, graph correctness, retry safety, memory
 lifecycle, and database-enforced isolation first. Then add skills, remote tool providers,
-sandboxing, fair scheduling, and publication gates on top of those guarantees.
+sandboxing, fair scheduling, and publication gates on top of those guarantees. In parallel, the
+external-operation and execution-visuals plan should make every provider-backed tool call
+observable from readiness through final delivery, including unknown outcomes and reconciliation.

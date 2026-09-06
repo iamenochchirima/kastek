@@ -88,6 +88,17 @@ Preferred working order:
 5. Verify with lint, tests, or build checks where appropriate.
 6. Report what changed, what was verified, and what still remains.
 
+## Parallel agent usage
+
+When implementation work can be decomposed into independent workstreams,
+use subagents to execute those workstreams in parallel.
+
+If parallel delegation could meaningfully reduce wall-clock time, prefer
+delegation over doing the work sequentially.
+
+Keep architectural decisions and integration with the primary agent.
+Avoid delegating trivial tasks where coordination overhead exceeds the benefit.
+
 ## Implementation Discipline
 
 - Do not invent structure unnecessarily when an existing flow can be reused.

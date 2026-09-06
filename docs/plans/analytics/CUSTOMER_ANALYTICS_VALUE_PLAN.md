@@ -1,12 +1,16 @@
 ---
 id: customer-analytics-value
 title: Customer analytics value plan
-status: Draft
+status: Draft planning document
 owner: Product, Core, and Analytics
 last_updated: 2026-09-03
 ---
 
 # Customer analytics value plan
+
+This document records product exploration and an implementation direction. It does not authorize
+code, schema, metric-registry, deployment, or UI changes. When this direction is approved for
+execution, create or move the scoped implementation plan and checklist into `docs/plans/active/`.
 
 ## Decision in one sentence
 
@@ -201,6 +205,34 @@ Every customer-visible metric must pass this review before it enters a default m
 - [ ] It has privacy and aggregation boundaries appropriate to the scope.
 - [ ] It has enough evidence for the selected time range.
 - [ ] It is named in customer language rather than implementation language.
+- [ ] Its visual role is clear. It is a summary, trend, breakdown, status, or action list, not an
+      arbitrary card added because the data exists.
+- [ ] It includes the context needed to understand it, such as period, comparison, target,
+      denominator, or applicable population.
+- [ ] It is not repeating another metric or visual on the same surface.
+- [ ] It looks deliberate and remains legible at supported desktop, tablet, and mobile widths.
+- [ ] It leads to a decision, explanation, or action. Decorative charts and motion do not pass.
+
+## Reporting and visual quality standard
+
+Customer analytics should feel alive because the data tells a clear story, not because the page is
+packed with animation or decorative charts. Every report should make the sequence below apparent:
+
+1. What is this page about, and what scope and period does it cover?
+2. What is the most important outcome or current state?
+3. What changed, and does it need attention?
+4. What explains the change?
+5. What can the user inspect or do next?
+
+A good default composition may include a prominent outcome with its comparison, a short trend, an
+attention list with direct actions, and a ranked breakdown. It should not use a grid of equal-weight
+cards where every number looks equally important. It should not show a chart without a clear
+question, takeaway, or drill path.
+
+Visual review is part of metric review. Before release, review each card, chart, table, badge, and
+insight for usefulness, necessity, hierarchy, context, readability, and responsive behavior. If a
+visual does not change what the user understands or does, remove it or move it to a detail or
+diagnostic view.
 
 ## State and data-quality policy
 
@@ -314,6 +346,11 @@ The current event contracts are useful inputs, but they cannot answer every cust
 - [ ] Empty or inapplicable metrics do not create blank cards or noisy badges.
 - [ ] Internal data-quality states are not printed as customer KPI labels.
 - [ ] Every displayed problem has a reason and an action, or the UI says that no action is available.
+- [ ] Every default visual has a clear purpose, hierarchy, context, and drill path.
+- [ ] The report communicates change and attention without relying on decorative animation or
+      arbitrary chart variety.
+- [ ] Cards, charts, tables, and action states remain deliberate and legible across supported
+      desktop, tablet, and mobile widths.
 - [ ] Metric values are stable across provider and data-availability differences.
 - [ ] Scope authorization and client/workspace isolation have negative tests.
 - [ ] The report remains usable on desktop and mobile widths.
