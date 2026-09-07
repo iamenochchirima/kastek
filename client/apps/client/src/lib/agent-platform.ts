@@ -432,9 +432,95 @@ export type AgentOperationEvent = {
   [key: string]: unknown;
 };
 
+export type AgentJournalEvent = {
+  id: string;
+  sequence: number;
+  occurredAt: string;
+  scope?: {
+    organizationId?: string;
+    installationId?: string;
+    runId?: string;
+    operationId?: string;
+  };
+  event?: {
+    kind?: string;
+    data?: {
+      type?: string;
+      payload?: Record<string, unknown>;
+      [key: string]: unknown;
+    };
+  };
+};
+
+export type AgentRuntimeTelemetry = {
+  runId?: string;
+  turnId?: string;
+  revision: number;
+  observedAt: string;
+  context: {
+    tokens?: number;
+    basis: "provider_reported" | "anchored_estimate" | "full_estimate" | "unknown_after_compaction" | "not_measured";
+    contextWindowTokens?: number;
+    utilizationPercent?: number;
+    reservedOutputTokens?: number;
+    safetyMarginTokens?: number;
+    softThresholdTokens?: number;
+    hardLimitTokens?: number;
+    pressure?: "normal" | "soft" | "hard";
+    capabilitySource?: string;
+    decision?: "ready" | "compact" | "prune" | "limited" | "cannot_fit";
+    compactionCount: number;
+    manifestDigest?: string;
+    manifest?: Record<string, unknown>;
+    usageAnchorOperationKey?: string;
+    latestCompaction?: Record<string, unknown>;
+  };
+  modelAttempt?: {
+    status: "queued" | "running" | "streaming" | "completed" | "failed";
+    provider?: string;
+    model?: string;
+    operationKey?: string;
+    startedAt?: string;
+    completedAt?: string;
+    latencyMs?: number;
+    outputTokens?: number;
+    throughputTokensPerSecond?: number;
+    errorCode?: string;
+  };
+  attempts: Array<{
+    status: "queued" | "running" | "streaming" | "completed" | "failed";
+    provider?: string;
+    model?: string;
+    operationKey?: string;
+    queuedAt?: string;
+    startedAt?: string;
+    firstTokenAt?: string;
+    completedAt?: string;
+    latencyMs?: number;
+    outputTokens?: number;
+    throughputTokensPerSecond?: number;
+    errorCode?: string;
+  }>;
+  turn: {
+    status: "running" | "completed" | "failed" | "limited" | "waiting";
+    admittedAt?: string;
+    startedAt?: string;
+    finishedAt?: string;
+    elapsedMs?: number;
+    waitMs?: number;
+  };
+  rolling: {
+    sampleCount: number;
+    latencyMs?: number;
+    outputTokensPerSecond?: number;
+  };
+};
+
 export type AgentRunTimeline = {
   run: AgentRun;
   events: AgentOperationEvent[];
+  journal?: AgentJournalEvent[];
+  telemetry?: AgentRuntimeTelemetry;
   steps: Array<Record<string, unknown>>;
   toolCalls: Array<Record<string, unknown>>;
   effects: Array<Record<string, unknown>>;
@@ -488,6 +574,10 @@ export function listAgentOperationRuns(limit = 50): Promise<{ runs: AgentOperati
 
 export function getAgentRun(runId: string): Promise<{ run: AgentRun; canApprove?: boolean; approval?: AgentApproval | null; events: AgentOperationEvent[] }> {
   return request(`/api/agents/runs/${encodeURIComponent(runId)}`);
+}
+
+export function getAgentRunTimeline(runId: string): Promise<AgentRunTimeline> {
+  return request(`/api/agents/runs/${encodeURIComponent(runId)}/timeline`);
 }
 
 export function decideAgentRunApproval(runId: string, approval: Pick<AgentApproval, "providerToolCallId" | "argumentsHash">, decision: "approved" | "rejected"): Promise<{ runId: string; status: string }> {
@@ -552,6 +642,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!isFormData && !headers.has("content-type")) headers.set("content-type", "application/json");
   const response = await fetch(apiUrl(path), {
     ...init,
+    cache: "no-store",
     credentials: "include",
     headers,
   });
@@ -565,6 +656,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // Keep the status-only error when the proxy returned a non-JSON response.
     }
+    if (response.status === 401 && typeof window !== "undefined" && window.location.pathname !== "/login") {
+      const callbackUrl = `${window.location.pathname}${window.location.search}`;
+      window.location.assign(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+      throw new AgentRequestError("Your session has expired. Sign in again.", response.status, code);
+    }
     throw new AgentRequestError(`Agent request failed (${response.status})${detail}`, response.status, code);
   }
   if (response.status === 204) return undefined as T;
@@ -575,6 +671,13 @@ export function ensureKasiAi(): Promise<AgentInstallation> {
   return request<AgentInstallation>("/api/agents/kasiai/ensure", {
     method: "POST",
     body: JSON.stringify({}),
+  });
+}
+
+export function ensureKasiAiPlayground(): Promise<AgentInstallation> {
+  return request<AgentInstallation>("/api/agents/kasiai/ensure", {
+    method: "POST",
+    body: JSON.stringify({ environment: "playground" }),
   });
 }
 
@@ -614,6 +717,25 @@ export function listAgents(): Promise<{ agents: AgentDefinition[]; counts?: Agen
 
 export function createAgent(input: { name: string; slug?: string; description?: string; creationProfile?: "general" | "custom"; agentAudience?: AgentAudience }): Promise<AgentDefinition> {
   return request("/api/agents", { method: "POST", body: JSON.stringify({ ...input, protected: false }) });
+}
+
+export type StudioAgentCreationInput = {
+  name: string;
+  description?: string;
+  instructions: string;
+};
+
+export type StudioAgentCreationResult = {
+  agent: AgentDefinition;
+  version: AgentVersion;
+  installation: AgentInstallation;
+};
+
+export function createStudioAgent(input: StudioAgentCreationInput): Promise<StudioAgentCreationResult> {
+  return request("/api/agents/studio", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export const AGENT_MODEL_PROVIDERS = [
@@ -768,6 +890,7 @@ export function archiveExternalAgent(installationId: string): Promise<{ archived
 
 export type AgentSpecInput = {
   specVersion: 1;
+  execution?: { mode?: "autonomous"; role?: "standalone" | "orchestrator" };
   identity?: { displayName?: string; purpose?: string; audience?: AgentAudience };
   behavior: { instructions: string };
   model: {
